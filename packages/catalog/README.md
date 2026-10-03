@@ -54,7 +54,7 @@
 
 ## 推荐可靠性审计更新
 
-2026-10-03 增加 Microsoft 官方 skills 来源并扩大随包离线种子至 1,543 项；新版快照按来源 revision 更新旧安装，已完成网络同步的来源仍优先。`features-4` 增加任务阶段、产物和实践维度，bootstrap 会按投影版本一次重建旧特征索引。
+2026-10-03 增加 Microsoft 官方 skills 默认来源（联网同步）；新版快照按来源 revision 更新旧安装，已完成网络同步的来源仍优先。随包离线种子取分层抽样重建的版本（1,987 项、17 个来源，由 `orbit-catalog snapshot` 生成），尚未含 microsoft-skills，下次从同步池重建种子时纳入（审计记录中的 1,543 项是该来源单独追加到旧种子时的数字）。`features-4` 增加任务阶段、产物和实践维度，bootstrap 会按投影版本一次重建旧特征索引。
 
 卡片与检索响应新增 `quality` 元数据完整度报告（五维证据、缺失项、版本与明确的未评测/未审计状态），检索保留 verification、language、声明支持矩阵。向量加载或编码失败时保留 BM25/特征结果并返回降级诊断。精确条数、来源 revision、测试与边界见 [推荐可靠性审计](../../docs/audits/recommendation-reliability-2026-10-03.md)。
 
@@ -70,3 +70,8 @@ orbit-catalog --home /absolute/orbit-home --model-dir /absolute/multilingual-e5-
 ```
 
 本轮已在忽略的 `.local/audit-20261003/vector-catalog/catalog.db` 实际物化 3,685 个唯一向量，覆盖 3,876/3,876 个候选块；模型固定版本、SHA256、独立运行时和查询实测见上述审计记录。该校验库不替换正常 App 的 `home/catalog.db`，模型权重也不随 Git 提交。
+
+
+## 十万级公共语料
+
+固定快照流式导入、MCP 离线分页、index_only 边界、逐资源到全部正文向量化、并行/断点续跑与排序候选窗口见[十万级公共资源索引](../../docs/modules/catalog/large-corpus.md)。完整资源、词法分块、可编码块、唯一向量与覆盖资源分别计数。

@@ -7,7 +7,7 @@
 //                       from idle, an alert that is ignored (or a「完成」after its 8 s) returns to idle and the HUD stays hidden
 //                       (BUG-41); the demo menu's idle / running entries reflect S.simBase
 //  3. done → trajectory 「查看」after a「完成」opens the finished session, not the running one (BUG-42)
-//  4. newsrc twice      two「发现新的数据来源」banners both clicked add Cursor once (BUG-43)
+//  4. newsrc twice      two「发现新的数据来源」banners both clicked add the source once (BUG-43)
 //  5. panel             running: live card with the shared context bar, 7-day columns with counts and「今」; idle: yesterday's
 //                       metrics carry a 30-day baseline; 预览 / Codex row close the panel before jumping (BUG-82)
 //  6. HUD               density band and pill bars come from the running session's trajectory (same numbers as liveBuckets),
@@ -66,7 +66,7 @@ test('clearing alerts falls back to the next open item, then to the resting stat
   expect(errors).toEqual([]);
 });
 
-test('「查看」after a completion opens the finished session; two newsrc banners add Cursor once', async ({ page }) => {
+test('「查看」after a completion opens the finished session; two newsrc banners add the source once', async ({ page }) => {
   ONLY('mac-14');
   const errors = await openDemo(page);
   await page.evaluate(() => { S.notif.done = [1, 1, 1]; simEvent('done'); });
@@ -75,7 +75,7 @@ test('「查看」after a completion opens the finished session; two newsrc bann
   await page.evaluate(() => { $$('#notes .nt').forEach((n) => n.remove()); simEvent('newsrc'); simEvent('newsrc'); });
   await expect(page.locator('#notes .nt')).toHaveCount(2);
   for (const b of await page.locator('#notes [data-act="noteAct"][data-k="1"]').all()) await b.evaluate((el) => el.click());
-  expect(await page.evaluate(() => S.extraSrc.filter((x) => /cursor/i.test(x.name)).length)).toBe(1);
+  expect(await page.evaluate(() => S.extraSrc.filter((x) => /hermes/i.test(x.name)).length)).toBe(1);
   expect(errors).toEqual([]);
 });
 

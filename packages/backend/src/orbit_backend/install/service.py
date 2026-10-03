@@ -108,7 +108,7 @@ class InstallService:
                    "reason": t.get("reason"), "reason_text": t.get("reason_text"),
                    "requires_trust": bool(t.get("requires_trust")),
                    "shared_layer": bool(t.get("shared_layer")), "note": t.get("note"), "group": t.get("group"),
-                   "exists": False, "guard_hash": None, "units": [], "diff": {"lines": [], "adds": 0, "dels": 0},
+                   "version_check": t.get("version_check"), "exists": False, "guard_hash": None, "units": [], "diff": {"lines": [], "adds": 0, "dels": 0},
                    "command": None, "conflict": None}
             rows.append(row)
             if not t.get("mappable"):

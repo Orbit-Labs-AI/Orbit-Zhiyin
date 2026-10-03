@@ -170,7 +170,7 @@ test('mock mode: file:// has no LV traffic, keeps the demo spine and a non-nativ
   await page.goto('');
   await expect(page.locator('#main')).not.toBeEmpty();
   const st = await page.evaluate(() => ({ live: LV.live, n: ALL.length, ag: AG.map((a) => a.id), last: LASTDAY, day0: DAY0, native: ORBIT.native.isNative, wd: [0, 1, 5, 119].map(wd) }));
-  expect(st).toEqual({ live: false, n: st.n, ag: ['cc', 'cx', 'gm', 'ds', 'cp'], last: 119, day0: Date.UTC(2026, 5, 3), native: false, wd: [2, 3, 0, 2] });
+  expect(st).toEqual({ live: false, n: st.n, ag: ['cc', 'cx', 'km', 'ds', 'oc'], last: 119, day0: Date.UTC(2026, 5, 3), native: false, wd: [2, 3, 0, 2] });
   expect(st.n).toBeGreaterThan(400);
   expect(reqs).toEqual([]);
 });

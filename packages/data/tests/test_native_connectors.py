@@ -170,6 +170,8 @@ def test_claude_denial_interruption_split_usage_and_sidechain(tmp_path):
         assert len(rows(store, "model_call")) == 1
         call = rows(store, "tool_call")[0]
         assert (call["status"], call["duration_ms"]) == ("declined", 9)
+        # A refused call is a permission failure, not an unexplained NULL.
+        assert (call["approval"], call["failure_kind"]) == ("denied", "permission_denied")
         assert len(rows(store, "v_human_message")) == 1
         assert rows(store, "turn")[0]["status"] == "interrupted"
         unknown = store.db.execute("SELECT ext FROM event WHERE kind='unknown'").fetchone()[0]
@@ -1937,3 +1939,91 @@ def test_string_or_null_source_cost_and_error_do_not_abort_mapping(tmp_path):
         assert result["attrs"]["status"] == "failed"
         assert not [e for e in events if e["kind"] == "unknown"]
         assert_sound(store)
+
+
+@pytest.mark.parametrize(
+    ("titles", "expected"),
+    [
+        # A later model summary must not replace the name given to the run.
+        (
+            [("agent-name", "agentName", "named run"), ("ai-title", "aiTitle", "summary")],
+            ("named run", "agent_name"),
+        ),
+        # A user rename beats the run name even when it comes first.
+        (
+            [("custom-title", "customTitle", "renamed"), ("agent-name", "agentName", "named run")],
+            ("renamed", "custom"),
+        ),
+        # Equal rank: the later title wins.
+        ([("ai-title", "aiTitle", "first"), ("ai-title", "aiTitle", "second")], ("second", "ai")),
+    ],
+)
+def test_session_title_precedence_ranks_agent_name_between_custom_and_native(
+    tmp_path, titles, expected
+):
+    from orbit_data.analysis_input import AnalysisScope, read_analysis
+
+    common = {"sessionId": "s1", "cwd": "/fixture", "version": "2.1.284", "entrypoint": "cli"}
+    records = [
+        {**common, "type": "user", "uuid": "u", "timestamp": ISO, "message": {"content": "hi"}}
+    ]
+    records += [{"type": kind, field: text, "sessionId": "s1"} for kind, field, text in titles]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records, path="projects/-fixture/s1.jsonl")
+        store.rebuild()
+        (session,) = rows(store, "session")
+        assert (session["title"], session["title_source"]) == expected
+    (analysed,) = read_analysis(store.home, AnalysisScope("UTC"))["sessions"]
+    assert (analysed["title"], analysed["title_source"]) == expected
+
+
+def test_import_reprojects_files_mapped_by_an_older_mapper(tmp_path):
+    """A MAPPER_VERSION bump must re-map unchanged files, not keep stale L2/L3 rows."""
+    from orbit_data import MAPPER_VERSION
+    from orbit_data.service import ImportRequest, ImportService
+
+    root = tmp_path / "claude"
+    file = root / "projects/-fixture/s1.jsonl"
+    file.parent.mkdir(parents=True)
+    common = {"sessionId": "s1", "cwd": "/fixture", "version": "2.1.284", "entrypoint": "cli"}
+    file.write_text(
+        "\n".join(
+            canonical(row)
+            for row in [
+                {
+                    **common,
+                    "type": "user",
+                    "uuid": "u",
+                    "timestamp": ISO,
+                    "message": {"content": "hi"},
+                },
+                {"type": "agent-name", "agentName": "named run", "sessionId": "s1"},
+                {"type": "ai-title", "aiTitle": "summary", "sessionId": "s1"},
+            ]
+        )
+        + "\n"
+    )
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store, workers=1)
+        service.import_source(ImportRequest("claude_code", root))
+        assert store.db.execute("SELECT title FROM session").fetchone()[0] == "named run"
+        # Simulate a library written by the previous mapper (1.5.1), whose agent-name
+        # rows were labelled "ai" so the later ai-title won.
+        store.db.execute("UPDATE session SET title='summary', title_source='ai'")
+        store.db.execute(
+            "UPDATE source_file SET watermark=json_set(watermark,'$.mapper_version','1.5.1')"
+        )
+        store.db.execute("UPDATE projection_run SET mapper_version='1.5.1'")
+        result = service.import_source(ImportRequest("claude_code", root))
+        assert result["changed"] == 0 and "projection" in result
+        assert tuple(store.db.execute("SELECT title,title_source FROM session").fetchone()) == (
+            "named run",
+            "agent_name",
+        )
+        versions = {
+            row[0]
+            for row in store.db.execute(
+                "SELECT json_extract(watermark,'$.mapper_version') FROM source_file"
+            )
+        }
+        assert versions == {MAPPER_VERSION}

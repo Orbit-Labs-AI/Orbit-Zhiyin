@@ -1,9 +1,8 @@
 """Settings-page backends: redaction rules (SET-10), data lifecycle (SET-12), about (SET-13),
-tool map (SET-11), plus the artifact adapters (A9-17/A9-18).
+tool map (SET-11). The artifact adapters (A9-17/A9-18) live in ``routes_ai``.
 
 Endpoints: ``GET|PUT /v1/privacy/rules``, ``POST /v1/privacy/preview``, ``GET /v1/app/data``,
-``POST /v1/app/data/clear``, ``GET /v1/app/about``, ``GET /v1/app/tool_map``,
-``POST /v1/ai/artifacts/{id}/materialize`` and ``POST /v1/ai/artifacts/{id}/to_library``.
+``POST /v1/app/data/clear``, ``GET /v1/app/about`` and ``GET /v1/app/tool_map``.
 The router also installs the source-visibility provider used by analytics scopes.
 """
 
@@ -98,45 +97,28 @@ def router(gw: Gateway) -> APIRouter:
     def app_about():
         return about.about()
 
+    @api.get("/v1/app/coverage")
+    def app_coverage():
+        """设置 › 数据源 coverage card: status-known share, unmapped-model share and the
+        sessions the analysis views leave out (labelled reasons, tokens, cost share)."""
+        from orbit_data.analysis_input import coverage_summary
+
+        from ..analytics.coverage import excluded_reason_label
+
+        if not (gw.home / "orbit.db").is_file():
+            return {"available": False, "reason": "no_database"}
+        with gw.reads.read(check=False) as conn:  # like tool_map: one read transaction
+            body = coverage_summary(conn)
+        excluded = body["excluded_sessions"]
+        excluded["reasons_labelled"] = [
+            {"code": code, "label": excluded_reason_label(code), "count": n}
+            for code, n in sorted((excluded.get("reason_counts") or {}).items(),
+                                  key=lambda kv: (-kv[1], kv[0]))]
+        return {"available": True, **body}
+
     @api.get("/v1/app/tool_map")
     def tool_map():
         reads = gw.reads if (gw.home / "orbit.db").is_file() else None
         return toolmap.tool_map(reads)
-
-    # -- artifact adapters -------------------------------------------------------------
-    def artifact(artifact_id: str) -> dict:
-        from ..ai.errors import AIError
-        from ..ai.service import service
-
-        try:
-            return service(gw).artifact(artifact_id)
-        except AIError as error:
-            raise ApiError(error.status, error.code, error.message) from None
-
-    def adapt(fn, *args):
-        from ..ai.errors import AIError
-
-        try:
-            return fn(*args)
-        except AIError as error:
-            raise ApiError(error.status, error.code, error.message) from None
-
-    @api.post("/v1/ai/artifacts/{artifact_id}/materialize")
-    def materialize(artifact_id: str):
-        from ..ai import artifact_ops
-
-        return adapt(artifact_ops.materialize, artifact(artifact_id), gw.home)
-
-    @api.post("/v1/ai/artifacts/{artifact_id}/to_library", status_code=201)
-    def to_library(artifact_id: str):
-        from orbit_catalog import get_service
-
-        from ..ai import artifact_ops
-
-        catalog = get_service(gw.home / "catalog.db")
-        try:
-            return adapt(artifact_ops.to_library, artifact(artifact_id), catalog)
-        except ValueError as error:
-            raise ApiError(422, "invalid_request", str(error)) from None
 
     return api

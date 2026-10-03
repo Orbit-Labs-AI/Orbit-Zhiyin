@@ -73,8 +73,11 @@ def test_counts_live_and_recent(gateway_factory, tmp_path):
     assert body["status"] == "active"
     assert body["today"]["date"] == "2027-01-15"
     assert body["today"]["sessions"] == 3  # run, done, bad (late is yesterday at UTC)
-    # done 1 h + bad 10 min + run 29m40s (open: up to its last event).
-    assert body["today"]["duration_s"] == 3600 + 600 + (30 * 60 - 20)
+    # Active time like the overview / session list ``dur`` (event gaps capped at 5 min):
+    # run's 29m40s gap counts 5 min; done and bad have one event each (no active span), so
+    # their wall-clock 1 h and 10 min are not work time.
+    assert body["today"]["duration_s"] == 5 * 60
+    assert body["today"]["duration_basis"] == "active_estimate"
     assert body["today"]["running"] == 1
     assert [s["session_uid"] for s in body["live"]][0] == "run"
     assert all("lanes" not in s for s in body["live"])
@@ -118,4 +121,47 @@ def test_idle_shows_opening_and_yesterday(gateway_factory, tmp_path):
     assert set(body["yesterday"]["baseline"]) >= {"sessions_per_day", "hours_per_day",
                                                   "correction_rate", "completion_rate"}
     assert body["yesterday"]["completion_rate"] == 1.0
-    assert body["opening"] is None or set(body["opening"]) == {"text", "refs", "next"}
+    assert body["opening"] is None or (set(body["opening"]) == {"text", "refs", "next", "basis"} and body["opening"]["basis"] == "rule")
+
+
+def test_today_duration_matches_the_session_list_active_time(gateway_factory, tmp_path):
+    """Menu bar / widget ``duration_s`` is the sum of the A3 list ``dur`` of today's sessions."""
+    from datetime import UTC
+
+    from orbit_backend.uiview import sessions as uiview_sessions
+
+    gw, _ = make_gateway(gateway_factory, tmp_path)
+    body = popover.build(gw, tz_offset_min=0, now=NOW)
+    with gw.reads.read(check=False) as db:
+        rows = uiview_sessions.l1_facts(db, UTC)
+    start = NOW - NOW % (24 * H)
+    today = [r for r in rows if r["started_at"] is not None and start <= r["started_at"] <= NOW]
+    assert len(today) == body["today"]["sessions"]
+    assert body["today"]["duration_s"] == round(sum(r["dur"] or 0 for r in today) * 60)
+
+
+def test_realtime_today_counts_the_same_session_set(gateway_factory, tmp_path):
+    """HUD / widget ``today`` (realtime) counts the menu-bar set: main sessions only, so a
+    subagent session with recent events is not a session of its own."""
+    import sqlite3
+
+    home = tmp_path / "orbit"
+    home.mkdir()
+    seed(home)
+    t = Orbit(home)
+    t.n = 10_000  # past seed()'s event ids
+    t.session("child", started=NOW - 10 * MIN)
+    t.event("child", NOW - 5 * MIN)
+    t.db.close()
+    db = sqlite3.connect(home / "orbit.db")
+    db.execute("UPDATE session SET kind = 'subagent', root_uid = 'run' WHERE session_uid = 'child'")
+    db.commit()
+    db.close()
+    _, gw = gateway_factory(home=home, started=False)
+    rt = Realtime(gw, clock=lambda: NOW / 1000)
+    tails = rt._tails(NOW)
+    assert "child" in {t.session_uid for t in tails}
+    counted = rt._counted(tails)
+    assert counted == {"run", "done", "bad"}
+    body = popover.build(gw, tz_offset_min=0, now=NOW)
+    assert body["today"]["sessions"] == len(counted)

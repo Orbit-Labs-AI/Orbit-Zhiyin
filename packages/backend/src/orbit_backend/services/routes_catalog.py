@@ -13,7 +13,13 @@ the library is never empty. Once the gateway has started, a background refresher
 the bundled library snapshot (a fresh home only) and then asks the catalog to sync due
 sources every ``REFRESH_TICK_S`` (a library with no network data syncs right after start and
 reports it as ``first_sync`` in ``/v1/catalog/status``); each source's ``refresh_seconds`` (24 h, MCP 1 h) decides
-what is due, and an active catalog job skips the tick.
+what is due, and an active catalog job defers the tick by ``BUSY_RETRY_S``.
+
+Semantic vectors: every ``VECTOR_TICK_S`` the refresher asks ``service.vector_tick()`` to start the
+opt-in model download (only after the user allowed it) or embed one ``EMBED_SLICE`` of chunks
+still missing a vector, once the first network sync is no longer pending. Progress and chunk
+coverage are ``vector`` in ``/v1/catalog/status``. ``ORBIT_CATALOG_AUTOEMBED=0`` turns this off;
+unset, it follows ``ORBIT_CATALOG_AUTOSYNC``.
 """
 
 from __future__ import annotations
@@ -119,6 +125,8 @@ REFRESH_TICK_S = 15 * 60  # How often due sources are checked; sources decide th
 FIRST_SYNC_DELAY_S = 60.0  # Let the app settle (and the seed land) before the first network sync.
 FIRST_RUN_DELAY_S = 3.0  # Empty library (no network source ever completed): sync almost at once.
 KB_SOURCE = "orbit-kb"
+BUSY_RETRY_S = 30.0  # A due sync that found an embedding slice running retries this soon.
+VECTOR_TICK_S = 5.0  # Idle check for model download / next embedding slice.
 
 
 def register_kb(service) -> None:
@@ -151,6 +159,23 @@ def _autosync_enabled() -> bool:
     return os.environ.get("ORBIT_CATALOG_AUTOSYNC", "1").lower() not in ("0", "false", "no")
 
 
+def _autoembed_enabled() -> bool:
+    value = os.environ.get("ORBIT_CATALOG_AUTOEMBED")
+    if value is None:
+        return _autosync_enabled()
+    return value.lower() not in ("0", "false", "no")
+
+
+def _vector_tick(service) -> None:
+    tick = getattr(service, "vector_tick", None)
+    if tick is None:
+        return
+    try:
+        tick()
+    except Exception:  # noqa: BLE001 - vectors are optional; lexical search keeps working.
+        log.warning("catalog vector tick failed", exc_info=True)
+
+
 def _refresher(ref: weakref.ref, service, poll_s: float = 1.0) -> None:
     """Waits for the gateway to start; holds only a weak reference so test gateways can go.
 
@@ -158,7 +183,7 @@ def _refresher(ref: weakref.ref, service, poll_s: float = 1.0) -> None:
     ``FIRST_RUN_DELAY_S`` after start (retried each poll while another catalog job runs) and is
     reported by ``service.first_sync_state()``; afterwards due sources sync every tick.
     """
-    seeded, next_sync, first = False, None, False
+    seeded, next_sync, first, next_vector = False, None, False, 0.0
     while True:
         gw = ref()
         if gw is None or gw.stopping.is_set():
@@ -184,11 +209,16 @@ def _refresher(ref: weakref.ref, service, poll_s: float = 1.0) -> None:
                     if first and job is None:  # Another catalog job: retry soon, not in 15 min.
                         next_sync = time.monotonic() + FIRST_RUN_DELAY_S
                         _track(service, "deferred")
+                    elif job is None:
+                        next_sync = time.monotonic() + BUSY_RETRY_S
                     elif first:
                         _track(service, "started", job_id=job["job_id"])
                         first = False
                 except Exception:  # noqa: BLE001
                     log.warning("catalog refresh failed to start", exc_info=True)
+            if not (first and _autosync_enabled()) and _autoembed_enabled() and time.monotonic() >= next_vector:
+                next_vector = time.monotonic() + VECTOR_TICK_S
+                _vector_tick(service)
         if stopping.wait(poll_s):
             return
 
@@ -225,13 +255,19 @@ def router(gw: Gateway) -> APIRouter:
         # A foreign or unreadable catalog.db must not stop the gateway; catalog paths 404.
         log.warning("catalog unavailable", exc_info=True)
         return APIRouter()
+    # Recommendations and the library share a model session and the large filter /
+    # vector index rather than materializing a second 100k-resource snapshot.
+    gw.catalog = service
 
     def rev():
+        from orbit_catalog.search import RANKING_VERSION
+
         with service.store.reader() as conn:
             generation = service.store.generation(conn)
+            embedding_generation = service.store.embedding_generation(conn)
         value = gw.revisions.value
         profile_rev = features.current().etag() if features.current() is not None else "unbound"
-        return f"{generation}.{value.get('data_rev')}.{value.get('inventory_rev') or 0}.{profile_rev}"
+        return f"{RANKING_VERSION}.{generation}.{embedding_generation}.{value.get('data_rev')}.{value.get('inventory_rev') or 0}.{profile_rev}"
 
     for prefix in ETAG_PREFIXES:
         # The library window is day-aligned, so its tag also moves when the day rolls over.
@@ -253,7 +289,8 @@ def router(gw: Gateway) -> APIRouter:
     outer = APIRouter()
 
     def status_summary():
-        return {**service.store.stats(), "coverage": service.coverage(), "first_sync": service.first_sync_state()}
+        return {**service.store.stats(), "coverage": service.coverage(), "first_sync": service.first_sync_state(),
+                "vector": service.vector_status()}
 
     outer.include_router(catalog_router(service, decorate, profile=library_profile,
                                        installed_summary=installed_summary, status_summary=status_summary))

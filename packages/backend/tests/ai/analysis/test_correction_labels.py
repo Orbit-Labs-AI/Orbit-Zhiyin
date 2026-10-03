@@ -1,4 +1,7 @@
-"""Regression set for the single correction definition (``pack.is_correction``).
+"""Regression set for the single correction definition.
+
+``pack.is_correction`` delegates to ``analytics.interaction.rules.is_correction`` (also used by
+``uiview.sessions``, ``uiview.a4a6_sentiment`` and the signal detectors).
 
 Constructed messages in the style of real coding-agent sessions (no real user text). Each label
 was assigned by reading the message as a human: True = the user pushes back on what the agent
@@ -13,6 +16,9 @@ import pytest
 
 from orbit_backend.ai.pack import is_correction
 from orbit_backend.ai.tasks_v1 import feedback_rule
+from orbit_backend.analytics.interaction.rules import correction_kind
+from orbit_backend.analytics.interaction.rules import is_correction as analytics_is_correction
+from orbit_backend.uiview import a4a6_sentiment, sessions
 
 LABELS: list[tuple[str, bool]] = [
     # --- zh corrections
@@ -24,7 +30,6 @@ LABELS: list[tuple[str, bool]] = [
     ("不是我要的效果", True),
     ("你理解错了，我要删除的是缓存目录", True),
     ("搞错了，这个函数不该动", True),
-    ("还是不行，同样的报错", True),
     ("不是让你重写整个文件", True),
     ("不对不对，回滚刚才的修改", True),
     ("不是这个文件", True),
@@ -35,7 +40,6 @@ LABELS: list[tuple[str, bool]] = [
     ("我说的是只改样式", True),
     ("这不对，接口返回的是数组", True),
     ("你搞错了，变量名是 userId", True),
-    ("还是不行，页面还是白屏", True),
     ("不对，这个 bug 在后端", True),
     ("不是这样写的，参考 src/api.ts 的写法", True),
     ("理解错了，我只是想看看日志", True),
@@ -49,12 +53,10 @@ LABELS: list[tuple[str, bool]] = [
     ("You misunderstood, I only want the CLI change", True),
     ("I said don't touch the tests", True),
     ("Nope, that breaks the build", True),
-    ("Still failing with the same error", True),
     ("That's not what I meant", True),
     ("No. Keep the old API", True),
     ("Hmm, that's not right, the list should be sorted", True),
     ("Don't do that, we need the lock file", True),
-    ("Still not working after your change", True),
     ("Actually no, put it in the service layer", True),
     ("You got it wrong, the flag is --dry-run", True),
     ("I meant the staging bucket", True),
@@ -67,6 +69,22 @@ LABELS: list[tuple[str, bool]] = [
     ("Stop doing full rewrites, just patch the function", True),
     ("You broke the login page", True),
     ("I asked you to add a test, not rewrite the module", True),
+    # --- added in round 2 (labelled before running the rule)
+    ("这个方向错了，先回滚再说", True),
+    ("没看懂，换个直观的例子", True),
+    ("思路不对，应该先查索引", True),
+    ("不是这个意思，我要的是汇总表", True),
+    ("你改错文件了，应该是 api/routes.py", True),
+    ("No, that's the wrong branch", True),
+    ("Undo that, it broke the build", True),
+    ("That's not it. The bug is in the parser", True),
+    ("写一个例子说明这个 API 的用法", False),
+    ("这个方案对吗？", False),
+    ("No need to add tests for this", False),
+    ("回滚脚本放在 scripts/ 下面", False),
+    ("用 Redis 还是不用？", False),
+    ("测试依然很慢，能优化吗", False),
+    ("Don't forget to update the changelog", False),
     # --- zh non-corrections
     ("帮我把这个函数改成异步的", False),
     ("好的，继续", False),
@@ -127,6 +145,12 @@ LABELS: list[tuple[str, bool]] = [
 ]
 
 
+# Result feedback: the user reports the agent's work still fails without redirecting it.
+# A separate label (``correction_kind == "result_feedback"``), not a correction.
+RESULT_FEEDBACK = ["还是不行，同样的报错", "还是不行，页面还是白屏", "Still failing with the same error",
+                   "Still not working after your change", "还是不行，测试依然失败", "Still broken after the patch"]
+
+
 def _scores():
     tp = sum(1 for t, y in LABELS if y and is_correction(t))
     fp = sum(1 for t, y in LABELS if not y and is_correction(t))
@@ -163,6 +187,27 @@ def test_feedback_rule_reuses_is_correction_and_does_not_blanket_misunderstood()
         assert rule["is_correction"] == is_correction(text)
     misread = feedback_rule({"signal_id": "s", "text": "你理解错了，我要删除的是缓存目录"})
     assert misread["friction_type"] == "misunderstood_request"
-    approach = feedback_rule({"signal_id": "s", "text": "还是不行，同样的报错"})
+    approach = feedback_rule({"signal_id": "s", "text": "不对，换个思路"})
     assert approach["is_correction"] and approach["friction_type"] == "other"
+    # Result feedback is not a correction for the L0 rule either.
+    still = feedback_rule({"signal_id": "s", "text": "还是不行，同样的报错"})
+    assert still["is_correction"] is False
+    # ...but it is friction with the agent's output, not "none" (was dropped before).
+    assert still["friction_type"] == "buggy_output" and still["sentiment"] == "frustrated"
+    for text in RESULT_FEEDBACK:
+        rule = feedback_rule({"signal_id": "s", "text": text})
+        assert rule["friction_type"] == "buggy_output" and rule["sentiment"] != "neutral", text
     assert feedback_rule({"signal_id": "s", "text": "跑一下测试"})["friction_type"] == "none"
+
+
+@pytest.mark.parametrize("text", RESULT_FEEDBACK)
+def test_result_feedback_is_not_a_correction(text):
+    assert correction_kind(text) == "result_feedback"
+    assert not is_correction(text)
+
+
+def test_all_consumers_share_one_verdict():
+    for text in [t for t, _ in LABELS] + RESULT_FEEDBACK:
+        verdict = analytics_is_correction(text)
+        assert is_correction(text) == sessions.is_correction(text) == verdict, text
+        assert bool(a4a6_sentiment.corrections(text)) == verdict, text

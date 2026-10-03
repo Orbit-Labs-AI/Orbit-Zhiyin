@@ -64,6 +64,6 @@ test('B03: a facts 500 is a failed read with real counts, not connecting with mo
   await expect.poll(() => page.evaluate(() => LV.state), { timeout: 10_000 }).toBe('error');
   await expect(page.locator('[data-tl="strip"] [data-tl="error"]')).toContainText('读取失败');
   await expect(page.locator('[data-tl="connecting"]')).toHaveCount(0);
-  await expect(page.locator('.frow [data-act="projectMenu"]')).toHaveText('项目 · 全部 0');
+  await expect(page.locator('.frow [data-act="projectMenu"]')).toHaveText('项目 · 全部');
   expect(await page.locator('#side').innerText()).not.toMatch(/yhyfhgs/);
 });

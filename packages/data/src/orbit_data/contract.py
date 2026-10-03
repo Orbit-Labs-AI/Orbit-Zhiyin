@@ -45,6 +45,13 @@ KINDS = (
     "ui.state",
     "unknown",
 )
+# session.title precedence (higher wins; ties go to the later event). A user's
+# explicit rename (Claude custom-title, /rename) beats the name a user or parent
+# agent gave the run (Claude agent-name), which beats the agent's stored native
+# title (Codex thread name, OpenCode/dsh title), which beats a model-generated
+# summary (Claude ai-title). Unknown sources rank lowest.
+TITLE_PRIORITY = {"custom": 4, "agent_name": 3, "native": 2, "ai": 1}
+
 TOKENS = (
     "input_tokens",
     "cache_read_tokens",

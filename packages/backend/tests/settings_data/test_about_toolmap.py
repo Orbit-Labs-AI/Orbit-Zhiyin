@@ -49,3 +49,37 @@ def test_tool_map_observed_names(client, home):
     assert kinds["mcp"]["names"] == [{"agent": "codex", "name": "mcp__github__search",
                                       "calls": 1}]
     assert body["observed"] == 2
+
+
+def test_coverage_without_database(client):
+    assert client.get("/v1/app/coverage").json() == {"available": False, "reason": "no_database"}
+
+
+def test_coverage_shares_and_labelled_exclusions(client, home):
+    Store(home).db.close()
+    db = sqlite3.connect(home / "orbit.db", isolation_level=None)
+    db.execute("PRAGMA foreign_keys = OFF")
+    db.execute("INSERT INTO source VALUES ('src-codex', 'codex', '/x', NULL, 1, 0)")
+    for uid, kind, status in (("s1", "main", "completed"), ("s2", "main", "unknown"),
+                              ("r1", "review", "completed")):
+        db.execute("INSERT INTO session(session_uid, source_id, native_id, kind, root_uid,"
+                   " started_at, status) VALUES (?, 'src-codex', ?, ?, ?, 1, ?)",
+                   (uid, uid, kind, uid, status))
+    for i, (session, resolution, cost) in enumerate((("s1", "resolved", 0.3),
+                                                     ("s2", "unmapped", None),
+                                                     ("r1", "resolved", 0.1))):
+        db.execute("INSERT INTO model_call(call_uid, session_uid, usage_event_uid, ts, model_raw,"
+                   " model_id, model_resolution, coverage, cost_usd) VALUES"
+                   " (?, ?, ?, 1, 'm', 'm', ?, 'call', ?)",
+                   (f"m{i}", session, f"e{i}", resolution, cost))
+    db.close()
+    response = client.get("/v1/app/coverage")
+    body = response.json()
+    assert response.status_code == 200, body
+    assert body["available"] is True
+    assert body["sessions"]["status_known_share"] == 0.5
+    assert body["model_call"]["unmapped_model_share"] == 0.5
+    excluded = body["excluded_sessions"]
+    assert excluded["rows"] == 1 and excluded["cost_share"] == 0.25
+    assert excluded["reasons_labelled"] == [
+        {"code": "excluded_kind_review", "label": "代码审查会话（如 Codex review）", "count": 1}]

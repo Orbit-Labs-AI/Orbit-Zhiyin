@@ -318,31 +318,35 @@ def test_execute_first_votes_for_the_exploration_pole():
     assert axis["direction"] == "E"
 
 
-def test_real_profile_through_reveal_imputes_the_missing_axis():
-    """Integration: a real build_profile output fed to shell.reveal.compose. The profile
-    itself never claims a type (orchestration is not extracted); since main ebdc750e the
-    reveal still shows one, with the missing orchestration axis at 50 and marked unsettled
-    rather than withholding the whole code."""
-    from orbit_backend.shell import reveal
-
+def test_profile_defers_the_type_to_the_uiview_persona():
+    """The profile never claims a type (orchestration is not extracted); the reveal, the
+    report and the share card read ``uiview.persona`` instead (see tests/shell/test_reveal)."""
     events = []
     for i in range(40):
         text = ("直接完成报告。先给方案。请运行测试" if i % 2 else
                 "先询问我。编写报告。请运行测试")
         events.append(_event(text, uid=f"r{i}", task_id=f"t{i}", sid=f"s{i % 4}", seq=i))
     profile = build_profile(_analysis(events))
-    assert profile["typing"] == {"produces_type_code": False, "type_authority": "uiview-persona-v0",
+    assert profile["typing"] == {"produces_type_code": False, "type_authority": "uiview-persona-v1",
                                  "reason": "orchestration_not_extracted_and_verification_single_pole"}
+    # 40 tasks: every one states delegation; planning only on the 20 odd ones.
     assert profile["axes"]["delegation"]["effective_task_n"] == 40
     assert profile["axes"]["planning"]["effective_task_n"] == 20
     assert profile["axes"]["orchestration"]["effective_task_n"] == 0
-    overview = {"overview": {"activity_rhythm": {"active_days": 30}}}
-    payload = reveal.compose(profile, overview, types={})
-    # Withheld only when every axis lacks a value (shell.reveal.reason_for).
-    assert payload["ok"] is True and payload["reason"] is None
-    gate = {r["axis"]: r["n_units"] for r in payload["gate"]["axes"]}
-    assert gate == {"D": 40, "I": 20, "M": 0, "V": 40}
-    axes = {a["axis"]: a for a in payload["axes"]}
-    assert axes["M"]["value"] is None and axes["M"]["letter"] == "M"
-    assert axes["M"]["settled"] is False
-    assert all(axes[k]["settled"] for k in "DIV")
+
+
+def test_wilson_is_the_shared_implementation():
+    """profile / persona / profiling all delegate to analytics.stats.wilson; hand value
+    for k = 31, n = 84, z = 1.96: centre 0.374775, half-width 0.101075."""
+    from orbit_backend.analytics import stats
+    from orbit_backend.analytics.presentation import profile as profile_module
+    from orbit_backend.profiling.analysis import wilson_interval
+    from orbit_backend.uiview import persona
+
+    lo, hi = profile_module._wilson(31, 84)
+    assert lo == pytest.approx(0.2737, abs=1e-4) and hi == pytest.approx(0.4758, abs=1.5e-4)
+    assert wilson_interval(31, 84) == [round(x, 4) for x in stats.wilson(31, 84)]
+    assert persona.wilson(31, 84) == stats.wilson(31, 84)
+    # Edges: 0/n and n/n bounds are exactly 0 and 1; no denominator keeps each convention.
+    assert stats.wilson(0, 5)[0] == 0.0 and stats.wilson(5, 5)[1] == 1.0
+    assert persona.wilson(0, 0) == (0.0, 1.0) and wilson_interval(0, 0) is None

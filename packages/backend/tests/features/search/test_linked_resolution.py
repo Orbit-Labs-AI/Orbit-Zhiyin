@@ -49,6 +49,21 @@ def test_hash_name_alias_priority_and_official_tiebreak(world):
     assert stored == {"s1": "hash", "s2": "name", "m1": "name", "p1": "alias"}
 
 
+def test_commands_and_agents_link_to_catalog_command_and_subagent(world):
+    """Inventory types 'command' / 'agent' (schema 15) map to catalog 'command' / 'subagent'."""
+    world.item("cat-cmd", "command", "ship")
+    world.item("cat-sub", "subagent", "code-reviewer")
+    world.item("cat-skill", "skill", "code-reviewer")
+    world.inventory("claude_code", [
+        {"inv_id": "c1", "type": "command", "name": "ship"},
+        {"inv_id": "a1", "type": "agent", "name": "code-reviewer"},
+    ])
+    items = by_id(run(world))
+    assert items["c1"]["catalog"]["item_id"] == "cat-cmd"
+    assert items["a1"]["catalog"]["item_id"] == "cat-sub"
+    assert items["a1"]["usage"]["attributable"] is False
+
+
 def test_confirmed_link_is_never_overwritten(world):
     world.item("cat-s1", "skill", "pdf_tools")
     world.inventory("claude_code", [{"inv_id": "s1", "type": "skill", "name": "pdf-tools"}])

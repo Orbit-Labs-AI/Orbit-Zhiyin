@@ -35,7 +35,10 @@ def seed(t: Orbit) -> None:
                   agent="codex" if uid == "s5" else "claude_code")
     t.session("s6", project="p1", start=T0 + 4 * DAY, ended=False, agent="codex")
     t.human("s1", "帮我修一下 fastapi 后端接口", ts=T0)
+    # Corrections count only after the agent responded (rules.countable_messages).
+    t.event("s1", "message.assistant", ts=T0 + MIN // 2, actor="assistant", text="好的")
     t.human("s1", "不对，重新来", ts=T0 + MIN)
+    t.event("s2", "message.assistant", ts=T0 + 11 * MIN, actor="assistant", text="好的")
     t.human("s2", "别用子代理", ts=T0 + 11 * MIN)
     t.call("s1", head="git status", files=["/w/p1/a.py"], ts=T0 + 2 * MIN)
     t.call("s1", head="pytest -q", status="failed", files=["/w/p1/b.py"], ts=T0 + 3 * MIN)
@@ -194,6 +197,8 @@ def test_coverage_and_rule_files(conn, db, home, tmp_path):
                   ("hook", "PreToolUse", str(proj / ".claude/settings.json"),
                    {"project_path": str(proj)}),
                   ("skill", "pdf", str(proj / ".claude/skills/pdf/SKILL.md"),
+                   {"project_path": str(proj)}),
+                  ("agent", "reviewer", str(proj / ".claude/agents/reviewer.md"),
                    {"project_path": str(proj)})], project="p1")
     db.inventory([("mcp", "playwright", str(home / "mcp.json"), {}),
                   ("rule", "CLAUDE.md", str(outside), {})], scope="global")
@@ -212,7 +217,10 @@ def test_coverage_and_rule_files(conn, db, home, tmp_path):
         c.close()
     cov = {x["type"]: x for x in detail["coverage"]}
     assert all(cov[k]["configured"] is True for k in ("rule", "hook", "skill", "mcp"))
-    assert cov["subagent"]["configured"] is None and cov["subagent"]["detail"] == "未扫描"
+    # Subagent definitions are inventory type "agent" (schema 15); no command was scanned here.
+    assert cov["subagent"]["configured"] is True and cov["subagent"]["project"] == 1
+    assert cov["subagent"]["inventory_type"] == "agent"
+    assert cov["command"]["configured"] is False and cov["command"]["detail"] == "项目 0 · 全局 0"
     assert "claude_code" in cov["subagent"]["agents_read"]
     assert "codex" not in cov["subagent"]["agents_read"] and "codex" in cov["mcp"]["agents_read"]
     files = detail["header"]["rule_files"]
@@ -346,3 +354,13 @@ def test_routes_respect_exclusion_and_source_range(db, home, monkeypatch):
         assert n == base["/v1/uiview/sentiment"][0] - 2
     finally:
         appdb.close()
+
+
+def test_coverage_agents_read_and_unscanned_follow_inventory():
+    cov = {x["type"]: x for x in P.coverage([], "p1", ["claude_code", "opencode", "pi"])}
+    # OpenCode reads agent/*.md subagents and the inventory scans them.
+    assert "opencode" in cov["subagent"]["agents_read"]
+    assert "opencode" not in cov["subagent"]["agents_unscanned"]
+    # Pi reads prompts as commands, but the inventory does not scan them yet: 未扫描, not 未配置.
+    assert "pi" in cov["command"]["agents_read"] and cov["command"]["agents_unscanned"] == ["pi"]
+    assert cov["skill"]["agents_unscanned"] == []

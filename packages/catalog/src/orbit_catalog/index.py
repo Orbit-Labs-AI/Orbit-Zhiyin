@@ -5,11 +5,14 @@ The store rebuilds the snapshot lazily when ``catalog_meta.generation`` moves.
 """
 
 import json
+import tempfile
 import threading
 from typing import get_args
 
 import numpy as np
 
+from .admission import review_decisions, rule_admits
+from .compat import supported_agents
 from .contracts import MatchRequest, ResourceType
 
 KINDS = list(get_args(ResourceType))
@@ -22,13 +25,14 @@ class CatalogIndex:
     def __init__(self, generation: int):
         self.generation = generation
         self._matrices = {}
+        self._matrix_generation = None
         self._lock = threading.Lock()
 
     @classmethod
     def build(cls, conn, generation: int) -> "CatalogIndex":
         self = cls(generation)
         rows = conn.execute("SELECT item_id,type,canonical_of,listable,difficulty,agents,language,official,risk_level,"
-                            "origin,verification,content_hash,license FROM catalog_item WHERE status='active' "
+                            "origin,verification,content_hash,license,url,body_policy FROM catalog_item WHERE status='active' "
                             "ORDER BY item_id").fetchall()
         self.ids = [r["item_id"] for r in rows]
         self.pos = {item_id: i for i, item_id in enumerate(self.ids)}
@@ -49,7 +53,8 @@ class CatalogIndex:
         language = np.zeros(len(rows), dtype=np.int16)
         for i, row in enumerate(rows):
             bits = 0
-            for agent in json.loads(row["agents"]):
+            # Declared agents plus agents that read the item's open format unchanged (compat.py).
+            for agent in supported_agents(row["type"], json.loads(row["agents"]), row["url"]):
                 if agent not in self.agent_bits and len(self.agent_bits) < MAX_AGENTS:
                     self.agent_bits[agent] = len(self.agent_bits)
                 if agent in self.agent_bits:
@@ -72,6 +77,19 @@ class CatalogIndex:
                 postings[i] = (weight, curated)
             keys[i].add((feature, value))
         self.item_keys = [frozenset(k) for k in keys]
+        # Rule-admitted (friction -> item mask) and reviewed decisions; see admission.py.
+        decisions = review_decisions()
+        self.review = {self.pos[i]: d for i, d in decisions.items() if i in self.pos}
+        self.admitted = {}
+        for item_id, value, weight in conn.execute(
+                "SELECT item_id,value,weight FROM item_feature WHERE feature='friction' AND origin='extracted'"):
+            i = self.pos.get(item_id)
+            if i is None or self.review.get(i) == "reviewed_reject":
+                continue
+            row = rows[i]
+            if rule_admits(verified=bool(self.verified[i]), body_policy=row["body_policy"], risk_level=row["risk_level"],
+                           kind=row["type"], friction_weight=weight):
+                self.admitted.setdefault(value, np.zeros(len(rows), dtype=bool))[i] = True
         self.postings = {key: (np.fromiter(p.keys(), dtype=np.int32, count=len(p)),
                                np.array([w for w, _ in p.values()], dtype=np.float32),
                                np.array([c for _, c in p.values()], dtype=bool)) for key, p in best.items()}
@@ -135,24 +153,73 @@ class CatalogIndex:
                     allowed[self.pos[item_id]] = True
             mask &= allowed
         if request.purpose == "recommendation":
-            mask &= self.verified & self.curated(("friction", request.problem_type)) & self.curated(("scene", request.scene))
+            curated = self.curated(("friction", request.problem_type)) & self.curated(("scene", request.scene))
             dimensions = np.zeros(len(self.ids), dtype=bool)
             for feature in request.features:
                 if feature.feature == "dimension":
                     dimensions |= self.curated(("dimension", feature.value))
-            mask &= dimensions
+            # Rule-admitted items have no curated scene/dimension; the tier travels with the row.
+            mask &= self.verified & ((curated & dimensions) | self.rule_admitted(request.problem_type))
         return mask
 
+    def rule_admitted(self, friction: str | None) -> np.ndarray:
+        found = self.admitted.get(friction) if friction else None
+        return found.copy() if found is not None else np.zeros(len(self.ids), dtype=bool)
+
+    def admission(self, item_id: str, friction: str | None) -> dict:
+        """{"tier", "review"} of one item for one friction (curated > rule_admitted > none)."""
+        i = self.pos.get(item_id)
+        if i is None:
+            return {"tier": "none", "review": None}
+        review = self.review.get(i)
+        if friction and self.curated(("friction", friction))[i]:
+            tier = "curated"
+        elif friction and friction in self.admitted and self.admitted[friction][i]:
+            tier = "rule_admitted"
+        else:
+            tier = "none"
+        return {"tier": tier, "review": review}
+
     def matrix(self, conn, model_id: str, dimensions: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """(fp16[n, d] vectors, owning item index[n], chunk_rowid[n]) for embed chunks of active items."""
+        """Exact fp16 vectors + owners, streamed into a bounded-memory snapshot.
+
+        Large matrices are backed by anonymous temporary files, so the OS can evict
+        pages rather than requiring several full heap copies. Embedding batches only
+        invalidate these matrices, never the immutable catalog/filter index.
+        """
         with self._lock:
-            if model_id not in self._matrices:
-                rows = conn.execute("SELECT c.chunk_rowid,e.vector FROM resource_chunk c JOIN embedding_cache e "
-                                    "ON e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) AND e.text_hash=c.text_hash WHERE c.embed=1 ORDER BY c.chunk_rowid",
-                                    (model_id,)).fetchall()
-                vectors = np.frombuffer(b"".join(r[1] for r in rows), dtype="<f2").reshape(len(rows), dimensions)
-                rowids = np.array([r[0] for r in rows], dtype=np.int64)
-                owners = self.items_of(rowids)
-                keep = owners >= 0
-                self._matrices[model_id] = (np.ascontiguousarray(vectors[keep]), owners[keep], rowids[keep])
-            return self._matrices[model_id]
+            row = conn.execute("SELECT value FROM catalog_meta WHERE key='embedding_generation'").fetchone()
+            generation = int(row[0]) if row else 0
+            if self._matrix_generation is None or generation > self._matrix_generation:
+                self._matrices.clear()
+                self._matrix_generation = generation
+            # A pinned older WAL reader needs its own matrix, but must not evict
+            # matrices already built for a newer embedding snapshot.
+            matrices = self._matrices if generation == self._matrix_generation else {}
+            cache_key = (model_id, dimensions)
+            if cache_key not in matrices:
+                joins = (" FROM resource_chunk c JOIN embedding_cache e ON e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) "
+                         "AND e.text_hash=c.text_hash WHERE c.embed=1")
+                count = conn.execute("SELECT count(*)" + joins, (model_id,)).fetchone()[0]
+                shape = (count, dimensions)
+                if count * dimensions * 2 >= 64 * 1024 * 1024:
+                    with tempfile.TemporaryFile(prefix="orbit-vectors-") as backing:
+                        vectors = np.memmap(backing, dtype="<f2", mode="w+", shape=shape)
+                else:
+                    vectors = np.empty(shape, dtype="<f2")
+                rowids, owners = np.empty(count, dtype=np.int64), np.empty(count, dtype=np.int32)
+                rows = conn.execute("SELECT c.chunk_rowid,c.item_id,e.vector" + joins +
+                                    " ORDER BY c.item_id,c.ordinal", (model_id,))
+                offset = 0
+                while batch := rows.fetchmany(1024):
+                    batch = [r for r in batch if r[1] in self.pos]
+                    if not batch:
+                        continue
+                    end = offset + len(batch)
+                    vectors[offset:end] = np.frombuffer(b"".join(r[2] for r in batch), dtype="<f2").reshape(-1, dimensions)
+                    rowids[offset:end] = [r[0] for r in batch]
+                    owners[offset:end] = [self.pos[r[1]] for r in batch]
+                    offset = end
+                vectors.flags.writeable = False
+                matrices[cache_key] = (vectors[:offset], owners[:offset], rowids[:offset])
+            return matrices[cache_key]

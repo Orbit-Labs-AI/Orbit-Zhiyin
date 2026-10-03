@@ -10,6 +10,8 @@ import math
 import re
 from datetime import datetime
 
+from orbit_backend.features.linked import UNUSED_WINDOW_DAYS
+
 RULE_TO_PROBLEM = {
     "correction_density": "wrong_approach",
     "repeated_requirements": "repeated_instruction",
@@ -42,9 +44,31 @@ MIN_WEEKS = 1 / 7
 MAX_IDS = 50
 MIN_READONLY_PROMPTS = 2
 UNIT_ZH = {"count": "次", "ratio": "次", "events": "次", "calls": "次", "sessions": "会话", "minutes": "分钟"}
+# A problem's weekly count is an occurrence count (narrate._save multiplies it by the measured
+# cost of one occurrence). Only count-like metrics qualify (any unit but VOLUME_UNITS): a ratio, a token volume or a duration
+# is not a number of occurrences (context_pressure's first metric is the uncached input tokens,
+# millions, which made one card claim the whole trajectory), and neither is the number of model
+# requests a signal merely inspected. Without a qualifying metric the cited process evidence
+# (events, calls) is counted; model-call refs only document the volume, not an occurrence.
+VOLUME_UNITS = frozenset({"ratio", "share", "percent", "token", "tokens", "minutes", "seconds", "ms", "bytes"})
+VOLUME_METRICS = frozenset({"cost_time.usage.request_count"})
+VOLUME_EVIDENCE = frozenset({"model_call"})
+
+
+def _occurrence_metric(metrics) -> dict | None:
+    for metric in metrics or ():
+        if (isinstance(metric, dict) and metric.get("unit") not in VOLUME_UNITS
+                and metric.get("path") not in VOLUME_METRICS):
+            return metric
+    return None
 # Inventory facts (unused / resident) are measurements, not k-of-n recurrences: a fixed
 # confidence instead of a Wilson bound whose numerator equals its denominator.
 INVENTORY_CONFIDENCE = {"resident_cost": .8, "installed_unused": .5}
+# "Unused" means no call over the whole window features.linked uses for the same claim
+# (UNUSED_WINDOW_DAYS = 90): with a shorter history zero calls is "insufficient_history" there,
+# so the problem layer must not call it unused either. Confidence then grows from .5 at 90 days to
+# .9 at 2× the window (product default, not calibrated).
+UNUSED_FULL_CONFIDENCE_DAYS = 2 * UNUSED_WINDOW_DAYS
 # MCP servers load their tool schemas each session; without a measurement use this estimate.
 MCP_RESIDENT_EST = 500
 # Generic tool names never stand for a "software" (they wrap every shell / agent call).
@@ -261,14 +285,16 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
         if scope.get("project_id"):
             a.projects.add(scope["project_id"])
         metrics = signal.get("metrics") or []
-        value = metrics[0].get("value") if metrics else None
+        counted = _occurrence_metric(metrics)
+        value = counted.get("value") if counted else None
         if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
             a.weekly += float(value)
-        else:  # no metric value: count the evidence events the signal cites, and say so
-            a.weekly += len([e for e in signal.get("evidence") or () if e.get("id")])
+        else:  # no occurrence count: count the process evidence the signal cites, and say so
+            a.weekly += len([e for e in signal.get("evidence") or ()
+                             if e.get("id") and e.get("kind") not in VOLUME_EVIDENCE])
             a.vars = {**a.vars, "count_basis": "evidence"}
-        if metrics and metrics[0].get("unit"):
-            a.unit = UNIT_ZH.get(metrics[0]["unit"], metrics[0]["unit"])
+        if counted and counted.get("unit"):
+            a.unit = UNIT_ZH.get(counted["unit"], counted["unit"])
         evidence = signal.get("evidence") or []
         a.add_ids(a.sessions, [scope.get("root_session_uid"), *(e.get("session_uid") for e in evidence)])
         a.add_ids(a.events, [e.get("id") for e in evidence])
@@ -350,8 +376,9 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
                 bucket = None  # the agent records no skill/MCP attribution: unknown, not unused
             # linked inventory marks agents whose logs never attribute calls (Codex skills) as
             # unknown_usage: no calls there is no evidence of disuse
-            if (bucket is not None and item.get("enabled") is not False and main >= 10 and window_days >= 14
-                    and item.get("status") not in ("unknown_usage", "active")
+            if (bucket is not None and item.get("enabled") is not False and main >= 10
+                    and window_days >= UNUSED_WINDOW_DAYS
+                    and item.get("status") not in ("unknown_usage", "active", "insufficient_history")
                     and int((bucket.get(name) or {}).get("calls") or 0) == 0):
                 hits.append(("installed_unused", f"installed_unused:{inv_id}",
                              f"{name} 在 {main} 个会话、{int(window_days)} 天里从未被调用"))
@@ -391,12 +418,22 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
             # A measured fact: fixed confidence (unused grows with the observed window), no k/n bound.
             confidence = INVENTORY_CONFIDENCE.get(type_, .5)
             if type_ == "installed_unused":
-                confidence = min(.9, confidence + .4 * min(1., max(0., span_days - 14) / 76))
+                ramp = UNUSED_FULL_CONFIDENCE_DAYS - UNUSED_WINDOW_DAYS
+                confidence = min(.9, confidence + .4 * min(1., max(0., span_days - UNUSED_WINDOW_DAYS) / ramp))
             scope = {"basis": "inventory", "n": n, "lo": confidence, "threshold": 0.}
             status = "insufficient" if n < MIN_DENOMINATOR else "active"
         else:
+            # Signals and SQL facts count sessions independently of ``sessions.main``; a k above
+            # the main-session total (subagent or out-of-scope sessions counted in, or no total at
+            # all) would make k/n = 1 and promote a spurious active problem. Truncate k to the
+            # total, record the mismatch, and hold the problem at "insufficient": its share of
+            # sessions is not known.
+            mismatch = k > main
+            if mismatch:
+                a.vars = {**a.vars, "count_mismatch": {"k_reported": k, "main": main}}
+                k, n = main, main
             scope = _measure(k, n, a.roots or a.sessions, a.vars.get("software"), scopes)
-            status = ("insufficient" if n < MIN_DENOMINATOR
+            status = ("insufficient" if mismatch or n < MIN_DENOMINATOR
                       else "active" if k >= MIN_SESSIONS and scope["lo"] >= scope["threshold"]
                       else "below_threshold")
         lo = scope["lo"]

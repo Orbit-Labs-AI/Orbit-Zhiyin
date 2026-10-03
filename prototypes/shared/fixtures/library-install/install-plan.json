@@ -30,7 +30,8 @@
       "requires_trust": false,
       "shared_layer": false,
       "note": null,
-      "group": null
+      "group": null,
+      "version_check": "known"
     },
     {
       "idx": 1,
@@ -43,7 +44,8 @@
       "requires_trust": false,
       "shared_layer": false,
       "note": null,
-      "group": null
+      "group": null,
+      "version_check": "known"
     }
   ],
   "already_installed": null

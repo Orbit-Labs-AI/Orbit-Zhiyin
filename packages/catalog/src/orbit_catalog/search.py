@@ -1,33 +1,40 @@
 """Filter first, independent recall routes, RRF, transparent reranking and diversity.
 
-Eligibility is a boolean mask from the in-memory index; the lexical route asks FTS5 for
-the top-K chunks once (K doubles only when the mask leaves too few items) and the
-semantic route scans an fp16 matrix exactly.
+Eligibility is applied before route top-K. Lexical postings cover the full corpus,
+then a bounded candidate pool is rescored from all passages of each item. Semantic
+recall scans an fp16 matrix exactly and aggregates by resource before top-K.
 """
 
 import json
 import math
 import re
 import sqlite3
+import sys
 import threading
-from collections import OrderedDict, defaultdict
+import weakref
+from collections import Counter, OrderedDict, defaultdict
 
 import numpy as np
 
+from .admission import ADMIT_FRICTION_WEIGHT, ADMIT_MAX_RISK, ADMIT_TYPES, review_decisions
+from .compat import support_matrix
 from .contracts import Feature, MatchRequest, canonical_json
 from .features import VOCABULARY, lexical_tokens
 from .quality import assess as assess_quality
 from .vectors import blocked_scores, normalize_vectors
 
-RANKING_VERSION = "hybrid-bm25f-abs-mmr80-v5"
+RANKING_VERSION = "hybrid-bm25f-wide-zsem-mmr80-v7"
 ROUTE_WEIGHTS = {"remedy": 1.5, "feature": 1.2, "lexical": 1.0, "semantic": 2.0}
 # Han function words, Lucene's EnglishAnalyzer default stop set (a an and are as at be but by for
 # if in into is it no not of on or such that the their then there these they this to was will with),
-# plus conversational query filler (pronouns, question words, modal verbs, "help" mirroring 帮助).
+# plus conversational query filler (pronouns, question words, modal verbs, "help" mirroring 帮助)
+# and catalog-domain filler ("tool", "best": the 2026-10-03 seed scored "the best tool" at 0.20).
 STOP_WORDS = set("的 和 为 是 在 与 及 了 把 中 从 到 用 做 对 将 并 要 如何 是否 以及 进行 帮助 我 你 我们 怎么 一下 "
                  "a an and are as at be but by for if in into is it no not of on or such that the their then there "
                  "these they this to was will with i me my you your we our its those how what why when which who "
-                 "do does did can could should would please help best tool tools".split())
+                 "do does did can could should would please help "
+                 # Catalog-domain filler: every item is a tool/resource, so these words select nothing.
+                 "tool tools best thing things something useful better make".split())
 # Han query words -> English phrases. Generated from features.VOCABULARY (every Han word of a
 # key expands to the Latin words of the same key), plus query-only aliases that are not
 # extraction features. Expansions only add lexical alternatives; they never become features.
@@ -60,19 +67,41 @@ TITLE_WEIGHT = 4.0
 # multilingual-e5 cosine scores concentrate in [0.7, 1.0] because of the 0.01 InfoNCE temperature
 # (intfloat/multilingual-e5-small model card, FAQ 3); below 0.7 carries no relevance signal.
 SEMANTIC_FLOOR = 0.7
+# Per-query semantic gate. On the seed an absolute cosine floor kept 97.4% of unrelated items
+# (AUC 0.857): every query has its own baseline (chunk median 0.783-0.810, sd 0.016-0.026,
+# docs/modules/catalog/validation.md). The gate therefore standardises each query's cosines over
+# the eligible chunks, z = (cos - median) / sd, and keeps z >= SEMANTIC_Z_GATE (measured: 69.5%
+# of related vs 10.6% of unrelated items kept, AUC 0.891). Strength maps z linearly so the gate
+# sits exactly at MIN_TEXT_RELEVANCE and SEMANTIC_Z_FULL saturates. Fewer eligible chunks than
+# SEMANTIC_Z_MIN_CHUNKS give no stable median/sd (a fresh local library): absolute floor instead.
+SEMANTIC_Z_GATE = 1.5
+SEMANTIC_Z_FULL = 4.0
+SEMANTIC_Z_MIN_CHUNKS = 200
 # Free-text hits below this absolute strength are dropped unless a structured feature also hit.
 # Calibrated on the bundled 1277-item seed (see tests/test_retrieval.py golden set): a query of
 # generic words ("use the file") peaks at 0.14, single rare-term body hits sit at >= 0.25.
 MIN_TEXT_RELEVANCE = 0.2
+# Han conversational filler stripped before bigramming (the Han side of the English stop words):
+# without it "有什么好用的" matched names through the bigram 好用 at strength 0.69 on the seed.
+HAN_FILLER = sorted("有没有 有什么 什么 好用的 好用 一个 一些 工具 想要 帮我 看一下 推荐 东西 更好的 更好".split(),
+                    key=lambda w: (-len(w), w))
 # Pseudo-chunks without the term added to N (an additive prior on document frequency). A small
 # catalog (a local-only library, a fresh install before the seed) has too few chunks for df to
 # separate "generic" from "shared by these few items"; with the bundled seed (7.9k chunks) the
 # prior changes idf by < 0.15 nats for every df, so large-library ranking is unaffected.
 IDF_PRIOR_DOCS = 1000
 # Items rescored with exact term counts (chunk text is recomputed, ~1 ms per cached item).
-RERANK = 40
+RERANK = 200
+RERANK_OVERSAMPLE = 4
 _QUERY_CACHE: OrderedDict = OrderedDict()
 _QUERY_LOCK = threading.Lock()
+# Cache terms, not query scores: corpus IDF, prefixes and query weights remain live.
+# Weak store keys avoid retaining a closed store's large indexes/model matrices.
+LEXICAL_CACHE_ITEMS = 512
+LEXICAL_CACHE_MAX_BYTES = 32 * 1024 * 1024
+_LEXICAL_CACHE: OrderedDict = OrderedDict()
+_LEXICAL_CACHE_BYTES = 0
+_LEXICAL_CACHE_LOCK = threading.Lock()
 
 
 def eligibility(request: MatchRequest) -> tuple[str, list]:
@@ -88,6 +117,7 @@ def eligibility(request: MatchRequest) -> tuple[str, list]:
                      "AND s.status='active' AND (cs.enabled=1 OR cs.source_id='local') AND s.source_id IN (SELECT value FROM json_each(?)))")
         args.append(canonical_json(request.source_ids))
     if request.agents:
+        # item_agent holds declared plus format-inferred agents (compat.supported_agents, store.upsert).
         compatibility = "EXISTS(SELECT 1 FROM item_agent a WHERE a.item_id=i.item_id AND a.agent IN (SELECT value FROM json_each(?)))"
         if request.purpose == "library":
             compatibility = "(" + compatibility + " OR i.agents='[]')"
@@ -98,11 +128,17 @@ def eligibility(request: MatchRequest) -> tuple[str, list]:
         args.append(canonical_json(request.language.split("_or_")))
     if request.purpose == "recommendation":
         curated = "EXISTS(SELECT 1 FROM item_feature f WHERE f.item_id=i.item_id AND f.origin='curated' AND f.feature="
-        terms.extend([curated + "'friction' AND f.value=?)", curated + "'scene' AND f.value=?)",
-                      curated + "'dimension' AND f.value IN (SELECT value FROM json_each(?)))",
-                      "i.verification IN ('repository_and_skill_read','repository_and_source_read')"])
+        rejected = [k for k, v in review_decisions().items() if v == "reviewed_reject"]
+        terms.extend(["i.verification IN ('repository_and_skill_read','repository_and_source_read')",
+                      "(" + curated + "'friction' AND f.value=?) AND " + curated + "'scene' AND f.value=?) AND " + curated
+                      + "'dimension' AND f.value IN (SELECT value FROM json_each(?)))) OR (i.body_policy='licensed' AND "
+                      "i.risk_level<=? AND i.type IN (SELECT value FROM json_each(?)) AND i.item_id NOT IN "
+                      "(SELECT value FROM json_each(?)) AND EXISTS(SELECT 1 FROM item_feature f WHERE f.item_id=i.item_id "
+                      "AND f.origin='extracted' AND f.feature='friction' AND f.value=? AND f.weight>=?))"])
         args.extend([request.problem_type, request.scene,
-                     canonical_json([f.value for f in request.features if f.feature == "dimension"])])
+                     canonical_json([f.value for f in request.features if f.feature == "dimension"]),
+                     ADMIT_MAX_RISK, canonical_json(list(ADMIT_TYPES)), canonical_json(rejected),
+                     request.problem_type, ADMIT_FRICTION_WEIGHT])
     return " AND ".join("(" + term + ")" for term in terms), args
 
 
@@ -153,6 +189,8 @@ def query_concepts(text: str, prefix: bool = False) -> list[list[list[Term]]]:
         if word in rest:
             add([lexical_tokens(word)] + [lexical_tokens(phrase) for phrase in sorted(HAN_EXPANSIONS[word])])
             rest = rest.replace(word, " ")
+    for word in HAN_FILLER:
+        rest = rest.replace(word, " ")
     own = [t for t in dict.fromkeys(lexical_tokens(rest)) if t not in STOP_WORDS]
     stem = next((t for t in reversed(own) if len(t) >= 3 and t.isascii()), None) if prefix else None
     for token in own:
@@ -217,7 +255,8 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
     2009) with b=0 over query concepts (see ``query_concepts``):
       raw = Σ_c max_alt mean_t idf(t) · tf~/(k1 + tf~),  tf~ = TITLE_WEIGHT·tf_title + tf_body.
     Stage 1 assumes tf=1 per field that contains t; the best ``RERANK`` items are rescored
-    with exact term counts recomputed from ``store.chunk_texts`` (the FTS table is contentless).
+    with exact term counts over every passage from ``store.chunk_texts``. This bounded
+    first stage is approximate: candidates outside its oversampled pool are not rescored.
     The absolute score divides by the best case of the same sum: every concept that occurs in
     the corpus at all, matched by a df=1 term with tf→∞. It depends only on the item and the
     corpus, not on which other items happened to be candidates.
@@ -233,9 +272,15 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
             rows = [r[0] for r in conn.execute("SELECT rowid FROM chunk_fts WHERE chunk_fts MATCH ?", (fts,))]
             if not rows:
                 continue  # Out-of-vocabulary tokens (typos, CJK filler bigrams) say nothing about any item.
-            weights[term] = idf(n_docs, len(rows))
+            owners = index.items_of(np.asarray(rows, dtype=np.int64))
+            # Keep corpus statistics independent of query eligibility. Filter postings before
+            # allocating Python term sets so excluded resources do not dominate query memory.
+            weights[term] = idf(n_docs, int((owners >= 0).sum()))
+            rows = {rowid for rowid, owner in zip(rows, owners, strict=True) if owner >= 0 and mask[owner]}
+            if not rows:
+                continue
             titled = {r[0] for r in conn.execute("SELECT rowid FROM chunk_fts WHERE chunk_fts MATCH ?",
-                                                 ("{title} : " + fts,))}
+                                                 ("{title} : " + fts,)) if r[0] in rows}
             for rowid in titled:
                 title_hits[rowid].add(term)
             # Title and content share one FTS row: a titled row may or may not also hold t in its
@@ -268,26 +313,82 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
         item_id = index.ids[owner]
         if item_id not in best or (raw, -rowid) > (best[item_id][0], -best[item_id][1]):
             best[item_id] = (raw, rowid)
-    ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], kv[0]))[:max(limit, RERANK)]
+    ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], kv[0]))[:max(limit * RERANK_OVERSAMPLE, RERANK)]
     rescored = []
-    for position, (item_id, (raw, rowid)) in enumerate(ranked):
-        if position < RERANK:
-            raw = _exact_bm25(store, conn, index, item_id, rowid, live, weights) or raw
+    for item_id, (raw, rowid) in ranked:
+        exact = _exact_bm25(store, conn, item_id, live, weights, index.generation)
+        if exact is not None:
+            raw, rowid = exact
         rescored.append((item_id, raw, rowid))
     rescored.sort(key=lambda r: (-r[1], r[0]))
     hits = [(item_id, raw / ceiling) for item_id, raw, _ in rescored[:limit]]
     return hits, {item_id: rowid for item_id, _, rowid in rescored[:limit]}
 
 
-def _exact_bm25(store, conn, index, item_id, rowid, concepts, weights) -> float | None:
-    ordinal = int(index.chunk_ordinal[rowid]) if 0 <= rowid < len(index.chunk_ordinal) else -1
-    texts = store.chunk_texts(conn, item_id)
-    if not 0 <= ordinal < len(texts):
+def _retained_size(value, seen=None):
+    """Conservative retained Python bytes; shared objects across entries count each time."""
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return 0
+    seen.add(id(value))
+    size = sys.getsizeof(value)
+    if isinstance(value, dict):
+        size += sum(_retained_size(k, seen) + _retained_size(v, seen) for k, v in value.items())
+    elif isinstance(value, (tuple, list)):
+        size += sum(_retained_size(v, seen) for v in value)
+    return size
+
+
+def _passage_terms(store, conn, item_id, generation):
+    global _LEXICAL_CACHE_BYTES
+    row = conn.execute("SELECT name,latest_version FROM catalog_item WHERE item_id=?", (item_id,)).fetchone()
+    if row is None:
         return None
-    row = conn.execute("SELECT name FROM catalog_item WHERE item_id=?", (item_id,)).fetchone()
-    title = lexical_tokens(row["name"]) if row is not None else []
-    body = lexical_tokens(texts[ordinal])
-    return _concept_score(concepts, weights, lambda t: TITLE_WEIGHT * _tf(title, *t) + _tf(body, *t))
+    # Projection rebuilds allocate new rowids even when source versions are unchanged.
+    key = (weakref.ref(store), generation, item_id, row["latest_version"])
+    with _LEXICAL_CACHE_LOCK:
+        cached = _LEXICAL_CACHE.get(key)
+        if cached is not None:
+            _LEXICAL_CACHE.move_to_end(key)
+            return cached[0]
+    texts = store.chunk_texts(conn, item_id)
+    passages = tuple((rowid, Counter(lexical_tokens(texts[ordinal]))) for rowid, ordinal in conn.execute(
+        "SELECT chunk_rowid,ordinal FROM resource_chunk WHERE item_id=? ORDER BY ordinal", (item_id,))
+        if 0 <= ordinal < len(texts))
+    terms = Counter(lexical_tokens(row["name"])), passages
+    # Include conservative allowance for OrderedDict links and the (value, size) wrapper.
+    size = _retained_size((key, terms)) + 256
+    with _LEXICAL_CACHE_LOCK:
+        old = _LEXICAL_CACHE.pop(key, None)
+        if old is not None:
+            _LEXICAL_CACHE_BYTES -= old[1]
+        if size <= LEXICAL_CACHE_MAX_BYTES and LEXICAL_CACHE_ITEMS > 0:
+            _LEXICAL_CACHE[key] = terms, size
+            _LEXICAL_CACHE_BYTES += size
+        while _LEXICAL_CACHE and (len(_LEXICAL_CACHE) > LEXICAL_CACHE_ITEMS
+                                  or _LEXICAL_CACHE_BYTES > LEXICAL_CACHE_MAX_BYTES):
+            _, (_, evicted_size) = _LEXICAL_CACHE.popitem(last=False)
+            _LEXICAL_CACHE_BYTES -= evicted_size
+    return terms
+
+
+def _count_term(counts, term):
+    return sum(count for token, count in counts.items() if token.startswith(term[0])) if term[1] else counts[term[0]]
+
+
+def _exact_bm25(store, conn, item_id, concepts, weights, generation) -> tuple[float, int] | None:
+    terms = _passage_terms(store, conn, item_id, generation)
+    if terms is None:
+        return None
+    title, passages = terms
+    title_counts = {term: TITLE_WEIGHT * _count_term(title, term) for term in weights}
+    best = None
+    for rowid, body in passages:
+        counts = {term: title_counts[term] + _count_term(body, term) for term in weights}
+        score = _concept_score(concepts, weights, counts.get)
+        if best is None or score > best[0]:
+            best = score, rowid
+    return best
 
 
 def _features(index, mask, features, limit, curated_only=False):
@@ -313,25 +414,81 @@ def _features(index, mask, features, limit, curated_only=False):
     return ranked[:limit], set(wanted)
 
 
+def semantic_expansion(text: str) -> str | None:
+    """English rendering of a Han query for a second semantic probe (bilingual query expansion).
+
+    E5 pulls a Chinese query towards Chinese-written items (on the seed "浏览器自动化测试" had no
+    playwright/webapp-testing item in its semantic top 5); the English phrases of the query's
+    ``HAN_EXPANSIONS`` words reach English-written items. None when the query has no mapped word.
+    """
+    phrases = []
+    rest = text
+    for word in HAN_WORDS_BY_LENGTH:
+        if word in rest:
+            phrases.extend(sorted(HAN_EXPANSIONS[word])[:2])
+            rest = rest.replace(word, " ")
+    return " ".join(dict.fromkeys(phrases)) or None
+
+
+def semantic_gate(scores: np.ndarray, eligible: np.ndarray) -> tuple[np.ndarray, np.ndarray, bool]:
+    """(keep, strength, standardised) of one query's chunk cosines; see SEMANTIC_Z_GATE."""
+    strength = np.zeros(len(scores), dtype=np.float32)
+    population = scores[eligible]
+    if len(population) >= SEMANTIC_Z_MIN_CHUNKS:
+        sd = float(population.std())
+        if sd > 1e-6:
+            z = (scores - float(np.median(population))) / sd
+            keep = eligible & (z >= SEMANTIC_Z_GATE)
+            span = (z - SEMANTIC_Z_GATE) / (SEMANTIC_Z_FULL - SEMANTIC_Z_GATE)
+            strength[keep] = np.clip(MIN_TEXT_RELEVANCE + (1 - MIN_TEXT_RELEVANCE) * span[keep], 0, 1)
+            return keep, strength, True
+    keep = eligible & (scores > 0)
+    strength[keep] = np.clip((scores[keep] - SEMANTIC_FLOOR) / (1 - SEMANTIC_FLOOR), 0, 1)
+    return keep, strength, False
+
+
 def _semantic(conn, index, mask, encoder, text, limit):
-    query = encode_query(encoder, text)
+    """Hits are (item_id, cosine); strengths carry the per-query gate (route_strength input)."""
     matrix, owners, rowids = index.matrix(conn, encoder.model_id, encoder.dimensions)
     eligible = mask[owners] if len(owners) else np.zeros(0, dtype=bool)
     scanned = int(eligible.sum())
     if not scanned:
-        return [], {}, 0
-    scores = blocked_scores(matrix, query)
-    rows = np.flatnonzero(eligible & (scores > 0))
-    # <=4 embed chunks per item, so the top 4*limit rows always hold `limit` distinct items.
-    if len(rows) > limit * 4:
-        rows = rows[np.argpartition(-scores[rows], limit * 4)[:limit * 4]]
-    best = {}
-    for row in rows[np.argsort(-scores[rows], kind="stable")]:
-        item_id = index.ids[owners[row]]
-        if item_id not in best:
-            best[item_id] = (float(scores[row]), int(row))
-    hits = sorted(((item_id, score) for item_id, (score, _) in best.items()), key=lambda x: (-x[1], x[0]))[:limit]
-    return hits, {item_id: int(rowids[best[item_id][1]]) for item_id, _ in hits}, scanned
+        return [], {}, 0, {}
+    probes = [text] + ([expanded] if (expanded := semantic_expansion(text)) and expanded != text else [])
+    keep = np.zeros(len(owners), dtype=bool)
+    strength = np.zeros(len(owners), dtype=np.float32)
+    cosine = np.full(len(owners), -1.0, dtype=np.float32)
+    for probe in probes:  # Each probe is gated against its own distribution; a chunk keeps its best.
+        scores = blocked_scores(matrix, encode_query(encoder, probe))
+        # Estimate the gate from resources, so a long document cannot dominate it.
+        resource_scores = np.full(len(index), -np.inf, dtype=np.float32)
+        np.maximum.at(resource_scores, owners[eligible], scores[eligible])
+        resource_keep, resource_strength, _ = semantic_gate(resource_scores, mask & np.isfinite(resource_scores))
+        probe_keep = eligible & resource_keep[owners] & (scores == resource_scores[owners])
+        probe_strength = resource_strength[owners]
+        better = probe_keep & (probe_strength >= strength)
+        strength[better], cosine[better] = probe_strength[better], scores[better]
+        keep |= probe_keep
+    rows = np.flatnonzero(keep)
+    # Select each resource's best passage before applying the candidate limit.
+    # Full-body indexing has no fixed bound on the number of passages per resource.
+    item_strength = np.full(len(index), -np.inf, dtype=np.float32)
+    np.maximum.at(item_strength, owners[rows], strength[rows])
+    strongest = rows[strength[rows] == item_strength[owners[rows]]]
+    item_cosine = np.full(len(index), -np.inf, dtype=np.float32)
+    np.maximum.at(item_cosine, owners[strongest], cosine[strongest])
+    candidates = np.flatnonzero(np.isfinite(item_strength))
+    ranked = sorted(candidates, key=lambda i: (-float(item_strength[i]), -float(item_cosine[i]), index.ids[i]))[:limit]
+    selected = set(ranked)
+    best_rows = {}
+    for row in strongest:
+        owner = int(owners[row])
+        if owner in selected and cosine[row] == item_cosine[owner]:
+            best_rows[owner] = min(best_rows.get(owner, int(rowids[row])), int(rowids[row]))
+    return ([(index.ids[i], float(item_cosine[i])) for i in ranked],
+            {index.ids[i]: best_rows[i] for i in ranked}, scanned,
+            {index.ids[i]: float(item_strength[i]) for i in ranked})
+
 
 
 def _matched_features(conn, item_ids, wanted, query_weights):
@@ -359,8 +516,10 @@ def _passages(store, conn, index, rowids: dict) -> dict:
         if not 0 <= rowid < len(index.chunk_ordinal):
             continue
         ordinal = int(index.chunk_ordinal[rowid])
-        row = conn.execute("SELECT field,heading FROM resource_chunk WHERE item_id=? AND ordinal=? AND chunk_rowid=?",
-                           (item_id, ordinal, rowid)).fetchone()
+        row = conn.execute("SELECT c.field,c.heading,i.body_policy FROM resource_chunk c JOIN catalog_item i USING(item_id) "
+                           "WHERE c.item_id=? AND c.ordinal=? AND c.chunk_rowid=?", (item_id, ordinal, rowid)).fetchone()
+        if row and row["field"] == "body" and row["body_policy"] == "index_only":
+            continue  # Local retrieval permission does not authorize redisplaying third-party text.
         texts = store.chunk_texts(conn, item_id) if row else []
         if ordinal < len(texts):
             result[item_id] = {"chunk_id": str(rowid), "field": row["field"], "heading": row["heading"],
@@ -394,6 +553,7 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
             return response
     query_features = _query_features(request)
     text = query_text(request)
+    semantic_strength = {}
     with store.reader() as conn:
         index = store.index(conn)
         response["generation"] = index.generation
@@ -413,7 +573,8 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
                 raise ValueError("embedding_model_identity_conflict")
             if model:
                 total = int(mask[index.embed_items].sum()) if len(index.embed_items) else 0
-                routes["semantic"], semantic_passages, scanned = _semantic(conn, index, mask, encoder, text, request.per_route)
+                routes["semantic"], semantic_passages, scanned, semantic_strength = _semantic(
+                    conn, index, mask, encoder, text, request.per_route)
                 passages.update({k: v for k, v in semantic_passages.items() if k not in passages})
                 response["vector"] = {"status": "ready" if scanned == total else "partial", "model_id": encoder.model_id,
                                       "indexed_chunks": scanned, "eligible_chunks": total, "algorithm": "exact_cosine_fp16"}
@@ -422,7 +583,8 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
         elif request.model_id:
             response["vector"] = {"status": "model_not_loaded", "model_id": request.model_id}
         response["routes"] = {route: len(hits) for route, hits in routes.items()}
-        response["items"] = _rank(store, conn, index, request, routes, passages, wanted, query_features)
+        response["items"] = _rank(store, conn, index, request, routes, passages, wanted, query_features,
+                                   semantic_strength)
     return response
 
 
@@ -430,21 +592,24 @@ def route_strength(route: str, raw: float) -> float:
     """Absolute [0, 1] evidence of one route; never relative to the other candidates.
 
     lexical: BM25F over its query ceiling (see ``_lexical``). feature / remedy: weighted share
-    of the requested features the item carries (Σ w·min(1, weight) / Σ w). semantic: cosine
-    rescaled from SEMANTIC_FLOOR to 1.
+    of the requested features the item carries (Σ w·min(1, weight) / Σ w). semantic: the
+    per-query z gate of ``semantic_gate`` when given by ``_semantic``; this cosine rescaled from
+    SEMANTIC_FLOOR to 1 is the small-library fallback.
     """
     if route == "semantic":
         return min(1.0, max(0.0, (raw - SEMANTIC_FLOOR) / (1 - SEMANTIC_FLOOR)))
     return min(1.0, max(0.0, raw))
 
 
-def _rank(store, conn, index, request, routes, passage_rows, wanted, query_features):
+def _rank(store, conn, index, request, routes, passage_rows, wanted, query_features, semantic_strength=None):
     parts, fusion = defaultdict(dict), defaultdict(float)
     for route, hits in routes.items():
         for rank, (item_id, score) in enumerate(hits, 1):
             contribution = ROUTE_WEIGHTS[route] / (60 + rank)
             fusion[item_id] += contribution
-            parts[item_id][route] = {"rank": rank, "raw_score": score, "strength": route_strength(route, score),
+            strength = (semantic_strength or {}).get(item_id) if route == "semantic" else None
+            parts[item_id][route] = {"rank": rank, "raw_score": score,
+                                     "strength": route_strength(route, score) if strength is None else strength,
                                      "rrf_contribution": contribution}
     if not fusion:
         return []
@@ -469,20 +634,33 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
         evidence = 1.0 - math.prod(1.0 - v for v in strengths.values())
         coverage = parts[item_id].get("feature", {}).get("raw_score", 0.0)
         quality_report = assess_quality(row)
-        quality = quality_report["score"]
+        # Body availability is a licensing/storage choice, not relevance evidence.
+        ranking_dimensions = [present for key, present in quality_report["dimensions"].items() if key != "body_available"]
+        quality = sum(ranking_dimensions) / len(ranking_dimensions)
         risk = json.loads(row["risk"])
         penalty = min(0.1, len(risk) * 0.02)
-        # Content quality scales the evidence (metadata-only rows lose up to 5%) but never creates it.
+        # Documentation completeness scales evidence but never creates it or certifies safety.
         relevance = max(0.0, evidence * (0.9 + 0.1 * quality) - penalty)
+        agents = json.loads(row["agents"])
+        stored = json.loads(row["metadata"] or "{}")
+        declared = (stored.get("metadata") or {}).get("agent_support") if isinstance(stored, dict) else None
+        matrix = support_matrix(row["type"], agents, row["url"], declared=declared if isinstance(declared, dict) else None)
         candidates.append({"item_id": item_id, "type": row["type"], "name": row["name"], "summary": row["summary"],
-                           "url": row["url"], "agents": json.loads(row["agents"]), "license": row["license"],
+                           "url": row["url"], "agents": agents, "license": row["license"],
+                           # Provenance and compatibility the recommender gates on (source_verified,
+                           # agent_supported): raw catalog values, never defaulted to "verified"/"native".
+                           "verification": row["verification"], "body_policy": row["body_policy"],
+                           "language": row["language"], "support": {a: m["support"] for a, m in matrix.items()},
+                           # Known levels only (unknown omitted), the shape orbit_backend reads.
+                           "agent_support": {a: m["support"] for a, m in matrix.items() if m["support"] != "unknown"},
+                           "support_basis": matrix, "admission": index.admission(item_id, request.problem_type),
                            "difficulty": row["difficulty"], "last_seen": row["last_seen"], "version_id": row["latest_version"],
-                           "verification": row["verification"], "language": row["language"],
-                           "support": (json.loads(row["metadata"]).get("metadata") or {}).get("agent_support") or {},
+                           # Metadata completeness rubric (catalog-quality-v1), never an effectiveness score.
                            "quality": quality_report,
                            "content_hash": row["content_hash"], "score": relevance, "score_parts": {"routes": parts[item_id],
                            "evidence": evidence, "rrf": fusion[item_id], "feature_coverage": coverage,
-                           "content_quality": quality, "risk_penalty": penalty},
+                           "content_quality": quality, "quality_basis": "documentation_excluding_body_availability",
+                           "risk_penalty": penalty},
                            "matched_features": matched.get(item_id, []), "risk": risk, "risk_level": row["risk_level"],
                            "passage": passage_rows.get(item_id),
                            "evidence_ids": request.evidence_ids, "profile_evidence_ids": request.profile_evidence_ids,
@@ -505,8 +683,12 @@ def redundancy_keys(row) -> frozenset:
     """
     url = row["url"] or ""
     repo = re.match(r"https?://(?:www\.)?github\.com/([^/]+/[^/#?]+)", url, re.I)
-    return frozenset({("name", row["name_key"]), ("repo", repo.group(1).lower().removesuffix(".git") if repo else url),
-                      ("type", row["type"])})
+    keys = {("name", row["name_key"]), ("type", row["type"])}
+    if repo:
+        keys.add(("repo", repo.group(1).lower().removesuffix(".git")))
+    elif url:
+        keys.add(("url", url))
+    return frozenset(keys)
 
 
 def _similarity(left, right):
@@ -519,15 +701,31 @@ def _similarity(left, right):
 def _mmr(candidates, limit):
     """Greedy MMR (0.8 relevance, 0.2 redundancy); max similarity is updated incrementally."""
     selected, seen_hashes = [], set()
+    families = defaultdict(int)
+    def family(candidate):
+        return next((v for k, v in candidate["_keys"] if k == "repo" and v), None)
+
+    def penalty(candidate):
+        # Repeated repository results consume progressively more of the existing 20% MMR
+        # diversity budget; no hard quota hides a uniquely relevant repository.
+        count = families.get(family(candidate), 0)
+        family_similarity = count / (count + 1) if count else 0.0
+        return max(redundancy[candidate["item_id"]], family_similarity)
+
     redundancy = {c["item_id"]: 0.0 for c in candidates}
     remaining = list(candidates)
     while remaining and len(selected) < limit:
-        best = min(remaining, key=lambda c: (-(0.8 * c["score"] - 0.2 * redundancy[c["item_id"]]),
+        best = min(remaining, key=lambda c: (-(0.8 * c["score"] - 0.2 * penalty(c)),
                                                -c["score_parts"]["rrf"], c["item_id"]))
         remaining.remove(best)
         if best["content_hash"] in seen_hashes:
             continue
-        best["diversity_score"] = 0.8 * best["score"] - 0.2 * redundancy[best["item_id"]]
+        best["diversity_score"] = 0.8 * best["score"] - 0.2 * penalty(best)
+        best["score_parts"]["diversity"] = {"redundancy": redundancy[best["item_id"]],
+                                             "repository_results_before": families.get(family(best), 0),
+                                             "penalty": 0.2 * penalty(best)}
+        if family(best):
+            families[family(best)] += 1
         selected.append(best)
         seen_hashes.add(best["content_hash"])
         for c in remaining:

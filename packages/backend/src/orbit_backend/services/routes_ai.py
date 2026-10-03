@@ -1,5 +1,6 @@
 """`/v1/ai` routes: engines and consent, context preview, jobs, artifacts, facets, ask and
-usage. Live job progress reuses ``/v1/events?topics=job`` (``ai.job`` frames)."""
+usage, artifact materialize / to_library (A9-17/A9-18). Live job progress reuses
+``/v1/events?topics=job`` (``ai.job`` frames)."""
 
 from __future__ import annotations
 
@@ -49,6 +50,9 @@ class JobRequest(PreviewRequest):
     template: Literal["v1", "quick", "strict"] = "v1"
     preview_digest: str | None = None
     override: bool = False
+    # 「重新生成」: skip the result cache for this job (a new model call; the new output
+    # replaces the cached one). Default False keeps identical requests free.
+    fresh: bool = False
 
 
 class ConsentPatch(BaseModel):
@@ -175,5 +179,37 @@ def router(gw: Gateway) -> APIRouter:
     @api.get("/v1/ai/usage")
     def usage(days: int = Query(30, ge=1, le=365)):
         return ai().usage(days)
+
+    # -- artifact adapters -------------------------------------------------------------
+    # Errors map to plain ApiError (no ``extra``), as before the move from routes_settings.
+    def stored_artifact(artifact_id: str) -> dict:
+        try:
+            return service(gw).artifact(artifact_id)
+        except AIError as error:
+            raise ApiError(error.status, error.code, error.message) from None
+
+    def adapt(fn, *args):
+        try:
+            return fn(*args)
+        except AIError as error:
+            raise ApiError(error.status, error.code, error.message) from None
+
+    @api.post("/v1/ai/artifacts/{artifact_id}/materialize")
+    def materialize(artifact_id: str):
+        from ..ai import artifact_ops
+
+        return adapt(artifact_ops.materialize, stored_artifact(artifact_id), gw.home)
+
+    @api.post("/v1/ai/artifacts/{artifact_id}/to_library", status_code=201)
+    def to_library(artifact_id: str):
+        from orbit_catalog import get_service
+
+        from ..ai import artifact_ops
+
+        catalog = get_service(gw.home / "catalog.db")
+        try:
+            return adapt(artifact_ops.to_library, stored_artifact(artifact_id), catalog)
+        except ValueError as error:
+            raise ApiError(422, "invalid_request", str(error)) from None
 
     return api

@@ -139,23 +139,39 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             return context, analyze_context(context, False, with_recommendations=False)
         return context, analytics_sections(scope, ["sessions", "bottleneck_features"])
 
+    def insight_facets(session_uids):
+        """AI facet outcomes from the canonical home's app.db (a legacy ``--db`` has none)."""
+        from ..analytics.signals.facets import facet_outcomes
+        return facet_outcomes(canonical_home / "app.db", session_uids) if db is None else {}
+
     from .insights import build_router
-    app.include_router(build_router(insight_result, scope_dependency=analytics_scope))
+    app.include_router(build_router(insight_result, get_facets=insight_facets,
+                                    scope_dependency=analytics_scope))
 
     def without_recommendations():
         from ..analytics.service import SECTIONS
         return [name for name in SECTIONS if name != "bottleneck_recommendations"]
 
+    def gateway_validation(check):
+        """Run a gateway parameter check (same rules as routes_analytics), as HTTP 422."""
+        from ..services.auth import ApiError
+        try:
+            return check()
+        except ApiError as exc:
+            raise HTTPException(exc.status, exc.message) from exc
+
     @app.get("/v1/analytics/presentation")
     def presentation(scope=scope_dependency, window: str | None = None,
-                     target_agent: Literal["generic", "codex", "claude_code"] = "generic",
-                     family: Family | None = None):
+                     target_agent: str = "generic", family: Family | None = None):
         from ..analytics.presentation import build_presentation
         from ..analytics.presentation.metrics import window_scope
-        try:
-            selected_scope = window_scope(scope, window)
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
+        from ..services.routes_analytics import PresentationParams, now_ms, presentation_params
+
+        # Same validation and day-anchored window as the gateway route and its worker
+        # (services/sections._presentation re-anchors on ``window_until``).
+        params, _ = gateway_validation(lambda: presentation_params(
+            PresentationParams(window=window, target_agent=target_agent, family=family), scope, now_ms()))
+        selected_scope = window_scope(scope, window, now_ts=params.get("window_until"))
         result = analytics_data(selected_scope, with_text=False)
         if recommendation_catalog is not None or target_agent != "generic" or family:
             from ..recommend.service import recommend as recommend_resources
@@ -254,13 +270,15 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
 
     @app.get("/v1/analytics/recommendations")
     def feature_recommendations(
-        scope=scope_dependency, target_agent: Literal["generic", "codex", "claude_code"] = "generic",
+        scope=scope_dependency, target_agent: str = "generic",
         kind: Literal["skill", "agent", "hook", "prompt"] | None = None, limit: int = Query(6, ge=1, le=20),
         family: Family | None = None,
     ):
         from ..analytics.service import response_section
         from ..recommend.service import recommend as recommend_resources
+        from ..services.routes_analytics import check_target
 
+        gateway_validation(lambda: check_target(target_agent))
         result = analytics_sections(scope, without_recommendations(), False)
         result["bottleneck_recommendations"] = recommend_resources(result, context={"agent": target_agent}, kind=kind,
                                                                    limit=limit, family=family, catalog_directory=recommendation_catalog)

@@ -1,0 +1,31 @@
+{
+  "version": "orbit-skill-learning-v1",
+  "status": "development-preregistration",
+  "source": {
+    "repository": "https://github.com/cxcscmu/SkillLearnBench.git",
+    "commit": "726e1f79b96b0cb3d729d0e55a1c847e0b5353ae"
+  },
+  "prior_exposed_families": ["offer-letter-generator", "weighted-gdp-calculation", "organize-messy-files", "financial-analysis"],
+  "candidate_families": {
+    "court-form-filling": {"history": [1, 2, 3], "validation": [4], "test": [5, 6]},
+    "earthquake-plate-calculation": {"history": [1, 2, 3], "validation": [4], "test": [5, 6]},
+    "dbscan-parameter-tuning": {"history": [1, 2], "validation": [3], "test": [4, 5]},
+    "temperature-simulation": {"history": [1, 2], "validation": [3], "test": [4, 5]},
+    "stock-data-visualization": {"history": [1, 2], "validation": [3], "test": [4, 5]},
+    "dependency-vulnerability-check": {"history": [1, 2], "validation": [3], "test": [4, 5]}
+  },
+  "family_selection": {
+    "data": "validation_only",
+    "verifier_required": "reference solution passes and an empty solution fails; inspect validation assertions for prompt consistency",
+    "headroom_required": "reference intervention improves validation success, or preserves success and reduces online tokens by at least 10 percent",
+    "failed_or_inconclusive_families": "retain all validation results and exclusion reasons; never select families by test outcomes"
+  },
+  "runtime": {"model": "Kimi K3", "thinking": "max", "pi_memory": "off", "task_network": "none"},
+  "test_policy": {
+    "content_access": "after final implementation and interventions are frozen",
+    "arms": ["vanilla", "ours", "llm"],
+    "learning": "offline only; no test feedback enters subsequent tasks",
+    "retry": "infrastructure failures are reported separately; retain every attempt and its cost",
+    "freeze_required": ["selected_families", "splits", "code_commit", "configuration", "prompts", "assets", "source_commit", "run_order", "provider"]
+  }
+}

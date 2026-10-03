@@ -42,27 +42,47 @@ function liteOneCard(open) {
     '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
     '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, ' · 预计节省') + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' +
     (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
-    : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
+    : liteNoneCard(recNone());
+}
+// no open recommendation (F21): only a real 「都已处理」 points at the applied ones and their 7-day effect
+function liteNoneCard(rn) {
+  return '<div class="card pad l-one l-done" data-rec-none="' + rn.k + '"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">' + esc(rn.k === 'done' ? '建议都已处理。7 天后在「优化建议」里看效果。' : rn.t) + '</p>' +
+    (rn.k === 'done' ? '<button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button>' : '') + '</div>';
+}
+// 没有会话时的花（F21）：六片虚线花瓣的轮廓 + 花心，只表示「还没长出来」——不对应任何类型，也不带任何数值
+function emptyBloomSVG(size) {
+  let d = ''; for (let i = 0; i < 6; i++) d += '<ellipse cx="40" cy="23" rx="7.5" ry="14" transform="rotate(' + i * 60 + ' 40 40)"/>';
+  return '<svg class="e-bloom" width="' + size + '" height="' + size + '" viewBox="0 0 80 80" aria-hidden="true"><g fill="none" stroke="var(--ink-4)" stroke-width="1.3" stroke-dasharray="3 3">' + d + '</g><circle cx="40" cy="40" r="3.2" fill="var(--ink-4)"/></svg>';
+}
+// 没有会话时的去处：别的范围还有会话 → 先给「看全部历史」；一个会话都没有 → 导入会话（首次启动的选来源一步）与数据源设置
+function emptyActs(big) {
+  const any = ALL.some((s) => !s.live); const b = big ? ' l-big' : ' sm';
+  const wide = S.range !== 0 && any ? '<button type="button" class="btn p' + b + '" data-act="range" data-v="0">看全部历史</button>' : '';
+  return '<div class="row e-acts" style="flex-wrap:wrap;gap:8px">' + wide + '<button type="button" class="btn' + (wide ? '' : ' p') + b + '" data-act="liteImport">' + ic('plus', 13) + '导入会话</button><button type="button" class="btn gh' + b + '" data-act="openSettings" data-tab="sources">数据源设置</button></div>';
 }
 /* ---------- 1 概览：AI 一句话 + 人格码 → 四个大数字 + 活跃条带 → 本周最值得做的一件事 ---------- */
 PAGES['l-home'] = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
-  const pers = personaNow();
+  const pers = personaNow(); const busy = dataBusy();   // 导入 / 分析还在进行（F08）：说明进度，不写「没有会话」
   // live: the L0 insight lede of /v1/uiview/overview (same scope) when it is there; the persona line otherwise
   const ins = LV.live && LV.ready('l-home') && LV.ov ? LV.ov.insight : null;
-  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。';
-  const ev = st.n ? Math.round(st.verify) + '% 的会话要求验证 · ' + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + Math.round(st.ok) + '%' : '这段时间没有会话';
-  const hero = '<div class="card pad l-hero"><div class="col l-lede"><div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap">' + (LV.live ? esc(ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' +
-    '<p class="serif l-say">' + esc(lede) + '</p><span class="cap mono l-ev">' + ev + '</span></div>' +
+  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : busy ? busyNote(busy) : '所选范围还没有会话，暂时无法给出协作画像。';
+  const ev = busy ? '' :   // busy: the lede already is the one status line (with the imported count)
+    st.n ? (st.verKnown ? Math.round(st.verify) + '% 的会话要求验证 · ' : '') + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + pctKnown(st.ok, st.okKnown) : '这段时间没有会话';
+  // 没有会话时那句话是固定说明，不是 AI 写的：不挂解读标记（F21）；有话时按来源标 AI 或规则
+  const said = (ins && ins.lede) || pers.ok;
+  const hero = '<div class="card pad l-hero"><div class="col l-lede">' + (said ? '<div class="row" style="flex-wrap:wrap">' + ovInsBadge(ins) + '<span class="cap">' + (LV.live ? esc(ovInsWhen(ins)) : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' : '') +
+    '<p class="serif l-say">' + esc(lede) + '</p>' + (ev ? '<span class="cap mono l-ev">' + ev + '</span>' : '') + '</div>' +
     (pers.ok ? '<button type="button" class="ov-code l-code" data-act="go" data-r="l-persona" aria-label="查看协作画像：' + pers.code + ' ' + pers.zh + '"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="serif ov-code-l" data-hero="code">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap;gap:8px"><span class="serif l-zh">' + pers.zh + '</span><span class="serif l-en">' + pers.en + '</span></span><span class="cap">查看协作画像 →</span></button>'
-      : '<div class="ov-code l-code"><span class="eb">协作画像</span><span class="serif ov-code-l" data-hero="code">????</span><span class="cap">还没有会话 · 有 1 个会话即可揭晓</span></div>') + '</div>';
+      : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + (busy ? '<span class="cap">分析完成后自动显示</span>' : '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false)) + '</div>') + '</div>';
   const d = (cur, prev, o) => P ? Object.assign({ cur, prev }, o) : { text: S.range ? '无可比上期' : '全部历史 · 不比较', cls: '' };
-  const tiles = [
+  // F08: nothing measured yet while importing / analysing — four 「—」 with 计算中, never 0
+  const tiles = busy ? ['会话', '协作时长', '摩擦率', '完成率'].map((l) => VZ.kpi({ label: l, value: '—', sub: '计算中', cls: 'l-busy' })).join('') : [
     liteCount(VZ.kpi({ label: '会话', value: fmt(st.n), delta: d(st.n, P && P.n, { unit: 'pct', goodDown: false, fmt: 'int' }), act: 'go', attrs: ' data-r="l-sessions"' }), st.n),
     liteCount(VZ.kpi({ label: '协作时长', value: st.hours >= 100 ? fmt(st.hours) : f1(st.hours), unit: 'h', delta: d(st.hours, P && P.hours, { unit: 'pct', goodDown: false, fmt: (v) => f1(v) + 'h' }) }), st.hours, st.hours >= 100 ? 0 : 1),
-    liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: d(st.fric, P && P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) }), st.fric, 1),
-    liteCount(VZ.kpi({ label: '完成率', value: String(Math.round(st.ok)), unit: '%', delta: d(st.ok, P && P.ok, { unit: 'pt', goodDown: false, fmt: (v) => Math.round(v) + '%' }) }), st.ok)
+    (st.msgs ? liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: P && P.msgs ? d(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null }), st.fric, 1) : VZ.kpi({ label: '摩擦率', value: '—', sub: busy ? '' : '没有你发出的消息' })),
+    (st.okKnown ? liteCount(VZ.kpi({ label: '完成率', value: String(Math.round(st.ok)), unit: '%', delta: d(st.ok, P && P.okKnown ? P.ok : null, { unit: 'pt', goodDown: false, fmt: (v) => Math.round(v) + '%' }) }), st.ok) : VZ.kpi({ label: '完成率', value: '—', sub: st.n ? '这些会话没有完成信号' : '' }))
   ].join('');
   // 活跃条带：至少 30 天，当前范围内的日子用实色，范围外的用浅色
   const w = win(S.range); const span = Math.max(30, w[1] - w[0] + 1); const a0 = w[1] - span + 1;
@@ -71,24 +91,43 @@ PAGES['l-home'] = () => {
   const strip = '<div class="l-strip" role="img" aria-label="每日会话数 · ' + md(days[0]) + ' — ' + md(w[1]) + '">' + days.map((x) => '<i class="' + (x >= w[0] ? 'in' : '') + '" style="height:' + Math.max(4, (per[x] || 0) / mx * 100).toFixed(1) + '%" data-tip="' + md(x) + ' 周' + WD[wd(x)] + ' · ' + (per[x] || 0) + ' 个会话"></i>').join('') + '</div>' +
     '<div class="row cap l-strip-l"><span class="mono">' + md(days[0]) + '</span><span style="flex:1;text-align:center">每日会话 · 深色为' + rangeLabel() + '</span><span class="mono">' + md(w[1]) + '</span></div>';
   const one = liteOneCard(recTop('lite'));
-  return liteBar('概览', winLabel() + ' · ' + st.n + ' 个会话') +
+  return liteBar('概览', winLabel() + ' · ' + (busy ? busyMeta(busy) : st.n + ' 个会话')) +
     '<div class="content" id="content"><div class="lite l-home">' + hero +
     '<section class="l-sec"><div class="tiles l-tiles">' + tiles + '</div>' + strip + '</section>' + one +
     liteFoot([['overview', '完整概览'], ['tools', '工具调用'], ['projects', '项目习惯']]) + '</div></div>';
 };
 
+// 匹配度：与揭晓页同源——demo 用 genCands（16 型原型点的距离），live 用 /v1/uiview/persona/reveal 的候选；live 的候选还没到时不写数
+function liteMatch(p) {
+  if (LV.live) {
+    const e = LV.reveal(({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range] || '90');
+    const cs = e && e.data && typeof LVN !== 'undefined' ? LVN.personaOf(e.data).cands : [];
+    return cs.find((c) => c.c === p.code) || null;
+  }
+  return genCands(p).find((c) => c.c === p.code) || null;
+}
 /* ---------- 2 协作画像：超大四字母 + 指纹 → 四个维度 → 月度演变 ---------- */
 PAGES['l-persona'] = () => {
   const L = personaScope(); const p = persona(L);
   if (p.pending) return liteBar('协作画像', rangeLabel() + ' · ' + L.length + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona">' + LV.pend(360) + LV.pend(220) + '</div></div>';
   if (!p.ok) {
-    return liteBar('协作画像', rangeLabel() + ' · ' + p.n + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona"><div class="card pe-low l-low"><div class="ov-code"><span class="serif ov-code-l" data-hero="code">????</span></div><div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">还没有会话</span><p class="serif l-say" style="margin:0">所选范围还没有会话，有 1 个会话就能给出协作画像。</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn p l-big" data-act="range" data-v="30">看近 30 天</button><button type="button" class="btn l-big" data-act="range" data-v="0">看全部历史</button></div></div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
+    const busy = dataBusy();
+    return liteBar('协作画像', rangeLabel() + ' · ' + (busy ? busyMeta(busy) : p.n + ' 个会话')) + '<div class="content" id="content"><div class="lite l-persona"><div class="card l-low" data-lv="pers-empty">' + emptyBloomSVG(132) + '<div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">协作画像 · ' + rangeLabel() + '</span><p class="serif l-say" style="margin:0">' + esc(busy ? busyNote(busy) + '。分析完成后自动显示协作画像。' : p.error ? '画像暂时取不到，稍后会自动重试。' : '这段时间还没有会话。有 1 个会话，就能看到你的协作画像。') + '</p>' + (busy || p.error ? '' : emptyActs(true)) + '</div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
   }
-  const tags = [0, 1, 2, 3].map((i) => axisView(p, i)).map((a) => '<span class="tag">' + a.name + ' ' + a.strong + '</span>').join('');
-  const hero = '<div class="card persona-hero l-phero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
-    '<div class="letters" data-hero="code" aria-label="' + p.code + ' ' + p.zh + '">' + p.code.split('').map((ch) => '<span class="L serif">' + ch + '</span>').join('') + '</div>' +
-    '<div class="row" style="align-items:baseline;gap:12px;flex-wrap:wrap"><span class="serif l-zh">' + p.zh + '</span><span class="serif l-en">' + p.en + '</span></div>' +
-    '<p class="serif l-line">' + esc(p.line) + '</p><div class="row" style="flex-wrap:wrap;gap:6px">' + tags + '</div>' +
+  // 画像主卡吸收「播放揭晓」第 05 步（F13）：已读取 N 个会话 · N 次工具调用、四字母下的维度分、匹配度、类型名与一句话、
+  // 「已经知道的」统计 / 轨迹 / 语义 / 人格四行——都用揭晓页同一组函数（genFacts / genCands，live 用揭晓接口的候选）算同一批会话
+  const st = stats(L); const facts = genFacts(L);
+  const m = p.classified ? liteMatch(p) : null;
+  const slots = p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<span class="l-slot"><span class="L serif">' + ch + '</span><span class="l-sax">' + a.name + ' <b class="mono">' + a.strong + '</b></span></span>'; }).join('');
+  const meta = '置信度 ' + p.conf + ' · ' + fmt(p.n) + ' 个会话';
+  const hero = '<div class="card persona-hero l-phero"><div class="col" style="gap:0;min-width:0">' +
+    '<span class="mono cap l-count">已读取 ' + fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用</span>' +
+    '<div class="row" style="flex-wrap:wrap;margin-top:10px"><span class="eb">你的协作人格 · ' + rangeLabel() + '</span>' + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
+    '<div class="letters" data-hero="code" aria-label="' + p.code + ' ' + p.zh + '">' + slots + '</div>' +
+    '<div class="row l-match">' + (m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · ' + meta + '</span>' : '<span class="bdg">' + meta + '</span>') + '</div>' +
+    '<div class="row" style="align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:14px"><span class="serif l-zh">' + p.zh + '</span><span class="serif l-en">' + p.en + '</span></div>' +
+    '<p class="serif l-line">' + esc(p.line) + '</p>' +
+    '<div class="l-facts"><span class="eb">已经知道的</span>' + facts.map((f) => '<div class="step done l-fact"><span class="mk">' + ic('check', 12) + '</span><span class="l-ft"><b>' + f[0] + '</b><span>' + esc(f[2]) + '</span></span><span></span></div>').join('') + '</div>' +
     '<div class="row l-acts"><button type="button" class="btn p l-big" data-act="reveal">' + ic('play', 13) + '播放揭晓</button><button type="button" class="btn l-big" data-act="share">' + ic('share', 14) + '导出分享卡</button></div></div>' +
     '<div class="fp-wrap l-fp" data-hero="fp">' + fp2SVG(L, p, 300, { labels: true }) + '</div></div>';
   const axes = '<div class="card pad l-axes"><div class="hd"><div class="grow"><span class="ct">四个维度</span><span class="cap">点的位置 = 你偏向哪一极 · 中线 50</span></div></div>' + [0, 1, 2, 3].map((i) => {
@@ -99,7 +138,7 @@ PAGES['l-persona'] = () => {
   const months = peMonthKeys().map((k) => ({ k, m: LV.live ? +k.slice(5) : ({ jun: 6, jul: 7, aug: 8, sep: 9 })[k], p: persona(personaScope([PERIODS[k][0], PERIODS[k][1]])) }));
   const evo = '<div class="card pad l-evo"><div class="hd"><div class="grow"><span class="ct">演变</span><span class="cap">按月重算 · 点击在 Advance 中查看那个月</span></div>' + liteAdv('persona') + '</div><div class="evo">' +
     months.map((m, i) => '<button type="button" data-act="litePeriod" data-v="' + m.k + '" class="' + (m.k === cm ? 'on' : '') + '"' + (m.k === cm ? ' aria-current="true"' : '') + '><span class="mono l-mm">' + m.m + ' 月' + (m.k === cm ? ' · 本月' : '') + '</span><span class="tcode l-mc">' + (m.p.ok ? m.p.code : '—') + '</span><span class="l-mz">' + (m.p.ok ? m.p.zh : '暂无会话') + '</span></button>' + (i < 3 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div></div>';
-  return liteBar('协作画像', 'n=' + p.n + ' · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + rangeLabel()) +
+  return liteBar('协作画像', fmt(p.n) + ' 个会话 · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + rangeLabel()) +
     '<div class="content" id="content"><div class="lite l-persona">' + hero + axes + evo + '</div></div>';
 };
 
@@ -121,15 +160,20 @@ function liteInsight(s, tr) {
   if (s.out === 'ok' && s.verify) return '一次到位：目标清楚、过程中' + (s.corr ? '只纠偏 1 次' : '没有返工') + '，最后做了验证。可以把这次的开场白存成模板。';
   if (s.out === 'ok') return '顺利完成，但没有要求验证——加一步测试或线上检查，结果会更稳。';
   if (s.out === 'fail') return '这次放弃了。' + (s.errors ? '出现 ' + s.errors + ' 次工具错误，' : '') + '换个更小的切入点，或先让 Agent 只读调查。';
-  return '部分完成：' + (s.errors ? s.errors + ' 次工具错误拖慢了进度，' : '') + '建议把剩余部分拆成单独的会话。';
+  if (s.out === 'part') return '部分完成：' + (s.errors ? s.errors + ' 次工具错误拖慢了进度，' : '') + '建议把剩余部分拆成单独的会话。';
+  // no outcome signal: say only what the events show
+  return (s.errors || s.corr ? '出现 ' + [s.errors ? s.errors + ' 次工具错误' : '', s.corr ? s.corr + ' 次纠偏' : ''].filter(Boolean).join('、') + '。' : '没有工具错误，也没有纠偏。') + '这个会话没有完成信号，结果未知。';
 }
 PAGES['l-sessions'] = () => {
   const list = liteSessList();
   let s = BYID[S.sess.sel];
   if (!s || !list.includes(s)) s = list[0];
   if (!s) return liteBar('会话轨迹', rangeLabel()) + '<div class="content" id="content"><div class="lite l-sessions">' + empty('没有匹配的会话。试试放宽时间范围' + (liteFiltered() ? '，或清除 Advance 筛选' : '') + '。') + '</div></div>';
-  const tr = traj(s); const T = tr.T; const o = OUT[s.out] || OUT.ok;
-  const rows = list.map((x) => { const ox = OUT[x.out] || OUT.ok; return '<button type="button" class="srow' + (x === s ? ' sel' : '') + '" data-act="liteSess" data-id="' + x.id + '" aria-pressed="' + (x === s) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + ic(ox[0], 14, 'color:' + ox[1]) + '</span><span class="m">' + (x.d === liteToday() ? '今天' : md(x.d)) + ' ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + '</span></button>'; }).join('');
+  const tr = traj(s); const T = tr.T; const o = outOf(s);
+  // live: the gateway's session insight (A3H.insight, AI only when its basis names a model); otherwise the local rule template
+  const lx = LV.live && A3H.insight ? A3H.insight(s) : null;
+  const liteIns = lx && lx.text && tr.insight ? { text: lx.text, ai: !!lx.ai } : { text: liteInsight(s, tr), ai: false };
+  const rows = list.map((x) => { const ox = outOf(x); return '<button type="button" class="srow' + (x === s ? ' sel' : '') + '" data-act="liteSess" data-id="' + x.id + '" aria-pressed="' + (x === s) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + ic(ox[0], 14, 'color:' + ox[1]) + '</span><span class="m">' + (x.d === liteToday() ? '今天' : md(x.d)) + ' ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + '</span></button>'; }).join('');
   const nums = [
     liteCount(VZ.kpi({ label: '你的消息', value: String(s.msgs), unit: '轮' }), s.msgs),
     liteCount(VZ.kpi({ label: '工具调用', value: String(s.tools), unit: '次' }), s.tools),
@@ -145,7 +189,7 @@ PAGES['l-sessions'] = () => {
   const nodes = tr.moments.map((m, i) => '<span class="l-node' + (m[3] ? ' bad' : '') + '" style="left:' + xs[i].toFixed(2) + '%" data-tip="' + esc(relT(Math.round(m[0] * 10) / 10) + ' · ' + m[1]) + '">' + (i + 1) + '</span>').join('');
   const steps = tr.moments.map((m, i) => '<li class="' + (m[3] ? 'bad' : '') + '"><span class="l-sn mono">' + (i + 1) + '</span><span class="mono l-st">' + relT(Math.round(m[0] * 10) / 10) + '</span><b>' + esc(m[1]) + '</b><span class="l-sd">' + esc(m[2]) + '</span></li>').join('');
   const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === liteToday() ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
-    '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins"><span class="aib">' + ic('spark', 11) + 'AI 洞察</span><p class="serif">' + esc(liteInsight(s, tr)) + '</p></div></div>';
+    '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins">' + insBadge(liteIns.ai, 'AI 洞察') + '<p class="serif">' + esc(liteIns.text) + '</p></div></div>';
   const tl = '<div class="card pad l-tlc"><div class="hd"><div class="grow"><span class="ct">关键步骤</span><span class="cap">' + tr.moments.length + ' 个关键时刻 · 全程 ' + (s.live ? liveMin() + 'm' : dur(T)) + '</span></div>' + liteAdv('sessions', '在 Advance 中回放') + '</div>' +
     (tr.moments.length ? '<div class="l-tl" role="img" aria-label="会话时间线：' + esc(tr.moments.map((m) => m[1]).join('、')) + '"><span class="l-rail"></span>' + nodes + '<div class="l-phs">' + phases + '</div></div><ol class="l-steps">' + steps + '</ol>' : (tr.state === 'pending' ? '<p class="cap" data-lv="pending" aria-busy="true" style="margin:12px 0 4px">正在读取关键时刻…</p>' : tr.state === 'error' ? '<p class="cap" data-lv="error" style="margin:12px 0 4px">关键时刻暂时取不到</p>' : '<p class="cap" data-lv="no-moments" style="margin:12px 0 4px">这个会话没有关键时刻</p>')) + '</div>';
   return liteBar('会话轨迹', rangeLabel() + ' · 最近 ' + list.length + ' 个会话') +
@@ -156,6 +200,7 @@ PAGES['l-sessions'] = () => {
 /* ---------- 4 优化建议：一句总收益（占协作时间 / token 的比例）→ 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
 PAGES['l-recs'] = () => {
   const all = recOrder('lite'); const top = all.slice(0, 3);
+  const busy = dataBusy();   // F08: importing / analysing — one status line in the hero, no counts
   const open = top.filter((r) => !S.installed.has(r.id));
   // the total: shares of the real trajectory; alternatives on one problem count once (recTotal), and recs without a
   // share never add a made-up 0 %
@@ -166,7 +211,8 @@ PAGES['l-recs'] = () => {
         (tot.t != null && tot.k != null ? '<span class="cap mono l-tot2">token 预计省下 ' + fmtPct(tot.k) + ' · 按近期真实轨迹的占比计算</span>' : '<span class="cap mono l-tot2">按近期真实轨迹的占比计算</span>')
       : open.length ? '<p class="serif l-say">这 ' + open.length + ' 件事还没有节省比例的估计。应用后 7 天，在效果追踪里看实际变化。</p>'
       : top.length ? '<p class="serif l-say">前三条都已应用。7 天后看效果追踪，或在 Advance 里挑下一条。</p>'
-      : '<p class="serif l-say">还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。</p>') + '</div>';
+      : busy ? '<p class="serif l-say">' + esc(busyNote(busy)) + '</p>'
+      : '<p class="serif l-say">' + esc(/^(busy|computing|error|none)$/.test(recNone().k) ? recNone().t : '还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。') + '</p>') + '</div>';
   const card = (r, i) => {
     const inst = S.installed.get(r.id);
     const state = inst ? '<span class="tag">' + ic('okc', 12, 'color:var(--good)') + (inst.days >= 7 ? '已应用 · ' + VERDICT[trackStats(r).verdict][0] : '已应用 · 追踪中 ' + inst.days + ' / 7 天') + '</span><button type="button" class="btn gh l-big" data-act="liteRecAdv" data-id="' + r.id + '">查看追踪</button><button type="button" class="btn l-big" data-act="uninstall" data-id="' + r.id + '">' + ic('undo', 13) + '撤销</button>' : liteRecBtn(r);
@@ -174,12 +220,13 @@ PAGES['l-recs'] = () => {
       '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
       '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
   };
-  return liteBar('优化建议', all.length + ' 条 · 这里只看最值得做的 3 条') +
-    '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : empty('没有可见的建议')) + '</div>' +
-    liteFoot([['recs', '查看全部 ' + all.length + ' 条建议'], ['library', '资源库']]) + '</div></div>';
+  return liteBar('优化建议', busy ? busyMeta(busy) : all.length + ' 条 · 这里只看最值得做的 3 条') +
+    '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : busy ? '' : empty('没有可见的建议')) + '</div>' +
+    liteFoot((busy ? [] : [['recs', all.length ? '查看全部 ' + all.length + ' 条建议' : '打开优化建议']]).concat([['library', '资源库']])) + '</div></div>';
 };
 
 Object.assign(ACT, {
+  liteImport: () => openOnboarding(1),
   liteClear: () => { S.project = null; S.topic = null; S.outcome = null; S.fric = null; S.hour = null; AG.forEach((a) => S.agents.add(a.id)); render(); },
   liteSess: (el) => { const s = BYID[el.dataset.id]; if (!s) return; stopPlay(); S.sess.sel = s.id; S.sess.mode = 'single'; S.sess.cmp = null; S.sess.ph = traj(s).T; renderMain(); },
   litePeriod: (el) => { S.persona.period = el.dataset.v; edOpen('persona'); },

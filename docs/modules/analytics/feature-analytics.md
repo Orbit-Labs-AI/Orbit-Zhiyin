@@ -1,5 +1,23 @@
 # Feature Analytics MVP：先测量，再解释
 
+CLI 可直接消费 main `packages/data.read_analysis` 的标准输出：
+
+```bash
+orbit analytics --analysis-input .local/analysis-input.json --output .local/analytics.json --feature-output .local/features
+```
+
+也可在安装 `packages/data` 后通过 `--data-home .local/data` 只读查询规范库，配合
+`--from-ts / --until-ts` 指定 UTC 毫秒范围。标准输入默认沿用读取接口的范围、排除项和显示时区；
+只允许进一步缩小范围。关联上下文不进入事件计数，模型调用仅在关联的原生用量事件同时证明
+call/delta 和一致请求身份时进入请求统计。以下旧库实测为历史记录，不代表规范读取的结果。
+
+`--feature-output` 生成 `README.md`、`index.json`，以及每族的 JSON 和完整字段值 Markdown。
+当前全局字典有 126 项，按 session/tools/workflow/usage/activity/text、instruction/preference/task、
+interaction/respond/cost_time/outcome/outcome_subjective 共 14 族导出。
+每个值带 RFC6901 `source_path`，可回到同次 `--output` JSON 核对；会话、项目、工具、记录粒度分别保留。
+未出现在字典的附加族测量、候选、证据与缺失原因也保留在各族 `payload`。
+无匹配记录不输出 0，实际的 0、false、null、空列表均原样保存；私人产物只留本地，不提交。
+
 > v2 增补：非语义 × bottleneck 特征已拆分为四个独立目录，提供 `bottleneck_features` 输出；输入扩展、迁移说明及验收见 [瓶颈特征重构](bottleneck-features.md)。以下保留 v1 背景与旧测量字段说明，客观验收只在 v2 的明确条件范围内新增。
 主观结果特征族已独立为 `analytics/outcome_subjective/`；字段、对象关联、五类测试与边界见 [Outcome 主观结果](../../../packages/backend/src/orbit_backend/analytics/outcome_subjective/README.md)。原 `subjective_outcome_candidates` 保持兼容，新增 `subjective_outcomes` 提供细分反馈与覆盖说明。
 

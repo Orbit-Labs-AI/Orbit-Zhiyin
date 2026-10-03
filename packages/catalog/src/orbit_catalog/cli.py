@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import sys
+import time
 from pathlib import Path
 
 from .contracts import MatchRequest, SourceSpec
@@ -9,13 +11,13 @@ from .network import HttpClient
 from .service import CatalogService, default_home
 from .sources.structured import FILE_KINDS
 from .sync import CatalogSync
-from .vectors import index_embeddings
+from .vectors import index_embeddings_parallel
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Orbit 推荐资源数据模块")
     parser.add_argument("--home", type=Path, default=default_home())
-    parser.add_argument("--model-dir", type=Path, help="已下载的 E5 模型目录；不自动联网下载")
+    parser.add_argument("--model-dir", type=Path, help="E5 模型目录；缺省自动发现 <home>/models、$ORBIT_HOME/models 与 Application Support/Orbit/models")
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init")
     init.add_argument("--sources", type=Path, help="可选的 SourceSpec JSON 数组")
@@ -28,6 +30,10 @@ def main(argv=None):
     sync.add_argument("--max-pages", type=int, default=10000)
     sync.add_argument("--concurrency", type=int, default=3, help="并发抓取的来源数")
     sync.add_argument("--offline", action="store_true", help="只读本地 HTTP 缓存，不发网络请求")
+    sync.add_argument("--progress", action="store_true", help="向 stderr 输出已发布批次进度")
+    bulk = sub.add_parser("import-bulk", help="注册并流式导入固定版本的公开 JSONL 资源快照")
+    bulk.add_argument("--spec", type=Path, required=True, help="kind=bulk 的 SourceSpec JSON；文件使用绝对路径")
+    bulk.add_argument("--progress", action="store_true")
     imported = sub.add_parser("import-file", help="从本地 JSON（夹具或公开榜单缓存）导入一个结构化来源，不经网络")
     imported.add_argument("--source", required=True)
     imported.add_argument("--file", type=Path, required=True)
@@ -43,6 +49,15 @@ def main(argv=None):
     official.add_argument("--out", type=Path, required=True)
     embed = sub.add_parser("embed")
     embed.add_argument("--max-chunks", type=int)
+    embed.add_argument("--scope", choices=("overview", "all"), default="all", help="先确保每条资源有向量，或补齐全部可编码块")
+    embed.add_argument("--all-passages", action="store_true", help="明确将全部正文块纳入索引，保留该目录后续更新的全量策略")
+    embed.add_argument("--batch-size", type=int, default=64, help="每次持久化的块数")
+    embed.add_argument("--threads", type=int, default=4, help="本地模型 CPU 线程数")
+    embed.add_argument("--workers", type=int, choices=range(1, 5), default=1, help="互不重复的资源分片数，每个进程独立加载模型")
+    embed.add_argument("--model-batch-size", type=int, default=8, help="模型每批 token 窗口数")
+    embed.add_argument("--progress", action="store_true", help="向 stderr 输出已持久化向量的进度")
+    model = sub.add_parser("model-download", help="下载固定 revision 的 int8 E5（约 135 MB，逐文件 SHA-256 校验）")
+    model.add_argument("--allow", action="store_true", required=True, help="显式同意下载并记录到 <home>/models")
     query = sub.add_parser("search")
     query.add_argument("text", nargs="?", default="")
     query.add_argument("--request", type=Path, help="完整 MatchRequest JSON，含分析特征和证据 ID")
@@ -59,17 +74,28 @@ def main(argv=None):
         return
     http = HttpClient(args.home / "catalog-http-cache", offline=True) if getattr(args, "offline", False) else None
     service = CatalogService(args.home / "catalog.db", model_dir=args.model_dir, http=http)
+    progress = (lambda row: print(json.dumps(row, ensure_ascii=False), file=sys.stderr, flush=True)) if getattr(args, "progress", False) else None
     try:
         if args.command == "init":
             if args.sources:
                 service.store.register([SourceSpec.model_validate(s) for s in json.loads(args.sources.read_text())])
             result = {"database": str(service.store.path), "sources": service.store.sources()}
         elif args.command == "status":
-            result = {"catalog": service.store.stats(), "sources": service.store.sources()}
+            try:
+                service.encoder()  # load a discovered model so the coverage line is filled in
+            except RuntimeError:
+                pass  # reported as vector.status=unavailable
+            result = {"catalog": service.store.stats(), "vector": service.vector_status(), "sources": service.store.sources()}
         elif args.command == "sync":
             result = CatalogSync(service.store, service.http).sync(args.source, force=args.force, max_pages=args.max_pages,
-                                                                   concurrency=args.concurrency)
+                                                                   concurrency=args.concurrency, progress=progress)
             service.retire_seeds(result)
+        elif args.command == "import-bulk":
+            spec = SourceSpec.model_validate_json(args.spec.read_text())
+            if spec.kind != "bulk":
+                parser.error("import-bulk requires a bulk SourceSpec")
+            service.store.register([spec])
+            result = CatalogSync(service.store, service.http).sync([spec.source_id], force=True, progress=progress)
         elif args.command == "seed-import":
             result = service.bootstrap(args.file.read_bytes() if args.file else None)
         elif args.command == "import-file":
@@ -80,9 +106,23 @@ def main(argv=None):
             service.store.register([spec.model_copy(update={"config": {**spec.config, "file": str(args.file.resolve())}})])
             result = CatalogSync(service.store, service.http).sync([args.source], force=True)
         elif args.command == "embed":
-            if service.encoder() is None:
+            if service.model_directory() is None:
                 parser.error("embed requires --model-dir with a local E5 snapshot")
-            result = index_embeddings(service.store, service.encoder(), max_chunks=args.max_chunks)
+            if args.all_passages:
+                policy = service.store.enable_all_embeddings()
+                if progress:
+                    progress(policy)
+            result = index_embeddings_parallel(service.store, service.model_directory(), workers=args.workers,
+                                               threads=args.threads, encoder_batch_size=args.model_batch_size,
+                                               max_chunks=args.max_chunks, scope=args.scope,
+                                               batch_size=args.batch_size, progress=progress)
+        elif args.command == "model-download":
+            from . import embedding_model
+            embedding_model.set_download_allowed(service.model_roots[0], True)
+            started = time.perf_counter()
+            directory = embedding_model.download(service.model_roots[0])
+            result = {"model_dir": str(directory), "bytes": embedding_model.DOWNLOAD_BYTES,
+                      "seconds": round(time.perf_counter() - started, 1)}
         elif args.command == "search":
             request = MatchRequest.model_validate_json(args.request.read_text()) if args.request else MatchRequest(text=args.text, types=args.type, limit=args.limit)
             result = service.match(request)
@@ -99,7 +139,7 @@ def main(argv=None):
             uvicorn.run(create_catalog_app(service), host="127.0.0.1", port=args.port)
             return
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        if args.command in ("sync", "import-file") and any(r["status"] == "failed" for r in result):
+        if args.command in ("sync", "import-file", "import-bulk") and any(r["status"] == "failed" for r in result):
             raise SystemExit(1)
         if args.command == "verify" and not result["ok"]:
             raise SystemExit(1)

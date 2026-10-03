@@ -1,5 +1,7 @@
 # 质量与真实数据验收
 
+Pi memory-off、Kimi K3 max 的真实任务对照实验见 [Artificial benchmark](artificial_benchmark/README.md)。任务、镜像、提示与评分代码先冻结，原始轨迹与结果保留在本地忽略目录或专用外置盘。
+
 从仓库根通过模块方式运行：
 
 ```sh

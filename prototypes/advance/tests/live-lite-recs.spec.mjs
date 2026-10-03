@@ -66,3 +66,46 @@ test('Lite recs: shares present → the hero adds them per problem and each card
   await expect(page.locator('.l-rc .l-gain').nth(2)).toContainText('节省比例待估算');
   expect(errors).toEqual([]);
 });
+
+test('Lite recs: large overlapping shares never add up to「100%」(F10) — capped by the operation pool, like total_saving', async ({ page }) => {
+  test.skip(!!PASS, 'stubbed recommendation bodies');
+  const errors = collectErrors(page);
+  // three rework problems that each claim the whole trajectory (the old Σ clamped at 100 printed「100%」), and the
+  // same pool split: 3 × 100 % shares scaled into the 100 % rework pool, × .6 each → 60 %
+  const save = (i) => ({ time_pct: 60, token_pct: 60, share: { time: 100, token: 100 }, effect: 0.6, key: 'p' + i, op: 'turn', group: 'turn', cap: { time: 100, token: 100 } });
+  await stubGateway(page, 's1', routes(recsBody((c, i) => { c.ui.save = save(i); })));
+  await openLive(page, 'overview');
+  await expect.poll(() => page.evaluate(() => visibleRecs().filter((r) => r.live).length)).toBeGreaterThan(0);
+  await page.evaluate(() => { edSet('lite'); go('l-recs'); });
+  await expect(page.locator('.l-rhero .l-big-n')).toContainText('60%的协作时间');
+  await expect(page.locator('.l-rhero')).not.toContainText('100%');
+  // a tool-call pool of 30 % time: two failures of 25 % each scale to 15 % + 15 %, × .8 / .6 → 21 %
+  const tot = await page.evaluate(() => {
+    REC_X.__a = { pct: { t: 20, k: 8, st: 25, sk: 10, p: .8, key: 'f1', g: 'call', cap: { t: 30, k: 40 } } };
+    REC_X.__b = { pct: { t: 15, k: 6, st: 25, sk: 10, p: .6, key: 'f2', g: 'call', cap: { t: 30, k: 40 } } };
+    const r = recTotal([{ id: '__a' }, { id: '__b' }]); delete REC_X.__a; delete REC_X.__b; return r;
+  });
+  expect(tot.t).toBeCloseTo(21, 6);
+  expect(tot.k).toBeCloseTo(14, 6);
+  expect(errors).toEqual([]);
+});
+
+test('Lite recs: recTotal gives the same totals as narrate.total_saving on the shared cases (fixtures/recs/total-cases.json)', async ({ page }) => {
+  test.skip(!!PASS, 'stubbed recommendation bodies');
+  const errors = collectErrors(page);
+  const { cases } = fx('recs/total-cases.json');
+  await stubGateway(page, 's1', routes(recsBody(() => {})));
+  await openLive(page, 'overview');
+  // each backend ui.save goes through the live adapter (OrbitLive.recs.pct), as on a live page, then into recTotal
+  const got = await page.evaluate((cs) => cs.map((c) => {
+    const ids = c.saves.map((s, i) => { const id = '__t' + i; REC_X[id] = { pct: OrbitLive.recs.pct({ ui: { save: s } }) }; return { id }; });
+    const r = recTotal(ids); ids.forEach(({ id }) => delete REC_X[id]); return r;
+  }), cases);
+  cases.forEach((c, i) => {
+    for (const [f, key] of [['t', 'time'], ['k', 'token']]) {
+      if (c.total[key] == null) expect(got[i][f], c.name).toBeNull();
+      else expect(got[i][f], c.name + ' · ' + key).toBeCloseTo(c.total[key], 6);
+    }
+  });
+  expect(errors).toEqual([]);
+});

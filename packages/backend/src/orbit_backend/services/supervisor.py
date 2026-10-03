@@ -21,11 +21,16 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
   failed (the worker reports open runs); at start, runs older than ``max_budget_s`` are too
 - an import with no progress frame for ``ingest_stall_s`` (15 min) is stopped and recorded
   ``interrupted(job_stalled)``; the next job starts a fresh worker
+- each worker leads its own process group (its process-pool children and the
+  multiprocessing resource tracker included): kills and the post-exit sweep signal the
+  whole group, so no pool child outlives its worker; ``Supervisor.stop`` closes every
+  worker's stdin at once and waits for all of them under one ``term_grace_s`` budget
 """
 
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -108,9 +113,30 @@ class SupervisorConfig:
     ingest_stall_s: float = 900.0
     max_failures: int = 3
     max_preemptions: int = 2  # an interactive task may interrupt the same prewarm this often
+    # A transient failure (``projection_pending``) is not a strike, but the same key and
+    # revision is not re-run for this long: clients retry every second and each retry used
+    # to start a full analysis run (849 failed runs in one afternoon on a real home).
+    transient_retry_s: float = 30.0
     tick_s: float = 0.2
     worker_env: dict[str, str] = field(default_factory=dict)
     plan: dict = field(default_factory=dict)  # ingest_plan overrides (head_sessions, …)
+
+
+def signal_group(proc: subprocess.Popen, sig: int) -> None:
+    """Signal the worker's process group (``start_new_session``); its pid is the group id.
+
+    The resource tracker ignores SIGTERM and unlinks the semaphores of a dead pool when its
+    pipe closes, so a SIGTERM sweep leaves no ``leaked semaphore`` objects behind; SIGKILL
+    goes to the worker alone for the same reason.
+    """
+    try:
+        os.killpg(proc.pid, sig)
+    except (ProcessLookupError, PermissionError):
+        if proc.poll() is None:
+            try:
+                proc.send_signal(sig)
+            except ProcessLookupError:
+                pass
 
 
 def worker_command(role: str, home: Path) -> list[str]:
@@ -176,7 +202,7 @@ class WorkerProcess:
         with open(log_path, "ab") as log:
             self.proc = subprocess.Popen(worker_command(self.role, self.home),
                                          stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                         stderr=log, env=env)
+                                         stderr=log, env=env, start_new_session=True)
         self.expected_exit = None
         self.niced = False
         self.last_hb = self.last_activity = time.monotonic()
@@ -208,6 +234,9 @@ class WorkerProcess:
                     self.last_hb = time.monotonic()
             self.on_message(message)  # Heartbeats too: analysis reads their live RSS.
         proc.wait()
+        # Pool children of a killed or crashed worker would keep mapping files (and their
+        # resource tracker running) with no reader; the group outlives its leader.
+        signal_group(proc, signal.SIGTERM)
         with self.lock:
             if proc is not self.proc:
                 return
@@ -250,11 +279,12 @@ class WorkerProcess:
             if proc is None or proc.poll() is not None:
                 return
             self.expected_exit = reason
-        proc.terminate()
+        signal_group(proc, signal.SIGTERM)
 
         def force():
             if proc.poll() is None:
                 proc.kill()
+                signal_group(proc, signal.SIGTERM)
 
         timer = threading.Timer(self.config.term_grace_s, force)
         timer.daemon = True
@@ -268,6 +298,10 @@ class WorkerProcess:
                 self._set_state("idle")
 
     def stop(self) -> None:
+        self.wait_stopped(self.begin_stop(), time.monotonic() + self.config.term_grace_s)
+
+    def begin_stop(self) -> subprocess.Popen | None:
+        """Mark stopped and close stdin (workers exit on EOF; ingest at a file boundary)."""
         with self.lock:
             self._set_state("stopped")
             if self.timer is not None:
@@ -275,19 +309,27 @@ class WorkerProcess:
                 self.timer = None
             proc = self.proc
             self.expected_exit = "stopped"
+        if proc is not None and proc.stdin is not None:
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+        return proc
+
+    def wait_stopped(self, proc: subprocess.Popen | None, deadline: float) -> None:
+        """Wait for a graceful exit until ``deadline``, then SIGTERM the group, then SIGKILL."""
         if proc is None:
             return
         try:
-            if proc.stdin is not None:
-                proc.stdin.close()  # Workers exit on EOF; ingest stops at a file boundary.
-            proc.wait(self.config.term_grace_s)
-        except (subprocess.TimeoutExpired, OSError):
-            proc.terminate()
+            proc.wait(max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            signal_group(proc, signal.SIGTERM)
             try:
                 proc.wait(self.config.term_grace_s)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait()
+        signal_group(proc, signal.SIGTERM)  # Pool children left behind by the leader.
 
 
 class IngestRunner:
@@ -511,12 +553,41 @@ class AnalysisQueue:
         with self.lock:
             self.failures.pop((section, scope_hash), None)
 
+    def cooling(self, section: str, scope_hash: str, rev: tuple[int, int]) -> float:
+        """Seconds until a transient failure of this key and revision may run again (0: now)."""
+        record = self.failure(section, scope_hash, rev)
+        if not record or "retry_at" not in record:
+            return 0.0
+        return max(0.0, record["retry_at"] - time.monotonic())
+
+    def _retarget(self, section: str, scope_hash: str, rules: str, rev: tuple[int, int],
+                  scope: dict, params: dict, priority: str) -> AnalysisTask | None:
+        """Move a queued task of the same section and scope from an older revision to ``rev``.
+
+        The worker always reads the current database, so a queued task for an older revision
+        would compute today's data under yesterday's key and the new revision would then be
+        computed again. Live sync publishes every few minutes: every publish queued another
+        generation of every prewarm task and the queue never drained."""
+        stale = next((t for t in self.pending
+                      if (t.section, t.scope_hash, t.rules) == (section, scope_hash, rules)
+                      and (t.data_rev, t.inventory_rev) < tuple(rev)), None)
+        if stale is None:
+            return None
+        self.tasks.pop(stale.merge_key, None)
+        stale.data_rev, stale.inventory_rev = rev
+        stale.scope, stale.params = scope, params
+        if priority == "interactive":
+            stale.priority = "interactive"
+        self.tasks[stale.merge_key] = stale
+        return stale
+
     def submit(self, section: str, scope: dict, params: dict, scope_hash: str, priority: str,
                rev: tuple[int, int], rules: str) -> AnalysisTask | None:
         if section not in SECTIONS:
             raise KeyError(section)
         with self.lock:
-            if self.circuit_open(section, scope_hash, rev):
+            if self.circuit_open(section, scope_hash, rev) or self.cooling(section, scope_hash,
+                                                                           rev):
                 return None
             task = AnalysisTask(uuid.uuid4().hex, section, scope, params, scope_hash, priority,
                                 rev[0], rev[1], rules)
@@ -525,6 +596,9 @@ class AnalysisQueue:
                 if priority == "interactive" and existing.priority == "prewarm":
                     existing.priority = "interactive"  # Promote; the same computation serves both.
                 return existing
+            retargeted = self._retarget(section, scope_hash, rules, rev, scope, params, priority)
+            if retargeted is not None:
+                return retargeted
             self.tasks[task.merge_key] = task
             self.recent[task.id] = task
             while len(self.recent) > RECENT_JOBS:
@@ -612,6 +686,17 @@ class AnalysisQueue:
         record.update(count=record["count"] + 1, error=error)
         if error.get("code") == "timeout":
             record["timeouts"] = record.get("timeouts", 0) + 1
+        record.pop("retry_at", None)
+        self.failures[key] = record
+
+    def _record_transient(self, task: AnalysisTask, error: dict) -> None:
+        """Remember a transient failure without a strike; ``submit`` waits it out."""
+        key = (task.section, task.scope_hash)
+        rev = (task.data_rev, task.inventory_rev)
+        record = self.failures.get(key)
+        if record is None or record["rev"] != rev:
+            record = {"rev": rev, "count": 0}
+        record.update(error=error, retry_at=time.monotonic() + self.config.transient_retry_s)
         self.failures[key] = record
 
     def _abort_running(self, error: dict, reason: str) -> None:
@@ -701,9 +786,13 @@ class AnalysisQueue:
                     "rev": task.data_rev, "job_id": task.id})
             else:
                 error = message.get("error") or {"code": "analysis_failed", "retryable": True}
-                task.error = error
-                if error.get("code") != "projection_pending":  # Transient: not a strike.
+                if error.get("code") == "projection_pending":
+                    # Transient: not a strike, but not re-run for ``transient_retry_s``.
+                    error = {**error, "retry_after": self.config.transient_retry_s}
+                    self._record_transient(task, error)
+                else:
                     self._record_failure(task, error)
+                task.error = error
                 self._drop(task, "failed")
                 self.publish("analysis", "analysis.failed", {
                     "section": task.section, "scope_hash": task.scope_hash,
@@ -809,8 +898,20 @@ class Supervisor:
         return {"ingest": self.ingest.worker.info(), "analysis": self.analysis.worker.info()}
 
     def stop(self) -> None:
+        """Stop both workers in parallel: one grace period in total, not one per worker
+        (sequential stops kept the helper alive past the native host's quit deadline)."""
         self.stopping.set()
         if self.thread.is_alive():
             self.thread.join()
-        self.ingest.stop()
+        workers = (self.ingest.worker, self.analysis.worker)
+        procs = [worker.begin_stop() for worker in workers]
+        deadline = time.monotonic() + self.config.term_grace_s
+        waiters = [threading.Thread(target=worker.wait_stopped, args=(proc, deadline),
+                                    daemon=True, name=f"{worker.role}-stop")
+                   for worker, proc in zip(workers, procs, strict=True) if proc is not None]
+        for waiter in waiters:
+            waiter.start()
+        for waiter in waiters:
+            waiter.join()
+        self.ingest.stop()  # Already stopped: only the runner's own bookkeeping remains.
         self.analysis.stop()

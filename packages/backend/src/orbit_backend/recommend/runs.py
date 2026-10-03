@@ -90,6 +90,15 @@ def _catalog_state(catalog) -> tuple[int | None, int]:
     return (int(generation[0]) if generation else None), int(items)
 
 
+def _embedding_generation(catalog) -> int:
+    try:
+        with catalog.store.connect(True) as conn:
+            row = conn.execute("SELECT value FROM catalog_meta WHERE key='embedding_generation'").fetchone()
+        return int(row[0]) if row else 0
+    except Exception:  # An older/optional catalog has no independent vector revision.
+        return 0
+
+
 def catalog_service(gw):
     """The gateway's CatalogService over ``home/catalog.db`` (created lazily, cached on gw).
     None while the file is missing, so recall falls back to the bundled seeds."""
@@ -207,11 +216,11 @@ def _mark_generate(slate: dict, enabled: bool) -> None:
 
 
 def inputs_digest(inputs: dict, engine_version: str, kb_version, catalog_generation,
-                  memory_rev: str) -> str:
+                  memory_rev: str, embedding_generation: int = 0) -> str:
     from ..services.sections import rules_digest
 
     payload = [inputs["scope_hash"], inputs["data_rev"], inputs["inventory_rev"],
-               rules_digest(), engine_version, kb_version, catalog_generation, memory_rev]
+               rules_digest(), engine_version, kb_version, catalog_generation, memory_rev, embedding_generation]
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()
                           ).hexdigest()[:32]
 
@@ -240,6 +249,7 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
             # better than nothing, and the slate reports no generation — so neither may the
             # digest, or every GET rebuilds the run and invalidates candidate ids.
             catalog, generation = None, None
+        embedding_generation = _embedding_generation(catalog) if catalog is not None else 0
         same = previous is not None and previous["engine_version"] == engine_version
         kb_version = previous["kb_version"] if same else None
         if generation is None and same:
@@ -247,7 +257,10 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         # AI on/off changes the slate (generation cards, display order), so it keys the run.
         settings_key = hashlib.sha256(json.dumps(settings, sort_keys=True, default=str).encode()).hexdigest()[:16]
         memory_rev = f"{memory_rev}:settings:{settings_key}"
-        digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev)
+        if catalog is not None:
+            from orbit_catalog.search import RANKING_VERSION
+            memory_rev += f":catalog_rank:{RANKING_VERSION}"
+        digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev, embedding_generation)
         if not force:
             with gw.appdb.read() as conn:
                 found = store.find_run(conn, h, digest)
@@ -285,7 +298,7 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         if generation is None and slate.get("catalog_generation") is not None:
             generation = slate["catalog_generation"]
         # Digest with the versions the slate actually used, so the next call reuses it.
-        digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev)
+        digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev, embedding_generation)
         run_id = uuid.uuid4().hex[:16]
         cands = slate.get("candidates") or []
         passed = [c for c in cands if (c.get("gates") or {}).get("passed", True)][:KEEP_PASSED]

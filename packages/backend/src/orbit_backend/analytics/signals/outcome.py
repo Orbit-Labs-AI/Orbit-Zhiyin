@@ -8,7 +8,7 @@ from typing import Any
 
 from ..outcome_subjective import analyze_subjective_outcomes
 from .detectors import SessionView
-from .dictionary import EDIT_KINDS
+from .dictionary import is_edit_call
 
 Record = dict[str, Any]
 
@@ -26,7 +26,7 @@ def verification_state(view: SessionView) -> Record:
         return {"available": False, "verify_ran": None, "verify_pass": None,
                 "verify_candidate": None, "last_edit": None, "runs_after_edit": None}
     runs = sorted(view.validation_runs, key=_key)
-    edits = [c for c in view.calls if c.get("kind") in EDIT_KINDS
+    edits = [c for c in view.calls if is_edit_call(c)
              and c.get("tool_result_status") != "rejected" and c.get("seq") is not None]
     last = max(edits, key=lambda c: (c.get("started_at") or 0, _key(c))) if edits else None
     by_uid = {c["call_uid"]: c for c in view.calls}

@@ -48,11 +48,24 @@
 .nav .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav .ct{font:500 11px/1 var(--font-num);color:var(--ink-3)}
 .nav .bd{height:16px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--ink-1);color:var(--bg);font:600 11px/16px var(--font-num);text-align:center}
-.nav .ag .dot{width:9px;height:9px;margin:0 3px}
-.nav .ag.dim{color:var(--ink-3)}
-.nav .ag.dim .dot{opacity:.45}
-.nav .ag.off{color:var(--ink-3)}
-.nav .ag.off .ico{color:var(--ink-4)}
+/* Agents list (multi-select, 25-nav sideAgents): logo in the agent colour; unchecked rows fade to a grey logo, and while only some are picked the checked rows carry the light selected tint; 「仅此」 shows on hover / focus in
+   place of the count. Pinned projects (sidePins): the pin toggle shows the same way. Both stay on the sidebar's own tints. */
+.nav .ag,.nav .pjp{position:relative}
+.nav .ag-ic{flex:none;margin:0 1px;overflow:visible}
+.nav .ag.dim .ag-b,.nav .ag.off .ag-b{color:var(--ink-3)}
+.nav .ag.dim .ag-ic{opacity:.3;filter:grayscale(1)}
+.nav .ag.pk .ag-b{background:var(--sel-off);color:var(--ink-1)}
+.nav .ag .ag-only,.nav .pjp .pin-b{position:absolute;right:4px;top:4px;width:auto;height:20px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:500;color:var(--ink-2);background:var(--sel);opacity:0;pointer-events:none;transition:opacity .12s}
+.nav .pjp .pin-b{width:20px;padding:0;justify-content:center;background:transparent;color:var(--ink-3)}
+.nav .ag:hover .ag-only,.nav .ag .ag-only:focus-visible,.nav .pjp:hover .pin-b,.nav .pjp .pin-b:focus-visible{opacity:1;pointer-events:auto}
+.nav .ag:hover:has(.ag-only) .ct,.nav .ag:has(.ag-only:focus-visible) .ct,.nav .pjp:hover .ct,.nav .pjp:has(.pin-b:focus-visible) .ct{visibility:hidden}
+.nav .ag .ag-only:hover{background:var(--ink-1);color:var(--bg)}
+.nav .pjp .pin-b:hover{background:var(--sel);color:var(--ink-1)}
+.nav .pjp .pin-b.on{color:var(--ink-1)}
+.side .sect .sr-btn{height:18px;padding:0 6px;border:0;border-radius:5px;background:transparent;color:var(--ink-2);font:inherit;font-weight:600}
+.side .sect .sr-btn:hover{background:var(--sel-off);color:var(--ink-1)}
+.sb-note{padding:4px 8px;font-size:11px;line-height:16px;color:var(--ink-3)}
+@media (prefers-reduced-motion:reduce){.nav .ag .ag-only,.nav .pjp .pin-b{transition:none}}
 /* footer: the index indicator row (state dot + count, on the sidebar background) over the user row; both stay on the 10 / 11 / 12px type scale */
 .sb-foot{flex:none;display:flex;flex-direction:column;gap:6px;padding:8px;border-top:1px solid var(--hair)}
 .sb-foot .pv{width:100%;display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:7px;font-size:11px;line-height:14px;color:var(--ink-3);text-align:left;white-space:nowrap;border:0;background:transparent}
@@ -111,8 +124,12 @@
    The fake desktop (menu bar, wallpaper, desktop widgets, the in-page menubar panel / HUD) and the fake traffic lights go;
    #win fills the viewport (22-window.js "native" mode) without radius or shadow, and the transparent title bar of the real
    window gets --titlebar-inset: the sidebar toggle sits in that strip right of the real traffic lights, the page title row
-   starts under it. Window dragging is the host's (drag strip), so the title row keeps no move / resize handles. */
-:root{--titlebar-inset:28px}
+   starts under it. Window dragging is the host's (drag strip), so the title row keeps no move / resize handles.
+   The host reports its traffic-light row (95-live-native.js): --titlebar-inset = twice the lights' centre, so the toggle
+   (vertically centred in the band) shares their centre line; --sbtoggle-x = 16px right of the last light (the same gap as
+   the page-drawn lights). The Lite / Advance switch is centred on the page title row (band + 52px row: band + 11px for its
+   30px). Full screen (data-native-fs, no lights) moves the toggle to the sidebar's icon column. */
+:root{--titlebar-inset:28px;--sbtoggle-x:94px}
 body.native .desk{background:var(--bg)}
 body.native :is(.mbar,.wall){display:none!important}
 body.native:not(.surface-widgets) #widgets{display:none!important}
@@ -120,9 +137,11 @@ body.native:not([class*="surface-"]) :is(#hud,#pop){display:none!important}
 body.native .win{border-radius:0;box-shadow:none;transition:opacity .15s,grid-template-columns .2s var(--ease)}
 body.native .win .rz{display:none}
 body.native .win .lights{display:none}
-body.native .wtop{height:var(--titlebar-inset);padding-left:78px}
+body.native .wtop{height:var(--titlebar-inset);padding-left:var(--sbtoggle-x)}
+body.native .wtop .sbtoggle{margin-left:0}
+:root[data-native-fs] body.native .wtop{padding-left:12px}
 body.native .main{padding-top:var(--titlebar-inset)}
-body.native .side{border-radius:0}
+body.native .side{border-radius:0;padding-top:calc(var(--titlebar-inset) + 11px)}
 body.native .win.nosb .tbar{padding-left:20px}
 /* settings card title is the dialog's name (h2); in the App the page-drawn traffic lights give way to a plain close button */
 .ptop h2.ptitle{margin:0}

@@ -31,7 +31,7 @@ pnpm orbit ingest --codex-home .local/codex --data-dir .local/orbit
 pnpm orbit stats --data-dir .local/orbit
 ```
 
-构建后可直接运行 `node dist/cli.js`。`--help` 列出全部命令。`ingest` 输出 JSON，包括文件变动、失败文件、导入记录数、派生会话数、各去向计数与诊断数量；存在读取失败或 `unparsed` 时退出码为 2。维护锁被持有时跳过该轮，不推进游标。未知类型会归档、生成 `unknown` 事件和告警，不导致整次导入失败。
+构建后可直接运行 `node dist/cli.js`。`--help` 列出全部命令。`ingest` 输出 JSON，包括文件变动、失败文件、导入记录数、派生会话数、各去向计数与诊断数量；存在读取失败、会话重建失败（`rebuild_failed`）或 `unparsed` 时退出码为 2。单个会话映射或校验出错只回滚该会话：其投影保持上次结果、保留待重建标记并写 `rebuild_failed` 诊断（含脱敏后的错误与 `session_uid`），其余会话照常重建。维护锁被持有时跳过该轮，不推进游标。未知类型会归档、生成 `unknown` 事件和告警，不导致整次导入失败。
 
 ## 接入分析或 Mac App
 
@@ -54,7 +54,9 @@ try {
 
 单个进程内的监听串行执行导入，同一 Connector 禁止重入。`watchCodex` 接受 `AbortSignal`，中止后等待当前导入收尾再释放数据库。文件通知合并 1 秒，正常监听每 10 分钟扫描兜底；监听不可用时报告错误并降级到 2 秒轮询。默认一个数据库只启动一个采集进程，App 与其他模块只读。
 
-标准数据契约采用 [001.sql](schema/001.sql) 初始化，再应用 [002.sql](schema/002.sql)；当前 `PRAGMA user_version=2`、`application_id=1413697358`。002 是对齐 `analysis-input-v1` 的最终结构：`event.ts` 可空，新增 `event_path/native_key`、时间质量、证据多对多、上下文与累计快照。旧 v1 库保留 L0/L1，由迁移重新生成 L2/L3。所有事件经过 JSON Schema 校验。
+标准数据契约采用 [001.sql](schema/001.sql) 初始化，再依次应用 [002.sql](schema/002.sql) 与 [003.sql](schema/003.sql)；当前 `PRAGMA user_version=3`、`application_id=1413697358`。002 是对齐 `analysis-input-v1` 的结构：`event.ts` 可空，新增 `event_path/native_key`、时间质量、证据多对多、上下文与累计快照。003 给 `turn` 增加 `duration_ms/ttft_ms`、给 `usage_snapshot` 增加 `counter_cycle`，并删除 Codex 记录无法填充的 `tool_call.approval_wait_ms/error_class/skill/subagent_session_uid` 与 `session.spawn_call_uid`；事件种类同时去掉从未发出的 `queue`、`subagent.message/wait/close`（子代理的等待、发消息等动作是 `tool_call`，类别 `subagent`）。旧库保留 L0/L1，由迁移重新生成 L2/L3。所有事件经过 JSON Schema 校验。
+
+时延口径：Codex 只在 `task_complete` 报告整轮的 `duration_ms` 与 `time_to_first_token_ms`，写入 `turn`。同一轮的请求顺序发出，所以该轮首个 `model_call` 记该轮 TTFT；仅当一轮恰好一次请求且没有工具调用时，`model_call.latency_ms` 才等于该轮耗时，其余请求的 `latency_ms/ttft_ms` 保持 NULL，因为 rollout 没有逐请求计时。`cost_usd` 同样保持 NULL（`cost_source='unknown'`），本包不内置价目表。
 
 | 层 | 表或目录 | 内容 |
 | --- | --- | --- |
@@ -123,12 +125,15 @@ uv run --project packages/data orbit-data --home .local/canonical verify
 - 最高版本 `state_<n>.sqlite` 只读打开，不用 `immutable=1`。在一个读事务内读取支持的 `threads` 元数据列、`thread_spawn_edges`、`projects` 与 `project_roots`；账号 ID 不读取。库暂时不可读时保留已有索引、报告失败，正文扫描继续。
 - `session_index.jsonl` 按追加日志读取；标题优先级是 `threads.name` → 索引的最后一条 → `threads.title/preview`。`external_agent_session_imports.json.records` 标记导入来源，默认不计入主会话用量。
 - 按记录形状兼容 legacy 与 paginated，不按 `cli_version` 切分。消息首选 UI 的 `item_completed` 或旧 `user_message/agent_message`；匹配的 Responses 表示去重，未匹配的 user/developer 表示作为注入上下文保留。
+- 工具类别由 `normalize.ts` 的 `TOOL_CATEGORIES` 名称表决定（shell、file.edit、file.read、image.view、image.generate、subagent、plan、ask_user、web.search、tool.search、sleep、automation、mcp；Code Mode 外层包装为 `wrapper`）。表外名称归 `other` 并写 `unknown_tool_name` 诊断，`stats` 的 `unclassified_tools` 给出各名称次数。
 - 工具首选完成条目的参数、`status`、`exit_code` 和 `duration`。直接工具按 call ID 去重；`exec-…` 嵌套动作与外层包装分别保留。`parent_wrapper_id` 由同轮行序关联，即使动作在外层输出之后到达也可归属，属于顺序推断。
 - 用量优先每个 `response_id` 的 `token_usage_record`。同轮旧单次表示去重，`total_token_usage` 累计部分进入独立 `session_snapshot/cumulative`；没有精确记录的旧轮次，只有能关联稳定响应条目时才把 `last_token_usage` 标为 `call/delta`。累计重复不吞掉新单次值。合成的上下文窗口饱和值不计费。
 - `call/delta` 派生为 `model_call`；累计事件只进入 `usage_snapshot`，不产生虚构请求 ID。`reported` 保存原始计数，缺失分桶保留 null，`coverage=self` 表示该线程的原生计量。模型与思考档位按请求当时的上下文/设置记录；模型不明确的会话累计不回填最后模型。
 - 统一的输入 token 不含缓存：原生 input 减去 cache read 和 cache write；output 已含 reasoning，不再相加。原生 usage 留在 `attrs.native_usage`。`rate_limits` 根据 `window_minutes` 判断 5 小时/周窗口。
 - 仅 `thread_spawn` 子代理使用继承切点；旧格式回退到触发消息或首个不在父会话里的 turn。guardian 单独标为 `review`，不套用切点。缺少父证据时保留 `replayed` 与缺口说明，不生成虚假的父事件。
-- URI 形式的命令 cwd 和图片路径转成普通路径；时间转 UTC 毫秒。Git remote 规范化并归并 worktree；本地仓库不存在时使用记录里的 Git remote，再回退到路径。
+- URI 形式的命令 cwd 和图片路径转成普通路径；时间转 UTC 毫秒。Git remote 规范化并归并 worktree；本地仓库不存在时使用记录里的 Git remote，再回退到路径。临时目录用常量表归入“临时工作区”：`~/Documents/Codex/`、`~/.claude/remote/` 总是归入；`/tmp`、`/private/tmp`、`/var/folders` 仅在不属于 Git 仓库时归入。
+- 用量缺少 `cache_write_input_tokens` 字段时按 0 计并标 `cache_write_assumed_zero`：OpenAI usage 只有缓存读取分桶，没有缓存写入计费。其他分桶缺失仍为 null。
+- 旧版协议事件：`error`/`stream_error` 映射为 `error`；`exec_command_end`、`patch_apply_end`、`mcp_tool_call_end` 按 call_id 补全对应工具结果（退出码、耗时、成败）。`web_search_end`、`background_event` 等其余旧事件暂不支持，落为 `unknown` 并告警。`exit_code=-1` 表示没有进程退出状态（拒绝、中断或未启动），状态取原生 status，不单独判失败。
 
 ## 原始归档与隐私
 
@@ -138,7 +143,7 @@ uv run --project packages/data orbit-data --home .local/canonical verify
 
 SQLite 元数据以所读取的行导出为 JSONL，再归档；不复制 Codex 数据库本身。JSON 导入账本同时保留原文件，`archive_chunk.generation=-g` 是该代的原始 JSON，正代是可按行寻址的导出。原始账本中未使用的顶层字段也保留。
 
-Orbit 目录权限 `0700`，数据库、归档和导出文件 `0600`。L1 的解析缓存与 L2 的 `text/attrs/ext` 都递归脱敏，移除 creator 账号字段；内联媒体和加密推理只保留哈希引用。工具输出截断到约 8 KB，全文通过 L0 取回；普通消息不按工具输出预算截断。未消费的字段在 `ext.native` 中保留脱敏快照。
+Orbit 目录权限 `0700`，数据库、归档和导出文件 `0600`。L1 的解析缓存与 L2 的 `text/attrs/ext` 都递归脱敏，移除 creator 账号字段；内联媒体和加密推理只保留哈希引用。工具输出截断到约 8 KB，全文通过 L0 取回；普通消息不按工具输出预算截断。事件不再复制整条原生记录：`event.ext` 只存 `native_type`，未消费字段经 `event.record_uid` → `raw_record.body`（脱敏 L1）或 `readRedactedRecord` 取回，避免 staging 库体积翻倍。字符串形式的工具输出只存在 `event.text`，`attrs.output` 仅保留结构化输出。
 
 不读取 `auth.json`、`.key`、`logs_*.sqlite`、Desktop 闭源数据库或配置凭据；不对 thread writer lock 加锁，不修改上游目录。连接器不执行日志里的代码或命令。
 

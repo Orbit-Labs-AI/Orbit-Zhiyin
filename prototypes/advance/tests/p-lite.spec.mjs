@@ -8,6 +8,9 @@
 //  4 session    Lite 中 openSession 打开一个较早的会话：留在 l-sessions 并选中它；点列表另一行切换选中
 //  5 edOpen     「在 Advance 中回放」切回 Advance 并打开 sessions，选中的会话保持
 //  6 recs       前三条建议卡；主按钮打开安装预览；安装后卡片显示「已应用」与「撤销」
+//  7 persona    画像页吸收揭晓第 05 步：已读取 N 个会话 · N 次工具调用、匹配度、「已经知道的」四行与揭晓页同源（genFacts / genCands）；
+//               会话数写成「N 个会话」，页面上没有「n=」；没有「AI 撰写」标记
+//  8 empty      没有会话时概览与画像页不出现「????」：虚线花形 + 一句说明 + 导入会话 / 数据源设置
 import { test, expect } from '@playwright/test';
 import { openDemo } from './helpers.mjs';
 
@@ -119,5 +122,51 @@ test('Lite: recs page shows the top three and reflects an install', async ({ pag
   // 概览的「本周最值得做的一件事」换成下一条未安装的
   await goLite(page, 'l-home');
   await expect(page.locator('#content .l-one .rc-title')).toHaveText(await page.evaluate((x) => RECI[x].title, ids[1]));
+  expect(errors).toEqual([]);
+});
+
+test('Lite: persona page carries the reveal summary on the same numbers', async ({ page }) => {
+  const errors = await openDemo(page);
+  await toLite(page);
+  await goLite(page, 'l-persona');
+  const want = await page.evaluate(() => { const L = personaScope(); const p = persona(L); return { n: L.length, tools: stats(L).tools, facts: genFacts(L).map((f) => f[0] + f[2]), sim: genCands(p).find((c) => c.c === p.code).sim, pn: p.n }; });
+  await expect(page.locator('#content .l-count')).toHaveText('已读取 ' + want.n.toLocaleString('en-US') + ' 个会话 · ' + want.tools.toLocaleString('en-US') + ' 次工具调用');
+  await expect(page.locator('#content .l-match .bdg')).toHaveText('匹配度 ' + want.sim + '%');
+  await expect(page.locator('#content .l-match')).toContainText(want.pn.toLocaleString('en-US') + ' 个会话');
+  expect(await page.locator('#content .l-fact .l-ft').allTextContents()).toEqual(want.facts);
+  await expect(page.locator('#content [data-hero="code"] .L')).toHaveCount(4);
+  await expect(page.locator('#content [data-act="reveal"]')).toBeVisible();
+  await expect(page.locator('#content [data-act="share"]')).toBeVisible();
+  for (const r of ['l-home', 'l-persona']) {
+    await goLite(page, r);
+    expect(await page.locator('#main').innerText()).not.toMatch(/\bn\s*[=≈]\s*\d/);
+    expect(await page.locator('#main').innerText()).not.toContain('AI 撰写');
+  }
+  expect(errors).toEqual([]);
+});
+
+test('Lite and overview: no sessions shows a flower outline and a way to import, never ????', async ({ page }) => {
+  const errors = await openDemo(page);
+  await page.evaluate(() => { ALL.splice(0, ALL.length); });
+  await toLite(page);
+  for (const r of ['l-home', 'l-persona']) {
+    await goLite(page, r);
+    await expect(page.locator('#content [data-lv="pers-empty"] svg.e-bloom')).toBeVisible();
+    await expect(page.locator('#content [data-lv="pers-empty"] [data-act="liteImport"]')).toBeVisible();
+    expect(await page.locator('#main').innerText()).not.toContain('????');
+  }
+  await page.evaluate(() => edSet('advance', 'overview'));
+  await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('advance|overview');
+  await expect(page.locator('#content .ov-pers [data-lv="pers-empty"] svg.e-bloom')).toBeVisible();
+  expect(await page.locator('#main').innerText()).not.toContain('????');
+  // the fixed no-session sentence is not AI output, and a confidence level means nothing at 0 sessions
+  await expect(page.locator('#aiCard .aib')).toHaveCount(0);
+  await expect(page.locator('#aiCard [data-aigen]')).toHaveCount(0);
+  await expect(page.locator('#content .ov-pers-h .bdg')).toHaveText('0 个会话');
+  await expect(page.locator('#side')).not.toContainText('样本不足');
+  await page.evaluate(() => edSet('lite', 'l-persona'));
+  await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('lite|l-persona');
+  await page.locator('#content [data-act="liteImport"]').click();
+  await expect(page.locator('#overlay')).toBeVisible();
   expect(errors).toEqual([]);
 });

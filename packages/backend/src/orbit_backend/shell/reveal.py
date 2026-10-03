@@ -1,101 +1,43 @@
 """Persona reveal payload (OB-05/OB-06, REV-01/REV-02, SET-19, HLP-03) and the short
 persona summary shared by the popover, widgets and onboarding (POP-08, WG-02).
 
-The profile is ``analytics.presentation.profile.build_profile`` over the cached tasks /
-instruction / preferences snapshots, built through the export package's
-``exporting.sharecard.persona_profile`` so the reveal, the share card and the report show
-the same persona. Without the export package the payload says ``persona_unavailable``.
+The persona is the A2 one (``uiview.persona.page``, ``uiview-persona-v1``) over the cached
+``uiview_facts`` snapshot, requested through ``exporting.sharecard.persona_request`` — the
+same payload the persona page, the share card and the report read, so every surface shows
+the same code. Rule (main ebdc750e): one session is enough for a full four-letter code;
+value ≥ 50 → the high letter (D / I / M / V), < 50 → the low letter (S / P / F / T); an axis
+without units counts as 50 and is reported with ``value = None``. Only no persona (no
+session in the window) or four axes without any value block the reveal.
 
-Axis mapping onto the UI's four letters (prototypes/advance/src/js/05-data.js ``AXES``):
-UI value 0..100 per axis, ≥50 the first (high) letter, <50 the second; there is no
-undetermined band, so a profile always yields a full four-letter code.
-
-    D 委托 ↔ S 掌舵   = delegation   (profile 委托 D ↔ 控制 C)
-    I 即兴 ↔ P 规划   = planning, inverted (profile 规划 P ↔ 探索 E)
-    M 多线 ↔ F 专注   = orchestration (profile 编排 O ↔ 专精 S)
-    V 求证 ↔ T 信任   = verification  (profile 验证 V ↔ 加速 A)
-
-The value is the profile's ``observed_score``; below the profile's own task minimum it falls
-back to ``observed_mean`` (delegation) or ``signal_rate`` (single-pole planning /
-verification). An axis without any value counts as 50 (high letter) and is reported with
-``value = None``. Only a missing profile or no value on any axis blocks the reveal.
+Intervals are the persona's own Wilson 95% bounds (session-clustered for D / V, see
+``uiview.persona``); nothing is recomputed here.
 """
 
 from __future__ import annotations
 
-import math
-from itertools import product
-
 from . import cached_section, default_scope, has_db, reader, submit_section
 
-MIN_UNITS, MIN_ACTIVE_DAYS = 0, 0
-MIDPOINT = 50
-SINGLE_POLE = ("planning", "verification")
-PERSONA_SECTIONS = ("tasks", "instruction", "preferences", "overview")
-# (UI key, profile axis, high letter, high name, low letter, low name, inverted)
-UI_AXES = (
-    ("D", "delegation", "D", "委托", "S", "掌舵", False),
-    ("I", "planning", "I", "即兴", "P", "规划", True),
-    ("M", "orchestration", "M", "多线", "F", "专注", False),
-    ("V", "verification", "V", "求证", "T", "信任", False),
-)
-# Profile direction codes → UI letters.
-DIRECTION = {"delegation": {"D": "D", "C": "S"}, "planning": {"P": "P", "E": "I"},
-             "orchestration": {"O": "M", "S": "F"}, "verification": {"V": "V", "A": "T"}}
-SIGNALS = {"delegation": "指令里要求的自主程度（requested_autonomy）",
-           "planning": "指令里的执行顺序要求（execution_order，只提取规划侧）",
-           "orchestration": "显式编排选择（尚未提取）",
-           "verification": "指令里的验证要求（verification_requirements，只提取验证侧）"}
+FACTS_SECTION = "uiview_facts"
+OVERVIEW_SECTIONS = ("overview",)  # fingerprint / facts lines only
 REASON_TEXT = {"persona_unavailable": "画像模块不可用", "insufficient_data": "样本不足",
-               "unsettled_code": "有维度尚未定型", "computing": "正在计算"}
+               "unsettled_code": "类型暂不可用", "computing": "正在计算"}
 
 
-def _export():
-    """(sharecard, type_copy) from the export package, or None until it is merged."""
-    try:
-        from ..exporting import sharecard, type_copy  # type: ignore[attr-defined]
-    except ImportError:
-        return None
-    return sharecard, type_copy
-
-
-def type_table() -> dict[str, tuple[str, str, str]]:
-    exp = _export()
-    return dict(exp[1].TYPES) if exp else {}
-
-
-def all_codes() -> list[str]:
-    return ["".join(c) for c in product("DS", "IP", "MF", "VT")]
-
-
-# -- pure composition (tests feed hand-written profiles) -----------------------------------
-def ui_axes(profile: dict | None) -> list[dict]:
-    """Profile axes → the UI's four axes with value/lo/hi (0..100), letter and settled."""
-    axes = (profile or {}).get("axes") or {}
+# -- pure composition (tests feed real ``uiview.persona.page`` payloads) --------------------
+def ui_axes(page: dict | None) -> list[dict]:
+    """Persona page axes → reveal axes (value / lo / hi on 0..100, letter, settled)."""
     out = []
-    for key, name, hi, hi_name, lo, lo_name, inverted in UI_AXES:
-        axis = axes.get(name) or {}
-        score = axis.get("observed_score")
-        if score is None:
-            score = axis.get("signal_rate" if name in SINGLE_POLE else "observed_mean")
-        n = int(axis.get("effective_task_n") or 0)
-        m = max(n, int(axis.get("observable_task_n") or 0))
-        value = lo_v = hi_v = None
-        if isinstance(score, (int, float)) and m > 0:
-            p = min(1.0, max(0.0, float(score)))
-            half = 1.96 * math.sqrt(p * (1 - p) / m)
-            low, high = max(0.0, p - half), min(1.0, p + half)
-            if inverted:
-                p, low, high = 1 - p, 1 - high, 1 - low
-            value, lo_v, hi_v = round(p * 100, 1), round(low * 100, 1), round(high * 100, 1)
-        letter = hi if (MIDPOINT if value is None else value) >= MIDPOINT else lo
-        direction = DIRECTION[name].get(axis.get("direction") or "")
-        settled = value is not None
-        out.append({"axis": key, "profile_axis": name, "direction": direction,
-                    "letter": letter, "name": hi_name if letter == hi else lo_name
-                    if letter == lo else None, "value": value, "lo": lo_v, "hi": hi_v,
-                    "strong": None if value is None else round(max(value, 100 - value)),
-                    "n_units": n, "settled": settled})
+    for a in (page or {}).get("axes") or []:
+        known = a["value"] is not None
+        left, right = a["left"], a["right"]
+        # left/right read "D 委托" / "掌舵 S": the name is the word next to the letter.
+        names = {left.split()[0]: left.split()[-1], right.split()[-1]: right.split()[0]}
+        out.append({"axis": a["k"], "direction": a["letter"] if known else None,
+                    "letter": a["letter"], "name": names.get(a["letter"]),
+                    "value": a["value"], "lo": a["lo"] if known else None,
+                    "hi": a["hi"] if known else None, "strong": a["strong"],
+                    "n_units": a["n_units"], "unit": a["unit"], "decided": a["decided"],
+                    "settled": known})
     return out
 
 
@@ -103,45 +45,36 @@ def code_of(axes: list[dict]) -> str:
     return "".join(a["letter"] for a in axes)
 
 
-def gate(axes: list[dict], active_days: int | None) -> dict:
-    rows = [{"axis": a["axis"], "n_units": a["n_units"]} for a in axes]
-    # No sample threshold: any axis with a value is enough to give a type.
-    passed = any(a["value"] is not None for a in axes)
-    return {"min_units": MIN_UNITS, "min_active_days": MIN_ACTIVE_DAYS, "axes": rows,
-            "active_days": active_days, "passed": passed}
+def gate(page: dict | None, axes: list[dict]) -> dict:
+    from ..exporting import sharecard
+
+    g = sharecard.card_gate(page)
+    # Only four axes without any value block the code (main rule); no sample threshold.
+    return {**g, "passed": bool((page or {}).get("ok"))
+            and any(a["value"] is not None for a in axes)}
 
 
-def reason_for(profile: dict | None, gate_: dict, code: str) -> str | None:
-    if profile is None:
-        return "persona_unavailable"
-    if not gate_["passed"]:
+def reason_for(page: dict | None, gate_: dict) -> str | None:
+    """The share card's reason (``sharecard.card_reason``: the page's ``ok`` / code) plus
+    the reveal's own rule that four axes without any value block it."""
+    from ..exporting import sharecard
+
+    reason = sharecard.card_reason(page, gate_)
+    if reason is None and not gate_["passed"]:
         return "insufficient_data"
-    if "?" in code:
-        return "unsettled_code"
-    return None
+    return reason
 
 
-def matches(axes: list[dict], code: str | None = None, types: dict | None = None,
-            limit: int = 6) -> list[dict]:
-    """Closest of the 16 types: similarity = 1 − mean(|value − pole|)/100 over the axes
-    with a value (pole 100 for the axis' high letter, 0 for the low one). A fully settled
-    ``code`` is listed first."""
-    known = [(i, a["value"]) for i, a in enumerate(axes) if a["value"] is not None]
-    if not known:
+def matches(page: dict | None, limit: int = 6) -> list[dict]:
+    """Closest of the 16 types: ``uiview.persona.candidates`` (an axis without units counts
+    as 50, the persona's own code first on ties); ``similarity`` = match / 100."""
+    from ..uiview import persona
+
+    if not page or not page.get("ok"):
         return []
-    types = types if types is not None else type_table()
-    highs = [spec[2] for spec in UI_AXES]
-    rows = []
-    for candidate in all_codes():
-        distance = sum(abs(value - (100 if candidate[i] == highs[i] else 0))
-                       for i, value in known) / len(known)
-        zh, en, _ = types.get(candidate, (None, None, None))
-        rows.append({"code": candidate, "zh": zh, "en": en,
-                     "similarity": round(1 - distance / 100, 3)})
-    rows.sort(key=lambda r: (-r["similarity"], r["code"]))
-    if code and "?" not in code:
-        rows.sort(key=lambda r: r["code"] != code)  # Stable: winner first, rest unchanged.
-    return rows[:limit]
+    rows = persona.candidates({"ok": True, "code": page["code"], "v": page["v"]}, limit)
+    return [{"code": r["code"], "zh": r["zh"], "en": r["en"], "match": r["match"],
+             "similarity": round(r["match"] / 100, 3)} for r in rows]
 
 
 def _hours(rhythm: dict | None) -> tuple[list[int] | None, list[list[int]] | None]:
@@ -199,76 +132,86 @@ def facts(overview_body: dict | None, extra: dict | None = None) -> list[dict]:
          "detail": friction and f"{friction['n']} 次工具失败"},
         {"stage": "verification", "label": "验证占比",
          "value": None if verify is None else round(verify, 3),
-         "detail": "运行过测试/构建命令的会话占比"},
+         "detail": "运行过测试、lint、类型检查或构建命令的会话占比"},
     ]
 
 
-def method(profile: dict | None) -> dict:
-    from ..analytics.presentation.profile import PROFILE_VERSION
+def method() -> dict:
+    from ..uiview import persona
 
-    return {"rules_version": (profile or {}).get("method_version") or PROFILE_VERSION,
-            "axes": [{"axis": key, "signal": SIGNALS[name], "unit": "task"}
-                     for key, name, *_ in UI_AXES],
-            "thresholds": {"min_units": MIN_UNITS, "min_active_days": MIN_ACTIVE_DAYS,
-                           "midpoint": MIDPOINT}}
+    return {"rules_version": persona.METHOD,
+            "axes": [{"axis": k, "signal": persona.SIG_USED[k], "unit": persona.UNITS[k]}
+                     for k in "DIMV"],
+            "thresholds": {"min_sessions": persona.MIN_SESSIONS,
+                           "midpoint": persona.MIDPOINT, "band": list(persona.CONFIG["band"]),
+                           "soft_sessions": persona.SOFT_SESSIONS}}
 
 
-def compose(profile: dict | None, overview_body: dict | None, *, reason: str | None = None,
-            span=(None, None), extra: dict | None = None, types: dict | None = None,
-            meta: dict | None = None) -> dict:
-    """Reveal payload from a build_profile-shaped dict (None: no profile)."""
-    types = types if types is not None else type_table()
-    axes = ui_axes(profile)
-    rhythm = ((overview_body or {}).get("overview") or {}).get("activity_rhythm") or {}
-    gate_ = gate(axes, rhythm.get("active_days"))
-    code = code_of(axes)
-    reason = reason or reason_for(profile, gate_, code)
-    entry = types.get(code) if "?" not in code else None
+def compose(page: dict | None, overview_body: dict | None, *, reason: str | None = None,
+            span=(None, None), extra: dict | None = None, meta: dict | None = None) -> dict:
+    """Reveal payload from a ``uiview.persona.page`` payload (None: no persona)."""
+    axes = ui_axes(page)
+    gate_ = gate(page, axes)
+    code = code_of(axes) if axes else None
+    reason = reason or reason_for(page, gate_)
+    ok = reason is None
     return {
-        "ok": reason is None, "reason": reason, "gate": gate_,
-        "code": code if profile is not None else None,
-        "type": {"code": code, "zh": entry[0], "en": entry[1], "line": entry[2]}
-        if entry else None,
-        "axes": [{k: v for k, v in a.items() if k != "profile_axis"} for a in axes],
-        "fingerprint": fingerprint(overview_body, span),
-        "matches": matches(axes, code, types) if profile is not None else [],
-        "facts": facts(overview_body, extra), "method": method(profile),
-        "share": {"allowed": reason is None, "blocked_reason": reason},
+        "ok": ok, "reason": reason, "gate": gate_,
+        "code": code if page is not None and page.get("ok") else None,
+        "type": {"code": code, "zh": page["zh"], "en": page["en"], "line": page["line"]}
+        if ok and page.get("classified") else None,
+        "conf": (page or {}).get("conf"), "hint": (page or {}).get("hint"),
+        "axes": axes, "fingerprint": fingerprint(overview_body, span),
+        "matches": matches(page), "facts": facts(overview_body, extra), "method": method(),
+        "share": {"allowed": ok, "blocked_reason": reason},
         "meta": meta or {},
     }
 
 
 # -- loaders (gateway) -------------------------------------------------------------------
-def _bodies(gw, scope_dict: dict, submit: bool):
-    bodies, worst, pending = {}, "fresh", []
-    order = {"fresh": 0, "stale": 1, "missing": 2, "none": 3}
-    for name in PERSONA_SECTIONS:
-        body, freshness, key = cached_section(gw, name, scope_dict)
-        bodies[name] = body
-        worst = max(worst, freshness, key=order.get)
-        if body is None and submit and freshness == "missing":
-            task = submit_section(gw, name, scope_dict, key)
-            if task:
-                pending.append(task)
-    return bodies, worst, pending
+def _overview(gw, scope_dict: dict, submit: bool):
+    """(overview body | None, job ids) for the fingerprint and fact lines."""
+    body, freshness, key = cached_section(gw, "overview", scope_dict)
+    pending = []
+    if body is None and submit and freshness == "missing":
+        task = submit_section(gw, "overview", scope_dict, key)
+        if task:
+            pending.append(task)
+    return body, pending
 
 
-def _profile(bodies: dict):
-    exp = _export()
-    if exp is None:
-        return None, "persona_unavailable"
-    if any(bodies.get(name) is None for name in PERSONA_SECTIONS):
-        return None, "computing"
+def _page(gw, scope_dict: dict, submit: bool):
+    """(persona page | None, freshness, reason, notes). ``submit`` enqueues the facts pass
+    when missing (``uiview.fetch``); without it only cached snapshots are read."""
+    from ..exporting import sharecard
+    from ..uiview import facts, fetch, overview, persona
+
+    facts_scope, params, notes = sharecard.persona_request(scope_dict)
+    today = overview.today_in(scope_dict.get("display_timezone"))
     try:
-        profile = exp[0].persona_profile(bodies)
-    except Exception:  # noqa: BLE001 - a malformed snapshot reads as unavailable.
-        return None, "persona_unavailable"
-    return profile, None if profile is not None else "persona_unavailable"
+        if submit:
+            page, freshness, _ = fetch.persona_page(gw, facts_scope, params, today)
+            body = None
+        else:
+            body, freshness, _ = cached_section(gw, FACTS_SECTION, facts_scope)
+            page = None
+            if body is not None:
+                realtime = getattr(gw, "realtime", None)
+                body = facts.overlay_live(body, realtime.latest() if realtime else None)
+                page = persona.page(body, params, today)
+    except Exception:  # noqa: BLE001 - a failed or malformed facts pass reads as unavailable.
+        return None, "failed", "persona_unavailable", notes
+    if page is None:
+        # Nothing imported yet: no data rather than "computing".
+        why = "insufficient_data" if freshness == "none" else "computing"
+        return None, freshness, why, notes
+    return page, freshness, None, notes
 
 
 def _sql_extra(gw, scope_dict: dict) -> tuple[tuple, dict]:
     """First/last session start, per-agent hours, top error class and verification share
     within the scope window (analysed main sessions only)."""
+    from ..uiview.facts import is_validation_command
     from . import main_where
 
     if not has_db(gw):
@@ -295,22 +238,23 @@ def _sql_extra(gw, scope_dict: dict) -> tuple[tuple, dict]:
                 f"SELECT error_class, COUNT(*) n FROM tool_call WHERE error_class IS NOT NULL "
                 f"AND session_uid IN (SELECT s.session_uid FROM session s WHERE {where}) "
                 f"GROUP BY error_class ORDER BY n DESC, error_class LIMIT 1", args).fetchone()
-            tests = " OR ".join(f"t.command_head LIKE '{p}%'" for p in VERIFY_HEADS)
-            total, verified = db.execute(
-                f"SELECT COUNT(*), SUM(EXISTS(SELECT 1 FROM tool_call t WHERE "
-                f"t.session_uid = s.session_uid AND ({tests}))) FROM session s WHERE {where}",
-                args).fetchone()
+            total = db.execute(f"SELECT COUNT(*) FROM session s WHERE {where}",
+                               args).fetchone()[0]
+            # One criterion for "ran a validation command" across the App: the facts rows,
+            # the persona V axis and key moments all use ``facts.is_validation_command``.
+            verified: set[str] = set()
+            for uid, head in db.execute(
+                    f"SELECT DISTINCT t.session_uid, t.command_head FROM tool_call t WHERE "
+                    f"t.command_head IS NOT NULL AND t.session_uid IN (SELECT s.session_uid "
+                    f"FROM session s WHERE {where})", args):
+                if uid not in verified and is_validation_command(head):
+                    verified.add(uid)
     except Exception:  # noqa: BLE001 - facts degrade to unknown, the reveal still renders.
         return (None, None), {}
     return (first, last), {
         "agent_hours": {k: v for k, v in agent_hours.items() if v > 0},
         "top_error_class": {"class": row[0], "n": row[1]} if row else None,
-        "verification_share": (verified or 0) / total if total else None}
-
-
-VERIFY_HEADS = ("pytest", "npm test", "pnpm test", "yarn test", "npx jest", "npx vitest",
-                "cargo test", "go test", "swift test", "make test", "xcodebuild test",
-                "uv run pytest", "python -m pytest", "npm run test", "pnpm check")
+        "verification_share": len(verified) / total if total else None}
 
 
 def load(gw, scope_dict: dict, *, submit: bool = True) -> dict:
@@ -318,30 +262,19 @@ def load(gw, scope_dict: dict, *, submit: bool = True) -> dict:
     from ..services.snapshots import scope_hash
 
     h = scope_hash(scope_dict, {})
-    if _export() is None:
-        return compose(None, None, reason="persona_unavailable",
-                       meta={"scope_hash": h, "freshness": "none"})
-    bodies, freshness, pending = _bodies(gw, scope_dict, submit)
-    profile, why = _profile(bodies)
+    page, freshness, why, notes = _page(gw, scope_dict, submit)
+    overview_body, pending = _overview(gw, scope_dict, submit)
     span, extra = _sql_extra(gw, scope_dict)
-    meta = {"scope_hash": h, "freshness": freshness, "job_ids": pending}
-    if why == "computing" and freshness == "none":
-        why = "insufficient_data"  # Nothing imported yet: no data rather than "computing".
-    return compose(profile, bodies.get("overview"), reason=why, span=span, extra=extra,
-                   meta=meta)
+    meta = {"scope_hash": h, "freshness": freshness, "job_ids": pending,
+            "persona_scope": (page or {}).get("meta", {}).get("scope_hash"), "notes": notes}
+    return compose(page, overview_body, reason=why, span=span, extra=extra, meta=meta)
 
 
 def persona_summary(gw, scope_dict: dict | None = None) -> dict:
     """{ok, code, name_zh, reason, gate} from cached snapshots only (never computes)."""
     scope_dict = scope_dict or default_scope(gw)
-    if _export() is None:
-        return {"ok": False, "code": None, "name_zh": None, "reason": "persona_unavailable",
-                "gate": None}
-    bodies, freshness, _ = _bodies(gw, scope_dict, submit=False)
-    profile, why = _profile(bodies)
-    if why == "computing" and freshness == "none":
-        why = "insufficient_data"
-    payload = compose(profile, bodies.get("overview"), reason=why)
+    page, _, why, _ = _page(gw, scope_dict, submit=False)
+    payload = compose(page, None, reason=why)
     return {"ok": payload["ok"], "code": payload["code"],
             "name_zh": (payload["type"] or {}).get("zh"), "reason": payload["reason"],
             "gate": payload["gate"]}

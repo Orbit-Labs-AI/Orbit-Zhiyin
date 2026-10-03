@@ -19,7 +19,15 @@ ID = "install_roundtrip"
 TITLE = "Install round trip (apply / revert byte-identical)"
 EV = ("EV-13",)
 
-AGENTS = ("claude_code", "codex")
+def _agents() -> tuple[str, ...]:
+    """Every agent with install support (install/env.py FULL_SUPPORT), not a hand-kept list."""
+    from ...install.env import AGENTS as KNOWN  # noqa: PLC0415
+    from ...install.env import FULL_SUPPORT
+
+    return tuple(a for a in KNOWN if a in FULL_SUPPORT)
+
+
+AGENTS = _agents()
 MARK = "orbit-eval"
 SPECS = {
     "rule": {"kind": "rule", "id": "ev-rule", "payload": {"text": f"- {MARK}: prefer small commits"}},
@@ -35,7 +43,8 @@ SPECS = {
 }
 # Substring an installed file must contain, and the user edit that touches only our unit.
 MARKERS = {("permission", "claude_code"): "Bash(git status:*)",
-           ("permission", "codex"): '"git","status"'}
+           ("permission", "codex"): '"git","status"',
+           ("permission", "opencode"): "git status *"}
 SEED = {
     ".claude/settings.json": json.dumps({"theme": "dark", "env": {"FOO": "bar"}}, indent=2) + "\n",
     ".claude/CLAUDE.md": "# My notes\n\nKeep me exactly.\n",
@@ -43,27 +52,45 @@ SEED = {
     ".codex/config.toml": 'model = "x"  # mine\n',
     ".codex/AGENTS.md": "# agents\n\nmine\n",
     ".codex/hooks.json": "{}\n",
+    ".config/opencode/opencode.json": json.dumps({"theme": "mine"}, indent=2) + "\n",
+    ".pi/agent/mcp.json": json.dumps({"mcpServers": {}}, indent=2) + "\n",
 }
-DIRS = (".claude/skills", ".claude/agents", ".claude/commands", ".codex/rules", ".codex/prompts",
-        ".codex/skills")
+# Each cell seeds only its own agent's files: a seeded ~/.claude/CLAUDE.md would (rightly) shadow
+# OpenCode's global rules file and turn its rule cell into context_file_shadowed.
+SEED_OWNER = {".claude/": "claude_code", ".claude.json": "claude_code", ".codex/": "codex",
+              ".config/opencode/": "opencode", ".pi/": "pi"}
+
+
+def _seed_for(agent: str | None) -> dict[str, str]:
+    if agent is None:
+        return dict(SEED)
+    return {rel: text for rel, text in SEED.items()
+            if next((a for prefix, a in SEED_OWNER.items() if rel.startswith(prefix)), agent) == agent}
+# Codex no longer reads ~/.codex/prompts (install/env.py SUPPORTED), so it is not seeded.
+DIRS = (".claude/skills", ".claude/agents", ".claude/commands", ".codex/rules", ".codex/skills",
+        ".agents/skills", ".dsh/skills", ".pi/agent/skills", ".pi/agent/prompts", ".hermes/skills",
+        ".local/share/opencode", ".config/opencode/skills", ".config/opencode/commands")
+# Fake ``--version`` answers per binary (install/env.py AGENTS binary names).
+VERSIONS = {"claude": "2.1.3 (Claude Code)", "codex": "codex-cli 0.80.0", "dsh": "dsh 0.1.1",
+            "pi": "0.99.1", "hermes": "Hermes Agent v0.9.0", "opencode": "1.2.3"}
 
 
 def _fake_run(argv, **_kw):
-    out = {"claude": "2.1.3 (Claude Code)", "codex": "codex-cli 0.80.0"}.get(Path(argv[0]).name)
+    out = VERSIONS.get(Path(argv[0]).name)
     return subprocess.CompletedProcess(argv, 0 if out else 1, out or "", "")
 
 
-def _make_home(root: Path) -> tuple[Path, object]:
+def _make_home(root: Path, agent: str | None = None) -> tuple[Path, object]:
     from ...install.env import Env  # noqa: PLC0415
 
     home, bin_dir = root / "home", root / "bin"
-    for rel, text in SEED.items():
+    for rel, text in _seed_for(agent).items():
         (home / rel).parent.mkdir(parents=True, exist_ok=True)
         (home / rel).write_text(text, "utf-8")
     for rel in DIRS:
         (home / rel).mkdir(parents=True, exist_ok=True)
     bin_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("claude", "codex"):
+    for name in VERSIONS:
         (bin_dir / name).write_text("#!/bin/sh\nexit 0\n")
         (bin_dir / name).chmod(0o755)
     env = Env(home=home, environ={"PATH": str(bin_dir), "HOME": str(home)}, search_dirs=[bin_dir],
@@ -71,11 +98,11 @@ def _make_home(root: Path) -> tuple[Path, object]:
     return home, env
 
 
-def _service(root: Path):
+def _service(root: Path, agent: str | None = None):
     from ...appdb import AppDB  # noqa: PLC0415
     from ...install.service import InstallService  # noqa: PLC0415
 
-    home, env = _make_home(root)
+    home, env = _make_home(root, agent)
     db = AppDB(root / "orbit" / "app.db")
     return home, db, InstallService(db, root / "orbit", env=env)
 
@@ -107,7 +134,7 @@ def _cell(root: Path, name: str, agent: str, checks: list[Check]) -> list[str]:
     spec = SPECS[name]
     cid = f"install.{name}.{agent}"
     row = lookup(spec["kind"], agent, "user")
-    home, db, svc = _service(root / "a")
+    home, db, svc = _service(root / "a", agent)
     try:
         plan = svc.plan({"type": "spec", "spec": spec}, agents=[agent])
         if row is None or row.reason:
@@ -152,12 +179,16 @@ def _cell(root: Path, name: str, agent: str, checks: list[Check]) -> list[str]:
 
 def _edit_refused(root: Path, name: str, agent: str, checks: list[Check]) -> None:
     cid = f"install.{name}.{agent}.edit_refused"
-    home, db, svc = _service(root)
+    home, db, svc = _service(root, agent)
     try:
         plan = svc.plan({"type": "spec", "spec": SPECS[name]}, agents=[agent])
         result = svc.apply(plan["plan_id"], svc.preview(plan["plan_id"])["preview_digest"])
         mark = _marker(name, agent)
-        path = next(Path(w["path"]) for w in result["written"] if mark in Path(w["path"]).read_text())
+        path = next((Path(w["path"]) for w in result["written"] if mark in Path(w["path"]).read_text()),
+                    None)
+        if path is None:
+            checks.append(Check(cid, False, detail="no written file carries the marker"))
+            return
         edited = path.read_text().replace(mark, mark.replace("status", "status --short")
                                           if "status" in mark else mark + "-user-edit")
         path.write_text(edited)

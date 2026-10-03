@@ -12,7 +12,13 @@ export function redact(text: string): string {
   return text
     .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '<redacted:private_key>')
     .replace(/(?:sk-(?:proj-|ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})\b/g, '<redacted:api_key>')
-    .replace(/Bearer\s+[A-Za-z0-9._~+/-]{12,}={0,2}/gi, 'Bearer <redacted:token>')
+    // Vendor token formats (documented prefixes): Slack xox[abpr]-, Google API AIza + 35, Stripe sk_/rk_ live|test,
+    // npm_ + 36, GitLab glpat- + 20, Hugging Face hf_ + 30+, Google OAuth ya29., and three-part JWTs (eyJ header + eyJ payload).
+    .replace(/(?<![A-Za-z0-9_-])(?:xox[abpr]-[A-Za-z0-9-]{10,}|ya29\.[A-Za-z0-9_-]{20,})/g, '<redacted:token>')
+    .replace(/(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '<redacted:jwt>')
+    .replace(/(?<![A-Za-z0-9_-])(?:AIza[0-9A-Za-z_-]{35}|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}|npm_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9]{30,})(?![A-Za-z0-9])/g, '<redacted:api_key>')
+    // A random credential contains a digit; this keeps prose such as "token_type: bearer input_tokens" intact.
+    .replace(/Bearer\s+(?=[A-Za-z0-9._~+/-]*\d)[A-Za-z0-9._~+/-]{12,}={0,2}/gi, 'Bearer <redacted:token>')
     .replace(/Basic\s+[A-Za-z0-9+/]{4,}={0,2}/gi, 'Basic <redacted:credentials>')
     .replace(/((?:Proxy-)?Authorization\s*:\s*)[^\r\n]+/gi,'$1<redacted:authorization>')
     .replace(/((?:Cookie|Set-Cookie)\s*:\s*)[^\r\n]+/gi,'$1<redacted:cookie>')
@@ -36,7 +42,11 @@ export function sanitize(value: unknown, key = '', maxBytes = 32*1024*1024, tool
     const clean = redact(value);
     if (/<truncated:sha256:[0-9a-f]{64}>$/.test(clean)) return clean;
     // Bounded copies in L1/L2; the complete native field is still addressable in L0.
-    return Buffer.byteLength(clean) <= maxBytes ? clean : `${Buffer.from(clean).subarray(0,maxBytes).toString('utf8')}<truncated:sha256:${hash(value)}>`;
+    if (Buffer.byteLength(clean) <= maxBytes) return clean;
+    // Cut on a UTF-8 character boundary: never split a multi-byte sequence into U+FFFD.
+    const bytes=Buffer.from(clean); let cut=maxBytes;
+    while (cut>0 && (bytes[cut]! & 0xc0)===0x80) cut--;
+    return `${bytes.subarray(0,cut).toString('utf8')}<truncated:sha256:${hash(value)}>`;
   }
   if (Array.isArray(value)) return value.map(item => sanitize(item,key,maxBytes,toolBudget));
   if (value !== null && typeof value === 'object') {

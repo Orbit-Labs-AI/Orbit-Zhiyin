@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import pytest
 
@@ -9,8 +8,6 @@ from orbit_catalog.service import CatalogService
 
 @pytest.fixture
 def skill_smoke(monkeypatch):
-    # Repository eval tools run with `python -m`; they are not wheel modules.
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
     from evals.recommendation.skills import run
 
     return run
