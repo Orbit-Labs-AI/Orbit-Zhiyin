@@ -96,16 +96,33 @@ def inventory_request(source: dict, data_home: Path, user_home: Path | None = No
 
 
 def revision(home: Path) -> dict:
-    """Published revision read back after a batch: run id, inventory scan and counts."""
+    """Published revision read back after a batch: run id, inventory scan, counts and the
+    freshness of that publication (``freshness``, see ``freshness_of``)."""
     with readonly_connection(home / "tandem.db") as db:
+        db.execute("BEGIN")  # One snapshot for the run id, the counts and the freshness.
         data_rev = db.execute("SELECT MAX(run_id) FROM projection_run").fetchone()[0]
         inventory_rev = db.execute("SELECT COALESCE(MAX(scan_id),0) FROM inventory_scan"
                                    ).fetchone()[0]
         counts = {name: db.execute(f"SELECT count(*) FROM {name}").fetchone()[0]
                   for name in ("session", "event", "project")}
+        freshness = freshness_of(db, data_rev)
     return {"data_rev": data_rev, "inventory_rev": inventory_rev,
             "counts": {"sessions": counts["session"], "events": counts["event"],
-                       "projects": counts["project"]}}
+                       "projects": counts["project"]}, "freshness": freshness}
+
+
+def freshness_of(db, data_rev) -> dict:
+    """``projection``: absent (nothing published) | ready | pending (captured files not
+    published yet; the published snapshot stays readable) | invalid (needs a rebuild)."""
+    from tandem_data.query import projection_state
+
+    try:
+        state = projection_state(db)
+    except ValueError as error:
+        return {"projection": "absent" if data_rev is None else "invalid",
+                "pending_files": None, "retained_files": None, "reason": str(error)[:200]}
+    return {"projection": "pending" if state["pending"] else "ready",
+            "pending_files": state["pending_files"], "retained_files": state["retained_files"]}
 
 
 def _partial(results: list[dict]) -> bool:

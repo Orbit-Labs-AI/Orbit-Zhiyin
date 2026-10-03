@@ -97,10 +97,16 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.post("/v1/app/jobs", status_code=202)
     def submit(request: JobRequest):
+        """``import`` without ``source_ids`` imports every enabled source (设置 › 立即重新
+        索引 and the retry offered by ``/v1/status`` send exactly that)."""
         if request.kind in ("import", "inventory", "rebuild"):
             gw.supervisor.ingest.worker.reset()  # A user action retries a degraded worker.
+        source_ids = request.source_ids
+        if request.kind == "import" and not source_ids and not request.files_by_source:
+            source_ids = [key for key, source in gw.state.snapshot()["sources"].items()
+                          if source.get("enabled")]
         try:
-            return gw.jobs.submit(request.kind, request.source_ids, request.limit,
+            return gw.jobs.submit(request.kind, source_ids, request.limit,
                                   request.files_by_source, request.phase)
         except JobConflict as error:
             raise ApiError(409, "job_conflict", str(error), retryable=True) from error
@@ -129,8 +135,10 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.get("/v1/app/storage")
     def storage():
-        """Readable even when the projection needs rebuilding."""
-        from tandem_data.query import current_projection
+        """Readable even when the projection needs rebuilding. ``readiness``: ready |
+        pending (captured files not published yet; the published run stays readable) |
+        rebuild_required | absent."""
+        from tandem_data.query import projection_state
 
         path = gw.home / "tandem.db"
         if not path.is_file():
@@ -139,8 +147,9 @@ def router(gw: Gateway) -> APIRouter:
                     "home": str(gw.home)}
         with gw.reads.read(check=False) as db:
             try:
-                _, run = current_projection(db)
-                readiness, revision = "ready", run["run_id"]
+                state = projection_state(db)
+                readiness = "pending" if state["pending"] else "ready"
+                revision = state["run"]["run_id"]
             except (ValueError, sqlite3.Error):
                 readiness, revision = "rebuild_required", None
             return {

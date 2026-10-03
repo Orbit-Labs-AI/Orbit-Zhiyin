@@ -2,8 +2,11 @@
 
 ``/v1/status`` and ``/health`` answer from memory (no database round trip). Table reads
 use one ``mode=ro`` connection per thread. When the projection is pending (an import
-captured files but has not rebuilt yet) a previous response for the same request is
-returned with ``X-Tandem-Freshness: stale``; without one the answer is 503 + Retry-After.
+captured files but has not published them yet) the published snapshot is still one
+committed, consistent state: it is served with ``X-Tandem-Freshness: stale`` and
+``X-Tandem-Projection: pending`` instead of failing (docs/development/import-pipeline.md,
+RC-4). Only while nothing is published yet (the first import) a previous response for
+the same request is returned stale, and without one the answer is 503 + Retry-After.
 
 Before the first import there is no tandem.db at all. That is an empty state, not a
 transient one: routes that read with ``ReadPool.read(empty=True)`` run against an empty
@@ -115,8 +118,11 @@ class ReadPool:
     @contextmanager
     def read(self, check: bool = True, empty: bool = False):
         """``empty=True``: with no tandem.db yet, yield the empty schema (``is_empty``)
-        instead of raising 503; a pending projection or a busy database still raise."""
-        from tandem_data.query import current_projection
+        instead of raising 503. While newer captures are still being published, the
+        published snapshot is read as usual and ``pending()`` is True for this thread's
+        read (callers mark the answer stale); only "nothing published yet" answers 503
+        ``projection_pending`` and an obsolete projection 409 ``rebuild_required``."""
+        from tandem_data.query import published_projection
 
         try:
             connection = self._connection()
@@ -124,14 +130,15 @@ class ReadPool:
             if not empty:
                 raise
             connection = self._placeholder()
+        self.local.pending = False
         try:
             connection.execute("BEGIN")
             if check and not self.is_empty(connection):
-                current_projection(connection)
+                self.local.pending = published_projection(connection)[2]["pending"]
             yield connection
         except ValueError as error:
             if "Projection is pending" in str(error):
-                raise ApiError(503, "projection_pending", "Import is publishing a new revision",
+                raise ApiError(503, "projection_pending", "The first import has not published yet",
                                retryable=True, retry_after=1) from error
             raise ApiError(409, "rebuild_required", str(error), retryable=True) from error
         except sqlite3.OperationalError as error:
@@ -140,6 +147,10 @@ class ReadPool:
         finally:
             if connection.in_transaction:
                 connection.rollback()
+
+    def pending(self) -> bool:
+        """Whether this thread's last checked read served a snapshot behind newer captures."""
+        return bool(getattr(self.local, "pending", False))
 
     def close(self) -> None:
         with self.lock:
@@ -184,6 +195,7 @@ def router(gw: Gateway) -> APIRouter:
             with gw.reads.read(check=check, empty=True) as db:
                 empty = gw.reads.is_empty(db)
                 body = jsonable_encoder(build(db))
+                pending = gw.reads.pending()
         except ApiError as error:
             cached = last_good.get(key) if error.code == "projection_pending" else None
             if cached is None:
@@ -192,6 +204,9 @@ def router(gw: Gateway) -> APIRouter:
         if empty:
             return JSONResponse(mark_empty(body), headers={"X-Tandem-Freshness": "none"})
         last_good.remember(key, body)
+        if pending:  # The published snapshot; newer captures are still being published.
+            return JSONResponse(body, headers={"X-Tandem-Freshness": "stale",
+                                               "X-Tandem-Projection": "pending"})
         return JSONResponse(body, headers={"X-Tandem-Freshness": "fresh"})
 
     @api.get("/v1/status")
@@ -205,9 +220,11 @@ def router(gw: Gateway) -> APIRouter:
             phase = "importing" if active else "onboarding"
         else:
             phase = "importing" if any(j["kind"] == "import" for j in active) else "ready"
+        importing = any(j["kind"] == "import" for j in active)
         return {
             "state": phase, "version": __version__, "data_rev": revisions["data_rev"],
             "inventory_rev": revisions["inventory_rev"], "projection": revisions["projection"],
+            "projection_info": gw.projection_info(revisions, importing),
             "counts": revisions["counts"],
             "sources": [{k: s.get(k) for k in ("id", "agent", "enabled", "last_import_at")}
                         for s in state["sources"].values()],

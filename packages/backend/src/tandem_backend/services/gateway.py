@@ -41,18 +41,27 @@ from .supervisor import Supervisor, SupervisorConfig
 
 PARENT_ENV = "TANDEM_PARENT_PID"
 HOURLY_SYNC_S = 3600.0  # sync_mode "hour"
+STUCK_AFTER_S = 60.0  # pending with no import running this long: offer the retry
+FINISHED = frozenset({"completed", "partial", "cancelled", "failed", "interrupted"})
 STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
                 405: "method_not_allowed", 409: "conflict", 422: "invalid_request",
                 503: "service_unavailable"}
 
 
 class Revisions:
-    """Published data_rev / inventory_rev kept in memory; updated by worker events only."""
+    """Published data_rev / inventory_rev and the freshness of that publication, in memory.
+
+    Updated from worker events (``published`` carries the freshness read right after the
+    publication) and re-read from the database after every import ends and at start, so
+    ``projection`` never claims ``ready`` while captured files wait (v0.0.2 RC-4).
+    ``pending_since`` is when the published snapshot first fell behind.
+    """
 
     def __init__(self):
         self.lock = threading.Lock()
         self.value = {"data_rev": None, "inventory_rev": 0, "projection": "absent",
-                      "counts": None, "published_at": None}
+                      "counts": None, "published_at": None, "pending_files": None,
+                      "retained_files": None, "pending_since": None}
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -61,31 +70,34 @@ class Revisions:
     def update(self, **values) -> tuple[dict, dict]:
         with self.lock:
             before = dict(self.value)
+            freshness = values.pop("freshness", None)
             self.value.update(values)
+            if freshness:
+                self._fresh(freshness)
             return before, dict(self.value)
 
-    def load(self, home: Path) -> None:
-        """One read at startup (off the request path); absent database stays absent."""
-        path = home / "tandem.db"
-        if not path.is_file():
-            return
-        from tandem_data.query import current_projection
-        from tandem_data.store import readonly_connection
+    def _fresh(self, freshness: dict) -> None:
+        state = freshness.get("projection") or "ready"
+        if self.value["data_rev"] is None and state != "invalid":
+            state = "absent"
+        behind = state in ("pending", "invalid")
+        self.value.update(
+            projection=state, pending_files=freshness.get("pending_files"),
+            retained_files=freshness.get("retained_files"),
+            pending_since=(self.value.get("pending_since") or int(time.time() * 1000))
+            if behind else None)
 
+    def load(self, home: Path) -> None:
+        """Read the published revision and its freshness (startup, after an import ends)."""
+        if not (home / "tandem.db").is_file():
+            return
         from .worker_ingest import revision
 
         try:
             info = revision(home)
-            with readonly_connection(path) as db:
-                db.execute("BEGIN")
-                try:
-                    current_projection(db)
-                    projection = "ready"
-                except ValueError:
-                    projection = "pending"
         except (sqlite3.Error, OSError):
             return
-        self.update(projection=projection if info["data_rev"] is not None else "absent", **info)
+        self.update(**info)
 
 
 class LegacyApp:
@@ -201,6 +213,7 @@ class Gateway:
         self.prewarm_debounce_s, self.prewarm_mru = prewarm_debounce_s, prewarm_mru
         self.sync_interval_s = sync_interval_s
         self.hourly_sync_s = HOURLY_SYNC_S
+        self.stuck_after_s = STUCK_AFTER_S
         self.prewarm_timer: threading.Timer | None = None
         self.prewarm_heavy = False
         self.lock = threading.Lock()
@@ -261,13 +274,33 @@ class Gateway:
         """Publish to SSE and let the platform observe (metrics, notifications)."""
         frame_id = self.bus.publish(topic, event, data)
         self.platform.observe(topic, event, data)
+        if (topic == "job" and data.get("kind") in ("import", "rebuild")
+                and data.get("status") in FINISHED):
+            # Cancelled, failed or interrupted imports can leave captured files unpublished;
+            # the freshness is read again instead of trusting the last ``published``.
+            threading.Thread(target=self.revisions.load, args=(self.home,), daemon=True,
+                             name="tandem-freshness").start()
         return frame_id
+
+    def projection_info(self, revisions: dict, importing: bool) -> dict:
+        """Freshness for ``/v1/status``: a published snapshot that stays behind with no
+        import running for ``stuck_after_s`` is ``stuck`` and offers the retry request."""
+        state = revisions.get("projection")
+        since = revisions.get("pending_since")
+        stuck = bool(state in ("pending", "invalid") and since and not importing
+                     and time.time() * 1000 - since > self.stuck_after_s * 1000)
+        info = {"state": state, "pending_files": revisions.get("pending_files"),
+                "retained_files": revisions.get("retained_files"), "pending_since": since,
+                "stuck": stuck}
+        if stuck:
+            info["retry"] = {"method": "POST", "path": "/v1/app/jobs", "body": {"kind": "import"}}
+        return info
 
     def _published(self, entry: dict) -> None:
         before, after = self.revisions.update(
             data_rev=entry.get("data_rev"), inventory_rev=entry.get("inventory_rev") or 0,
-            counts=entry.get("counts"), projection="ready",
-            published_at=int(time.time() * 1000))
+            counts=entry.get("counts"), published_at=int(time.time() * 1000),
+            freshness=entry.get("freshness") or {"projection": "ready"})
         if (before["data_rev"], before["inventory_rev"]) == (after["data_rev"],
                                                              after["inventory_rev"]):
             return  # Nothing new was published (for example a cancelled batch).
