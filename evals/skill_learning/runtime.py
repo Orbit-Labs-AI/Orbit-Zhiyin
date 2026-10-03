@@ -101,6 +101,10 @@ def agent_directory(target: Path, source: Path, study: dict) -> dict:
     for name, value in {
         "auth.json": {"kimi-coding": credentials["kimi-coding"]},
         "models-store.json": {"kimi-coding": {**registry, "models": [model]}},
+        # The cache alone does not override a built-in provider's transport. Pi reads
+        # models.json for explicit endpoint/API registration (notably on recovery).
+        "models.json": {"providers": {"kimi-coding": {
+            "baseUrl": model["baseUrl"], "api": model["api"], "models": [model]}}},
         "settings.json": {"defaultProvider": "kimi-coding", "defaultModel": study["model"],
                           "defaultThinkingLevel": "max", "compaction": {"enabled": False},
                           "cacheWarming": "off", "retry": {"enabled": True, "maxRetries": 2},

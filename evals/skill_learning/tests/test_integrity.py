@@ -40,6 +40,21 @@ def test_report_does_not_turn_unknown_usage_into_a_total():
     assert usage_total([])["total_tokens"] is None
 
 
+def test_provider_registration_overrides_transport_not_only_model_cache(tmp_path):
+    from evals.skill_learning.runtime import agent_directory
+    from evals.skill_learning.study import read, save
+
+    source, target = tmp_path / "credentials", tmp_path / "isolated-agent"
+    model = {"id": "fallback", "api": "openai-completions", "baseUrl": "https://example.invalid/v1",
+             "contextWindow": 1000, "thinkingLevelMap": {"max": "max"}}
+    save(source / "auth.json", {"kimi-coding": {"type": "api_key", "key": "synthetic-key"}})
+    save(source / "models-store.json", {"kimi-coding": {"models": [model]}})
+    agent_directory(target, source, {"model": "fallback", "context_limit": 1000})
+    registered = read(target / "models.json")["providers"]["kimi-coding"]
+    assert registered["api"] == "openai-completions" and registered["baseUrl"] == model["baseUrl"]
+    assert "synthetic-key" not in (target / "models.json").read_text()
+
+
 @pytest.mark.parametrize("last", [{"stopReason": "error"}, {"stopReason": "aborted"},
                                  {"usage": None}, {"usage": {"input": -1}}])
 def test_unreported_or_failed_request_usage_stays_unknown(last):
