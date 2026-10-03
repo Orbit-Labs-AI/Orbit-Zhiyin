@@ -141,7 +141,7 @@ scene('10-intro', () => {
   AGD.key(0.2, 'pts', { pts: [[960, 560], [960, 560], [960, 560], [960, 560], [960, 560]], drift: 0, r: 30, a: (b, i) => (i ? .001 : 1), dur: .3 });
   AGD.morph(0, 0, 'orb', { dur: .01 });
   AGD.key(0.35, 'ring', { ...AGD.P.cluster, ph: 0, dur: .4, stag: .02 });
-  AGD.morph(0.35, 0, 'dot', { dur: .45 });
+  AGD.morph(0.3, 0, 'dot', { dur: .25 });            // melted by b0.55, before dots 1–4 are half out (no orb + badges double image)
   // 1a.2: 「用 AI Agent，」 (the subject, small) floats up out of the cluster from b0.4 — characters blur in while the line
   // rises 18 px onto y 430 (the cluster's top edge is y 466); the headline 「正在成为每个人的日常」 wipes in a word on
   // b1.1 / 1.52 / 1.94 (.45 beat each, ≤ 1600; 「正在」 waits until the pen has left the type band, so the small line reads
