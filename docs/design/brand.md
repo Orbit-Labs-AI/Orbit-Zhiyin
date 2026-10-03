@@ -52,7 +52,7 @@
 | [`nav/`](logo/kit/nav/orbit-nav-template-22@2x.png) | 菜单栏与导航栏：黑色模板图（`template`，macOS `isTemplate` 只取 alpha）、板岩灰、白 | PNG 高 16、18、20、22、24、32 pt，各 @1x @2x @3x；矢量用 `mark/orbit-mark-black.pdf` |
 | [`favicon/`](logo/kit/favicon/favicon.svg) | 网页图标：`favicon.svg`（随浏览器深色模式切换黑夜配色）、`favicon.ico`（16/32/48）、`apple-touch-icon.png`（180，方形不加圆角，由系统裁切）、PWA `icon-192/512.png` | SVG、ICO、PNG |
 | [`wordmark/`](logo/kit/wordmark/orbit-wordmark-ink.svg) | 字标 Orbit·知音：俯视螺旋作 O；板岩灰、黑、暖纸与深色底用的香槟黄（`night`）四色，透明底 | SVG、PDF；PNG 高 32、48、64、128、256、512 |
-| [`compare/`](logo/kit/compare/orbit-zhiyin-fonts.html) | 中文字体对比页：15 款开源中文字体逐一排成完整字标（浅色 / 深色），由 [`compare_cjk.py`](logo/compare_cjk.py) 生成，供选定「知音」字体 | 单文件 HTML |
+| [`compare/`](logo/kit/compare/orbit-zhiyin-fonts.html) | 中文字体对比页：16 种开源中文字体与字重逐一排成完整字标（浅色 / 深色），由 [`compare_cjk.py`](logo/compare_cjk.py) 生成，供选定「知音」字体 | 单文件 HTML |
 | [`motion/`](logo/kit/motion/orbit-reveal.html) | 交互动效页：点击 45° 标志 → 转为俯视正圆并移到 O 的位置 → r、b、i、t、·、知、音 依次升起淡入（深色模式为香槟黄）；再点击按相反顺序收回。转动的每一帧都由同一套参数算出（pitch 45°→75°，`motion` 一节记录帧数与时长），支持深色模式与减少动态效果 | 单文件 HTML |
 | [`social/`](logo/kit/social/orbit-social.svg) | 分享图 1280×640：图标居中于同色底 | SVG、PNG |
 
@@ -88,7 +88,7 @@ PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xco
 
 - **rbit**：开源字体 **Josefin Sans Regular（400）**，几何复古无衬线，升部修长、x 字高偏低，与俯视螺旋的圆形呼应；b 的升部顶与字高对齐，O 与 r 的墨迹间距 0.16 H。
 - **间隔点**：中文间隔号「·」，取自知音所用的中文字体、与知音同比例缩放；圆心在基线上方 0.38 H（比字高中线略低），与 t、知的墨迹间距各 0.3 H。
-- **知音**：开源字体 **思源黑体（Noto Sans SC）350**，笔画粗细与 Josefin Sans 400 接近、结构干净；墨迹高度为字高的 0.86，垂直中心在字高中线。
+- **知音**：开源字体 **思源黑体（Noto Sans SC）SemiBold 600**，结构干净、分量与 rbit 相称；墨迹高度为字高的 0.86，**墨迹底边与 rbit 的基线对齐**（中英文底部齐平）。
 
 字形不重画，只做等比缩放与排列：[`logo/extract_glyphs.py`](logo/extract_glyphs.py) 从 google/fonts 下载两款字体，按字重取出 r、b、i、t 与 知、音、· 的轮廓（TrueType 二次曲线精确升为三次贝塞尔），写入 [`logo/wordmark-glyphs.json`](logo/wordmark-glyphs.json)，并记录来源与 SHA-256；`generate.py` 只读这个文件。两款字体均以 SIL Open Font License 1.1 授权，允许把字形轮廓用于标志。换字体或字重：改 `wordmark.fonts` 后运行 `uv run --no-project --with fonttools python docs/design/logo/extract_glyphs.py`，再运行 `generate.py` 与 `export.mjs`。
 
@@ -100,11 +100,11 @@ PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xco
 | --- | --- | --- |
 | `o_pitch` | 75° | 字标 O 的俯仰视角（标志本身为 45°） |
 | `fonts.latin` | Josefin Sans，400 | rbit 的字体与字重 |
-| `fonts.cjk` | Noto Sans SC，350 | 知音的字体与字重 |
+| `fonts.cjk` | Noto Sans SC，600 | 知音与间隔点的字体与字重 |
 | `ascender` | 1.0 | b 的升部顶与字高对齐，由此确定拉丁字体缩放 |
 | `spacing` | O–r 0.16、t–点 0.3、点–知 0.3 | 墨迹间距；rbit 内部按字体步进宽度排列 |
 | `dot.height` | 0.38 | 中文间隔点圆心在基线上方的高度（× H） |
-| `cjk.height` | 0.86 | 知音墨迹高度（× H） |
+| `cjk.height` | 0.86 | 知音墨迹高度（× H），底边对齐基线 |
 | `tracking` | 0 | rbit 额外字距 |
 
 **与上一版的关系**：上一版（v1）把中心线每 1.5 设计单位取一点、画成折线多边形。矢量版沿用 v1 的离散常数（端点、深度范围、断口区间与外框，记录在 `orbit-geometry.json` 的 `v1`），只把折线换成平滑曲线；轮廓与 v1 顶点的最大偏差为 0.013 设计单位（1024 图标上约 0.02 px），渲染出的 1024 PNG 与旧版逐像素比对，差异只在抗锯齿边缘。

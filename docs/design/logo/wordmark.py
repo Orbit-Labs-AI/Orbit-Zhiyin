@@ -4,7 +4,7 @@ rbit 与知音的字形来自开源字体（orbit-spec.json 的 wordmark.fonts�
 这里只做等比缩放与排列，字形本身不重画。长度以「字高」H（O 的墨迹高度去掉上下视觉溢出）为单位：
 - rbit：b 的升部顶与字高对齐，O 与 r 的墨迹间距 spacing.O_r，其后按字体步进宽度排列（另加 tracking）；
 - 间隔点：cjk 字体的中文「·」，与知音同比例，圆心在基线上方 dot.height × H，与 t、知的墨迹间距 spacing.t_dot / dot_cjk；
-- 知音：墨迹高度 = H × cjk.height，垂直中心在字高中线，按字体步进宽度排列。
+- 知音：墨迹高度 = H × cjk.height，墨迹底边与 rbit 基线对齐，按字体步进宽度排列。
 
 坐标与标志的设计坐标相同（y 向下）：基线 = O 墨迹底边 − 溢出，字高顶 = O 墨迹顶边 + 溢出。
 """
@@ -38,7 +38,6 @@ class Wordmark:
         over = p["overshoot"] * (y1 - y0)
         self.base, top = y1 - over, y0 + over
         H = self.base - top
-        mid = self.base - H / 2
         sp = p["spacing"]
         self.letters = {}
 
@@ -60,7 +59,7 @@ class Wordmark:
         self.letters["·"] = _place(cjk["·"]["contours"], s2, x, self.base - p["dot"]["height"] * H + (db[1] + db[3]) / 2 * s2)
         right = x + db[2] * s2
 
-        y = mid + (lo + hi) / 2 * s2  # 字体基线位置：使知音墨迹的垂直中心落在字高中线
+        y = self.base + lo * s2  # 字体基线位置：使知音墨迹底边与 rbit 基线对齐
         x = right + sp["dot_cjk"] * H - cjk["知"]["bounds"][0] * s2
         for ch in "知音":
             self.letters[ch] = _place(cjk[ch]["contours"], s2, x, y)

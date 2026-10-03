@@ -1,7 +1,7 @@
 """字标「Orbit·知音」的中文字体对比页：把候选字体逐一排成完整字标，写出 kit/compare/orbit-zhiyin-fonts.html。
 
 O 与 rbit 用现行参数（orbit-spec.json），只替换知音与中文间隔点的字体；排列规则与 wordmark.py 完全相同
-（知音高 cjk.height × H、垂直居中；点在基线上方 dot.height × H；间距 spacing）。字体缺「·」时借用现行字体的点。
+（知音高 cjk.height × H、底边与基线对齐；点在基线上方 dot.height × H；间距 spacing）。字体缺「·」时借用现行字体的点。
 每款给浅色底（板岩灰）与深色底（night_word）两版，并注明授权。字体下载缓存在 .work/font-cache/（已忽略）。
 
   uv run --no-project --with fonttools python docs/design/logo/compare_cjk.py
@@ -27,8 +27,9 @@ GH = "https://github.com/"
 # (名称, 字体族, 字重, 来源, 授权)
 CANDIDATES = [
     ("思源黑体 Light", "Noto Sans SC", 300, GF + "notosanssc/NotoSansSC%5Bwght%5D.ttf", "OFL"),
-    ("思源黑体 350（现行）", "Noto Sans SC", 350, GF + "notosanssc/NotoSansSC%5Bwght%5D.ttf", "OFL"),
+    ("思源黑体 350", "Noto Sans SC", 350, GF + "notosanssc/NotoSansSC%5Bwght%5D.ttf", "OFL"),
     ("思源黑体 Regular", "Noto Sans SC", 400, GF + "notosanssc/NotoSansSC%5Bwght%5D.ttf", "OFL"),
+    ("思源黑体 SemiBold（现行）", "Noto Sans SC", 600, GF + "notosanssc/NotoSansSC%5Bwght%5D.ttf", "OFL"),
     ("思源宋体 Regular", "Noto Serif SC", 400, GF + "notoserifsc/NotoSerifSC%5Bwght%5D.ttf", "OFL"),
     ("思源宋体 SemiBold", "Noto Serif SC", 600, GF + "notoserifsc/NotoSerifSC%5Bwght%5D.ttf", "OFL"),
     ("霞鹜文楷", "LXGW WenKai TC", 400, GF + "lxgwwenkaitc/LXGWWenKaiTC-Regular.ttf", "OFL"),
@@ -93,7 +94,7 @@ def main() -> None:
         '<!doctype html>\n<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>Orbit·知音 中文字体对比</title><style>{css}</style></head><body><header><h1>Orbit·知音 · 中文字体对比</h1>"
         f"<p>O 与 rbit（Josefin Sans {base['latin']['weight']}）不变，只替换「知音」与中文间隔点「·」的字体。知音高 {spec['wordmark']['cjk']['height']} H、"
-        f"垂直居中；点在基线上方 {spec['wordmark']['dot']['height']} H，左右空隙 {spec['wordmark']['spacing']['t_dot']} H。"
+        f"底边与 rbit 基线对齐；点在基线上方 {spec['wordmark']['dot']['height']} H，左右空隙 {spec['wordmark']['spacing']['t_dot']} H。"
         "上为浅色底，下为深色底（香槟黄）。由 docs/design/logo/compare_cjk.py 生成。</p></header>"
         f"<main>{''.join(cards)}</main></body></html>\n",
         encoding="utf-8",

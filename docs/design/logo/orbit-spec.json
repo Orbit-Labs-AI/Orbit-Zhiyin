@@ -61,7 +61,7 @@
       },
       "cjk": {
         "family": "Noto Sans SC",
-        "weight": 350,
+        "weight": 600,
         "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf"
       }
     },
@@ -74,7 +74,7 @@
     },
     "cjk": {
       "height": 0.86,
-      "note": "知音墨迹高度 = H × height，垂直中心在字高中线"
+      "note": "知音墨迹高度 = H × height，墨迹底边与 rbit 基线对齐"
     },
     "dot": {
       "height": 0.38,
