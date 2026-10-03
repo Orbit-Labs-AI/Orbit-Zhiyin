@@ -79,7 +79,7 @@
 .lite .sess.l-sess{grid-template-columns:280px minmax(0,1fr)}
 .l-slh{padding:14px 18px 0;margin-bottom:4px}
 .lite .slist{max-height:none}
-.lite .srow{padding:10px 12px 11px}
+.lite .srow{padding:10px 10px 11px}   /* 左右各收 2px，吸收标题 2~4px 的轻微溢出 */
 .l-stitle{margin:12px 0 0;font-size:26px;line-height:1.25;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
 .l-ins{align-items:flex-start;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--hair)}
 .l-ins .aib{margin-top:4px}

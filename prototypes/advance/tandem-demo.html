@@ -167,7 +167,8 @@ h1.serif,h2.serif,h3.serif{font-weight:600}
 .nav .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav .ct{font:500 11px/1 var(--font-num);color:var(--ink-3)}
 .nav .bd{height:16px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--ink-1);color:var(--bg);font:600 11px/16px var(--font-num);text-align:center}
-.nav .ag .dot{width:9px;height:9px;margin:0 3px}
+/* 9px dot centred in the 16px icon slot of plain nav rows (3.5 + 9 + 3.5), so agent labels start at the same x */
+.nav .ag .dot{width:9px;height:9px;margin:0 3.5px}
 .nav .ag.dim{color:var(--ink-3)}
 .nav .ag.dim .dot{opacity:.45}
 .nav .ag.off{color:var(--ink-3)}
@@ -308,6 +309,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .btn.p:hover{background:color-mix(in srgb,var(--pri) 86%,var(--bg))}
 .btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
 .btn.ai:hover{background:color-mix(in srgb,var(--ai-bg) 90%,var(--ai))}
+/* the sparkle glyph's ink sits ~1.3px above its box centre: nudge it onto the label's optical centre line */
+.btn.ai>svg,.aib>svg{transform:translateY(1px)}
 .btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
 .btn.gh:hover{background:var(--field)}
 .btn.dg{color:var(--crit)}
@@ -656,7 +659,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lite .sess.l-sess{grid-template-columns:280px minmax(0,1fr)}
 .l-slh{padding:14px 18px 0;margin-bottom:4px}
 .lite .slist{max-height:none}
-.lite .srow{padding:10px 12px 11px}
+.lite .srow{padding:10px 10px 11px}   /* 左右各收 2px，吸收标题 2~4px 的轻微溢出 */
 .l-stitle{margin:12px 0 0;font-size:26px;line-height:1.25;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
 .l-ins{align-items:flex-start;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--hair)}
 .l-ins .aib{margin-top:4px}
@@ -1064,6 +1067,10 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* 关键时刻 + 启示：详情列不足 760px 时上下排，避免关键时刻列被挤成逐字折行 */
 .tl-two{grid-template-columns:minmax(0,1fr) 300px}
 @container sdet (max-width:759px){.tl-two{grid-template-columns:minmax(0,1fr)}}
+/* 会话列表列宽：960 宽收起侧栏时「项目 · 时刻 · 时长 · 工具 · 纠偏」整行放得下，不再在悬空的「·」后省略；
+   标题行里除标题外的徽标 / 标签 / 结果图标不收缩，长标题先省略 */
+.sess{grid-template-columns:348px minmax(0,1fr)}
+.srow .row>:not(.t){flex:none}
 
 /* A4 工具调用（js/43-a4-tools.js）。单色度量条：中性灰，颜色只落在状态（错误率超阈值 → --vz-err，中途停止 → --vz-corr）。
    明细表：调用条 6px、错误率 40px 微型条、耗时 p50 / p95 两段条、迷你线为真实日序列；转移矩阵是 HTML grid（格子固定 36–44px，文字恒定 11px）。 */
@@ -1567,11 +1574,13 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 @keyframes slideout{to{opacity:0;transform:translateX(24px)}}
 /* App 图标：Orbit 标志，暖白底 + 石板灰（图标本身不随深浅色变化，所以在这里把 --orbit 固定为浅色值） */
 .appicon{--orbit:#5f6b6f;width:32px;height:32px;border-radius:22.46%;overflow:hidden;background:#f5f4f0;box-shadow:inset 0 0 0 .5px rgba(23,24,27,.14),0 1px 2px rgba(20,22,26,.12);display:grid;place-items:center;flex:none}
+/* 菜单栏面板的会话行：圆点 / 标题 / 时刻之间收紧到 6px，标题多留 4px 再省略 */
+.pop .sec.row[data-act=popSess]{gap:6px}
 
 /* live surfaces: menu-bar panel charts, HUD density band, desktop widget sizes, settings matrix / AI channel.
    The context bar (.ctxbar) is the one small chart shared by the panel, the HUD (.dk) and the large widget (S-V03). */
 .ctxbar{display:flex;flex-direction:column;gap:3px;min-width:0}
-.ctxbar-h{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.ctxbar-h{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .ctxbar-h b{color:var(--ink-1)}
 .ctxbar-t{position:relative;height:6px;border-radius:3px;background:var(--line)}
 .ctxbar-f{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink-1);transition:width .4s var(--ease)}
@@ -1832,7 +1841,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
      main <  800  → metric tiles 3 + 2; .two .proj .recs .sess .persona-hero stack; .three / .lib-feat auto-fit; .ov-ai 2×2
      main <  640  → metric tiles 2 per row, .stats7 4 + 3, persona axes tighten
    Media queries stay only for accessibility settings (reduced motion / transparency, more contrast) and tiny stages. */
-@container main (min-width:1900px){.content>*{max-width:1800px;margin-inline:auto}}
+@container main (min-width:1900px){.content>*,.content>.rg-wrap>*{max-width:1800px;margin-inline:auto}}
 @container main (max-width:999px){.studio{grid-template-columns:minmax(0,1fr)}}
 @container main (max-width:899px){.tsearch{width:28px;padding:0;justify-content:center}.tsearch span,.tsearch kbd{display:none}}
 @container main (max-width:799px){.pg-guide-s{display:none}.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.two,.proj,.recs{grid-template-columns:minmax(0,1fr)!important}.sess,.persona-hero{grid-template-columns:minmax(0,1fr)}.slist{max-height:320px}.three,.lib-feat{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))!important}.ov-ai{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -3770,6 +3779,196 @@ new MutationObserver(() => overlayPlace()).observe($('#overlay'), { attributes: 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
 
+/* ============ regions: parts of a window that refresh on their own ============
+   A page (or the shell) is built from regions: one root element each, tagged data-region="<key>", with the data it reads
+   declared as deps. render() rebuilds #main only when the view changes (first render, route, edition); on a page listed in
+   RG.pages every other render() — a filter click, a live frame, a feed arrival — re-evaluates the regions instead: a region
+   whose dep values are unchanged is skipped, a changed one rebuilds its HTML and, if that differs, is morphed in place
+   (rgMorph keeps every unchanged node: scroll boxes, focus, selection, hover, running animations, open menus anchored to
+   it). Pages not yet listed keep the page-level render (with the scroll / focus restore of 25-nav.js).
+     region(key, deps, fn, opt)  → HTML of fn() with data-region="key" on its root; registers the region. fn must read state
+                                   fresh (never close over locals of the page function): it runs again on every refresh.
+                                   opt.after(el, first) runs once the element is in the DOM and after every change
+                                   (mount charts here); opt.wrap: true wraps several roots in a display:contents box.
+     deps                        → strings or functions. 'S.a.b' (state path; Sets / Maps compare by content), 'filters'
+                                   (every filter sel() reads), 'facts' (the spine: ALL / AG / PJ), 'feed:<route>' (that
+                                   route's LV.feed state), 'live' (connection / analysis status), 'job' (import progress
+                                   frames), 'tl' (any TandemLive change), any name bumped with RG.bump(name), or a function
+                                   whose return value is compared. '*' means: re-evaluate on every pass.
+     RG.refresh(keys, why)       → invalidate dep keys (array / string / '*'); refreshed regions are batched per frame (rAF,
+                                   120 ms fallback). RG.refreshNow(keys, why) does it synchronously.
+     RG.bump(name, why)          → bump a named version and refresh the regions depending on it.
+     RG.memo(name, fn)           → fn() once per pass (shared derived data of several regions: sel(), stats(), …).
+     RG.prep(route, fn)          → run fn before each region pass of that route (live feed sync, slate loading).
+     rgPut(el, html)             → morph el's children to html (the shell: menu bar, title row, sidebar).
+   Debugging: window.__renderCount counts full renders, window.__regionRenders[key] region refreshes, ?debug=render logs
+   both with the invalidation source. */
+const RG = {
+  defs: new Map(), last: new Map(), pages: new Set(), preps: {}, vers: {}, depFns: {}, hooks: [],
+  pending: null, only: null, why: [], raf: 0, timer: 0, pass: 0, memos: new Map(), afterQ: [], view: null, busy: false
+};
+window.__regionRenders = {};
+const RG_DEBUG = (() => { try { return new URLSearchParams(location.search).get('debug') === 'render'; } catch (e) { return false; } })();
+// every filter sel() / pass() reads (15-derive.js) + the sources that change which agents count
+const RG_ALIAS = { filters: ['S.range', 'S.agents', 'S.project', 'S.topic', 'S.outcome', 'S.fric', 'S.hour', 'S.srcOff'] };
+function rgExpand(deps) {
+  const out = [];
+  [].concat(deps == null ? '*' : deps).forEach((d) => { if (typeof d === 'string' && RG_ALIAS[d]) RG_ALIAS[d].forEach((x) => out.push(x)); else out.push(d); });
+  return out;
+}
+const rgJSON = (v) => { try { return JSON.stringify(v, (k, x) => (x instanceof Set ? Array.from(x).sort() : x instanceof Map ? Array.from(x.keys()).sort() : x)); } catch (e) { return String(Math.random()); } };
+function rgDepVal(d) {
+  if (typeof d === 'function') { try { return rgJSON(d()); } catch (e) { return 'err'; } }
+  if (d === '*') return String(RG.pass);
+  if (d.slice(0, 2) === 'S.') { let v = S; d.slice(2).split('.').forEach((k) => { v = v == null ? v : v[k]; }); return rgJSON(v); }
+  if (d.slice(0, 5) === 'feed:') {
+    if (typeof LV === 'undefined' || !LV.live) return '';
+    return (LV.feeds[d.slice(5)] || []).map((f) => f.state + '@' + f.stamp).join(',');
+  }
+  if (d === 'facts') return (typeof LV !== 'undefined' ? LV.rev : 0) + '/' + ALL.length + '/' + AG.length + '/' + PJ.length + '/' + (RG.vers.facts || 0);
+  if (RG.depFns[d]) { try { return rgJSON(RG.depFns[d]()); } catch (e) { return 'err'; } }
+  return String(RG.vers[d] || 0);
+}
+const rgSig = (def) => def.deps.map(rgDepVal).join('\u0001');
+// one root element carrying data-region; an empty region keeps a hidden placeholder so it can appear later in place
+function rgTag(key, html, wrap) {
+  html = String(html == null ? '' : html).trim();
+  const attr = ' data-region="' + key + '"';
+  if (!html) return '<i' + attr + ' hidden></i>';
+  if (wrap || !/^<[a-zA-Z]/.test(html)) return '<div' + attr + ' class="rg-wrap" style="display:contents">' + html + '</div>';
+  return html.replace(/^<([a-zA-Z][\w-]*)/, (m, t) => '<' + t + attr);
+}
+function region(key, deps, fn, opt) {
+  opt = opt || {};
+  const def = { key, deps: rgExpand(deps), fn, after: opt.after || null, wrap: !!opt.wrap };
+  RG.defs.set(key, def);
+  const sig = rgSig(def);
+  const html = rgTag(key, fn(), def.wrap);
+  RG.last.set(key, { sig, html });
+  if (def.after) RG.afterQ.push([key, true]);
+  return html;
+}
+RG.memo = (name, fn) => { if (!RG.memos.has(name)) RG.memos.set(name, fn()); return RG.memos.get(name); };
+RG.begin = () => { RG.pass++; RG.memos.clear(); };
+RG.prep = (route, fn) => { (RG.preps[route] = RG.preps[route] || []).push(fn); };
+RG.dep = (name, fn) => { RG.depFns[name] = fn; };
+RG.el = (key) => document.querySelector('[data-region="' + key + '"]');
+// run the queued after(el, first) hooks whose element is now in the DOM (full render: after #main was filled)
+RG.runAfter = () => {
+  const q = RG.afterQ; RG.afterQ = [];
+  q.forEach(([key, first]) => { const def = RG.defs.get(key), el = RG.el(key); if (def && def.after && el) { try { def.after(el, first); } catch (e) { console.error(e); } } });
+};
+
+/* ---------- morph: bring a live element in line with freshly parsed markup, keeping identical nodes ---------- */
+// keyed children (data-region / id / data-key / data-vz) are matched by key, the rest by position and tag. A chart box
+// ([data-vz]) is owned by vizkit: its attributes and contents are left alone (the region's after() re-mounts it).
+const rgKey = (n) => (n.nodeType === 1 ? n.getAttribute('data-region') || n.id || n.getAttribute('data-key') || n.getAttribute('data-vz') || null : null);
+const rgSame = (a, b) => a.nodeType === b.nodeType && (a.nodeType !== 1 || a.tagName === b.tagName);
+function rgAttrs(from, to) {
+  Array.from(from.attributes).forEach((a) => { if (!to.hasAttribute(a.name)) from.removeAttribute(a.name); });
+  Array.from(to.attributes).forEach((a) => { if (from.getAttribute(a.name) !== a.value) from.setAttribute(a.name, a.value); });
+  if (from.tagName === 'INPUT') {
+    if (from.type === 'checkbox' || from.type === 'radio') { const c = to.hasAttribute('checked'); if (from.checked !== c) from.checked = c; }
+    else if (document.activeElement !== from) { const v = to.getAttribute('value') || ''; if (from.value !== v) from.value = v; }
+  }
+}
+function rgMorph(from, to) {
+  if (from.nodeType !== 1) { if (from.nodeValue !== to.nodeValue) from.nodeValue = to.nodeValue; return from; }
+  if (!rgSame(from, to)) { from.replaceWith(to); return to; }
+  if (from.hasAttribute('data-vz') && from.getAttribute('data-vz') === to.getAttribute('data-vz')) return from;
+  rgAttrs(from, to);
+  if (from.tagName === 'TEXTAREA') { if (document.activeElement !== from && from.value !== to.value) from.value = to.value; return from; }
+  rgKids(from, to);
+  return from;
+}
+function rgKids(from, to) {
+  const keyed = new Map();
+  for (let c = from.firstChild; c; c = c.nextSibling) { const k = rgKey(c); if (k && !keyed.has(k)) keyed.set(k, c); }
+  let cur = from.firstChild;
+  Array.from(to.childNodes).forEach((t) => {
+    const k = rgKey(t); let m = null;
+    if (k) { m = keyed.get(k) || null; if (m && !rgSame(m, t)) m = null; if (m) keyed.delete(k); }
+    else {
+      // the next unkeyed node of the same kind, looking at most 3 nodes ahead (an inserted / removed sibling)
+      let c = cur, n = 0;
+      while (c && n < 4) { if (!rgKey(c) && rgSame(c, t)) { m = c; break; } c = c.nextSibling; n++; }
+    }
+    if (m) { if (m === cur) cur = cur.nextSibling; else from.insertBefore(m, cur); rgMorph(m, t); }
+    else from.insertBefore(t, cur);
+  });
+  while (cur) { const n = cur.nextSibling; from.removeChild(cur); cur = n; }
+}
+const rgParse = (html) => { const t = document.createElement('template'); t.innerHTML = html; return t.content; };
+// el's children := html (first call: plain innerHTML)
+function rgPut(el, html) {
+  if (!el) return;
+  if (!el.firstChild) { el.innerHTML = html; return; }
+  rgKids(el, rgParse(html));
+}
+// a region root := html (one root element)
+function rgSwap(el, html) {
+  const frag = rgParse(html); const to = frag.firstElementChild;
+  if (!to) { el.replaceWith(frag); return null; }
+  return rgMorph(el, to);
+}
+
+/* ---------- refresh ---------- */
+function rgMatch(def, keys) {
+  if (keys === '*') return true;
+  return def.deps.some((d) => d === '*' || typeof d === 'function' || keys.has(d) || (typeof d === 'string' && Array.from(keys).some((k) => d.indexOf(k + '.') === 0 || k.indexOf(d + '.') === 0)));
+}
+function rgFlushKeys(keys, why) {
+  if (RG.busy) { RG.refresh(keys === '*' ? '*' : Array.from(keys), why); return 0; }
+  RG.busy = true; let n = 0;
+  try {
+    RG.begin();
+    (RG.preps[S.route] || []).forEach((fn) => { try { fn(); } catch (e) { console.error(e); } });
+    Array.from(RG.defs.keys()).forEach((key) => {
+      const def = RG.defs.get(key); if (!def) return;
+      const el = RG.el(key);
+      if (!el) { RG.defs.delete(key); RG.last.delete(key); return; }
+      if (!rgMatch(def, keys)) return;
+      const last = RG.last.get(key) || {};
+      const sig = rgSig(def);
+      if (sig === last.sig) return;
+      const html = rgTag(key, def.fn(), def.wrap);
+      RG.last.set(key, { sig, html });
+      // same markup but new inputs: the region's after() still runs (a chart box is empty markup; its data lives in after)
+      if (html === last.html) { if (def.after) RG.afterQ.push([key, false]); return; }
+      const old = $$('[data-count]', el).map((x) => x.dataset.count);
+      const nel = rgSwap(el, html) || RG.el(key);
+      n++; window.__regionRenders[key] = (window.__regionRenders[key] || 0) + 1;
+      if (RG_DEBUG) console.debug('[region]', key, '←', why || (keys === '*' ? '*' : Array.from(keys).join(',')));
+      if (nel) {
+        RG.hooks.forEach((fn) => { try { fn(nel, key, old); } catch (e) { console.error(e); } });
+        if (def.after) RG.afterQ.push([key, false]);
+      }
+    });
+    RG.runAfter();
+  } finally { RG.busy = false; }
+  if (n && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('tandem:regions', { detail: { n } }));
+  return n;
+}
+RG.refresh = function (keys, why) {
+  if (keys === '*' || RG.pending === '*') RG.pending = '*';
+  else { RG.pending = RG.pending || new Set(); (keys instanceof Set ? Array.from(keys) : [].concat(keys)).forEach((k) => RG.pending.add(k)); }
+  if (why) RG.why.push(why);
+  if (RG.raf || RG.timer) return;
+  if (typeof requestAnimationFrame === 'function') RG.raf = requestAnimationFrame(RG.flush);
+  RG.timer = setTimeout(RG.flush, 120);   // rAF is paused in a hidden WKWebView
+};
+RG.flush = function () {
+  if (RG.raf) { cancelAnimationFrame(RG.raf); RG.raf = 0; }
+  if (RG.timer) { clearTimeout(RG.timer); RG.timer = 0; }
+  const keys = RG.pending; RG.pending = null; const why = RG.why.join(' · '); RG.why = [];
+  return keys ? rgFlushKeys(keys, why) : 0;
+};
+RG.refreshNow = (keys, why) => rgFlushKeys(keys === '*' ? '*' : new Set(keys instanceof Set ? keys : [].concat(keys)), why);
+RG.bump = (name, why) => { RG.vers[name] = (RG.vers[name] || 0) + 1; RG.refresh([name], why || name); };
+// the current page is region-built and already on screen: render() may refresh it instead of rebuilding #main
+RG.viewKey = () => S.ed + '|' + S.route;
+RG.canRefresh = () => RG.pages.has(S.route) && RG.view === RG.viewKey() && !!document.getElementById('content');
+
 /* ============ navigation & render ============ */
 // order = the Advance「洞察」sidebar group; ⌥1…⌥9, the 窗口 menu and the palette's 页面 rows all follow it
 const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sentiment', '情绪与语义'], ['sessions', '会话与轨迹'], ['projects', '项目习惯'], ['tools', '工具调用'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
@@ -3825,9 +4024,14 @@ function uiRestore(snap) {
 }
 const UI_DEBUG = (() => { try { return new URLSearchParams(location.search).get('debug') === 'render'; } catch (e) { return false; } })();
 window.__renderCount = 0;
+/* render() brings the window up to date. It rebuilds the page (a full render, counted in __renderCount) only on the first
+   render, a route or edition change, or on a page that is not region-built yet; on a region-built page (RG.pages,
+   24-regions.js) it re-evaluates the shell and the page regions instead and only changed regions are morphed in place.
+   RG.only (set by the live core for one call) narrows the pass to the invalidated dep keys. */
 function render() {
-  window.__renderCount++; if (UI_DEBUG) console.debug('[render]', window.__renderCount, S.route);
-  const snap = uiSnap();
+  const full = !RG.canRefresh() || ROUTE_ENTER;
+  if (full) { window.__renderCount++; if (UI_DEBUG) console.debug('[render]', window.__renderCount, S.route, RG.only ? 'via ' + Array.from(RG.only).join(',') : ''); }
+  const snap = full ? uiSnap() : null;
   agentSync();
   applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
@@ -3836,17 +4040,23 @@ function render() {
   // the window rect cannot change while the page renders (stageSize is cached, 22-window.js): re-place only the dependants
   // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
   placeDeps();
-  uiRestore(snap);
+  if (snap) uiRestore(snap);
   if (window.__lvRendered) window.__lvRendered();
 }
+// returns true when #main was rebuilt (false: the page's regions were refreshed in place)
 function renderMain() {
+  if (RG.canRefresh() && !ROUTE_ENTER) { RG.refreshNow(RG.only || '*', RG.only ? 'live' : 'render'); return false; }
   const m = $('#main'); const c = $('#content'); const top = c ? c.scrollTop : 0;
+  RG.begin(); RG.afterQ = [];
   m.innerHTML = PAGES[S.route]();
+  RG.view = RG.viewKey();
   const nc = $('#content'); if (nc) nc.scrollTop = top;
   tbarFit();
   if (PAGES[S.route].after) PAGES[S.route].after();
+  RG.runAfter();
   const entered = ROUTE_ENTER; ROUTE_ENTER = false;
   RENDER_HOOKS.forEach((fn) => { try { fn(m, entered); } catch (e) { console.error(e); } });
+  return true;
 }
 /* toolbar overflow, in order: the search field collapses to its icon as soon as the meta text would be clipped; the meta
    then shrinks (ellipsis); items that still do not fit move (right to left) into a » popover. The page title never
@@ -3891,17 +4101,17 @@ function renderMbar() {
   const badge = S.paused || S.sim === 'idle' ? 'transparent' : S.sim === 'stuck' ? 'var(--crit-m)' : S.sim === 'waiting' || S.sim === 'ctx' ? 'var(--warn-m)' : S.sim === 'done' ? 'var(--good-m)' : 'var(--a1)';
   const shape = S.sim === 'waiting' ? 'border-radius:1.5px' : S.sim === 'stuck' ? 'border-radius:1.5px;transform:rotate(45deg)' : '';
   const m = (id, label) => '<button type="button" data-act="menu" data-m="' + id + '">' + label + '</button>';
-  $('#mbar').innerHTML = '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Orbit</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
+  rgPut($('#mbar'), '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Orbit</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
     '<span class="sp"></span><span class="status"><button type="button" class="glyph" data-act="menu" data-m="demo" aria-label="演示菜单" data-tip="演示菜单：模拟会话事件、播放首次启动与人格揭晓">' + ic('flask', 15) + '<span class="mark" style="background:var(--ai)"></span></button>' +
     '<button type="button" class="glyph' + (S.pop ? ' on' : '') + '" data-act="pop" aria-label="打开菜单栏面板" aria-expanded="' + S.pop + '">' + GLYPH + (S.paused || S.sim === 'idle' ? '' : '<span class="badge' + (S.sim === 'running' ? ' live' : '') + '" style="background:' + badge + ';' + shape + '"></span>') + '</button>' +
-    SYS_ICONS + '<span class="clock" data-clock>' + nowText() + '</span></span>';
+    SYS_ICONS + '<span class="clock" data-clock>' + nowText() + '</span></span>');
 }
 /* title row: traffic lights + sidebar toggle (floats over the sidebar material, stays when the sidebar is hidden) */
 function renderWtop() {
   const narrow = $('#win').classList.contains('narrow');
   const shown = narrow ? S.sideOver : S.side;
-  $('#wtop').innerHTML = '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="winClose" aria-label="关闭窗口"></button><button type="button" class="y" data-act="winMin" aria-label="最小化"></button><button type="button" class="g" data-act="winZoom" aria-label="' + (S.win.full ? '退出全屏' : '进入全屏；按住 ⌥ 点击为缩放') + '"></button></div>' +
-    '<button type="button" class="ib sbtoggle" data-act="sideToggle" aria-label="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + '" aria-pressed="' + shown + '" aria-keyshortcuts="Control+Meta+S" data-tip="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + ' ' + kb('⌃⌘S') + '">' + ic('sidebar') + '</button>';
+  rgPut($('#wtop'), '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="winClose" aria-label="关闭窗口"></button><button type="button" class="y" data-act="winMin" aria-label="最小化"></button><button type="button" class="g" data-act="winZoom" aria-label="' + (S.win.full ? '退出全屏' : '进入全屏；按住 ⌥ 点击为缩放') + '"></button></div>' +
+    '<button type="button" class="ib sbtoggle" data-act="sideToggle" aria-label="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + '" aria-pressed="' + shown + '" aria-keyshortcuts="Control+Meta+S" data-tip="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + ' ' + kb('⌃⌘S') + '">' + ic('sidebar') + '</button>');
 }
 /* sidebar: collapsible groups in a scrolling middle; fixed footer = the published privacy card (local only · 0 B uploaded ·
    redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
@@ -3924,20 +4134,26 @@ function sideAgents() {
   }).join('');
 }
 function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
+// sidebar regions (24-regions.js): the import entry, the page lists with their counts, the Agents list, the pinned projects
+// and the footer refresh on their own (a job frame only touches side:import); renderSide() morphs the whole sidebar in place
+const SIDE_NAV_DEPS = ['facts', 'filters', 'S.route', 'S.installed', 'S.recs.gone', 'S.studio.run', 'S.ed', 'tl'];
+const sideImport = () => region('side:import', ['job', 'live', 'facts', 'tl'], () => sideExtra());
+const sideAgentsR = () => region('side:agents', ['facts', 'filters', 'S.agentOff', 'tl'], () => sideAgents(), { wrap: true });
+const sideFootR = () => region('side:foot', ['facts', 'live', 'filters', 'S.paused', 'S.extraSrc', 'S.index', 'S.rules', 'tl'], () => sideFoot());
 function renderSide() {
   if (S.ed === 'lite') { renderSideLite(); return; }
-  const n = sel({ noExtra: true }).length;
-  const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
-  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪与语义', 'sentiment') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools')) +
-    group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
-    group('agents', 'Agents', sideAgents(), '会话') +
-    group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
+  rgPut($('#side'), edSwitch() + sideImport() + '<div class="sb-scroll">' +
+    group('insight', '洞察', region('side:insight', SIDE_NAV_DEPS, () => { const n = sel({ noExtra: true }).length; return navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪与语义', 'sentiment') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools'); }, { wrap: true })) +
+    group('action', '行动', region('side:action', SIDE_NAV_DEPS, () => { const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length; return navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : ''); }, { wrap: true })) +
+    group('agents', 'Agents', sideAgentsR(), '会话') +
+    group('pins', '置顶项目', region('side:pins', ['facts', 'filters', 'S.route', 'tl'], () => sidePins(), { wrap: true })) + '</div>' + sideFootR());
 }
+// live: the footer's index line reads the gateway (96-live-bind.js sets this)
+let SIDE_IDX = null;
 // the published footer, shared by both editions: privacy card (local only · 0 B uploaded · redaction rules · index state) + user row
 function sideFoot() {
-  const idx = S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
+  const idx = SIDE_IDX ? SIDE_IDX() : S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
   const nRules = Object.values(S.rules).filter(Boolean).length, me = personaNow();
   return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
     '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +
@@ -4033,13 +4249,11 @@ function edSwitch() {
 // Lite uses the Advance sidebar components as they are (same groups, rows, Agents list, footer) and only carries fewer pages:
 // the two editions differ in how much they show, not in how it looks.
 function renderSideLite() {
-  const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
-  const n = sel({ noExtra: true }).length;
   const nav = (i, ct, bd) => sideNavBtn(LITE_ROUTES[i][0], LITE_ROUTES[i][1], LITE_ROUTES[i][2], ct, bd);
-  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
-    sideGroup('action', '行动', nav(3, '', recN || '')) +
-    sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
+  rgPut($('#side'), edSwitch() + sideImport() + '<div class="sb-scroll">' +
+    sideGroup('insight', '洞察', region('side:l-insight', SIDE_NAV_DEPS, () => nav(0) + nav(1) + nav(2, sel({ noExtra: true }).length), { wrap: true })) +
+    sideGroup('action', '行动', region('side:l-action', SIDE_NAV_DEPS, () => { const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length; return nav(3, '', recN || ''); }, { wrap: true })) +
+    sideGroup('agents', 'Agents', sideAgentsR(), '会话') + '</div>' + sideFootR());
 }
 // edSet(ed, route?): route = the page to land on in the new edition (a menu / notification route). The swap runs after the
 // thumb animation, so the target is passed in instead of calling go(route) next to edSet (that go would run first, while
@@ -5561,8 +5775,8 @@ function countFmt(v, dec, group) {
   return group ? v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : v.toFixed(dec);
 }
 // tag VZ.kpi values (plain numbers such as 1,234 / 11.8) so every metric tile counts without touching vizkit
-function countTag(root) {
-  $$('.vz-kpi .v:not([data-count])', root).forEach((el) => {
+function countTag(root, all) {
+  $$(all ? '.vz-kpi .v' : '.vz-kpi .v:not([data-count])', root).forEach((el) => {
     const t = el.textContent.trim(); if (!/^-?[\d,]*\.?\d+$/.test(t)) return;
     el.dataset.count = t.replace(/,/g, ''); const d = t.split('.')[1]; if (d) el.dataset.dec = d.length;
   });
@@ -5585,7 +5799,8 @@ function countUp(root, opt) {
   // keep the box as wide as the final value while digits are missing (tabular-nums keeps each digit the same width);
   // all widths are read before any text is written, so a re-render with many changed numbers forces one layout, not one each
   const widths = todo.map((r) => getComputedStyle(r.el).display !== 'inline' ? r.el.getBoundingClientRect().width : null);
-  const els = new Set(todo.map((r) => r.el)); MOTION.runs = MOTION.runs.filter((r) => !els.has(r.el));
+  // a superseded run is marked done so its settle timer cannot write its stale final value over the new run
+  const els = new Set(todo.map((r) => r.el)); MOTION.runs = MOTION.runs.filter((r) => { if (!els.has(r.el)) return true; r.done = true; return false; });
   todo.forEach((run, i) => {
     const el = run.el;
     if (widths[i] != null) el.style.minWidth = widths[i] + 'px';
@@ -5637,7 +5852,8 @@ function guideInsert(mainEl) {
   const c = $('#content', mainEl); if (!c || guideOff() || $('.pg-guide', c)) return;
   const h = guideHTML(S.route); if (h) c.insertAdjacentHTML('afterbegin', h);
 }
-function guideSet(on) { store.set('guideOff', !on); render(); }
+// a region-built page is not rebuilt by render(): the guide (outside every region) is put in / taken out here directly
+function guideSet(on) { store.set('guideOff', !on); render(); if (on) guideInsert($('#main')); else $$('.pg-guide').forEach((x) => x.remove()); }
 ACT.guideOff = (el) => {
   const g = el.closest('.pg-guide');
   const done = () => { store.set('guideOff', true); $$('.pg-guide').forEach((x) => x.remove()); toast('已收起页面导读 · 可在「显示」菜单重新打开'); };
@@ -5721,6 +5937,32 @@ RENDER_HOOKS.push((mainEl, entered) => {
   }
   MOTION.vt = -1;
   MOTION.chips = chipKeys(mainEl); MOTION.chipsRoute = S.route;
+});
+
+/* ---------- region refresh hook (24-regions.js) ---------- */
+// A region that changed in place gets the same motion a filter re-render gave the page, scoped to that region only:
+// numbers roll from the value the region showed before (old = its data-count values read before the morph), new filter
+// chips pop in, a chart ↔ table switch cross-fades. Untouched regions never replay anything; no cascade (not a page enter).
+RG.hooks.push((el, key, old) => {
+  countTag(el, true);
+  const scope = 'rg:' + key;
+  $$('[data-count]', el).forEach((x, i) => { if (old[i] != null && isFinite(parseFloat(old[i]))) MOTION.prev.set(scope + ':' + i, parseFloat(old[i])); });
+  countUp(el, { scope });
+  if (reduceMotion()) return;
+  const sg = MOTION.seg;
+  if (sg && sg.route === S.route && sg.el.isConnected && el.contains(sg.el)) { MOTION.seg = null; segSlide(sg.el, sg.from); }
+  const main = $('#main');
+  if (MOTION.vt >= 0 && main) {
+    const card = $$('.card', main)[MOTION.vt];
+    if (card && el.contains(card)) { $$('.vz', card).forEach((v) => v.animate([{ opacity: 0, transform: 'scale(.985)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE_OUT, fill: 'backwards' })); MOTION.vt = -1; }
+  }
+  if ($('.frow', el) || el.classList.contains('frow')) {
+    const old2 = new Set(MOTION.chipsRoute === S.route && MOTION.chips ? MOTION.chips : []);
+    $$('.frow [data-act="clearFilter"]', el.parentNode || el).forEach((x) => {
+      if (!old2.has(x.dataset.k + '|' + x.textContent)) x.animate([{ opacity: 0, transform: 'scale(.86)' }, { opacity: 1, transform: 'scale(1.03)', offset: 0.7 }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE_OUT });
+    });
+    if (main) { MOTION.chips = chipKeys(main); MOTION.chipsRoute = S.route; }
+  }
 });
 
 /* ============ Lite edition pages (l-home / l-persona / l-sessions / l-recs) ============
@@ -5951,21 +6193,41 @@ function ovPersEmpty(pers) {
     (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:0%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
     '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
 }
-PAGES.overview = () => {
+/* 区域渲染（24-regions.js）：概览是第一张按区域构建的页面（参考样板）。页面函数只在进入页面时运行一次，给出骨架与各区域；
+ * 之后筛选、实时数据、导入进度只刷新依赖变化的区域，其它节点原样保留（滚动、展开的菜单、焦点、hover、动画都不受影响）。
+ * 约定：每个区域的函数从 ovCtx()（每轮刷新算一次的共享数据）重新读取状态，不引用页面函数里的局部变量；图表在区域的
+ * after(el, first) 里挂载（ovMount：数据没变就不重画）。 */
+RG.pages.add('overview');
+const OV_BASE = ['facts', 'filters'];
+const ovCtx = () => RG.memo('a1', () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
   const pers = personaNow();   // 与侧栏、报告同一口径（BUG-06）
-  const note = personaScopeNote();
-  S.ov.brush = null;
+  // live: the insight texts come from /v1/uiview/overview (L0 template, same scope); the micro evidence stays spine-derived
+  const OVL = LV.live ? (LV.ready('overview') && LV.ov ? LV.ov : null) : undefined;
+  const pendTxt = LV.live && !OVL && LV.feedState('overview') !== 'error';   // 404 / 501: the spine-derived texts stay, tools say 暂无数据
+  return { L, st, P, pers, note: personaScopeNote(), OVL, ins: OVL && OVL.insight, pendTxt };
+});
+// VZ.mount only when the chart's input changed (a region refresh for another reason keeps the drawn chart, its hover and focus)
+function ovMount(id, spec, el) {
+  const box = (el || document).querySelector('[data-vz="' + id + '"]'); if (!box) return false;
+  const sig = rgJSON(spec);
+  if (box._vzSig === sig && box.firstChild) return false;
+  VZ.mount(box, spec); box._vzSig = sig; return true;
+}
+function ovTbar() {
+  const { L, st } = ovCtx();
+  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有接入 Agent'),
+    '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>');
+}
+function ovAiCard() {
+  const { L, st, pers, note, ins, pendTxt } = ovCtx();
   const fr = Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]);
   const topF = fr[0];
   const projC = {}; L.forEach((s) => { if (s.corr) projC[s.p] = (projC[s.p] || 0) + s.corr; });
   const topP = Object.entries(projC).sort((a, b) => b[1] - a[1]).slice(0, 2).map((x) => PJI[x[0]].name);
   const topR = recTop('A1').slice(0, 3);
   const okN = L.filter((s) => s.out === 'ok').length;
-  // live: the insight texts come from /v1/uiview/overview (L0 template, same scope); the micro evidence stays spine-derived
-  const OVL = LV.live ? (LV.ready('overview') && LV.ov ? LV.ov : null) : undefined; const ins = OVL && OVL.insight;
-  const pendTxt = LV.live && !OVL && LV.feedState('overview') !== 'error';   // 404 / 501: the spine-derived texts stay, tools say 暂无数据
   const ai = [
     ['做得好', 'okc', 'var(--good)', ins && ins.good ? ins.good.text : Math.round(st.verify) + '% 的会话要求测试或线上验证，完成率 ' + Math.round(st.ok) + '%。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.ok)],
     ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
@@ -5978,52 +6240,88 @@ PAGES.overview = () => {
   const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
   const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
+  // 先下结论：AI 解读一句话 + 三栏（每栏一个微型证据图 + 证据链接）
+  return '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><button type="button" class="btn sm gh" data-act="regen">' + ic('sync', 12) + '重新生成</button></div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '<span class="cap ov-aigen" data-aigen>' + ledeWhen + '</span></div>' +
+    ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div>' + (pendTxt && g[5] !== 'evRec' ? LV.pend(36) : '<p class="ov-aip">' + esc(g[3]) + '</p>') + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>';
+}
+// 指标卡：刷选时（S.ov.brush = [起桶, 止桶]）按刷选范围重算、不比上期
+function ovKpis() {
+  const { L, P } = ovCtx(); const ser = CUR.trend || []; const br = S.ov.brush;
+  const tiles = br && ser[br[0]] && ser[br[1]] ? ovTiles(sel({ win: [ser[br[0]].a, ser[br[1]].b] }), null, true) : ovTiles(L, P);
+  return '<div class="tiles" id="ovTiles">' + tiles + '</div>';
+}
+function ovOutCard() {
+  const { L, st } = ovCtx();
+  const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
+  const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
+  // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）
+  return '<div class="card ov-out"><div class="ov-out-t" title="' + outLine + '"><span class="eb">会话结果</span><span class="ct">完成 <span class="mono">' + Math.round(outc[0].value / Math.max(1, st.n) * 100) + '%</span></span><span class="cap">' + st.n + ' 个会话 · 点击色段只看该结果</span></div><div class="vz" data-vz="ov-out"></div></div>';
+}
+function ovBrushBox() {
+  const br = S.ov.brush, ser = CUR.trend || [];
+  const ok = br && ser[br[0]] && ser[br[1]];
+  const n = ok ? sel({ win: [ser[br[0]].a, ser[br[1]].b] }).length : 0;
+  return '<div class="row ov-brush" id="ovBrush"' + (ok ? '' : ' hidden') + '><span class="cap" id="ovBrushTxt">' + (ok ? '已刷选 ' + md(ser[br[0]].a) + ' – ' + md(ser[br[1]].b) + ' · ' + n + ' 个会话，指标卡已按该范围重算' : '') + '</span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div>';
+}
+function ovTrendCard() {
+  const { L } = ovCtx();
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
   const unitName = S.metric === 'h' ? '小时' : S.metric === 'tok' ? 'tokens · 估算' : '会话';
-  const vis = AG.map((a) => !S.ov.hidden.includes(a.name));
-  const tot = ser.map((b) => b.v.reduce((x, v, j) => x + (vis[j] ? v : 0), 0));
+  return '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 使用趋势</span><span class="cap">' + (ser.length > 31 ? '每周' : '每日') + unitName + (S.metric === 'tok' ? ' <span class="bdg">示例</span>' : '') + ' · ' + ({ stacked: '按 Agent 堆叠', grouped: '按 Agent 分组', pct: '各 Agent 占比' })[S.ov.stack] + '<span data-ovavg></span></span></div></div><div class="row ov-ctl"><div class="seg" role="group" aria-label="度量">' + [['n', '会话'], ['h', '时长'], ['tok', 'Tokens']].map((m) => '<button type="button" data-act="metric" data-v="' + m[0] + '" class="' + (S.metric === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="堆叠方式">' + [['stacked', '堆叠'], ['grouped', '分组'], ['pct', '100%']].map((m) => '<button type="button" data-act="stackMode" data-v="' + m[0] + '" class="' + (S.ov.stack === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="视图"><button type="button" data-act="view" data-v="chart" class="' + (S.view === 'chart' ? 'on' : '') + '" aria-label="图表视图" style="padding:0 6px">' + ic('chart', 14) + '</button><button type="button" data-act="view" data-v="table" class="' + (S.view === 'table' ? 'on' : '') + '" aria-label="表格视图" style="padding:0 6px">' + ic('grid', 14) + '</button></div></div>' +
+    '<div class="vz" data-vz="ov-trend"></div>' + region('a1:brush', ['S.ov.brush'], ovBrushBox) + '<div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>';
+}
+function ovPersCard() {
+  const { pers, note } = ovCtx();
+  // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
+  return '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
+    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
+    (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
+    '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div>';
+}
+function ovHeatCard() {
+  const { L, st } = ovCtx();
   const hmap = heat(L); CUR.heat = hmap;
   let peak = [0, 0]; hmap.H.forEach((r, di) => r.forEach((v, h) => { if (v > hmap.H[peak[0]][peak[1]]) peak = [di, h]; }));
   const night = stats(L.filter((s) => s.h < 3)), day = stats(L.filter((s) => s.h >= 9 && s.h < 18));
   const ratio = day.fric ? night.fric / day.fric : 0;
   const peakV = hmap.H[peak[0]][peak[1]];
   const heatLine = S.ov.heat === 'msgs' ? '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + f1(st.fric) + '%';
+  // 活跃节律：固定格宽、消息数 / 纠偏率切换、数值图例（评审 A1-V11）
+  return '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">活跃节律</span><span class="cap">周 × 小时</span></div><div class="seg" role="group" aria-label="热力图度量"><button type="button" data-act="heatMode" data-v="msgs" class="' + (S.ov.heat === 'msgs' ? 'on' : '') + '">消息数</button><button type="button" data-act="heatMode" data-v="corr" class="' + (S.ov.heat === 'corr' ? 'on' : '') + '">纠偏率</button></div></div>' +
+    '<div class="ov-heat-line"><b>' + heatLine + '</b>' + (S.ov.heat === 'msgs' ? '<button type="button" class="lnk" data-act="heatCell" data-h="' + peak[1] + '" data-d="' + peak[0] + '">证据 →</button>' : '') + '</div>' +
+    '<div class="scroll-x"><div class="vz ov-heat" data-vz="ov-heat"></div></div><div class="cap ov-foot" title="筛选只按小时，不分星期">点击格子查看该小时开始的会话</div></div>';
+}
+function ovToolsCard() {
+  const { L, st, OVL, pendTxt } = ovCtx();
   // live: tool top 6 from /v1/uiview/overview.tools (real tool names, err over known statuses only; null → —)
   const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => { const why = typeof lvtpRateWhy === 'function' ? lvtpRateWhy(t) : null; return { name: t.name, n: t.n, err: why ? null : t.err, why: why || (t.err == null ? '状态未知，不计算错误率' : null) }; }) : []) : toolRows(L).slice(0, 6);
   const tmx = Math.max(1, trows[0] ? trows[0].n : 1); const tkinds = LV.live ? (OVL && OVL.tools ? OVL.tools.kinds_total : 0) : 11;
   const terr = (t) => t.err == null ? '<span class="mono e"' + (t.why ? ' data-tip="' + esc(t.why) + '"' : '') + '>—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
-  const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
-  const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
-  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有接入 Agent'),
-    '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
-    '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
+  // 工具 Top 6：浅灰 6px 条 + 错误率微型条（评审 A1-V13）
+  return '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 ' + tkinds + ' 种</button></div><div class="ov-tools">' + (pendTxt ? LV.pend(180) : LV.live && !OVL ? LV.na() : LV.live && !trows.length ? LV.na('这段时间没有工具调用') : '') + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '" data-key="' + esc(t.name) + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err">' + terr(t) + '</span></button>').join('') + '</div><div class="cap ov-foot" title="错误率条的刻度为 0–20%">右列为错误率 · 超过 10% 标红</div></div>';
+}
+// skeleton: runs on page enter only; every block below is a region with its deps (S.ov.hidden is owned by the chart legend)
+PAGES.overview = () => {
+  S.ov.brush = null;
+  return region('a1:tbar', OV_BASE.concat(['S.ov.synced']), ovTbar, { after: () => tbarFit() }) +
+    '<div class="content" id="content">' +
+    region('a1:filters', OV_BASE.concat(['S.compare']), () => filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>'), { wrap: true }) +
     '<div class="stack">' +
-    // 先下结论：AI 解读一句话 + 三栏（每栏一个微型证据图 + 证据链接）
-    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><button type="button" class="btn sm gh" data-act="regen">' + ic('sync', 12) + '重新生成</button></div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + '<span class="cap ov-aigen" data-aigen>' + ledeWhen + '</span></div>' +
-    ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div>' + (pendTxt && g[5] !== 'evRec' ? LV.pend(36) : '<p class="ov-aip">' + esc(g[3]) + '</p>') + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
-    '<div class="tiles" id="ovTiles">' + ovTiles(L, P) + '</div>' +
-    // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）
-    '<div class="card ov-out"><div class="ov-out-t" title="' + outLine + '"><span class="eb">会话结果</span><span class="ct">完成 <span class="mono">' + Math.round(outc[0].value / Math.max(1, st.n) * 100) + '%</span></span><span class="cap">' + st.n + ' 个会话 · 点击色段只看该结果</span></div><div class="vz" data-vz="ov-out"></div></div>' +
-    '<div class="two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 使用趋势</span><span class="cap">' + (ser.length > 31 ? '每周' : '每日') + unitName + (S.metric === 'tok' ? ' <span class="bdg">示例</span>' : '') + ' · ' + ({ stacked: '按 Agent 堆叠', grouped: '按 Agent 分组', pct: '各 Agent 占比' })[S.ov.stack] + '<span data-ovavg></span></span></div></div><div class="row ov-ctl"><div class="seg" role="group" aria-label="度量">' + [['n', '会话'], ['h', '时长'], ['tok', 'Tokens']].map((m) => '<button type="button" data-act="metric" data-v="' + m[0] + '" class="' + (S.metric === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="堆叠方式">' + [['stacked', '堆叠'], ['grouped', '分组'], ['pct', '100%']].map((m) => '<button type="button" data-act="stackMode" data-v="' + m[0] + '" class="' + (S.ov.stack === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="视图"><button type="button" data-act="view" data-v="chart" class="' + (S.view === 'chart' ? 'on' : '') + '" aria-label="图表视图" style="padding:0 6px">' + ic('chart', 14) + '</button><button type="button" data-act="view" data-v="table" class="' + (S.view === 'table' ? 'on' : '') + '" aria-label="表格视图" style="padding:0 6px">' + ic('grid', 14) + '</button></div></div>' +
-    '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>' +
-    // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
-    '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
-    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
-    (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
-    '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
-    '<div class="three ov-three">' +
-    // 活跃节律：固定格宽、消息数 / 纠偏率切换、数值图例（评审 A1-V11）
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">活跃节律</span><span class="cap">周 × 小时</span></div><div class="seg" role="group" aria-label="热力图度量"><button type="button" data-act="heatMode" data-v="msgs" class="' + (S.ov.heat === 'msgs' ? 'on' : '') + '">消息数</button><button type="button" data-act="heatMode" data-v="corr" class="' + (S.ov.heat === 'corr' ? 'on' : '') + '">纠偏率</button></div></div>' +
-    '<div class="ov-heat-line"><b>' + heatLine + '</b>' + (S.ov.heat === 'msgs' ? '<button type="button" class="lnk" data-act="heatCell" data-h="' + peak[1] + '" data-d="' + peak[0] + '">证据 →</button>' : '') + '</div>' +
-    '<div class="scroll-x"><div class="vz ov-heat" data-vz="ov-heat"></div></div><div class="cap ov-foot" title="筛选只按小时，不分星期">点击格子查看该小时开始的会话</div></div>' +
-    // 工具 Top 6：浅灰 6px 条 + 错误率微型条（评审 A1-V13）
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 ' + tkinds + ' 种</button></div><div class="ov-tools">' + (pendTxt ? LV.pend(180) : LV.live && !OVL ? LV.na() : LV.live && !trows.length ? LV.na('这段时间没有工具调用') : '') + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err">' + terr(t) + '</span></button>').join('') + '</div><div class="cap ov-foot" title="错误率条的刻度为 0–20%">右列为错误率 · 超过 10% 标红</div></div>' +
-    ovRecsCard(topR) +
+    region('a1:ai', OV_BASE.concat(['feed:overview', 'live', 'tl', 'S.ov.lede', 'S.installed', 'S.recs']), ovAiCard) +
+    region('a1:kpi', OV_BASE.concat(['S.compare', 'S.ov.brush']), ovKpis) +
+    region('a1:out', OV_BASE, ovOutCard, { after: (el) => ovMountOut(el) }) +
+    '<div class="two">' +
+    region('a1:trend', OV_BASE.concat(['S.metric', 'S.view', 'S.ov.stack']), ovTrendCard, { after: (el, first) => ovMountTrend(el, first) }) +
+    region('a1:pers', OV_BASE.concat(['feed:overview', 'live', 'tl']), ovPersCard, { after: (el) => ovMountAxes(el) }) +
+    '</div><div class="three ov-three">' +
+    region('a1:heat', OV_BASE.concat(['S.ov.heat']), ovHeatCard, { after: (el) => ovMountHeat(el) }) +
+    region('a1:tools', OV_BASE.concat(['feed:overview', 'live']), ovToolsCard) +
+    region('a1:recs', OV_BASE.concat(['S.installed', 'S.recs', 'tl']), () => ovRecsCard(recTop('A1').slice(0, 3))) +
     '</div></div></div>';
 };
-// 图表挂载：趋势（堆叠 / 分组 / 100%）、结果构成、人格双向条、节律热力图
-PAGES.overview.after = () => {
-  const L = sel(); const ser = CUR.trend || []; const pers = personaNow();
+// 图表挂载：趋势（堆叠 / 分组 / 100%）、结果构成、人格双向条、节律热力图 —— 各自随所在区域刷新
+function ovMountTrend(el, first) {
+  const ser = CUR.trend || [];
   const last = ser.length - 1; const weeklyB = ser.length > 31;
   const days = last >= 0 ? ser[last].b - ser[last].a + 1 : 0; const partial = weeklyB && days < 7;
   const pct = S.ov.stack === 'pct';
@@ -6036,8 +6334,8 @@ PAGES.overview.after = () => {
   const vis = AG.map((a) => !S.ov.hidden.includes(a.name));
   const full = ser.slice(0, partial ? last : ser.length).map((b) => b.v.reduce((x, v, j) => x + (vis[j] ? v : 0), 0));
   const avg = full.length ? full.reduce((a, b) => a + b, 0) / full.length : 0;
-  const avgEl = $('[data-ovavg]'); if (avgEl) avgEl.textContent = pct || !avg ? '' : ' · 虚线 ' + (weeklyB ? '周均 ' : '日均 ') + fmtV(avg);
-  VZ.mount('ov-trend', {
+  const avgEl = el.querySelector('[data-ovavg]'); if (avgEl) avgEl.textContent = pct || !avg ? '' : ' · 虚线 ' + (weeklyB ? '周均 ' : '日均 ') + fmtV(avg);
+  const drawn = ovMount('ov-trend', {
     type: 'bar', title: 'Agent 使用趋势', height: 190, stacked: !(S.ov.stack === 'grouped'), view: S.view, hidden: S.ov.hidden, animate: false,
     x: { values: ser.map((b) => b.lbl) }, series: series0,
     y: { format: pct ? (v) => Math.round(v) + '%' : S.metric === 'tok' ? (v) => (v ? v + 'M' : '0') : S.metric === 'h' ? '1f' : 'int', max: pct ? 100 : undefined, label: pct ? '占比' : S.metric === 'h' ? '小时' : S.metric === 'tok' ? '百万 tokens' : '会话' },
@@ -6047,21 +6345,30 @@ PAGES.overview.after = () => {
     onLegend: (name, on, o) => { S.ov.hidden = o.hidden; },
     onBrush: (r) => ACT.ovBrushed(r),
     onSelect: (i) => { const b = ser[i]; if (!b) return; toast((b.a === b.b ? md(b.a) : md(b.a) + ' – ' + md(b.b)) + ' · ' + fmtV(b.v.reduce((x, v, j) => x + (vis[j] ? v : 0), 0)) + unit); }
-  });
-  const st = stats(L);
-  VZ.mount('ov-out', { type: 'share', title: '会话结果构成', legend: 'bottom', barH: 12, height: 24, animate: false, unit: ' 个会话', items: [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] })), n: st.n, onSelect: (i, d) => { S.outcome = d.id; go('sessions'); } });
-  if (pers.ok) VZ.mount('ov-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: [0, 1, 2, 3].map((i) => { const a = axisView(pers, i); const sgn = a.ax.k === 'I' ? 1 : -1; return { name: '', left: a.ax.L + ' ' + a.ax.Ln, right: a.ax.Rn + ' ' + a.ax.R, value: +((50 - a.val) * sgn * -1 / 50).toFixed(2), hint: a.ax.dim + ' · 强度 ' + a.strong }; }), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: (v) => String(Math.round(Math.abs(v) * 50 + 50)), axis: false, rowH: 34, barH: 10, legend: false, animate: false });
+  }, el);
+  // the buckets were redrawn under a brush: the old selection no longer exists, so the tiles go back to the whole range
+  if (drawn && !first && S.ov.brush) { const box = el.querySelector('[data-vz="ov-trend"]'); const inst = box && VZ._inst.get(box); if (inst) inst.brushRange = null; S.ov.brush = null; RG.refresh(['S.ov.brush'], 'trend redrawn'); }
+}
+function ovMountOut(el) {
+  const { L, st } = ovCtx();
+  ovMount('ov-out', { type: 'share', title: '会话结果构成', legend: 'bottom', barH: 12, height: 24, animate: false, unit: ' 个会话', items: [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] })), n: st.n, onSelect: (i, d) => { S.outcome = d.id; go('sessions'); } }, el);
+}
+function ovMountAxes(el) {
+  const { pers } = ovCtx();
+  if (pers.ok) ovMount('ov-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: [0, 1, 2, 3].map((i) => { const a = axisView(pers, i); const sgn = a.ax.k === 'I' ? 1 : -1; return { name: '', left: a.ax.L + ' ' + a.ax.Ln, right: a.ax.Rn + ' ' + a.ax.R, value: +((50 - a.val) * sgn * -1 / 50).toFixed(2), hint: a.ax.dim + ' · 强度 ' + a.strong }; }), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: (v) => String(Math.round(Math.abs(v) * 50 + 50)), axis: false, rowH: 34, barH: 10, legend: false, animate: false }, el);
+}
+function ovMountHeat(el) {
   const H = CUR.heat; if (!H) return;
   const corr = S.ov.heat === 'corr';
   const values = corr ? H.H.map((r, i) => r.map((v, h) => (v ? H.C[i][h] / v * 100 : null))) : H.H;
   const mx = Math.max(1, ...values.flat().filter((v) => v != null));
-  VZ.mount('ov-heat', {
+  ovMount('ov-heat', {
     type: 'heatmap', title: '活跃节律 · ' + (corr ? '纠偏率' : '消息数'), rows: WD, cols: Array.from({ length: 24 }, (_, h) => h % 6 ? '' : String(h)), values, ramp: corr ? 'corr' : 'accent', cellMax: 13, gap: 2, peak: !corr, min: 0, animate: false,
     format: corr ? 'pct' : 'int', unit: corr ? '纠偏率' : '条消息', scaleLabels: ['0', (corr ? f1(mx) + '%' : fmt(mx) + ' 条')], scaleNote: corr ? '灰格：该时段没有消息' : null,
     tipHead: (r, c) => '周' + WD[r] + ' ' + c + ':00–' + (c + 1) + ':00', tipExtra: (r, c) => { const v = H.H[r][c], k = H.C[r][c]; return corr ? VZ.tipRow('var(--ink-4)', '消息', fmt(v) + ' 条 · 纠偏 ' + k + ' 次', { kind: 'rect' }) : VZ.tipRow(VZ.sem.corr, '纠偏', k + ' 次' + (v ? '（' + f1(k / v * 100) + '%）' : ''), { kind: 'rect' }); },
     onSelect: (i, d) => ACT.heatCell({ dataset: { h: String(d.c), d: String(d.r) } })
-  });
-};
+  }, el);
+}
 TIPS.heat = (di, h) => { const v = CUR.heat.H[di][h], c = CUR.heat.C[di][h]; return '<b>周' + WD[di] + ' ' + h + ':00–' + (+h + 1) + ':00</b>\n' + v + ' 条消息 · 纠偏 ' + c + ' 次' + (v ? '（' + f1(c / v * 100) + '%）' : ''); };
 // 「本周建议」card (also appended to the live overview by 97-live-recs.js)
 function ovRecsCard(topR) {
@@ -6080,14 +6387,11 @@ Object.assign(ACT, {
   view: (el) => { S.view = el.dataset.v; render(); },
   stackMode: (el) => { S.ov.stack = el.dataset.v; render(); },
   heatMode: (el) => { S.ov.heat = el.dataset.v; render(); },
-  // 刷选：指标卡按刷选的桶范围重算（不整页重绘，保留刷选框）；清除后恢复整段
+  // 刷选：指标卡与刷选说明两个区域按 S.ov.brush 重算（趋势图不重画，保留刷选框）；清除后恢复整段
   ovBrushed: (r) => {
-    const ser = CUR.trend || []; const box = $('#ovBrush'); const tiles = $('#ovTiles'); if (!tiles) return;
-    if (!r || !ser.length) { S.ov.brush = null; if (box) box.hidden = true; const pw = prevWin(S.range); tiles.innerHTML = ovTiles(sel(), pw ? stats(sel({ win: pw })) : null); return; }
-    const a = Math.min(r[0], r[1]), b = Math.max(r[0], r[1]); S.ov.brush = [a, b];
-    const sub = sel({ win: [ser[a].a, ser[b].b] });
-    tiles.innerHTML = ovTiles(sub, null, true);
-    if (box) { box.hidden = false; $('#ovBrushTxt').textContent = '已刷选 ' + md(ser[a].a) + ' – ' + md(ser[b].b) + ' · ' + sub.length + ' 个会话，指标卡已按该范围重算'; }
+    const ser = CUR.trend || [];
+    S.ov.brush = r && ser.length ? [Math.min(r[0], r[1]), Math.max(r[0], r[1])] : null;
+    RG.refreshNow(['S.ov.brush'], 'brush');
   },
   ovBrushClear: () => { const el = $('[data-vz="ov-trend"]'); const inst = el && VZ._inst.get(el); if (inst) { inst.brushRange = null; const r = el.querySelector('.vz-brush'); if (r) r.setAttribute('hidden', ''); } ACT.ovBrushed(null); },
   heatCell: (el) => { const h = +el.dataset.h; const d = el.dataset.d; S.hour = h; go('sessions'); toast('已筛选 ' + h + ':00–' + (h + 1) + ':00 开始的会话' + (d != null ? '（按小时，不分星期：周' + WD[+d] + '的格子只决定小时）' : '')); },
@@ -9626,24 +9930,36 @@ function lvUserBusy(now) {
   const a = document.activeElement;
   return !!(a && lvImporting() && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest('#main, #side'));
 }
+// On a region-built page (RG.canRefresh, 24-regions.js) a live change is a region pass, not a page rebuild: render() then
+// only re-evaluates the regions whose deps are among the live keys (facts when the spine revision moved, the route's feed,
+// the connection / analysis status, 'tl' for any other TandemLive state) and morphs the changed ones in place, so the
+// user-busy postponement is not needed there; the import spacing (LV_IMPORT_GAP) stays as a guard on both paths.
+let lvRevShown = -1;
 function lvFlush() {
   if (lvFrame) { cancelAnimationFrame(lvFrame); lvFrame = 0; }
   if (lvFrameT) { clearTimeout(lvFrameT); lvFrameT = null; }
   lvPatchProgress();
   const sig = lvSig(); if (sig === lvLastSig) { lvDeferSince = 0; return; }
   const now = Date.now();
+  const soft = RG.canRefresh();
   const gap = lvImporting() && lvLastRenderT ? lvLastRenderT + LV_IMPORT_GAP - now : 0;
-  const busy = lvUserBusy(now) && (!lvDeferSince || now - lvDeferSince < LV_DEFER_MAX);
+  const busy = !soft && lvUserBusy(now) && (!lvDeferSince || now - lvDeferSince < LV_DEFER_MAX);
   if (gap > 0 || busy) { if (!lvDeferSince) lvDeferSince = now; lvFrameT = setTimeout(lvFlush, Math.max(400, Math.min(gap, 2000))); return; }
   lvDeferSince = 0;
-  render();
+  if (soft) {
+    const keys = new Set(['live', 'tl', 'job', 'feed:' + S.route]);
+    if (LV.rev !== lvRevShown) keys.add('facts');
+    RG.only = keys;
+  }
+  lvRevShown = LV.rev;
+  try { render(); } finally { RG.only = null; }
 }
-// the import progress strip (TandemLive.ui.progress) is patched in place on every job frame instead of re-rendering the page
+// the import progress strip (TandemLive.ui.progress) is morphed in place on every job frame instead of re-rendering the page
 function lvPatchProgress() {
   if (typeof document === 'undefined') return;
   const els = document.querySelectorAll('#content .tl-progress'); if (!els.length) return;
   const html = TLU.progress(TL); if (!html) return;
-  els.forEach((el) => { if (el.outerHTML !== html) el.outerHTML = html; });
+  els.forEach((el) => { if (el.outerHTML !== html) rgSwap(el, html); });
 }
 function lvSchedule() {
   if (lvFrame || lvFrameT) return;
@@ -9747,6 +10063,9 @@ TL.on('event', (ev) => { if (!ev || ev.name !== 'job') lvTick++; });
 // every render (whatever triggered it) records the live state it showed, so the next TL frame can tell whether it is new
 LV.rendered = () => { lvLastRenderT = Date.now(); if (LV.live) { try { lvLastSig = lvSig(); } catch (e) { lvLastSig = null; } } };
 if (LV.live && typeof window !== 'undefined') window.__lvRendered = LV.rendered;
+// region deps (24-regions.js): 'tl' = any TandemLive change, 'live' = the connection / analysis status the strip and badges read
+RG.dep('tl', () => lvTick + ':' + LV.rev);
+RG.dep('live', () => [LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, lvId(TL.error), lvId(TL.failure), TL.events && TL.events.connected]);
 LV.backendId = (uiId) => { const a = AGI[uiId]; return a && a.key ? a.key : uiId; };
 // scope for page endpoints: {range, agents (backend ids | null = all), project, tz} + the UI-only filters
 LV.scope = () => {
@@ -9825,7 +10144,7 @@ LV.pump = function (route) {
       if (swap) return;   // same scope, another window still loading: keep the applied screen
       f.state = rs.some((x) => x.r.state === 'computing') ? 'computing' : 'pending'; return;
     }
-    const stamp = rs.map((x) => x.r.key + '@' + x.r.updatedAt).join('|') + '#' + LV.rev;
+    const stamp = rs.map((x) => x.r.key + '@' + x.r.updatedAt + ':' + lvId(x.r.data)).join('|') + '#' + LV.rev;   // + body identity: two loads in one ms
     if (stamp === f.stamp) return;
     // a 304 / identical body refreshes updatedAt but hands back the same objects: nothing to re-apply
     const same = f.parts && f.rev === LV.rev && f.parts.length === rs.length && rs.every((x, i) => f.parts[i] === x.r.data);
@@ -11510,13 +11829,10 @@ if (LV.live) {
       '<span class="sb-imp-ic' + (x.k === 'run' ? ' spin-ic' : '') + '">' + ic(x.ico, 14) + '</span><span class="sb-imp-t">' + esc(x.t) + '</span>' + (x.a ? '<span class="sb-imp-a">' + esc(x.a) + ' ›</span>' : '') + '</button>';
   };
   SIDE_EXTRA = () => { if (ORBIT.native.surface) return ''; const x = LVN.sideState(); return x ? LVN.sideHTML(x) : ''; };
-  // patch the entry in place on a frame; only appearing / disappearing re-renders the sidebar
+  // a job frame refreshes only the side:import region (24-regions.js); appearing / disappearing is the same region
   LVN.sidePatch = function () {
-    const side = $('#side'); if (!side || ORBIT.native.surface) return;
-    const x = LVN.sideState(), el = side.querySelector('[data-side="import"]');
-    if (!x && !el) return;
-    if (!x || !el) { renderSide(); return; }
-    const html = LVN.sideHTML(x); if (el.outerHTML !== html) el.outerHTML = html;
+    if (!$('#side') || ORBIT.native.surface) return;
+    RG.bump('job', 'job frame');
   };
   TL.on('event', (ev) => { if (ev && ev.name === 'job') LVN.sidePatch(); });
   // reveal (help menu, persona page 重播揭晓, onboarding「播放揭晓动画」) plays the server persona
@@ -11671,20 +11987,20 @@ if (LV.live) {
     TL.invalidate((r) => r === TL.statusResource());
     TL.ensureStatus().catch(() => { /* the strip keeps the last status */ });
   }, 20000);
-  const baseRender = render, baseSide = renderSide;
+  const baseRender = render;
+  // the strip is not a page region: it is put back on every full render and morphed in place on a region pass (only a
+  // changed strip touches the DOM, so the content below it never moves for an identical frame)
   render = function () {
     LV.pump(S.route);
     baseRender();
     const c = $('#content'); if (!c) return;
-    const old = c.querySelector(':scope > [data-tl="strip"]'); if (old) old.remove();
+    const old = c.querySelector(':scope > [data-tl="strip"]');
     const strip = lvStrip(S.route);
-    if (strip) c.insertAdjacentHTML('afterbegin', strip);
+    if (old && strip) { if (old.outerHTML !== strip) rgSwap(old, strip); }
+    else if (old) old.remove();
+    else if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
-  renderSide = function () {
-    baseSide();
-    const el = $('#side') && $('#side').querySelector('.sb-foot .pv .row.cap span');
-    if (el) el.textContent = LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务';
-  };
+  SIDE_IDX = () => (LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务');
   TL.start();
 }
 
@@ -12260,6 +12576,7 @@ if (TL.mode === 'live') {
   PAGES.overview = function () { lvRecSync(['A1']); return baseOv.apply(this, arguments); };
   PAGES['l-home'] = function () { lvRecSync(['lite']); return baseLiteHome.apply(this, arguments); };
   ['overview', 'l-home'].forEach((k) => { const b = k === 'overview' ? baseOv : baseLiteHome; if (b.after) PAGES[k].after = b.after; });
+  RG.prep('overview', () => lvRecSync(['A1']));   // a region pass of the overview (24-regions.js) does not call the page function
 
   // ---- render: 示例数据 when degraded, relations tags, view exposure ----
   const lvBaseRender = render;

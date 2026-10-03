@@ -103,19 +103,19 @@ if (LV.live) {
     TL.invalidate((r) => r === TL.statusResource());
     TL.ensureStatus().catch(() => { /* the strip keeps the last status */ });
   }, 20000);
-  const baseRender = render, baseSide = renderSide;
+  const baseRender = render;
+  // the strip is not a page region: it is put back on every full render and morphed in place on a region pass (only a
+  // changed strip touches the DOM, so the content below it never moves for an identical frame)
   render = function () {
     LV.pump(S.route);
     baseRender();
     const c = $('#content'); if (!c) return;
-    const old = c.querySelector(':scope > [data-tl="strip"]'); if (old) old.remove();
+    const old = c.querySelector(':scope > [data-tl="strip"]');
     const strip = lvStrip(S.route);
-    if (strip) c.insertAdjacentHTML('afterbegin', strip);
+    if (old && strip) { if (old.outerHTML !== strip) rgSwap(old, strip); }
+    else if (old) old.remove();
+    else if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
-  renderSide = function () {
-    baseSide();
-    const el = $('#side') && $('#side').querySelector('.sb-foot .pv .row.cap span');
-    if (el) el.textContent = LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务';
-  };
+  SIDE_IDX = () => (LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务');
   TL.start();
 }

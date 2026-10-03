@@ -68,12 +68,13 @@ test('trend chart: metric / stack mode / table view switch, legend stays local, 
   await page.mouse.up();
   await expect(page.locator('#ovBrush')).toBeVisible();
   await expect(page.locator('#ovBrushTxt')).toContainText('指标卡已按该范围重算');
-  const n1 = await page.locator('#ovTiles .vz-kpi .v').first().textContent();
-  expect(n1).not.toBe(n0);
+  // the tile rolls from the whole-range value to the brushed one (region count-up)
+  await expect(page.locator('#ovTiles .vz-kpi .v').first()).not.toHaveText(n0);
   expect(await page.evaluate(() => S.ov.brush)).not.toBeNull();
   await page.locator('[data-act="ovBrushClear"]').click();
   await expect(page.locator('#ovBrush')).toBeHidden();
-  expect(await page.locator('#ovTiles .vz-kpi .v').first().textContent()).toBe(n0);
+  // the tile rolls back from the brushed value (region count-up); it settles on the whole-range value
+  await expect(page.locator('#ovTiles .vz-kpi .v').first()).toHaveText(n0);
   expect(errors).toEqual([]);
 });
 
