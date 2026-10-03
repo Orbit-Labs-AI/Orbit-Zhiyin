@@ -15,7 +15,7 @@ from collections import OrderedDict, defaultdict
 import numpy as np
 
 from .contracts import Feature, MatchRequest, canonical_json
-from .features import lexical_tokens
+from .features import VOCABULARY, lexical_tokens
 from .vectors import blocked_scores, normalize_vectors
 
 RANKING_VERSION = "hybrid-bm25f-abs-mmr80-v4"
@@ -27,12 +27,26 @@ STOP_WORDS = set("的 和 为 是 在 与 及 了 把 中 从 到 用 做 对 �
                  "a an and are as at be but by for if in into is it no not of on or such that the their then there "
                  "these they this to was will with i me my you your we our its those how what why when which who "
                  "do does did can could should would please help".split())
-QUERY_ALIASES = {
-    "调试": "debug debugging", "排错": "debugging", "根因": "root cause", "重试": "retry",
-    "论文": "paper scientific", "引用": "citation citations", "无障碍": "accessibility",
-    "网页": "web", "键盘": "keyboard", "性能": "performance", "文档": "document",
-    "测试": "testing", "优化": "optimization", "验证": "verification",
+# Han query words -> English phrases. Generated from features.VOCABULARY (every Han word of a
+# key expands to the Latin words of the same key), plus query-only aliases that are not
+# extraction features. Expansions only add lexical alternatives; they never become features.
+EXTRA_ALIASES = {
+    "排错": ("debugging", "troubleshooting"), "无障碍": ("accessibility", "a11y"), "网页": ("web", "website"),
+    "键盘": ("keyboard",), "优化": ("optimization", "optimize"), "代码": ("code",), "审查": ("review",),
+    "测试用例": ("test case", "unit test"), "图表": ("chart", "visualization"), "可视化": ("visualization",),
+    "笔记": ("notes", "notebook"), "爬虫": ("scraping", "crawler"), "邮件": ("email",), "支付": ("payment", "payments"),
+    "搜索": ("search",), "自动化": ("automation",), "截图": ("screenshot",), "视频": ("video",),
+    "图片": ("image",), "演示": ("presentation", "slides"), "脚本": ("script",), "命令行": ("cli", "command line"),
 }
+HAN_EXPANSIONS: dict[str, set[str]] = {}
+for _words in VOCABULARY.values():
+    _latin = {w for w in _words if w.isascii()}
+    for _word in _words:
+        if not _word.isascii() and _latin:
+            HAN_EXPANSIONS.setdefault(_word, set()).update(_latin)
+for _word, _phrases in EXTRA_ALIASES.items():
+    HAN_EXPANSIONS.setdefault(_word, set()).update(_phrases)
+HAN_WORDS_BY_LENGTH = sorted(HAN_EXPANSIONS, key=lambda w: (-len(w), w))  # longest match first
 MAX_TOKENS = 24
 # BM25 parameters. k1=1.2 is the standard default (Robertson & Zaragoza 2009, "The Probabilistic
 # Relevance Framework: BM25 and Beyond", §3.4: k1 in [1.2, 2.0]). b=0 (no length normalisation):
@@ -112,13 +126,51 @@ def remember_queries(encoder, texts: list[str], vectors: np.ndarray) -> None:
             _QUERY_CACHE.popitem(last=False)
 
 
-def query_terms(text: str, prefix: bool = False) -> list[tuple[str, bool]]:
-    """(token, is_prefix) pairs: own tokens + bilingual expansion, stop words removed, capped."""
-    own = [t for t in dict.fromkeys(lexical_tokens(text)) if t not in STOP_WORDS]
-    expanded = " ".join(value for key, value in QUERY_ALIASES.items() if key in text)
-    tokens = list(dict.fromkeys(own + [t for t in lexical_tokens(expanded) if t not in STOP_WORDS]))[:MAX_TOKENS]
-    stem = next((t for t in reversed(own) if len(t) >= 3 and t in tokens), None) if prefix else None
-    return [(t, t == stem) for t in tokens]
+Term = tuple[str, bool]  # (token, is_prefix)
+
+
+def query_concepts(text: str, prefix: bool = False) -> list[list[list[Term]]]:
+    """The query as concepts; each concept is a list of alternative token sequences.
+
+    A Latin word is a concept with one alternative. A Han word from ``HAN_EXPANSIONS`` is one
+    concept whose alternatives are its own bigrams and each English phrase it expands to, so
+    "代码审查" scores as well as an item that says "code review" and expansion size does not
+    dilute the score. Remaining Han text keeps the bigram tokens of ``lexical_tokens``.
+    """
+    concepts, seen = [], set()
+
+    def add(alternatives):
+        alternatives = [[(t, False) for t in alt if t not in STOP_WORDS] for alt in alternatives]
+        alternatives = [alt for alt in alternatives if alt]
+        key = tuple(tuple(alt) for alt in alternatives)
+        if alternatives and key not in seen:
+            seen.add(key)
+            concepts.append(alternatives)
+
+    rest = text
+    for word in HAN_WORDS_BY_LENGTH:
+        if word in rest:
+            add([lexical_tokens(word)] + [lexical_tokens(phrase) for phrase in sorted(HAN_EXPANSIONS[word])])
+            rest = rest.replace(word, " ")
+    own = [t for t in dict.fromkeys(lexical_tokens(rest)) if t not in STOP_WORDS]
+    stem = next((t for t in reversed(own) if len(t) >= 3 and t.isascii()), None) if prefix else None
+    for token in own:
+        add([[token]])
+    if stem:
+        concepts = [[[(t, t == stem) for t, _ in alt] for alt in concept] for concept in concepts]
+    budget, capped = MAX_TOKENS, []
+    for concept in concepts:  # Keep whole concepts within the token budget.
+        size = sum(len(alt) for alt in concept)
+        if size > budget and capped:
+            break
+        capped.append(concept)
+        budget -= size
+    return capped
+
+
+def query_terms(text: str, prefix: bool = False) -> list[Term]:
+    """Distinct (token, is_prefix) pairs of all concepts, in query order."""
+    return list(dict.fromkeys(t for concept in query_concepts(text, prefix) for alt in concept for t in alt))
 
 
 def _fts_term(token: str, is_prefix: bool) -> str:
@@ -126,8 +178,6 @@ def _fts_term(token: str, is_prefix: bool) -> str:
 
 
 def match_expression(text: str, prefix: bool = False) -> str | None:
-    # Bilingual lexical expansion keeps offline search useful. It does not create
-    # inferred profile features or promote broad topic matches into a separate route.
     terms = query_terms(text, prefix)
     return " OR ".join(_fts_term(t, p) for t, p in terms) if terms else None
 
@@ -141,47 +191,64 @@ def _tf(tokens: list[str], term: str, is_prefix: bool) -> int:
     return sum(1 for t in tokens if t.startswith(term)) if is_prefix else tokens.count(term)
 
 
+def _concept_score(concepts, weights, tf) -> float:
+    """Σ_concepts max_alternatives mean_t idf(t)·tf~/(k1+tf~); tf(term) -> tf~ (title-weighted)."""
+    total = 0.0
+    for concept in concepts:
+        best = 0.0
+        for alt in concept:
+            value = 0.0
+            for term in alt:
+                if term in weights:
+                    count = tf(term)
+                    value += weights[term] * count / (LEXICAL_K1 + count)
+            best = max(best, value / len(alt))
+        total += best
+    return total
+
+
 def _lexical(store, conn, index, mask, text, limit, prefix):
     """BM25F over chunks: FTS5 recalls the candidate set, ranking is computed here.
 
     ``chunk_fts`` is ``detail=column``, where SQLite's ``bm25()`` has no term positions and
     returns 0 for every row, so FTS order collapsed to rowid. Here FTS only answers "which
-    chunks contain t" (per column) which yields df(t); scoring is
-      raw = Σ_t idf(t) · tf~/(k1 + tf~),  tf~ = TITLE_WEIGHT·tf_title + tf_body
-    (Robertson & Zaragoza 2009, BM25F with b=0, see LEXICAL_B). Stage 1 assumes tf=1 per
-    field that contains t; the best ``RERANK`` items are rescored with exact term counts
-    recomputed from ``store.chunk_texts`` (the FTS table is contentless).
-    The absolute score divides by the same sum with every matched in-vocabulary term at its
-    best case (idf of df=1, tf→∞): it only depends on the item and corpus, not on which
-    other items happened to be candidates.
+    chunks contain t" (per column) which yields df(t); scoring is BM25F (Robertson & Zaragoza
+    2009) with b=0 over query concepts (see ``query_concepts``):
+      raw = Σ_c max_alt mean_t idf(t) · tf~/(k1 + tf~),  tf~ = TITLE_WEIGHT·tf_title + tf_body.
+    Stage 1 assumes tf=1 per field that contains t; the best ``RERANK`` items are rescored
+    with exact term counts recomputed from ``store.chunk_texts`` (the FTS table is contentless).
+    The absolute score divides by the best case of the same sum: every concept that occurs in
+    the corpus at all, matched by a df=1 term with tf→∞. It depends only on the item and the
+    corpus, not on which other items happened to be candidates.
     """
-    terms = query_terms(text, prefix)
-    if not terms:
+    concepts = query_concepts(text, prefix)
+    if not concepts:
         return [], {}
     n_docs = int((index.chunk_item >= 0).sum()) + IDF_PRIOR_DOCS
     body_hits, title_hits, weights = defaultdict(set), defaultdict(set), {}
     try:
-        for term, is_prefix in terms:
-            fts = _fts_term(term, is_prefix)
+        for term in dict.fromkeys(t for concept in concepts for alt in concept for t in alt):
+            fts = _fts_term(*term)
             rows = [r[0] for r in conn.execute("SELECT rowid FROM chunk_fts WHERE chunk_fts MATCH ?", (fts,))]
             if not rows:
                 continue  # Out-of-vocabulary tokens (typos, CJK filler bigrams) say nothing about any item.
-            weights[(term, is_prefix)] = idf(n_docs, len(rows))
+            weights[term] = idf(n_docs, len(rows))
             titled = {r[0] for r in conn.execute("SELECT rowid FROM chunk_fts WHERE chunk_fts MATCH ?",
                                                  ("{title} : " + fts,))}
             for rowid in titled:
-                title_hits[rowid].add((term, is_prefix))
+                title_hits[rowid].add(term)
             # Title and content share one FTS row: a titled row may or may not also hold t in its
             # text, so stage 1 counts it as a title hit only; stage 2 recounts both fields.
             for rowid in rows:
                 if rowid not in titled:
-                    body_hits[rowid].add((term, is_prefix))
+                    body_hits[rowid].add(term)
     except sqlite3.OperationalError:
         # An FTS syntax edge must cost only this route, not the feature/remedy/semantic recall.
         return None, {}
-    if not weights:
+    live = [c for c in concepts if any(t in weights for alt in c for t in alt)]
+    if not live:
         return [], {}
-    ceiling = idf(n_docs, 1) * len(weights)
+    ceiling = idf(n_docs, 1) * len(live)
     rowids = np.fromiter(set(body_hits) | set(title_hits), dtype=np.int64)
     owners = index.items_of(rowids).tolist()
     # The name is a field of the item, not of one chunk: FTS stores it on ordinal 0 only, so
@@ -195,10 +262,8 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
         if owner < 0 or not mask[owner]:
             continue
         titled, body = item_title.get(owner, set()), body_hits.get(rowid, set())
-        raw = 0.0
-        for key in titled | body:
-            tf = (TITLE_WEIGHT if key in titled else 0) + (1 if key in body else 0)
-            raw += weights[key] * tf / (LEXICAL_K1 + tf)
+        raw = _concept_score(live, weights, lambda t, titled=titled, body=body:
+                             (TITLE_WEIGHT if t in titled else 0) + (1 if t in body else 0))
         item_id = index.ids[owner]
         if item_id not in best or (raw, -rowid) > (best[item_id][0], -best[item_id][1]):
             best[item_id] = (raw, rowid)
@@ -206,14 +271,14 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
     rescored = []
     for position, (item_id, (raw, rowid)) in enumerate(ranked):
         if position < RERANK:
-            raw = _exact_bm25(store, conn, index, item_id, rowid, weights) or raw
+            raw = _exact_bm25(store, conn, index, item_id, rowid, live, weights) or raw
         rescored.append((item_id, raw, rowid))
     rescored.sort(key=lambda r: (-r[1], r[0]))
     hits = [(item_id, raw / ceiling) for item_id, raw, _ in rescored[:limit]]
     return hits, {item_id: rowid for item_id, _, rowid in rescored[:limit]}
 
 
-def _exact_bm25(store, conn, index, item_id, rowid, weights) -> float | None:
+def _exact_bm25(store, conn, index, item_id, rowid, concepts, weights) -> float | None:
     ordinal = int(index.chunk_ordinal[rowid]) if 0 <= rowid < len(index.chunk_ordinal) else -1
     texts = store.chunk_texts(conn, item_id)
     if not 0 <= ordinal < len(texts):
@@ -221,11 +286,7 @@ def _exact_bm25(store, conn, index, item_id, rowid, weights) -> float | None:
     row = conn.execute("SELECT name FROM catalog_item WHERE item_id=?", (item_id,)).fetchone()
     title = lexical_tokens(row["name"]) if row is not None else []
     body = lexical_tokens(texts[ordinal])
-    raw = 0.0
-    for (term, is_prefix), weight in weights.items():
-        tf = TITLE_WEIGHT * _tf(title, term, is_prefix) + _tf(body, term, is_prefix)
-        raw += weight * tf / (LEXICAL_K1 + tf)
-    return raw
+    return _concept_score(concepts, weights, lambda t: TITLE_WEIGHT * _tf(title, *t) + _tf(body, *t))
 
 
 def _features(index, mask, features, limit, curated_only=False):

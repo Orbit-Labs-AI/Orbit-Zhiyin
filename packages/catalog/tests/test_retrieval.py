@@ -325,3 +325,33 @@ def test_seed_mmr_keeps_docx_at_or_above_its_score_rank(seeded):
     by_score = sorted(items, key=lambda i: (-i["score"], -i["score_parts"]["rrf"], i["item_id"]))
     position = next(n for n, i in enumerate(items) if i["name"] == "docx")
     assert position <= next(n for n, i in enumerate(by_score) if i["name"] == "docx")
+
+
+# Chinese query -> substrings of acceptable English target names (by intent, read off the seed).
+GOLDEN_ZH = {"代码审查": ("review",), "数据库迁移": ("sql", "migration", "database"), "浏览器测试": ("playwright", "testing"),
+             "论文引用": ("research", "citation", "consensus"), "调试": ("debug",), "部署": ("deploy",),
+             "性能优化": ("performance",), "容器": ("docker", "container"), "安全漏洞": ("vulnerab", "security"),
+             "表格": ("xlsx",), "幻灯片": ("pptx",), "前端": ("frontend",), "监控日志": ("logging", "monitor"),
+             "机器学习": ("machine-learning",), "持续集成": ("cicd",), "重构": ("refactor",),
+             "支付": ("payment", "stripe"), "截图": ("screenshot",), "设计系统": ("design system",)}
+
+
+@pytest.mark.parametrize("text", sorted(GOLDEN_ZH))
+def test_seed_chinese_queries_reach_english_items_without_a_model(seeded, text):
+    result = seeded.match(MatchRequest(text=text, purpose="library", limit=5))
+    names = [i["name"].casefold() for i in result["items"]]
+    assert result["vector"]["status"] == "not_configured"
+    assert any(target in name for name in names for target in GOLDEN_ZH[text]), names
+
+
+def test_han_expansion_is_one_concept_and_does_not_dilute(store):
+    from tandem_catalog.search import HAN_EXPANSIONS, query_concepts
+    assert {"code review", "pull request"} <= HAN_EXPANSIONS["代码审查"]  # from VOCABULARY ("domain", "git.pr")
+    assert len(query_concepts("代码审查")) == 1
+    publish(store, [Record(native_id="r", resource=Resource(item_id="r", type="skill", name="reviewer",
+                                                             summary="code review helper", url="https://example.org"))])
+    zh = search(store, MatchRequest(text="代码审查"))["items"][0]["score_parts"]["routes"]["lexical"]["raw_score"]
+    en = search(store, MatchRequest(text="code review"))["items"][0]["score_parts"]["routes"]["lexical"]["raw_score"]
+    # One concept whose best alternative is the phrase "code review": mean over its two terms
+    # equals the English query's two concepts averaged over two.
+    assert zh == pytest.approx(en)

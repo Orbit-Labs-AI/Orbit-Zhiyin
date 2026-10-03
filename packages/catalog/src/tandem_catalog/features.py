@@ -26,7 +26,7 @@ VOCABULARY = {
     # domain
     ("domain", "git.pr"): ("pull request", "code review", "代码审查", "审查", "gh pr"),
     ("domain", "testing"): ("pytest", "test-driven", "testing", "unit test", "测试", "验证"),
-    ("domain", "debugging"): ("debug", "root cause", "调试", "根因", "重复失败"),
+    ("domain", "debugging"): ("debug", "debugging", "root cause", "调试", "根因", "重复失败"),
     ("domain", "writing"): ("writing", "co-author", "写作", "文档", "humanizer"),
     ("domain", "frontend"): ("react", "frontend", "next.js", "前端", "css", "tailwind"),
     ("domain", "research"): ("research", "citation", "arxiv", "论文", "引用"),
