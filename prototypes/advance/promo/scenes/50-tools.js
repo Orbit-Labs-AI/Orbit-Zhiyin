@@ -132,7 +132,9 @@ scene('50-tools', () => {
   at(55.09, () => {
     advLight(0); const a = app(0); a.go('sessions');
     if (a.S.sess.playing) a.W.eval('stopPlay()');
-    a.S.sess.ph = 0; a.W.eval('tlFrame(false)'); solo(0, TL); panel();
+    // QA v18.3: already in the playing state (future events hidden) — with tlFrame(false) the growing card showed the
+    // whole finished trail, which then faded out at b55.4 (film 87.1–87.8) when the replay switched to tlFrame(true)
+    a.S.sess.ph = 0; a.W.eval('tlFrame(true)'); solo(0, TL); panel();
   });
   let PAN = 0;                                              // frame px the camera drifts with the playhead
   const TW = 1300, TLX = 400, TCY = 652;                    // timeline width / left edge / centre y on screen at rest
