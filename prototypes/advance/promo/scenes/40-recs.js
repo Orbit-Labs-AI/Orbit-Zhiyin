@@ -1,13 +1,14 @@
-/* 02 推荐 → 效率（b55.6–84.4）：穿越门里的建议传送带 → 22.7 h/月落定 → 一键安装 → 7 天后 → 前后对比 → 每月多出 22.7 小时
+/* 02 推荐 → 效率（b55.6–84.4）：穿越门里的建议传送带 → 每条的省时汇入「省多少 · 逐条算清」→ 一键安装 → 7 天后 → 前后对比 → 把时间还给你自己
    Shots, keyframes and hand-offs: STORYBOARD.md (KF 5.1–5.13).
    5a  the 12 .rcard cards of deck 0 are re-laid by transforms into a horizontal conveyor (inside #content's clip, so they
        are shrunk in the app and the camera zooms in); the centre card is sharp, the others blur with distance; each card
-       that crosses the centre sends its saving on an arc into the total, which rolls up and settles on the app's sum.
-   5b  the total shrinks into an eyebrow, 重复失败熔断 lifts, its install button is pressed, deck 0 turns away while
+       that crosses the centre sends a 「省时」 chip on an arc into the headline. The film shows no totals or personal
+       figures: the copy describes the product, the app's own cards are what is on screen.
+   5b  the headline shrinks into an eyebrow, 重复失败熔断 lifts, its install button is pressed, deck 0 turns away while
        deck 1's install sheet turns in, two presses run the app's real install flow.
    5c  the sheet shrinks into the ▲ install day of the tracking strip, which grows out of that point; seven days fill.
    5d  the camera drops to the three before/after rows: after-dots slide, big figures and green pills ride on the right.
-   5e  the card falls back; Apple's number formula 「每月 / 多出 22.7 小时」 lands on the drop at b79.4. */
+   5e  the card falls back; Apple's formula 「把时间 / 还给 / 你 / 自己」 lands on the drop at b79.4. */
 scene('40-recs', () => {
   css(`
 .r-or{color:var(--a1)}
@@ -69,7 +70,7 @@ scene('40-recs', () => {
   };
   const K0 = .62, PITCH = 294, CX = 1114, CY = 540;                        // in-app scale, spacing, centre (inside #content)
   const CONV = { x: CX, y: CY, s: 2.15, ax: 960, ay: 760, rx: 12, ry: 0, rz: -1.2, z: 0, o: 1, bl: 0 };
-  let IDS = [], BASE = {}, SAVE = [], TOTAL = 22.7;
+  let IDS = [], BASE = {};
   at(54.8, () => {
     advLight(0);
     const a = app(0); a.S.recs.sel = RB; a.S.recs.tab = 'why'; a.S.recs.dim = 'all'; a.S.recs.peek = null; a.go('recs');
@@ -79,9 +80,6 @@ scene('40-recs', () => {
     if (ct) ct.scrollTop = 0;
     IDS = cs.map((c) => c.dataset.id);
     cs.forEach((c) => { const r = c.getBoundingClientRect(); BASE[c.dataset.id] = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-    // the hours each card saves, as the app computes them (REC_X via recX), and their sum (expected 22.7)
-    SAVE = IDS.map((id) => +a.W.eval('recX(' + JSON.stringify(id) + ').save'));
-    TOTAL = Math.round(SAVE.reduce((x, y) => x + y, 0) * 10) / 10;
     if (IDS.length !== N || IDS.indexOf(RB) !== 1) console.warn('promo 40-recs: expected 12 cards with retry-breaker second', IDS);
     solo(0, IDS.map((id) => (DD) => card(DD, id)));
     unscroll(D);
@@ -131,7 +129,7 @@ scene('40-recs', () => {
       let f = FLY[i];
       if (b < c || q >= 1) { if (f && f.el) { f.el.remove(); f.el = null; } return; }
       if (!f) { f = FLY[i] = {}; }
-      if (!f.el) { f.el = document.createElement('div'); f.el.className = 'r-fly'; f.el.textContent = '+' + SAVE[i].toFixed(1) + ' h'; fxEl.appendChild(f.el); }
+      if (!f.el) { f.el = document.createElement('div'); f.el.className = 'r-fly'; f.el.textContent = '省时'; fxEl.appendChild(f.el); }
       if (!f.a) f.a = elXY(0, (D) => { const e = card(D, id); return e && e.querySelector('.rc-save b'); });
       // the landing point sits just right of 「h / 月」 on the digits' mid-line, measured every frame (the total widens as it
       // rolls); the chip's left edge stops there, so it never covers the digits or the unit, and it shrinks and fades
@@ -145,17 +143,15 @@ scene('40-recs', () => {
       f.el.style.opacity = (Math.min(1, q * 6) * (1 - E.in(lp(q, .62, .38)))).toFixed(3);
     });
   });
-  txt(57.5, 64.5, [['eb', '02 · 推荐 · 为指挥家定制']], { x: 960, y: 150, align: 'c' }, { outB: .5 });
-  txt(58.1, 64.5, [['lt', '12 条建议 · 每月可省下的时间']], { x: 960, y: 455, align: 'c' }, { outB: .5 });
-  // the total: rolls on every arrival, the last one overshoots by 0.4 and settles (K.count), then the highlighter sweeps;
-  // b64.0–64.6 it shrinks towards the top-left corner, where the eyebrow takes over
+  txt(57.5, 64.5, [['eb', '02 · 推荐 · 按协作人格定制']], { x: 960, y: 150, align: 'c' }, { outB: .5 });
+  txt(58.1, 64.5, [['lt', '每条建议都标明能省下的时间']], { x: 960, y: 455, align: 'c' }, { outB: .5 });
+  // the headline the savings fly into (no total: the film shows the product, not one person's numbers), then the
+  // highlighter sweeps; b64.0–64.6 it shrinks towards the top-left corner, where the eyebrow takes over
   const TOT0 = 57.8;
-  txt(TOT0, 64.7, [['xl sv r-tot', '<span class="mk"><span class="r-n">0.0</span><span class="r-u">h / 月</span></span>']], { x: 960, y: 322, align: 'c' }, {
+  txt(TOT0, 64.7, [['xl sv r-tot', '<span class="mk"><span class="r-n">省多少</span><span class="r-u">逐条算清</span></span>']], { x: 960, y: 322, align: 'c' }, {
     anim: K.all(K.rise({ in: .8, out: .3 }), K.mark(SETTLE + .1 - TOT0, .45)),
     tick: (el, tl, life, t) => {
-      const b = t / BEAT, n = el.querySelector('.r-n');
-      if (b < LAST) { let v = 0; SAVE.forEach((h, i) => { v += h * E.out(lp(b, ARR[i], .3)); }); n.textContent = v.toFixed(1); }
-      else { const pre = Math.round((TOTAL - SAVE[N - 1]) * 10) / 10; n.dataset.from = pre; n.dataset.to = TOTAL; n.dataset.dec = 1; K.count(LAST - TOT0, SETTLE - LAST, .4)(el, tl); }
+      const b = t / BEAT;
       const q = E.inOut(lp(b, 64.0, .6));
       el.style.transform = 'translate(-50%,-50%) translate(' + (-520 * q).toFixed(1) + 'px,' + (-212 * q).toFixed(1) + 'px) scale(' + lerp(1, .26, q).toFixed(4) + ')';
       el.style.opacity = (1 - E.in(lp(b, 64.15, .35))).toFixed(3);   // gone before the eyebrow rises
@@ -163,9 +159,9 @@ scene('40-recs', () => {
   });
 
   /* ---------- 5b lift → press → flip into the install sheet (b64–69.6) ---------- */
-  txt(64.5, 69.7, [['r-eb', '<span class="r-ebl">每月可省</span><span class="r-ebn">' + '22.7 h' + '</span>']], { x: L, y: 112 }, { st: 0, outB: .6, tick: (el) => { const n = el.querySelector('.r-ebn'); if (n && TOTAL) n.textContent = TOTAL.toFixed(1) + ' h'; } });
+  txt(64.5, 69.7, [['r-eb', '<span class="r-ebl">推荐</span><span class="r-ebn">针对盲点</span>']], { x: L, y: 112 }, { st: 0, outB: .6 });
   tween(0, 64.2, .9, () => ({ ay: 480, rx: 0, rz: 0, s: CONV.s * 1.1 }), E.inOut);
-  tag(0, 64.8, 66.15, (D) => card(D, RB), 'top', [['eb r-or', '对应你的盲点 · 工具 / 环境失败']], { gap: 34, at: .5, outB: .3, tick: pin() });
+  tag(0, 64.8, 66.15, (D) => card(D, RB), 'top', [['eb r-or', '例如 · 工具 / 环境反复失败']], { gap: 34, at: .5, outB: .3, tick: pin() });
   clickAt(0, 66.0, (D) => { const c = card(D, RB); return c && c.querySelector('[data-act="install"]'); }, () => {}, { bloom: 'var(--a1)', glide: .9 });
   tween(0, 66.1, .32, () => ({ ry: 90, s: decks[0].C.s * .96 }), E.in);
   tween(0, 66.44, 0, { o: 0 }, E.lin);
@@ -231,10 +227,9 @@ scene('40-recs', () => {
   tween(1, 69.95, .45, { o: 0 }, E.in);
   txt(69.9, 72.7, [['lt', '装上之后，自动对比前后 7 天']], { x: 960, y: 205, align: 'c' }, { anim: K.blurIn({ out: .5 }) });
   // 「第 k 天」 rides on the cell being filled; the strip's legend sits under it on black (the app's own legend is ink on paper)
-  let NN = [17, 15]; try { NN = decks[0].W.eval('(() => { const t = trackStats(RECI["' + RB + '"]); return [t.n0, t.n1]; })()'); } catch (e) { /* keep defaults */ }
-  tag(0, 70.0, 72.6, '.rc-days', 'bottom', [['r-day r-dim', '安装前 7 天 · n = ' + NN[0]]], { gap: 112, at: 0, outB: .4 });
+  tag(0, 70.0, 72.6, '.rc-days', 'bottom', [['r-day r-dim', '安装前 7 天']], { gap: 112, at: 0, outB: .4 });
   tag(0, 70.0, 72.6, '.rc-days .mark', 'bottom', [['r-day', '▲ 安装日']], { gap: 112, at: .5, outB: .4, tick: pin() });
-  tag(0, 70.0, 72.6, '.rc-days', 'bottom', [['r-day r-dim', '安装后 · 第 1 / 7 天']], { gap: 112, at: 1, outB: .4, tick: pin((el) => { const s = el.querySelector('.ln>span'); if (s) s.textContent = CUR >= 7 && DONE ? '安装后 7 天 · n = ' + NN[1] : '安装后 · 第 ' + CUR + ' / 7 天'; }) });
+  tag(0, 70.0, 72.6, '.rc-days', 'bottom', [['r-day r-dim', '安装后 · 第 1 / 7 天']], { gap: 112, at: 1, outB: .4, tick: pin((el) => { const s = el.querySelector('.ln>span'); if (s) s.textContent = CUR >= 7 && DONE ? '安装后 7 天' : '安装后 · 第 ' + CUR + ' / 7 天'; }) });
   tag(0, 70.35, 72.55, (D) => D.querySelectorAll('.rc-days i:not(.base):not(.mark)')[CUR - 1], 'top', [['r-day', '第 1 天']], {
     gap: 112, at: .5, outB: .3, tick: pin((el) => { const s = el.querySelector('.ln>span'); if (s) s.textContent = '第 ' + CUR + ' 天'; })
   });
@@ -246,12 +241,11 @@ scene('40-recs', () => {
   // row figures from the app's own statistics (trackStats: 23 → 7 段, 58 → 17 分钟, 12 → 5 次)
   let ST = [];
   try { ST = decks[0].W.eval('trackStats(RECI["' + RB + '"]).rows').map((m) => ({ name: m.name, a: m.a, b: m.b, unit: m.unit, rel: m.rel })); } catch (e) { console.error('promo 40-recs: trackStats', e); }
-  const pct = (v) => (v < 0 ? '−' : '+') + Math.round(Math.abs(v) * 100) + '%';
   ST.forEach((m, i) => {
     const b0 = ROW[i] - .5;
-    tag(0, b0, 78.8, (D) => D.querySelectorAll('.rc-metric')[i], 'right', [['lt r-mn', m.name], ['md r-mv', '<span class="st">' + m.a + '</span><span class="r-ar">→</span><b data-from="' + m.a + '" data-to="' + m.b + '">' + m.a + '</b><span class="r-un">' + m.unit + '</span><span class="pill r-g">' + pct(m.rel) + '</span>']], {
+    tag(0, b0, 78.8, (D) => D.querySelectorAll('.rc-metric')[i], 'right', [['lt r-mn', m.name], ['md r-mv', '<span class="r-ar">安装前 → 安装后</span><span class="pill r-g">' + (m.rel < 0 ? '↓ 减少' : '↑ 增加') + '</span>']], {
       gap: 84, at: .5, tick: (el) => { el.style.textAlign = 'left'; },
-      anim: K.all(mask(.14, .9, .5), K.strike(.5, .3), K.count(.5, SLIDE), K.pop(.5 + SLIDE, 0, .3))
+      anim: K.all(mask(.14, .9, .5), K.pop(.5 + SLIDE, 0, .3))
     });
   });
   tag(0, 73.0, 78.8, METS, 'bottom', [['eb', '同一批项目 · 前后各 7 天 · 95% 区间']], { gap: 80, at: 0 });
@@ -259,15 +253,14 @@ scene('40-recs', () => {
     gap: 78, at: 1, tick: pin(), anim: K.all(K.pop(0, 0, .3), (el, tl, life) => { el.style.opacity = exitQ(tl, life, .5).toFixed(3); })
   });
 
-  /* ---------- 5e 每月多出 22.7 小时 (b78.4–84.4) ---------- */
+  /* ---------- 5e 把时间还给你 (b78.4–84.4) ---------- */
   tween(0, 78.3, .8, () => { const C = decks[0].C; return { rx: 58, s: C.s * .62, ay: C.ay + 300, o: 0, bl: 6 }; }, E.in);
   const PRE = [78.8, 79.1], HIT = 79.4, UNIT = 79.6, F3 = 3 / 60 / BEAT;    // three frames, in beats
-  txt(78.7, 83.85, [['r5', '<span class="r5-pre"><span>每月</span><span>多出</span></span><span class="r5-num">22.7</span><span class="r5-u">小时</span>']], { x: 960, y: 452, align: 'c' }, {
+  txt(78.7, 83.85, [['r5', '<span class="r5-pre"><span>把时间</span><span>还给</span></span><span class="r5-num">你</span><span class="r5-u">自己</span>']], { x: 960, y: 452, align: 'c' }, {
     anim: (el, tl, life, t) => {
       const b = t / BEAT;
       el.querySelectorAll('.r5-pre span').forEach((s, i) => { const q = clamp((b - PRE[i]) / (2 / 60 / BEAT)); s.style.opacity = q.toFixed(3); s.style.transform = 'translateY(' + ((1 - E.out(lp(b, PRE[i], .25))) * 14).toFixed(1) + 'px)'; });
       const n = el.querySelector('.r5-num'), q = lp(b, HIT, .22);
-      if (TOTAL) n.textContent = TOTAL.toFixed(1);
       n.style.opacity = (b >= HIT ? Math.min(1, .35 + q * 4) : 0).toFixed(3);
       n.style.transform = 'scale(' + lerp(1.16, 1, E.out(q)).toFixed(4) + ')';
       n.style.filter = q < 1 ? 'blur(' + ((1 - E.out(q)) * 6).toFixed(1) + 'px)' : 'none';
@@ -277,7 +270,7 @@ scene('40-recs', () => {
       leave(el, exitQ(tl, life, .55), true);
     }
   });
-  txt(80.6, 83.85, [['lt', '12 条建议 · 按你的协作方式定制 · 装上就能验证']], { x: 960, y: 858, align: 'c' }, { anim: K.blurIn({ spread: .6, out: .55, spread2: true }) });
+  txt(80.6, 83.85, [['lt', '按协作人格定制 · 一键安装 · 前后对比验证']], { x: 960, y: 858, align: 'c' }, { anim: K.blurIn({ spread: .6, out: .55, spread2: true }) });
   glowAt(HIT, .9, .5);
   glowAt(80.4, 0, 2.2);
 });

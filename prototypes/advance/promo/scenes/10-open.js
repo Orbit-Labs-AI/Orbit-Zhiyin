@@ -17,18 +17,17 @@ scene('10-open', () => {
 `);
   const Y = 470;                                                     // the sentence's centre line
 
-  // KF 1.1–1.4: 每天 → 和 5 个 Agent → 协作上百次, one hard cut per beat; the line refits to 1700 px, then shrinks into
+  // KF 1.1–1.4: 每天 → 和不止一个 Agent → 一起写代码, one hard cut per beat; the line refits to 1700 px, then shrinks into
   // a 40 px eyebrow at y≈300 (b3.0–3.4) and leaves with its letters drifting apart (b7.5–8.1)
   const S1 = 40 / 230;
   txt(0, 8.1, [['gi op-line',
     '<span class="w"><span class="sv-t">每天</span></span>' +
-    '<span class="w"><span class="sv-t">和 </span><span class="op-o"><span class="odo">' + odo(5) + '</span></span><span class="sv-t"> 个 Agent </span></span>' +
-    '<span class="w"><span class="sv-t">协作</span><span class="op-o">上百次</span></span>']],
+    '<span class="w"><span class="sv-t">和</span><span class="op-o">不止一个</span><span class="sv-t"> Agent </span></span>' +
+    '<span class="w"><span class="sv-t">一起</span><span class="op-o">写代码</span></span>']],
   { x: 960, y: Y, align: 'c' }, {
     anim: K.words({ at: [.25, 1.0, 2.0], fit: 1700, shrink: [[3.0, S1, 0, 300 - Y, .4]], out: .6, spread: 1 }),
     tick: (el, tl, life, t) => {
       const b = t / BEAT;
-      rollOdo(el, b, 1.0, .5);
       el.querySelector('.ln').style.opacity = lerp(1, .6, E.inOut(lp(b, 3.0, .4))).toFixed(3);
     }
   });

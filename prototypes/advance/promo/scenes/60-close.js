@@ -28,7 +28,7 @@ scene('60-close', () => {
 .ec-line b{color:var(--a1);font-weight:700}
 .ec-by{font-family:var(--mono);font-size:26px;letter-spacing:.3em;color:rgba(255,255,255,.55)}
 `);
-  txt(108.6, END, [['ec-line', '认识你的协作方式，每月多出 <b>22.7 小时</b>']], { x: 960, y: 720, align: 'c' }, { anim: K.all(K.blurIn({ spread: .5, dur: .35, out: OUT })) });
+  txt(108.6, END, [['ec-line', '认识你的协作方式，让 <b>Agent</b> 更懂你']], { x: 960, y: 720, align: 'c' }, { anim: K.all(K.blurIn({ spread: .5, dur: .35, out: OUT })) });
   txt(109.6, END, [['ec-by', 'for macOS · ActionMesh AI']], { x: 960, y: 800, align: 'c' }, { inB: 1, outB: OUT });
   glowAt(CLOSE.out, 0, OUT);
 });

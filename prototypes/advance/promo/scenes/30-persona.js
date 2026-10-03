@@ -7,7 +7,7 @@ scene('30-persona', () => {
 .pe-cv{position:absolute;left:0;top:0;width:1920px;height:1080px;pointer-events:none}
 .pe-glow{position:absolute;left:0;top:0;width:1100px;height:1100px;margin:-550px 0 0 -550px;border-radius:50%;pointer-events:none;opacity:0;
   background:radial-gradient(closest-side,rgba(120,195,212,.38),rgba(80,150,168,.12) 50%,transparent)}
-.pe-num .odo{font-size:150px}
+.pe-num .pe-w{display:inline-block;font-size:150px;font-weight:700;letter-spacing:.02em}
 .pe-num .ln.lt{margin-top:14px}
 .pe-or>span{color:var(--a1)}
 .pe-slot{position:relative;display:inline-block;width:5em;height:1.16em;overflow:hidden;vertical-align:bottom}
@@ -48,18 +48,17 @@ scene('30-persona', () => {
   const LOCK = { D: 37.6, I: 39.1, M: 40.6, V: 42.1 };
   const keepAt = (b) => CODES.map((c) => 'DIMV'.split('').reduce((m, x, i) => m * (c[i] === ME.code[i] ? 1 : 1 - E.out(lp(b, LOCK[x], .6))), 1));
 
-  /* ---------- 4a: three odometers rise out of the vanishing point (b21.2–25.6) ---------- */
-  const NUMS = [[186, '个会话'], [142, '小时'], ['1,284', '条消息']];
+  /* ---------- 4a: three words rise out of the vanishing point (b21.2–25.6): what Orbit reads, not how much of it ---------- */
+  const NUMS = [['会话', '逐个读取'], ['消息', '逐条理解'], ['操作', '逐步还原']];
   NUMS.forEach((n, i) => {
     const x = 440 + i * 520, b0 = 21.4 + i * .4;
-    txt(b0, i ? 25.4 : 25.2, [['', '<span class="odo">' + odo(n[0]) + '</span>'], ['lt', n[1]]], { x, y: 520, align: 'c' }, {
+    txt(b0, i ? 25.4 : 25.2, [['', '<span class="pe-w">' + n[0] + '</span>'], ['lt', n[1]]], { x, y: 520, align: 'c' }, {
       tag: 'pnum' + i, style: 'line-height:1',
       anim: (el, tl, life, t) => {
         const b = t / BEAT, p = E.out(lp(b, b0, .8));
         el.classList.add('pe-num');
         el.querySelectorAll('.ln').forEach((x) => { x.style.overflow = 'visible'; });
-        rollOdo(el, b, b0 + .05, 1.6);
-        // out: 142 and 1,284 blur away; 186 snaps off as its particles take over
+        // out: 消息 and 操作 blur away; 会话 snaps off as its particles take over
         const q = i ? 1 - E.inOut(lp(b, 24.6, .8)) : 1 - lp(b, 25.0, .12);
         const u = el.querySelector('.ln.lt'); if (u) u.style.opacity = (i ? 1 : 1 - E.out(lp(b, 24.7, .3))).toFixed(3);
         el.style.transform = 'translate(-50%,-50%) translate(' + ((960 - x) * (1 - p)).toFixed(1) + 'px,' + (20 * (1 - p)).toFixed(1) + 'px) scale(' + lerp(.3, 1, p).toFixed(4) + ')';
@@ -69,9 +68,9 @@ scene('30-persona', () => {
       }
     });
   });
-  txt(21.8, 25.0, [['eb', '近 30 天 · 5 个 Agent']], { x: 960, y: 360, align: 'c' }, { anim: K.blurIn({ spread: .5, out: .5 }) });
+  txt(21.8, 25.0, [['eb', '本机读取 · 多种 Agent']], { x: 960, y: 360, align: 'c' }, { anim: K.blurIn({ spread: .5, out: .5 }) });
 
-  /* ---------- 4b: 186 → particles on a tilted orbit → the compass (b24.9–30) ---------- */
+  /* ---------- 4b: 会话 → particles on a tilted orbit → the compass (b24.9–30) ---------- */
   const W0 = decks[0].W, AGID = W0.eval('AG').map((a) => a.id), HEX = ['#e2602b', '#2a78d6', '#009f6b', '#c27800', '#d0658f'];
   const SES = D0.L.map((s) => ({ ag: AGID.indexOf(s.a), deg: D0.cls.by[s.id].a }))
     .sort((a, b) => a.ag - b.ag || a.deg - b.deg);
@@ -101,18 +100,18 @@ scene('30-persona', () => {
     }
     return [cpt(P.rr, P.beta), 2];
   }
-  // glyph points of "186": sampled from the number as it is on screen when it breaks
+  // glyph points of the first word (会话): sampled from it as it is on screen when it breaks
   let GLY = null;
   function glyphs() {
     if (GLY) return GLY;
-    const f = fx.find((x) => x.tag === 'pnum0'), o = f && f.el && f.el.querySelector('.odo');
+    const f = fx.find((x) => x.tag === 'pnum0'), o = f && f.el && f.el.querySelector('.pe-w');
     const st = stage.getBoundingClientRect(), z = st.width / 1920;
     let box = [440 - 150, 400, 300, 150];
     if (o) { const r = o.getBoundingClientRect(); box = [(r.left - st.left) / z, (r.top - st.top) / z, r.width / z, r.height / z]; }
     const cv = document.createElement('canvas'); cv.width = Math.ceil(box[2]); cv.height = Math.ceil(box[3]);
     const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.textAlign = 'center';
     g.font = '700 ' + Math.round(box[3]) + 'px ' + getComputedStyle(document.body).fontFamily;
-    g.fillText('186', cv.width / 2, cv.height * .54);
+    g.fillText(NUMS[0][0], cv.width / 2, cv.height * .54);
     const px = g.getImageData(0, 0, cv.width, cv.height).data, ins = [];
     for (let y = 0; y < cv.height; y += 3) for (let x = 0; x < cv.width; x += 3) if (px[(y * cv.width + x) * 4 + 3] > 128) ins.push([box[0] + x, box[1] + y]);
     GLY = PT.map((P, i) => ins.length ? ins[Math.floor(hash01(i, 31) * ins.length)] : [box[0] + box[2] * hash01(i, 32), box[1] + box[3] * hash01(i, 33)]);
@@ -155,7 +154,7 @@ scene('30-persona', () => {
       g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     }
   });
-  txt(25.3, 26.5, [['lt', '186 个会话']], { x: 960, y: 760, align: 'c' }, { anim: K.blurIn({ spread: .35, out: .4 }) });
+  txt(25.3, 26.5, [['lt', '每个会话，落到它的方位']], { x: 960, y: 760, align: 'c' }, { anim: K.blurIn({ spread: .35, out: .4 }) });
 
   // the camera: the dial starts as the tilted orbit (rx 76°, rz −8°: an ellipse about 520 × 120 px) and flips face-on
   tween(2, 24.9, 0, { x: 400, y: 400, s: 1.2, ax: 960, ay: 540, rx: 76, ry: 0, rz: -8, z: 0, o: 1, bl: 0 });
@@ -204,14 +203,14 @@ scene('30-persona', () => {
   tween(2, 36.6, 1.0, () => framing(2, 'all', [960, 560, 700, 700]), E.inOut);
   tween(2, 37.7, 6.3, () => ({ s: decks[2].C.s * 1.02 }), E.sine);
   const EVI = [
-    ['D', 'right', '每会话 <b>6.9</b> 条消息<br>每轮自主 <b>11.8</b> 步', '委托', 72, [760, 0]],
-    ['I', 'top', '规划型项目只占 <b>32%</b> 时长', '即兴', 61, [0, -560]],
-    ['M', 'bottom', '日均 <b>6.2</b> 个会话 · 同日 <b>3.1</b> 个 Agent', '多线', 73, [0, 420]],
-    ['V', 'left', '<b>58%</b> 的会话要求验证', '求证', 67, [-760, 0]]
+    ['D', 'right', '你把多大块的事<br>交给 Agent？', '委托 / 掌舵', 0, [760, 0]],
+    ['I', 'top', '先想清楚再动手，还是边做边想？', '即兴 / 规划', 0, [0, -560]],
+    ['M', 'bottom', '你同时推进几件事？', '多线 / 专注', 0, [0, 420]],
+    ['V', 'left', '你怎么确认<br>它做对了？', '求证 / 信任', 0, [-760, 0]]
   ];
   EVI.forEach(([x, side, ev, pole, n, from]) => {
     const land = LOCK[x], col = side === 'left' || side === 'right';
-    const html = '<span class="pchip' + (col ? ' col' : '') + '"><span class="ev">' + ev + '</span><span class="cc">' + pole + ' <b>' + n + '</b></span><i class="tr"></i></span>';
+    const html = '<span class="pchip' + (col ? ' col' : '') + '"><span class="ev">' + ev + '</span><span class="cc">' + pole + '</span><i class="tr"></i></span>';
     tag(2, land - .75, 45.5, 'all', side, [['', html]], {
       at: .5, gap: side === 'top' ? 30 : side === 'bottom' ? 26 : 38, anim: (el, tl, life, t) => {
         const b = t / BEAT, p = lp(b, land - .7, .7), e = E.out(p), back = E.in(lp(b, 44.6, .8));
@@ -262,7 +261,7 @@ scene('30-persona', () => {
   // decode with a narrow start spacing: the line is right-aligned, so its extra width grows left towards the dial
   // the first clause of the app's one-liner for the type (TYPES[code][2])
   txt(47.0, 52.8, [['lt', ME.line.split('，')[0] + '。']], Object.assign({ y: 680 }, BLK), { anim: K.all(K.decode({ step: .05, dur: .4, out: 0, from: .15 }), shrink(680)) });
-  txt(47.6, 52.8, [['lt pe-sc', STR.map((a, i) => CPD.AXES[i][a.letter === CPD.AXES[i].L ? 'Ln' : 'Rn'] + ' <b>' + Math.round(a.strong) + '</b>').join(' · ')]], Object.assign({ y: 780 }, BLK), { anim: K.all(K.blurIn({ spread: .4, out: 0 }), shrink(780)) });
+  txt(47.6, 52.8, [['lt pe-sc', STR.map((a, i) => CPD.AXES[i][a.letter === CPD.AXES[i].L ? 'Ln' : 'Rn']).join(' · ')]], Object.assign({ y: 780 }, BLK), { anim: K.all(K.blurIn({ spread: .4, out: 0 }), shrink(780)) });
   // leaves by b56.2, before the opening portal (centred on 「建议 →」) reaches the top right
   txt(52.4, 56.2, [['eb', ME.code + ' · ' + ME.zh]], { x: 1800, y: EBY, align: 'r' }, { inB: .7, outB: .5 });
 
@@ -321,8 +320,8 @@ scene('30-persona', () => {
   });
   // tags scale about their anchor (the engine's left-side transform-origin drifts when the camera zoom is far from 1)
   const anchor0 = (el) => { el.style.transformOrigin = '0 0'; };
-  tag(1, 53.1, 56.4, swGroup(0, 2), 'left', [['lt', '3 个优势']], { at: .5, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
-  tag(1, 54.0, 56.4, swGroup(3, 5), 'left', [['lt pe-or', '3 个盲点'], ['lt pe-or', '都有解法']], { at: .5, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
+  tag(1, 53.1, 56.4, swGroup(0, 2), 'left', [['lt', '看清优势']], { at: .5, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
+  tag(1, 54.0, 56.4, swGroup(3, 5), 'left', [['lt pe-or', '也看清盲点'], ['lt pe-or', '每个都有解法']], { at: .5, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
   clickAt(1, 55.6, recLnk, () => {}, { bloom: 'var(--a1)' });
   portal(0, 55.7, 1.6, () => elXY(1, recLnk), 2300, E.in, .6, 'rgba(226,96,43,.95)');
   // the door cuts through decks 1 and 2 as well (they sit above deck 0), and they drift forward and blur away
