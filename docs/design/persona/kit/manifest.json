@@ -1,7 +1,7 @@
 {
   "product": "Orbit",
   "generator": "docs/design/persona/export.mjs",
-  "sourceCommit": "5b091033c609e28980e4d6b34a0dfbee7b38b62d",
+  "sourceCommit": "c97959ab85d33c55cfdd7e5a2d7d137d6c3bf27a",
   "source": "prototypes/advance/orbit-demo.html（花：src/js/35-visuals.js；表盘：src/js/41-a2-persona.js；类型名：src/js/05-data.js）",
   "base": "docs/design/persona/kit/（file 相对此目录）",
   "data": "表盘为 Demo 示例数据（画像页默认「近 90 天」），不代表真实统计",
@@ -30,7 +30,7 @@
       "width": 1440,
       "height": 1440,
       "data": "demo",
-      "bytes": 296314
+      "bytes": 283437
     },
     {
       "file": "dial/dial-dark.svg",
@@ -40,7 +40,7 @@
       "width": 416,
       "height": 416,
       "data": "demo",
-      "bytes": 91187
+      "bytes": 96934
     },
     {
       "file": "dial/dial-light.png",
@@ -50,7 +50,7 @@
       "width": 1440,
       "height": 1440,
       "data": "demo",
-      "bytes": 299653
+      "bytes": 286534
     },
     {
       "file": "dial/dial-light.svg",
@@ -60,7 +60,7 @@
       "width": 416,
       "height": 416,
       "data": "demo",
-      "bytes": 91185
+      "bytes": 96932
     },
     {
       "file": "flowers/png/DIFT-dark-128.png",

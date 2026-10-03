@@ -1,4 +1,4 @@
-/* A2 persona: low-sample relax chips, fingerprint v2 Orbit dial on a transparent face (hairline bezel / per-Agent aurora ribbons around 16 type sectors + type hit areas + Agent logo badges / rotationally symmetric type flower turned so one petal points at your type), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 Orbit dial on a transparent face (hairline bezel + 16 type codes / independent overlapping per-Agent curves around 16 type sectors + type hit areas + Agent logo badges / rotationally symmetric type flower turned so one petal points at your type), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
@@ -9,10 +9,19 @@
 .fp2 .fps:hover path:first-child,.fp2 .fps:focus-visible path:first-child{fill:var(--field);fill-opacity:.6}
 .fp2 .fps.sel path:first-child{fill:transparent}
 .fp2 .fps:focus-visible path:first-child{stroke:var(--focus);stroke-width:2}
-/* 轨道色带：只有色带本身着色（低饱和、略透），基线以内与色带之外都直接是纸面，没有底盘或衬带 */
-:root{--fp-base:var(--h1);--fp-bo:.9}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fp-base:var(--h2);--fp-bo:.85}}
-:root[data-theme="dark"]{--fp-base:var(--h2);--fp-bo:.85}
+/* 轨道曲线：每个 Agent 一条独立曲线，只有曲线本身着色（低饱和、半透明，重叠处透出下面那条），基线以内与曲线之外都直接是
+   纸面，没有底盘或衬带 */
+:root{--fp-base:var(--h1);--fp-bo:.5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fp-base:var(--h2);--fp-bo:.45}}
+:root[data-theme="dark"]{--fp-base:var(--h2);--fp-bo:.45}
+/* 外框内侧的 16 个类型码：小、浅灰、正立；你的类型（.me）墨色加粗。码本身不接收指针，悬停交给下面的类型热区 */
+.fp2 .fp-code{font-weight:600;letter-spacing:.04em;pointer-events:none}
+.fp2 .fp-code.me{font-weight:800}
+/* 表盘被缩到码不足 8 px 时只留你的类型码：小表盘（.fp-sm，码 10.8）在 296 px 以下、大表盘（码 9.5）在 337 px 以下。
+   以 svg 自身为尺寸容器（它的宽度只由外部决定），刻度与徽章不变 */
+.fp2{container:fpd/inline-size}
+@container fpd (max-width:295.5px){.fp2.fp-sm .fp-code:not(.me){display:none}}
+@container fpd (max-width:336.5px){.fp2:not(.fp-sm) .fp-code:not(.me){display:none}}
 .fp2 .fpo{fill-opacity:var(--fp-bo)}
 .fp2 .fp-orbw{transition:opacity .2s}
 .fp2.fp-sel :is(.fp-orbw,.fp-pls){opacity:.28}
