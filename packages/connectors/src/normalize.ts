@@ -169,6 +169,8 @@ function snapshotAttrs(usage: Obj, ctx: Context, counter: string, cycle: {cycle:
   attrs.model=null;attrs.model_raw=null;attrs.effort=null;attrs.effort_raw=null;attrs.coverage='self';
   return attrs;
 }
+/** A string tool output is already the event text; attrs keep only structured (non-string) outputs. */
+function structured(value: Json | undefined): Json | undefined { return typeof value==='string' ? undefined : value; }
 function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
   const body = bodyOf(row), p = object(body.payload), type = string(body.type) ?? '', subtype = string(p.type) ?? '';
   const result: Candidate[] = [];
@@ -213,7 +215,7 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
     emit('tool.call','assistant',null,{name,category:callExtra.is_wrapper?'wrapper':toolCategory(name),arguments:argumentsValue,...callExtra,argument_digest:digestKnown?hash(digestValue):null,
       argument_digest_scope:digestKnown?'canonical_redacted':'unavailable'},stableJson(['tool',turn,id,'call']),priority,id,id,started ?? defaultTime,started!==null?'payload.started_at_ms':null,started!==null?'started':'written');
     if (output !== undefined || rawStatus !== undefined) emit('tool.result','tool',typeof output==='string' ? output : content(object(output).content) || null,
-      {...nonNull({name,status:state,exit_code:exit,duration_ms:duration,started_at:started,ended_at:ended,is_error:isError,output:output}),
+      {...nonNull({name,status:state,exit_code:exit,duration_ms:duration,started_at:started,ended_at:ended,is_error:isError,output:structured(output)}),
         duration_source:duration!==null?durationSource:'unknown',duration_quality:duration!==null?'reported':'missing',status_scope:callExtra.is_wrapper?'outer_script':toolCategory(name)==='shell'?'command':'tool'},
       stableJson(['tool',turn,id,'result']),priority,id,id,ended??defaultTime,ended!==null?'payload.completed_at_ms':null,ended!==null?'completed':'written');
     if (state==='declined') emit('permission.decision','harness',null,{decision:'denied',source:'unavailable'},`permission:${turn}:${id}`,priority,id,id);
@@ -266,7 +268,7 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
         attribution:object(body.metadata),mcp_server:name.startsWith('mcp__')?name.split('__')[1]:null,mcp_tool:name.startsWith('mcp__')?name.split('__').slice(2).join('__'):null}),10);
     } else if (['function_call_output','custom_tool_call_output','tool_search_output'].includes(subtype)) {
       const name = string(p.name) ?? 'unknown';
-      emit('tool.result','tool',typeof p.output==='string' ? p.output : content(p.output),{name,status:'unknown',output:p.output ?? p.tools ?? null},stableJson(['tool',turn,call,'result']),10,call,call);
+      emit('tool.result','tool',typeof p.output==='string' ? p.output : content(p.output),{name,status:'unknown',...nonNull({output:structured(p.output ?? p.tools ?? null)})},stableJson(['tool',turn,call,'result']),10,call,call);
     } else if (['compaction','compaction_summary','context_compaction'].includes(subtype)) {
       emit('context.compaction','harness',null,{},`compaction:${id ?? row.record_uid}`);
     } else if (subtype==='agent_message') {
@@ -336,7 +338,7 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
         else if (itemType==='Extension') { name=string(item.kind) ?? itemType; output=item.result ?? item.output; }
         else if (itemType==='WebSearch') { name='web.search'; output=item.results; }
         else if (itemType==='FunctionCallOutput') {
-          emit('tool.result','tool',typeof item.output==='string'?item.output:content(item.output),{name:string(item.name)??'unknown',status:'unknown',output:item.output??null},stableJson(['tool',turn,id,'result']),40,id,id); return result;
+          emit('tool.result','tool',typeof item.output==='string'?item.output:content(item.output),{name:string(item.name)??'unknown',status:'unknown',...nonNull({output:structured(item.output??null)})},stableJson(['tool',turn,id,'result']),40,id,id); return result;
         } else if (itemType==='DynamicToolCall') { name=string(item.tool)??itemType; output=item.content_items ?? item.error; extra={is_error:item.success===false}; }
         else if (!['ImageGeneration','EnteredReviewMode','ExitedReviewMode'].includes(itemType)) { emit('unknown','harness',null,{native_type:row.native_type}); return result; }
         const wrappers=ctx.wrapperByTurn.get(turn ?? '') ?? [];
@@ -357,7 +359,7 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
       const exit=number(p.exit_code),call=string(p.call_id)!,duration=durationMs(p.duration);
       const output=p.aggregated_output??p.formatted_output??p.stdout??p.stderr;
       emit('tool.result','tool',typeof output==='string'?output:null,nonNull({name:'exec_command',status:exit===null||exit===-1?status(p.status,exit):exit===0?'completed':'failed',
-        exit_code:exit,duration_ms:duration,output:output??null,duration_source:duration!==null?'reported':'unknown',duration_quality:duration!==null?'reported':'missing',status_scope:'command'}),
+        exit_code:exit,duration_ms:duration,output:structured(output??null),duration_source:duration!==null?'reported':'unknown',duration_quality:duration!==null?'reported':'missing',status_scope:'command'}),
         stableJson(['tool',turn,call,'result']),20,call,call);
     } else if (subtype==='patch_apply_end' && string(p.call_id)) {
       const call=string(p.call_id)!;

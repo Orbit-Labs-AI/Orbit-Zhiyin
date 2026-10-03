@@ -143,7 +143,7 @@ uv run --project packages/data tandem-data --home .local/canonical verify
 
 SQLite 元数据以所读取的行导出为 JSONL，再归档；不复制 Codex 数据库本身。JSON 导入账本同时保留原文件，`archive_chunk.generation=-g` 是该代的原始 JSON，正代是可按行寻址的导出。原始账本中未使用的顶层字段也保留。
 
-Orbit 目录权限 `0700`，数据库、归档和导出文件 `0600`。L1 的解析缓存与 L2 的 `text/attrs/ext` 都递归脱敏，移除 creator 账号字段；内联媒体和加密推理只保留哈希引用。工具输出截断到约 8 KB，全文通过 L0 取回；普通消息不按工具输出预算截断。事件不再复制整条原生记录：`event.ext` 只存 `native_type`，未消费字段经 `event.record_uid` → `raw_record.body`（脱敏 L1）或 `readRedactedRecord` 取回，避免 staging 库体积翻倍。
+Orbit 目录权限 `0700`，数据库、归档和导出文件 `0600`。L1 的解析缓存与 L2 的 `text/attrs/ext` 都递归脱敏，移除 creator 账号字段；内联媒体和加密推理只保留哈希引用。工具输出截断到约 8 KB，全文通过 L0 取回；普通消息不按工具输出预算截断。事件不再复制整条原生记录：`event.ext` 只存 `native_type`，未消费字段经 `event.record_uid` → `raw_record.body`（脱敏 L1）或 `readRedactedRecord` 取回，避免 staging 库体积翻倍。字符串形式的工具输出只存在 `event.text`，`attrs.output` 仅保留结构化输出。
 
 不读取 `auth.json`、`.key`、`logs_*.sqlite`、Desktop 闭源数据库或配置凭据；不对 thread writer lock 加锁，不修改上游目录。连接器不执行日志里的代码或命令。
 

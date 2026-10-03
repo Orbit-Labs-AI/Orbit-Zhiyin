@@ -505,6 +505,9 @@ test('events carry only index data in ext; the native record is reachable throug
   const rows=s.store.db.prepare('SELECT e.ext,r.native_type,r.body FROM event e JOIN raw_record r USING(record_uid)').all();
   assert.ok(rows.length>0);
   for (const row of rows) { assert.deepEqual(JSON.parse(String(row.ext)),{native_type:row.native_type}); assert.ok(row.body); }
+  // String tool outputs live once, in event.text; attrs.output only carries structured outputs.
+  const result=s.store.db.prepare("SELECT text,attrs FROM event WHERE kind='tool.result' AND call_id='c1'").get()!;
+  assert.equal(result.text,'test failure');assert.equal(JSON.parse(String(result.attrs)).output,undefined);
 }));
 test('format_drift compares against the field union: a missing optional field is silent, a new field or type change reports',async()=>sandbox(async s=>{
   const item=(ordinal:number,extra:Record<string,unknown>)=>jsonLine('event_msg',{type:'item_completed',turn_id:'t1',item:{type:'AgentMessage',id:`a${ordinal}`,content:[{type:'Text',text:'x'}],...extra}},ordinal);
