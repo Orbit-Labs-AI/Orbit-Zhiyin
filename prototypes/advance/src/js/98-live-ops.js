@@ -160,7 +160,9 @@ if (LV.live) {
   popYest = function () { const d = popData(); const iso = d && d.yesterday && d.yesterday.date; if (iso) return tloMD(iso).replace(/ 周.$/, ''); const t = lvUtc(todayIso()) - 864e5; return tloMD(new Date(t).toISOString()).replace(/ 周.$/, ''); };
   popOpening = function () {
     const d = popData(); const o = d && d.opening; const t = o && (typeof o === 'string' ? o : o.text || o.line || o.body); if (!t) return '';
-    return '<div class="sec row" data-tl="opening" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)">' + (o.title ? '<b style="color:var(--ink-1)">' + esc(o.title) + '</b>：' : '') + esc(t) + '</span></div>';
+    // AI 徽标与紫色底只给模型写的句子；/v1/shell/popover 的开场提示是规则模板（basis: rule），标「规则」
+    const ai = o.basis === 'ai' || o.source === 'ai';
+    return '<div class="sec row" data-tl="opening" data-basis="' + (ai ? 'ai' : 'rule') + '" style="align-items:flex-start;gap:8px' + (ai ? ';background:var(--ai-bg)' : '') + '">' + (ai ? '<span class="aib" style="background:var(--surface)">AI</span>' : '<span class="bdg" title="按最近的问题与纠偏数据套用规则生成，未调用模型">规则</span>') + '<span style="font-size:12px;line-height:1.5;color:var(--ink-2)">' + (o.title ? '<b style="color:var(--ink-1)">' + esc(o.title) + '</b>：' : '') + esc(t) + '</span></div>';
   };
   popLiveCard = function () {
     const d = TLO.d; const s = d && d.primary; if (!s || S.paused) return '';

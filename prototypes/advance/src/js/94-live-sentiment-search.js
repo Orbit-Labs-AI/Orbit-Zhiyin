@@ -32,7 +32,7 @@ function lvSentApply(d) {
 if (LV.live) {
   LV.feed('sentiment', (sc) => [{ name: 's', path: LV.withQuery('/v1/uiview/sentiment', {
     days: [7, 30, 90].indexOf(sc.range) >= 0 ? sc.range : Math.min(730, LASTDAY + 1), agent: sc.agents,
-    project_id: sc.project && sc.project !== '_none' ? sc.project : null, tz: sc.tz, bucket: 'day' }) }], (d) => lvSentApply(d.s));
+    project_id: sc.project || null, tz: sc.tz, bucket: 'day' }) }], (d) => lvSentApply(d.s));
 }
 // the page's view model: {state:'ready'|'pending'|'error', lang, ms, allNull, fr, phrases, words, scope}
 function lvSentView(L) {
@@ -105,7 +105,7 @@ function lvSentBadge(V, k, aiText) {
   return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">词面规则</span>';
 }
 function lvSentShield(V) {
-  if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，原文不离开本机';
+  if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，只发送脱敏片段';
   return '按词面规则在本机统计，不调用模型，原文不离开本机';
 }
 const LVS_ICON = { session: 'sessions', message: 'sessions', command: 'term', file: 'file', project: 'projects', recommendation: 'recs', catalog: 'library', inventory: 'library', event: 'sessions' };

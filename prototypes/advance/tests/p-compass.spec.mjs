@@ -359,10 +359,11 @@ test('persona switch: the same type settles; another type folds the old flower i
   await settle(page);
   const b = await dialState(page);
   expect(b.curves['fpc:cc'], 'and ends on the new one').not.toBe(a.curves['fpc:cc']);
-  // 6 月 is SIFV: the old flower folds into its heart, the new one blooms from the heart toward its type
-  const d = sdiff(typeDeg('SIFV'), typeDeg('DIMV'));
+  // Gemini alone (uiview-persona-v1 demo units) is SPFV — D → S and a type with a soft ring: the old flower folds into its heart,
+  // the new one blooms from the heart toward its type
+  const d = sdiff(typeDeg('SPFV'), typeDeg('DIMV'));
   const sw = await page.evaluate(() => {
-    document.querySelector('#main .pe-evrow [data-act="period"][data-v="jun"]').click();
+    S.agents = new Set(['gm']); agentSync(); render();
     const A = window.__anims, svg = $('#main svg.fp2'), gh = svg.querySelector('.bm-ghost'), fl = svg.querySelector('.fp-flower');
     return {
       code: fl.dataset.code, hd: +fl.querySelector('.fp-bloom').dataset.hd,
@@ -373,7 +374,7 @@ test('persona switch: the same type settles; another type folds the old flower i
       pl: [...svg.querySelectorAll('.fp-pl')].map((g) => ({ a: g.dataset.a, pa: +g.dataset.pa, an: A(g) }))
     };
   });
-  expect([sw.code, sw.hd, sw.me]).toEqual(['SIFV', typeDeg('SIFV'), 'SIFV']);
+  expect([sw.code, sw.hd, sw.me]).toEqual(['SPFV', typeDeg('SPFV'), 'SPFV']);
   // 收起: a ghost of the old flower (renamed classes, kept right behind the new one) turns on toward the new type and folds into its heart
   expect(sw.ghost).toMatchObject({ next: true, code: 'DIMV', live: 0 });
   const fold = sw.ghost.front[0], last = (x) => x.kf[x.kf.length - 1];
@@ -395,11 +396,11 @@ test('persona switch: the same type settles; another type folds the old flower i
   expect(Math.max(...open.kf.map((k) => scaleOf(k.tf) || 0))).toBeGreaterThan(1);
   expect(last(open).tf).toBe('rotate(0deg) scale(1)');
   expect(sw.back[0].delay).toBeGreaterThan(open.delay);
-  expect(rotOf(sw.bloom[0].kf[0].tf)).toBeCloseTo(typeDeg('SIFV') - 0.7 * d, 2);
-  expect(rotOf(last(sw.bloom[0]).tf)).toBeCloseTo(typeDeg('SIFV'), 2);
+  expect(rotOf(sw.bloom[0].kf[0].tf)).toBeCloseTo(typeDeg('SPFV') - 0.7 * d, 2);
+  expect(rotOf(last(sw.bloom[0]).tf)).toBeCloseTo(typeDeg('SPFV'), 2);
   expect(sw.heart.length, 'D → S: the heart swaps at the fold point').toBe(1);
   // the triangle turns to the new type; the emphasis leaves the old code and lands on the new one
-  expect([sw.tri.length, sw.tri[0].dur, rotOf(last(sw.tri[0]).tf)]).toEqual([1, 760, typeDeg('SIFV')]);
+  expect([sw.tri.length, sw.tri[0].dur, rotOf(last(sw.tri[0]).tf)]).toEqual([1, 760, typeDeg('SPFV')]);
   expect([sw.was[0].kf[0].fill, last(sw.was[0]).fill]).toEqual(['var(--ink-1)', 'var(--ink-3)']);
   expect([sw.now[0].kf[0].fill, last(sw.now[0]).fill, last(sw.now[0]).fw]).toEqual(['var(--ink-3)', 'var(--ink-1)', '800']);
   expect(sw.now[0].delay).toBeGreaterThan(sw.was[0].delay);
@@ -439,11 +440,11 @@ test('persona switch under reduced motion: no fold, morph or glide — only a 16
     return { anims: svg.getAnimations({ subtree: true }).map((a) => ({ el: a.effect.target.getAttribute('class'), dur: a.effect.getTiming().duration, props: [...new Set(a.effect.getKeyframes().flatMap((k) => Object.keys(k).filter((x) => !['offset', 'computedOffset', 'easing', 'composite'].includes(x))))] })),
       code: svg.querySelector('.fp-flower').dataset.code };
   });
-  expect(r.code).toBe('SIFV');
+  expect(r.code).toBe('SIMV');
   expect(r.anims).toEqual([{ el: 'fp-flower', dur: 160, props: ['opacity'] }]);
   // everything is already at its new place: the same as a plain render of the new dial
   const now = await dialState(page);
-  expect([now.ghosts, now.inline, now.me, now.tri]).toEqual([0, 0, 'SIFV', 'rotate(' + typeDeg('SIFV') + ' 200 200)']);
+  expect([now.ghosts, now.inline, now.me, now.tri]).toEqual([0, 0, 'SIMV', 'rotate(' + typeDeg('SIMV') + ' 200 200)']);
   await page.evaluate(() => render());
   expect(await dialState(page)).toEqual(now);
   expect(errors).toEqual([]);

@@ -118,4 +118,4 @@ def test_idle_shows_opening_and_yesterday(gateway_factory, tmp_path):
     assert set(body["yesterday"]["baseline"]) >= {"sessions_per_day", "hours_per_day",
                                                   "correction_rate", "completion_rate"}
     assert body["yesterday"]["completion_rate"] == 1.0
-    assert body["opening"] is None or set(body["opening"]) == {"text", "refs", "next"}
+    assert body["opening"] is None or (set(body["opening"]) == {"text", "refs", "next", "basis"} and body["opening"]["basis"] == "rule")

@@ -1,0 +1,267 @@
+{
+  "_comment": "Shared cases for the combined saving: packages/backend recommend/narrate.total_saving and the App's recTotal (prototypes/advance/src/js/46-a7-recs.js) must both give `total` for `saves` (ui.save objects).",
+  "cases": [
+    {
+      "name": "F10: three rework problems that each claim the whole trajectory share the 100 % rework pool",
+      "saves": [
+        {
+          "key": "p0",
+          "op": "turn",
+          "group": "turn",
+          "effect": 0.6,
+          "share": {
+            "time": 100.0,
+            "token": 100.0
+          },
+          "time_pct": 60.0,
+          "token_pct": 60.0,
+          "cap": {
+            "time": 100.0,
+            "token": 100.0
+          }
+        },
+        {
+          "key": "p1",
+          "op": "turn",
+          "group": "turn",
+          "effect": 0.6,
+          "share": {
+            "time": 100.0,
+            "token": 100.0
+          },
+          "time_pct": 60.0,
+          "token_pct": 60.0,
+          "cap": {
+            "time": 100.0,
+            "token": 100.0
+          }
+        },
+        {
+          "key": "p2",
+          "op": "turn",
+          "group": "turn",
+          "effect": 0.6,
+          "share": {
+            "time": 100.0,
+            "token": 100.0
+          },
+          "time_pct": 60.0,
+          "token_pct": 60.0,
+          "cap": {
+            "time": 100.0,
+            "token": 100.0
+          }
+        }
+      ],
+      "total": {
+        "time": 60.0,
+        "token": 60.0
+      }
+    },
+    {
+      "name": "alternatives on one problem count once (the best); distinct problems add",
+      "saves": [
+        {
+          "key": "a",
+          "op": "turn",
+          "group": "turn",
+          "effect": 0.5,
+          "share": {
+            "time": 10.0,
+            "token": 8.0
+          },
+          "time_pct": 5.0,
+          "token_pct": 4.0,
+          "cap": {
+            "time": 100.0,
+            "token": 100.0
+          }
+        },
+        {
+          "key": "a",
+          "op": "turn",
+          "group": "turn",
+          "effect": 0.8,
+          "share": {
+            "time": 10.0,
+            "token": 8.0
+          },
+          "time_pct": 8.0,
+          "token_pct": 6.4,
+          "cap": {
+            "time": 100.0,
+            "token": 100.0
+          }
+        },
+        {
+          "key": "b",
+          "op": "turn",
+          "group": "turn",
+          "effect": 0.6,
+          "share": {
+            "time": 5.0,
+            "token": null
+          },
+          "time_pct": 3.0,
+          "token_pct": null,
+          "cap": {
+            "time": 100.0,
+            "token": 100.0
+          }
+        }
+      ],
+      "total": {
+        "time": 11.0,
+        "token": 6.4
+      }
+    },
+    {
+      "name": "two failures on a 30 % tool-call pool scale to 15 % + 15 %",
+      "saves": [
+        {
+          "key": "f1",
+          "op": "call",
+          "group": "call",
+          "effect": 0.8,
+          "share": {
+            "time": 25.0,
+            "token": 10.0
+          },
+          "time_pct": 20.0,
+          "token_pct": 8.0,
+          "cap": {
+            "time": 30.0,
+            "token": 40.0
+          }
+        },
+        {
+          "key": "f2",
+          "op": "call",
+          "group": "call",
+          "effect": 0.6,
+          "share": {
+            "time": 25.0,
+            "token": 10.0
+          },
+          "time_pct": 15.0,
+          "token_pct": 6.0,
+          "cap": {
+            "time": 30.0,
+            "token": 40.0
+          }
+        }
+      ],
+      "total": {
+        "time": 21.0,
+        "token": 14.0
+      }
+    },
+    {
+      "name": "an older snapshot whose cap fell below the card's own share (readonly pool priced by average calls) keeps the card",
+      "saves": [
+        {
+          "key": "permission_friction",
+          "op": "readonly",
+          "group": "readonly",
+          "effect": 0.9,
+          "share": {
+            "time": 2.5,
+            "token": 0.0
+          },
+          "time_pct": 2.25,
+          "token_pct": 0.0,
+          "cap": {
+            "time": 0.0,
+            "token": 0.0
+          }
+        }
+      ],
+      "total": {
+        "time": 2.25,
+        "token": 0.0
+      }
+    },
+    {
+      "name": "approvals priced by average calls share the tool-call pool with polling",
+      "saves": [
+        {
+          "key": "permission_friction",
+          "op": "readonly",
+          "group": "call",
+          "effect": 0.9,
+          "share": {
+            "time": 20.0,
+            "token": 0.0
+          },
+          "time_pct": 18.0,
+          "token_pct": 0.0,
+          "cap": {
+            "time": 30.0,
+            "token": 40.0
+          }
+        },
+        {
+          "key": "polling",
+          "op": "call",
+          "group": "call",
+          "effect": 0.5,
+          "share": {
+            "time": 20.0,
+            "token": 15.0
+          },
+          "time_pct": 10.0,
+          "token_pct": 7.5,
+          "cap": {
+            "time": 30.0,
+            "token": 40.0
+          }
+        }
+      ],
+      "total": {
+        "time": 21.0,
+        "token": 7.5
+      }
+    },
+    {
+      "name": "pools together never exceed the whole trajectory",
+      "saves": [
+        {
+          "key": "t1",
+          "op": "turn",
+          "group": "turn",
+          "effect": 0.5,
+          "share": {
+            "time": 80.0,
+            "token": 50.0
+          },
+          "time_pct": 40.0,
+          "token_pct": 25.0,
+          "cap": {
+            "time": 100.0,
+            "token": 100.0
+          }
+        },
+        {
+          "key": "c1",
+          "op": "call",
+          "group": "call",
+          "effect": 0.5,
+          "share": {
+            "time": 60.0,
+            "token": 60.0
+          },
+          "time_pct": 30.0,
+          "token_pct": 30.0,
+          "cap": {
+            "time": 60.0,
+            "token": 60.0
+          }
+        }
+      ],
+      "total": {
+        "time": 50.0,
+        "token": 50.0
+      }
+    }
+  ]
+}

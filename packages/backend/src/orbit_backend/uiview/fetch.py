@@ -73,19 +73,53 @@ def default_scope(tz: str | None = None) -> dict:
 
 def latest_rows(gw, tz: str | None = None) -> dict[str, dict] | None:
     """Newest cached fact rows by session id (never enqueues a computation)."""
+    body = latest_body(gw, tz)
+    if body is None:
+        return None
+    return {r["id"]: r for r in body.get("rows") or [] if not r.get("excluded")}
+
+
+def mru_timezone(gw) -> str | None:
+    """The client timezone the prewarm keys facts by (newest MRU scope that names one)."""
+    state = getattr(gw, "state", None)
+    try:
+        mru = state.snapshot().get("mru_scopes") or [] if state is not None else []
+    except Exception:  # noqa: BLE001 - minimal test doubles / unreadable state
+        return None
+    return next((s.get("display_timezone") for s in mru if s.get("display_timezone")), None)
+
+
+def latest_snapshot(gw, tz: str | None = None) -> tuple[dict | None, int | None]:
+    """(newest cached ``uiview_facts`` body, its window in days; 0 = all time), widest first.
+
+    Looks under the requested timezone, then the MRU timezone the prewarm uses, then UTC, so
+    a non-UTC client still finds the snapshot its own overview requests (or the prewarm)
+    produced. Never enqueues.
+    """
     from ..services.fastpath import windowed
     from ..services.sections import rules_digest
     from ..services.snapshots import scope_hash
 
-    base, rules = default_scope(tz), rules_digest()
-    snapshot = None
-    for days in (0, 30, 7):  # The widest window computed so far (first-open fast path).
-        snapshot = gw.snapshots.latest(SECTION, scope_hash(windowed(base, days), {}), rules)
-        if snapshot is not None:
-            break
-    if snapshot is None:
-        return None
-    return {r["id"]: r for r in snapshot.body.get("rows") or [] if not r.get("excluded")}
+    rules = rules_digest()
+    zones: list[str] = []
+    for zone in (tz, mru_timezone(gw), "UTC"):
+        if zone and zone not in zones:
+            zones.append(zone)
+    for zone in zones:
+        try:
+            base = default_scope(zone)
+        except Exception:  # noqa: BLE001 - an invalid timezone is skipped, like the prewarm
+            continue
+        for days in (0, 30, 7):  # The widest window computed so far (first-open fast path).
+            snapshot = gw.snapshots.latest(SECTION, scope_hash(windowed(base, days), {}), rules)
+            if snapshot is not None:
+                return snapshot.body, days
+    return None, None
+
+
+def latest_body(gw, tz: str | None = None) -> dict | None:
+    """Newest cached ``uiview_facts`` body (rows + aux), widest window first; never enqueues."""
+    return latest_snapshot(gw, tz)[0]
 
 
 def persona_page(gw, scope_dict: dict, params: dict, today, *, wait_ms: int = 0):

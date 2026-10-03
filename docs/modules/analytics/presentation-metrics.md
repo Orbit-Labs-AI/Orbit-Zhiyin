@@ -216,7 +216,7 @@ observed_axis = Σ x_task / 有效任务数
 
 门槛与阈值是版本化的产品默认值，未经人群校准，不是心理学阈值或校准置信度。
 
-**本投影不产出四字母类型。** `profile` 没有 `code` 字段，而是给出 `typing = {produces_type_code: false, type_authority: "uiview-persona-v0", reason: "orchestration_not_extracted_and_verification_single_pole"}`：编排轴没有提取规则、验证轴只有一极，拼出的字母总会有一部分是推断。完整 16 型由 `uiview.persona`（`uiview-persona-v0`，见 [profiling.md](profiling.md)）按行为单位计算：1 个会话即出完整 4 字母，每轴按 50 分界，没有单位的轴按 50 计，只有四轴都无值（空选择）才不揭晓。两者字母体系不同（本节为 C/D、E/P、A/V、S/O 的明确请求观察），不能互相换算。`headline` 由已知事实生成确定性短句，不声称是模型推断的心理结论。
+**本投影不产出四字母类型。** `profile` 没有 `code` 字段，而是给出 `typing = {produces_type_code: false, type_authority: "uiview-persona-v1", reason: "orchestration_not_extracted_and_verification_single_pole"}`：编排轴没有提取规则、验证轴只有一极，拼出的字母总会有一部分是推断。完整 16 型由 `uiview.persona`（`uiview-persona-v1`，见 [profiling.md](profiling.md)）按行为单位计算：1 个会话即出完整 4 字母，每轴按 50 分界，没有单位的轴按 50 计，只有四轴都无值（空选择）才不揭晓。两者字母体系不同（本节为 C/D、E/P、A/V、S/O 的明确请求观察），不能互相换算。`headline` 由已知事实生成确定性短句，不声称是模型推断的心理结论。
 
 算例：任务甲十次明确委托、任务乙一次先询问，两个任务的 D 观察均值是 `(1+0)/2=0.5`，不是 `10/11`。只有两个任务也不满足方向显示门槛。
 

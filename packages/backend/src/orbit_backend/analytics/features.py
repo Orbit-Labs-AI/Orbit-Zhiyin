@@ -14,6 +14,7 @@ from .cost_time import activity, token_total, usage
 from .cost_time.activity import local_parts
 from .instruction.structure import structure
 from .interaction import correction_terms
+from .interaction.rules import is_correction
 from .outcome import legacy_objective_candidates
 from .outcome_subjective import analyze_subjective_outcomes
 from .respond import tool_summary, workflow
@@ -109,8 +110,11 @@ def session_features(session, events, calls, main_ids, supported_kinds=None, eve
                 dates.add(parts[0])
                 times.append(ts)
     lengths_u, lengths_a = text_lengths(users), text_lengths(assistants)
+    # Same verdict as A3 / A6 and signals (``rules.is_correction``: length and client-retry
+    # gates), so one session shows one correction count on every page.
     corrections = [{"event_uid": e["event_uid"], "terms": terms} for e in users
-                   if (terms := correction_terms(e.get("text") or ""))]
+                   if is_correction(e.get("text") or "")
+                   and (terms := correction_terms(e.get("text") or ""))]
     structures = [s for e in users if (s := structure(e)) is not None]
     languages = Counter(ext.lower() for e in users
                         for ext in FILE_REFERENCE.findall(e.get("text") or ""))

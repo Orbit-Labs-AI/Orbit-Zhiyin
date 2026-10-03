@@ -155,7 +155,7 @@ if (LV.live) (function () {
   TIPS.trans = (i, j) => { const m = (LVTP.tools && LVTP.tools.matrix) || {}; const c = m.counts && m.counts[+i] ? m.counts[+i][+j] : null; return '<b>' + esc(TRANS_NAMES[+i] + ' → ' + TRANS_NAMES[+j]) + '</b>\n条件概率 ' + Math.round((TRANS[+i] ? TRANS[+i][+j] : 0) * 100) + '%' + (+i === +j ? '（同一工具连用）' : '') + (c != null ? '\n' + fmt(c) + ' 次转移' : ''); };
 
   /* ---------- A5 feed ---------- */
-  LV.feed('projects', (sc) => [{ name: 'p', path: LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range), group: S.proj.group === 'folder' ? 'folder' : null }) }], (d) => { LVTP.projects = d.p || {}; });
+  LV.feed('projects', (sc) => [{ name: 'p', path: LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range), tz: sc.tz, group: S.proj.group === 'folder' ? 'folder' : null }) }], (d) => { LVTP.projects = d.p || {}; });
   TIPS.split = (id) => { const r = lvtpRows().find((x) => x.p.id === id); if (!r) return ''; const tot = r.split.reduce((a, b) => a + b, 0) || 1; return '<b>' + esc(r.p.name) + ' · Agent 构成</b>\n' + r.split.map((v, j) => v ? '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + AG[j].c + ';margin-right:5px;vertical-align:-1px"></span>' + esc(AG[j].name) + ' <b class="mono">' + v + '</b> · ' + Math.round(v / tot * 100) + '%' : '').filter(Boolean).join('\n'); };
   const reveal = (path, what) => { if (!path || path === '—') { toast('没有记录' + what + '路径'); return; } ORBIT.native.request('reveal', { path }).then((r) => { if (r && r.ok === false) toast('无法在 Finder 中显示：' + path); }, () => toast('无法在 Finder 中显示：' + path)); };
   Object.assign(ACT, {
@@ -283,12 +283,12 @@ function lvtpRows() {
     const fr = r.friction || {};
     return { p, xs: byP.get(r.project_id) || [], raw: r, split,
       st: { n: r.sessions || 0, hours: lvtpHours(r.hours), fric: fr.value != null ? fr.value * 100 : 0, fricLo: fr.lo, fricHi: fr.hi, auto: r.tools_per_human_message || 0 },
-      pers: per.code ? { ok: true, code: per.code, zh: t ? t[0] : '尚未定型', status: per.status } : { ok: false, code: null, status: per.status || 'insufficient', reason: per.reason } };
+      pers: per.code ? { ok: true, code: per.code, zh: t ? t[0] : '—', status: per.status } : { ok: false, code: null, status: per.status || 'insufficient', reason: per.reason } };
   }).sort((a, c) => c.st.hours - a.st.hours || c.st.n - a.st.n);
 }
 function lvtpDetail(id, cmp) {
   const sc = LV.scope();
-  const path = LV.withQuery('/v1/uiview/projects/' + encodeURIComponent(id), { agent: sc.agents, since: lvtpFrom(sc.range), compare: cmp || null });
+  const path = LV.withQuery('/v1/uiview/projects/' + encodeURIComponent(id), { agent: sc.agents, since: lvtpFrom(sc.range), tz: sc.tz, compare: cmp || null });
   return LV.detail(LVTP.det, path, path);
 }
 function lvtpLinked(id) { const path = LV.withQuery('/v1/features/linked', { project_id: id }); return LV.detail(LVTP.linked, path, path); }
@@ -329,7 +329,7 @@ function lvProjectsPage() {
     p.git = hd.git || '—'; p.tags = hd.tags || p.tags; p.ruleFiles = hd.rule_files || [];
     p.rec = d.top_recommendation ? d.top_recommendation.candidate_id : null; p.tip = d.top_recommendation ? d.top_recommendation.title : '';
   }
-  const pp = hd.persona && hd.persona.code ? { ok: true, code: hd.persona.code, zh: (TYPES[hd.persona.code] || ['尚未定型'])[0] } : selRow.pers;
+  const pp = hd.persona && hd.persona.code ? { ok: true, code: hd.persona.code, zh: (TYPES[hd.persona.code] || ['—'])[0] } : selRow.pers;
   const now = personaNow();
   const plineTxt = pp.ok ? '在这个项目里你是 <b class="tcode" style="color:var(--ink-1);letter-spacing:.04em">' + esc(pp.code) + '</b> <b style="color:var(--ink-1)">' + esc(pp.zh) + '</b>' + (now && now.ok ? (now.code !== pp.code ? '，和整体（<span class="tcode">' + esc(now.code) + '</span> ' + esc(now.zh) + '）不同' : '，和整体一致') : '') + '。'
     : (pp.status === 'persona_pending' ? (fs === 'computing' || LV.state === 'computing' || LV.state === 'connecting' ? '这个项目的人格还在计算，导入完成后会出现。' : '本地服务还没有给出这个项目的人格，表格里先记为「—」。') : '这个项目的样本还不够，暂不判断人格。');

@@ -44,6 +44,23 @@ MIN_WEEKS = 1 / 7
 MAX_IDS = 50
 MIN_READONLY_PROMPTS = 2
 UNIT_ZH = {"count": "次", "ratio": "次", "events": "次", "calls": "次", "sessions": "会话", "minutes": "分钟"}
+# A problem's weekly count is an occurrence count (narrate._save multiplies it by the measured
+# cost of one occurrence). Only count-like metrics qualify (any unit but VOLUME_UNITS): a ratio, a token volume or a duration
+# is not a number of occurrences (context_pressure's first metric is the uncached input tokens,
+# millions, which made one card claim the whole trajectory), and neither is the number of model
+# requests a signal merely inspected. Without a qualifying metric the cited process evidence
+# (events, calls) is counted; model-call refs only document the volume, not an occurrence.
+VOLUME_UNITS = frozenset({"ratio", "share", "percent", "token", "tokens", "minutes", "seconds", "ms", "bytes"})
+VOLUME_METRICS = frozenset({"cost_time.usage.request_count"})
+VOLUME_EVIDENCE = frozenset({"model_call"})
+
+
+def _occurrence_metric(metrics) -> dict | None:
+    for metric in metrics or ():
+        if (isinstance(metric, dict) and metric.get("unit") not in VOLUME_UNITS
+                and metric.get("path") not in VOLUME_METRICS):
+            return metric
+    return None
 # Inventory facts (unused / resident) are measurements, not k-of-n recurrences: a fixed
 # confidence instead of a Wilson bound whose numerator equals its denominator.
 INVENTORY_CONFIDENCE = {"resident_cost": .8, "installed_unused": .5}
@@ -268,14 +285,16 @@ def build(inputs: dict, memory: dict | None = None) -> list[dict]:
         if scope.get("project_id"):
             a.projects.add(scope["project_id"])
         metrics = signal.get("metrics") or []
-        value = metrics[0].get("value") if metrics else None
+        counted = _occurrence_metric(metrics)
+        value = counted.get("value") if counted else None
         if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
             a.weekly += float(value)
-        else:  # no metric value: count the evidence events the signal cites, and say so
-            a.weekly += len([e for e in signal.get("evidence") or () if e.get("id")])
+        else:  # no occurrence count: count the process evidence the signal cites, and say so
+            a.weekly += len([e for e in signal.get("evidence") or ()
+                             if e.get("id") and e.get("kind") not in VOLUME_EVIDENCE])
             a.vars = {**a.vars, "count_basis": "evidence"}
-        if metrics and metrics[0].get("unit"):
-            a.unit = UNIT_ZH.get(metrics[0]["unit"], metrics[0]["unit"])
+        if counted and counted.get("unit"):
+            a.unit = UNIT_ZH.get(counted["unit"], counted["unit"])
         evidence = signal.get("evidence") or []
         a.add_ids(a.sessions, [scope.get("root_session_uid"), *(e.get("session_uid") for e in evidence)])
         a.add_ids(a.events, [e.get("id") for e in evidence])

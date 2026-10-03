@@ -122,7 +122,10 @@ def scope_note(f: dict) -> str:
 
 def _narrative_scope(range_: int, f: dict, brushed: bool) -> dict | None:
     """The ``narrate.overview`` scope that describes this view, or ``None`` when the view
-    has filters the narrative task cannot take (its scope is only days + project_id)."""
+    has filters the narrative task cannot take (its scope is only days + project_id).
+    「全部」(range 0) has no fixed day count the task accepts (days 1–365), so it stays L0 too."""
+    if range_ not in (7, 30, 90):
+        return None
     if brushed or any(f.get(k) not in (None, "", []) for k in
                       ("agents", "topic", "outcome", "fric", "hour")):
         return None
@@ -173,7 +176,7 @@ def build(body: dict, params: dict, today: date) -> dict:
         "persona_mini": persona.mini(p),
         "insight": insight.with_ai(insight.build(L, st, p, projects),
                                    _narrative_scope(range_, f, brushed),
-                                   meta.get("data_rev")),
+                                   meta.get("data_rev"), with_scope=True),
         "recs_ref": insight.RECS_REF,
     }
     if params.get("edition") == "lite":

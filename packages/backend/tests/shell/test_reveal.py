@@ -18,13 +18,15 @@ OVERVIEW = {"overview": {"counts": {"main_sessions": 120},
 
 
 def facts_body(today: date = TODAY) -> dict:
-    """Three sessions over two days (one agent).
+    """Three sessions over two days (one agent); old snapshot shape (``open`` only, turns
+    without status), so each axis has the signals listed below (uiview-persona-v1).
 
-    D: turns with ≥ 5 steps — s1 6, 7; s2 5; s3 1 → 3 of 4 turns = 75.0 → D.
-    I: openings without structure (open == 0) — s1, s3 of s1/s2/s3 → 2 of 3 = 66.7 → I.
-    M: day 1 s1 [0,10] and s2 [5,15] overlap, day 2 one session → 1 of 2 days = 50.0 → M
-       (exactly 50 takes the high letter).
-    V: verification turns — only s3's → 1 of 4 = 25.0 → T.
+    D: steps — turns with ≥ 5 steps: s1 6, 7; s2 5; s3 1 → 3 of 4 → 5 + 90·0.75 = 72.5 → D.
+    I: struct — openings without structure: s1, s3 of 3 → 5 + 90·⅔ = 65.0 → I.
+    M: parallel — day 1 overlaps, day 2 does not → 1 of 2 → 50; sessions per day 2, 1 →
+       (40 + 20) / 2 = 30; agents per day 1, 1 → 30. (0.35·50 + 0.25·30 + 0.25·30) / 0.85
+       = 38.2 → F.
+    V: verify — only s3's turn → 1 of 4 → 5 + 90·0.25 = 27.5 → T.
     """
     d1, d2 = (today - timedelta(days=1)).isoformat(), today.isoformat()
     rows = [{"id": "s1", "d": d1, "a": "codex", "p": None, "h": 9},
@@ -44,17 +46,13 @@ def page(period: str = "30") -> dict:
 def test_axes_come_from_the_persona_page():
     p = page()
     axes = {a["axis"]: a for a in reveal.ui_axes(p)}
-    assert {k: a["value"] for k, a in axes.items()} == {"D": 75.0, "I": 66.7, "M": 50.0,
-                                                         "V": 25.0}
-    assert reveal.code_of(reveal.ui_axes(p)) == p["code"] == "DIMT"
-    assert [axes[k]["name"] for k in "DIMV"] == ["委托", "即兴", "多线", "信任"]
-    # I is one unit per session: plain Wilson(2, 3) = centre 0.5731, half 0.3654
-    # → [20.8, 93.9] (hand-computed, z = 1.96).
-    assert axes["I"]["lo"] == pytest.approx(20.8, abs=0.1)
-    assert axes["I"]["hi"] == pytest.approx(93.9, abs=0.1)
-    # D / V keep the page's session-clustered interval verbatim (no recomputation).
+    assert {k: a["value"] for k, a in axes.items()} == {"D": 72.5, "I": 65.0, "M": 38.2,
+                                                         "V": 27.5}
+    assert reveal.code_of(reveal.ui_axes(p)) == p["code"] == "DIFT"
+    assert [axes[k]["name"] for k in "DIMV"] == ["委托", "即兴", "专注", "信任"]
+    # The reveal keeps the page's interval verbatim (no recomputation).
     by_k = {a["k"]: a for a in p["axes"]}
-    for k in "DV":
+    for k in "DIMV":
         assert (axes[k]["lo"], axes[k]["hi"]) == (by_k[k]["lo"], by_k[k]["hi"])
         assert axes[k]["lo"] <= axes[k]["value"] <= axes[k]["hi"]
     assert all(a["settled"] for a in axes.values())
@@ -64,17 +62,19 @@ def test_compose_one_session_gives_a_full_code():
     one = persona.page({**facts_body(), "rows": facts_body()["rows"][2:]}, {"period": "30"},
                        TODAY)
     body = reveal.compose(one, OVERVIEW)
-    # s3 alone: D 0/1 → S, I 1/1 → I, M 0/1 day → F, V 1/1 → V.
+    # s3 alone: D 0/1 → 5 → S, I 1/1 → 95 → I, M one session / agent on its day → F,
+    # V 1/1 → 95 → V.
     assert body["ok"] and body["code"] == "SIFV" and body["share"]["allowed"]
     assert body["gate"]["passed"] and body["gate"]["sessions"] == 1
 
 
 def test_matches_follow_persona_candidates():
     rows = reveal.matches(page())
-    # match = mean of (v if high letter else 100 − v): DIMT (75 + 66.7 + 50 + 75) / 4 = 66.7;
-    # DIFT ties (M = 50) and the persona's own code comes first.
-    assert [r["code"] for r in rows[:2]] == ["DIMT", "DIFT"]
-    assert rows[0]["match"] == rows[1]["match"] == pytest.approx(66.7, abs=0.06)
+    # match = mean of (v if high letter else 100 − v):
+    # DIFT (72.5 + 65 + 61.8 + 72.5) / 4 = 68.0, DIMT (72.5 + 65 + 38.2 + 72.5) / 4 = 62.0.
+    assert [r["code"] for r in rows[:2]] == ["DIFT", "DIMT"]
+    assert rows[0]["match"] == pytest.approx(68.0, abs=0.06)
+    assert rows[1]["match"] == pytest.approx(62.0, abs=0.06)
     assert rows[0]["similarity"] == round(rows[0]["match"] / 100, 3)
     assert reveal.matches(None) == []
 
@@ -91,8 +91,8 @@ def test_reasons():
     blank["axes"] = [{**a, "value": None, "state": "no_data"} for a in blank["axes"]]
     assert reveal.compose(blank, OVERVIEW)["reason"] == "insufficient_data"
     ok = reveal.compose(page(), OVERVIEW, meta={"scope_hash": "h"})
-    assert ok["ok"] and ok["reason"] is None and ok["code"] == "DIMT"
-    assert ok["type"]["code"] == "DIMT" and ok["type"]["zh"] == page()["zh"]
+    assert ok["ok"] and ok["reason"] is None and ok["code"] == "DIFT"
+    assert ok["type"]["code"] == "DIFT" and ok["type"]["zh"] == page()["zh"]
     assert ok["gate"]["axes"] == [{"axis": k, "n_units": n, "state": "settled"}
                                   for k, n in zip("DIMV", (4, 3, 2, 4), strict=True)]
 
@@ -163,8 +163,8 @@ def test_load_reads_the_facts_snapshot(gateway_factory, tmp_path, monkeypatch):
     gw.snapshots.put(SnapshotKey("uiview_facts", scope_hash(facts_scope, {}), 7, 0, rules), body)
     gw.snapshots.put(SnapshotKey("overview", scope_hash(scope, {}), 7, 0, rules), OVERVIEW)
     out = reveal.load(gw, scope)
-    assert out["ok"] and out["code"] == "DIMT" and out["meta"]["freshness"] == "fresh"
+    assert out["ok"] and out["code"] == "DIFT" and out["meta"]["freshness"] == "fresh"
     assert out["fingerprint"]["first_ts"] == NOW - 3_600_000
     summary = reveal.persona_summary(gw, scope)
-    assert summary == {"ok": True, "code": "DIMT", "name_zh": out["type"]["zh"],
+    assert summary == {"ok": True, "code": "DIFT", "name_zh": out["type"]["zh"],
                        "reason": None, "gate": out["gate"]}

@@ -112,8 +112,9 @@ def test_persona_reads_the_uiview_persona_like_share_card(env, sections, monkeyp
 
     client, _, _ = env
     today = date(2026, 9, 30)
-    # Two sessions on one day: D 1 of 2 turns ≥ 5 steps = 50 → D; I 1 of 2 unstructured
-    # openings = 50 → I; M overlap → 1 of 1 day = 100 → M; V 0 of 2 → 0 → T.
+    # Two sessions on one day (uiview-persona-v1): D 1 of 2 turns ≥ 5 steps → 50 → D;
+    # I 1 of 2 unstructured openings → 50 → I; M overlap day → 95, 2 sessions → 40,
+    # 1 agent → 30: (0.35·95 + 0.25·40 + 0.25·30) / 0.85 = 59.7 → M; V 0 of 2 → 5 → T.
     body = {"meta": {}, "rows": [{"id": "a", "d": "2026-09-30", "a": "codex"},
                                  {"id": "b", "d": "2026-09-30", "a": "codex"}],
             "aux": {"a": {"turns": [[5, 0]], "open": 0, "t0": 0, "t1": 10},
@@ -123,7 +124,7 @@ def test_persona_reads_the_uiview_persona_like_share_card(env, sections, monkeyp
     monkeypatch.setattr(report, "persona_page", lambda gw, scope, wait_ms: (page, "fresh", []))
     s = by_id(post(client, sections=["persona"]))["persona"]
     assert s["status"] == "ok" and s["data"]["experimental"] and s["data"]["code"] == "DIMT"
-    assert s["n"] == 2 and [a["value"] for a in s["data"]["axes"]] == [50.0, 50.0, 100.0, 0.0]
+    assert s["n"] == 2 and [a["value"] for a in s["data"]["axes"]] == [50.0, 50.0, 59.7, 5.0]
     card = sharecard.payload(page)
     assert card["eligible"] and card["code"] == s["data"]["code"]
     assert "实验性" in s["markdown"] and "DIMT" in s["markdown"]

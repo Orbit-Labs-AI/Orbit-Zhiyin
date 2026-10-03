@@ -1314,7 +1314,9 @@ const OrbitLive = (function () {
     if (!s || typeof s !== 'object' || (finite(s.time_pct) == null && finite(s.token_pct) == null)) return null;
     const share = s.share || {};
     return { t: finite(s.time_pct), k: finite(s.token_pct), st: finite(share.time), sk: finite(share.token), p: finite(s.effect),
-      tr: s.time_range || null, kr: s.token_range || null, key: s.key || c.rec_key || null, basis: s.basis || '' };
+      tr: s.time_range || null, kr: s.token_range || null, key: s.key || c.rec_key || null, basis: s.basis || '',
+      // the operation pool the problem draws on and that pool's share of the trajectory (recTotal caps a total by it)
+      g: s.group || s.op || null, cap: s.cap && typeof s.cap === 'object' ? { t: finite(s.cap.time), k: finite(s.cap.token) } : null };
   }
   function recRow(c) {
     const u = (c && c.ui) || {}; const ev = (c && c.evidence) || {}; const n = ev.counts && ev.counts.sessions != null ? ev.counts.sessions : (ev.session_uids || []).length;

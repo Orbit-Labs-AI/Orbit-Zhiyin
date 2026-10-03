@@ -33,7 +33,7 @@ MIN_TASKS, MIN_SESSIONS = 5, 2
 LOW_THRESHOLD, HIGH_THRESHOLD = 0.4, 0.6
 TWO_POLE = {"delegation", "planning"}
 SINGLE_POLE = {"verification"}
-TYPE_AUTHORITY = "uiview-persona-v0"
+TYPE_AUTHORITY = "uiview-persona-v1"
 AXES = {
     "delegation": ("控制", "委托", "C", "D"),
     "planning": ("探索", "规划", "E", "P"),

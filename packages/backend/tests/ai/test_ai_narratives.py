@@ -94,3 +94,21 @@ def test_gateway_serves_narratives(tmp_path, ai_env):
         if getattr(gateway, "_ai", None) is not None:
             gateway._ai.close()
         gateway.close()
+
+
+def test_fresh_job_skips_the_cache_and_replaces_it(client, ai_svc):
+    """「重新生成」 posts fresh=true: a new model call even when an identical request is cached,
+    and the new output becomes the cached one."""
+    ai_svc.fake.responses["cluster.topic_names"] = NAMES
+    submit(client, "cluster.topic_names", {"topic_clusters": CLUSTERS})
+    calls = len(ai_svc.fake.requests)
+    renamed = {"clusters": [{**NAMES["clusters"][0], "name": "样式调整"}, NAMES["clusters"][1]]}
+    ai_svc.fake.responses["cluster.topic_names"] = renamed
+    created = client.post("/v1/ai/jobs", json={"task_id": "cluster.topic_names", "fresh": True,
+                                               "slots": {"topic_clusters": CLUSTERS}})
+    assert created.status_code == 202 and created.json()["cached"] is False
+    job = wait_job(client, created.json()["job_id"])
+    assert len(ai_svc.fake.requests) == calls + 1
+    assert job["result"]["source"] == "ai" and job["result"]["clusters"][0]["name"] == "样式调整"
+    again = submit(client, "cluster.topic_names", {"topic_clusters": CLUSTERS})
+    assert again["cached"] and again["result"]["clusters"][0]["name"] == "样式调整"

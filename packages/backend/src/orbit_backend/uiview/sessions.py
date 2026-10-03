@@ -20,12 +20,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from orbit_data.privacy import redact
 
 from ..analytics.interaction.rules import is_correction as _is_correction
-from . import metrics, outcome
+from . import derive, metrics, outcome
 
 ACTIVE_GAP_MS = metrics.IDLE_CAP_MS  # ACTIVE_SQL is metrics.active_ms in SQL
 TICKS_MAX = 90
-KNOWN_STATUS = {"success", "completed", "failed", "rejected", "interrupted"}
-FAILED = {"failed"}
 AGENTS = {"claude_code": ("Claude Code", "CC"), "codex": ("Codex", "Codex"),
           "gemini": ("Gemini CLI", "Gemini"), "opencode": ("OpenCode", "OC"),
           "hermes": ("Hermes", "Hermes"), "kimi": ("Kimi CLI", "Kimi")}
@@ -110,12 +108,12 @@ def scrub(text: str | None, limit: int = 120) -> str | None:
 
 
 def is_failed(status: str | None) -> bool:
-    return status in FAILED
+    return metrics.tool_state(status) == "failed"
 
 
 def errors_of(statuses: list[str]) -> int | None:
     """Known failures; ``None`` when calls exist but none has a protocol status."""
-    if statuses and not any(s in KNOWN_STATUS for s in statuses):
+    if statuses and all(metrics.tool_state(s) == "unknown" for s in statuses):
         return None
     return sum(is_failed(s) for s in statuses)
 
@@ -284,7 +282,7 @@ def list_sessions(rows: list[dict], *, now_ms: int, tz: tzinfo, q: str | None = 
     today, _, _ = local_parts(now_ms, tz)
     window = [r for r in rows if start is None or (r["started_at"] or 0) >= start]
     picked = [r for r in window
-              if (not agents or r["a"] in agents) and (not project or r["p"] == project)
+              if (not agents or r["a"] in agents) and derive.project_matches(r["p"], project)
               and (topic is None or r.get("topic") == topic)
               and (outcome is None or r.get("out") == outcome)
               and (fric is None or r.get("fric") == fric)
