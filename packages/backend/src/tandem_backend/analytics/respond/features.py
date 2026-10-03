@@ -12,12 +12,15 @@ def tool_summary(calls, dataset_status="available"):
     if calls is None:
         return {"status": "excluded" if dataset_status == "excluded" else "unavailable", "totals": None, "by_tool": None,
                 "effective_n": 0, "unknown_n": None}
+    # result_status is pure per call; the totals, every by-tool group and unknown_n reuse it.
+    status_of = {id(c): result_status(c) for c in calls}
+
     def aggregate(items):
         statuses = Counter()
         durations, intervals = [], []
         sources, qualities = Counter(), Counter()
         for c in items:
-            statuses[result_status(c)] += 1
+            statuses[status_of[id(c)]] += 1
             duration = c.get("duration_ms")
             if isinstance(duration, (int, float)) and not isinstance(duration, bool) and math.isfinite(duration) and duration >= 0:
                 durations.append(duration)
@@ -58,6 +61,6 @@ def tool_summary(calls, dataset_status="available"):
     for c in calls:
         groups[(c.get("name_raw"), c.get("kind"))].append(c)
     return {"status": dataset_status, "totals": aggregate(calls), "effective_n": len(calls),
-            "unknown_n": sum(result_status(c) == "unknown" for c in calls),
+            "unknown_n": sum(status_of[id(c)] == "unknown" for c in calls),
             "by_tool": [{"name_raw": name, "kind": kind, **aggregate(v)}
                         for (name, kind), v in sorted(groups.items(), key=lambda p: (-len(p[1]), str(p[0])))]}
