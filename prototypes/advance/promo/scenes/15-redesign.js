@@ -98,11 +98,14 @@ scene('15-redesign', () => {
   });
 
   /* ---------- 1e 虚线圆（#agdBack，跟着 cc 的半径，b22.4–23.0 淡出） ---------- */
+  // 1e → 2 hand-off: while the three lines spread out (b21.4–22.0) the circle brightens .14 → .32, so in b22.0–22.5,
+  // before the spiral shows, the screen is the ring tightening with the dots (R 420 → 300), not five loose dots; the
+  // spiral's tail then starts on this very circle (R 300) as it fades
   AGD.back(19.2, 23.0, (b) => {
     const p = AGD.pos(0, b), R = Math.hypot(p.x - 960, p.y - 540), ang = Math.atan2(p.x - 960, -(p.y - 540)) * 180 / Math.PI;
-    const a = E.inOut(clamp((b - 19.2) / .5)) * (1 - E.inOut(clamp((b - 22.4) / .6)));
+    const a = E.inOut(clamp((b - 19.2) / .5)) * (1 - E.inOut(clamp((b - 22.4) / .6))) * (.14 + .18 * E.inOut(clamp((b - 21.4) / .7)));
     if (a <= .002 || R < 1) return '';
-    return '<circle cx="960" cy="540" r="' + R.toFixed(1) + '" fill="none" stroke="#fff" stroke-opacity="' + (.14 * a).toFixed(3) +
+    return '<circle cx="960" cy="540" r="' + R.toFixed(1) + '" fill="none" stroke="#fff" stroke-opacity="' + a.toFixed(3) +
       '" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 7" transform="rotate(' + ang.toFixed(2) + ' 960 540)"/>';
   });
 
