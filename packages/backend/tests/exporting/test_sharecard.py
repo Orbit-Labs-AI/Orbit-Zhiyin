@@ -135,3 +135,18 @@ def test_hide_numbers_drops_axis_strengths(env, canned):
     body = card(client, hide_numbers=True)
     assert all(a["strong"] is None for a in body["axes"]) and body["v"]
     assert all(s["value"] is None and s["hidden"] for s in body["stats"])
+
+
+def test_share_quotes_match_the_prototype_table():
+    import re
+    from pathlib import Path
+
+    from tandem_backend.exporting.type_copy import DEFAULT_QUOTE, SHARE_QUOTES
+
+    js = (Path(__file__).resolve().parents[4] / "prototypes" / "advance" / "src" / "js"
+          / "55-exports.js").read_text(encoding="utf-8")
+    table = js[js.index("const SHAREQ = {"):js.index("};", js.index("const SHAREQ = {"))]
+    parsed = {code: (a, b) for code, a, b in re.findall(r"(\w{4}): \['([^']*)', '([^']*)'\]", table)}
+    assert parsed == SHARE_QUOTES
+    default = re.search(r"const SHAREQ0 = \['([^']*)', '([^']*)'\]", js)
+    assert default and default.groups() == DEFAULT_QUOTE

@@ -144,17 +144,27 @@ test('live main window: no demo welcome notification', async ({ page }) => {
   expect(await page.locator('#notes').innerText()).not.toMatch(/欢迎体验|数据都是示例/);
 });
 
-test('share card asks the gateway for the persona page scope (period + filters), not its 30-day default', async ({ page }) => {
+test('share card: one gateway card per time span, the persona page period first, drawn from the payload', async ({ page }) => {
   ONLY();
   const bodies = [];
   await setup(page, { 'POST /v1/export/share_card': (req) => { bodies.push(req.postDataJSON()); return fx('s8/export-share-card.json'); } });
   await openLive(page, 'overview');
   const per = await page.evaluate(() => String(S.persona.period));
+  const spans = await page.evaluate(() => shareSpans());
   await page.evaluate(() => openShare());
-  await expect(page.locator('#modal [data-tl="share-card"]')).toBeVisible();
-  expect(bodies.length).toBe(1);
+  await expect(page.locator('#modal .sharecard svg')).toBeVisible();
+  await expect.poll(() => bodies.length).toBe(spans.length);
   expect(bodies[0]).toMatchObject({ period: per, save: false });
+  expect(bodies.map((b) => b.period).sort()).toEqual(spans.slice().sort());
   expect(bodies[0].scope.display_timezone).toBeTruthy();
+  // the card is the gateway's persona: its code, copy, quote and axis strengths (no 70 / 30 stand-ins), labelled by span
+  const card = await page.locator('#modal .sharecard').innerHTML();
+  const d = fx('s8/export-share-card.json');
+  expect(card).toContain('>' + d.copy.line.slice(0, 8));
+  expect(card).toContain(d.copy.quote[0]);
+  for (const a of d.axes) expect(card).toContain('>' + a.strong + '%<');
+  expect(card).toContain('>' + d.span.tag + ' · ' + d.span.tag_en + '<');
+  await expect(page.locator('#modal [data-act="shareSpan"]')).toHaveCount(spans.length);
 });
 
 test('export: report / CSV / share PNG go through save; tandem:saved offers 在 Finder 中显示 → reveal', async ({ page }) => {
@@ -187,7 +197,7 @@ test('export: report / CSV / share PNG go through save; tandem:saved offers 在 
   await page.locator('#modal [data-act="shareSave"]').click();
   await expect.poll(async () => (await msgs(page, 'save')).length, { timeout: 10_000 }).toBe(3);
   const s3 = (await msgs(page, 'save'))[2];
-  expect([s3.filename, s3.mime]).toEqual(['orbit-persona-DIMV-2026-10-03.png', 'image/png']);
+  expect([s3.filename, s3.mime]).toEqual(['orbit-persona-90d-DIMV-2026-10-03.png', 'image/png']);
   const png = Buffer.from(s3.base64, 'base64');
   expect(png.subarray(1, 4).toString()).toBe('PNG');
   expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1080, 1350]);

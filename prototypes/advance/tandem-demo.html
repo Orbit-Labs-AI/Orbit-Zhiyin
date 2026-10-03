@@ -8279,7 +8279,7 @@ function shareSVG(m, dark, noNum) {
 }
 function shareCard(sp) {
   const m = shareModel(sp);
-  return '<div class="sharecard" data-span="' + esc(String(sp.key || '')) + '" style="background:' + SHARE_C[S.shareDark ? 'dark' : 'light'].bg + '">' + shareSVG(m, S.shareDark, S.shareNoNum) + '</div>';
+  return '<div class="sharecard" data-span="' + esc(String(sp.key || '')) + '"' + (sp.live ? ' data-tl="share-card"' : '') + ' style="background:' + SHARE_C[S.shareDark ? 'dark' : 'light'].bg + '">' + shareSVG(m, S.shareDark, S.shareNoNum) + '</div>';
 }
 // 弹窗：左边是选中的那张卡，右边列出每个时间长度的人格（小花 + 类型码 + 名称），点选切换
 function shareSpanRow(k, st, on) {
