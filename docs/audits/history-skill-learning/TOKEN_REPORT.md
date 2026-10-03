@@ -1,17 +1,20 @@
-# TOKEN_REPORT — online、学习和研究成本
+# TOKEN_REPORT — online、offline 与研究成本
 
-正式 held-out：Ours 4/4、LLM 4/4、Vanilla 3/4。Ours online 为 1,177,452 tokens，相对 LLM 增加 69.71%，相对 vanilla 增加 62.78%。
+正式 held-out：Ours 4/4、LLM 4/4、Vanilla 3/4。**成本比较同时计入 online 执行与 offline 学习。** LLM 为 693,808 + 207,305 = **901,113 tokens**；Ours 按相同口径为 1,177,452 + 347,171 = **1,524,623 tokens**，相对 LLM 增加 **69.19%**，相对 vanilla 增加 110.78%。
 
-所有正式 cohort usage 完整。Ours 相对 LLM 的成功率持平，但 online 和 adaptation 都更高，因此本样本下不存在靠重复同分布任务回收额外学习成本的 token 盈亏平衡点。不能用 validation 的节省率替代 test 的实测。
+| arm | 通过 / 全部 | online tokens | offline tokens | online + offline | 总 tokens / success |
+| --- | --- | --- | --- | --- | --- |
+| Vanilla | 3/4 | 723,323 | 0 | 723,323 | 241,108 |
+| Ours | 4/4 | 1,177,452 | 347,171 | 1,524,623 | 381,156 |
+| LLM | 4/4 | 693,808 | 207,305 | 901,113 | 225,278 |
 
-| arm | 通过 / 全部 | 失败 / 未知 | online tokens | tokens / success |
-| --- | --- | --- | --- | --- |
-| Vanilla | 3/4 | 1 / 0 | 723,323 | 241,108 |
-| Ours | 4/4 | 0 / 0 | 1,177,452 | 294,363 |
-| LLM | 4/4 | 0 / 0 | 693,808 | 173,452 |
+这里的 offline 指两轮归纳/修订的 adaptation 调用，包含已消耗的被拒调用；每组累计一次，再在本轮 4 道 test 上摊销，不对每道题重复添加。共享 history、headroom 和验证研究成本在后文研究账本单列，因此上表不是整个研究或真实部署的完整总拥有成本。
 
+所有正式 cohort usage 完整。Ours 相对 LLM 的成功率持平，但 online 和 offline 都更高，因此本样本下不存在靠重复同分布任务回收额外学习成本的 token 盈亏平衡点。不能用 validation 的节省率替代 test 的实测。
 
 ## 正式逐题 tokens
+
+本节仅列 online 执行成本：Ours 相对 LLM 增加 69.71%，相对 vanilla 增加 62.78%；含 offline 的比较以上方总成本表为准。
 
 | task | Vanilla | Ours | LLM | Ours / vanilla | Ours / LLM |
 | --- | --- | --- | --- | --- | --- |
@@ -38,11 +41,11 @@
 
 每次调用只按 native Pi `message_end` 累计 `input + output + cacheRead + cacheWrite`，不再累计 `agent_end` 的重复消息。cache read 也计入逻辑 token；这与收费金额不是同一指标。正文长度仅作为字符数报告，不用字符数近似实际 token。
 
-有错误请求未报告 usage 时，总量为 UNKNOWN，单独保留 `known_total_tokens` 下限，不能把缺失当作 0。正常任务失败照常计入 token；额度错误、开发拒绝、预检、学习、headroom 和消融均在全尝试 ledger 中保留。正式主表只使用 `cohorts/<task>.json` 按预先规则选定的完整同 provider 三组，绝不按成功与否或 token 高低选运行。
+有错误请求未报告 usage 时，总量为 UNKNOWN，单独保留 `known_total_tokens` 下限，不能把缺失当作 0。正常任务失败照常计入 token；额度错误、开发拒绝、预检、学习、headroom 和消融均在全尝试 ledger 中保留。正式 online 统计只使用 `cohorts/<task>.json` 按预先规则选定的完整同 provider 三组，绝不按成功与否或 token 高低选运行。
 
-逐任务 ratio 为 ours / baseline；合计 ratio 是两臂总 token 之比；二者平均方式不同，均明确标注。`tokens/success = 该臂所有正式任务 token / 通过题数`，包含该臂失败题的成本。通过题数不同的组不宜仅按这个商推断因果效率。
+逐任务 ratio 为 ours / baseline；合计 ratio 是两臂总 token 之比；二者平均方式不同，均明确标注。`online tokens/success = 该臂所有正式任务 online token / 通过题数`；首表的 `总 tokens/success = (该臂所有正式任务 online token + offline token) / 通过题数`，均包含该臂失败题的执行成本。通过题数不同的组不宜仅按这个商推断因果效率。
 
-## 离线适应成本
+## 离线学习（offline / adaptation）成本
 
 | 阶段 | Ours | LLM self-personalization |
 | --- | ---: | ---: |
@@ -53,15 +56,6 @@
 Ours 比 LLM 多 139,866 adaptation tokens。首次引用校验误拒消耗的 112,458 已计入；修复后可能避免该开销，但不能把“未来可以省”从本轮实测中扣除。两次投影不可用的尝试在模型调用前失败，不虚构 token；其错误仍留存。检索本身不调用模型。
 
 五条 history 的已知 token 合计为 921,952，其中一次 429 缺少 usage，因此只是下限。这批历史是两种学习 arm 的共享开发输入，未加到某一组的 online 或 adaptation。Oracle、verification、transport 预检、开发验证、Skill-only 对照也作为研究成本单列，不隐藏在最终 online 比较之外。
-
-下表的“online + adaptation”只做本轮 4 题上的学习成本摊销；它仍不包含共享 history、headroom 和验证研究成本，不是用户真实部署的完整总拥有成本。
-
-| arm | online | adaptation | 合计 | 合计 / success |
-| --- | --- | --- | --- | --- |
-| Vanilla | 723,323 | 0 | 723,323 | 241,108 |
-| Ours | 1,177,452 | 347,171 | 1,524,623 | 381,156 |
-| LLM | 693,808 | 207,305 | 901,113 | 225,278 |
-
 
 ## 实际余额与研究总成本
 
