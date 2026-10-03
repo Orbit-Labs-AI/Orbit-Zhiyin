@@ -119,6 +119,10 @@ function toolCategory(name: string): string {
   if (/web.*fetch|web.*open/.test(name)) return 'web.fetch';
   return 'other';
 }
+/**
+ * Codex writes exit_code -1 when no process exit status exists (the command was declined, interrupted
+ * or never spawned); the native status then decides, so -1 alone is not a failure.
+ */
 function status(value: unknown, exit: number | null = null, isError = false): string {
   if (isError || (exit !== null && exit !== 0 && exit !== -1)) return 'failed';
   const raw = string(value)?.replace('inProgress','in_progress');
@@ -126,14 +130,17 @@ function status(value: unknown, exit: number | null = null, isError = false): st
 }
 function usageAttrs(usage: Obj, settings: Obj, ctx: Context, request: string, accounting: string): Obj {
   const token=(v:unknown):number|null=>{const n=number(v);return n!==null&&Number.isSafeInteger(n)&&n>=0?n:null;};
-  const totalInput=token(usage.input_tokens),read=token(usage.cached_input_tokens),write=token(usage.cache_write_input_tokens);
+  // OpenAI usage has no cache-write bucket (only input_tokens_details.cached_tokens); Codex adds
+  // cache_write_input_tokens for providers that bill writes. An absent field therefore means 0, flagged.
+  const writeAbsent=!('cache_write_input_tokens' in usage);
+  const totalInput=token(usage.input_tokens),read=token(usage.cached_input_tokens),write=writeAbsent?0:token(usage.cache_write_input_tokens);
   const fresh=totalInput!==null&&read!==null&&write!==null?totalInput-read-write:null;
   return {provider:string(settings.model_provider_id)??string(ctx.meta.model_provider),model:string(settings.model),model_raw:string(settings.model),
     effort:string(settings.effort)??string(settings.reasoning_effort),effort_raw:string(settings.effort)??string(settings.reasoning_effort),request_id:accounting==='exact'?request:null,
     input_tokens:fresh!==null&&fresh>=0?fresh:null,cache_read_tokens:read,cache_write_tokens:write,
     output_tokens:token(usage.output_tokens),reasoning_tokens:token(usage.reasoning_output_tokens),
     accounting,estimated:ctx.kind==='import',native_usage:usage,reported:usage,usage_scope:'call',measurement:'delta',coverage:'self',
-    request_key:[ctx.source,ctx.session,request],purpose:ctx.kind==='review'?'review':ctx.kind==='subagent'?'subagent':ctx.kind==='auxiliary'?'auxiliary':'main'};
+    ...(writeAbsent?{cache_write_assumed_zero:true}:{}),request_key:[ctx.source,ctx.session,request],purpose:ctx.kind==='review'?'review':ctx.kind==='subagent'?'subagent':ctx.kind==='auxiliary'?'auxiliary':'main'};
 }
 /** Context-window saturation placeholder emitted by old Codex builds; it is not usage. */
 function syntheticTotal(info: Obj): boolean {
@@ -330,6 +337,26 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
     } else if (subtype==='thread_settings_applied') {
       emit('setting.change','harness',null,nonNull({model:string(object(p.thread_settings).model),effort:string(object(p.thread_settings).reasoning_effort),cwd:pathValue(object(p.thread_settings).cwd),settings:object(p.thread_settings)}));
     } else if (subtype==='thread_rolled_back') emit('branch','harness',null,nonNull({num_turns:number(p.num_turns)}));
+    // Pre-item_completed Codex builds (protocol *_end events). Results pair with the function_call by call_id;
+    // a later item_completed representation (priority 40) still wins over these (20).
+    else if (subtype==='error' || subtype==='stream_error') emit('error','harness',string(p.message),nonNull({error:p.message??null,reason:subtype==='stream_error'?'stream_error':null}));
+    else if (subtype==='exec_command_end' && string(p.call_id)) {
+      const exit=number(p.exit_code),call=string(p.call_id)!,duration=durationMs(p.duration);
+      const output=p.aggregated_output??p.formatted_output??p.stdout??p.stderr;
+      emit('tool.result','tool',typeof output==='string'?output:null,nonNull({name:'exec_command',status:exit===null||exit===-1?status(p.status,exit):exit===0?'completed':'failed',
+        exit_code:exit,duration_ms:duration,output:output??null,duration_source:duration!==null?'reported':'unknown',duration_quality:duration!==null?'reported':'missing',status_scope:'command'}),
+        stableJson(['tool',turn,call,'result']),20,call,call);
+    } else if (subtype==='patch_apply_end' && string(p.call_id)) {
+      const call=string(p.call_id)!;
+      emit('tool.result','tool',string(p.stdout)??string(p.stderr),nonNull({name:'apply_patch',status:typeof p.success==='boolean'?(p.success?'completed':'failed'):'unknown',
+        output:p.stdout??p.stderr??null,status_scope:'tool'}),stableJson(['tool',turn,call,'result']),20,call,call);
+    } else if (subtype==='mcp_tool_call_end' && string(p.call_id)) {
+      const call=string(p.call_id)!,invocation=object(p.invocation),result=object(p.result),duration=durationMs(p.duration);
+      const failed='Err' in result||Boolean(object(result.Ok).isError);
+      emit('tool.result','tool',content(object(result.Ok).content)||null,nonNull({name:`mcp__${string(invocation.server)??'unknown'}__${string(invocation.tool)??'unknown'}`,
+        status:Object.keys(result).length?(failed?'failed':'completed'):'unknown',is_error:failed,duration_ms:duration,output:p.result??null,
+        duration_source:duration!==null?'reported':'unknown',duration_quality:duration!==null?'reported':'missing',status_scope:'tool'}),stableJson(['tool',turn,call,'result']),20,call,call);
+    }
     else if (subtype==='context_compacted') emit('context.compaction','harness',null,{});
     else emit('unknown','harness',null,{native_type:row.native_type});
   } else if (type==='inter_agent_communication_metadata') emit('context.inject','harness',null,{origin:'peer',context_type:'peer_metadata',context:p});

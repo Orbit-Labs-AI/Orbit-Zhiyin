@@ -110,3 +110,10 @@ test('vendor token formats are redacted while counters, token types and look-ali
     words:'hf_hub_download npm_config_cache sk_test glpat- eyJhbGci AIzaShort self_hf_'+fill(34,'h')};
   assert.deepEqual(sanitize(keep),keep);
 });
+test('truncation cuts on a UTF-8 character boundary',()=>{
+  for (const budget of [8190,8191,8192]) {
+    const value=String(sanitize('中'.repeat(5000),'output',32*1024*1024,budget));
+    assert.ok(!value.includes('\uFFFD'));assert.match(value,/<truncated:sha256:[0-9a-f]{64}>$/);
+    const kept=value.replace(/<truncated:.*$/,'');assert.ok(Buffer.byteLength(kept)<=budget&&Buffer.byteLength(kept)>budget-3);
+  }
+});

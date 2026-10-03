@@ -42,7 +42,11 @@ export function sanitize(value: unknown, key = '', maxBytes = 32*1024*1024, tool
     const clean = redact(value);
     if (/<truncated:sha256:[0-9a-f]{64}>$/.test(clean)) return clean;
     // Bounded copies in L1/L2; the complete native field is still addressable in L0.
-    return Buffer.byteLength(clean) <= maxBytes ? clean : `${Buffer.from(clean).subarray(0,maxBytes).toString('utf8')}<truncated:sha256:${hash(value)}>`;
+    if (Buffer.byteLength(clean) <= maxBytes) return clean;
+    // Cut on a UTF-8 character boundary: never split a multi-byte sequence into U+FFFD.
+    const bytes=Buffer.from(clean); let cut=maxBytes;
+    while (cut>0 && (bytes[cut]! & 0xc0)===0x80) cut--;
+    return `${bytes.subarray(0,cut).toString('utf8')}<truncated:sha256:${hash(value)}>`;
   }
   if (Array.isArray(value)) return value.map(item => sanitize(item,key,maxBytes,toolBudget));
   if (value !== null && typeof value === 'object') {

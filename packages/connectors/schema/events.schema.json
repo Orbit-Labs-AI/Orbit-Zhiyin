@@ -1602,6 +1602,9 @@
         },
         "reset": {
           "type": "boolean"
+        },
+        "cache_write_assumed_zero": {
+          "type": "boolean"
         }
       },
       "required": [

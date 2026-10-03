@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { watchCodex } from '../src/watch.ts';
 import { promisify } from 'node:util';
-import { execFile,spawn } from 'node:child_process';
+import { execFile,spawn,spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
@@ -211,6 +211,8 @@ test('a stale maintenance file does not block ingestion; malformed records and d
   assert.equal((await stat(join(s.root,'tandem','raw'))).mode&0o777,0o700);
 }));
 test('an actually held maintenance lock defers ingest without acquiring a lock in the connector',async t=>sandbox(async s=>{
+  // The lock holder is a python3 flock child; without python3 the scenario cannot be staged.
+  if (spawnSync('python3',['-c','import fcntl'],{stdio:'ignore'}).status!==0) {t.skip('python3 with fcntl unavailable');return;}
   await writeFile(s.file,await fixture());await mkdir(join(s.home,'.tmp'));
   const lock=join(s.home,'.tmp','rollout-maintenance.lock');await writeFile(lock,'');
   const holder=spawn('python3',['-c','import sys,fcntl; f=open(sys.argv[1],"rb"); fcntl.flock(f,fcntl.LOCK_EX); print("held",flush=True); sys.stdin.read()',lock]);
@@ -524,4 +526,36 @@ test('turn timing from task_complete reaches L3; per-call timing is only attribu
   const columns=(table:string)=>s.store.db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all().map(row=>String(row.name));
   for (const dead of ['approval_wait_ms','error_class','skill','subagent_session_uid']) assert.ok(!columns('tool_call').includes(dead));
   assert.ok(!columns('session').includes('spawn_call_uid'));
+}));
+
+test('Codex usage without a cache_write field counts writes as 0 and flags the assumption',async()=>sandbox(async s=>{
+  await writeFile(s.file,jsonLine('session_meta',{id:'no-write'},0)+jsonLine('event_msg',{type:'task_started',turn_id:'t1'},1)+
+    jsonLine('token_usage_record',{turn_id:'t1',response_id:'r1',usage:{input_tokens:100,cached_input_tokens:30,output_tokens:10,reasoning_output_tokens:2}},2));
+  await s.connector.ingest();
+  assert.deepEqual({...s.store.db.prepare('SELECT input_tokens,cache_read_tokens,cache_write_tokens FROM model_call').get()},{input_tokens:70,cache_read_tokens:30,cache_write_tokens:0});
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='model.usage' AND json_extract(attrs,'$.cache_write_assumed_zero')=1"),1);
+}));
+test('pre-item_completed protocol events: errors, exec/patch/MCP end events complete their calls',async()=>sandbox(async s=>{
+  await writeFile(s.file,jsonLine('session_meta',{id:'old-protocol'},0)+jsonLine('event_msg',{type:'task_started',turn_id:'t1'},1)+
+    jsonLine('response_item',{type:'function_call',name:'shell',call_id:'s1',arguments:JSON.stringify({command:['bash','-lc','cargo test']})},2)+
+    jsonLine('event_msg',{type:'exec_command_end',call_id:'s1',exit_code:101,duration:{secs:3,nanos:500000000},aggregated_output:'failed'},3)+
+    jsonLine('response_item',{type:'function_call',name:'shell',call_id:'s2',arguments:JSON.stringify({command:['ls']})},4)+
+    jsonLine('event_msg',{type:'exec_command_end',call_id:'s2',exit_code:0,stdout:'a'},5)+
+    jsonLine('response_item',{type:'custom_tool_call',name:'apply_patch',call_id:'p1',input:'*** Begin Patch'},6)+
+    jsonLine('event_msg',{type:'patch_apply_end',call_id:'p1',success:true,stdout:'ok'},7)+
+    jsonLine('response_item',{type:'function_call',name:'mcp__docs__search',call_id:'m1',arguments:'{}'},8)+
+    jsonLine('event_msg',{type:'mcp_tool_call_end',call_id:'m1',invocation:{server:'docs',tool:'search'},result:{Err:'boom'}},9)+
+    jsonLine('event_msg',{type:'stream_error',message:'reconnecting'},10)+jsonLine('event_msg',{type:'error',message:'context window exceeded'},11));
+  const result=await s.connector.ingest();assert.equal(result.accounting.unparsed??0,0);
+  const calls=Object.fromEntries(s.store.db.prepare('SELECT name_raw,status,exit_code,duration_ms,command_head FROM tool_call').all().map(row=>[row.name_raw+':'+row.exit_code,[row.status,row.duration_ms,row.command_head]]));
+  assert.deepEqual(calls,{'shell:101':['failed',3500,'cargo test'],'shell:0':['completed',null,'ls'],'apply_patch:null':['completed',null,null],'mcp__docs__search:null':['failed',null,null]});
+  assert.deepEqual(s.store.db.prepare("SELECT text,json_extract(attrs,'$.reason') reason FROM event WHERE kind='error' ORDER BY seq").all().map(row=>[row.text,row.reason]),
+    [['reconnecting','stream_error'],['context window exceeded',null]]);
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='unknown'"),0);
+}));
+test('exit_code -1 defers to the native status; any other non-zero exit is a failure',async()=>sandbox(async s=>{
+  const run=(id:string,extra:Record<string,unknown>,ordinal:number)=>jsonLine('event_msg',{type:'item_completed',turn_id:'t1',item:{type:'CommandExecution',id,command:['pwd'],...extra}},ordinal);
+  await writeFile(s.file,jsonLine('session_meta',{id:'exit-codes'},0)+run('x1',{exit_code:-1},1)+run('x2',{exit_code:-1,status:'interrupted'},2)+run('x3',{exit_code:1,status:'completed'},3)+run('x4',{exit_code:0,status:'completed'},4));
+  await s.connector.ingest();
+  assert.deepEqual(s.store.db.prepare('SELECT t.status FROM tool_call t JOIN event e ON e.event_uid=t.call_event_uid ORDER BY e.seq').all().map(row=>row.status),['unknown','interrupted','failed','completed']);
 }));

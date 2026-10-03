@@ -130,7 +130,9 @@ uv run --project packages/data tandem-data --home .local/canonical verify
 - `call/delta` 派生为 `model_call`；累计事件只进入 `usage_snapshot`，不产生虚构请求 ID。`reported` 保存原始计数，缺失分桶保留 null，`coverage=self` 表示该线程的原生计量。模型与思考档位按请求当时的上下文/设置记录；模型不明确的会话累计不回填最后模型。
 - 统一的输入 token 不含缓存：原生 input 减去 cache read 和 cache write；output 已含 reasoning，不再相加。原生 usage 留在 `attrs.native_usage`。`rate_limits` 根据 `window_minutes` 判断 5 小时/周窗口。
 - 仅 `thread_spawn` 子代理使用继承切点；旧格式回退到触发消息或首个不在父会话里的 turn。guardian 单独标为 `review`，不套用切点。缺少父证据时保留 `replayed` 与缺口说明，不生成虚假的父事件。
-- URI 形式的命令 cwd 和图片路径转成普通路径；时间转 UTC 毫秒。Git remote 规范化并归并 worktree；本地仓库不存在时使用记录里的 Git remote，再回退到路径。
+- URI 形式的命令 cwd 和图片路径转成普通路径；时间转 UTC 毫秒。Git remote 规范化并归并 worktree；本地仓库不存在时使用记录里的 Git remote，再回退到路径。临时目录用常量表归入“临时工作区”：`~/Documents/Codex/`、`~/.claude/remote/` 总是归入；`/tmp`、`/private/tmp`、`/var/folders` 仅在不属于 Git 仓库时归入。
+- 用量缺少 `cache_write_input_tokens` 字段时按 0 计并标 `cache_write_assumed_zero`：OpenAI usage 只有缓存读取分桶，没有缓存写入计费。其他分桶缺失仍为 null。
+- 旧版协议事件：`error`/`stream_error` 映射为 `error`；`exec_command_end`、`patch_apply_end`、`mcp_tool_call_end` 按 call_id 补全对应工具结果（退出码、耗时、成败）。`web_search_end`、`background_event` 等其余旧事件暂不支持，落为 `unknown` 并告警。`exit_code=-1` 表示没有进程退出状态（拒绝、中断或未启动），状态取原生 status，不单独判失败。
 
 ## 原始归档与隐私
 
