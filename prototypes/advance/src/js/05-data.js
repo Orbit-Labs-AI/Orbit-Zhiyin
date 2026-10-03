@@ -181,10 +181,12 @@ function genSessions() {
   return all;
 }
 // 示例会话的四维倾向（只供画像页罗盘把每个会话归到它偏向的类型，不参与其它任何统计）：按会话 id 的哈希单独取随机数，
-// 不动 genSessions 的随机序列，其它页面的数字不变。类型权重让外圈多峰、四个方位都有起伏，你的类型 DIMV 最高；
-// 各 Agent 略偏向几种类型（Codex 偏委托求证、Gemini 偏即兴掌舵、DeepSeek 偏规划多线、Copilot 偏规划专注），色带的占比因此随方位变化。live 会话不带这个字段。
-const LEAN_W = { DIMV: 10, DIMT: 2.5, DIFT: 1.2, DIFV: 5, DPFV: 2, DPFT: 1, DPMT: 2, DPMV: 6, SPMV: 3, SPMT: 1, SPFT: 7, SPFV: 2, SIFV: 1.2, SIFT: 7, SIMT: 1.2, SIMV: 4 };
-const LEAN_AG = { cc: { DIMV: 1.4, SIMV: 1.3 }, cx: { DIFV: 2.6, DPFV: 1.5 }, gm: { SIFT: 2.6, SIMV: 1.6 }, ds: { DPMV: 2.4, DPMT: 2 }, cp: { SPFT: 3, SPFV: 2 } };
+// 不动 genSessions 的随机序列，其它页面的数字不变。类型权重让外圈有六个分开、宽窄高低不一的峰，四周大致均匀：DIMV（你的类型，
+// 最高，带 DIMT 一点肩）在 12 点右侧，DIFV + DPFV 一座宽峰在委托，DPMT 在右下，SPMV + SPMT 一座宽峰在规划左侧，SIFV 在掌舵，
+// SIMT 一座小峰在左上；峰之间的类型只有零星会话，谷底贴近基线。各 Agent 偏向其中一个峰（Claude Code 偏 DIMV、Codex 偏委托求证、
+// DeepSeek 偏规划多线、Copilot 偏规划掌舵、Gemini 偏即兴掌舵），徽章因此散在四周，每个峰里色带的占比也不同。live 会话不带这个字段。
+const LEAN_W = { DIMV: 6.5, DIMT: 1.4, DIFT: 0.2, DIFV: 2.4, DPFV: 2, DPFT: 0.2, DPMT: 1.6, DPMV: 0.2, SPMV: 1.8, SPMT: 2.2, SPFT: 0.2, SPFV: 0.2, SIFV: 4, SIFT: 0.2, SIMT: 1.6, SIMV: 0.2 };
+const LEAN_AG = { cc: { DIMV: 1.5 }, cx: { DIFV: 5 }, ds: { DPMT: 20 }, cp: { SPMT: 30 }, gm: { SIFV: 12 } };
 function demoLean(all) {
   all.forEach((s) => {
     const r = rng(hash(s.id + ':lean')), tilt = LEAN_AG[s.a] || {}, w = {};
