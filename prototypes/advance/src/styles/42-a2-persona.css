@@ -38,7 +38,8 @@
 .pe-evrow button>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .persona-hero .fp-wrap{justify-content:center;padding:40px 12px 24px}
 .pe-fpc{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
-.pe-fp-legend{flex-direction:column;align-items:flex-start;gap:6px;justify-content:flex-start;margin-top:0;max-width:360px;line-height:16px}
+.pe-fp-legend{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:6px;justify-content:center;margin-top:0;max-width:360px;line-height:16px}
+.pe-fp-legend>svg{flex:none}
 .pe-fp-legend>.row{align-items:center}
 /* fit card: title on one line, scale note beneath; meta as two fixed lines (sample · CI / friction · completion) */
 .pe-fit-h{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
