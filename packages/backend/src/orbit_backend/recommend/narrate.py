@@ -238,7 +238,14 @@ def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -
     else:
         cls = (ledger.get("ops") or {}).get(name) or {}
         note = "逐次实测"
-        if not cls.get("n"):  # nothing of this class was timed: an average tool call stands in
+        if name == "readonly":
+            # Approval waits are priced only from recorded waits (R8): the mean of the measured
+            # prompts; none recorded → not estimated, never the run time or an average tool call.
+            if not cls.get("n"):
+                return None
+            missing = int(cls.get("unmeasured") or 0)
+            note = (f"按 {int(cls['n'])} 次实测审批等待的均值" + (f"，另 {missing} 次未记录等待" if missing else ""))
+        elif not cls.get("n"):  # nothing of this class was timed: an average tool call stands in
             cls, note, pool = (ledger.get("ops") or {}).get("call") or {}, "按平均工具调用近似", "call"
         n, tokens, ms = int(cls.get("n") or 0), cls.get("tokens") or 0, cls.get("ms") or 0
     if n <= 0:
@@ -268,6 +275,8 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
     weeks = observed_weeks(sessions) if (sessions.get("weeks") or sessions.get("first_ts")) else 1.
     total = float(problem.get("weekly_count") or 0) * weeks
     cost = _op_cost(cand, raw, problem, ledger, total)
+    if cost is None and OP_OF.get(problem.get("type")) == "readonly":
+        return _unestimated("这些只读审批没有记录等待时长（approval_wait_ms 或审批请求到决定的间隔），不拿命令运行时长代替，暂不折算")
     if cost is None:
         return _unestimated("轨迹里没有可计量的对应操作")
     op, op_tokens, op_ms, note, pool = cost

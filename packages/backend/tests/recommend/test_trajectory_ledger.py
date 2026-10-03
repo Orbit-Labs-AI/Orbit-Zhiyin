@@ -83,3 +83,12 @@ def test_older_store_without_timing_columns_still_counts_tokens():
     conn.execute("INSERT INTO tool_call (call_uid, session_uid, started_at) VALUES ('t', 's', 1000)")
     ledger = section._ledger(conn, json.dumps(["s"]), {}, {}, [])
     assert ledger["tokens"] == 42 and ledger["active_ms"] == 0 and ledger["ops"]["call"]["n"] == 1
+
+
+def test_readonly_prompt_without_a_recorded_wait_is_counted_not_priced_by_run_time():
+    """R8: a flagged read-only call with no approval_wait_ms ran 1 000–4 000; that run time is not
+    an approval wait, so it adds nothing to the readonly ms and is counted as unmeasured."""
+    conn = _store()
+    flags = {"a": (False, True), "c": (False, True)}
+    ops = section._ledger(conn, json.dumps(["root", "sub"]), {"root": "root", "sub": "root"}, flags, [])["ops"]
+    assert ops["readonly"] == {"n": 1, "tokens": 0, "ms": 2500, "unmeasured": 1}

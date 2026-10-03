@@ -55,7 +55,7 @@ def fake_recall(cands, problems=None):
 def test_slate_shape_and_ui_keys():
     gated = raw("kb:risky", risk={"level": "high"})
     slate = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([raw("kb:ro-allow"), gated]))
-    assert slate["engine_version"] == "rec-engine-v2.3" and slate["status"] == "ready"
+    assert slate["engine_version"] == "rec-engine-v2.4" and slate["status"] == "ready"
     assert slate["kb_version"] == "kb-1" and slate["catalog_generation"] == 7 and slate["routes"] == {"kb": 2}
     top, low = slate["candidates"]
     assert top["rank"] == 1 and top["gates"]["passed"] and set(top["ui"]) == UI_KEYS
@@ -312,17 +312,26 @@ def test_volume_metrics_are_not_occurrence_counts():
     assert save["share"] == {"time": 2., "token": 2.} and save["time_pct"] == 1.2  # 2 turns of 100, × .6
 
 
-def test_unmeasured_approvals_take_the_cap_of_the_call_pool_that_priced_them():
-    """No read-only wait was timed (e.g. Codex): approvals are priced by the average tool call, so
-    their cap is the tool-call pool's — not the empty read-only pool, which zeroed the total while
-    the card itself showed a real share."""
-    ops = {"call": {"n": 200, "tokens": 400_000, "ms": 18_000_000}, "readonly": {"n": 0, "tokens": 0, "ms": 0}}
+def test_unmeasured_approvals_are_not_estimated():
+    """R8: no read-only wait was recorded (e.g. Codex without request→decision events): the card
+    says so instead of pricing approvals with the call's run time or the average tool call."""
+    ops = {"call": {"n": 200, "tokens": 400_000, "ms": 18_000_000},
+           "readonly": {"n": 0, "tokens": 0, "ms": 0, "unmeasured": 12}}
     untimed = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "ops": ops}}}
     prob = problem(ptype="permission_friction", key="permission_friction", weekly_count=10)
     save = ui_of(raw("kb:ro-allow", prob=prob), untimed)["save"]
-    assert save["op"] == "readonly" and save["group"] == "call" and "按平均工具调用近似" in save["basis"]
-    assert save["share"]["time"] > 0 and save["cap"] == {"time": 50., "token": 40.}
-    assert narrate.total_saving([save]) == {"time": save["time_pct"], "token": 0.}
+    assert save["time_pct"] is None and save["token_pct"] is None and "approval_wait_ms" in save["basis"]
+    assert narrate.total_saving([save]) is None or narrate.total_saving([save]) == {"time": 0., "token": 0.}
+
+
+def test_partly_measured_approvals_use_the_measured_mean_and_say_so():
+    ops = {"call": {"n": 200, "tokens": 400_000, "ms": 18_000_000},
+           "readonly": {"n": 4, "tokens": 0, "ms": 40_000, "unmeasured": 6}}
+    timed = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "ops": ops}}}
+    prob = problem(ptype="permission_friction", key="permission_friction", weekly_count=2)
+    save = ui_of(raw("kb:ro-allow", prob=prob), timed)["save"]
+    assert save["op"] == "readonly" and save["group"] == "readonly"
+    assert "按 4 次实测审批等待的均值，另 6 次未记录等待" in save["basis"]
 
 
 def test_total_saving_matches_the_shared_cases():

@@ -416,7 +416,9 @@ def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
     tokens to the calls whose results it answered, both split evenly. A failed call therefore
     carries its run, the model's reaction and the request that read its error; whatever no call
     holds (user turns, answers) stays only in the totals. Approved read-only prompts carry just
-    their approval wait (the call itself still runs after an allow-list), no tokens."""
+    their recorded approval wait (``approval_wait_ms`` or a permission request→decision gap; the
+    call itself still runs after an allow-list), no tokens; prompts without a recorded wait are
+    only counted (``ops.readonly.unmeasured``), never priced with the call's run time."""
     from ..uiview.metrics import IDLE_CAP_MS
     from ..uiview.sessions import HUMAN_WHERE
 
@@ -449,18 +451,22 @@ def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
             f"FROM tool_call t WHERE t.session_uid IN {UIDS}", (uids,)):
         calls[root_of.get(uid, uid)].append((start, end, wait, flags.get(call_uid, (False, False))))
     ops = {name: [0, 0., 0.] for name in OP_CLASSES}  # n, tokens, ms
+    unmeasured: dict[str, int] = {}
     for root in set(calls) | set(requests):
-        _attribute(calls.get(root, []), requests.get(root, []), IDLE_CAP_MS, ops)
+        _attribute(calls.get(root, []), requests.get(root, []), IDLE_CAP_MS, ops, unmeasured)
     for _root, wait in waits:
         ops["readonly"][0] += 1
         ops["readonly"][2] += min(max(0, wait), IDLE_CAP_MS)
     return {"tokens": total, "active_ms": sum(active.values()), "turns": turns,
             "requests": sum(by_agent.values()), "requests_by_agent": dict(sorted(by_agent.items())),
-            "ops": {name: {"n": n, "tokens": round(tok), "ms": round(ms)} for name, (n, tok, ms) in ops.items()}}
+            "ops": {name: {"n": n, "tokens": round(tok), "ms": round(ms),
+                           **({"unmeasured": unmeasured[name]} if name in unmeasured else {})}
+                    for name, (n, tok, ms) in ops.items()}}
 
 
-def _attribute(calls: list, requests: list, cap: int, ops: dict) -> None:
+def _attribute(calls: list, requests: list, cap: int, ops: dict, unmeasured: dict | None = None) -> None:
     """Add one session tree's per-call tokens and active milliseconds to ``ops`` (see _ledger)."""
+    unmeasured = {} if unmeasured is None else unmeasured
     cost = [[0., 0.] for _ in calls]
     points = []
     for i, (start, end, _wait, _flags) in enumerate(calls):
@@ -492,10 +498,13 @@ def _attribute(calls: list, requests: list, cap: int, ops: dict) -> None:
             ops[name][1] += tokens
             ops[name][2] += ms
         if readonly:
-            span = wait if wait is not None else (end - start if start is not None and end is not None else None)
-            if span is not None:
+            # Only a recorded approval wait is a wait: the call's run time is not (R8). Unmeasured
+            # prompts are counted apart so the card can say its cost was not measured.
+            if wait is not None:
                 ops["readonly"][0] += 1
-                ops["readonly"][2] += min(max(0, span), cap)
+                ops["readonly"][2] += min(max(0, wait), cap)
+            else:
+                unmeasured["readonly"] = unmeasured.get("readonly", 0) + 1
 
 
 def _tally(values) -> dict:
