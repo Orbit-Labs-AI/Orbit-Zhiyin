@@ -1,14 +1,19 @@
-/* 10-intro 1a–1c（b0–12.6） — STORYBOARD.md v17「1a」「1b」「1c」与 K2 H0–H2.
-   Pacing (v17 pace pass): every change is slow enough to follow — badges pop over .5 beat, words wipe in over .45 beat,
-   typing runs ≈ 8.5 characters a beat, bubbles rise out of their dot over .6 beat and stay ≥ 1.4 beats — and nothing
-   freezes: the type keeps a slow push, bubbles float, the dots drift and the halo turns.
-   1a 现在，每天无数人在使用 AI Agent（b0–4.2）：5 个 AGD 点依次弹出到 scatterA，两行字逐词擦入，点随字轻呼吸。
-   1b 从想法到交付（b4–8.8）：点收拢到 arc，输入框 b3.8 升起、打字发送 3 次 + 各点自己冒出 prompt 气泡；b6.95 起 12 个
-      App 图标从 5 个点和输入框中心沿弧线喷出（1 拍），落到椭圆光环（960, 520, rx 760, ry 380）上缓慢公转。
-   1c We Are Redesigning Everything（b8.6–12.6）：点退到 scatterC；两行大字逐词擦入，每个词把光环上最近的 3 个图标
-      吸近 40px 再弹回；b10.3 起图标转向朝外并缩到 .7，b11.7 沿径向飞出画面。b12.6 前本场景的图标与文字全部清空，
-      b12.4 起的 AGD key 归 15-redesign。
-   图标画在 #agdBack（AGD.back，在 Agent 点之下），所以它们是从点和输入框「后面」迸出来的。 */
+/* 10-intro 1a–1c（b0–11.8 for the dots, b12.6 for the type and icons） — STORYBOARD.md v17.1「V1」「V2 T0–T3′」「V4」, v17「1a」「1b」「1c」.
+   Pacing (v17 pace pass): every change is slow enough to follow — words wipe in over .45 beat, typing runs ≈ 8.5
+   characters a beat, bubbles rise out of their dot over .6 beat and stay ≥ 1.25 beats, icons fly 1 beat — and nothing
+   freezes: the type keeps a slow push, bubbles float, the dots drift / breathe and the halo turns.
+   The five dots are one tight group the eye follows, and the content comes out of it:
+   1a 现在，每天无数人在使用 AI Agent（b0–4.2）：a cluster (R 60) pops in the middle of the black, 「现在，」 above it; from b0.8
+      the dots are a ∪ pen under the headline, gliding under each word just before it wipes in, back to the centre and up
+      with the line's exit.
+   1b 从想法到交付（b4–8.8）：the pen turns over into the narrow ∩ arc (b3.6); the input box grows out of the dots (b4.0) and
+      shrinks back into them (b7.3–7.7); 3 typed sends + each dot's own prompt, one bubble slot per dot in two layers;
+      b6.95 12 App icons spray from the dots and the box along arcs (1 beat) onto the halo (960, 520, rx 760, ry 380).
+   1c We Are Redesigning Everything（b8.6–12.6）：the arc folds into a caret (b8.2) that leads the type word by word, then
+      walks an L to the right of 「Everything」 and rests there; each word draws the 3 nearest icons 40 px in; b10.3 the
+      icons turn outward and shrink to .7, b11.7 they fly out along the radius. The b11.8 AGD key (caret → arc) belongs
+      to 15-redesign; this scene writes no key after b8.2.
+   The icons are drawn in #agdBack (AGD.back, under the Agent dots), so they burst from behind the dots and the box. */
 scene('10-intro', () => {
   css(`
 .ln.lt.in-now{color:rgba(255,255,255,.6)}
@@ -40,57 +45,97 @@ scene('10-intro', () => {
     leave(el, 1 - q, o.spread);
   };
 
+  // Live word geometry for the pen (1a) and the caret (1c): the layout widths of a line's .w words (offsetWidth, the
+  // same numbers wipe() reads), measured off-screen and cached once the fonts are in, so the dots follow the type as it
+  // is set — pure functions of the beat, no dependence on the frame order.
+  const wordsOf = (cls, html) => {
+    let W = null;
+    return () => {
+      if (W) return W;
+      const k = document.createElement('div'); k.className = 'k'; k.style.cssText = 'left:0;top:0;visibility:hidden';
+      k.innerHTML = '<span class="ln ' + cls + '"><span>' + html + '</span></span>'; fxEl.appendChild(k);
+      const ws = [...k.querySelectorAll('.w')].map((w) => w.offsetWidth); k.remove();
+      if (document.fonts.status === 'loaded' && ws.every((v) => v > 0)) W = ws;
+      return ws;
+    };
+  };
+  const sum = (W, n) => W.slice(0, n).reduce((s, v) => s + v, 0);
+  // piecewise glide: from x0, E.inOut to each [b0, b1, to] in turn (to may be a function of the beat)
+  const glide = (b, x0, segs) => segs.reduce((x, [b0, b1, to]) => lerp(x, typeof to === 'function' ? to(b) : to, E.inOut(clamp((b - b0) / (b1 - b0)))), x0);
+
   /* ---------- 1a（b0–4.2） ---------- */
-  // H0: pop in one after another every .25 beat (E.back over .5 beats) — b0.2 … b1.7
-  AGD.key(0.2, 'pts', { pts: AGD.P.scatterA, r: 40, dur: .5, stag: .25 });
-  // 1a.2: 「现在，」 blurs in b0.5–1.8; the headline wipes in a word on b0.9 / 1.5 / 2.1 / 2.7 (.45 beat each, ≤ 1600)
-  // 1a.3: both lines leave b3.6–4.2 — fade + blur, drifting up 60 px; until then both keep a slow push (+6 %)
+  // T0 (b0.2–0.98): a tight cluster in the middle of the black, popping in one after another (E.back .3 beats, stag .12):
+  // cc (960, 500) / cx (1017, 541) / gm (995, 609) / ds (925, 609) / cp (903, 541), turning 8°/beat
+  AGD.key(0.2, 'ring', { ...AGD.P.cluster, ph: 0, dur: .3, stag: .12 });
+  // 1a.2: 「现在，」 blurs in from b0.4 over the cluster (y 430, the cluster's top edge is y 466); the headline wipes in a word
+  // on b0.9 / 1.5 / 2.1 / 2.7 (.45 beat each, ≤ 1600). 1a.3: both lines leave b3.6–4.2 — fade + blur, drifting up 60 px;
+  // until then both keep a slow push (+6 %)
   const up60 = (tl, life) => -60 * E.inOut(clamp((tl - (life - BB(.6))) / BB(.6)));
-  txt(0.5, 4.2, [['lt in-now', '现在，']], { x: 960, y: 430, align: 'c' }, {
+  txt(0.4, 4.2, [['lt in-now', '现在，']], { x: 960, y: 430, align: 'c' }, {
     anim: K.blurIn({ spread: .8, dur: .5, out: .6 }),
     tick: (el, tl, life) => { el.style.transform = 'translate(-50%,-50%) translateY(' + up60(tl, life).toFixed(1) + 'px) scale(' + (1 + .06 * tl / life).toFixed(4) + ')'; }
   });
-  txt(0.5, 4.2, [['hv sv in-big', '<span class="w">每天</span><span class="w">无数人</span><span class="w">在使用</span><span class="w"> AI Agent</span>']],
-    { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: [.4, 1.0, 1.6, 2.2], fit: 1600, push: .06, up: 60, out: .6 }) });
-  // every dot that is already out breathes (1.06, .5 beats) as each word lands
-  for (const w of [0.9, 1.5, 2.1, 2.7]) for (let i = 0; i < 5; i++) if (0.2 + .25 * i + .5 <= w) AGD.pulse(i, w + .03 * i, 1.06, .5);
-  // H1: radial gather onto the arc above the input box (b3.8 → 4.94)
-  AGD.key(3.8, 'pts', { pts: AGD.P.arc, r: 40, dur: .9, stag: .06 });
+  const HEAD = ['hv sv in-big', '<span class="w">每天</span><span class="w">无数人</span><span class="w">在使用</span><span class="w"> AI Agent</span>'];
+  const HB0 = .5, HB1 = 4.2, HAT = [.4, 1.0, 1.6, 2.2];
+  txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: HAT, fit: 1600, push: .06, up: 60, out: .6 }) });
+  // T0′ the pen (b0.8–3.6): a ∪ arc (gap 56, sag −14, r 28) 112 px under the headline, centred under the newest word. A
+  // centred line re-centres as a word grows, so word k sits at 960 + (width of the words before it) / 2 for its whole
+  // wipe (× the push); the pen glides there (E.io .45) and arrives .1 beat before the word starts, then returns to 960
+  // once the line is whole (b3.1–3.6) and rises with the line's exit (652 → 592, same ease and beats as up60)
+  const headW = wordsOf(HEAD[0], HEAD[1]);
+  const headC = (k) => (b) => {
+    const W = headW(), p = sum(W, k);
+    return 960 + p / 2 * Math.min(1, 1600 / sum(W, k + 1)) * (1 + .06 * clamp((b - HB0) / (HB1 - HB0)));
+  };
+  const penX = (b) => glide(b, 960, [1, 2, 3].map((k) => [HB0 + HAT[k] - .55, HB0 + HAT[k] - .1, headC(k)]).concat([[3.1, 3.6, 960]]));
+  const penY = (b) => 652 - 60 * E.inOut(clamp((b - (HB1 - .6)) / .6));
+  // front-loaded (smoothstep into a cubic ease-out, zero speed at both ends) so the cluster clears the type band
+  // (y 480–600) while 「每天」 is still wiping in: at b1.0 the dots are ≈ 75 % of the way down
+  const PEN_E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
+  AGD.key(0.8, 'arc', { cx: penX, cy: penY, gap: 56, sag: -14, r: 28, dur: .5, stag: .04, ease: PEN_E });
+  // every dot breathes (1.06, .5 beats) as each word lands
+  for (const k of [0, 1, 2, 3]) for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[k] + .03 * i, 1.06, .5);
+  // T1 (b3.6 → 4.76): the ∪ pen turns over into the ∩ arc in place (the centre moves 16 px) and opens to gap 112:
+  // cc (736, 632) / cx (848, 614) / gm (960, 608) / ds (1072, 614) / cp (1184, 632); from b4.6 the dots drift ≤ 6 px
+  const drift = (b) => 6 * E.inOut(clamp((b - 4.6) / 1.0));
+  AGD.key(3.6, 'arc', {
+    ...AGD.P.arcB, dur: 1.0, stag: .04,
+    cx: (b, i) => AGD.P.arcB.cx + drift(b) * Math.sin(2 * Math.PI * (b / 8 + .23 * i)),
+    cy: (b, i) => AGD.P.arcB.cy + .6 * drift(b) * Math.sin(2 * Math.PI * (b / 10 + .37 * i))
+  });
 
   /* ---------- 1b（b4–8.8） ---------- */
-  // the box rises with 1a's exit (b3.8–4.2) and sinks b7.3–7.7, before the icons reach the bottom of the halo
-  const c = AGD.chat(3.8, 7.7, { x: 960, y: 760, w: 980 });
+  // the box grows out of the dots' centre (≈ 960, 615) from b4.0 and lands at (960, 760) by b4.6; after the last send
+  // it shrinks back into the arc (b7.3–7.7), as the icons reach the halo
+  const c = AGD.chat(4.0, 7.7, { x: 960, y: 760, w: 980, from: AGD.centroid, to: AGD.centroid });
   // masked rise b4.1–5.1, slow push (+4 %); leaves b6.8–7.4, up ≈ 40 px, before the top icons cross y ≈ 316
   txt(4.1, 7.4, [['hv sv in-t1', '从想法到交付']], { x: 960, y: 250, align: 'c' },
     { tick: (el, tl, life) => { el.style.transform = 'translate(-50%,-50%) scale(' + (1 + .04 * tl / life).toFixed(4) + ')'; } });
-  // A bubble above a dot sits at dy = −r − 18; when a second one arrives on the same dot the older one is pushed up a slot.
-  // gm's sent prompt hangs below it instead (pushing gm's own bubble up would run into the headline).
-  // Every bubble pops (.25 beat, AGD) while its tail rises 26 px out of the dot over .6 beats, then floats on away from
-  // the dot at 5 px/beat; pushes = beats at which a newer bubble on the same dot shoves it up one slot (over .4 beats).
-  const ABOVE = -40 - 18, SLOT = 72;
-  const rise = (b0, base, pushes = []) => (b) => {
-    const s = base < 0 ? -1 : 1;
-    return base + s * (-26 * (1 - E.out(clamp((b - b0) / .6))) + 5 * Math.max(0, b - b0)) -
-      SLOT * pushes.reduce((v, tp) => v + E.inOut(clamp((b - tp + .1) / .4)), 0);
-  };
+  // T2: every dot has one bubble slot, in two layers so nothing overlaps: lower (dy −r − 18, y ≈ 508–572) cc tail x 560 /
+  // gm 960 / cp 1360; upper (dy −r − 104, y ≈ 404–468) cx 740 / ds 1180, with a stem down to the dot. A second bubble on
+  // the same dot replaces the first (AGD's default: the old one shrinks into the dot as the new one pops); each stays
+  // ≥ 1.25 beats. Every bubble's tail rises 26 px out of the dot over .6 beats, then floats on away from it at 5 px/beat.
+  const BR = AGD.P.arcB.r, SLOT = [[-176, -BR - 18], [-108, -BR - 104, true], [0, -BR - 18], [108, -BR - 104, true], [176, -BR - 18]];
+  const rise = (b0, base) => (b) => base + 26 * (1 - E.out(clamp((b - b0) / .6))) - 5 * Math.max(0, b - b0);
+  const slot = (i, b0, o = {}) => ({ dx: SLOT[i][0], dy: rise(b0, SLOT[i][1]), stem: !!SLOT[i][2], ...o });
   // typing ≈ 8.5 characters a beat; each prompt sits whole for .2 beat (caret blinking) before its send
-  c.type(4.15, '做一个记账 App', 1.0); c.send(5.35, 0, { until: 7.75, dy: rise(5.5, ABOVE, [6.75]) });
-  c.type(5.45, '写份路演稿', .55); c.send(6.15, 2, { until: 7.8, dy: rise(6.3, 40 + 14) });
-  c.type(6.25, '生成产品官网', .65); c.send(7.05, 4, { until: 8.4, dy: rise(7.2, ABOVE) });
-  // the dots' own prompts (kind 'ask', 1.4–1.9 beats each; the late ones retract in turn b7.3–8.4 after the icons burst)
-  AGD.bubble(1, 4.6, 6.5, '做个数据看板', { dy: rise(4.6, ABOVE) });
-  AGD.bubble(3, 5.05, 6.9, '写个爬虫', { dy: rise(5.05, ABOVE) });
-  AGD.bubble(2, 5.85, 7.3, '画一套图标', { dy: rise(5.85, ABOVE) });
-  AGD.bubble(4, 6.35, 7.9, '整理会议纪要', { dy: rise(6.35, ABOVE, [7.2]) });
-  AGD.bubble(0, 6.75, 8.15, '做个小游戏', { dy: rise(6.75, ABOVE) });
+  c.type(4.15, '做一个记账 App', 1.0); c.send(5.35, 0, slot(0, 5.5, { until: 7.75 }));
+  c.type(5.45, '写份路演稿', .55); c.send(6.15, 1, slot(1, 6.3, { until: 7.8 }));
+  c.type(6.25, '生成产品官网', .65); c.send(7.05, 3, slot(3, 7.2, { until: 8.4 }));
+  // the dots' own prompts (kind 'ask'; the late ones retract in turn b7.3–8.4 after the icons burst)
+  AGD.bubble(1, 4.6, 6.5, '做个数据看板', slot(1, 4.6));
+  AGD.bubble(3, 5.05, 7.6, '写个爬虫', slot(3, 5.05));
+  AGD.bubble(2, 5.85, 7.3, '画一套图标', slot(2, 5.85));
+  AGD.bubble(4, 6.35, 7.9, '整理会议纪要', slot(4, 6.35));
+  AGD.bubble(0, 6.75, 8.15, '做个小游戏', slot(0, 6.75));
   // each dot glows and breathes as a bubble leaves it
-  for (const [i, b] of [[1, 4.6], [3, 5.05], [0, 5.5], [2, 5.85], [2, 6.3], [4, 6.35], [0, 6.75], [4, 7.2]]) {
+  for (const [i, b] of [[1, 4.6], [3, 5.05], [0, 5.5], [2, 5.85], [1, 6.3], [4, 6.35], [0, 6.75], [3, 7.2]]) {
     AGD.glow(i, b, b + .6, .8); AGD.pulse(i, b, 1.08, .5);
   }
 
   /* ---------- 1b.3 – 1c: the App icons ---------- */
   // 12 rounded tiles (88 px, dark glass, white line glyphs drawn here — no third-party marks), in ring order θ = 30k.
-  // Phase: at b≈10.5 the two top slots straddle 12 o'clock, so gm's dot (scatterC 960, 110) never sits on an icon.
+  // Phase: at b≈10.5 the two top slots straddle 12 o'clock.
   const G = [
     'M-10-16h13l9 9v23h-22z M3-16v9h9 M-5-4h5 M-5 3h12 M-5 10h12',                                             // document
     'M-17-12h34v22h-34z M0 10v6 M-7 16h14 M-4-6.5l9 5.5-9 5.5z',                                                 // slides
@@ -134,7 +179,8 @@ scene('10-intro', () => {
     } else {
       const q = clamp((b - t0 - FL) / .4); rot = -R0[k] * .3 * Math.pow(Math.sin(Math.PI * q), 2);
     }
-    // H2: the dots cross the halo on their way out — icons near a dot ease aside (soft, continuous), never under it
+    // icons near a dot ease aside (soft, continuous), never under it (v17's scatter crossed the halo; the compact v17.1
+    // group stays inside it, so this rarely fires)
     const wr = clamp((b - t0 - FL) / .3);
     if (wr > 0) for (let i = 0; i < 5; i++) {
       const d = AGD.pos(i, b); if (d.a <= .01) continue;
@@ -170,15 +216,27 @@ scene('10-intro', () => {
   });
 
   /* ---------- 1c（b8.6–12.6） ---------- */
-  // H2: radial out to the edges, beyond the halo (b8.4 → 9.8)
-  // Same 1.2 beats / stag .05 as K2, but front-loaded (smoothstep into a cubic ease-out, still zero speed at both ends):
-  // with plain E.inOut gm is still at y ≈ 468 at b8.8, right under 「We」 (960, 470); this way it is at y ≈ 340.
-  const H2E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
-  AGD.key(8.4, 'pts', { pts: AGD.P.scatterC, r: 30, a: .55, dur: 1.2, stag: .05, ease: H2E });
   // 1c.2: two lines, one word wiping in per half beat (b8.8 We / 9.3 Are / 9.8 Redesigning / 10.3 Everything, .45–.5 beat
   // each), slow push meanwhile; 1c.4: the letters drift apart as both lines leave (b11.8–12.6)
-  txt(8.8, 12.6, [['xl sv in-w1', '<span class="w">We</span><span class="w"> Are</span><span class="w"> Redesigning</span>']],
-    { x: 960, y: 470, align: 'c' }, { anim: wipe({ at: [0, .5, 1.0], fit: 1150, push: .04, out: .8, spread: true }) });
+  const W1 = ['xl sv in-w1', '<span class="w">We</span><span class="w"> Are</span><span class="w"> Redesigning</span>'];
+  const CB0 = 8.8, CB1 = 12.6, CAT = [0, .5, 1.0];
+  txt(CB0, CB1, [W1], { x: 960, y: 470, align: 'c' }, { anim: wipe({ at: CAT, fit: 1150, push: .04, out: .8, spread: true }) });
+  // T3 / T3′ the caret (b8.2–11.8): the arc folds into a short column (gap 34, r 16, ≈ 168 px tall like the 120 px type;
+  // cc on top, cp at the bottom, paths don't cross) standing 52 px right of the line's right edge once the next word is
+  // in (fit 1150, × the push), so each word wipes in to its left; it steps on (E.io .4) .1 beat before each word:
+  // ≈ 1100 (We) → 1222 (We Are) → 1587 (We Are Redesigning). Then an L, down first, outside the first line's right end:
+  // y 470 → 615 (b9.95–10.3), x → 1400 (b10.1–10.5), and 「Everything」 (y 615, x ≈ 580–1340) wipes in on its left.
+  // b10.5–11.8 it rests at (1400, 615), breathing; 15-redesign's b11.8 arc key takes it from there (T4).
+  const w1W = wordsOf(W1[0], W1[1]);
+  const w1R = (k) => (b) => {
+    const s = sum(w1W(), k + 1);
+    return 960 + s / 2 * Math.min(1, 1150 / s) * (1 + .04 * clamp((b - CB0) / (CB1 - CB0))) + 52;
+  };
+  const caretX = (b) => glide(b, w1R(0)(b), [[CB0 + CAT[1] - .5, CB0 + CAT[1] - .1, w1R(1)], [CB0 + CAT[2] - .5, CB0 + CAT[2] - .1, w1R(2)], [10.1, 10.5, 1400]]);
+  const caretY = (b) => glide(b, 470, [[9.95, 10.3, 615]]);
+  AGD.key(8.2, 'column', { x: caretX, y0: (b) => caretY(b) - 68, gap: 34, r: 16, dur: .55, stag: .03, arc: 20 });
+  // the caret ripples (1.06, top to bottom) as each word lands and its icons are drawn in, then keeps breathing at rest
+  for (const w of [8.8, 9.3, 9.8, 10.3, 10.85, 11.4]) for (let i = 0; i < 5; i++) AGD.pulse(i, w + .04 * i, 1.06, .5);
   txt(10.3, 12.6, [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
     { anim: wipe({ at: [0], dur: .5, push: .03, out: .8, spread: true }) });
 });
