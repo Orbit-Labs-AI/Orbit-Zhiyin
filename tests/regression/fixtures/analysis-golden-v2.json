@@ -4071,6 +4071,7 @@
       "task_success": null,
       "unknown_n": null,
       "unknown_reasons": {
+       "heuristic_task_identity": null,
        "human_origin": null,
        "no_prior_same_task_delivery": null,
        "unmeasurable_text": null
@@ -4211,7 +4212,7 @@
      }
     }
    ],
-   "sha256": "1af635ae8ad9737231d036c236d1fc0d6a84ca89e87709e9ae392b38f788c65c",
+   "sha256": "0e1d89aa328dd521364406ebe8931f30eb0a0b2977a0cecf7b1aeb3d03eb503b",
    "summary": "list[12]"
   },
   "sessions.bottleneck_features": {
@@ -6719,6 +6720,8 @@
      "child_task_unknown_n": null,
      "edges_by_kind": {
       "BELONGS_TO_TASK": null,
+      "CORRECTS": null,
+      "EVALUATES": null,
       "RETRIES": null,
       "SPAWNS": null
      },
@@ -6729,6 +6732,7 @@
      "invalid_instruction_replacements": [],
      "nodes_by_kind": {
       "Artifact": null,
+      "Delivery": null,
       "Feedback": null,
       "Instruction": null,
       "ModelCall": null,
@@ -6747,10 +6751,12 @@
       "acceptance_sets": [],
       "counts": {
        "candidate_retries": null,
+       "rework_feedback": null,
        "tool_failed": null,
        "tool_success": null
       },
       "members": {
+       "Delivery": [],
        "Feedback": [],
        "Instruction": [],
        "ModelCall": [],
@@ -6766,11 +6772,11 @@
      }
     ]
    },
-   "sha256": "403aba3c0b652683f064c81b8c49622578c4371ba1e842c52e4f457f632031a4",
+   "sha256": "0fea1f4625836e04b2c924cc4252bf67b89545b2de8d2337338ef83aab4f0844",
    "summary": {
     "confidence_semantics": "evidence tiers; no calibrated correctness or utility probability",
-    "edges": "list[3625]",
-    "nodes": "list[3817]",
+    "edges": "list[4437]",
+    "nodes": "list[4432]",
     "schema_version": "work-graph-v1",
     "status": "available",
     "summary": "dict[10]",
@@ -7235,7 +7241,7 @@
      },
      "task_instructions": []
     },
-    "sha256": "12ebff18d38eed949c511314eb6c4829bd5af4b2bc35f287820ef984a9a1f452",
+    "sha256": "43d29e92d51ee1fe79f33bade2dbcdcdc95f07e17ae1d89ef7782696b59d0ffb",
     "summary": {
      "candidates": "list[0]",
      "coverage": "dict[6]",
@@ -7324,11 +7330,11 @@
      "unit": null,
      "vectorizer_version": null
     },
-    "sha256": "74d336c6181fafa5ac9c99303bbd588cb55bc59150355ec546703939c0724983",
+    "sha256": "2fa0d15347bcd0c12513a85f5f2bf6f63c54a651d860b2299c72573857e0ddcf",
     "summary": {
      "axes_meaning": "visualization only",
      "clustering": "dict[9]",
-     "clusters": "list[4]",
+     "clusters": "list[5]",
      "coordinates": "list[30]",
      "correction_terms": "dict[3]",
      "effective_n": 30,
