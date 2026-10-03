@@ -99,6 +99,7 @@ LVN.addSource = async function (o) {
   }
   const agent = o.agent && o.agent !== 'auto' ? o.agent : LVN.agentFromPath(path);
   if (!agent) throw Object.assign(new Error('认不出这是哪个 Agent 的目录，先在左边选择 Agent'), { path });
+  if (!LV.importable(agent)) throw Object.assign(new Error(lvAgentOf(agent).name + ' 暂不支持导入会话：Orbit 还没有它的会话连接器'), { path });
   try {
     const res = await TL.send('POST', '/v1/app/sources', { agent, root: path, enabled: true });
     return { ok: true, source: res.data, agent, root: path };

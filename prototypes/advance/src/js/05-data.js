@@ -2,13 +2,13 @@
 const AG = [
   { id: 'cc', name: 'Claude Code', short: 'Claude', c: 'var(--a1)', t: 'var(--a1t)', path: '~/.claude/projects', ver: 'v2.1', model: 'claude-opus-5-5 · thinking high', cli: 'claude -p', resume: 'claude --resume', all: 1412 },
   { id: 'cx', name: 'Codex', short: 'Codex', c: 'var(--a2)', t: 'var(--a2t)', path: '~/.codex/sessions', ver: '0.62', model: '默认模型 · reasoning high', cli: 'codex exec', resume: 'codex resume', all: 498 },
-  { id: 'gm', name: 'Gemini CLI', short: 'Gemini', c: 'var(--a3)', t: 'var(--a3t)', path: '~/.gemini/tmp', ver: '0.31', model: '默认模型', cli: 'gemini -p', resume: 'gemini --resume', all: 211 },
+  { id: 'km', name: 'Kimi CLI', short: 'Kimi', c: 'var(--a3)', t: 'var(--a3t)', path: '~/.kimi-code/sessions', ver: '0.31', model: '默认模型', cli: 'kimi', resume: 'kimi --session', all: 211 },
   { id: 'ds', name: 'DeepSeek Harness', short: 'DeepSeek', c: 'var(--a4)', t: 'var(--a4t)', path: '~/.dsh/sessions', ver: '1.4', model: '默认模型', cli: 'dsh run', resume: 'dsh resume', all: 160 },
-  { id: 'cp', name: 'Copilot CLI', short: 'Copilot', c: 'var(--a5)', t: 'var(--a5t)', path: '~/.copilot/history', ver: '0.9', model: '默认模型', cli: 'copilot -p', resume: 'copilot --resume', all: 135 }
+  { id: 'oc', name: 'OpenCode', short: 'OpenCode', c: 'var(--a5)', t: 'var(--a5t)', path: '~/.local/share/opencode', ver: '0.9', model: '默认模型', cli: 'opencode run', resume: 'opencode --session', all: 135 }
 ];
 const AGI = {}; AG.forEach((a, i) => { AGI[a.id] = a; });
-const AGF = { cc: 1.05, cx: 0.95, gm: 0.82, ds: 0.72, cp: 0.78 };
-const AGFR = { cc: 0.85, cx: 1.1, gm: 1.55, ds: 1.25, cp: 1.6 };
+const AGF = { cc: 1.05, cx: 0.95, km: 0.82, ds: 0.72, oc: 0.78 };
+const AGFR = { cc: 0.85, cx: 1.1, km: 1.55, ds: 1.25, oc: 1.6 };
 const TOPICS = { git: 'Git / PR 收尾与仓库规范', design: '产品设计、Demo 与部署', paper: '论文审阅与 LaTeX', data: 'Agent 数据管线', quant: '量化与数据分析', net: '网络代理规则', other: '其他' };
 const PJ = [
   { id: 'confluo', name: 'Confluo', path: '~/Projects/ActionMesh AI/Confluo', git: 'ActionMesh-AI/Confluo', q: 38, h: 31, A: 12.4, fr: 10.2, I: 76, V: 66, err: 0.075, tags: ['设计', '演示', '部署'], topics: { design: 0.85, git: 0.15 }, fric: { '方向错误': 5, '改动过度': 3, '并行会话冲突': 1 },
@@ -45,9 +45,9 @@ const ME = { name: 'yhyfhgs', av: 'yh' };
 const AFF = {
   cc: { confluo: 5, latentskill: 4, teamhub: 2, hackathon: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
   cx: { confluo: 1, latentskill: 2, teamhub: 4, hackathon: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
-  gm: { confluo: 0.4, latentskill: 5, teamhub: 0.5, hackathon: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
+  km: { confluo: 0.4, latentskill: 5, teamhub: 0.5, hackathon: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
   ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, hackathon: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
-  cp: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
+  oc: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
 };
 let DAY0 = Date.UTC(2026, 5, 3);   // live mode (90-live-core) moves DAY0 / LASTDAY to the real calendar
 let LASTDAY = 119;
@@ -114,7 +114,7 @@ function genSessions() {
     const weekend = wd(d) >= 5;
     const base = [[2.6, 1], [2.7, 1.1], [5.6, 2.2]][mo][weekend ? 1 : 0];
     const n = Math.max(0, Math.round(base + (r() - 0.5) * 2));
-    const amix = [{ cc: 0.55, cx: 0.35, gm: 0.1 }, { cc: 0.55, cx: 0.3, gm: 0.1, ds: 0.05 }, { cc: 0.6, cx: 0.22, gm: 0.08, ds: 0.06, cp: 0.04 }][mo];
+    const amix = [{ cc: 0.55, cx: 0.35, km: 0.1 }, { cc: 0.55, cx: 0.3, km: 0.1, ds: 0.05 }, { cc: 0.6, cx: 0.22, km: 0.08, ds: 0.06, oc: 0.04 }][mo];
     const pw = [{ latentskill: 5, quant: 4, tweet: 3, other: 2, fhgs: 3, confluo: 2 }, { latentskill: 4, quant: 3, confluo: 4, fhgs: 3, surge: 2, other: 2 }, { confluo: 5, hackathon: 1, latentskill: 3, teamhub: 3, surge: 3, quant: 2, fhgs: 2, other: 2 }][mo];
     for (let i = 0; i < n; i++) {
       const a = pickW(r, amix);
@@ -126,7 +126,7 @@ function genSessions() {
   const slots = [];
   SEP.forEach((row, i) => row.forEach((n, j) => { for (let k = 0; k < n; k++) slots.push({ d: 90 + i, a: AG[j].id }); }));
   slots.splice(slots.findIndex((s) => s.d === 119 && s.a === 'cc'), 1);
-  const ord = { cp: 0, ds: 1, gm: 2, cx: 3, cc: 4 };
+  const ord = { oc: 0, ds: 1, km: 2, cx: 3, cc: 4 };
   slots.sort((x, y) => ord[x.a] - ord[y.a] || x.d - y.d);
   const sep = [];
   slots.forEach((s) => {
@@ -185,9 +185,9 @@ function genSessions() {
 // 不动 genSessions 的随机序列，其它页面的数字不变。类型权重让外圈有六个分开、宽窄高低不一的峰，四周大致均匀：DIMV（你的类型，
 // 最高，带 DIMT 一点肩）在 12 点右侧，DIFV + DPFV 一座宽峰在委托，DPMT 在右下，SPMV + SPMT 一座宽峰在规划左侧，SIFV 在掌舵，
 // SIMT 一座小峰在左上；峰之间的类型只有零星会话，谷底贴近基线。各 Agent 偏向其中一个峰（Claude Code 偏 DIMV、Codex 偏委托求证、
-// DeepSeek 偏规划多线、Copilot 偏规划掌舵、Gemini 偏即兴掌舵），徽章因此散在四周，每个峰里色带的占比也不同。live 会话不带这个字段。
+// DeepSeek 偏规划多线、OpenCode 偏规划掌舵、Kimi 偏即兴掌舵），徽章因此散在四周，每个峰里色带的占比也不同。live 会话不带这个字段。
 const LEAN_W = { DIMV: 6.5, DIMT: 1.4, DIFT: 0.2, DIFV: 2.4, DPFV: 2, DPFT: 0.2, DPMT: 1.6, DPMV: 0.2, SPMV: 1.8, SPMT: 2.2, SPFT: 0.2, SPFV: 0.2, SIFV: 4, SIFT: 0.2, SIMT: 1.6, SIMV: 0.2 };
-const LEAN_AG = { cc: { DIMV: 1.5 }, cx: { DIFV: 5 }, ds: { DPMT: 20 }, cp: { SPMT: 30 }, gm: { SIFV: 12 } };
+const LEAN_AG = { cc: { DIMV: 1.5 }, cx: { DIFV: 5 }, ds: { DPMT: 20 }, oc: { SPMT: 30 }, km: { SIFV: 12 } };
 function demoLean(all) {
   all.forEach((s) => {
     const r = rng(hash(s.id + ':lean')), tilt = LEAN_AG[s.a] || {}, w = {};
@@ -268,7 +268,7 @@ const RECS = [
   { id: 'worktree', dim: 'flow', type: '工作流', icon: 'branch', lvl: 3, aud: 1, title: '并行会话改用 git worktree 隔离', gain: '并行冲突 −5 次 / 月', why: '多个会话同时改同一仓库，产生了 5 次冲突与 2 次覆盖。', ev: '9 个会话', evq: { fric: '并行会话冲突' }, compat: 'Claude Code · Codex', c2: 'var(--a2)', primary: '查看教程', target: '教程（不写入文件）',
     file: [['# 为每个并行会话建立独立 worktree', ' '], ['git worktree add ../Hackathon-a feat/a', '+'], ['git worktree add ../Hackathon-b feat/b', '+'], ['# 在各自目录里启动 Agent，结束后：', ' '], ['git worktree remove ../Hackathon-a', '+']],
     steps: ['为每个要并行的任务建一个 worktree', '在各自目录启动 Agent', '完成后在主目录合并并清理 worktree', '也可以交给生成工坊做成一个 Skill'], track: [['并行冲突', 5, 0, '次'], ['覆盖他人改动', 2, 0, '次'], ['并行会话数', 41, 44, '次']] },
-  { id: 'citation-checker', dim: 'agent', type: '子代理', icon: 'bot', lvl: 2, aud: 1, title: '引用核查子代理（citation-checker）', gain: '引用返工 −3 次 / 月', why: '论文会话里 9 次纠偏与引用格式和 BibTeX 有关。', ev: '9 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code · Gemini CLI', c2: 'var(--a3)', primary: '预览并安装', target: '~/.claude/agents/citation-checker.md',
+  { id: 'citation-checker', dim: 'agent', type: '子代理', icon: 'bot', lvl: 2, aud: 1, title: '引用核查子代理（citation-checker）', gain: '引用返工 −3 次 / 月', why: '论文会话里 9 次纠偏与引用格式和 BibTeX 有关。', ev: '9 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code · Kimi CLI', c2: 'var(--a3)', primary: '预览并安装', target: '~/.claude/agents/citation-checker.md',
     file: [['---', ' '], ['name: citation-checker', '+'], ['description: 核对 \\cite 与 BibTeX 的一致性，输出问题表', '+'], ['tools: Read, Grep', '+'], ['---', ' '], ['只读。逐条检查正文引用是否都在 .bib 中、键名是否一致、', '+'], ['年份与作者是否与原文相符；结果用表格列出，不要改文件。', 'ai']],
     steps: ['预览子代理定义', '安装到 ~/.claude/agents', '在论文会话中说「请 citation-checker 检查第 3 节」'], track: [['引用类纠偏', 9, 3, '次'], ['审稿会话时长', 66, 52, '分钟'], ['BibTeX 错误', 14, 2, '处']] },
   { id: 'remove-figma', dim: 'mcp', type: 'MCP', icon: 'puzzle', lvl: 1, aud: 0, title: '移除闲置的 figma MCP', gain: '每个会话省 ≈ 2.1k tokens', why: 'figma MCP 已安装 41 天，从未被调用，却一直占用上下文。', ev: '186 个会话', evq: {}, compat: 'Claude Code', c2: 'var(--a1)', primary: '一键移除', target: '~/.claude.json · mcpServers',
@@ -295,12 +295,12 @@ const RECI = {}; RECS.forEach((r) => { RECI[r.id] = r; });
 const LIB = [
   { id: 'worktree-conductor', kind: 'Skill', icon: 'branch', src: '社区 · MIT', desc: '为每个并行会话自动建立独立 worktree，结束后合并并清理。', m: 94, sc: [96, 92, 74], why: ['你每周约 10 次并行会话，5 次改到同一仓库', '同为 DIMV 的用户安装后冲突减少 72%'], compat: 'Claude Code · Codex', users: 3100, peer: 68, rec: 'worktree' },
   { id: 'retry-breaker', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '同一命令失败 2 次后暂停，先诊断认证与环境再继续。', m: 89, sc: [88, 95, 81], why: ['23 段「失败后原样重试」，最长 4 次', '覆盖你第二大的摩擦：工具 / 环境失败'], compat: 'Claude Code · Codex', users: 1800, peer: 52, rec: 'retry-breaker' },
-  { id: 'release-verifier', kind: '子代理', icon: 'bot', src: '社区 · Apache-2.0', desc: '部署完成后独立检查线上状态码、HTTPS、跳转与缓存。', m: 86, sc: [90, 84, 79], why: ['61% 的会话你会要求验证线上结果', '可以把验收从主会话中拆出去'], compat: 'Claude Code · Gemini CLI', users: 940, peer: 43, rec: 'deploy-target' },
+  { id: 'release-verifier', kind: '子代理', icon: 'bot', src: '社区 · Apache-2.0', desc: '部署完成后独立检查线上状态码、HTTPS、跳转与缓存。', m: 86, sc: [90, 84, 79], why: ['61% 的会话你会要求验证线上结果', '可以把验收从主会话中拆出去'], compat: 'Claude Code · Kimi CLI', users: 940, peer: 43, rec: 'deploy-target' },
   { id: 'paper-audit-loop', kind: 'Skill', icon: 'book', src: '本地生成', local: true, desc: '只读审查 → 归档 → 最小修改 → 编译 → 页数检查。', m: 84, sc: [86, 88, 70], why: ['你在 19 个会话里重复这五步', '由你的本地 Agent 依据你的会话生成'], compat: 'Claude Code', users: 0, peer: 0, rec: 'paper-audit' },
   { id: 'cloudflare-deploy', kind: '插件', icon: 'plug', src: '社区 · MIT', desc: 'wrangler 登录检查、Pages 部署与域名验证命令集。', m: 81, sc: [78, 90, 72], why: ['部署类会话里 4 次走错平台', 'wrangler 未登录导致 37 次失败'], compat: 'Claude Code · Codex', users: 5600, peer: 39, rec: 'deploy-target' },
   { id: 'readonly-allowlist', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '把 git status、ls、gh pr view 等只读命令加入白名单。', m: 79, sc: [74, 92, 70], why: ['212 次只读命令需要你手动批准', '审批平均等待 38 秒'], compat: 'Claude Code · Codex', users: 12000, peer: 61, rec: 'ro-allow' },
   { id: 'gh-review-digest', kind: 'MCP', icon: 'puzzle', src: '社区 · MIT', desc: '把多轮 review 意见合并成一份按优先级排序的清单。', m: 74, sc: [70, 82, 66], why: ['review 循环最长 11 轮', '与 PR 收尾 Skill 搭配效果最好'], compat: 'Claude Code', users: 2200, peer: 27, rec: 'pr-wrapup' },
-  { id: 'citation-checker', kind: '子代理', icon: 'bot', src: '社区 · MIT', desc: '核对论文引用与 BibTeX，一致性问题列成表。', m: 71, sc: [64, 86, 60], why: ['9 次纠偏与引用格式有关', '只读，不会改你的文件'], compat: 'Claude Code · Gemini CLI', users: 780, peer: 18, rec: 'citation-checker' },
+  { id: 'citation-checker', kind: '子代理', icon: 'bot', src: '社区 · MIT', desc: '核对论文引用与 BibTeX，一致性问题列成表。', m: 71, sc: [64, 86, 60], why: ['9 次纠偏与引用格式有关', '只读，不会改你的文件'], compat: 'Claude Code · Kimi CLI', users: 780, peer: 18, rec: 'citation-checker' },
   { id: 'bilingual-report', kind: 'Skill', icon: 'book', src: '社区 · CC BY', desc: '英文交付后自动附中文版，术语表保持一致。', m: 66, sc: [72, 58, 64], why: ['你常在英文结果后要求翻译', '中英混用占 7%'], compat: '所有 Agent', users: 1100, peer: 22, rec: 'acceptance' },
   { id: 'context-saver', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '上下文超过 60% 时提醒先总结，再继续。', m: 63, sc: [60, 70, 58], why: ['9 次压缩后需要重复说明约定', '长会话摩擦率 11.2%'], compat: 'Claude Code', users: 4300, peer: 31, rec: 'summary-compact' },
   { id: 'commit-coach', kind: 'Skill', icon: 'book', src: '社区 · MIT', desc: '按约定格式写提交信息，并提醒小步提交。', m: 58, sc: [62, 50, 61], why: ['你的仓库要求 type(scope): 描述', '小步提交时你的满意度更高'], compat: '所有 Agent', users: 6800, peer: 47, rec: 'acceptance' },
