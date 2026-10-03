@@ -5,7 +5,7 @@ import json
 import re
 from functools import lru_cache
 
-REDACTION_VERSION = "1.3.0"
+REDACTION_VERSION = "1.4.0"
 HIDDEN_KEYS = {
     "creator_user_id",
     "creator_account_id",
@@ -66,23 +66,52 @@ def _redact_headers(text: str) -> str:
     return text
 
 
-# Vendor key formats, following the published prefixes and the lengths used by
-# gitleaks' default rules (github.com/gitleaks/gitleaks config/gitleaks.toml):
-# OpenAI/Anthropic sk-, GitHub gh?_ / github_pat_, AWS AKIA, Google AIza + 35,
-# Slack xox[abprs]-, Stripe sk_/rk_ live|test, Hugging Face hf_, npm_ + 36, GitLab glpat-.
-_API_KEY = re.compile(
+# Vendor-documented token prefixes (lengths are the published minimums, so a bare prefix
+# in prose such as "hf_hub_download" or "npm_config" does not match):
+# OpenAI/Anthropic sk-; GitHub ghp_/gho_/ghu_/ghs_/ghr_/github_pat_; AWS AKIA (long-term)
+# and ASIA (STS temporary) access key ids, 20 chars; Slack xoxb-/xoxp-/xoxa-/xoxr-/xoxs-;
+# Google API keys AIza + 35; Hugging Face hf_ + 34; npm npm_ + 36; Stripe sk_/rk_ live/test;
+# GitLab glpat- + 20.
+_API_KEYS = re.compile(
     r"\b(?:sk-(?:proj-|ant-)?[A-Za-z0-9_-]{16,}"
     r"|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}"
-    r"|AKIA[A-Z0-9]{16}"
+    r"|(?:AKIA|ASIA)[A-Z0-9]{16}"
+    r"|xox[abposr]-[A-Za-z0-9-]{10,}"
     r"|AIza[0-9A-Za-z_-]{35}"
-    r"|xox[abprs]-[0-9A-Za-z-]{10,}"
-    r"|(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{16,}"
     r"|hf_[A-Za-z0-9]{30,}"
     r"|npm_[A-Za-z0-9]{36}"
-    r"|glpat-[0-9A-Za-z_-]{20,})(?![0-9A-Za-z_-])"
+    r"|[sr]k_(?:live|test)_[A-Za-z0-9]{16,}"
+    r"|glpat-[A-Za-z0-9_-]{20,})(?![A-Za-z0-9_-])"
 )
-# JWT: three base64url segments, header and payload are JSON objects ("eyJ" = '{"').
+# JWS compact form (RFC 7515): base64url header "eyJ..." . payload "eyJ..." . signature.
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
+# Command-line credentials: curl/wget/httpie ``-u user:pass``; MySQL-family ``-pPASS``
+# (attached form only: ``-p`` alone prompts, and ``-p 22``/``mkdir -p`` are not secrets);
+# ``--password/--token/--api-key/...`` followed by a separate value.
+_CLI_USER = re.compile(r"(?<!\S)(-u|--user)(\s+|=)(['\"]?)([^\s:'\"]+):[^\s'\"]+\3")
+_CLI_MYSQL = re.compile(
+    r"(\b(?:mysql|mysqldump|mysqladmin|mariadb|mariadb-dump)\b[^\n|;&]*?\s-p)(?!\s)([^\s'\"]+|'[^']*'|\"[^\"]*\")"
+)
+_CLI_FLAG = re.compile(
+    r"(?<!\S)(--(?:password|passwd|pass|token|api-key|apikey|api-token|access-token|auth-token|secret|client-secret))"
+    r"(\s+)(?!-)([^\s'\"]+|'[^']*'|\"[^\"]*\")"
+)
+
+
+def _redact_cli(text: str) -> str:
+    if "-" not in text:
+        return text
+    text = _CLI_USER.sub(lambda m: f"{m[1]}{m[2]}{m[3]}{m[4]}:<redacted:secret>{m[3]}", text)
+    text = _CLI_MYSQL.sub(lambda m: m[1] + "<redacted:secret>", text)
+
+    def flag(match):
+        value = match[3]
+        if value.startswith("<redacted:"):
+            return match[0]
+        quote = value[0] if value[0] in "'\"" else ""
+        return f"{match[1]}{match[2]}{quote}<redacted:secret>{quote}"
+
+    return _CLI_FLAG.sub(flag, text)
 
 
 def redact(text: str) -> str:
@@ -100,11 +129,12 @@ def redact(text: str) -> str:
         "<redacted:private_key>",
         text,
     )
-    text = _API_KEY.sub("<redacted:api_key>", text)
+    text = _API_KEYS.sub("<redacted:api_key>", text)
+    text = _JWT.sub("<redacted:token>", text)
+    text = _redact_cli(text)
     text = re.sub(
         r"\bBearer\s+[A-Za-z0-9._~+/-]{12,}={0,2}", "Bearer <redacted:token>", text, flags=re.I
     )
-    text = _JWT.sub("<redacted:token>", text)
 
     def assignment(match):
         if not is_secret_key(match["key"]) or match["value"].startswith("<redacted:"):
