@@ -52,7 +52,7 @@
     "note": "长度以字高 H（标志墨迹高度减去上下溢出）为单位；stroke 为设计单位；O 为同一螺旋在 o_pitch 视角下的投影（其余参数与标志相同）",
     "o_pitch": 75,
     "overshoot": 0.015,
-    "stroke": 22,
+    "stroke": 30,
     "x_height": 0.6,
     "ascender": 1.0,
     "t_height": 0.8,
