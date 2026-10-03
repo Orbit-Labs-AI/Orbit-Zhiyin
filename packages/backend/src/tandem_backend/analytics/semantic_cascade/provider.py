@@ -64,6 +64,28 @@ MAX_TRACE_BYTES = 1_048_576
 MAX_STDERR_BYTES = 65_536
 
 
+def _terminate_group(process):
+    """Reap an exited leader, but still terminate children holding its pipes."""
+    process.poll()
+    try:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except PermissionError as denied:
+            # On macOS an unreaped, exited group leader can produce EPERM.
+            # It may still be finishing exit when poll() reports no status.
+            # Wait briefly, then retry; only an absent group is safe to ignore.
+            try:
+                process.wait(timeout=0.1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                raise denied
+            os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
+
+
 def _run_bounded(command, payload, folder, timeout):
     """Bound captured bytes while receiving; a file-backed stdin cannot block writes."""
     request = folder / "request.json"
@@ -104,12 +126,13 @@ def _run_bounded(command, payload, folder, timeout):
                         if len(chunk) > available:
                             raise ValueError(f"semantic {key.data} byte budget exceeded")
                 process.wait(timeout=max(0.001, deadline - time.perf_counter()))
-        except BaseException as exc:  # Always reap the CLI and its children before re-raising.
+        except BaseException as exc:
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait()
+                _terminate_group(process)
+            except OSError as cleanup_error:
+                cleanup_error.stdout = bytes(captures["stdout"])
+                cleanup_error.stderr = bytes(captures["stderr"])
+                raise cleanup_error from exc
             exc.stdout, exc.stderr = bytes(captures["stdout"]), bytes(captures["stderr"])
             if isinstance(exc, subprocess.TimeoutExpired):
                 error = TimeoutError("semantic model deadline exceeded")

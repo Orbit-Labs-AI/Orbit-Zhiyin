@@ -1,7 +1,10 @@
 """Actual local subprocesses exercise bounds; no model service or history is used."""
 
 import json
+import subprocess
+import sys
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -69,6 +72,28 @@ Path(sys.argv[sys.argv.index("-o") + 1]).write_bytes(b"x" * {module.MAX_RESPONSE
     )
     with pytest.raises(ValueError, match="output byte budget"):
         provider(batch(), Budget(timeout_seconds=3))
+
+
+def test_exited_group_permission_race_is_ignored_only_after_group_disappears(monkeypatch):
+    process = SimpleNamespace(pid=123, poll=lambda: None, wait=lambda **_: 0)
+    errors = iter((PermissionError("exited leader"), ProcessLookupError("absent group")))
+
+    def reject_signal(*_):
+        raise next(errors)
+
+    monkeypatch.setattr(module.os, "killpg", reject_signal)
+    module._terminate_group(process)
+
+
+def test_live_group_permission_failure_is_reported_and_parent_reaped(monkeypatch):
+    def reject_signal(*_):
+        raise PermissionError("live group denied")
+
+    with subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)"]) as process:
+        monkeypatch.setattr(module.os, "killpg", reject_signal)
+        with pytest.raises(PermissionError, match="live group denied"):
+            module._terminate_group(process)
+        assert process.poll() is not None
 
 
 @pytest.mark.serial
