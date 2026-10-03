@@ -286,3 +286,43 @@ def test_tool_worst_recommends_breaker_only_when_missing(data, tandem_home):
     data.commit()
     a = ask.preset_answer("tools", 0, **kw)["answer"]
     assert "已安装" in a and "装「重复失败熔断」" not in a
+
+
+class _BrokenAppDB:
+    """app.db whose reads fail (closed / corrupt)."""
+
+    def read(self):
+        raise RuntimeError("app.db closed")
+
+
+def test_inventory_reads_persisted_exclusion_from_appdb(tdb, tandem_home, appdb, monkeypatch):
+    import sqlite3
+
+    monkeypatch.setattr(P, "now_ms", lambda: NOW)
+    tdb.session("keep", start=NOW - DAY, tools=[("mcp:a", "mcp")])
+    tdb.session("drop", start=NOW - DAY, tools=[("mcp:b", "mcp")])
+    tdb.inventory([("mcp", "a", "/a"), ("mcp", "b", "/b")])
+    tdb.commit()
+    with sqlite3.connect(appdb.path) as db:
+        db.execute("INSERT INTO session_exclusion(session_uid, excluded_at) VALUES ('drop', 1)")
+    r = queries.run("inventory", {}, reads=tdb.reads, appdb=appdb, home=tandem_home)
+    # "drop" is the only session that called b, so excluding it leaves b at 0 calls.
+    assert {x["name"]: x["calls_30d"] for x in r["rows"]} == {"a": 1, "b": 0}
+
+
+def test_exclusion_read_failure_is_fail_closed(tdb, tandem_home, monkeypatch):
+    from tandem_backend.sessionops.exclusion import ExclusionsUnavailable
+
+    monkeypatch.setattr(P, "now_ms", lambda: NOW)
+    tdb.session("drop", start=NOW - DAY, tools=[("mcp:b", "mcp")])
+    tdb.inventory([("mcp", "b", "/b")])
+    tdb.commit()
+    with pytest.raises(ExclusionsUnavailable) as err:
+        queries.run("inventory", {}, reads=tdb.reads, appdb=_BrokenAppDB(), home=tandem_home)
+    assert err.value.status == 503
+    # ask must not swallow it into an empty ("0 个") answer either.
+    q = ask._Q(tdb.reads, _BrokenAppDB(), {}, tandem_home)
+    with pytest.raises(ExclusionsUnavailable):
+        q.inventory()
+    with pytest.raises(ExclusionsUnavailable):
+        q("metrics")
