@@ -1,4 +1,14 @@
-from orbit_data.connectors.base import BaseMapper, Mapping, decode_json, text_content
+import re
+
+from orbit_data import tool_kinds
+from orbit_data.connectors.base import (
+    BaseMapper,
+    Mapping,
+    decode_json,
+    mcp_server_names,
+    split_mcp_name,
+    text_content,
+)
 from orbit_data.contract import time_fields, unused
 
 # opencode ToolState.status -> canonical tool status ("error" is a failed call).
@@ -18,11 +28,59 @@ def error_event_fields(error) -> tuple[str | None, dict]:
     }
 
 
+def sanitize(value: str) -> str:
+    """packages/opencode/src/mcp/catalog.ts ``sanitize``; MCP tools are registered as
+    ``toolName(client, name) = sanitize(client) + "_" + sanitize(name)``."""
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", value)
+
+
+# Exact messages of packages/core/src/v1/permission.ts errors, stored verbatim as the V1
+# tool part ``state.error`` (session/processor.ts: ``error: errorMessage(error)``).
+_REJECTED = "The user rejected permission to use this specific tool call."
+_CORRECTED = "The user rejected permission to use this specific tool call with the following"
+_RULE_DENIED = (
+    "The user has specified a rule which prevents you from using this specific tool call."
+)
+
+
+def permission_refusal(error_text) -> str | None:
+    """ "user" | "rule" when the tool error is an opencode permission refusal."""
+    if not isinstance(error_text, str):
+        return None
+    if error_text == _REJECTED or error_text.startswith(_CORRECTED):
+        return "user"
+    if error_text.startswith(_RULE_DENIED):
+        return "rule"
+    return None
+
+
+def tool_error_text(error) -> str | None:
+    """V1 state.error is a string; V2 is ``{type: "unknown", message}`` (schema
+    session-message.ts UnknownError); NamedError keeps ``data.message``."""
+    if isinstance(error, str):
+        return error
+    if isinstance(error, dict):
+        if isinstance(error.get("message"), str):
+            return error["message"]
+        return error_event_fields(error)[0]
+    return None
+
+
+def shell_exit(name, metadata) -> int | None:
+    """Shell tool metadata ``exit`` (packages/opencode/src/tool/shell.ts)."""
+    if name not in ("bash", "shell") or not isinstance(metadata, dict):
+        return None
+    code = metadata.get("exit")
+    return code if isinstance(code, int) and not isinstance(code, bool) else None
+
+
 class OpenCodeMapper(BaseMapper):
     def prepare(self, records):
         self.messages = {}
         self.v2_sessions = set()
         self.session_settings = {}
+        self.v1_settings = {}
+        self.mcp_servers = mcp_server_names(self.store, "opencode")
 
         def inspect(record):
             table, row = record.data.get("table"), record.data.get("row", {})
@@ -85,27 +143,41 @@ class OpenCodeMapper(BaseMapper):
             )
         if table == "message":
             # V1 message holds metadata; content and per-step usage are in part rows.
-            events = [
-                self.make(
-                    record,
-                    "session.meta",
-                    "message.metadata",
-                    native_key=key,
-                    attrs={
-                        "model_raw": data.get("modelID"),
-                        "provider": data.get("providerID"),
-                        "effort_raw": data.get("variant"),
-                        "cwd": data.get("path", {}).get("cwd"),
-                    },
-                    ext=data,
+            # The session row is the session header; a message only records a setting
+            # change when its model/provider/variant/cwd differ from the last one seen.
+            path = data.get("path") if isinstance(data.get("path"), dict) else {}
+            setting = {
+                "model_raw": data.get("modelID"),
+                "provider": data.get("providerID"),
+                "effort_raw": data.get("variant"),
+                "cwd": path.get("cwd"),
+            }
+            previous = self.v1_settings.setdefault(session_id, {})
+            changed = {k: v for k, v in setting.items() if v is not None and previous.get(k) != v}
+            previous.update(changed)
+            events = []
+            if changed:
+                events.append(
+                    self.make(
+                        record,
+                        "setting.change",
+                        "message.metadata",
+                        native_key=key,
+                        attrs=setting,
+                        ext=data,
+                    )
                 )
-            ]
             if data.get("role") == "assistant" and data.get("error"):
                 text, attrs = error_event_fields(data["error"])
                 events.append(
                     self.make(
                         record, "error", "message.error", native_key=key, text=text, attrs=attrs
                     )
+                )
+            if not events:
+                return Mapping(
+                    disposition="ignored",
+                    reason="message metadata unchanged; content is in part rows",
                 )
             return Mapping(events)
         if table == "part":
@@ -138,6 +210,7 @@ class OpenCodeMapper(BaseMapper):
                         "name": data.get("tool", "unknown"),
                         "input": state.get("input"),
                         "status": state.get("status"),
+                        **self._mcp(data.get("tool")),
                     },
                 )
                 call.ts, call.attrs["time"] = time_fields(
@@ -148,6 +221,18 @@ class OpenCodeMapper(BaseMapper):
                 )
                 events = [call]
                 if state.get("status") in ("completed", "error"):
+                    metadata = (
+                        state.get("metadata") if isinstance(state.get("metadata"), dict) else {}
+                    )
+                    attrs = self._result_attrs(
+                        record,
+                        events,
+                        call_id,
+                        data.get("tool"),
+                        state,
+                        metadata,
+                        key,
+                    )
                     result = self.make(
                         record,
                         "tool.result",
@@ -156,10 +241,7 @@ class OpenCodeMapper(BaseMapper):
                         call_id=call_id,
                         native_key=key,
                         text=state.get("output", state.get("error")),
-                        attrs={
-                            "status": TOOL_STATUS[state["status"]],
-                            "status_scope": "tool_protocol",
-                        },
+                        attrs=attrs,
                         ext=state.get("metadata", {}),
                     )
                     result.ts, result.attrs["time"] = time_fields(
@@ -177,6 +259,8 @@ class OpenCodeMapper(BaseMapper):
                             record,
                             data.get("tokens", {}),
                             "opencode",
+                            # One step-finish part per LLM step (session/processor.ts).
+                            request_id=str(row["id"]),
                             request_key=[record.source_id, self.session_uid, row["id"]],
                             cost_usd=data.get("cost"),
                             cost_source="native_estimate",
@@ -275,6 +359,10 @@ class OpenCodeMapper(BaseMapper):
                             record,
                             message["tokens"],
                             "opencode",
+                            # One V2 assistant message per step: created on
+                            # session.next.step.started, tokens set on step.ended
+                            # (core/src/session/message-updater.ts).
+                            request_id=str(row["id"]),
                             request_key=[record.source_id, self.session_uid, row["id"]],
                             cost_usd=message.get("cost"),
                             cost_source="native_estimate",
@@ -341,6 +429,7 @@ class OpenCodeMapper(BaseMapper):
                 "name": block["name"],
                 "input": decode_json(state.get("input")),
                 "status": state.get("status", "unknown"),
+                **self._mcp(block["name"]),
             },
         )
         call.ts, call.attrs["time"] = time_fields(
@@ -348,6 +437,12 @@ class OpenCodeMapper(BaseMapper):
         )
         events = [call]
         if state.get("status") in ("completed", "error"):
+            structured = (
+                state.get("structured") if isinstance(state.get("structured"), dict) else {}
+            )
+            attrs = self._result_attrs(
+                record, events, block["id"], block["name"], state, structured, key
+            )
             result = self.make(
                 record,
                 "tool.result",
@@ -355,13 +450,8 @@ class OpenCodeMapper(BaseMapper):
                 actor="tool",
                 native_key=key,
                 call_id=block["id"],
-                text=text_content(state.get("content"))
-                or error_event_fields(state.get("error"))[0],
-                attrs={
-                    "status": TOOL_STATUS[state["status"]],
-                    "status_scope": "tool_protocol",
-                    "name": block["name"],
-                },
+                text=text_content(state.get("content")) or tool_error_text(state.get("error")),
+                attrs={**attrs, "name": block["name"]},
                 ext=state,
             )
             result.ts, result.attrs["time"] = time_fields(
@@ -372,3 +462,40 @@ class OpenCodeMapper(BaseMapper):
             )
             events.append(result)
         return events
+
+    def _mcp(self, name) -> dict:
+        """mcp_server/mcp_tool for ``<client>_<tool>`` names of inventoried MCP servers."""
+        if not isinstance(name, str) or tool_kinds.tool_kind(name, "opencode")[1]:
+            return {}
+        split = split_mcp_name(name, "", self.mcp_servers, sanitize)
+        return {"mcp_server": split[0], "mcp_tool": split[1]} if split else {}
+
+    def _result_attrs(self, record, events, call_id, name, state, metadata, key) -> dict:
+        """Result status plus recorded failure evidence; appends a permission decision
+        (before the result, so the reducer attaches it to the open call)."""
+        attrs = {"status": TOOL_STATUS[state["status"]], "status_scope": "tool_protocol"}
+        exit_code = shell_exit(name, metadata)
+        if exit_code is not None:
+            attrs["exit_code"] = exit_code
+        if state["status"] != "error":
+            return attrs
+        error = state.get("error")
+        if isinstance(error, dict) and isinstance(error.get("name"), str):
+            attrs["error_class"] = error["name"]
+        if metadata.get("interrupted") is True:
+            # processor.ts marks aborted calls "Tool execution aborted" + interrupted.
+            attrs["status"] = "interrupted"
+        refusal = permission_refusal(tool_error_text(error))
+        if refusal:
+            attrs["error_class"] = "permission_refused"
+            events.append(
+                self.make(
+                    record,
+                    "permission.decision",
+                    f"permission.{call_id}",
+                    call_id=str(call_id),
+                    native_key=[*key, "permission", str(call_id)],
+                    attrs={"decision": "denied", "reason": refusal},
+                )
+            )
+        return attrs

@@ -102,6 +102,9 @@ class FakeAppDB:
         self.path = path
         with sqlite3.connect(path) as db:
             db.execute(FACET_DDL)
+            # Same table as appdb/schema/sessionops.sql; queries._excluded is fail-closed.
+            db.execute("CREATE TABLE IF NOT EXISTS session_exclusion (session_uid TEXT PRIMARY KEY, "
+                       "reason TEXT, note TEXT, excluded_at INTEGER NOT NULL, source TEXT NOT NULL DEFAULT 'user')")
 
     @contextmanager
     def read(self):

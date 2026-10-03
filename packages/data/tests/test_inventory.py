@@ -83,7 +83,8 @@ def test_codex_six_types_and_no_sensitive_persistence(tmp_path, monkeypatch):
         result = scan_inventory(store, InventoryRequest("codex", root))
         assert result["status"] == "available"
         data = read_inventory(store.home)
-        assert data["coverage"]["status"] == "available"
+        # Codex layouts do not scan slash commands or subagent definitions (2 kinds).
+        assert data["coverage"]["reason_counts"] == {"inventory_layout_incomplete": 2}
         assert {item["type"] for item in data["items"]} == {
             "skill",
             "mcp",
@@ -119,7 +120,9 @@ def test_codex_six_types_and_no_sensitive_persistence(tmp_path, monkeypatch):
         store.rebuild()
         analysis = read_analysis(store.home, AnalysisScope("UTC"))
         assert analysis["inventory"] == data["items"]
-        assert analysis["coverage"]["inventory"]["status"] == "available"
+        assert analysis["coverage"]["inventory"]["reason_counts"] == {
+            "inventory_layout_incomplete": 2
+        }
         assert analysis["sample_boundary"]["inventory_scan_ids"] == [result["scan_id"]]
 
 
@@ -133,7 +136,9 @@ def test_empty_missing_errors_and_deleted_items_are_distinct(tmp_path, monkeypat
         request = InventoryRequest("codex", root)
         scan_inventory(store, request)
         assert read_inventory(store.home)["items"] == []
-        assert read_inventory(store.home)["coverage"]["status"] == "available"
+        assert read_inventory(store.home)["coverage"]["reason_counts"] == {
+            "inventory_layout_incomplete": 2  # command, agent: not scanned for Codex
+        }
         path = write(root, "skills/one/SKILL.md", "one")
         scan_inventory(store, request)
         previous = read_inventory(store.home)["items"][0]

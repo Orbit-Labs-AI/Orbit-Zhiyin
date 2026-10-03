@@ -24,8 +24,16 @@ from orbit_data.store import readonly_connection
 # The kinds event_search indexes (migration 008); contract.KINDS has no message.summary.
 SEARCH_KINDS = ("message.user", "message.assistant", "session.title")
 HIT_TYPES = ("title", "project", "message", "command", "file")
+# Ranking constants are a product default chosen against the constructed judgement set in
+# packages/data/tests/test_search_ranking_eval.py (pairwise preferences such as "a session
+# titled for the query a month ago beats a weak mention today" and "a two-year-old title
+# beats a stale weak message"). They are not calibrated on real user click data. The grid
+# test there shows the feasible region: floor must be > 0, half-life 7 days is too short,
+# and these values sit inside it. Score = rel x WEIGHTS[type] x decay(age).
 WEIGHTS = {"title": 3.0, "project": 2.0, "command": 1.5, "file": 1.5, "message": 1.0}
 HALF_LIFE_DAYS = 30.0
+# Old hits keep this share of their weight so archived sessions stay findable.
+DECAY_FLOOR = 0.25
 MAX_QUERY_CHARS = 200
 DAY_MS = 86_400_000
 
@@ -275,13 +283,20 @@ def _needs_substring(query: str) -> bool:
 
 
 def _bm25_rel(rank) -> float:
+    # SQLite bm25 is negative-better and unbounded; squash it into [1, 2) so a ranked FTS
+    # match is never weaker than a LIKE match (1.0) and at most doubles it. The evaluation
+    # cases use this range for "weak" (1.0-1.1) and "strong" (1.9) message hits.
     strength = max(0.0, -(rank or 0.0))
     return 1.0 + strength / (1.0 + strength)
 
 
 def _score(hit: dict, now_ms: int) -> float:
-    age_days = max(0.0, (now_ms - hit["ts"]) / DAY_MS) if hit["ts"] is not None else 365.0
-    decay = 0.25 + 0.75 * math.pow(0.5, age_days / HALF_LIFE_DAYS)
+    if hit["ts"] is None:
+        # Unknown age ranks like the oldest dated hits, never above a dated one.
+        decay = DECAY_FLOOR
+    else:
+        age_days = max(0.0, (now_ms - hit["ts"]) / DAY_MS)
+        decay = DECAY_FLOOR + (1.0 - DECAY_FLOOR) * math.pow(0.5, age_days / HALF_LIFE_DAYS)
     return hit["rel"] * WEIGHTS[hit["hit_type"]] * decay
 
 

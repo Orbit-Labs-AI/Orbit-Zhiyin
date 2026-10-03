@@ -281,10 +281,24 @@ class _Analysis:
         return type("Task", (), {"id": f"job-{len(self.submitted)}"})()
 
 
+class _Snapshots:
+    """Snapshot store stub: ``ready`` holds the scope hashes with a fresh snapshot."""
+
+    def __init__(self):
+        self.ready = set()
+
+    def get(self, key):
+        return object() if key.scope_hash in self.ready else None
+
+    def latest(self, *_):
+        return None
+
+
 class _Gateway:
     def __init__(self, data_rev):
         self.data_rev = data_rev
         self.supervisor = type("Supervisor", (), {"analysis": _Analysis()})()
+        self.snapshots = _Snapshots()
         outer = self
 
         class revisions:  # noqa: N801 - mirrors the Gateway attribute
@@ -325,6 +339,36 @@ def test_recompute_hashes_like_the_get_route(monkeypatch, section, get_url, para
                                    json={"sections": [section], "params": params})
     assert queued.status_code == 202, queued.text
     assert queued.json()["jobs"][0]["scope_hash"] == get_hash
+
+
+@pytest.mark.parametrize("query,scope", [
+    ("", {}),                       # fast path: nothing ready, no event probe -> 7-day window
+    ("?days=0", {"days": 0}),       # explicit all time
+    ("?days=30", {"days": 30}),
+    ("?from_ts=1000", {"from_ts": 1000}),
+])
+def test_recompute_overview_targets_the_window_the_get_route_serves(query, scope):
+    get = _client(_Gateway(None)).get("/v1/analytics/overview" + query).json()["meta"]
+    queued = _client(_Gateway(1)).post("/v1/analytics/recompute",
+                                       json={"sections": ["overview"], "scope": scope})
+    assert queued.status_code == 202, queued.text
+    assert queued.json()["jobs"][0]["scope_hash"] == get["scope_hash"]
+
+
+def test_recompute_overview_follows_the_ready_all_time_window():
+    from dataclasses import asdict
+
+    from orbit_backend.services.routes_analytics import analytics_scope
+    from orbit_backend.services.snapshots import scope_hash
+
+    gateway = _Gateway(1)
+    all_time = scope_hash(asdict(analytics_scope()), {})
+    gateway.snapshots.ready.add(all_time)   # the fast path now serves all time
+    queued = _client(gateway).post("/v1/analytics/recompute", json={"sections": ["overview"]})
+    assert queued.json()["jobs"][0]["scope_hash"] == all_time
+    # A non-fast-path section keeps the literal (all-time) scope.
+    tools = _client(_Gateway(1)).post("/v1/analytics/recompute", json={"sections": ["tools"]})
+    assert tools.json()["jobs"][0]["scope_hash"] == all_time
 
 
 @pytest.mark.parametrize("section,params", [

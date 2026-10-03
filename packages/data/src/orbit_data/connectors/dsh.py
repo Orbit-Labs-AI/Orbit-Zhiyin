@@ -9,6 +9,13 @@ from orbit_data.connectors.base import (
 )
 from orbit_data.contract import canonical, uid
 
+
+def _seq_id(data) -> str | None:
+    """``seq`` of a record that carries exactly one request's usage, as its request id."""
+    seq = data.get("seq")
+    return f"seq:{seq}" if isinstance(seq, int) and not isinstance(seq, bool) else None
+
+
 CHUNKS = {"assistant/chunk", "text-chunks", "reasoning-chunks", "tool-call-chunks"}
 
 
@@ -222,11 +229,15 @@ class DshMapper(BaseMapper):
                     if part.get("type") == "chunk" and part.get("chunk", {}).get("type") == "usage":
                         usage = part["chunk"].get("usage")
             if usage:
+                # One assistant/message (or failed assistant/attempt) record closes one LLM
+                # step (deepseek-harness session-stats projection: "One assembled message
+                # per step"); its session-unique ``seq`` is the reported request boundary.
                 events.append(
                     self.usage(
                         record,
                         usage,
                         "dsh",
+                        request_id=_seq_id(data),
                         request_key=[
                             record.source_id,
                             self.session_uid,
@@ -405,7 +416,17 @@ class DshMapper(BaseMapper):
                 )
             ]
             if payload.get("usage"):
-                events.append(self.usage(record, payload["usage"], "dsh", purpose="compaction"))
+                events.append(
+                    self.usage(
+                        record,
+                        payload["usage"],
+                        "dsh",
+                        request_id=_seq_id(data),
+                        # Same key as before request_id was recorded (stable call_uid).
+                        request_key=[record.source_id, self.session_uid, self.native_key(record)],
+                        purpose="compaction",
+                    )
+                )
             return Mapping(events)
         if typ in ("step/start", "step/end", "session/end-seed"):
             return Mapping(disposition="ignored", reason="control_record_in_L0")

@@ -2,8 +2,10 @@
 
 Every proportion and summary is returned as one metric object
 ``{value, n, k, lo, hi, basis, status}`` so the UI never receives a bare ratio.
-Old Wilson implementations in ``profiling/analysis.py`` and
-``products/statistics.py`` are left untouched; new code imports from here.
+``wilson`` / ``wilson_p`` are the single Wilson score implementation: ``uiview.persona``,
+``presentation.profile`` and ``profiling.analysis`` delegate to them (the shell reveal reads
+the persona's bounds). ``products/statistics.py`` and a few page adapters still carry
+their own copy.
 """
 
 import math
@@ -19,20 +21,29 @@ BASES = ("measured", "estimated", "proxy", "unknown")
 Metric = dict[str, Any]
 
 
+def wilson_p(p: float, n: float, z: float = Z) -> tuple[float | None, float | None]:
+    """Wilson score interval for proportion ``p`` at size ``n`` (Wilson 1927, JASA 22:209).
+
+    ``n`` may be a non-integer effective size (cluster design effect); ``(None, None)``
+    without a positive size.
+    """
+    if not n or n <= 0:
+        return None, None
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
 def wilson(k: int, n: int, z: float = Z) -> tuple[float | None, float | None]:
     """Wilson score interval; ``(None, None)`` when there is no denominator."""
     if not n or k is None:
         return None, None
     if k < 0 or k > n:
         raise ValueError("Wilson 区间要求 0 ≤ k ≤ n")
-    p = k / n
-    denom = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / denom
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    lo, hi = wilson_p(k / n, n, z)
     # The bounds are exactly 0 / 1 at the edges; avoid 0.9999999 float residue.
-    lo = 0.0 if k == 0 else max(0.0, centre - half)
-    hi = 1.0 if k == n else min(1.0, centre + half)
-    return lo, hi
+    return (0.0 if k == 0 else lo), (1.0 if k == n else hi)
 
 
 def wilson_lo(k: int, n: int, z: float = Z) -> float | None:

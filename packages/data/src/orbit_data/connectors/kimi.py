@@ -1,4 +1,4 @@
-"""Kimi Code durable wire 1.0-1.5. See upstream wire-manifest and loopEventFold.
+"""Kimi Code durable wire 1.x (verified against 1.0-1.5). See upstream wire-manifest and loopEventFold.
 
 The wire is an event journal, not an OpenAI chat transcript. usage.record adds
 one request's usage (usageScope only identifies its purpose); step.end mirrors it.
@@ -9,6 +9,20 @@ from pathlib import PurePosixPath
 from orbit_data.connectors.base import BaseMapper, Mapping, text_content
 from orbit_data.contract import canonical, time_fields
 
+# Wire versions checked against MoonshotAI/kimi-code@21406fb packages/agent-core-v2/docs/
+# wire-manifest.d.ts (protocol_version "1.5", migrations 1.0 -> ... -> 1.5). A later 1.x
+# keeps the journal layout (migrations are additive), so it is mapped and flagged as
+# untested; another major version is unsupported.
+VERIFIED_MINOR = 5
+
+
+def version_status(value) -> str:
+    """ "verified" | "untested" (newer 1.x) | "unsupported" for a metadata protocol_version."""
+    parts = value.split(".") if isinstance(value, str) else []
+    if len(parts) != 2 or not all(p.isdigit() for p in parts) or parts[0] != "1":
+        return "unsupported"
+    return "verified" if int(parts[1]) <= VERIFIED_MINOR else "untested"
+
 
 class KimiMapper(BaseMapper):
     def prepare(self, records):
@@ -17,6 +31,7 @@ class KimiMapper(BaseMapper):
         self.index = {}
         self.content_groups = {}
         self.completed_steps = set()
+        self.interactions = {}
         previous_group = None
         parts = PurePosixPath(self.info["relative_path"]).parts
         if "agents" in parts:
@@ -153,6 +168,72 @@ class KimiMapper(BaseMapper):
                 event.attrs["duration_ms"] = message.get("durationMs")
         return events
 
+    def _task(self, record, data):
+        """Background task lifecycle (agent/task/types.ts TaskInfo kinds process|agent|question).
+
+        A task is not a spawn: an ``agent`` task wraps a subagent whose own subagent.*
+        records already count it, and ``process``/``question`` tasks run no agent.
+        """
+        info = data.get("info") if isinstance(data.get("info"), dict) else {}
+        task_kind = info.get("kind")
+        exit_code = info.get("exitCode")
+        attrs = {
+            "task_id": info.get("taskId"),
+            "task_kind": task_kind,
+            "task_status": info.get("status"),
+            "stop_reason": info.get("stopReason"),
+        }
+        if isinstance(exit_code, int) and not isinstance(exit_code, bool):
+            attrs["exit_code"] = exit_code
+        if task_kind == "agent":
+            attrs["agent_id"] = info.get("agentId")
+        return self.make(
+            record,
+            "subagent.activity" if task_kind == "agent" else "ui.state",
+            data.get("type"),
+            attrs=attrs,
+            text=info.get("description") if isinstance(info.get("description"), str) else None,
+            ext=data,
+        )
+
+    def _interaction(self, record, data):
+        """Approvals (agent/interaction/approval.ts ApprovalResponse.decision:
+        approved|rejected|cancelled). interaction.request carries ``id`` and
+        ``toolCallId``; interaction.resolved only ``id``; record_approval_result names the
+        tool call directly. Question/user_tool interactions are not permissions."""
+        typ = data.get("type")
+        interactions = self.interactions
+        if typ == "interaction.request":
+            interactions[data.get("id")] = data.get("kind")
+            approval = data.get("kind") == "approval"
+            return self.make(
+                record,
+                "permission.request" if approval else "ui.state",
+                typ,
+                call_id=data.get("toolCallId") if approval else None,
+                attrs={"permission_id": data.get("id"), "interaction_kind": data.get("kind")},
+                ext=data,
+            )
+        response = data.get("response") if typ == "interaction.resolved" else data.get("result")
+        decision = response.get("decision") if isinstance(response, dict) else None
+        if typ == "interaction.resolved":
+            approval = interactions.get(data.get("id")) == "approval"
+            return self.make(
+                record,
+                "permission.decision" if approval else "ui.state",
+                typ,
+                attrs={"permission_id": data.get("id"), "decision": decision if approval else None},
+                ext=data,
+            )
+        return self.make(
+            record,
+            "permission.decision",
+            typ,
+            call_id=data.get("toolCallId"),
+            attrs={"decision": decision, "action": data.get("action")},
+            ext=data,
+        )
+
     def map(self, record):
         data, typ = record.data, record.data.get("type")
         if self.info["role"] == "session_index":
@@ -190,9 +271,16 @@ class KimiMapper(BaseMapper):
             )
             self.first = False
         if typ == "metadata":
-            if data.get("protocol_version") not in ("1.0", "1.1", "1.2", "1.3", "1.4", "1.5"):
+            status = version_status(data.get("protocol_version"))
+            if status != "verified":
                 self.store.issue(
-                    record.source_id, "unsupported_native_version", file_id=record.file_id
+                    record.source_id,
+                    "unsupported_native_version"
+                    if status == "unsupported"
+                    else "untested_native_version",
+                    file_id=record.file_id,
+                    severity="warning" if status == "unsupported" else "info",
+                    detail={"protocol_version": data.get("protocol_version")},
                 )
             return Mapping(events)
         self.native_turn = data.get("turnId", self.native_turn)
@@ -259,6 +347,8 @@ class KimiMapper(BaseMapper):
                         record,
                         loop["usage"],
                         "kimi",
+                        # step.end closes one LLM step; its loop uuid is the native id.
+                        request_id=str(loop["uuid"]) if loop.get("uuid") else None,
                         request_key=[record.source_id, self.session_uid, loop["uuid"]],
                     )
                 )
@@ -281,6 +371,10 @@ class KimiMapper(BaseMapper):
                     record,
                     data["usage"],
                     "kimi",
+                    # usage.record carries exactly one request's usage (agent/usage/usageOps.ts;
+                    # the session reducer adds records). It has no native id, so its journal
+                    # position names the request; the record itself is the reported boundary.
+                    request_id=f"usage.record:{record.ordinal}",
                     request_key=[record.source_id, self.session_uid, record.ordinal],
                     purpose="main" if data.get("usageScope") == "turn" else "auxiliary",
                 )
@@ -324,6 +418,14 @@ class KimiMapper(BaseMapper):
                 }.get(reason, "unknown")
             )
             events.append(self.make(record, "turn.end", typ, attrs={"status": status}))
+        elif typ in ("task.started", "task.terminated"):
+            events.append(self._task(record, data))
+        elif typ in (
+            "interaction.request",
+            "interaction.resolved",
+            "permission.record_approval_result",
+        ):
+            events.append(self._interaction(record, data))
         else:
             kind = {
                 "context.apply_compaction": "context.compaction",
@@ -335,9 +437,6 @@ class KimiMapper(BaseMapper):
                 "context.undone": "branch",
                 "agent.switched": "branch",
                 "forked": "branch",
-                "interaction.request": "permission.request",
-                "interaction.resolved": "permission.decision",
-                "permission.record_approval_result": "permission.decision",
                 "permission.set_mode": "setting.change",
                 "subagent.spawned": "subagent.spawn",
                 "subagent.started": "subagent.spawn",
@@ -358,9 +457,8 @@ class KimiMapper(BaseMapper):
                 "plugin.session_start": "context.inject",
                 "interruptionReminder.recorded": "context.inject",
                 "runtime.set_binding": "setting.change",
-                "task.started": "subagent.spawn",
-                "task.terminated": "subagent.result",
-                "task.waitDelivered": "subagent.result",
+                # Delivery of finished background-task notifications, not a spawn/result.
+                "task.waitDelivered": "ui.state",
             }.get(typ)
             if (
                 kind is None
@@ -382,10 +480,6 @@ class KimiMapper(BaseMapper):
                     record,
                     kind or "unknown",
                     typ or "raw",
-                    attrs={
-                        "permission_id": data.get("requestId"),
-                        "decision": data.get("decision"),
-                    },
                     text=text_content(data.get("summary")) or None,
                     ext=data,
                 )

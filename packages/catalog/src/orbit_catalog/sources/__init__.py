@@ -38,6 +38,23 @@ def default_sources() -> list[SourceSpec]:
         # The only default source with per-item community install counts (top N only).
         SourceSpec(source_id="clawhub", kind="clawhub", url="https://clawhub.ai/api/v1/skills", priority=60,
                    config={"max_items": 500}),
+        # Discovery sources (metadata only, verification listed_only / repository_metadata: browsable in
+        # the library, never past the recommender's source gate until a repository source reads them).
+        SourceSpec(source_id="awesome-mcp-servers", kind="awesome", priority=50,
+                   url="https://raw.githubusercontent.com/punkpeye/awesome-mcp-servers/main/README.md",
+                   config={"type": "mcp_server", "section": "Server Implementations"}),
+        # Search API: 30 req/min with a token; star floors are product defaults against topic spam, uncalibrated.
+        SourceSpec(source_id="topic-agent-skills", kind="github_topic", url="https://api.github.com/search/repositories",
+                   priority=40, config={"topics": ["agent-skills", "claude-code-skills", "claude-skills"], "type": "skill",
+                                        "max_pages": 3, "min_stars": 20}),
+        SourceSpec(source_id="topic-mcp-servers", kind="github_topic", url="https://api.github.com/search/repositories",
+                   priority=40, config={"topics": ["mcp-server"], "type": "mcp_server", "max_pages": 3, "min_stars": 20}),
+        SourceSpec(source_id="topic-agent-rules", kind="github_topic", url="https://api.github.com/search/repositories",
+                   priority=40, config={"topics": ["cursor-rules", "agents-md"], "type": "rule", "max_pages": 2,
+                                        "min_stars": 20}),
+        # Cursor rule collection (CC0-1.0): rules/*.mdc are read and stored as rule items.
+        SourceSpec(source_id="awesome-cursorrules", kind="github", url="https://github.com/PatrickJS/awesome-cursorrules",
+                   priority=55, config={"repo": "PatrickJS/awesome-cursorrules", "agents": ["cursor"]}),
         SourceSpec(source_id="models-dev", kind="models_dev", url="https://models.dev/api.json", priority=80),
         SourceSpec(source_id="litellm", kind="litellm", url="https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json", priority=80),
         SourceSpec(source_id="swe-bench", kind="swe_bench", url="https://raw.githubusercontent.com/SWE-bench/swe-bench.github.io/master/data/leaderboards.json", priority=80),

@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 from orbit_data import models as model_catalog
 from orbit_data import tool_kinds
 from orbit_data.command_spec import command_spec
-from orbit_data.contract import TOKENS, canonical, uid
+from orbit_data.contract import TITLE_PRIORITY, TOKENS, canonical, uid
 from orbit_data.shell import command_head
 from orbit_data.store import insert, insert_rows
 
@@ -472,12 +472,8 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
                 if attrs.get("imported_from"):
                     values["kind"], values["imported_from"] = "import", attrs["imported_from"]
             if row["kind"] == "session.title" and row["text"] is not None:
-                previous_priority = {"custom": 3, "native": 2, "ai": 1}.get(
-                    values.get("title_source"), 0
-                )
-                if {"custom": 3, "native": 2, "ai": 1}.get(
-                    attrs.get("title_source"), 0
-                ) >= previous_priority:
+                previous_priority = TITLE_PRIORITY.get(values.get("title_source"), 0)
+                if TITLE_PRIORITY.get(attrs.get("title_source"), 0) >= previous_priority:
                     values["title"], values["title_source"] = row["text"], attrs.get("title_source")
         if not values.get("timezone"):
             values["timezone"], values["timezone_source"] = None, "unknown"

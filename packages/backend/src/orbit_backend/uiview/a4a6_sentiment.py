@@ -19,8 +19,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from ..analytics.common import quantile
-from ..analytics.interaction.rules import correction_terms
-from ..analytics.outcome_subjective.extraction import classify_feedback
+from ..analytics.interaction.rules import correction_kind, correction_verdict
 from ..analytics.products.feedback import classify_emotion
 from ..features.vocab import command_info
 from ..privacy import direct_user_text, redact
@@ -28,15 +27,8 @@ from .a4a6_common import ManyQuery
 from .a6_terms import build_terms
 
 DAY_MS = 86_400_000
-DEFINITION_VERSION = "a6-corr-v2"  # v2: correction_terms 合并 zh-en-lexicon-v1
+DEFINITION_VERSION = "a6-corr-v3"  # v3: 复用 analytics.interaction.rules 的唯一纠偏判定
 EXPERIMENTAL_NOTE = "词面候选规则，未经人工标注验证；仅供趋势参考"
-
-# 待验证 EV-02：约束/纠偏式表达；只在引文剥离后的文本上匹配。
-EXTRA_CORRECTION = re.compile(
-    r"别用|别再|不要再?(?:改|用|动)|不是.{0,6}而是|用\s?\S.{0,20}?不是\s?\S|你改错|改错了|回滚|撤销"
-    r"|\bstop\b|that'?s wrong|\bdon'?t |instead of", re.I)
-_EXAMPLE = re.compile(r"比如|例如|举例|示例|假如|如果|假设|\b(?:e\.g\.|for example|suppose)\b", re.I)
-_QUOTES = re.compile(r'“[^”]*”|「[^」]*」|『[^』]*』|"[^"\n]*"|`[^`\n]*`')
 
 # 待验证 V-A13：语言占比阈值。
 ZH_MIN, EN_MAX, MIN_CHARS = 0.7, 0.1, 3
@@ -74,20 +66,16 @@ def semantic_text(text: str | None) -> str:
 
 
 def corrections(text: str | None) -> list[dict]:
-    """Union of the three legacy correction definitions plus ``EXTRA_CORRECTION``."""
-    raw = text or ""
-    hits: list[dict] = []
-    for term in correction_terms(raw):
-        hits.append({"detector": "interaction.correction_terms", "term": term})
-    feedback = classify_feedback(raw)
-    if feedback and (feedback.get("user_acceptance") in ("rejected", "mixed")
-                     or feedback.get("rework_feedback")):
-        hits.append({"detector": "outcome_subjective.classify_feedback",
-                     "term": feedback.get("evidence_text")})
-    stripped = _QUOTES.sub(" ", direct_user_text(raw))
-    if not _EXAMPLE.search(stripped):
-        for match in EXTRA_CORRECTION.finditer(stripped):
-            hits.append({"detector": "a6.extra", "term": match.group(0).strip()})
+    """Per-rule hits of the single correction verdict (``analytics.interaction.rules``);
+    empty unless the message is a correction (result feedback alone is not)."""
+    if correction_kind(text) != "correction":
+        return []
+    hits, seen = [], set()
+    for hit in correction_verdict(text)["hits"]:
+        if hit["term"] not in seen:
+            seen.add(hit["term"])
+            hits.append({"detector": "interaction.correction_terms", "rule": hit["rule"],
+                         "term": hit["term"]})
     return hits
 
 

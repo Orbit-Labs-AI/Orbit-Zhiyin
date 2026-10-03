@@ -24,9 +24,12 @@ from .store import CatalogStore, _ms, get_blob
 FORMAT = "orbit-library-seed/1"
 SEED_PREFIX = "seed-"
 SEED_FILE = "data/library-seed.v1.json.gz"
-DEFAULT_PER_KIND = {"skill": 400, "plugin": 250, "subagent": 150, "command": 60, "rule": 60, "hook": 40,
-                    "workflow": 20, "mcp_server": 300}
-MIN_SOURCES = 3
+# Per-kind slots. hook/command/rule/workflow raised from 40/60/60/20 (round-1 seed was capped there);
+# the synced pool on 2026-10-03 held 57 hooks, 188 commands, 625 rules, 23 workflows.
+DEFAULT_PER_KIND = {"skill": 600, "plugin": 250, "subagent": 180, "command": 150, "rule": 250, "hook": 60,
+                    "workflow": 30, "mcp_server": 500}
+MIN_PER_AGENT = 15
+MIN_PER_SOURCE = 10
 BODY_LIMIT = 20_000
 # Sources available offline anyway (package data / local); never copied into the seed.
 OFFLINE_KINDS = {"bundle", "kb", "local", "snapshot"}
@@ -49,7 +52,7 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
         specs = {r["source_id"]: json.loads(r["spec"]) for r in conn.execute("SELECT source_id,spec FROM catalog_source")}
         rows = conn.execute(
             "SELECT i.item_id,i.type,i.official,i.stars,i.installs,i.risk_level,i.name_key,i.summary,i.license,i.body_len,"
-            "i.updated_at,json_extract(i.metadata,'$.metadata.installable') AS installable,"
+            "i.updated_at,i.agents,json_extract(i.metadata,'$.metadata.installable') AS installable,"
             "json_extract(i.metadata,'$.metadata.repository_url') AS repo,w.source_id,w.res_sha,w.body_sha FROM catalog_item i "
             "JOIN (SELECT s.item_id,s.source_id,s.res_sha,s.body_sha,row_number() OVER (PARTITION BY s.item_id "
             "ORDER BY c.priority DESC,s.has_path DESC,s.source_id,s.native_id) AS n FROM item_source s "
@@ -63,6 +66,8 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
             origin = (spec.get("config") or {}).get("origin") if kind == "snapshot" else row["source_id"]
             if not origin or (kind in OFFLINE_KINDS and kind != "snapshot"):
                 continue
+            if row["type"] == "rule" and not row["summary"]:
+                continue  # A rule with neither description nor prose paragraph cannot be shown in a card.
             seen.add(row["item_id"])
             # Popularity first; without it (most MCP servers) prefer documented, licensed, recent items.
             richness = (bool(row["summary"]) + bool(row["license"]) + bool(row["body_len"]) + bool(row["installable"])
@@ -71,7 +76,7 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
                                        "sort": (-row["official"], -(row["stars"] or 0), -(row["installs"] or 0),
                                                 -richness, row["risk_level"], -(row["updated_at"] or 0),
                                                 row["item_id"]),
-                                       "key": (row["name_key"], row["summary"] or ""),
+                                       "key": (row["name_key"], row["summary"] or ""), "agents": json.loads(row["agents"]),
                                        "res_sha": row["res_sha"], "body_sha": row["body_sha"]})
         if include_staged:
             # An interrupted full scan (e.g. the MCP registry) still holds validated resources in
@@ -93,7 +98,7 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
                                            "sort": (-int(bool(doc.get("official"))), 0, 0, -richness - 1, 0,
                                                     -updated, doc["item_id"]),
                                            "key": (str(doc.get("name") or "").lower(), doc.get("summary") or ""),
-                                           "doc": doc})
+                                           "agents": list(doc.get("agents") or ()), "doc": doc})
     for kind, rows in found.items():
         rows.sort(key=lambda r: r["sort"])
         # The same component mirrored by two repositories (same name and summary) is listed once.
@@ -103,30 +108,36 @@ def _candidates(store: CatalogStore, kinds, include_staged: bool) -> dict[str, l
 
 
 def _pick(ranked: list[dict], limit: int) -> list[dict]:
-    """Top `limit`, but guarantee up to MIN_SOURCES distinct sources when the pool has them."""
-    chosen = ranked[:limit]
-    sources = {r["source_id"] for r in chosen}
-    if len(sources) >= MIN_SOURCES or limit < MIN_SOURCES:
-        return chosen
-    extra = []
-    for row in ranked[limit:]:
-        if row["source_id"] not in sources:
-            sources.add(row["source_id"])
-            extra.append(row)
-            if len(sources) >= MIN_SOURCES:
-                break
-    # Make room by dropping the lowest-ranked items of sources that keep another item.
-    counts: dict[str, int] = {}
-    for row in chosen:
-        counts[row["source_id"]] = counts.get(row["source_id"], 0) + 1
-    kept = list(chosen)
-    for row in reversed(chosen):
-        if len(kept) + len(extra) <= limit:
-            break
-        if counts[row["source_id"]] > 1:
-            counts[row["source_id"]] -= 1
-            kept.remove(row)
-    return (kept + extra)[:limit]
+    """Stratified top-``limit`` of one kind (``ranked`` is best first).
+
+    Pure Top-N let the largest, most-starred sources fill every slot (round-1 audit: 10 sources,
+    no hermes/dsh/pi/kimi/cursor). Slots are claimed in this order, each in rank order:
+    1. the best item of every source (most diverse first, ordered by that item's rank);
+    2. up to MIN_PER_AGENT items for each declared agent;
+    3. up to MIN_PER_SOURCE items for each source;
+    4. the remaining slots by rank.
+    Floors are product defaults for coverage, not relevance estimates.
+    """
+    position = {row["item_id"]: n for n, row in enumerate(ranked)}
+    chosen: dict[str, dict] = {}
+
+    def take(rows):
+        for row in rows:
+            if len(chosen) >= limit:
+                return
+            chosen.setdefault(row["item_id"], row)
+
+    best: dict[str, dict] = {}
+    for row in ranked:
+        best.setdefault(row["source_id"], row)
+    take(best.values())
+    agents = sorted({agent for row in ranked for agent in row.get("agents") or ()})
+    for agent in agents:
+        take([row for row in ranked if agent in (row.get("agents") or ())][:MIN_PER_AGENT])
+    for source in best:
+        take([row for row in ranked if row["source_id"] == source][:MIN_PER_SOURCE])
+    take(ranked)
+    return sorted(chosen.values(), key=lambda row: position[row["item_id"]])
 
 
 def _resource(conn, row: dict, body_limit: int, cache: dict) -> dict:

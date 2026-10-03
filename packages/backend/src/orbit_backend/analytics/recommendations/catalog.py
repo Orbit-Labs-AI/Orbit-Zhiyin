@@ -79,18 +79,3 @@ def rejection_reason(resource):
     if not resource.get("verified_at") or resource.get("license") in (None, "", "unknown", "NOASSERTION"):
         return "missing_source_provenance"
     return None
-
-
-def vetted_catalog(catalog):
-    accepted, excluded, seen = [], [], set()
-    for resource in catalog:
-        reason = rejection_reason(resource)
-        uid = resource.get("id") if isinstance(resource, dict) else None
-        if uid in seen:
-            reason = "duplicate_resource_id"
-        if reason:
-            excluded.append({"resource_id": uid, "reason": reason})
-        else:
-            seen.add(uid)
-            accepted.append(resource)
-    return accepted, excluded
