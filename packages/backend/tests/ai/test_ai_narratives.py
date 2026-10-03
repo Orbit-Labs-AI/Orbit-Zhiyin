@@ -179,3 +179,50 @@ def test_stale_narrative_rebuilds_at_most_one_history_pack(client, ai_svc, monke
     monkeypatch.setattr(ai_svc, "_pack", changed)
     assert ai_svc.narrative("topic_names")["job_id"] is None
     assert len(calls) == 2  # one history candidate plus the current L0 fallback
+
+
+def test_overview_filters_are_part_of_the_prompt_and_fingerprint():
+    """Agent subset / project / 「全部」 views each get their own narrative: the filter is in the
+    prompt (cache key) and in the stored input fingerprint, and agents resolve to sources."""
+    import sqlite3
+
+    from orbit_backend.ai.pack import _Ctx, agent_sources
+    from orbit_backend.ai.service import narrative_input_fingerprint
+    from orbit_backend.ai.tasks_analysis import NARRATE_TASK, narrate_prompt
+
+    content = {"metrics": {"sessions": 3}, "friction": {}, "candidates": []}
+    every = {"scope": {"days": 30}, "content": content}
+    codex = {"scope": {"days": 30, "agent_ids": ["codex"], "source_ids": ["src-c"]}, "content": content}
+    assert narrate_prompt(every) != narrate_prompt(codex)
+    assert '"agent_ids":["codex"]' in narrate_prompt(codex) and "src-c" not in narrate_prompt(codex)
+    assert narrative_input_fingerprint(NARRATE_TASK, every, {"days": 30}) != \
+        narrative_input_fingerprint(NARRATE_TASK, codex, {"days": 30, "agent_ids": ["codex"]})
+    assert narrative_input_fingerprint(NARRATE_TASK, every, {"start_ms": 1}) != \
+        narrative_input_fingerprint(NARRATE_TASK, every, {"start_ms": 1, "project_id": "p"})
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE source (source_id TEXT, agent TEXT)")
+    conn.executemany("INSERT INTO source VALUES (?, ?)",
+                     [("a1", "claude_code"), ("c1", "codex"), ("c2", "codex")])
+    assert agent_sources(conn, ["codex"]) == ["c1", "c2"]
+    assert agent_sources(conn, ["codex"], ["c2", "a1"]) == ["c2"]
+    assert agent_sources(None, ["codex"]) == []
+    ctx = _Ctx(conn, NARRATE_TASK, None, None, {"days": 7, "agent_ids": ["claude_code"]}, None, None, {}, {})
+    assert ctx.scope["source_ids"] == ["a1"] and "source_id IN" in ctx.where()[0]
+
+
+def test_persona_from_the_page_profile_uses_its_axes(client, ai_svc):
+    """The A2 page sends its own profile (axes D/I/M/V): an I tradeoff passes, an axis the
+    profile does not have fails the check and falls back."""
+    profile = {"key": "ui:30", "code": "DIMV", "type_name": "FX 类型",
+               "axes": {k: {"letter": k, "value": 60} for k in "DIMV"}, "rates": {"sessions": 12}}
+    ok = {"headline": "FX 类型的协作方式", "traits": [{"text": "会话多", "metric": "rates.sessions", "value_ref": 12}],
+          "tradeoffs": [{"axis": "I", "text": "边做边想，少写计划。"}], "blind_spots": [], "caveats": []}
+    ai_svc.fake.responses["narrate.persona"] = ok
+    job = submit(client, "narrate.persona", {"persona": profile})
+    assert job["status"] == "ok" and job["result"]["tradeoffs"][0]["axis"] == "I"
+    ai_svc.fake.responses["narrate.persona"] = {**ok, "tradeoffs": [{"axis": "P", "text": "先写计划。"}]}
+    created = client.post("/v1/ai/jobs", json={"task_id": "narrate.persona", "fresh": True,
+                                               "slots": {"persona": profile}})
+    bad = wait_job(client, created.json()["job_id"])
+    assert bad["status"] == "fallback" and bad["result"]["source"] == "template"

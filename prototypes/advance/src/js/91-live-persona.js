@@ -200,7 +200,7 @@ if (LV.live) {
   const ovRedraw = () => { if (S.route === 'overview' || S.route === 'l-home') render(); };
   ACT.regen = () => {
     const ins = LV.ov && LV.ov.insight;
-    if (!ins || !ins.ai_scope) { toast(ins ? '「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选' : '数据载入后可生成'); return; }
+    if (!ins || !ins.ai_scope) { toast(ins ? '按主题、结果、摩擦、时段筛选或刷选时间段的视图暂不生成 AI 解读：清除这些筛选后再生成（Agent 与项目筛选可以保留）' : '数据载入后可生成'); return; }
     if (LV.ovRegen) { toast('AI 解读正在生成'); return; }
     const scope = {}; Object.keys(ins.ai_scope).forEach((k) => { if (ins.ai_scope[k] != null) scope[k] = ins.ai_scope[k]; });
     const run = LV.ovRegen = { key: JSON.stringify(scope), msg: '已提交给本地 Agent…', job: null, stop: false };
