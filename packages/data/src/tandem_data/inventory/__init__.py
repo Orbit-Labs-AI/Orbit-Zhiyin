@@ -13,7 +13,7 @@ from tandem_data.store import Store, insert, readonly_connection
 from .adapters import SUPPORTED, mcp, scan_layout
 from .reader import KINDS, ScanReader
 
-SCANNER_VERSION = "1.3.0"
+SCANNER_VERSION = "1.4.0"
 
 
 @dataclass(frozen=True)
