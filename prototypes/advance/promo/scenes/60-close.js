@@ -44,6 +44,14 @@ scene('60-close', () => {
   })());
   const S0 = [];                                              // 交接拍 b69.2 时 50-tools 交来的点（AGD.pos 读实际位置，像素级接上）
   const s0 = (i) => S0[i] || (S0[i] = AGD.pos(i, HB - 1e-6));
+  // v17.7 交接：orb 里的 5 个小徽章（02-agents micro：logo 点外 .5R、半径 .3R、方位 6·b + 72i − 90，R = r·k 1.15）就是拆开后的 5 个点——
+  // 点 i 从自己那枚小徽章的位置与大小起步（点 0 带着 orb 在拆开的前 .5 拍缩到 cc 小徽章处），不再 5 个都以 orb 的 r 40 叠在中心、
+  // 先闪成一颗 cc 大点
+  const spMini = (i, b) => {
+    const s = s0(0), R = s.r * 1.15, a = (6 * (HB + (SHIFT['60-close'] || 0)) + 72 * i - 90) * Math.PI / 180;
+    const u = i ? 1 : E.inOut(clamp((b - HB) / .5));
+    return { x: s.x + .5 * R * Math.cos(a) * u, y: s.y + .5 * R * Math.sin(a) * u, r: lerp(s.r, .3 * R, u) };
+  };
 
   /* ---------- deck 2：收拢罗盘 = 圆环 → 罗盘 → 圆环（H13–H15） ---------- */
   // b69.2 直接设定：罗盘中心 (400, 400) → 舞台 (960, 540)，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）；s 从 .001
@@ -81,7 +89,7 @@ scene('60-close', () => {
   AGD.follow(69.0, 71.4, (i, b) => {
     if (b < HB) return null;
     // R = 徽章到中心的实际距离 = 圆环当帧半径（deck 2 的 s 已随点放大，不再乘 e_i）；徽章大小按 s 1 的 19 取
-    const e = spE(i, b), G = spG()[i][1], c = cpBadge(i), C = cpStage(400, 400), s = s0(i);
+    const e = spE(i, b), G = spG()[i][1], c = cpBadge(i), C = cpStage(400, 400), s = spMini(i, b);
     const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]), th = (dc - G * (1 - e)) * Math.PI / 180;
     return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r / decks[2].C.s, e) };
   }, { blend: .2 });
@@ -91,7 +99,10 @@ scene('60-close', () => {
      · 花开到位（b71.95）五点一起朝花心收成 petal（hold .3，同 3 的合拢），类型码全亮 b72.64 起 glow 顺时针扫过（cc cx ds cp gm）
      · 收回圆环（b74.3–74.9）dot → bead，rot 取圆环切线（同 1e 穿在 R 300 圆环上的样子） */
   const DEG = 180 / Math.PI, CW = [0, 1, 3, 4, 2];
-  AGD.morph(HB, 'all', 'dot', { dur: .4, stag: 0 });
+  AGD.morph(HB, 0, 'dot', { dur: .4 });
+  // 点 1–4 拆开时就是普通圆徽章（'bead' 参数写成与 dot 完全相同）：'dot' 在 merged > 0 时会混入 orb，各点自带 5 枚小徽章与色弧、
+  // 叠在 orb 上成一团重影；用不触发 orb 混合的同形写法，它们从 orb 里的小徽章原样长出
+  AGD.morph(HB, [1, 2, 3, 4], 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01, stag: 0 });
   for (let i = 0; i < 5; i++) {
     AGD.morph(HB + .3 + .06 * i, i, 'head', { dur: .4, glow: .35 });
     AGD.morph(HB + 1.15 + .06 * i, i, 'dot', { dur: .45 });
