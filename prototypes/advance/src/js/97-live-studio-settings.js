@@ -622,12 +622,24 @@ if (TL.mode === 'live') {
     tlsNotifyBase(n);
     if (ORBIT.native.isNative && document.hidden && !(S.paused && !n.force)) ORBIT.native.post('notify', { id: n.id || undefined, title: n.t || '', body: n.b || '' });
   };
+  // 菜单栏角标 in the native shell: the kinds delivered on the badge channel, pruned once they are no longer open; posted as
+  // statusBadge {state: none | info | warn} on change (paused → none). The simulated menu bar (S.sim) is hidden in body.native.
+  TLS.badgeK = new Set(); TLS.badgeSent = null;
+  function tlsBadge() {
+    if (!NATV.has('statusBadge')) return;
+    const K = TLS.badgeK;
+    if (K.has('waiting') && !S.waitOpen) K.delete('waiting');
+    ['stuck', 'ctx'].forEach((k) => { if (K.has(k) && !S.attn.has(k)) K.delete(k); });
+    const st = S.paused || !K.size ? 'none' : K.has('waiting') || K.has('stuck') ? 'warn' : 'info';
+    if (st !== TLS.badgeSent) { TLS.badgeSent = st; ORBIT.native.post('statusBadge', { state: st }); }
+  }
   function tlsNotify(d) {
     const k = tlsKind(d.type); const ch = d.channels || [];
     const toHud = ch.indexOf('hud') >= 0 && !S.hud.mute, toBadge = ch.indexOf('badge') >= 0;
     const set = (v) => { if (toHud) S.hudSim = v; if (toBadge) S.sim = v; };
+    if (k && toBadge) TLS.badgeK.add(k);
     if (k && (toHud || toBadge)) {
-      if (k === 'done') { set('done'); clearTimeout(TLS.doneT); TLS.doneT = setTimeout(() => { simClear('done'); render(); }, 8000); }
+      if (k === 'done') { set('done'); clearTimeout(TLS.doneT); TLS.doneT = setTimeout(() => { simClear('done'); TLS.badgeK.delete('done'); render(); }, 8000); }
       else if (k === 'waiting') { S.waitOpen = true; set('waiting'); }
       else if (k === 'stuck' || k === 'ctx') { S.attn.add(k); set(k); }
     }
@@ -638,7 +650,7 @@ if (TL.mode === 'live') {
     const d = ev.data || {};
     if (ev.name === 'notification') tlsNotify(d);
     else if (ev.name === 'attention') TL.invalidate((r) => r.path === R.attn);
-    else if (ev.name === 'service' && d.name === 'collection') { TLS.colFrame = d.state === 'paused'; S.paused = TLS.colFrame; }
+    else if (ev.name === 'service' && d.name === 'collection') { TLS.colFrame = d.state === 'paused'; S.paused = TLS.colFrame; tlsBadge(); }
   });
 
   /* ---------- status strip on the studio (refreshStudio redraws #main without the 96 render wrapper) ---------- */
@@ -650,5 +662,5 @@ if (TL.mode === 'live') {
   }
   RENDER_HOOKS.push(() => tlsStrip());
   const tlsRenderBase = render;
-  render = function () { tlsSync(); tlsRenderBase(); tlsStrip(); };
+  render = function () { tlsSync(); tlsRenderBase(); tlsStrip(); tlsBadge(); };
 }
