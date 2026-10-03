@@ -20,10 +20,14 @@ scene('50-tools', () => {
 .ln.t5o>span{color:var(--a1)}
 .mt-ph.gh{font-size:26px;gap:9px;padding:6px 16px 8px;background:rgba(10,11,13,.82)}
 .mt-ph.gh i{width:9px;height:9px}
+/* v18.2: the eyebrows read as「03 · 会话轨迹」/「04 · 生成工坊」in the same mono as 01 / 02 (24 px, α .7); the swap slots
+   do not clip (the old line rises and blurs out, the new one rises in) and each word sits on the slot's centre */
+.ln.eb.t5e{font-size:24px;color:rgba(255,255,255,.7)}
+.ln.t5s .sw{overflow:visible}
+.ln.t5s .sw>span{left:50%}
 `);
   // tag() writes 'scale(k) translate(…)'; swapping the order keeps a counter-scaled tag on its edge (v16 50-montage)
   const fixTag = (el) => { el.style.transform = el.style.transform.replace(/^(scale\([^)]*\))\s*(translate\([^)]*\))$/, '$2 $1'); };
-  const DIAG = [760, 430];                                  // conveyor push on screen (lower right → upper left), v16
   const advLight = (d) => { const W = decks[d].W; if (W.eval('S.ed') !== 'advance') W.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); W.setTheme('light'); };
   const WIRE = 'rgba(255,255,255,.43)';                     // AGD draws links at stroke-opacity .7 → white 30 %
 
@@ -34,14 +38,15 @@ scene('50-tools', () => {
      run card (the generator) → b74.1–75.2 screen centre (960, 540), where 60-close's spiral starts. All E.inOut. */
   const io = (b, b0, d) => E.inOut(clamp((b - b0) / d)), mix = (P, Q, e) => [lerp(P[0], Q[0], e), lerp(P[1], Q[1], e)];
   const MERGE = [330, 540], HOME = [960, 540], BACK = 73.9;   // v18.1: the orb leaves for the centre at b73.9 (was 74.1)
+  const CX = 67.3, HOV = 68.5, PRESS = 68.8, BOFF = 69.4;   // v18.2: card exit; hover (.3 beat) before the press; button gone
   const PADS = () => 22 * decks[0].C.s;                     // the timeline panel's margin (promo-card, 22 frame px) on screen
-  // under the playhead, card-fixed: the conveyor exit (b67.1, 1 beat, E.inOut, moves only ax / ay by −DIAG) is taken back out,
+  // under the playhead, card-fixed: the card's exit (b67.3, .45 beat, E.in, moves only ax by −240) is taken back out,
   // so the dot keeps riding the playhead's creep instead of being dragged up-left and then turning back to the button.
   // Right under the timeline the card's own status line (已发生 n / 143) and legend fill the space, so the dot rides 46 px
   // below the card's bottom edge at the playhead's x: it covers none of the app's text (T11′: pill above, dot below)
   const rideXY = (b) => {
-    const p = elXY(0, TL + ' .vz-playhead', .5, 1), y = elXY(0, TL, .5, 1)[1] + PADS() + 46, e = io(b, 67.1, 1.0);
-    return [p[0] + DIAG[0] * e, y + DIAG[1] * e];
+    const p = elXY(0, TL + ' .vz-playhead', .5, 1), y = elXY(0, TL, .5, 1)[1] + PADS() + 46, e = E.in(clamp((b - CX) / .45));
+    return [p[0] + 240 * e, y];
   };
   // b56.8–57.4 (330, 540) → under the playhead around the card's lower-left corner: y leads (56.8–57.2), x follows
   // (56.95–57.4), so the dot drops past the card's left edge and turns along its bottom instead of cutting across its rows
@@ -51,8 +56,9 @@ scene('50-tools', () => {
   let BW = [150, 46];
   const btnXY = (b) => {
     const D = decks[1].D, rc = D && runCard(D); if (!rc) return HOME;
-    const el = b < 69.05 && startBtn(D); if (el) { const r = el.getBoundingClientRect(); if (r.width) BW = [r.width, r.height]; }
-    const c = rc.getBoundingClientRect(); return stageXY(1, c.right - 18 - BW[0] / 2, c.top + 16 + BW[1] / 2);
+    const el = b < BOFF && startBtn(D); if (el) { const r = el.getBoundingClientRect(); if (r.width) BW = [r.width, r.height]; }
+    // v18.2: the tip lands 70 % across the (now large) button, right of its label, so the pointer never covers 开始生成
+    const c = rc.getBoundingClientRect(); return stageXY(1, c.right - 18 - BW[0] * .3, c.top + 16 + BW[1] / 2);
   };
   const genXY = () => { const p = skillEdge(); return [p[0] - 56, p[1]]; };
   // b74.1–75.2 the return to the centre starts from where the generator was at b74.1 (held, not live): the cards then shrink
@@ -79,7 +85,9 @@ scene('50-tools', () => {
       : b < BACK ? toGen(b)
       : backXY(b);
     const e = b >= 67.4 && b < 69.6 ? ptrE(b) : 0;
-    return MP = e ? [q[0] + PTR[0] * e, q[1] + PTR[1] * e] : q;
+    // v18.2 hover: the pointer sinks 3 px onto the button over the .3 beat before the press, and lets go after it
+    const sk = 3 * (io(b, HOV, .3) - io(b, PRESS + .05, .2));
+    return MP = e || sk ? [q[0] + PTR[0] * e, q[1] + PTR[1] * e + sk] : q;
   };
   const mergeR = (b) => b < 69.0 ? lerp(44, 26, io(b, 56.8, .6)) : b < BACK ? lerp(26, 36, io(b, 69.0, .6)) : lerp(36, 40, io(b, BACK, 1.3));
   // v17.7 hand-off: the column closes in 1.0 beat (stag .03) and dots 1–4 fade as they slip under cc (b55.3–55.75), so
@@ -93,10 +101,18 @@ scene('50-tools', () => {
   /* ---------- top copy: three lines, swapped in place at 5.4, out at b74.4 ---------- */
   const sw = (a, b) => '<span class="sw"><span>' + a + '</span><span>' + b + '</span></span>';
   // slower rise (1.2 beats) and swap (.75); the block keeps a slow push (+.3 % / beat) instead of a dead hold
-  const line = (b0, cls, a, b, y, swapAt) => txt(b0, 75.0, [[cls, sw(a, b)]], { x: 960, y, align: 'c' },
-    { anim: K.all(mask(0, 1.2, .6), K.swap({ at: [swapAt - b0], dur: .75, out: 0 })),
+  // v18.2 the swap is sequential, not a cross: the old line leaves in .3 beat (E.in, up 20 px, blur 8) and the new one comes
+  // in .25 beat after the old one started leaving (.55 beat, E.out, from 20 px below, blur 8 → 0): never two lines on top
+  const seq = (at) => (el, tl) => el.querySelectorAll('.sw').forEach((s) => {
+    const [a, n] = s.children, po = E.in(clamp((tl - BB(at)) / BB(.3))), pi = E.out(clamp((tl - BB(at + .25)) / BB(.55)));
+    const set = (w, q, dy) => { w.style.opacity = q.toFixed(3); w.style.transform = 'translate(-50%,' + dy.toFixed(1) + 'px)'; w.style.filter = q < .999 ? 'blur(' + ((1 - q) * 8).toFixed(1) + 'px)' : 'none'; };
+    set(a, 1 - po, -20 * po); set(n, pi, 20 * (1 - pi));
+    s.style.width = Math.max(a.offsetWidth, n.offsetWidth) + 'px'; s.style.height = a.offsetHeight + 'px';
+  });
+  const line = (b0, cls, a, b, y, swapAt) => txt(b0, 75.0, [[cls + ' t5s', sw(a, b)]], { x: 960, y, align: 'c' },
+    { anim: K.all(mask(0, 1.2, .6), seq(swapAt - b0)),
       tick: (el, tl) => { el.style.transform = 'translate(-50%,-50%) scale(' + (1 + .003 * (tl / BEAT + b0 - 56.4)).toFixed(4) + ')'; } });
-  line(56.4, 'eb', '会话轨迹', '生成工坊', 110, 67.3);
+  line(56.4, 'eb t5e', '03 · 会话轨迹', '04 · 生成工坊', 110, 67.3);
   line(56.6, 'hv sv t5h', '回放每一次协作', '交给本地 Agent，写成 Skill', 190, 67.45);
   line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '边写边验', 270, 67.6);
 
@@ -160,7 +176,7 @@ scene('50-tools', () => {
   drive(0, 55.09, 55.4, () => { panel(); decks[0].D.getAnimations().forEach((x) => { if (isFinite(x.effect?.getComputedTiming().endTime)) x.finish(); }); });
   drive(0, 55.4, 67.6, (p, b) => { const a = app(0); a.S.sess.ph = Math.min(41.95, phAt(b)); a.W.eval('tlFrame(true)'); panel(); });
   // each phase pill pops in over .3 beat (rise + scale from .9), then stays readable ≥ 1.8 beats while it rides the playhead
-  tag(0, 55.4, 67.9, PH, 'top', [['', '<span class="mt-ph"><i></i><b></b></span><span class="mt-stem"></span>']], {
+  tag(0, 55.4, 67.75, PH, 'top', [['', '<span class="mt-ph"><i></i><b></b></span><span class="mt-stem"></span>']], {
     at: .5, gap: 10, anim: (el, tl, life, t) => {
       const b = t / BEAT, f = phaseOf(phAt(b)), pill = el.querySelector('.mt-ph');
       if (el.dataset.p !== f[1]) { el.dataset.p = f[1]; pill.className = 'mt-ph ' + f[2]; pill.querySelector('b').textContent = f[1]; el._t = b; }
@@ -178,15 +194,16 @@ scene('50-tools', () => {
       const r = e.getBoundingClientRect(), t = sv.getBoundingClientRect(), x = r.left + r.width / 2;
       return { getBoundingClientRect: () => ({ left: x, right: x, top: t.top, bottom: t.top, width: 0, height: 0 }) };
     };
-    tag(0, KN[i + 1][0], 67.9, band, 'top', [['', '<span class="mt-ph gh ' + f[2] + '"><i></i><b>' + f[1].split(' ')[0] + '</b></span>']], {
+    tag(0, KN[i + 1][0], 67.75, band, 'top', [['', '<span class="mt-ph gh ' + f[2] + '"><i></i><b>' + f[1].split(' ')[0] + '</b></span>']], {
       at: .5, gap: 6, anim: (el, tl, life) => {
         const k = E.out(clamp(tl / BB(.4))), q = exitQ(tl, life, .45);
         el.style.opacity = (.45 * k * q).toFixed(3); fixTag(el);
       }
     });
   });
-  // 5.4 conveyor: the card leaves along the diagonal (1 beat, eased both ends) while the studio arrives from the opposite side
-  tween(0, 67.1, 1.0, () => { const C = decks[0].C; return { ax: C.ax - DIAG[0], ay: C.ay - DIAG[1], o: 0, bl: 8, mx: 24 }; }, E.inOut);
+  // 5.4 v18.2: the card leaves with the old title (b67.3, .45 beat, E.in): 240 px left, blur 10, gone — a short clean exit
+  // instead of the 1-beat diagonal that left a grey blurred slab crossing the frame; its pills go with it (until b67.75)
+  tween(0, CX, .45, () => { const C = decks[0].C; return { ax: C.ax - 240, o: 0, bl: 10 }; }, E.in);
 
   /* ---------- 5.4–5.7 studio (deck 1, b56.1–75.2) ---------- */
   const runCard = (D) => { const s = D.querySelector('#main .st-steps'); return s ? s.closest('.card') : D.querySelectorAll('#main .card.pad.col')[1]; };
@@ -210,7 +227,7 @@ scene('50-tools', () => {
   // the app puts the 停止 button once the run starts (re-applied every frame: the app re-renders #main)
   // position: fixed — a translate left it inside the task card, whose overflow: auto clipped it away (it was never seen)
   let BN = null;                                            // the button's own size, measured once in its row
-  const BTN0 = ['position', 'left', 'top', 'width', 'height', 'zIndex', 'margin', 'transition', 'transform'];
+  const BTN0 = ['position', 'left', 'top', 'width', 'height', 'zIndex', 'margin', 'transition', 'transform', 'boxShadow', 'transformOrigin'];
   const placeBtn = () => {
     const D = decks[1].D, b = startBtn(D), rc = runCard(D); if (!b || !rc) return;
     if (!BN || b.style.position !== 'fixed') { BTN0.forEach((k) => { b.style[k] = ''; }); const r = b.getBoundingClientRect(); if (!BN && r.width) BN = [r.width, r.height]; }
@@ -222,25 +239,45 @@ scene('50-tools', () => {
   };
   // after the press the app's own 停止 takes its place in the header: the (now disabled) button fades out .15–.3 beat after
   // the click, then goes back to the task card unseen
-  drive(1, 56.15, 69.05, (p, b) => { placeBtn(); const el = startBtn(decks[1].D); if (el) el.style.opacity = (1 - clamp((b - 68.95) / .1)).toFixed(3); });
+  // v18.2 a real press: .3 beat of hover first (the face lightens, a white tint over the dark primary fill), then at the
+  // click the button dips to .94 (.06 beat) and springs back (.14 beat) before it gives way to 停止
+  // the pressed button stays on as the camera pulls away and fades with it (b69.0–69.4, E.in), so the press bloom never
+  // hangs on bare black
+  drive(1, 56.15, BOFF, (p, b) => {
+    placeBtn(); const el = startBtn(decks[1].D); if (!el) return;
+    el.style.opacity = (1 - E.in(clamp((b - 69.0) / (BOFF - 69.0)))).toFixed(3);
+    const h = io(b, HOV, .3), d = E.out(clamp((b - PRESS) / .06)) - E.inOut(clamp((b - PRESS - .06) / .14));
+    // the press itself: an orange ring leaves the button's edge (0 → 4 frame px ≈ 22 px on screen, .6 beat) instead of a bloom disc over the label
+    const rp = clamp((b - PRESS) / .6), ring = b >= PRESS ? 'rgba(242,122,72,' + (.8 * (1 - E.out(rp))).toFixed(3) + ') 0 0 0 ' + (4 * E.out(rp)).toFixed(2) + 'px' : '';
+    const hv = h * (1 - io(b, PRESS + .1, .3)), tint = hv > .001 ? 'inset 0 0 0 999px rgba(255,255,255,' + Math.max(0, .15 * hv - .05 * d).toFixed(3) + ')' : '';
+    // (inline !important: the solo rule sets box-shadow !important; its own edge + drop shadow are kept in the list)
+    if (tint || ring) el.style.setProperty('box-shadow', [tint, ring, '0 0 0 .5px rgba(255,255,255,.14)', '0 30px 90px rgba(0,0,0,.55)'].filter(Boolean).join(','), 'important');
+    else el.style.removeProperty('box-shadow');
+    el.style.transformOrigin = '50% 50%'; el.style.transform = d > .001 ? 'scale(' + (1 - .06 * d).toFixed(4) + ')' : '';
+  });
   // QA: SKILL.md stays hidden through the push-in (it sat cut off at the frame's right edge beside the button) and fades
   // in on the glide (b68.95–69.55)
   drive(1, 56.15, 69.6, (p, b) => { const el = skillCard(decks[1].D); if (el) el.style.opacity = clamp((b - 68.95) / .6).toFixed(3); });
   at(69.6, () => { const el = skillCard(decks[1].D); if (el) el.style.opacity = ''; });
-  at(69.05, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); BTN0.forEach((k) => { b.style[k] = ''; }); b.style.opacity = ''; } });
+  at(BOFF, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); BTN0.forEach((k) => { b.style[k] = ''; }); b.style.opacity = ''; } });
   // v18.1 one shot: a push-in on 开始生成 alone (b67.3–68.8, the dot slides on and presses it), then the camera glides to
   // SKILL.md (b69.0–70.1), framed at 1.9× from its top edge: the frontmatter and step lines (11.5 px mono) read at ≈ 22 px;
   // the card's lower part (checks, actions) runs off the bottom of the frame
-  const btnCam = () => { const r = rectOf(1, startBtn); return { x: r.x + r.w / 2, y: r.y + r.h / 2, s: 2.3, ax: 960, ay: 650, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 }; };
+  // v18.2 framed 2.5× closer than before (s 2.3 → 5.5 → ×1.05): the 13 px label reads at ≈ 65 px and the button is the shot
+  const BZ = 5.5;
+  const btnCam = () => { const r = rectOf(1, startBtn); return { x: r.x + r.w / 2, y: r.y + r.h / 2, s: BZ, ax: 960, ay: 600, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 }; };
   const studioCam = () => { const r = SR || rectOf(1, skillCard); return { x: r.x + r.w / 2, y: r.y, s: 1.9, ax: 1000, ay: 318, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 }; };
-  tween(1, 67.3, 1.2, btnCam, E.quart, (T) => ({ ax: T.ax + DIAG[0], ay: T.ay + DIAG[1], o: 0, bl: 8, mx: 24 }));
-  tween(1, 68.2, .7, () => ({ s: decks[1].C.s * 1.12 }), E.inOut);
+  // in from the right as the card leaves to the left (mirrored, 240 px, a touch of depth; starts b67.75, once the card is
+  // gone, so the button never lies over it), then a slow linear push 1 → 1.05 that is still moving through the hover and
+  // the press (b68.55–69.05; the glide to SKILL.md takes over at b69.0)
+  tween(1, CX + .45, .9, btnCam, E.quart, (T) => ({ ax: T.ax + 240, s: T.s * .9, o: 0, bl: 10 }));
+  tween(1, 68.55, .5, () => ({ s: decks[1].C.s * 1.05 }), E.lin);
   tween(1, 69.0, 1.1, studioCam, E.inOut);
   // continuous push (+3 % over 3.8 beats, linear) so the file never holds still while it is written and read
   tween(1, 70.1, 3.8, () => ({ s: decks[1].C.s * 1.03 }), E.lin);
-  // 5.5 the merged dot is the pointer: it has slid onto 开始生成 (mergeXY, b67.4–68.65) and presses it — no pointer, only the
-  // orange bloom, and the dot dips (.88) with the press; the app's own timers are cleared, the run is driven below
-  clickAt(1, 68.8, startBtn, (a, el) => { a.click(el); a.W.eval('clearTimeout(RUNT)'); remark1(); }, { bloom: 'var(--a1)', cursor: false });
+  // 5.5 the merged dot is the pointer: it has slid onto 开始生成 (mergeXY, b67.4–68.65) and presses it — no pointer; v18.2:
+  // no bloom either (it sat on the label), the button itself hovers, dips and rings (drive above), and the dot dips (.88); the app's own timers are cleared, the run is driven below
+  clickAt(1, 68.8, startBtn, (a, el) => { a.click(el); a.W.eval('clearTimeout(RUNT)'); remark1(); }, { cursor: false });
   AGD.pulse(0, 68.8, .88, .3);
   // 5.6 the app's run (v1: pack · analyse · draft · self-check · replay + judge · review), on the film's beats: ≥ .45 beat per
   // step, SKILL.md typed character by character at an even rate over b70.05–72.65 (2.6 beats; the finished file then reads
@@ -327,5 +364,8 @@ scene('50-tools', () => {
   at(75.25, () => decks[1].D.documentElement.classList.remove('promo-x'));
   tween(1, BACK, 0, () => { const C = decks[1].C, [px, py] = mergeXY(BACK); return { x: C.x + (px - C.ax) / C.s, y: C.y + (py - C.ay) / C.s, ax: px, ay: py }; });
   tween(1, BACK, 1.3, { ax: HOME[0], ay: HOME[1] }, E.inOut);
-  tween(1, BACK, .8, () => { const C = decks[1].C; return { s: C.s * .7, o: 0, bl: 8 }; }, E.in);
+  // v18.2: the card is drawn INTO the orb — it shrinks to .6 about the orb's live point on an in-out (most of the shrink
+  // happens while it is still clearly visible), and its blur and fade trail it (E.in), so it reads as swallowed, not faded
+  tween(1, BACK, .9, () => ({ s: decks[1].C.s * .6 }), E.inOut);
+  tween(1, BACK, .9, { o: 0, bl: 8 }, E.in);
 });
