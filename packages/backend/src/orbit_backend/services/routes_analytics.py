@@ -292,13 +292,28 @@ def router(gw: Gateway) -> APIRouter:
 
     def render(snapshot: Snapshot, meta_: dict, tag: str, page, view=None) -> Response:
         body = dict(snapshot.body)
+        cacheable = True
         if view is not None:
-            try:
-                body = view[1](body)
-            except ValueError as error:
-                raise ApiError(422, "invalid_request", str(error)) from error
-            if isinstance(body, Response):
-                return body
+            dynamic = callable(view[0])
+            # Catalog publication can race with the worker wait or the match itself.
+            # Retry a moving projection once, then serve without a cache validator.
+            for _ in range(2 if dynamic else 1):
+                before = view[0]() if dynamic else view[0]
+                try:
+                    body = view[1](dict(snapshot.body))
+                except ValueError as error:
+                    raise ApiError(422, "invalid_request", str(error)) from error
+                if isinstance(body, Response):
+                    return body
+                if not dynamic or before == view[0]():
+                    if dynamic:
+                        token = (snapshot.key.section if page is None else
+                                 f"{snapshot.key.section}[{page[0]}:{page[1]}]")
+                        tag = etag(snapshot.key.rules, snapshot.key.data_rev,
+                                   snapshot.key.inventory_rev, snapshot.key.scope_hash, token + before)
+                    break
+            else:
+                cacheable = False
         if page is not None:
             offset, limit = page
             key = PAGED_ROWS.get(snapshot.key.section) or SECTIONS[snapshot.key.section].key
@@ -307,7 +322,7 @@ def router(gw: Gateway) -> APIRouter:
             body["total"] = len(rows)
             body["next_offset"] = offset + limit if offset + limit < len(rows) else None
         body["meta"] = meta_
-        return JSONResponse(body, headers={"ETag": tag})
+        return JSONResponse(body, headers={"ETag": tag} if cacheable else {"Cache-Control": "no-store"})
 
     def serve(name: str, scope, params: dict, wait_ms: int, if_none_match: str | None,
               page: tuple[int, int] | None = None, view=None,
@@ -324,7 +339,7 @@ def router(gw: Gateway) -> APIRouter:
         rev = gw.revisions.snapshot()
         token = name if page is None else f"{name}[{page[0]}:{page[1]}]"
         if view is not None:
-            token = f"{token}{view[0]}"
+            token = f"{token}{view[0]() if callable(view[0]) else view[0]}"
         if rev["data_rev"] is None:
             return JSONResponse({section.key: None, "meta": meta_(
                 h, rules, "none", None, rev, "none", reason="no_projection")})
@@ -522,14 +537,18 @@ def router(gw: Gateway) -> APIRouter:
         from orbit_catalog import get_service
 
         store = get_service(gw.home / "catalog.db").store
-        try:  # catalog changes must change the ETag (no stale 304)
-            with store.connect(True) as conn:
-                generation = store.generation(conn)
-        except sqlite3.Error:
-            generation = "unknown"
+        def revision_token():
+            from orbit_catalog.search import RANKING_VERSION
+
+            try:  # Resource and vector publication both change retrieval results.
+                with store.connect(True) as conn:
+                    return f"/{RANKING_VERSION}/match@{store.generation(conn)}.{store.embedding_generation(conn)}"
+            except sqlite3.Error:
+                return "/match@unknown"
+
         params = drop_none(project_id=project_id, model=model, scene=scene, limit=limit)
         return serve("catalog_requests", Scope(), params, wait_ms, if_none_match,
-                     view=(f"/match@{generation}", view))
+                     view=(revision_token, view))
 
     @api.get("/v1/analytics/presentation")
     def presentation(scope=scope_dependency, window: str | None = None,

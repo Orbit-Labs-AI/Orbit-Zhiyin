@@ -235,19 +235,23 @@ class CatalogStore:
         conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 WHERE key='generation'")
 
     def index(self, conn=None):
-        """In-memory snapshot (see index.py), rebuilt lazily when the generation moves."""
+        """Match this reader's WAL generation; older readers never replace a newer cache."""
         if conn is None:
             with self.reader() as conn:
                 return self.index(conn)
         generation = self.generation(conn)
         current = self._index
-        if current is not None and current.generation >= generation:
+        if current is not None and current.generation == generation:
             return current
         with self._index_lock:
-            if self._index is None or self._index.generation < generation:
-                from .index import CatalogIndex
-                self._index = CatalogIndex.build(conn, generation)
-            return self._index
+            current = self._index
+            if current is not None and current.generation == generation:
+                return current
+            from .index import CatalogIndex
+            snapshot = CatalogIndex.build(conn, generation)
+            if current is None or current.generation < generation:
+                self._index = snapshot
+            return snapshot
 
     # -- sources and sync ----------------------------------------------------------------
     def register(self, sources: list[SourceSpec]) -> None:

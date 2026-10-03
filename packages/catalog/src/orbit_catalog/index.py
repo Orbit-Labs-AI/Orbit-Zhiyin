@@ -155,11 +155,14 @@ class CatalogIndex:
         with self._lock:
             row = conn.execute("SELECT value FROM catalog_meta WHERE key='embedding_generation'").fetchone()
             generation = int(row[0]) if row else 0
-            if generation != self._matrix_generation:
+            if self._matrix_generation is None or generation > self._matrix_generation:
                 self._matrices.clear()
                 self._matrix_generation = generation
+            # A pinned older WAL reader needs its own matrix, but must not evict
+            # matrices already built for a newer embedding snapshot.
+            matrices = self._matrices if generation == self._matrix_generation else {}
             cache_key = (model_id, dimensions)
-            if cache_key not in self._matrices:
+            if cache_key not in matrices:
                 joins = (" FROM resource_chunk c JOIN embedding_cache e ON e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) "
                          "AND e.text_hash=c.text_hash WHERE c.embed=1")
                 count = conn.execute("SELECT count(*)" + joins, (model_id,)).fetchone()[0]
@@ -183,5 +186,5 @@ class CatalogIndex:
                     owners[offset:end] = [self.pos[r[1]] for r in batch]
                     offset = end
                 vectors.flags.writeable = False
-                self._matrices[cache_key] = (vectors[:offset], owners[:offset], rowids[:offset])
-            return self._matrices[cache_key]
+                matrices[cache_key] = (vectors[:offset], owners[:offset], rowids[:offset])
+            return matrices[cache_key]

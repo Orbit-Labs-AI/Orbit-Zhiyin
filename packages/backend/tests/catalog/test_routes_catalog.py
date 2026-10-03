@@ -116,3 +116,10 @@ def test_embedding_publication_invalidates_search_etag_without_resource_rebuild(
         assert store.generation(db) == before
     fresh = client.get('/v1/catalog/search', params={'q': 'debug'}, headers={'If-None-Match': tag})
     assert fresh.status_code == 200 and fresh.headers['etag'] != tag
+
+
+def test_ranking_revision_invalidates_cached_search(client, monkeypatch):
+    first = client.get('/v1/catalog/search', params={'q': 'debug'})
+    monkeypatch.setattr('orbit_catalog.search.RANKING_VERSION', 'test-rank-next')
+    second = client.get('/v1/catalog/search', params={'q': 'debug'}, headers={'If-None-Match': first.headers['etag']})
+    assert second.status_code == 200 and second.headers['etag'] != first.headers['etag']

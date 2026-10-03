@@ -257,6 +257,9 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         # AI on/off changes the slate (generation cards, display order), so it keys the run.
         settings_key = hashlib.sha256(json.dumps(settings, sort_keys=True, default=str).encode()).hexdigest()[:16]
         memory_rev = f"{memory_rev}:settings:{settings_key}"
+        if catalog is not None:
+            from orbit_catalog.search import RANKING_VERSION
+            memory_rev += f":catalog_rank:{RANKING_VERSION}"
         digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev, embedding_generation)
         if not force:
             with gw.appdb.read() as conn:

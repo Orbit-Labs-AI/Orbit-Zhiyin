@@ -229,3 +229,37 @@ def test_parallel_stuck_encoder_cancel_has_deadline(tmp_path, monkeypatch):
     with pytest.raises(InterruptedError, match="embedding_cancel_timeout"):
         vectors.index_embeddings_parallel(store, "unused", workers=2, cancelled=lambda: True)
     assert events.closed and stop.is_set() and all(p.terminated for p in processes)
+
+
+def test_old_wal_reader_gets_its_own_catalog_index_without_replacing_new_cache(tmp_path):
+    store = make_store(tmp_path)
+    publish(store, [record("old")])
+    with store.connect(True) as old_conn:
+        old_generation = store.generation(old_conn)  # First read pins the WAL snapshot.
+        publish(store, [record("new")])
+        current = store.index()
+        assert current.ids == ["new"] and current.generation > old_generation
+        old = store.index(old_conn)
+        assert old.generation == old_generation
+        assert old.ids == ["old"]
+        assert store.index() is current
+
+
+def test_old_wal_vectors_do_not_roll_back_new_matrix_cache(tmp_path):
+    store = make_store(tmp_path)
+    publish(store, [record("a"), record("b")])
+    encoder = ToyEncoder()
+    index_embeddings(store, encoder, max_chunks=1)
+    index = store.index()
+    with store.connect(True) as old_conn:
+        old_generation = int(old_conn.execute("SELECT value FROM catalog_meta WHERE key='embedding_generation'").fetchone()[0])
+        index_embeddings(store, encoder)
+        with store.connect(True) as fresh_conn:
+            current = index.matrix(fresh_conn, encoder.model_id, encoder.dimensions)
+            current_generation = int(fresh_conn.execute("SELECT value FROM catalog_meta WHERE key='embedding_generation'").fetchone()[0])
+        assert len(current[0]) == 2 and current_generation > old_generation
+        previous = index.matrix(old_conn, encoder.model_id, encoder.dimensions)
+        assert len(previous[0]) == 1
+        assert index._matrix_generation == current_generation
+        with store.connect(True) as fresh_conn:
+            assert index.matrix(fresh_conn, encoder.model_id, encoder.dimensions) is current
