@@ -11,10 +11,12 @@ Afterwards run ``uv lock`` and ``pnpm install --lockfile-only`` (the lock files 
 generated files (``node prototypes/advance/build.mjs``).
 
 Kept as written: third-party code, the lock files, GitHub permalinks to old commits, the file of another branch
-named in old plans, lines about the rename itself (改名前 / 暂定名) and lines marked ``orbit-rename: keep``
-(the compatibility code that still reads the legacy names).
+named in old plans, lines about the rename itself (改名前 / 暂定名 / before the rename) and lines marked ``orbit-rename: keep``
+(the compatibility code that still reads the legacy names; ``orbit-rename: keep-file`` near the top keeps a
+whole file).
 """
 
+import gzip
 import os
 import re
 import subprocess
@@ -27,7 +29,8 @@ KEEP_TOKEN = re.compile(
     r"https://github\.com/\S+?/(?:blob|tree|commit)/[0-9a-f]{7,40}[^\s)\]>\"'`|]*"  # permalinks to old trees
     r"|apps/macos/Tandem\.swift"  # a file on feat/data-app-integration, cited by old plans
 )
-KEEP_LINE = re.compile(r"orbit-rename: keep|改名前|暂定名")
+KEEP_LINE = re.compile(r"orbit-rename: keep|改名前|暂定名|改名为 Orbit 之前|(?i:before the rename)")
+KEEP_FILE = "orbit-rename: keep-file"  # in the first lines of a file that names the legacy identifiers on purpose
 SKIP_PREFIX = ("third_party/",)
 SKIP_FILE = {"uv.lock", "pnpm-lock.yaml", "scripts/orbit-rename.py"}
 
@@ -41,27 +44,29 @@ def rename(text: str) -> str:
     return NAME.sub(lambda m: WORDS[m.group(0)], text)
 
 
+def rewrite_line(line: str) -> str:
+    kept: list[str] = []
+
+    def hold(m: re.Match) -> str:
+        kept.append(m.group(0))
+        return f"\0{len(kept) - 1}\0"
+
+    line = rename(KEEP_TOKEN.sub(hold, line))
+    return re.sub("\0(\\d+)\0", lambda m: kept[int(m.group(1))], line)
+
+
 def rewrite(text: str) -> str:
     lines = text.splitlines(keepends=True)
-    for i, line in enumerate(lines):
-        if not NAME.search(line) or KEEP_LINE.search(line):
-            continue
-        kept: list[str] = []
-
-        def hold(m: re.Match) -> str:
-            kept.append(m.group(0))
-            return f"\0{len(kept) - 1}\0"
-
-        line = rename(KEEP_TOKEN.sub(hold, line))
-        lines[i] = re.sub("\0(\\d+)\0", lambda m: kept[int(m.group(1))], line)
-    return "".join(lines)
+    return "".join(rewrite_line(ln) if NAME.search(ln) and not KEEP_LINE.search(ln) else ln for ln in lines)
 
 
 def text_of(path: Path) -> str | None:
     if path.is_symlink() or not path.is_file():
         return None
     data = path.read_bytes()
-    if b"\0" in data[:8192]:
+    if path.name.endswith(".json.gz"):  # bundled seeds: canonical JSON, gzip level 9 without mtime
+        data = gzip.decompress(data)
+    if b"\0" in data[:8192] or KEEP_FILE.encode() in data[:2048]:
         return None
     try:
         return data.decode("utf-8")
@@ -98,7 +103,8 @@ def main() -> int:
         path = root / name
         text = text_of(path)
         if text is not None and (new := rewrite(text)) != text:
-            path.write_text(new, encoding="utf-8")
+            data = new.encode("utf-8")
+            path.write_bytes(gzip.compress(data, compresslevel=9, mtime=0) if name.endswith(".json.gz") else data)
             changed += 1
     for old, new in moves.items():
         (root / new).parent.mkdir(parents=True, exist_ok=True)
