@@ -85,6 +85,10 @@ class SupervisorConfig:
     analysis_idle_s: float = 300.0
     max_failures: int = 3
     max_preemptions: int = 2  # an interactive task may interrupt the same prewarm this often
+    # A transient failure (``projection_pending``) is not a strike, but the same key and
+    # revision is not re-run for this long: clients retry every second and each retry used
+    # to start a full analysis run (849 failed runs in one afternoon on a real home).
+    transient_retry_s: float = 30.0
     tick_s: float = 0.2
     worker_env: dict[str, str] = field(default_factory=dict)
     plan: dict = field(default_factory=dict)  # ingest_plan overrides (head_sessions, …)
@@ -461,12 +465,41 @@ class AnalysisQueue:
         with self.lock:
             self.failures.pop((section, scope_hash), None)
 
+    def cooling(self, section: str, scope_hash: str, rev: tuple[int, int]) -> float:
+        """Seconds until a transient failure of this key and revision may run again (0: now)."""
+        record = self.failure(section, scope_hash, rev)
+        if not record or "retry_at" not in record:
+            return 0.0
+        return max(0.0, record["retry_at"] - time.monotonic())
+
+    def _retarget(self, section: str, scope_hash: str, rules: str, rev: tuple[int, int],
+                  scope: dict, params: dict, priority: str) -> AnalysisTask | None:
+        """Move a queued task of the same section and scope from an older revision to ``rev``.
+
+        The worker always reads the current database, so a queued task for an older revision
+        would compute today's data under yesterday's key and the new revision would then be
+        computed again. Live sync publishes every few minutes: every publish queued another
+        generation of every prewarm task and the queue never drained."""
+        stale = next((t for t in self.pending
+                      if (t.section, t.scope_hash, t.rules) == (section, scope_hash, rules)
+                      and (t.data_rev, t.inventory_rev) < tuple(rev)), None)
+        if stale is None:
+            return None
+        self.tasks.pop(stale.merge_key, None)
+        stale.data_rev, stale.inventory_rev = rev
+        stale.scope, stale.params = scope, params
+        if priority == "interactive":
+            stale.priority = "interactive"
+        self.tasks[stale.merge_key] = stale
+        return stale
+
     def submit(self, section: str, scope: dict, params: dict, scope_hash: str, priority: str,
                rev: tuple[int, int], rules: str) -> AnalysisTask | None:
         if section not in SECTIONS:
             raise KeyError(section)
         with self.lock:
-            if self.circuit_open(section, scope_hash, rev):
+            if self.circuit_open(section, scope_hash, rev) or self.cooling(section, scope_hash,
+                                                                           rev):
                 return None
             task = AnalysisTask(uuid.uuid4().hex, section, scope, params, scope_hash, priority,
                                 rev[0], rev[1], rules)
@@ -475,6 +508,9 @@ class AnalysisQueue:
                 if priority == "interactive" and existing.priority == "prewarm":
                     existing.priority = "interactive"  # Promote; the same computation serves both.
                 return existing
+            retargeted = self._retarget(section, scope_hash, rules, rev, scope, params, priority)
+            if retargeted is not None:
+                return retargeted
             self.tasks[task.merge_key] = task
             self.recent[task.id] = task
             while len(self.recent) > RECENT_JOBS:
@@ -562,6 +598,17 @@ class AnalysisQueue:
         record.update(count=record["count"] + 1, error=error)
         if error.get("code") == "timeout":
             record["timeouts"] = record.get("timeouts", 0) + 1
+        record.pop("retry_at", None)
+        self.failures[key] = record
+
+    def _record_transient(self, task: AnalysisTask, error: dict) -> None:
+        """Remember a transient failure without a strike; ``submit`` waits it out."""
+        key = (task.section, task.scope_hash)
+        rev = (task.data_rev, task.inventory_rev)
+        record = self.failures.get(key)
+        if record is None or record["rev"] != rev:
+            record = {"rev": rev, "count": 0}
+        record.update(error=error, retry_at=time.monotonic() + self.config.transient_retry_s)
         self.failures[key] = record
 
     def _abort_running(self, error: dict, reason: str) -> None:
@@ -651,9 +698,13 @@ class AnalysisQueue:
                     "rev": task.data_rev, "job_id": task.id})
             else:
                 error = message.get("error") or {"code": "analysis_failed", "retryable": True}
-                task.error = error
-                if error.get("code") != "projection_pending":  # Transient: not a strike.
+                if error.get("code") == "projection_pending":
+                    # Transient: not a strike, but not re-run for ``transient_retry_s``.
+                    error = {**error, "retry_after": self.config.transient_retry_s}
+                    self._record_transient(task, error)
+                else:
                     self._record_failure(task, error)
+                task.error = error
                 self._drop(task, "failed")
                 self.publish("analysis", "analysis.failed", {
                     "section": task.section, "scope_hash": task.scope_hash,

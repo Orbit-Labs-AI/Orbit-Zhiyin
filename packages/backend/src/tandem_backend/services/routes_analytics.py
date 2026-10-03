@@ -92,7 +92,10 @@ def failure_error(error: dict | None) -> ApiError:
     if code in CLIENT_ERRORS:
         return ApiError(CLIENT_ERRORS[code], code, message)
     if code == "projection_pending":
-        return ApiError(503, code, message, retryable=True, retry_after=1)
+        # The supervisor waits ``transient_retry_s`` before re-running the same key; asking
+        # again every second only re-read this failure (and used to re-run the analysis).
+        return ApiError(503, code, message, retryable=True,
+                        retry_after=max(1, round(error.get("retry_after") or 1)))
     return ApiError(503, "analysis_unavailable", f"{code}: {message}", retryable=True,
                     retry_after=5)
 
