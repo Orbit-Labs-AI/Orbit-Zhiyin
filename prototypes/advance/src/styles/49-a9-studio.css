@@ -40,7 +40,7 @@
 @keyframes st-pulse{0%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 0 var(--ai-bg)}70%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 6px transparent}100%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 0 transparent}}
 /* four check rows (spec / safety / replay dry-run / judge) */
 .st-chk{display:grid;grid-template-columns:14px 86px minmax(0,1fr);gap:2px 8px;align-items:start;padding:6px 0;border-bottom:1px solid var(--hair);font-size:12px;line-height:1.45}
-.st-chk .ico{margin-top:2px}
+.st-chk .ico{margin-top:calc((1lh - 16px) / 2)}   /* 16px 图标对齐首行文字中心（行高 1.45） */
 .st-chk .nm{font-weight:600;color:var(--ink-1)}
 .st-chk .rs{color:var(--ink-2)}
 .st-chk.pend .nm,.st-chk.skip .nm,.st-chk.pend .rs,.st-chk.skip .rs{color:var(--ink-3)}

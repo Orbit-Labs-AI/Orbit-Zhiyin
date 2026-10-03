@@ -14,11 +14,13 @@
 .tt-cta-t{flex:1;min-width:160px;font-size:12px;line-height:1.45;color:var(--ink-2)}
 .tt-cta-t b{color:var(--ink-1)}
 .tt-par-note{align-items:flex-start;gap:6px;font-size:11px;line-height:1.45;color:var(--ink-2)}
+.tt-par-note>.ico{margin-top:calc((1lh - 16px) / 2)!important}   /* 多行说明：图标对齐首行中心，覆盖模板内联 margin-top */
 .tt-retry .tt-cmd{font-size:11px;color:var(--ink-1)}
 .tbl.tt td{padding:6px 8px}
 .tbl.tt .mono{font-size:12px}
 .tt-num{min-width:40px;text-align:right}   /* 调用次数定宽右对齐，各行条形等长起止 */
 .tbl.tt .tt-name{white-space:nowrap;font-size:12px}
+.tbl.tt .tt-name>.ico{position:relative;top:1.5px}   /* 16px 展开箭头比 12px 等宽字中心高 1.5px；相对位移不改行高 */
 .tbl.tt .tt-n{min-width:120px}
 .tt-bar{flex:1;min-width:40px;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .tt-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-3)}
