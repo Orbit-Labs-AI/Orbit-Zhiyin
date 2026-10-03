@@ -29,7 +29,7 @@ test('A7: fixture recs render as polished cards with real agents, live run time 
   await expect(page.locator('.tbar')).not.toContainText('9 月 30 日 23:10');
   // the one rec with a saving estimate sorts first and prints it; the rest print 「—」, never 0
   await expect(cards.first()).toContainText('claude-api');
-  await expect(cards.first().locator('.rc-save')).toContainText('2.2 h');
+  await expect(cards.first().locator('.rc-save')).toContainText('省时2.6%');
   // J16 / B08: one-line card text, no 0-session evidence links or 0 个会话出现 on profile matches
   for (const t of await page.locator('#content .rc-why').allInnerTexts()) expect(t.length).toBeLessThan(160);
   await expect(page.locator('#content .recs .stack')).not.toContainText(/0 个会话|TRIGGER/);

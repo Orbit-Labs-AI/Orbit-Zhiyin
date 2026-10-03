@@ -1255,11 +1255,16 @@ const OrbitLive = (function () {
   /* ==== recs: Cand -> the prototype's RECS row ====
      The backend's Cand carries `ui` already shaped like the A7 rows (dim, type, icon, lvl, aud, title, gain, why, ev,
      evq, compat, primary, target, file, steps, track). Missing numbers stay null so the page prints「—」, never 0. */
-  function recSaveHours(c) {
-    // ranking: benefit = 1 − exp(−weekly_minutes / 30) → minutes per week → hours per month (4.33 weeks)
-    const b = c && c.score && c.score.benefit;
-    if (b == null || !Number.isFinite(b) || b <= 0 || b >= 1) return null;
-    return Math.round(-30 * Math.log(1 - b) * 4.33 / 60 * 10) / 10;
+  // ui.save → the saving as shares of the real trajectory: t / k = expected % of all active time / all tokens,
+  // st / sk = the problem's operations' share before the effect p, key = the problem (alternatives are not additive).
+  // null when the run gave no share (未估算, or an older run that still carried hours).
+  const finite = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  function recPct(c) {
+    const s = c && c.ui && c.ui.save;
+    if (!s || typeof s !== 'object' || (finite(s.time_pct) == null && finite(s.token_pct) == null)) return null;
+    const share = s.share || {};
+    return { t: finite(s.time_pct), k: finite(s.token_pct), st: finite(share.time), sk: finite(share.token), p: finite(s.effect),
+      tr: s.time_range || null, kr: s.token_range || null, key: s.key || c.rec_key || null, basis: s.basis || '' };
   }
   function recRow(c) {
     const u = (c && c.ui) || {}; const ev = (c && c.evidence) || {}; const n = ev.counts && ev.counts.sessions != null ? ev.counts.sessions : (ev.session_uids || []).length;
@@ -1270,11 +1275,11 @@ const OrbitLive = (function () {
       title: u.title || c.title || '', gain: u.gain || '—', why: u.why || ((c.explain || {}).reason) || '', ev: u.ev || (n + ' 个会话'), evq: u.evq || {},
       compat: u.compat || '', c2: 'var(--a2)', primary: u.primary || '查看方案', target: u.target || '', file: (u.file || []).map((l) => [String(l[0] == null ? '' : l[0]), l[1] || ' ']),
       steps: u.steps || [], track,
-      x: { save: recSaveHours(c), tok: null, n: [n, n] },
+      x: { pct: recPct(c), tokp: finite(u.tok_pct), tok: finite(u.tok), n: [n, n] },
       priority: c.score ? c.score.priority : null, source: c.source || null
     };
   }
-  const recs = { row: recRow, saveHours: recSaveHours, scopeBody };
+  const recs = { row: recRow, pct: recPct, scopeBody };
 
   /* ======== library-install: A8 资源库 (/v1/catalog/*) and the install sheet (/v1/install/*) ========
      Owned by the library-install binding (Advance src/js/97-live-library-install.js, Lite @orbit-live block). Attached to

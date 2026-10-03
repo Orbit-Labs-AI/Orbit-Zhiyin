@@ -1,5 +1,5 @@
 {
- "_comment": "Sanitised from parity-tmp/recs/engine_run.py (synthetic Codex sessions + upstream signals). No real logs: uids session_syn_*, paths /synthetic/...",
+ "_comment": "Sanitised from parity-tmp/recs/engine_run.py (synthetic Codex sessions + upstream signals). No real logs: uids session_syn_*, paths /synthetic/... facts.trajectory is hand-built (the probe sessions carry no model calls) so the card shares have a ledger: 36 sessions × 8 turns / 60 requests / 50 tool calls.",
  "inputs": {
   "version": "rec-inputs-v1",
   "scope": {},
@@ -2070,7 +2070,33 @@
      "tool_failures": 0,
      "tokens": 0
     }
-   ]
+   ],
+   "trajectory": {
+    "tokens": 14400000,
+    "active_ms": 86400000,
+    "turns": 288,
+    "requests": 2160,
+    "requests_by_agent": {
+     "codex": 2160
+    },
+    "ops": {
+     "call": {
+      "n": 1800,
+      "tokens": 5400000,
+      "ms": 43200000
+     },
+     "failed": {
+      "n": 120,
+      "tokens": 720000,
+      "ms": 3600000
+     },
+     "readonly": {
+      "n": 90,
+      "tokens": 0,
+      "ms": 1350000
+     }
+    }
+   }
   },
   "inventory": [
    {

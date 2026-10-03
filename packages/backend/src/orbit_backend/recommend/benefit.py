@@ -86,35 +86,9 @@ def estimate_benefit(item, signals, scenarios, *, analysis_digest, conditions=()
                             "验收通过率和验证覆盖不得下降；不能通过少测或跳过错误制造收益。"]}
 
 
-class _Range:
-    __slots__ = ("low", "high")
-
-    def __init__(self, low: float, high: float):
-        self.low, self.high = low, high
-
-
-class _Scenario:
-    __slots__ = ("repeated_windows", "reduction")
-
-    def __init__(self, windows: float, reduction: _Range):
-        self.repeated_windows, self.reduction = windows, reduction
-
-
 def beta_interval(alpha: float, beta: float, z: float = 1.645) -> tuple[float, float]:
     """Central ~90 % interval of Beta(alpha, beta) by the normal approximation, clipped to [0, 1]."""
     n = alpha + beta
     mean = alpha / n
     sd = math.sqrt(alpha * beta / (n * n * (n + 1)))
     return max(0., mean - z * sd), min(1., mean + z * sd)
-
-
-def card_savings(occurrences_per_window: float, windows: float, unit_minutes: float,
-                 reduction: tuple[float, float]) -> dict:
-    """Engine-card savings on the same scenario-bound口径 as ``estimate_benefit``.
-
-    ``occurrences_per_window`` is observed; ``unit_minutes`` must carry a source (the caller
-    checks); ``reduction`` is a (low, high) improvement fraction. Setup/extra costs are not
-    known per card, so the result is the gross range (``status='partial'``), never a net figure.
-    """
-    scenario = _Scenario(windows, _Range(*reduction))
-    return _savings(occurrences_per_window, scenario, _Range(unit_minutes, unit_minutes), None, None)

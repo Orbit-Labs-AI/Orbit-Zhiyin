@@ -30,7 +30,7 @@ function palItems(q) {
   ALL.filter((s) => sourceEnabled(s) && !S.excluded.has(s.id) && (q ? m(s.title) || m(PJI[s.p].name) : (LV.live || s.d >= LASTDAY))).sort((a, b) => (b.d - a.d) || (b.h - a.h) || (b.mi - a.mi)).slice(0, q ? 6 : 4)
     .forEach((s) => have.add('s:' + s.id) && out.push({ g: '会话', t: s.title, sub: agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi), icon: 'sessions', run: () => ACT.openSession({ dataset: { id: s.id } }) }));
   if (LV.live) lvSearchMerge(out, q, have);
-  RECS.filter((r) => (!LV.live || (r.live && !q)) && (m(r.title) || m(r.type) || m(r.why))).slice(0, q ? 5 : 3).forEach((r) => out.push({ g: '建议', t: r.title, sub: r.type + ' · ' + LEVELS[r.lvl] + ' · ' + r.gain, icon: r.icon, run: () => ACT.openRec({ dataset: { id: r.id } }) }));
+  RECS.filter((r) => (!LV.live || (r.live && !q)) && (m(r.title) || m(r.type) || m(r.why))).slice(0, q ? 5 : 3).forEach((r) => out.push({ g: '建议', t: r.title, sub: r.type + ' · ' + LEVELS[r.lvl] + ' · ' + recGain(r), icon: r.icon, run: () => ACT.openRec({ dataset: { id: r.id } }) }));
   palActions().filter((a) => m(a.t)).forEach((a) => out.push(Object.assign({ g: '操作' }, a)));
   return out;
 }
