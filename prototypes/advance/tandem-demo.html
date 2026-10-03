@@ -656,7 +656,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lite .sess.l-sess{grid-template-columns:280px minmax(0,1fr)}
 .l-slh{padding:14px 18px 0;margin-bottom:4px}
 .lite .slist{max-height:none}
-.lite .srow{padding:10px 12px 11px}
+.lite .srow{padding:10px 10px 11px}   /* 左右各收 2px，吸收标题 2~4px 的轻微溢出 */
 .l-stitle{margin:12px 0 0;font-size:26px;line-height:1.25;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
 .l-ins{align-items:flex-start;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--hair)}
 .l-ins .aib{margin-top:4px}
@@ -1064,6 +1064,10 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* 关键时刻 + 启示：详情列不足 760px 时上下排，避免关键时刻列被挤成逐字折行 */
 .tl-two{grid-template-columns:minmax(0,1fr) 300px}
 @container sdet (max-width:759px){.tl-two{grid-template-columns:minmax(0,1fr)}}
+/* 会话列表列宽：960 宽收起侧栏时「项目 · 时刻 · 时长 · 工具 · 纠偏」整行放得下，不再在悬空的「·」后省略；
+   标题行里除标题外的徽标 / 标签 / 结果图标不收缩，长标题先省略 */
+.sess{grid-template-columns:348px minmax(0,1fr)}
+.srow .row>:not(.t){flex:none}
 
 /* A4 工具调用（js/43-a4-tools.js）。单色度量条：中性灰，颜色只落在状态（错误率超阈值 → --vz-err，中途停止 → --vz-corr）。
    明细表：调用条 6px、错误率 40px 微型条、耗时 p50 / p95 两段条、迷你线为真实日序列；转移矩阵是 HTML grid（格子固定 36–44px，文字恒定 11px）。 */
@@ -1563,6 +1567,8 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 @keyframes slideout{to{opacity:0;transform:translateX(24px)}}
 /* App 图标：Orbit 标志，暖白底 + 石板灰（图标本身不随深浅色变化，所以在这里把 --orbit 固定为浅色值） */
 .appicon{--orbit:#5f6b6f;width:32px;height:32px;border-radius:22.46%;overflow:hidden;background:#f5f4f0;box-shadow:inset 0 0 0 .5px rgba(23,24,27,.14),0 1px 2px rgba(20,22,26,.12);display:grid;place-items:center;flex:none}
+/* 菜单栏面板的会话行：圆点 / 标题 / 时刻之间收紧到 6px，标题多留 4px 再省略 */
+.pop .sec.row[data-act=popSess]{gap:6px}
 
 /* live surfaces: menu-bar panel charts, HUD density band, desktop widget sizes, settings matrix / AI channel.
    The context bar (.ctxbar) is the one small chart shared by the panel, the HUD (.dk) and the large widget (S-V03). */

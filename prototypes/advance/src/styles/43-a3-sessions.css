@@ -122,3 +122,7 @@
 /* 关键时刻 + 启示：详情列不足 760px 时上下排，避免关键时刻列被挤成逐字折行 */
 .tl-two{grid-template-columns:minmax(0,1fr) 300px}
 @container sdet (max-width:759px){.tl-two{grid-template-columns:minmax(0,1fr)}}
+/* 会话列表列宽：960 宽收起侧栏时「项目 · 时刻 · 时长 · 工具 · 纠偏」整行放得下，不再在悬空的「·」后省略；
+   标题行里除标题外的徽标 / 标签 / 结果图标不收缩，长标题先省略 */
+.sess{grid-template-columns:348px minmax(0,1fr)}
+.srow .row>:not(.t){flex:none}
