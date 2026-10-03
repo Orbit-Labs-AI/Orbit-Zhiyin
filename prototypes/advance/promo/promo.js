@@ -6,11 +6,11 @@
 'use strict';
 const BPM = 124, BEAT = 60 / BPM;                         // beats; music.py uses the same grid
 let END = 118;                                            // length in beats; the closing scene sets it (scene beats)
-/* Scene beats vs film beats: the opening (10-open) runs on film beats; every later scene was written on the v7 grid and
-   is played INTRO beats later, so the opening has room for the wordmark reveal. Each cue, tween, text, tag, drive and
-   click remembers the shift of the scene that registered it and sees the clock in its own scene beats. music.py
-   applies the same shift. */
-const INTRO = 8;
+/* Scene beats vs film beats: the opening (10-open) runs on film beats; every later scene keeps its own (v7-grid) beats
+   and is played SHIFT[name] beats later: 8 for the wordmark reveal, more after the persona and the recommendations,
+   which were given longer holds so every line can be read. Each cue, tween, text, tag, drive and click remembers the
+   shift of the scene that registered it and sees the clock in its own scene beats. music.py uses the same table. */
+const SHIFT = { '10-open': 0, '20-sentiment': 8, '30-persona': 8, '40-recs': 12, '50-montage': 16, '60-close': 8 };
 let SH = 0;
 const RENDER = location.search.includes('render');
 const DEBUG = location.search.includes('debug');
@@ -338,7 +338,8 @@ function buildCompass() {
 }
 function cpSector(r0, r1, a0, a1) { const p0 = cpt(r0, a0), p1 = cpt(r1, a0), p2 = cpt(r1, a1), p3 = cpt(r0, a1); return 'M' + f2(p0) + 'L' + f2(p1) + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + f2(p2) + 'L' + f2(p3) + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + f2(p0) + 'Z'; }
 /* st: { deg: bearing of the lead petal and the bezel pointer, mine: 0..1 from the type's flower to your own, grow: 0 bud
-   .. 1 open, sweep (band reveal: a wedge from sweepFrom, clockwise), orbit (badge phase while they ride with the petal),
+   .. 1 open, fi (flower to show, a CODES index; default: the type under the petal), twist (extra turn of the flower,
+   deg), sweep (band reveal: a wedge from sweepFrom, clockwise), orbit (badge phase while they ride with the petal),
    settle (badges to their own bearings), keep: 16 × 0..1 (1 = sector still possible, 0 = ruled out and dimmed), dial,
    core, needle (pointer), collapse (band → one ring at r 300), ticks (0..1: ticks revealed clockwise from north),
    trace (0..1: a light running once around the ticks; traceA its strength) } */
@@ -388,12 +389,13 @@ function drawCompass(st) {
   // the flower of the type under the petal; near a sector edge it cross-fades into the neighbour; `mine` hands over to
   // your own flower (same type, your own proportions)
   const u = ((deg % 360) + 360) % 360 / 22.5, i0 = Math.floor(u) % 16, fr = u - Math.floor(u), dd = Math.min(fr, 1 - fr), nb = (i0 + (fr < .5 ? 15 : 1)) % 16;
-  const x = dd < .15 ? dd / .15 : 1, op = new Array(17).fill(0); op[i0] = .5 + .5 * x; op[nb] += .5 - .5 * x;
+  const x = dd < .15 ? dd / .15 : 1, op = new Array(17).fill(0);
+  if (st.fi != null) op[st.fi] = 1; else { op[i0] = .5 + .5 * x; op[nb] += .5 - .5 * x; }   // fi: show this type's flower whatever the bearing
   const mine = clamp(st.mine || 0); if (mine > 0) { for (let j = 0; j < 16; j++) op[j] *= 1 - mine; op[16] = mine; }
   const gr = clamp(st.grow ?? 1), sc = CP.BUD + (1 - CP.BUD) * gr, core = st.core ?? 1;
   k.fls.forEach((g, j) => {
     const o = op[j] * core; g.setAttribute('opacity', o.toFixed(3)); if (o < .002) return;
-    g.querySelector('.rot').setAttribute('transform', 'rotate(' + deg.toFixed(2) + ' 400 400) translate(400 400) scale(' + sc.toFixed(4) + ') translate(-400 -400)');
+    g.querySelector('.rot').setAttribute('transform', 'rotate(' + (deg + (st.twist || 0)).toFixed(2) + ' 400 400) translate(400 400) scale(' + sc.toFixed(4) + ') translate(-400 -400)');
   });
   svg.querySelector('.cp-ptr').setAttribute('transform', 'rotate(' + deg.toFixed(2) + ' 400 400)');
   svg.querySelector('.cp-ptr').style.opacity = ((st.needle ?? 1) * (st.dial ?? 1)).toFixed(3);
@@ -465,12 +467,16 @@ function orbitSVG(o) {
   if (o.head > .01 && n < N) { const q = p[n], hw = ORB.wNear * u; h += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + (hw * 1.6).toFixed(1) + '" fill="url(#orbGlow)" opacity="' + o.head.toFixed(3) + '"/><circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + (hw * .55).toFixed(1) + '" fill="#fff" opacity="' + o.head.toFixed(3) + '"/>'; }
   return h + '</g>';
 }
+// an Agent as its own logo (the app's agLogo badge: dark disc, Agent-coloured ring and mark), AGC order = the app's AG
+const AGID = ['cc', 'cx', 'gm', 'ds', 'cp'];
+let AGLOGO = null;
+function agBadge(i, x, y, r) { AGLOGO = AGLOGO || decks[0].W.eval('agLogo'); return AGLOGO(AGID[i], +x.toFixed(1), +y.toFixed(1), r, AGC[i], '#0e0f12'); }
 function planetsSVG(o) {
   if (!o || o.a <= .001) return '';
   return '<g opacity="' + o.a.toFixed(3) + '">' + AGC.map((c, i) => {
     const a = (o.phase + i * 72) * Math.PI / 180, x = o.cx + Math.cos(a) * o.rx * (1 - o.pull), y = o.cy + Math.sin(a) * o.ry * (1 - o.pull);
-    const tx = lerp(x, o.tx, o.pull), ty = lerp(y, o.ty, o.pull);
-    return '<circle cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="16" fill="' + c + '" opacity=".18"/><circle cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="7" fill="' + c + '"/>';
+    const tx = lerp(x, o.tx, o.pull), ty = lerp(y, o.ty, o.pull), r = o.r || 15;
+    return '<circle cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="' + (r * 1.9).toFixed(1) + '" fill="' + c + '" opacity=".16"/>' + agBadge(i, tx, ty, r);
   }).join('') + '<ellipse cx="' + o.cx + '" cy="' + o.cy + '" rx="' + (o.rx * (1 - o.pull)).toFixed(1) + '" ry="' + (o.ry * (1 - o.pull)).toFixed(1) + '" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="2 7"/></g>';
 }
 /* The brand reveal, used as is: docs/design/logo/kit/motion/orbit-reveal.html holds the precomputed frames of the
@@ -547,7 +553,7 @@ function orbitAt(bf) {
     }
   }
   if (b >= O.end && b < O.end + .2) $('#hole1').style.clipPath = 'none';
-  b = bf - INTRO;                                                    // the close runs on scene beats
+  b = bf - SHIFT['60-close'];                                        // the close runs on scene beats
   if (b >= CLOSE.ring) {
     const C = CLOSE, R0 = 300 * decks[2].C.s, tip = E.inOut(lp(b, C.orbit, 1.2)), grow = E.inOut(lp(b, C.grow, C.rise - C.grow)), rise = E.inOut(lp(b, C.rise, C.settle - C.rise));
     const pitch = lerp(lerp(90, 90 - C.tilt, tip), 45, rise), a = E.out(lp(b, C.grow, .3)) * (1 - E.inOut(lp(b, C.out, C.outDur)));
@@ -618,7 +624,7 @@ const every = (b0, b1, fn) => drive(2, b0, b1, (p, b) => fn(p, b));
    must hand over to the next one; times are beats (124 BPM, 1 beat = 0.484 s). */
 const SCENES = [];
 function scene(name, fn) { SCENES.push({ name, fn }); }
-function script() { for (const s of SCENES) { SH = s.name === '10-open' ? 0 : INTRO; try { s.fn(); } catch (e) { console.error('scene ' + s.name, e); } } SH = 0; }
+function script() { for (const s of SCENES) { SH = SHIFT[s.name] || 0; try { s.fn(); } catch (e) { console.error('scene ' + s.name, e); } } SH = 0; }
 // styles a scene needs for its own type or overlays
 function css(text) { const st = document.createElement('style'); st.textContent = text; document.head.appendChild(st); }
 const L = 160, R = 1760;
@@ -677,7 +683,7 @@ decks.filter((k) => k.frame).forEach((k) => k.frame.addEventListener('load', () 
   revealReady.then(boot);
 }));
 function boot() {
-  script(); PROMO.duration = (END + INTRO) * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
+  script(); PROMO.duration = (END + SHIFT['60-close']) * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
   if (DEBUG) { const d = document.createElement('div'); d.className = 'dbg'; stage.appendChild(d); setInterval(() => { d.textContent = 'b' + (PROMO.t / BEAT).toFixed(2); }, 50); }
   PROMO.ready = true;
 }
