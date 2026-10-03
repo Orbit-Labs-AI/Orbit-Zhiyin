@@ -127,3 +127,40 @@ def test_sync_loop_retries_catch_up_until_submitted(gw, clock):
     gw.jobs.conflict = False
     run_sync_loop(gw, 3)
     assert not c.catch_up_pending and gw.jobs.calls == [("import", ["a"], "full", "sync")]
+
+
+def test_sync_loop_survives_an_unexpected_error_and_logs_it(gw, clock, monkeypatch):
+    from tandem_backend.services import gateway as gateway_module
+
+    enable_sources(gw, "a")
+    gw.state.update_settings({"sync_mode": "live"})
+    gw.platform.collection = c = Collection(gw, clock=clock)
+    logged = []
+    monkeypatch.setattr(gateway_module.logs, "log_event", lambda ev, level, **f: logged.append((ev, f)))
+    real = c.consume_catch_up
+    failures = iter([KeyError("boom")])
+
+    def flaky():
+        error = next(failures, None)
+        if error:
+            raise error
+        return real()
+
+    c.consume_catch_up = flaky
+    run_sync_loop(gw, 2)  # round 1 raises, round 2 still submits
+    assert [ev for ev, _ in logged] == ["sync_loop_error"] and "KeyError" in logged[0][1]["error"]
+    assert [call[3] for call in gw.jobs.calls] == ["sync"]
+
+
+def test_latest_job_returns_only_the_newest_of_an_origin(gw):
+    with gw.state.lock:
+        gw.state.state["jobs"] = {
+            "j1": {"id": "j1", "origin": "sync", "created_at": 1, "results": [{"changed": True}]},
+            "j2": {"id": "j2", "origin": "user", "created_at": 3},
+            "j3": {"id": "j3", "origin": "sync", "created_at": 2, "results": []},
+        }
+    newest = gw.state.latest_job("sync")
+    assert newest["id"] == "j3"
+    newest["results"].append("mutated")  # a copy: state untouched
+    assert gw.state.state["jobs"]["j3"]["results"] == []
+    assert gw.state.latest_job("nope") is None

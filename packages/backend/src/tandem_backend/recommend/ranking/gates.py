@@ -84,11 +84,11 @@ def _source_verified(raw, inputs, memory):
     if origin in TRUSTED_ORIGINS:
         return True, ""
     if origin == "catalog":
-        item = raw.get("item") or {}
-        license_known = (item.get("license") or source.get("license") or "").lower() not in UNKNOWN_LICENSES
-        if source.get("verified") or (license_known and item.get("content_hash")):
+        # only the catalog's own verification (repository and source read) counts; a licence plus a
+        # content hash proves provenance of bytes, not that anyone reviewed what they do
+        if source.get("verified"):
             return True, ""
-        return False, "来源未核验（缺少许可证或内容摘要）"
+        return False, "来源未核验（资源库未标记为已审阅）"
     return (True, "") if source.get("verified") else (False, "来源未核验")
 
 

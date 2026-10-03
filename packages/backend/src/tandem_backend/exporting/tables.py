@@ -11,6 +11,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 ARGS_LIMIT = 120
+# args_summary is redacted *before* it is cut to ARGS_LIMIT: SQL hands over this much text
+# so a secret is never split by the read boundary (a cut token no longer matches the
+# redaction patterns, and a long secret earlier in the text shrinks to a short placeholder,
+# pulling later text into the first 120 characters). 4 000 chars bounds memory per row
+# while staying far beyond any token pattern length.
+ARGS_SOURCE_CHARS = 4_000
 
 
 @dataclass(frozen=True)
@@ -65,7 +71,7 @@ TABLES: dict[str, Table] = {t.id: t for t in (
               _c("started_at", "timestamp", "t.started_at"),
               _c("approval_wait_ms", "integer", "t.approval_wait_ms"),
               # Only the first 400 characters are read; the cell is redacted and clipped.
-              _c("args_summary", "text", "substr(e.text, 1, 400)", "event.text", True),
+              _c("args_summary", "text", f"substr(e.text, 1, {ARGS_SOURCE_CHARS})", "event.text", True),
           )),
     Table("sessions", "会话", "session",
           "session s JOIN source src ON src.source_id = s.source_id",

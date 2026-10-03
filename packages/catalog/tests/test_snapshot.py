@@ -221,6 +221,30 @@ def test_bundled_official_export_matches_the_recommend_kb():
         "run: python -m tandem_catalog export-official --remedies <remedies.v1.json> --out data/official.v1.json"
 
 
+def test_listable_names_and_summaries_carry_no_template_slots(tmp_path):
+    import re
+
+    from tandem_catalog.sources.structured import listing_text
+    # Single-brace slots only: an upstream summary may legitimately describe "{{placeholders}}".
+    slot = re.compile(r"(?<!\{)\{[a-z_]+\}(?!\})")
+    assert listing_text("编辑后自动运行 {build_command}") == "编辑后自动运行构建命令"
+    assert listing_text("写进规则：{instruction}") == "写进规则"
+    assert listing_text("run {software} now") == "run 所用软件 now"
+    with pytest.raises(ValueError, match="kb_slot_without_listing_text:weekly"):
+        listing_text("每周 {weekly} 次")
+    templated = [e for e in official_entries(json.loads(REMEDIES.read_text())) if "title_template" in e["metadata"]]
+    assert templated and all(slot.search(e["metadata"]["title_template"]) for e in templated)
+    service = CatalogService(tmp_path / "catalog.db")
+    try:
+        service.bootstrap()
+        with service.store.reader() as conn:
+            rows = conn.execute("SELECT item_id,name,summary FROM catalog_item WHERE listable=1").fetchall()
+    finally:
+        service.close()
+    assert len(rows) > 1000
+    assert [r["item_id"] for r in rows if slot.search(r["name"] + " " + r["summary"])] == []
+
+
 def test_bundled_seed_is_small_valid_and_covers_every_library_kind():
     data = bundled_seed()
     assert data is not None and len(data) <= 3_000_000

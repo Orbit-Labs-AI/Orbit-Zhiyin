@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import socket
 import sqlite3
@@ -29,6 +30,7 @@ from starlette.types import Receive, Scope, Send
 from .. import __version__
 from ..appdata.wipe import apply_pending
 from ..appdb import AppDB
+from ..platform import logs
 from ..platform.middleware import PlatformMiddleware
 from ..platform.runtime import Platform
 from .auth import TOKEN_ENV, ApiError, GuardMiddleware, error_body, validate_token
@@ -292,9 +294,13 @@ class Gateway:
         """Area services created by their routers (features hub, lazy AI service)."""
         from .. import features, privacy_rules
         from ..appdata import sources_scope
+        from ..sessionops import exclusion
 
         privacy_rules.bind(None)
         sources_scope.set_provider(None)
+        # The exclusion provider reads this gateway's app.db and fails closed once it is
+        # closed; unbind it so later readers (CLI, the next gateway) are not refused.
+        exclusion.set_provider(None)
         # bind(None) closes the bound hub; module helpers then fall back to "unbound".
         features.bind(None)
         ai = getattr(self, "_ai", None)
@@ -424,47 +430,19 @@ class Gateway:
         return queued
 
     def _sync_loop(self) -> None:
-        """Continuous sync (opt-in). ``live`` polls 2 s → 30 s while nothing changes, and
-        waits after each sync import at least as long as it took (``sync_wait``); ``hour``
-        imports hourly. A collection catch-up runs as soon as no other job is active."""
+        """Continuous sync (opt-in), one ``_sync_round`` at a time: ``live`` polls 2 s → 30 s
+        while nothing changes and waits after each sync import at least as long as it took
+        (``sync_wait``); ``hour`` imports hourly. A bad round is logged, never fatal."""
         low, high = self.sync_interval_s
-        interval, idle = low, low
+        interval = low
         collection = self.platform.collection
-        hourly = getattr(self, "hourly_sync_s", HOURLY_SYNC_S)
-        seen = None  # id of the last sync job whose outcome adjusted ``idle``
         while not self.stopping.wait(interval):
-            if collection.paused:
-                interval = high
-                continue  # Collection paused (DT-02.1); explicit re-index still works.
-            state = self.state.snapshot()
-            enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
-            mode = state["settings"].get("sync_mode")
-            if (mode not in ("live", "hour") and not collection.catch_up_pending) or not enabled:
-                interval = high
-                continue
-            jobs = self.state.jobs()
-            if any(j.get("status") in ("queued", "running") for j in jobs):
-                interval = low  # Another job is active; look again soon.
-                continue
-            last = next((j for j in jobs if j.get("origin") == "sync"), None)
-            if last is not None and last["id"] != seen:
-                seen = last["id"]
-                changed = any(r.get("changed") for r in last.get("results") or [])
-                idle = low if changed else min(high, idle * 2)
-            catch_up = collection.catch_up_pending
-            wait = 0.0 if catch_up else sync_wait(
-                mode, last, int(time.time() * 1000), idle, self.sync_interval_s, hourly)
-            if wait > 0:
-                interval = min(wait, high) if mode == "live" else wait
-                continue
-            if self.stopping.is_set():
-                return  # Shutting down: never start an import on the way out.
-            catch_up = collection.consume_catch_up()
             try:
-                self.jobs.submit("import", enabled, phase="full", origin="sync")
-            except (JobConflict, ValueError):
-                collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
-            interval = low
+                interval = _sync_round(self, collection, interval)
+            except Exception as error:  # noqa: BLE001 - one bad round must not end continuous sync
+                logs.log_event("sync_loop_error", logging.ERROR,
+                               error=f"{type(error).__name__}: {error}"[:300])
+                interval = high
 
     # -- application ---------------------------------------------------------------------
     def app(self, *, token: str, port: int | None, hosts=None) -> FastAPI:
@@ -588,3 +566,44 @@ def run_gateway(home: Path, *, port: int = 0, host: str = "127.0.0.1") -> int:
     print(json.dumps({"port": bound}), flush=True)  # First stdout line: the host's handshake.
     server.run(sockets=[sock])
     return 0
+
+
+def _sync_round(self, collection, interval: float) -> float:
+    """One continuous-sync round for gateway ``self``; returns the wait before the next.
+
+    v0.0.2 submitted the next full import 2 s after any sync import that saw a change; an
+    agent in use changes something every round, so imports ran back to back (RC-1). Now a
+    round waits ``sync_wait`` after the last sync import ended: at least as long as it took,
+    2 s → 30 s (``self._sync_idle``) while rounds find nothing, 30 s after a failed,
+    interrupted or cancelled one. While any job is active it only looks again soon; a
+    collection catch-up runs as soon as nothing else is active; never while stopping.
+    """
+    low, high = self.sync_interval_s
+    if collection.paused:
+        return high  # Collection paused (DT-02.1); explicit re-index still works.
+    state = self.state.snapshot()
+    enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
+    mode = state["settings"].get("sync_mode")
+    if (mode not in ("live", "hour") and not collection.catch_up_pending) or not enabled:
+        return high
+    if self.state.active_job() is not None:
+        return low  # Another job is active; look again soon.
+    last = self.state.latest_job("sync")
+    idle = getattr(self, "_sync_idle", low)
+    if last is not None and last["id"] != getattr(self, "_sync_seen", None):
+        self._sync_seen = last["id"]
+        changed = any(r.get("changed") for r in last.get("results") or [])
+        idle = self._sync_idle = low if changed else min(high, idle * 2)
+    if not collection.catch_up_pending:
+        wait = sync_wait(mode, last, int(time.time() * 1000), idle, self.sync_interval_s,
+                         getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
+        if wait > 0:
+            return min(wait, high) if mode == "live" else wait
+    if self.stopping.is_set():
+        return high  # Shutting down: never start an import on the way out.
+    catch_up = collection.consume_catch_up()
+    try:
+        self.jobs.submit("import", enabled, phase="full", origin="sync")
+    except (JobConflict, ValueError):
+        collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
+    return low

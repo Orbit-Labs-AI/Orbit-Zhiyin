@@ -235,7 +235,7 @@ def router(gw: Gateway) -> APIRouter:
             "collection": {"paused": gw.platform.collection.paused},
             "privacy": {"active_rules": privacy_rules.active_count()},
             "badge": gw.platform.notifier.summary()["active"],
-            "capabilities": {"sse": True, "snapshots": True, "export": False},
+            "capabilities": {"sse": True, "snapshots": True, "export": True},
             "server_ms": round((time.perf_counter() - started) * 1000, 3)}
 
     @api.get("/health")

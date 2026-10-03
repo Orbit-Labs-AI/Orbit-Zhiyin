@@ -46,17 +46,6 @@ def _row(row: sqlite3.Row | None) -> dict | None:
     return out
 
 
-def ensure_columns(appdb) -> None:
-    """Add ledger columns newer than an existing ``install_ledger`` (the DDL file only creates)."""
-    with appdb.read() as db:
-        have = {r[1] for r in db.execute("PRAGMA table_info(install_ledger)")}
-    missing = [c for c in ("inv_id", "catalog_item_id") if have and c not in have]
-    if missing:
-        with appdb.write() as db:
-            for column in missing:
-                db.execute(f"ALTER TABLE install_ledger ADD COLUMN {column} TEXT")
-
-
 # ---- plans ------------------------------------------------------------------------------------
 
 def save_plan(appdb, plan: dict) -> None:

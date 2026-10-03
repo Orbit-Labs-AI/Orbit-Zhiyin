@@ -9,7 +9,7 @@ tied to that problem, the rest stand on the profile.
 
 import json
 
-from .catalog_route import TYPE_KIND, from_item
+from .catalog_route import TYPE_KIND, VERIFIED, from_item
 
 K = 20
 # Profile-only matches (no friction) need real overlap: a share of the profile weight, more than
@@ -70,7 +70,7 @@ def _items(catalog, ids: list[str]) -> dict[str, dict]:
                                "agents": json.loads(row["agents"] or "[]"), "license": row["license"],
                                "difficulty": row["difficulty"], "risk": meta.get("risk") or [],
                                "content_hash": row["content_hash"], "version_id": row["latest_version"],
-                               "verified": True}
+                               "verified": row["verification"] in VERIFIED if "verification" in row.keys() else False}
     return out
 
 

@@ -41,6 +41,22 @@ from .snapshots import SnapshotKey, SnapshotStore
 from .worker_protocol import HEARTBEAT_ENV, decode, encode
 
 HEAVY_TIMEOUT_ENV = "TANDEM_ANALYSIS_HEAVY_TIMEOUT_S"
+# Worker stderr goes straight to ``logs/<role>.log`` (append mode). Same per-file size as the
+# gateway's tandem.log rotation (platform/logs.py MAX_BYTES, 2 MB): on every (re)spawn a
+# larger file moves to ``<role>.log.1`` (one backup), and the daily retention truncates a
+# live one in place, so a long-running worker is bounded too.
+WORKER_LOG_MAX = 2 * 1024 * 1024
+
+
+def rotate_worker_log(path: Path, max_bytes: int = WORKER_LOG_MAX) -> bool:
+    """Move ``path`` to ``<name>.1`` when larger than ``max_bytes``. True when rotated."""
+    try:
+        if path.stat().st_size <= max_bytes:
+            return False
+    except FileNotFoundError:
+        return False
+    os.replace(path, path.with_name(path.name + ".1"))
+    return True
 
 
 def _heavy_timeout_default() -> float:
@@ -155,7 +171,9 @@ class WorkerProcess:
         (self.home / "logs").mkdir(parents=True, exist_ok=True, mode=0o700)
         env = {**os.environ, HEARTBEAT_ENV: str(self.config.heartbeat_s),
                **self.config.worker_env}
-        with open(self.home / "logs" / f"{self.role}.log", "ab") as log:
+        log_path = self.home / "logs" / f"{self.role}.log"
+        rotate_worker_log(log_path)
+        with open(log_path, "ab") as log:
             self.proc = subprocess.Popen(worker_command(self.role, self.home),
                                          stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                          stderr=log, env=env)

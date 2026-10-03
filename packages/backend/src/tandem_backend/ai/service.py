@@ -1,8 +1,8 @@
 """``AIService``: the one entry point other modules and the routes use.
 
 Recommend / install call ``service(gw).run(...)``; AI never imports them. Context packs
-come from ``tandem_backend.ai.pack.build`` when present, otherwise a minimal pack built
-from the request's slots / goal so the runtime still works on its own.
+come from ``tandem_backend.ai.pack.build``; ``fallback_pack`` (a minimal pack from the
+request's slots / goal) is only used when ``_builder`` is patched to return None in tests.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def pack_digest(task_id: str, prompt_version: str, goal, content: dict) -> str:
 
 
 def fallback_pack(task: dict, req: dict) -> dict:
-    """Minimal C3 pack when the context-pack module is not installed."""
+    """Minimal C3 pack from the request's slots / goal (test seam, see ``_builder``)."""
     goal = req.get("goal")
     content = req.get("slots") or {"goal": {"text": goal, "source": req.get("goal_source")}}
     chosen = ((req.get("selection") or {}).get("items") or {})
@@ -159,10 +159,11 @@ class AIService:
         return task
 
     def _builder(self):
-        try:
-            from .pack import build
-        except ImportError:
-            return None
+        """The context-pack builder. pack is part of this package, so an import error (e.g. a
+        missing jieba) surfaces instead of silently degrading every task to the goal-only
+        ``fallback_pack``; tests that want the minimal pack patch this to return None."""
+        from .pack import build
+
         return build
 
     def _pack(self, task: dict, req: dict) -> dict:
@@ -426,15 +427,27 @@ class AIService:
                 "source": "template", "job_id": None, "finished_at": None, "result": result}
 
     def today_cost(self) -> float:
+        """Today's spend for the daily cap. Calls without a list price (codex, unknown model
+        IDs; cost_usd NULL) are counted at ``prices.CONSERVATIVE`` per token instead of $0, so
+        an unpriced engine can never bypass the cap."""
         with self.appdb.read() as db:
-            return db.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM ai_usage WHERE ts >= ?",
-                              (_local_midnight_ms(),)).fetchone()[0]
+            known, tokens_in, tokens_out = db.execute(
+                "SELECT COALESCE(SUM(cost_usd), 0), "
+                "COALESCE(SUM(CASE WHEN cost_usd IS NULL THEN COALESCE(input_tokens, 0) + "
+                "COALESCE(cache_read_tokens, 0) + COALESCE(cache_write_tokens, 0) END), 0), "
+                "COALESCE(SUM(CASE WHEN cost_usd IS NULL THEN COALESCE(output_tokens, 0) END), 0) "
+                "FROM ai_usage WHERE ts >= ?", (_local_midnight_ms(),)).fetchone()
+        return known + prices.conservative(tokens_in, tokens_out)
 
     def usage(self, days: int = 30) -> dict:
         since = now_ms() - days * 86400 * 1000
         aggregate = ("COUNT(*) AS calls, COALESCE(SUM(input_tokens), 0) AS input_tokens, "
                      "COALESCE(SUM(output_tokens), 0) AS output_tokens, "
-                     "ROUND(COALESCE(SUM(cost_usd), 0), 6) AS cost_usd")
+                     "ROUND(COALESCE(SUM(cost_usd), 0), 6) AS cost_usd, "
+                     # Calls that used tokens but have no price: cost_usd above excludes them,
+                     # so the UI must show them as "未计价" rather than read $0 as free.
+                     "COALESCE(SUM(cost_usd IS NULL AND COALESCE(input_tokens, 0) + "
+                     "COALESCE(output_tokens, 0) > 0), 0) AS unknown_calls")
         with self.appdb.read() as db:
             totals = dict(db.execute(f"SELECT {aggregate} FROM ai_usage WHERE ts >= ?",
                                      (since,)).fetchone())

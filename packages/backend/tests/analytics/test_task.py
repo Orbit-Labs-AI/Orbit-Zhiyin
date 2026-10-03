@@ -133,3 +133,13 @@ def test_analyzing_a_writing_request_does_not_become_a_writing_action(fixtures):
     s, e, _ = fixtures
     result = extract_task_features(semantic_messages([e("请分析给初学者写教程的需求")], [s()]))
     assert result["task_type"] == ["analyze"]
+
+
+def test_english_sentences_split_on_full_stop_without_breaking_files_or_versions():
+    from tandem_backend.analytics.common import clauses
+    from tandem_backend.analytics.task.features import request_clauses
+
+    assert request_clauses("Don't touch the config. Please add tests for the parser") == [
+        "Please add tests for the parser"]
+    assert clauses("Update parser.py to v1.2. Then run it") == ["Update parser.py to v1.2", "Then run it"]
+    assert clauses("pi is 3.14... ok") == ["pi is 3.14", "ok"]

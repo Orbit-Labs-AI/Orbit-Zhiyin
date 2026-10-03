@@ -1,14 +1,19 @@
 """Application state and the job state machine, persisted atomically to app-state.json.
 
-Equivalent minimal implementation of ``DesktopService`` from feat/data-app-integration
-(same paths, job fields and statuses). Execution goes through the ``JobRunner`` seam,
-which the gateway binds to the ingest worker subprocess; after that branch is merged the
-state half can be replaced by DesktopService while the runner stays.
+Same paths, job fields and statuses as ``tandem_data``'s DesktopService. Execution goes
+through the ``JobRunner`` seam, which the gateway binds to the ingest worker subprocess.
+
+A damaged ``app-state.json`` (truncated, not JSON, not an object) never stops the app: it is
+renamed to ``app-state.json.corrupt-<ms>`` for the user/support to inspect and the state
+starts from defaults (onboarding shows again). A leftover ``app-state.tmp`` from a crash
+before the atomic replace is only used when the main file is missing and the temporary
+file parses completely (it was fsynced before replace); otherwise it is discarded.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
@@ -19,6 +24,7 @@ from typing import Protocol
 
 from tandem_data.contract import now_ms, uid
 
+log = logging.getLogger(__name__)
 STATUSES = ("queued", "running", "completed", "partial", "cancelled", "failed", "interrupted")
 ACTIVE = frozenset({"queued", "running"})
 TRANSITIONS = {
@@ -61,8 +67,9 @@ class AppState:
         self.lock = threading.RLock()
         self.last_save = 0.0
         state = _default_state()
-        if path.exists():
-            loaded = json.loads(path.read_text())
+        self.recovered: dict | None = None
+        loaded = self._load()
+        if loaded is not None:
             state.update({k: v for k, v in loaded.items() if k in state})
             state["settings"] = {**_default_state()["settings"], **loaded.get("settings", {})}
         self.state = state
@@ -73,6 +80,40 @@ class AppState:
                            error={"code": "app_restarted", "message": "应用重启时任务未完成",
                                   "retryable": True})
         self.save()
+
+    def _read(self, path: Path) -> dict:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict) or not all(
+                isinstance(loaded.get(k, {}), dict) for k in ("sources", "jobs", "settings")):
+            raise ValueError("app state is not an object of the expected shape")
+        return loaded
+
+    def _load(self) -> dict | None:
+        temporary = self.path.with_suffix(".tmp")
+        if not self.path.exists():
+            if not temporary.exists():
+                return None
+            try:
+                loaded = self._read(temporary)
+            except (OSError, ValueError):
+                temporary.unlink(missing_ok=True)
+                return None
+            temporary.replace(self.path)
+            self.recovered = {"reason": "restored_tmp"}
+            return loaded
+        temporary.unlink(missing_ok=True)  # half-written leftover; the main file is the truth
+        try:
+            return self._read(self.path)
+        except (OSError, ValueError) as error:  # UnicodeDecodeError / JSONDecodeError are ValueError
+            backup = self.path.with_name(f"{self.path.name}.corrupt-{now_ms()}")
+            try:
+                self.path.replace(backup)
+            except OSError:
+                backup = None
+            log.warning("app-state.json unreadable (%s); starting from defaults, backup=%s", error, backup)
+            self.recovered = {"reason": "corrupt", "backup": backup and backup.name,
+                              "error": f"{type(error).__name__}: {error}"[:200]}
+            return None
 
     def save(self) -> None:
         """Atomic replace so a crash never leaves a half-written journal."""
@@ -187,6 +228,13 @@ class AppState:
         with self.lock:
             return sorted(self.snapshot()["jobs"].values(), key=lambda j: j["created_at"],
                           reverse=True)
+
+    def latest_job(self, origin: str) -> dict | None:
+        """Newest job with ``origin`` (a copy), without copying the whole job table."""
+        with self.lock:
+            jobs = [j for j in self.state["jobs"].values() if j.get("origin") == origin]
+            newest = max(jobs, key=lambda j: j["created_at"], default=None)
+            return json.loads(json.dumps(newest)) if newest is not None else None
 
     def active_job(self) -> dict | None:
         with self.lock:

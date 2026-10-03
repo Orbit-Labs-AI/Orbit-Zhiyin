@@ -52,7 +52,7 @@ def router(gw: Gateway) -> APIRouter:
         return {"sources": list(state["sources"].values()), "settings": state["settings"],
                 "jobs": gw.state.jobs()[:50], "storage": gw.revisions.snapshot(),
                 "services": gw.supervisor.services(),
-                "capabilities": {"sse": True, "phased_import": True, "export": False,
+                "capabilities": {"sse": True, "phased_import": True, "export": True,
                                  "sync_modes": ["off", "hour", "live"]}}
 
     @api.get("/v1/app/discovery")

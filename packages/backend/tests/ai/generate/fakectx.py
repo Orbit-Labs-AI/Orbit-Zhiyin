@@ -67,11 +67,11 @@ class FakeCtx:
 
 def hook_pack(**overrides) -> dict:
     """A small pack with the hook items (C4 shapes)."""
-    calls_fail = [{"tool_name": "Bash", "kind": "shell", "command_head": "pnpm test", "status": "error",
+    calls_fail = [{"tool_name": "Bash", "kind": "shell", "command_head": "pnpm test", "status": "failed",
                    "error_class": "exit_nonzero", "exit_code": 1, "file_exts": []}] * 4
-    calls_ok = [{"tool_name": "Edit", "kind": "edit", "command_head": None, "status": "ok",
+    calls_ok = [{"tool_name": "Edit", "kind": "edit", "command_head": None, "status": "completed",
                  "error_class": None, "exit_code": None, "file_exts": [".ts"]},
-                {"tool_name": "Bash", "kind": "shell", "command_head": "pnpm test", "status": "ok",
+                {"tool_name": "Bash", "kind": "shell", "command_head": "pnpm test", "status": "completed",
                  "error_class": None, "exit_code": 0, "file_exts": []}]
     content = {
         "goal": {"text": "减少测试命令反复失败", "source": "candidate"},

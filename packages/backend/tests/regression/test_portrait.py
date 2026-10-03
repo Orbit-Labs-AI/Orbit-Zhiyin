@@ -141,3 +141,61 @@ def test_profile_headline_follows_coverage_instead_of_a_demo_dimension(tmp_path)
     profile = analyze(store)['profile']
     assert '把说明讲清楚' not in profile['headline']
     assert profile['observations'][0]['dimension'] == 'actionability'
+
+
+def _dims(text):
+    from tandem_backend.feedback import signals
+    from tandem_backend.models import Event
+
+    return {s.dimension for s in signals([Event("e", "s", 1, "user_message", None, text=text)])}
+
+
+@pytest.mark.parametrize(("text", "dimension"), [
+    ("Please keep it concise.", "brevity"),
+    ("Plan first, then implement the parser.", "planning"),
+    ("After the change, run the tests.", "verification"),
+    ("Make sure all tests pass before you finish.", "verification"),
+    ("Explain it in plain English.", "clarity"),
+    ("Just do it, no need to ask me.", "autonomy"),
+])
+def test_english_requests_hit_the_same_dimensions(text, dimension):
+    assert dimension in _dims(text)
+
+
+@pytest.mark.parametrize(("text", "dimension"), [
+    ("We were discussing tests in the meeting.", "verification"),
+    ("How do I run the tests?", "verification"),
+    ("Do not run the tests yet.", "verification"),
+    ("The README is long but fine.", "brevity"),
+])
+def test_english_discussion_or_negation_is_not_a_requirement(text, dimension):
+    assert dimension not in _dims(text)
+
+
+def test_signals_carry_bumped_rule_version():
+    from tandem_backend.feedback import signals
+    from tandem_backend.models import Event
+
+    [signal] = signals([Event("e", "s", 1, "user_message", None, text="Please keep it concise.")])
+    assert signal.rule_version == "rules-v14"
+
+
+def test_unexplained_terms_use_generic_shapes_not_one_corpus():
+    from tandem_backend.profiling.bottlenecks import unexplained_terms
+
+    # Common engineering acronyms are not jargon; JS in a front-end reply is ordinary.
+    assert unexplained_terms("用 JS 调 API 返回 JSON，再在 UI 和 CLI 里显示。") == []
+    # Undefined acronyms and subscripted symbols are flagged; a nearby definition clears one.
+    assert unexplained_terms("用 POMDP 和 KL 约束 z_u 与 RLHF。") == ["POMDP", "KL", "z_u", "RLHF"]
+    assert unexplained_terms("POMDP（部分可观测马尔可夫决策过程）用于规划，KL 约束。") == ["KL"]
+    # Lower-case terms are only flagged when the caller configures them.
+    assert unexplained_terms("embedding 很好") == []
+    assert unexplained_terms("embedding 很好", glossary=("embedding",)) == ["embedding"]
+
+
+def test_scene_of_has_no_course_or_project_names():
+    from tandem_backend.feedback import scene_of
+
+    assert scene_of("帮我看看 SPADE 的进度") != "math_explanation"
+    assert scene_of("请证明这个定理") == "math_explanation"
+    assert scene_of("Write a proof of the theorem") == "math_explanation"

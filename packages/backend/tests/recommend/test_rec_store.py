@@ -143,7 +143,8 @@ def test_memory_weights_and_posteriors(db):
     assert memory["weights"]["kind"]["skill"] == pytest.approx(1.1875)
     assert memory["weights"]["dim"]["hook"] == pytest.approx(1 - 1 / 7, abs=1e-4)
     assert memory["posteriors"]["kb:a"] == {"alpha": 4.0, "beta": 0.0}
-    assert memory["posteriors"]["kb:b"] == {"alpha": 0.0, "beta": 3.0}
+    # plain not_useful +1, system revert label +1 (the tracking row adds the revert's second unit)
+    assert memory["posteriors"]["kb:b"] == {"alpha": 0.0, "beta": 2.0}
     assert memory["settings"] == {"ai_generate": True} and memory["level"] == 1
     json.dumps(memory)
 
@@ -177,3 +178,29 @@ def test_views_stay_out_of_memory_rev_and_decay_at_read(db):
     ordered = store.apply_decay(cards, states)
     assert ordered[0]["score"]["decay"] == .5  # floor: position 1 → 2, ties keep slate order
     assert [c["rec_key"] for c in ordered] == ["kb:a", "kb:b", "kb:c"]
+
+
+@pytest.mark.parametrize("status", ["negative", "guardrail_hit", "reverted"])
+def test_negative_tracking_lowers_p_effective(db, status):
+    from tandem_backend.recommend.ranking.rank import score
+
+    with db.write() as conn:
+        store.insert_run(conn, run_row("r1", "d1", NOW), [cand("kb:a", kind="skill", dim="skill")])
+        a = store.candidate_id("r1", "kb:a")
+        for i, effect in enumerate((status, status)):
+            conn.execute("INSERT INTO tracking (tracking_id, install_id, candidate_id, rec_key, kind,"
+                         " registered_at, baseline_from, baseline_to, metrics, effect_status) VALUES"
+                         " (?, ?, ?, 'kb:a','skill',0,0,0,'[]', ?)", (f"t{i}", f"i{i}", a, effect))
+        memory = store.memory(conn, NOW)
+    assert memory["posteriors"]["kb:a"] == {"alpha": 0.0, "beta": 2.0}
+    raw = {"rec_key": "kb:a", "kind": "skill", "problem": None, "prior": {"alpha": 6, "beta": 4}}
+    before = score(raw, {}, {"agents": {}}, {"posteriors": {}})["p_effective"]
+    after = score(raw, {}, {"agents": {}}, memory)["p_effective"]
+    assert before == pytest.approx(.6) and after == pytest.approx(6 / 12, abs=1e-4)
+
+
+def test_store_weight_uses_rank_clamp():
+    from tandem_backend.recommend.ranking.rank import PERSONAL_MAX, PERSONAL_MIN
+
+    assert store._weight(1000, 0, 0) == PERSONAL_MAX  # 1 + .5·1000/1005 = 1.4975 → clamp
+    assert store._weight(0, 0, 1000) == PERSONAL_MIN  # 1 − .5·1000/1005 = .5025 → clamp

@@ -2,6 +2,26 @@ from tandem_data.connectors.base import BaseMapper, Mapping, decode_json
 from tandem_data.contract import time_fields, uid, unused
 
 
+def tool_outcome(content) -> tuple[str, int | None]:
+    """Status from the explicit fields Hermes tool handlers return as JSON.
+
+    Mirrors the explicit branches of hermes-agent ``agent/display._detect_tool_failure``:
+    terminal results carry ``exit_code`` (0 = success), ``tools/registry.tool_error``
+    returns ``{"error": msg}``, and handlers report ``success: true|false``. Plain text
+    or JSON without these fields stays ``unknown`` (no substring guessing).
+    """
+    if not isinstance(content, dict):
+        return "unknown", None
+    exit_code = content.get("exit_code")
+    if isinstance(exit_code, int) and not isinstance(exit_code, bool):
+        return ("completed" if exit_code == 0 else "failed"), exit_code
+    if content.get("success") is False or content.get("error"):
+        return "failed", None
+    if content.get("success") is True:
+        return "completed", None
+    return "unknown", None
+
+
 class HermesMapper(BaseMapper):
     def prepare(self, records):
         self.active_uids = set()
@@ -126,7 +146,13 @@ class HermesMapper(BaseMapper):
                     if display.get("interrupted"):
                         event.attrs["status"] = "interrupted"
                     elif row.get("effect_disposition") == "none":
+                        # Synthesized result for a call that never ran.
                         event.attrs["status"] = "unknown"
+                    else:
+                        status, exit_code = tool_outcome(message["content"])
+                        event.attrs["status"] = status
+                        if exit_code is not None:
+                            event.attrs["exit_code"] = exit_code
             if row.get("_compressed_summary"):
                 for event in events:
                     event.kind = "context.compaction"

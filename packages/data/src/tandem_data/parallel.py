@@ -1026,6 +1026,7 @@ class MapPlan:
             "model_call": in_sessions,
             "usage_snapshot": in_sessions,
             "session_feature": in_sessions,
+            "tool_call_file": in_sessions,
             "link": in_sessions,
             "event_context": f"c.event_uid IN (SELECT event_uid FROM event WHERE session_uid IN ({sessions_sql}))",
             "tool_call_event": f"c.call_uid IN (SELECT call_uid FROM tool_call WHERE session_uid IN ({sessions_sql}))",

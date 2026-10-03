@@ -51,6 +51,9 @@ def run_suite(suite_id: str, *, params: dict | None = None, home: Path | None = 
             return SuiteResult(suite_id, [Check(f"{suite_id}.crashed", False,
                                                 detail=f"{type(exc).__name__}: {exc}")])
     result.suite = suite_id
+    if not result.skipped and not result.checks:
+        # A suite that measured nothing must not count as a pass (e.g. no matching sessions).
+        result.skipped = "no_checks: suite produced no checks"
     return result
 
 
@@ -98,6 +101,9 @@ def summarize(run_id: str, started: int, suites: list[dict], fail_under: float |
     score = round(sum(scored) / len(scored), 4) if scored else None
     failed = any(not c["passed"] for s in suites if not s["skipped"] for c in s["checks"])
     below = fail_under is not None and score is not None and score < fail_under
+    # No non-skipped check at all: nothing was verified, so the run cannot pass.
+    no_data = score is None
+    verdict = "no_data" if no_data else "fail" if failed or below else "pass"
     return {"run_id": run_id, "started_at": started, "finished_at": _now(), "status": "done",
-            "passed": not failed and not below, "score": score, "suites": suites,
+            "passed": verdict == "pass", "verdict": verdict, "score": score, "suites": suites,
             "fail_under": fail_under}
