@@ -45,14 +45,45 @@ def test_min_sessions_boundary():
     assert problem["type"] == "tool_env_failure" and problem["signal_kinds"] == ["retry_loop"]
 
 
-def test_wilson_lower_bound_gate():
+def test_wilson_lower_bound_gate_no_longer_blocks_repeated_problems():
+    # 3/60: wilson_lo ≈ 0.017 (hand-computed, z=1.96) — blocked by the old 0.05 gate.
     sessions = [retry_session(f"r{i}") for i in range(3)] + [tool_session(f"t{i}") for i in range(57)]
-    result = problems_of(sessions)
-    [candidate] = find(result, pool="candidates")
-    assert candidate["denominator"] == 60 and candidate["sessions"] == 3
-    assert candidate["wilson_lo"] == wilson_lo(3, 60) < 0.05
-    assert candidate["reason"] == "below_wilson_lo"
-    assert candidate["rate"]["status"] == "ok" and candidate["rate"]["n"] == 60
+    [problem] = find(problems_of(sessions))
+    assert problem["denominator"] == 60 and problem["sessions"] == 3
+    assert abs(problem["wilson_lo"] - 0.0171) < 5e-4 and problem["upgraded"]
+    assert problem["rate"]["status"] == "ok" and problem["rate"]["n"] == 60
+
+
+def test_problem_upgrade_sensitivity_by_denominator():
+    # d=100 with 2 sessions: still a candidate, min_sessions=3 is the repeat requirement.
+    two = [retry_session(f"r{i}") for i in range(2)] + [tool_session(f"t{i}") for i in range(98)]
+    [candidate] = find(problems_of(two), pool="candidates")
+    assert candidate["denominator"] == 100 and candidate["reason"] == "below_min_sessions"
+    # d=100 with 3 sessions: wilson_lo ≈ 0.0103 > 0 → upgraded.
+    three = [retry_session(f"r{i}") for i in range(3)] + [tool_session(f"t{i}") for i in range(97)]
+    [problem] = find(problems_of(three))
+    assert problem["denominator"] == 100 and abs(problem["wilson_lo"] - 0.0103) < 5e-4
+
+
+def test_unsafe_operation_upgrades_at_one_in_twenty():
+    s = Session("u")
+    s.user("清理")
+    s.tool("rm -rf ~", status="success")
+    sessions = [s] + [chat_session(f"c{i}") for i in range(19)]
+    [problem] = find(problems_of(sessions), key="risky_command:rm_recursive_force")
+    # wilson_lo(1, 20) ≈ 0.0089 (hand-computed); the old 0.05 gate kept this a candidate.
+    assert problem["denominator"] == 20 and abs(problem["wilson_lo"] - 0.0089) < 5e-4
+    assert problem["upgraded"] and problem["wilson_lo_min"] == 0.0
+
+
+def test_wilson_gate_still_applies_when_a_type_sets_a_baseline(monkeypatch):
+    from tandem_backend.analytics.signals import dictionary
+
+    monkeypatch.setitem(dictionary.PROBLEM_TYPES, "tool_env_failure",
+                        {**dictionary.PROBLEM_TYPES["tool_env_failure"], "wilson_lo_min": 0.05})
+    sessions = [retry_session(f"r{i}") for i in range(3)] + [tool_session(f"t{i}") for i in range(57)]
+    [candidate] = find(problems_of(sessions), pool="candidates")
+    assert candidate["reason"] == "below_wilson_lo" and candidate["wilson_lo"] == wilson_lo(3, 60)
 
 
 def test_denominator_counts_only_sessions_with_the_opportunity():

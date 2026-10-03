@@ -6,7 +6,7 @@ backend encodes ``signal.kind → problem.type``. Thresholds change ``RULES_VERS
 
 import re
 
-RULES_VERSION = "signals-v1.0"
+RULES_VERSION = "signals-v1.1"
 
 EDIT_KINDS = frozenset({"file.edit", "file.write", "file.change"})
 
@@ -53,7 +53,14 @@ PROBLEM_TYPES: dict[str, dict] = {
     "misunderstood_request": {"min_sessions": 3, "remedies": ["prompt", "workflow"]},
 }
 
-WILSON_LO_MIN = 0.05
+# Problem upgrade gate: ``sessions >= min_sessions`` and ``wilson_lo(sessions, denom) >
+# WILSON_LO_MIN``. The previous 0.05 had no source and made rare-but-important types
+# unreachable (wilson_lo(1/20)=0.009, (3/60)=0.017, (5/100)=0.022: only shares above ~15%
+# could ever upgrade). A problem is a repeated behaviour, not a prevalence claim, so the
+# repeat requirement lives in ``min_sessions`` and the Wilson bound only asks that the
+# 95% interval excludes zero. A type may set ``wilson_lo_min`` to a measured background
+# rate once real-distribution calibration exists; none is calibrated yet.
+WILSON_LO_MIN = 0.0
 SCOPES = ("all", "project", "source")
 
 CORRECTION_CHARS = (5, 200)
@@ -126,6 +133,10 @@ FIELDS = {
                          "meaning": "只命中 command_head 的验证候选数"},
     "verify_requested": {"family": "signals", "unit": "session",
                          "meaning": "真人约束中提出验证要求；无指令记录为 null"},
+    "problem_upgrade": {"family": "signals", "unit": "problem", "rules_version": RULES_VERSION,
+                        "meaning": "sessions ≥ PROBLEM_TYPES.min_sessions 且 wilson_lo(sessions, denom) > "
+                                   "wilson_lo_min（默认 0，即 95% 区间不含 0）；重复门槛由 min_sessions 承担，"
+                                   "未用无来源的流行率阈值，基线阈值待真实分布校准后按类型设置"},
     "autonomy_steps": {"family": "signals", "unit": "session",
                        "meaning": "含真人消息轮次的观测步数（工具调用 + 最终交付）中位数"},
 }
