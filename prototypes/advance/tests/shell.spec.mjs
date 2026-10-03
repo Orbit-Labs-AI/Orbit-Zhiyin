@@ -334,8 +334,8 @@ test('sidebar Agents: multi-select subset, only-this, all, logos; shared with th
   await expect(page.locator('#side .ag .dot')).toHaveCount(0);
   await expect(page.locator('#side .sect .sr-btn[data-act="agentAll"]')).toHaveCount(0);
   await page.locator('#side .ag[data-a="cx"] .ag-b').click();
-  await page.locator('#side .ag[data-a="gm"] .ag-b').click();
-  expect(await picked()).toBe('cc,ds,cp');
+  await page.locator('#side .ag[data-a="km"] .ag-b').click();
+  expect(await picked()).toBe('cc,ds,oc');
   await expect(page.locator('#side .ag[data-a="cx"]')).toHaveClass(/dim/);
   await expect(page.locator('#side .ag[data-a="cx"] .ag-b')).toHaveAttribute('aria-pressed', 'false');
   // checked vs unchecked reads at a glance: checked rows carry the selected tint while a subset is picked, unchecked logos go grey
@@ -358,7 +358,7 @@ test('sidebar Agents: multi-select subset, only-this, all, logos; shared with th
   await page.evaluate(() => edSet('lite'));
   await expect.poll(() => page.evaluate(() => S.ed)).toBe('lite');
   await page.locator('#side .ag[data-a="cx"] .ag-b').click();
-  expect(await picked()).toBe('cc,gm,ds,cp');
+  expect(await picked()).toBe('cc,km,ds,oc');
   expect(errors).toEqual([]);
 });
 

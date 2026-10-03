@@ -76,3 +76,16 @@ def test_validation_moment_takes_last_passing_check(l1):
     found = trajectory.build_detail(l1.db, "v", tz=UTC)["trajectory"]["moments"]
     checks = [m for m in found if m["rule"] == "validation_command"]
     assert len(checks) == 1 and checks[0]["t"] == 2.0
+
+
+def test_validation_moment_uses_the_facts_command_rule():
+    """One source for "is this a validation command": the key-moment rule, the facts rows and
+    the persona's V axis all call ``facts.is_validation_command`` (no word-match regex)."""
+    from orbit_backend.uiview import facts
+    assert not hasattr(moments, "VALIDATION_RE")
+    for cmd in ("pytest -q", "pnpm test", "cargo test", "make check", "tsc --noEmit",
+                "cd build", "ls test/", "git diff --check", "docker build .", "check-in notes"):
+        assert moments.is_validation(call(1, cmd=cmd, err=False)) \
+            == facts.is_validation_command(cmd), cmd
+    assert not moments.is_validation(call(1, cmd="cd build", err=False))
+    assert not moments.is_validation(call(1, cmd="git diff --check", err=False))

@@ -97,6 +97,25 @@ def router(gw: Gateway) -> APIRouter:
     def app_about():
         return about.about()
 
+    @api.get("/v1/app/coverage")
+    def app_coverage():
+        """设置 › 数据源 coverage card: status-known share, unmapped-model share and the
+        sessions the analysis views leave out (labelled reasons, tokens, cost share)."""
+        from orbit_data.analysis_input import coverage_summary
+
+        from ..analytics.coverage import excluded_reason_label
+
+        if not (gw.home / "orbit.db").is_file():
+            return {"available": False, "reason": "no_database"}
+        with gw.reads.read(check=False) as conn:  # like tool_map: one read transaction
+            body = coverage_summary(conn)
+        excluded = body["excluded_sessions"]
+        excluded["reasons_labelled"] = [
+            {"code": code, "label": excluded_reason_label(code), "count": n}
+            for code, n in sorted((excluded.get("reason_counts") or {}).items(),
+                                  key=lambda kv: (-kv[1], kv[0]))]
+        return {"available": True, **body}
+
     @api.get("/v1/app/tool_map")
     def tool_map():
         reads = gw.reads if (gw.home / "orbit.db").is_file() else None

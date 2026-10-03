@@ -172,12 +172,19 @@ function lvAgentOf(backendId) {
   return { id: k || 'unknown', key: k, keys: [k], name: backendId || '未知', short: backendId || '未知', slot: 0 };
 }
 
+// D9: agents Orbit can import sessions from — the gateway's connector registry (/v1/app/about components.mappers, i.e.
+// orbit_data MAPPERS; the settings page stores it in LV.mappers once read), and until then the same list as
+// orbit_data/discovery.inputs. Gemini CLI and Copilot CLI have no session connector: an installed one is an install target
+// (library / environment) only, never a sidebar agent, filter entry, source row or 「导入会话」 choice.
+const LV_IMPORTABLE = ['claude_code', 'codex', 'dsh', 'pi', 'hermes', 'opencode', 'kimi'];
 /* ---- LV ---- */
 const LV = {
   live: TL.mode === 'live',
   demo: (() => { try { return new URLSearchParams(location.search).get('demo') === '1'; } catch (e) { return false; } })(),
   AGENTS: LV_AGENTS,
   agentOf: lvAgentOf,
+  mappers: null,
+  importable: (bid) => { const ms = LV.mappers || LV_IMPORTABLE; return lvAgentOf(bid).keys.some((k) => ms.indexOf(k) >= 0); },
   state: 'connecting',         // connecting | computing | ready | empty | error
   stale: false,                // facts is recomputing; the screen keeps the previous spine
   meta: null, wire: null, rev: 0, excluded: [], undated: 0,
@@ -288,7 +295,10 @@ LV.feedState = (route) => {
 LV.ready = (route) => !LV.live || LV.feedState(route) === 'ready';
 // pending / empty placeholders in the prototype's own card language (no tl-table / tl-kpi)
 LV.pend = (h) => '<div class="lv-pend" data-lv="pending" style="height:' + (h || 120) + 'px" aria-busy="true"></div>';
-LV.na = (txt) => '<span class="cap" data-lv="na">' + esc(txt || '暂无数据') + '</span>';
+// nothing published yet and the data still on its way: charts say so instead of 暂无数据 / 所选范围内没有会话 (F08)
+{ const vzE = VZ.emptyText; VZ.emptyText = (spec) => { const b = dataBusy(); return b ? b.t : vzE(spec); }; }
+// F08: while importing / analysing every 「no data」 slot says so — explicit fallbacks (「暂无数据」, 「没有工具调用」) included
+LV.na = (txt) => { const b = dataBusy(); return '<span class="cap" data-lv="na"' + (b ? ' data-busy' : '') + '>' + esc(b ? b.t : txt || '暂无数据') + '</span>'; };
 
 /* ---- spine: /v1/uiview/facts → ALL / BYID / AG / PJ ---- */
 function lvToday() {
@@ -407,8 +417,9 @@ LV.hydrate = function (spine) {
   agentSync();
   const ags = {};
   const add = (bid, extra) => { const m = lvAgentOf(bid); const a = ags[m.id] || (ags[m.id] = lvMakeAgent(m)); Object.assign(a, extra || {}); return a; };
-  (spine.discovered || []).forEach((x) => add(x.agent, { detected: true, path: x.root || '—' }));
-  (spine.environment || []).forEach((x) => { const m = lvAgentOf(x.agent); if (ags[m.id] || x.installed) add(x.agent, { detected: true, path: x.root || ags[m.id] && ags[m.id].path || '—', ver: x.version || '—' }); });
+  // detected agents are listed only when Orbit can import their sessions (D9); agents with sessions always are
+  (spine.discovered || []).forEach((x) => { if (LV.importable(x.agent)) add(x.agent, { detected: true, path: x.root || '—' }); });
+  (spine.environment || []).forEach((x) => { const m = lvAgentOf(x.agent); if (ags[m.id] || (x.installed && LV.importable(x.agent))) add(x.agent, { detected: true, path: x.root || ags[m.id] && ags[m.id].path || '—', ver: x.version || '—' }); });
   // projects
   const pj = {};
   (spine.projects || []).forEach((p) => { pj[p.id] = p; });
@@ -420,12 +431,11 @@ LV.hydrate = function (spine) {
     ag.all++;
     const p = r.p || '_none';
     if (!pj[p]) pj[p] = { id: p, name: r.p ? r.p : '未归属项目', path: null };
-    ALLX.push({ id: r.id, d: Math.round((lvUtc(r.d) - DAY0) / 86400000), h: r.h || 0, mi: r.mi || 0, a: ag.id, p,
-      dur: r.dur != null ? r.dur : r.span != null ? r.span : 0, msgs: r.msgs || 0, tools: r.tools || 0, errors: r.errors || 0, corr: r.corr || 0,
+    // msgs / corr / persona unit columns / raw come from psRowFields (15-derive.js), shared with the parity tool
+    ALLX.push(Object.assign({ id: r.id, d: Math.round((lvUtc(r.d) - DAY0) / 86400000), h: r.h || 0, mi: r.mi || 0, a: ag.id, p,
+      dur: r.dur != null ? r.dur : r.span != null ? r.span : 0, tools: r.tools || 0, errors: r.errors || 0,
       steps: r.steps != null ? r.steps : null, out: r.out || null, live: !!r.live, verify: r.verify == null ? null : !!r.verify, mood: r.mood != null ? r.mood : null,
-      topic: r.topic || 'other', fric: r.fric || null, tok: r.tok || 0, title: r.title || '（无标题）', model: r.model || null, effort: r.effort || null,
-      dk: r.dk, dn: r.dn, vk: r.vk, op: r.op, t0: r.t0, t1: r.t1,
-      ik: r.ik, kn: r.kn, ol: r.ol, oa: r.oa, os: r.os, sc: r.sc, rb: r.rb, raw: r });
+      topic: r.topic || 'other', fric: r.fric || null, tok: r.tok || 0, title: r.title || '（无标题）', model: r.model || null, effort: r.effort || null }, psRowFields(r)));
   });
   ALLX.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi) || (x.id < y.id ? -1 : 1));
   ALL.length = 0; ALLX.forEach((s) => ALL.push(s));

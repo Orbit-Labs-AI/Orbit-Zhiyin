@@ -183,7 +183,7 @@ if (LV.live) {
     const meta = $('#pop .mono.cap');
     if (meta && pv && pv.today && !S.paused && !S.attn.size) {
       const t = pv.today; const n = Math.max(t.sessions || 0, d && d.today ? d.today.sessions_started || 0 : 0);
-      meta.textContent = popDate() + ' · ' + (n ? TLU.num(n) + ' 会话' + (t.duration_s ? ' · ' + dur(Math.round(t.duration_s / 60)) : '') : '还没有会话');
+      meta.textContent = popDate() + ' · ' + (n ? TLU.num(n) + ' 会话' + (t.duration_s ? ' · ' + dur(Math.round(t.duration_s / 60)) : '') : dataBusy() ? busyMeta() : '还没有会话');
     }
     // the top recommendation: the menubar slate (97-live-recs recTop('menubar')); without one, the popover's top_rec
     if (!$('#pop [data-act="popRec"]') && pv && pv.top_rec && pv.top_rec.title && !S.paused && !S.attn.size && !simIdle()) { const f = $('#pop .sec:last-child'); if (f) f.insertAdjacentHTML('beforebegin', recSec(pv.top_rec)); }

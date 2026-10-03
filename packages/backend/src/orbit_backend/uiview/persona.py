@@ -27,6 +27,7 @@ Statistics are additive per session, so any agent subset is the sum of per-agent
 
 from __future__ import annotations
 
+import math
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 
@@ -71,6 +72,14 @@ MONTHS = {k: i + 1 for i, k in enumerate(("jan", "feb", "mar", "apr", "may", "ju
 LEVELS = ("低", "中", "高")
 
 
+def jsround(x: float, digits: int = 0) -> float:
+    """Half-up rounding as the App's ``Math.round(x * 10^d) / 10^d`` (15-derive.js), so the
+    rounded values, ``strong`` and ``consistency`` match the client port exactly; Python's
+    ``round`` rounds halves to even (72.5 → 72, the App shows 73)."""
+    scale = 10 ** digits
+    return math.floor(x * scale + 0.5) / scale
+
+
 def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     """``analytics.stats.wilson`` with the persona's no-data convention (0, 1)."""
     lo, hi = stats.wilson(k, n, z) if n > 0 else (None, None)
@@ -98,28 +107,28 @@ def axis(spec: dict, s: dict) -> dict:
     sigs = sig.axis_signals(s, key)
     c = sig.compose(sigs)
     value = c["value"]
-    lo, hi = round(c["lo"], 1), round(c["hi"], 1)
+    lo, hi = jsround(c["lo"], 1), jsround(c["hi"], 1)
     # No "undetermined" band for the letter: it follows the value's lean; no data counts as 50.
     lean = MIDPOINT if value is None else value
     letter = spec["hi"] if lean >= MIDPOINT else spec["lo"]
     state = "no_data" if value is None else "settled"
     band_lo, band_hi = CONFIG["band"]
-    decided = value is not None and (lo >= band_hi or hi <= band_lo)
+    decided = value is not None and (c["lo"] >= band_hi or c["hi"] <= band_lo)
     prim = PRIMARY[key]
     acc = (sig._with_days(s)["parallel"] if key == "M" else s["ratio"][prim])
     k_units, n_units = acc[0], acc[1]
     used = sigs
     left, right = LEFT_RIGHT[key]
-    return {"k": key, "value": None if value is None else round(value, 1), "lo": lo, "hi": hi,
+    return {"k": key, "value": None if value is None else jsround(value, 1), "lo": lo, "hi": hi,
             "n_units": n_units, "k_units": k_units, "unit": UNITS[key], "letter": letter,
             "state": state,
-            "strong": None if value is None else round(max(value, 100 - value)),
+            "strong": None if value is None else int(jsround(max(value, 100 - value))),
             "left": left, "right": right, "dim": spec["dim"], "q": spec["q"],
             "sig": " · ".join(x["label"] for x in used) if used else "暂无可用信号",
             "signals": [{"key": x["key"], "label": x["label"], "weight": x["weight"],
-                         "score": round(x["score"], 1), "raw": x["raw"], "n": x["n"],
+                         "score": jsround(x["score"], 1), "raw": x["raw"], "n": x["n"],
                          "unit": x["unit"]} for x in used],
-            "agree": None if c["agree"] is None else round(c["agree"], 2),
+            "agree": None if c["agree"] is None else jsround(c["agree"], 2),
             "ref": REFS[key], "n_eff": round(min((x["n_eff"] for x in used), default=0.0), 1),
             "ci_basis": "weighted_signal_intervals", "decided": decided}
 
@@ -146,7 +155,7 @@ def persona_from(s: dict, min_n: int = MIN_SESSIONS) -> dict:
                 "conf": "低", "hint": None, "decided_axes": 0, "consistency": None}
     axes = [axis(spec, s) for spec in AXES]
     agrees = [a["agree"] for a in axes if a["agree"] is not None]
-    consistency = round(sum(agrees) / len(agrees), 2) if agrees else None
+    consistency = jsround(sum(agrees) / len(agrees), 2) if agrees else None
     code = "".join(a["letter"] for a in axes)
     zh, en, line = copy(code)
     return {"ok": True, "classified": code in TYPES, "n": n, "days": days, "code": code,
@@ -231,6 +240,15 @@ def _by_ratio(item: tuple[float, str | None]) -> tuple[float, bool, str]:
     return item[0], item[1] is None, item[1] or ""
 
 
+def v_ask_txt(ax: dict) -> str:
+    """V evidence headline in the axis's own unit (``lvEvidence`` / ``peVTxt`` in the App use
+    the same wording): the share of human turns where you asked for verification."""
+    n = ax.get("n_units") or 0
+    if not n:
+        return "验证情况未知"
+    return f"你要求验证的轮次占 {int(jsround(ax['k_units'] / n * 100))}%"
+
+
 def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> dict:
     by_day = Counter(r["d"] for r in rows)
     agents_per_day = defaultdict(set)
@@ -266,7 +284,6 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
     auto = sum(r["steps"] for r in stepped) / stepped_msgs if stepped_msgs else None
     d_txt = ("消息数未知" if per is None else f"每会话 {per:.1f} 条消息" +
              (f" · 单轮平均 {auto:.1f} 步" if auto is not None else ""))
-    verify = st.get("verify")
     # Who asked for the verification turns: the user (instruction) or the agent on its own.
     # Snapshots built before the split carry [steps, verify] only and stay unknown here.
     split = [t for r in rows for t in (aux.get(r["id"]) or {}).get("turns") or []
@@ -285,12 +302,13 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
               "projects": [derive.project_name(projects, pid) for _, pid in plan]},
         "M": {"txt": f"日均 {avg_s:.1f} 个会话 · 同日 {avg_a:.1f} 个 Agent",
               "vals": _hist(list(by_day.values()), 8, 8), "lbl": "每日会话数 1 → 8+ 的天数"},
-        "V": {"txt": ("验证情况未知" if verify is None
-                      else f"{round(verify)}% 会话要求或运行了验证"),
+        # Same unit as the V score: turns where you asked for verification (axes V k/n), not
+        # the session-level ``verify`` (asked for *or* ran), which also counts agent-run tests.
+        "V": {"txt": v_ask_txt(axes.get("V") or {}),
               "verify_n": st.get("verify_n"),
               "requested_turns": asked, "agent_only_turns": ran,
               "detail": None if asked is None else
-              f"用户要求验证 {asked} 轮 · 仅 Agent 自行运行 {ran} 轮",
+              f"你要求验证 {asked} 轮 · 仅 Agent 自行运行 {ran} 轮",
               "vals": [round(v * 100) for v, _ in check], "lbl": "项目验证轮次占比 · 低 → 高",
               "projects": [derive.project_name(projects, pid) for _, pid in check]},
     }

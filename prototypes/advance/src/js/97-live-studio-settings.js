@@ -404,7 +404,7 @@ if (TL.mode === 'live') {
 
   /* ---------- 设置：通用 / 数据源 / 隐私 / 分析 / 通知 / 关于 ---------- */
   const R = { col: '/v1/platform/collection', pol: '/v1/notifications/policy', snz: '/v1/notifications/snooze', attn: '/v1/notifications/attention', con: '/v1/ai/consent', tel: '/v1/platform/telemetry', hea: '/v1/platform/health',
-    state: '/v1/app/state', disc: '/v1/app/discovery', about: '/v1/app/about', data: '/v1/app/data', rules: '/v1/privacy/rules', eng: '/v1/ai/engines', usage: '/v1/ai/usage', rec: '/v1/platform/recommend', tmap: '/v1/app/tool_map' };
+    state: '/v1/app/state', disc: '/v1/app/discovery', about: '/v1/app/about', data: '/v1/app/data', rules: '/v1/privacy/rules', eng: '/v1/ai/engines', usage: '/v1/ai/usage', rec: '/v1/platform/recommend', tmap: '/v1/app/tool_map', cov: '/v1/app/coverage' };
   const polKey = (m, k) => TLS_KIND[k].find((t) => m && Object.prototype.hasOwnProperty.call(m, t)) || null;
   const CLS = { sum: 'summary', snip: 'snippets', raw: 'raw' };
   // the gateway's modes are stats | agent | api; 仅统计 is 'stats' (never 'off'), there is no Ollama mode yet
@@ -413,7 +413,7 @@ if (TL.mode === 'live') {
   const conEngine = (d) => TLS.engine || d.default_engine || (Object.keys(d.grants || {})[0] || null);
   const setOpen = () => !$('#set').hidden;
   // settings tab → the resources it reads (loaded only while that tab is open)
-  const TAB_RES = { general: ['state'], sources: ['state', 'disc', 'col', 'about'], privacy: ['rules', 'data'], analysis: ['con', 'usage', 'rec', 'eng'], notify: ['pol', 'snz'], about: ['about', 'hea', 'tel'] };
+  const TAB_RES = { general: ['state'], sources: ['state', 'disc', 'col', 'about', 'cov'], privacy: ['rules', 'data'], analysis: ['con', 'usage', 'rec', 'eng'], notify: ['pol', 'snz'], about: ['about', 'hea', 'tel'] };
   // server state → the demo's S fields (skipped while a demo handler is mid-way, see TLS.hold)
   function tlsSync() {
     if (TLS.hold) return;
@@ -489,6 +489,7 @@ if (TL.mode === 'live') {
     // discovery and the about mappers spell agents differently (claude / claude_code, dsh / deepseek …): compare UI ids
     const norm = (k) => lvAgentOf(k).id || k;
     const have = new Set(disc.map((x) => norm(x.agent)).concat(AG.map((a) => a.id))); const maps = (ab && ab.components && ab.components.mappers) || [];
+    if (maps.length) LV.mappers = maps;   // the gateway's connector registry: what can be imported at all (D9)
     const seen = new Set();
     return maps.filter((k) => { const id = norm(k); if (have.has(id) || seen.has(id)) return false; seen.add(id); return true; })
       .map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
@@ -543,6 +544,21 @@ if (TL.mode === 'live') {
         if (d) c.lastElementChild.firstElementChild.insertAdjacentHTML('beforeend', '<div class="col" style="gap:0" data-tl="storage">' + (d.components || []).map((x) => kv(esc(x.label || x.id) + (x.rebuildable ? ' <span class="cap" style="font-size:11px">可重建</span>' : ''), '<b class="mono" style="font-size:12px">' + (x.approx ? '≈ ' : '') + tlsBytes(x.bytes) + '</b>')).join('') + '</div>');
       }
     }
+    if (t === 'sources') {
+      // 数据覆盖: GET /v1/app/coverage (all time, all sources). Unknown stays「—」, never 0 %.
+      const d = TL.resource(R.cov).data; const body = $('#set .body');
+      if (body && d && d.available) {
+        const pct = (x) => (x == null ? '—' : (x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%');
+        const se = d.sessions || {}, mc = d.model_call || {}, ex = d.excluded_sessions || {};
+        const reasons = (ex.reasons_labelled || []).map((r) => kv('<span class="cap" style="padding-left:12px">' + esc(r.label) + '</span>', '<b class="mono" style="font-size:12px">' + TLU.num(r.count) + ' 个</b>')).join('');
+        const exCost = ex.cost_usd != null ? TLU.money(ex.cost_usd) + (ex.cost_share != null ? '，占已计价花费 ' + pct(ex.cost_share) : '') : '花费未知';
+        body.insertAdjacentHTML('beforeend', '<div class="col" style="gap:12px;margin-top:4px">' + cardHTML('数据覆盖', '分析口径之外的部分，单独列出', '<div class="col" style="gap:0">' +
+          kv('会话结果已知', '<b class="mono" style="font-size:12px">' + pct(se.status_known_share) + '</b><span class="cap" style="font-size:11px;margin-left:6px">' + TLU.num(se.status_known_rows) + ' / ' + TLU.num(se.rows) + ' 个会话</span>') +
+          kv('模型名未识别', '<b class="mono" style="font-size:12px">' + pct(mc.unmapped_model_share) + '</b><span class="cap" style="font-size:11px;margin-left:6px">' + TLU.num(mc.unmapped_model_rows) + ' / ' + TLU.num(mc.rows) + ' 次调用</span>') +
+          kv('未纳入分析的会话', '<b class="mono" style="font-size:12px">' + TLU.num(ex.rows || 0) + ' 个</b><span class="cap" style="font-size:11px;margin-left:6px">' + (ex.rows ? exCost : '') + '</span>') + reasons +
+          '</div>', 'coverage') + '</div>');
+      }
+    }
     if (t === 'about') {
       const h = TL.resource(R.hea), tel = TL.resource(R.tel), ab = TL.resource(R.about); const body = $('#set .body'); if (!body) return;
       const ver = body.querySelector('.mono.cap'); const nat = ORBIT.native.info;
@@ -587,6 +603,7 @@ if (TL.mode === 'live') {
       if (!f || f.cancelled || !f.path) return;
       const ag = agentId || (GUESS.find((g) => g[0].test(f.path)) || [])[1];
       if (!ag) { toast('认不出这个文件夹属于哪个 Agent：在「未检测到」那一行点「指定…」'); return; }
+      if (!LV.importable(ag)) { toast(lvAgentOf(ag).name + ' 暂不支持导入会话：Orbit 还没有它的会话连接器'); return; }
       return TL.send('POST', '/v1/app/sources', { agent: ag, root: f.path, enabled: true }).then((x) => {
         const src = x.data || {}; TL.invalidate((q) => q.path === R.state || q.path === R.disc);
         toast('已添加 ' + lvAgentOf(ag).name + ' 来源，正在索引');

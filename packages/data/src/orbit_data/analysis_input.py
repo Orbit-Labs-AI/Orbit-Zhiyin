@@ -181,6 +181,77 @@ def _share(part: int, whole: int) -> float | None:
     return round(part / whole, 4) if whole else None
 
 
+def _cost_share(excluded: float | None, included: float | None) -> float | None:
+    """Excluded trees' share of all priced spend; None when neither side reported a cost."""
+    if excluded is None and included is None:
+        return None
+    total = (excluded or 0) + (included or 0)
+    return round((excluded or 0) / total, 4) if total else None
+
+
+def coverage_summary(connection, scope: AnalysisScope | None = None) -> dict:
+    """Cheap data-quality summary for settings: the three coverage-disclosure figures of
+    ``read_analysis`` (sessions.status_known_share, model_call.unmapped_model_share,
+    excluded_sessions with its spend) without loading the analysis bundle.
+
+    Scope honours the time window and excluded session uids only (all agents, sources and
+    projects). Sessions and calls are the ``v_analysis_*`` rows; time filters use
+    session.started_at and model_call.ts like the analysis input.
+    """
+    scope = scope or AnalysisScope("UTC")
+    view = (
+        "FROM session s JOIN session root ON root.session_uid=s.root_uid"
+        " WHERE s.kind IN (SELECT value FROM json_each(:kinds)) AND root.kind='main'"
+        " AND s.lineage_unresolved=0"
+        " AND s.root_uid NOT IN (SELECT value FROM json_each(:excluded))"
+    )
+    params = {
+        "kinds": json.dumps(ANALYSIS_SESSION_KINDS),
+        "excluded": json.dumps(scope.excluded_session_uids),
+    }
+    session_window, call_window = "", ""
+    for bound, operator in (("from_ts", ">="), ("until_ts", "<")):
+        value = getattr(scope, bound)
+        if value is not None:
+            session_window += f" AND s.started_at {operator} :{bound}"
+            call_window += f" AND m.ts {operator} :{bound}"
+            params[bound] = value
+    if not scope.include_children:
+        view += " AND s.session_uid=s.root_uid"
+    sessions, known = connection.execute(
+        "SELECT COUNT(*), SUM(COALESCE(s.status,'unknown')<>'unknown') " + view + session_window,
+        params,
+    ).fetchone()
+    calls, unmapped, cost = connection.execute(
+        "SELECT COUNT(*), SUM(m.model_resolution='unmapped'), SUM(m.cost_usd) FROM model_call m"
+        " JOIN session s USING(session_uid) JOIN session root ON root.session_uid=s.root_uid"
+        " WHERE s.kind IN (SELECT value FROM json_each(:kinds)) AND root.kind='main'"
+        " AND s.lineage_unresolved=0"
+        " AND s.root_uid NOT IN (SELECT value FROM json_each(:excluded))"
+        + ("" if scope.include_children else " AND s.session_uid=s.root_uid")
+        + call_window,
+        params,
+    ).fetchone()
+    excluded = _excluded_trees(connection, None, scope)
+    return {
+        "sessions": {
+            "rows": sessions,
+            "status_known_rows": known or 0,
+            "status_known_share": _share(known or 0, sessions),
+        },
+        "model_call": {
+            "rows": calls,
+            "unmapped_model_rows": unmapped or 0,
+            "unmapped_model_share": _share(unmapped or 0, calls),
+            "cost_usd": cost,
+        },
+        "excluded_sessions": {
+            **excluded,
+            "cost_share": _cost_share(excluded["cost_usd"], cost),
+        },
+    }
+
+
 def _ordered_calls(connection, view: str, table: str, where: str, params: dict) -> list[dict]:
     """Rows of an analysis view for the calls matching ``where``, in base-table rowid order
     (the order a full view scan returns), fetched by primary key instead of a full scan."""
@@ -853,7 +924,16 @@ def read_analysis(
                 "status_known_rows": status_known,
                 "status_known_share": _share(status_known, len(session_rows)),
             },
-            "excluded_sessions": excluded_trees,
+            "excluded_sessions": {
+                **excluded_trees,
+                # Share of priced spend (included calls + excluded trees) the views leave out.
+                "cost_share": _cost_share(
+                    excluded_trees["cost_usd"],
+                    sum(m["cost_usd"] for m in models if m.get("cost_usd") is not None)
+                    if any(m.get("cost_usd") is not None for m in models)
+                    else None,
+                ),
+            },
             "projects": dataset_coverage(len(project_rows)),
             "turns": dataset_coverage(len(turn_rows)),
             "events": {

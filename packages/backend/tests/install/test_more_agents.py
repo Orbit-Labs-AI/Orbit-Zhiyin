@@ -266,3 +266,13 @@ def test_codex_project_hook_scripts_stay_in_project(env, home, tmp_path):
     assert script["path"] == str(proj / ".codex/hooks/orbit-fmt-fmt.sh")
     assert hooks["path"] == str(proj / ".codex/hooks.json") and hooks["requires_trust"]
     assert hooks["content"][0]["hooks"][0]["command"] == f"bash {proj}/.codex/hooks/orbit-fmt-fmt.sh"
+
+
+def test_plan_and_preview_mark_unverified_min_version(svc):
+    # opencode has no checked minimum version: both the plan summary and the preview rows the UI
+    # reads must say so, otherwise the 版本兼容性未知 note never shows.
+    plan = svc.plan(src(SKILL), agents=["opencode", "claude_code"])
+    by_agent = {t["agent"]: t["version_check"] for t in plan["targets"] if t["mappable"]}
+    preview = svc.preview(plan["plan_id"])
+    rows = {t["agent"]: t["version_check"] for t in preview["targets"] if t["mappable"]}
+    assert by_agent == rows == {"opencode": "unknown", "claude_code": "known"}

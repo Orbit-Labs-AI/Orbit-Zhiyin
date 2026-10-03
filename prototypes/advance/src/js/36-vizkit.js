@@ -192,6 +192,8 @@ VZ.isEmpty = function (spec) {
   if (ser.length) return !ser.some((s) => (s.values || []).some((v) => VZ.num(v && v.y !== undefined ? v.y : v) != null));
   return !vals || !vals.length;
 };
+// empty text: spec.empty or 「暂无数据」; the app may replace it (live: 正在分析… while nothing is published yet, F08)
+VZ.emptyText = (spec) => spec.empty || '暂无数据';
 VZ.lowSample = (spec) => spec.minN != null && spec.n != null && spec.n < spec.minN;
 /* ---------- 共享坐标框架：左轴刻度、网格、x 轴标签、x 定位 ---------- */
 VZ.frame = function (spec, w, h, o) {
@@ -299,7 +301,7 @@ VZ.tipRow = (color, name, value, o) => '<div class="vz-tr"><span class="vz-tk' +
 VZ.tipHead = (t, sub) => '<div class="vz-th">' + esc(t) + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div>';
 VZ.emptyHTML = function (spec, h) {
   if (VZ.lowSample(spec)) { const frac = Math.min(1, spec.n / spec.minN); const r = 14, c = 2 * Math.PI * r; return '<div class="vz-empty vz-low" style="min-height:' + Math.max(80, h) + 'px" role="status"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="' + r + '" class="vz-ring-bg"/><circle cx="18" cy="18" r="' + r + '" class="vz-ring" stroke-dasharray="' + (c * frac).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 18 18)"/></svg><div><b>样本不足</b><span class="cap">' + spec.n + ' / ' + spec.minN + ' 个会话' + (spec.lowText ? ' · ' + esc(spec.lowText) : '') + '</span></div></div>'; }
-  return '<div class="vz-empty" style="min-height:' + Math.max(64, Math.min(h, 160)) + 'px" role="status">' + VZ.el('svg', { width: 28, height: 20, viewBox: '0 0 28 20', 'aria-hidden': true }, '<path class="vz-empty-ic" d="M2 17h24M5 14l5-6 5 4 5-7 5 4" fill="none"/>') + '<span>' + esc(spec.empty || '暂无数据') + '</span></div>';
+  return '<div class="vz-empty" style="min-height:' + Math.max(64, Math.min(h, 160)) + 'px" role="status">' + VZ.el('svg', { width: 28, height: 20, viewBox: '0 0 28 20', 'aria-hidden': true }, '<path class="vz-empty-ic" d="M2 17h24M5 14l5-6 5 4 5-7 5 4" fill="none"/>') + '<span>' + esc(VZ.emptyText(spec)) + '</span></div>';
 };
 /* ---------- 渲染入口 ---------- */
 VZ.height = (spec, w) => { const t = VZ.types[spec.type]; return spec.height || (t && t.height ? t.height(spec, w) : VZ.defaultH[spec.type]) || 200; };
@@ -315,7 +317,7 @@ VZ.render = function (spec, w, h, inst, bare) {
 };
 VZ.svg = function (spec, w, h) {
   w = w || spec.width || 600; const ts = VZ.types[spec.type]; h = h || (ts && ts.svgHeight ? ts.svgHeight(spec, w) : VZ.height(spec, w));
-  if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return '<svg class="vz-svg vz-empty-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(spec.title || '') + '：' + (VZ.lowSample(spec) ? '样本不足' : esc(spec.empty || '暂无数据')) + '"><title>' + esc(spec.title || '') + '</title>' + VZ.txt(w / 2, h / 2 + 4, VZ.lowSample(spec) ? '样本不足 · ' + spec.n + ' / ' + spec.minN : (spec.empty || '暂无数据'), { class: 'vz-ax', 'text-anchor': 'middle' }) + '</svg>';
+  if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return '<svg class="vz-svg vz-empty-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(spec.title || '') + '：' + (VZ.lowSample(spec) ? '样本不足' : esc(VZ.emptyText(spec))) + '"><title>' + esc(spec.title || '') + '</title>' + VZ.txt(w / 2, h / 2 + 4, VZ.lowSample(spec) ? '样本不足 · ' + spec.n + ' / ' + spec.minN : VZ.emptyText(spec), { class: 'vz-ax', 'text-anchor': 'middle' }) + '</svg>';
   return VZ.render(spec, w, h).svg;
 };
 // 图表头：沿用卡片层级 —— .eb 等宽眉标（模块名）、.ct 13px 标题（按 Apple 的做法写成结论句）、.cap 12px 说明（口径 / 范围）、evidence「证据 →」链接
@@ -361,7 +363,7 @@ VZ.draw = function (el) {
 VZ.setView = function (el, view) { const inst = VZ._inst.get(el); if (!inst) return; inst.spec.view = view; VZ.draw(el); };
 VZ.table = function (spec) {
   const t = VZ.types[spec.type]; const d = t && t.table ? t.table(spec) : VZ.xyTable(spec);
-  if (!d || !d.rows.length) return '<div class="vz-empty" role="status"><span>' + esc(spec.empty || '暂无数据') + '</span></div>';
+  if (!d || !d.rows.length) return '<div class="vz-empty" role="status"><span>' + esc(VZ.emptyText(spec)) + '</span></div>';
   return '<div class="scroll-x vz-tbl"><table class="tbl"><thead><tr>' + d.cols.map((c, i) => '<th' + (i ? ' style="text-align:right"' : '') + '>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' + d.rows.map((r) => '<tr>' + r.map((c, i) => '<td class="' + (i ? 'mono' : '') + '"' + (i ? ' style="text-align:right"' : '') + '>' + esc(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
 };
 VZ.xyTable = function (spec) {

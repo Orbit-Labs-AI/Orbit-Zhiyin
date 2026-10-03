@@ -47,7 +47,7 @@ def test_axes_come_from_the_persona_page():
     p = page()
     axes = {a["axis"]: a for a in reveal.ui_axes(p)}
     assert {k: a["value"] for k, a in axes.items()} == {"D": 72.5, "I": 65.0, "M": 38.2,
-                                                         "V": 27.5}
+                                                         "V": 45.0}
     assert reveal.code_of(reveal.ui_axes(p)) == p["code"] == "DIFT"
     assert [axes[k]["name"] for k in "DIMV"] == ["委托", "即兴", "专注", "信任"]
     # The reveal keeps the page's interval verbatim (no recomputation).
@@ -71,10 +71,11 @@ def test_compose_one_session_gives_a_full_code():
 def test_matches_follow_persona_candidates():
     rows = reveal.matches(page())
     # match = mean of (v if high letter else 100 − v):
-    # DIFT (72.5 + 65 + 61.8 + 72.5) / 4 = 68.0, DIMT (72.5 + 65 + 38.2 + 72.5) / 4 = 62.0.
-    assert [r["code"] for r in rows[:2]] == ["DIFT", "DIMT"]
-    assert rows[0]["match"] == pytest.approx(68.0, abs=0.06)
-    assert rows[1]["match"] == pytest.approx(62.0, abs=0.06)
+    # V: 1 of 4 turns asked for verification → 45 (anchor 5% → 25, 30% → 50).
+    # DIFT (72.5 + 65 + 61.8 + 55) / 4 = 63.6, DIFV (72.5 + 65 + 61.8 + 45) / 4 = 61.1.
+    assert [r["code"] for r in rows[:2]] == ["DIFT", "DIFV"]
+    assert rows[0]["match"] == pytest.approx(63.575, abs=0.06)
+    assert rows[1]["match"] == pytest.approx(61.075, abs=0.06)
     assert rows[0]["similarity"] == round(rows[0]["match"] / 100, 3)
     assert reveal.matches(None) == []
 
