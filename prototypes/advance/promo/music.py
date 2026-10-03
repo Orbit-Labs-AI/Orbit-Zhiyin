@@ -537,10 +537,17 @@ groove(16.0, 19.85, style='half', lvl=0.86, bed=0.24)              # … lifting
 HATS_OFF.append((12.95 + SH, 17.95 + SH))                                   # the keys are the hats while 1d is typed
 hits(12.8, 15.9, 22.5, 22.9, 23.3)                                         # v18.2: the three cuts moved .6 later (CUT in 15-redesign)
 motif(13.1, 0.042, notes=(81, 79, 76, 74), times=(0, 2, 4, 6), held=2.0, cutoff=2000)   # 1d answers: A G E D, one per 2 beats
-put(puff(0.8), 12.6, 0.04, 0.0, to='verbsend')                              # the box grows out of the dots
+put(tick(0.9), 11.8, 0.03, 0.0)                                             # v18.3 the caret falls (.24 beat) …
+put(key_click(), 12.04, 0.08, 0.0)
+put(tick(1.1), 12.04, 0.05, 0.1)                                          # … and rounds straight into the pill key (b12.04)
+put(puff(0.8), 12.5, 0.04, 0.0, to='verbsend')                              # the box grows out of the dots (b12.5)
+put(tick(1.0), 12.5, 0.06, -0.1)
+put(blip(tone(12.5, 0, 72), 0.4), 12.5, 0.07, -0.1, to='verbsend')
 put(kick(0.35, 0.6), 12.8, 0.22, to='kick')                                 # 「但，」 lands alone, the dots flinch
 put(stab(tuple(tone(12.8, j, 57) for j in range(3)), 0.9), 12.8, 0.08, 0.0, to='verbsend')
-words((13.38,), 0.08)                                                       # 「人与 Agent 的」 (b13.4)
+words((13.37,), 0.1)                                                        # 「人与 Agent 的」 (b13.4)
+put(tick(1.3), 13.4, 0.08, -0.1)                                            # v18.3 a clear onset ahead of the next key (b13.47)
+put(blip(tone(13.4, 1, 72), 0.4), 13.4, 0.1, 0.1, to='verbsend')
 words((13.85,), 0.08)                                                       # 「交互本身，」
 keys(type_on(12.95, '请你修改', 41) + type_on(14.55, 'fix', 42)                # typed key by key (typeOn), as 15-redesign
      + type_on(15.8, '请你继续', 43) + type_on(17.15, '看清需求', 44))          # 看清需求 is never sent
@@ -638,8 +645,9 @@ put(lead(lq(84, 41.42), 3.0 * BEAT), 41.42, 0.06, 0.0, to='lead')           # an
 put(crash(2.0), 28.1, 0.12, -0.2)
 put(settle(0.8), 28.4, 0.05, 0.0)                                           # v18.2: the dial settles (b28.4)
 roll(28.6, 5, 0.06, 0.25, 64, 1.2)                                          # the bud slows and lands (b29.6)
-words((29.0,), 0.07)                                                        # 「引入协作人格分析」
-for k in range(10):                                                         # 精准识别你的交互特征 decodes
+words((28.97,), 0.08)                                                       # 「读懂你的 Agent 协作人格」 masks in (b29.0)
+put(tick(1.0), 29.0, 0.05, -0.1)
+for k in range(15):                                                         # 从每个会话里，认出你的协作方式 decodes (15 chars, .04 apart)
     put(key_click(), 29.1 + 0.04 * k, 0.025, 0.2)
 put(whoosh(1.4 * BEAT), 32.8, 0.1, -0.3)                                    # the compass slides left (b32.8–34.2)
 put(whoosh(0.5 * BEAT), 33.8, 0.04, 0.4)                                    # a link draws to the column
@@ -687,15 +695,15 @@ for w in (41.6, 42.7, 43.8):                                                # th
 put(whoosh(1.1 * BEAT), 44.5, 0.06, -0.3)                                   # the card moves into the eyebrow slot
 for b_ in (44.85, 45.0, 45.1, 45.2, 45.35):                                 # the counters come in
     put(tick(), b_, 0.03, 0.45)
-PIT, ARR0 = 3.0, 46.0                                                       # = PIT / ARR in scenes/40-recs.js
+PIT, ARR0 = 2.6, 46.0                                                       # = PIT / ARR in scenes/40-recs.js (v18.3: 2.6-beat cards)
 ARR = [ARR0 + PIT * n for n in range(6)]
 EV = [ARR[n] - (1.9 if n else 1.4) + 0.4 for n in range(6)]                # = EV = LIVE[n][0] + .4: entry n emitted (link, word, counter)
 for n, e in enumerate(EV):
     put(whoosh(0.5 * BEAT), e - 0.4, 0.04, -0.5)                            # the links draw to the card (air, no pitch)
     m_ = (AG + (74,))[n] + 12                                        # the entries spell the motif E G A C E → D6 (the 9th over V)
-    d_ = (EV[n + 1] - e - 0.1) if n < 5 else (61.35 - e)                     # v18.3 legato: each note runs into the next entry
+    d_ = (EV[n + 1] - e - 0.1) if n < 5 else (62.35 - e)                     # v18.3 legato: each note runs into the next entry
     put(pluck(lq(m_, e), 0.6), e, 0.09, -0.2, to='verbsend')
-    put(lead(lq(m_, e), (d_ * 0.55 if n < 5 else d_) * BEAT), e, 0.06 if n < 5 else 0.075, 0.0, to='lead')
+    put(lead(lq(m_, e), (d_ * 0.55 if n < 5 else d_) * BEAT), e, 0.06 if n < 5 else 0.085, 0.0, to='lead')
     if n < 5:                                                              # a passing tone halfway, so the phrase keeps rising
         mp = ((AG + (74,))[n + 1] + 12 + m_) // 2
         put(lead(lq(mp, e + d_ * 0.55), d_ * 0.45 * BEAT + 0.05), e + d_ * 0.55, 0.05, 0.0, to='lead')
@@ -732,7 +740,7 @@ groove(73.75, 75.2, style='half', lvl=0.86, arp16=True, bed=0.2)            # �
 peak(73.75, 'C', 0.8, 0.5)                                                  # the second core feature's peak: done ✓ (film b105.45)
 padlvl(73.75, 0.21, 2600)
 put(swell(0.8 * BEAT), 55.2, 0.12)                                          # the orb grows into the card (film b86.9–87.7), no hit
-put(tick(1.1), 67.6, 0.05, 0.1)                                             # 03 → 04 headline swap (film b99.3)
+put(tick(1.3), 67.65, 0.08, 0.1)                                            # 开始生成 rises in (b67.65, film b99.35)
 hits(55.0, 55.4, 65.0, 68.8, 73.75)
 motif(55.1, 0.045, octave=-1, scale=2.0, held=2.0, cutoff=2400)             # the motif an octave down, half speed
 put(lead(lq(67, 61.1), 2.0 * BEAT, 2400), 61.1, 0.045, 0.0, to='lead')     # v18.3 G bridges the two statements
@@ -740,14 +748,15 @@ motif(63.1, 0.045, octave=-1, scale=2.0, held=2.5, cutoff=2400)
 for k, b_ in enumerate((55.4, 57.8, 60.0, 62.3)):                           # phase pills pop on the playhead: 探索 / 规划 / 实施 / 部署
     put(pluck(tone(b_, (0, 1, 2, 0)[k], 72 if k < 3 else 64), 0.5), b_, 0.06, -0.3 + 0.15 * k, to='verbsend')
     put(puff(), b_, 0.03, -0.3 + 0.15 * k, to='verbsend')
+put(tick(1.2), 55.4, 0.06, -0.3)                                            # v18.3 探索 pops on the replay start
 put(swell(1.2 * BEAT), 62.65, 0.08)                                         # 连续失败 4 次: the critical glow
 for j, g in enumerate((0.08, 0.05)):                                        # 验证 ✓ (b65.0): C-chord bell
     put(bell(tone(65.0, 2 * j + 1, 72), 1.8), 65.0, g, 0.3, to='verbsend')
 put(puff(), 65.0, 0.03, 0.3, to='verbsend')
 put(whoosh(1.4 * BEAT), 67.0, 0.1, -0.3)                                    # trajectory out, studio in (b67.1 / 67.3)
-put(tick(1.0), 67.3, 0.05, -0.3)                                            # v18.2: the card leaves with its title (b67.3)
-put(settle(0.8), 67.55, 0.06, 0.1)                                          # 「04 · 生成工坊」 rises in (b67.55)
-put(puff(0.9), 67.75, 0.04, 0.3, to='verbsend')                             # the studio comes in from the right (b67.75)
+put(tick(1.0), 67.25, 0.05, -0.3)                                           # v18.3: the old accent leaves (b67.25)
+put(settle(0.8), 67.57, 0.06, 0.1)                                          # 「04 · 生成工坊」 rises in (b67.57)
+put(puff(0.9), 67.75, 0.04, 0.3, to='verbsend')                             # the new accent comes in (b67.75)
 put(whoosh(0.7 * BEAT), 68.2, 0.05, 0.1)                                   # the camera pushes in on 开始生成 (b68.2)
 arp(68.5, 68.8, 0.1, 0.05, base=72, span=3)                                 # the .3-beat hover: a rising up-beat into the press
 put(press(), 68.8, 0.22, 0.2)
@@ -799,7 +808,7 @@ put(riser(3.0 * BEAT, 300, 5000), 75.6, 0.14, to='verbsend')
 put(whoosh(1.6 * BEAT), 78.6, 0.1, -0.2)                                    # it turns and tilts into the 45° icon
 TAG0 = TURN0 + 4.0
 LAST = TAG0 + 1.4 + 0.64                                                    # agent ✓4: the last strong beat (film b124.74)
-TD = 0.1                                                                     # v18.3 the tagline / agent row read ~45 ms later than TAG0
+TD = 0.0                                                                     # K.words hard-cuts each tagline word at TAG0 + .2 k (2 frames); the agent row morphs at TAG_AG + .16 k
 hits(80.2, TURN0 + 2.475, TAG0 + TD, TAG0 + 1.4 + TD)                                # icon stands · letters · tagline · agent, on the picture beats
 put(boom(2.4, 48, 28), 80.2, 0.2, to='verbsend')                            # the icon stands (b80.2)
 put(stab(tuple(tone(80.2, j, 62) for j in range(4)), 1.6), 80.2, 0.1, to='verbsend')
