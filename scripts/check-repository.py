@@ -26,11 +26,7 @@ RETIRED = ("src", "docs/backend", "docs/plan", "docs/design/demo")
 NAVIGATION = "docs/README.md"
 # Tracked documents not yet linked from the navigation, with the owner follow-up. The check
 # fails once one becomes reachable, so the entry is removed together with the registration.
-UNREGISTERED = {
-    "docs/development/mac-app.md": "development: link from docs/README.md",
-    "docs/modules/data/import-performance.md": "data: link from the data module README",
-    "docs/plans/ui-backend-parity.md": "plans: link from docs/README.md plans section",
-}
+UNREGISTERED: dict[str, str] = {}
 
 
 def tracked(root: Path) -> list[str]:
