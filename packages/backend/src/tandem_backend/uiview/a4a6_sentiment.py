@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 import time
 import unicodedata
 from collections import Counter, defaultdict
@@ -19,6 +20,7 @@ from ..analytics.interaction.rules import correction_terms
 from ..analytics.outcome_subjective.extraction import classify_feedback
 from ..analytics.products.feedback import classify_emotion
 from ..analytics.task.taxonomy import DOMAIN_DETAILS, domain_matches
+from ..features.vocab import command_info
 from ..privacy import direct_user_text, redact
 from ..recommend.outcomes import welch
 from .a4a6_common import ManyQuery
@@ -49,9 +51,6 @@ FRICTION_LABELS = {
     "permission_friction": "权限询问打断", "context_loss": "上下文丢失",
     "quota_interrupt": "额度中断", "other": "其他",
 }
-READ_ONLY_HEAD = re.compile(
-    r"^(?:ls|cat|head|tail|grep|rg|find|pwd|wc|tree|which|less|stat|du|df|echo"
-    r"|git (?:status|log|diff|show|branch|remote)|sed -n)\b")
 READ_ONLY_KINDS = {"read", "search", "file.read", "list"}
 FAILED = ("failed", "error")
 
@@ -155,6 +154,14 @@ def scope_sql(scope: dict | None, alias: str = "s") -> tuple[str, list]:
     if scope.get("session_uids") is not None:
         sql.append(f"{alias}.session_uid IN (SELECT value FROM json_each(?))")
         params.append(json.dumps(list(scope["session_uids"])))
+    # Same source range and exclusion list as A1/A3/A4 (services.routes_analytics.analytics_scope):
+    # ``source_ids`` None = every source, [] = none; excluded sessions never reach A5/A6 text.
+    if scope.get("source_ids") is not None:
+        sql.append(f"{alias}.source_id IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(list(scope["source_ids"])))
+    if scope.get("excluded_session_uids"):
+        sql.append(f"{alias}.session_uid NOT IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(list(scope["excluded_session_uids"])))
     if scope.get("excluded_cwd_prefix"):
         sql.append(f"({alias}.cwd IS NULL OR {alias}.cwd NOT LIKE ?)")
         params.append(scope["excluded_cwd_prefix"] + "%")
@@ -209,7 +216,8 @@ def fetch_calls(conn, session_ids) -> list[dict]:
     for chunk in _chunks(session_ids):
         for r in conn.execute(
                 f"SELECT t.call_uid, t.root_uid, t.session_uid, t.name, t.name_raw, t.kind, "
-                f"t.command_head, t.files, t.status, t.approval, t.started_at, e.seq "
+                f"t.command_head, t.files, t.status, t.approval, t.started_at, e.seq, "
+                f"json_extract(e.attrs, '$.input.command') AS command "
                 f"FROM v_analysis_tool_call t LEFT JOIN event e ON e.event_uid=t.call_event_uid "
                 f"WHERE t.root_uid IN ({_in(chunk)})", chunk):
             out.append(dict(r))
@@ -231,10 +239,14 @@ def fetch_event_kinds(conn, session_ids, kind) -> set[str]:
 def _appdb_rows(appdb, sql, params=()) -> list:
     if appdb is None:
         return []
+    from .facts import is_schema_gap
+
     try:
         with appdb.read() as db:
             return db.execute(sql, params).fetchall()
-    except Exception:  # noqa: BLE001 - missing table / app.db: degrade silently
+    except sqlite3.OperationalError as error:  # older app.db without the table/column only
+        if not is_schema_gap(error):
+            raise
         return []
 
 
@@ -318,9 +330,10 @@ def _rule_frictions(calls) -> dict[str, set[str]]:
     for c in calls:
         if c["status"] in FAILED:
             failed[c["root_uid"]] += 1
+        # One read-only definition with A4 (features.vocab.command_info, argument-aware).
         if c["approval"] is not None and (
-                READ_ONLY_HEAD.match((c["command_head"] or "").strip())
-                or c["kind"] in READ_ONLY_KINDS):
+                (c["command_head"] and command_info(c["command_head"], c.get("command"))["cls"]
+                 == "readonly") or c["kind"] in READ_ONLY_KINDS):
             asked[c["root_uid"]] += 1
     out: dict[str, set[str]] = defaultdict(set)
     for uid, n in failed.items():
@@ -532,11 +545,13 @@ def build_sentiment(conn, appdb, scope, params, *, now_ms: int) -> dict:
 def register(api, gw) -> None:
     from pathlib import Path
 
-    from fastapi import Query
+    from fastapi import Depends, Query
 
     from ..services.auth import ApiError
     from ..services.routes_data import mark_empty
     from . import a4a6_common as common
+
+    range_dependency = Depends(common.range_scope)
 
     @api.get("/v1/uiview/sentiment")
     def sentiment(project_id: ManyQuery = None, agent: ManyQuery = None, agents: str | None = None,
@@ -544,7 +559,8 @@ def register(api, gw) -> None:
                   days: int = Query(30, ge=1, le=730), bucket: str = "auto",
                   tz: str | None = None, topic: str | None = None, outcome: str | None = None,
                   fric: str | None = None, hour: int | None = Query(None, ge=0, le=23),
-                  wait_ms: int = Query(0, ge=0, le=3000)):
+                  wait_ms: int = Query(0, ge=0, le=3000),
+                  ranges: dict = range_dependency):
         if bucket not in ("auto", "day", "week"):
             raise ApiError(400, "invalid_request", "bucket 只接受 auto|day|week")
         if since is not None and until is not None and since >= until:
@@ -559,7 +575,7 @@ def register(api, gw) -> None:
         if early is not None:
             return early
         scope = {"project_ids": project_id or None,
-                 "agent_ids": common.agent_list(agent, agents), "session_uids": ids,
+                 "agent_ids": common.agent_list(agent, agents), "session_uids": ids, **ranges,
                  "excluded_cwd_prefix": str(Path(gw.home) / "agent-cwd")}
         params = {"since": since, "until": until, "days": days, "bucket": bucket, "tz": tz}
         with gw.reads.read(empty=True) as conn:
