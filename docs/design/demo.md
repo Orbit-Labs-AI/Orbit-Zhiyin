@@ -72,8 +72,8 @@ Demo 把主应用、菜单栏面板、悬浮组件、桌面小组件和关键流
 
 数据或筛选变化时，App 只刷新依赖它的组件，其它节点原样保留，所以滚动条、展开的下拉 / 菜单、焦点、选中的文字、hover 状态和正在播放的动画都不受影响。框架在 [`src/js/24-regions.js`](../../prototypes/advance/src/js/24-regions.js)。
 
-- **整页渲染**只发生在首次进入、切换路由和切换 Lite / Advance 时（`window.__renderCount` 计数）。在已迁移的页面上（`RG.pages`，目前是概览），其它所有 `render()`（筛选、开关、实时帧、feed 到达、导入进度）都改为区域刷新；未迁移的页面仍整页渲染，并沿用滚动与焦点恢复。
-- **外壳**也是区域：侧栏的导入入口 `side:import`、页面列表 `side:insight` / `side:action`、`side:agents`、`side:pins`、页脚 `side:foot`；菜单栏、标题行和整个侧栏用 `rgPut` 原地 morph。实时状态条与导入进度条也原地 morph。
+- **整页渲染**只发生在首次进入、切换路由和切换 Lite / Advance 时（`window.__renderCount` 计数）；`go()` 到当前已显示的页面（侧栏当前页、在项目习惯页点置顶项目、先设筛选再跳回本页的通知或命令面板入口）不算导航，按区域刷新并保留滚动。全部页面都已迁移（`RG.pages`：Advance 九页与 Lite 四页），其它所有 `render()`（筛选、开关、实时帧、feed 到达、导入进度）都是区域刷新；只有隐藏的组件画廊 `vizkit` 仍整页渲染，并沿用滚动与焦点恢复。
+- **外壳**也是区域：侧栏的导入入口 `side:import`、页面列表 `side:insight` / `side:action`、`side:agents`、`side:pins`、页脚 `side:foot`；菜单栏、标题行和整个侧栏用 `rgPut` 原地 morph。设置面板、菜单栏面板、悬浮组件（含 live 的静止 / 暂停态）与桌面小组件也用 `rgPut`，打开设置时来一帧实时数据不会重置它的滚动与表单。实时状态条与导入进度条也原地 morph。
 - **实时数据**：`90-live-core.js` 的 `lvFlush` 在可区域刷新时只把实时相关的键（`facts`、当前路由的 `feed:<route>`、`live`、`tl`、`job`）交给本轮刷新，不再推迟到用户停止滚动或关闭下拉；导入期间的 4 秒间隔仍保留。导入的 job 帧只 `RG.bump('job')`，刷新 `side:import` 与进度条。
 
 ### API
@@ -96,7 +96,7 @@ morph 按 `data-region`、`id`、`data-key`、`data-vz` 匹配有键的子节点
 2. 页面函数只拼骨架：`RG.pages.add('<route>')`，然后 `PAGES.x = () => region(...) + '<div class="content" id="content">' + region(...) + …`。工具栏 `.tbar` 必须是 `#main` 的直接子元素，它所在区域的 `after` 调 `tbarFit()`。
 3. 原来的 `PAGES.x.after` 拆进各区域的 `after`；原来直接改 DOM 的局部更新（如概览刷选）改成改状态后 `RG.refreshNow(['S.…'])`。
 4. 动效自动按区域生效：`data-count` 数字从该区域刷新前的值滚到新值（`37-motion.js` 的区域钩子），筛选 chip 弹入、seg 滑块、图表 ↔ 表格淡入照旧；只有首次进入页面才播放入场编排；`prefers-reduced-motion` 下直接显示终值。
-5. 页面整体有几种形态（读取中 / 空 / 正常）时，外层放一个只依赖形态函数的区域（如 `a4:body`、`a5:body`），正常形态里再嵌卡片区域；页面的所有卡片由一个 `RG.memo` 部件函数一次算出（演示与 live 各一份：`toolsParts` / `lvToolsParts`、`projectsParts` / `lvProjectsParts`）。被命令式逐帧更新的节点（会话轨迹的 `#tlBox`、`#tlOv`、`#tlRead`、`#tlInsp`、对比时间线）带 `data-vz`，morph 不碰，由区域的 `after` 同步，所以回放进行中数据刷新不会打断它。live 的按需详情（`LV.detail`）用函数依赖返回该条目的 `state` 与数据身份，详情到达只刷新读它的卡片。已迁移：概览、会话与轨迹、工具调用、项目习惯（用例 [`tests/region-render-pages.spec.mjs`](../../prototypes/advance/tests/region-render-pages.spec.mjs)）。
+5. 页面整体有几种形态（读取中 / 空 / 正常）时，外层放一个只依赖形态函数的区域（如 `a4:body`、`a5:body`），正常形态里再嵌卡片区域；页面的所有卡片由一个 `RG.memo` 部件函数一次算出（演示与 live 各一份：`toolsParts` / `lvToolsParts`、`projectsParts` / `lvProjectsParts`）。被命令式逐帧更新的节点（会话轨迹的 `#tlBox`、`#tlOv`、`#tlRead`、`#tlInsp`、对比时间线）带 `data-vz`，morph 不碰，由区域的 `after` 同步，所以回放进行中数据刷新不会打断它。live 的按需详情（`LV.detail`）用函数依赖返回该条目的 `state` 与数据身份，详情到达只刷新读它的卡片。用例：[`tests/region-render-pages.spec.mjs`](../../prototypes/advance/tests/region-render-pages.spec.mjs)（会话与轨迹、工具调用、项目习惯）、[`tests/region-render-lite-persona.spec.mjs`](../../prototypes/advance/tests/region-render-lite-persona.spec.mjs)（Lite 四页、协作人格、情绪与语义）、[`tests/region-render-recs-library-studio.spec.mjs`](../../prototypes/advance/tests/region-render-recs-library-studio.spec.mjs)（建议、资源库、生成工坊与三个原生面板）、[`tests/region-render-shell.spec.mjs`](../../prototypes/advance/tests/region-render-shell.spec.mjs)（同页 `go()`、设置面板）。
 
 ### 调试
 
@@ -104,3 +104,4 @@ morph 按 `data-region`、`id`、`data-key`、`data-vz` 匹配有键的子节点
 - 地址加 `?debug=render`，控制台打印 `[render]`（整页）与 `[region] key ← 来源`（区域与失效来源）。
 - 每次区域刷新后派发 `tandem:regions` 事件；原生壳的拖拽区域上报（`23-native-drag.js`）由 MutationObserver 节流（200 ms），只有被 morph 的节点产生变更记录。
 - 回归用例：[`tests/region-render.spec.mjs`](../../prototypes/advance/tests/region-render.spec.mjs)。
+- 真实导入验收：`JOURNEY_SPEC=tests/region-import-audit.spec.mjs bash scripts/check-app-journey.sh`（`AUDIT_ED=lite` 测 Lite，`JOURNEY_SRC` 换更大的合成数据，`JOURNEY_ASSETS` 指向旧构建做对比）。源码网关 + 临时数据目录跑一次首次导入并转入后台，逐页停留滚动，统计导航以外的整页渲染、各区域刷新、长任务、滚动跳动、停留期间被替换的区域根节点、下拉是否保持，以及三个原生面板与拖拽区域上报，结果写到 `test-results/region-import-audit-<ed>.json`。
