@@ -1,14 +1,19 @@
-"""Route ②: catalog items whose curated features address an active problem.
+"""Route ②: catalog items admitted for an active problem.
 
-The catalog does its own BM25 / feature / remedy / E5 fusion; we only keep
-items with problem evidence (a friction feature or the remedy route), plus a
-profile query gated on enough evidence sessions. Queries run in parallel with
+Problem queries go through the catalog's admission layer (``purpose="recommendation"``): an
+item is returned only when it is verified and either curated for the problem (friction + scene +
+dimension) or rule-admitted for the session friction the problem maps to (FRICTION_OF). The
+catalog does its own BM25 / feature / remedy / E5 fusion inside that set. The profile query has
+no problem behind it, so it stays a library match (its cards say so) gated on enough evidence
+sessions. Queries run in parallel with
 a per-call timeout so a slow catalog never stalls the engine. Without a
 catalog service we fall back to a small BM25 over the bundled legacy seeds.
 """
 
+import json
 import math
 import re
+import sqlite3
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +27,7 @@ from .sparse import tokenize
 # catalog_item.verification values meaning "repository and resource source were read"
 # (same set as orbit_catalog.index.VERIFIED; anything else, or a missing field, is unverified).
 VERIFIED = ("repository_and_skill_read", "repository_and_source_read")
+SUPPORT_VALUES = {"native", "manual", "adaptation_required", "unsupported"}
 
 TYPE_KIND = {"skill": "skill", "plugin": "plugin", "marketplace": "plugin", "mcp_server": "mcp", "hook": "hook",
              "subagent": "subagent", "command": "prompt", "rule": "rule", "workflow": "workflow", "guide": "workflow",
@@ -33,6 +39,20 @@ KIND_DIM = {"rule": "rule", "prompt": "rule", "permission_rule": "hook", "skill"
             "mcp": "mcp", "plugin": "mcp", "subagent": "agent", "model": "model", "workflow": "flow",
             "builtin": "hook", "removal": "rule", "generate": "skill"}
 PER_PROBLEM, TIMEOUT_S, MIN_PROFILE_EVIDENCE = 8, 2., 3
+# Problem type → the session-side friction ids the catalog's rule admission is keyed on
+# (orbit_catalog.features.VOCABULARY / orbit_backend.features.vocab.FRICTION). Curated catalog
+# entries carry the problem type itself, so every problem also queries under its own type.
+FRICTION_OF = {
+    "permission_friction": ("approval_wait", "readonly_prompted"),
+    "readonly_review": ("readonly_prompted",),
+    "tool_env_failure": ("retry_same_call", "tool_error"),
+    "polling": ("long_tool_wait",),
+}
+# Orbit only reads coding-agent sessions; a problem without its own scene is a coding one.
+DEFAULT_SCENE = "coding"
+# The user's message language is not measured per problem: no restriction (any of the catalog's).
+ANY_LANGUAGE = "zh_or_en"
+ADMITTED = ("curated", "rule_admitted")
 MAX_TRIAL = 60
 # Evaluation protocol wording (A/B comparisons, statistics) is not a user's trial method.
 EVAL_TRIAL = re.compile(r"对照|对比.*前后|统计")
@@ -47,9 +67,10 @@ def _user_trial(text: str | None) -> str:
 def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: str) -> dict:
     """RawCand from a normalised catalog item dict (catalog response row or legacy seed)."""
     kind = item["kind"]
-    # Only an explicit support matrix (legacy seeds) states native/manual; a catalog row's ``agents``
-    # list is often inferred by the connector, so it stays a hint and every agent is "unknown"
-    # (agent_supported → needs_context) until the catalog provides a declared matrix.
+    # Only an explicit support matrix states native/manual: legacy seeds, or a catalog item's declared
+    # metadata.agent_support (Orbit KB entries). A catalog row's ``agents`` list is often inferred by
+    # the connector, so it stays a hint and undeclared agents are "unknown" (agent_supported →
+    # needs_context).
     support = dict(item.get("support") or {})
     risk_flags = list(item.get("risk") or ())
     limitation = item.get("limitation") or ""
@@ -63,7 +84,9 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
         mechanism = (f"按你的使用画像（{tags}）从资源库匹配的{label}，没有对应的会话问题证据" if tags
                      else f"从资源库匹配的{label}，没有对应的会话问题证据")
         reason = f"资源库里与你常用的 {tags} 相关的{label}" if tags else f"资源库里可能适合你的{label}"
-    limitation = "；".join(x for x in (limitation, "来自公开资源库，效果未用你的数据验证；安装前请先看来源说明")
+    admitted = ("按规则准入、未经人工评审（来源文字提到这类问题，不代表能解决）"
+                if item.get("admission") == "rule_admitted" else "")
+    limitation = "；".join(x for x in (limitation, admitted, "来自公开资源库，效果未用你的数据验证；安装前请先看来源说明")
                           if x)
     steps = list(item.get("steps") or ()) or ["打开来源，查看说明与许可", "确认适用后按来源说明安装",
                                               "7 天后看效果追踪"]
@@ -74,7 +97,8 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
         "routes": {}, "fusion": 0., "evidence": evidence_of(problem),
         "source": {"origin": "catalog", "item_id": item["item_id"], "url": item.get("url"),
                    "license": item.get("license"), "version": item.get("version_id"),
-                   "verified": bool(item.get("verified")), "quality": item.get("quality")},
+                   "verified": bool(item.get("verified")), "quality": item.get("quality"),
+                   **({"admission": item["admission"]} if item.get("admission") else {})},
         "target": {"agents": target_agents(support, inputs), "scope": "project" if project_of(problem) else "user",
                    "project_id": project_of(problem), "path_hint": None,
                    "agents_listed": list(item.get("agents") or ())},
@@ -105,9 +129,56 @@ def _normalise_catalog(row: dict) -> dict | None:
             "summary": row.get("summary") or "", "url": row.get("url"), "agents": row.get("agents") or [],
             "license": row.get("license"), "difficulty": row.get("difficulty"), "risk": row.get("risk") or [],
             "language": row.get("language"), "content_hash": row.get("content_hash"),
-            "support": row.get("support") or {}, "quality": row.get("quality"), "risk_level": row.get("risk_level"),
-            "version_id": row.get("version_id"), "verified": row.get("verification") in VERIFIED,
+            "version_id": row.get("version_id"),
+            # a search row may not carry verification / declared support: None = look it up in catalog_item
+            "verified": row["verification"] in VERIFIED if "verification" in row else None,
+            "support": declared_support(row.get("agent_support") or row.get("support")),
+            "quality": row.get("quality"), "risk_level": row.get("risk_level"),
             "tags": tags, "score": row.get("score", 0.)}
+
+
+def declared_support(value) -> dict:
+    """A catalog item's declared per-agent support (metadata.agent_support), valid levels only."""
+    if not isinstance(value, dict):
+        return {}
+    return {str(agent): level for agent, level in value.items() if level in SUPPORT_VALUES and agent != "generic"}
+
+
+def item_support(metadata) -> dict:
+    """``agent_support`` from a catalog_item.metadata blob (top level or under ``metadata``)."""
+    try:
+        meta = json.loads(metadata) if isinstance(metadata, (str, bytes)) else dict(metadata or {})
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(meta, dict):
+        return {}
+    inner = meta.get("metadata") if isinstance(meta.get("metadata"), dict) else {}
+    return declared_support(meta.get("agent_support") or inner.get("agent_support"))
+
+
+def enrich(catalog, items: list[dict], diagnostics: list) -> None:
+    """Fill verification and declared agent support that the search rows left out from catalog_item.
+
+    The catalog's search result omits ``verification`` and the KB-declared ``agent_support``; without
+    them every crawled item failed the source_verified gate. One read of catalog_item covers all
+    items; when it is unavailable, they stay unverified (False) and a diagnostic says why."""
+    missing = sorted({it["item_id"] for it in items if it.get("verified") is None or not it.get("support")})
+    found: dict[str, tuple] = {}
+    if missing:
+        try:
+            with catalog.store.connect(True) as conn:
+                for row in conn.execute("SELECT item_id, verification, metadata FROM catalog_item WHERE item_id IN "
+                                        "(SELECT value FROM json_each(?))", (json.dumps(missing),)):
+                    found[row[0]] = (row[1], row[2])
+        except (AttributeError, sqlite3.Error, OSError) as exc:
+            diagnostics.append({"source": "catalog.verification", "status": "unavailable",
+                                "reason": type(exc).__name__})
+    for it in items:
+        verification, metadata = found.get(it["item_id"], (None, None))
+        if it.get("verified") is None:
+            it["verified"] = verification in VERIFIED
+        if not it.get("support"):
+            it["support"] = item_support(metadata)
 
 
 @lru_cache(maxsize=1)
@@ -198,9 +269,16 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
     queries: list[tuple[dict | None, object]] = []
     for problem in active:
         features = [Feature(feature="dimension", value=problem["dimension"])] if problem["dimension"] else []
-        queries.append((problem, MatchRequest(purpose="library", text=(problem["reason"] + " " + words)[:8000],
-                                              problem_type=problem["type"], features=features, agents=top_agent,
-                                              language=problem["language"], limit=10, per_route=100, audit=True)))
+        evidence = problem.get("evidence") or {}
+        sessions = [str(x) for x in evidence.get("session_uids") or ()][:100]
+        evidence_ids = [str(x) for x in (evidence.get("event_ids") or evidence.get("signal_ids") or sessions)][:100]
+        for friction in dict.fromkeys((problem["type"], *FRICTION_OF.get(problem["type"], ()))):
+            queries.append((problem, MatchRequest(
+                purpose="recommendation", text=(problem["reason"] + " " + words)[:8000],
+                problem_id=str(problem.get("problem_id") or problem["key"]), problem_type=friction,
+                scene=problem.get("scene") or DEFAULT_SCENE, language=problem.get("language") or ANY_LANGUAGE,
+                evidence_ids=evidence_ids, profile_evidence_ids=sessions, features=features, agents=top_agent,
+                limit=10, per_route=100, audit=True)))
     profile = inputs.get("profile") or {}
     strong = {tag for tag, n in (profile.get("evidence_sessions") or {}).items() if n >= MIN_PROFILE_EVIDENCE}
     profile_terms = [t for t in (*sorted(profile.get("tags") or {}, key=lambda t: -(profile["tags"][t])),
@@ -213,6 +291,7 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
     profile_rows: dict[str, float] = {}
     profile_payload: dict[str, dict] = {}
     payload: dict[str, dict] = {}
+    kept: list[tuple[dict | None, dict, float]] = []
     pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="orbit-rec-catalog")
     # 2 s per call; four run at once, so the whole batch gets one deadline per wave.
     deadline = time.monotonic() + TIMEOUT_S * math.ceil(len(queries) / 4)
@@ -228,6 +307,9 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
             except Exception as exc:  # one bad query must not drop the others
                 diagnostics.append({"source": "catalog", "status": "failed", "reason": f"{label}: {type(exc).__name__}"})
                 continue
+            if response.get("gates"):  # admission prerequisites missing (no evidence, no agent): say so
+                diagnostics.append({"source": "catalog.admission", "status": "gated",
+                                    "reason": f"{label}/{request.problem_type}: " + ",".join(response["gates"])})
             if "generation" in response:
                 meta["generation"] = response["generation"]
             meta.setdefault("vector", response.get("vector") or {"status": "unknown"})
@@ -241,29 +323,37 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
                     audit["decisions"].append({"item_id": row.get("item_id"), "kept": False,
                                                 "reason": "unsupported_catalog_type", "score": row.get("score")})
                     continue
+                reason = None
                 if problem is not None:
-                    friction = any(f.get("feature") == "friction" and f.get("value") == problem["type"]
-                                   for f in row.get("matched_features") or ())
-                    remedy = "remedy" in ((row.get("score_parts") or {}).get("routes") or {})
-                    audit["decisions"].append({"item_id": item["item_id"], "kind": item["kind"],
-                        "score": row.get("score"), "kept": friction or remedy,
-                        "reason": None if friction or remedy else "missing_problem_overlap",
-                        "support": row.get("matched_features")})
-                    if not (friction or remedy):
-                        continue
-                    key, raw = "catalog:" + item["item_id"], float(row.get("score") or 0.) + 1e-6
-                    if raw > rows.get(key, 0):
-                        rows[key] = raw
-                        payload[key] = from_item(item, problem, inputs, match_basis="catalog_feature")
-                else:
-                    audit["decisions"].append({"item_id": item["item_id"], "kind": item["kind"],
-                        "score": row.get("score"), "kept": True, "reason": None,
-                        "support": row.get("matched_features")})
-                    key = "catalog:" + item["item_id"]
-                    profile_rows[key] = max(profile_rows.get(key, 0), float(row.get("score") or 0.) + 1e-6)
-                    profile_payload.setdefault(key, from_item(item, None, inputs, match_basis="profile"))
+                    tier = (row.get("admission") or {}).get("tier")
+                    if tier is not None:  # the admission layer's verdict travels with the row
+                        if tier not in ADMITTED:
+                            reason = "catalog_admission:" + str(tier)
+                        else:
+                            item["admission"] = tier
+                    else:  # a catalog without admission info: same evidence bar on the row itself
+                        friction = any(f.get("feature") == "friction" and f.get("value") == request.problem_type
+                                       for f in row.get("matched_features") or ())
+                        remedy = "remedy" in ((row.get("score_parts") or {}).get("routes") or {})
+                        if not (friction or remedy):
+                            reason = "missing_problem_overlap"
+                audit["decisions"].append({"item_id": item["item_id"], "kind": item["kind"],
+                    "score": row.get("score"), "kept": reason is None, "reason": reason,
+                    "support": row.get("matched_features"), "admission": row.get("admission")})
+                if reason is None:
+                    kept.append((problem, item, float(row.get("score") or 0.) + 1e-6))
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
+    enrich(catalog, [item for _, item, _ in kept], diagnostics)
+    for problem, item, raw in kept:
+        key = "catalog:" + item["item_id"]
+        if problem is not None:
+            if raw > rows.get(key, 0):
+                rows[key] = raw
+                payload[key] = from_item(item, problem, inputs, match_basis="catalog_feature")
+        else:
+            profile_rows[key] = max(profile_rows.get(key, 0), raw)
+            profile_payload.setdefault(key, from_item(item, None, inputs, match_basis="profile"))
     diagnostics.append({"source": "catalog.vector", "status": (meta.get("vector") or {}).get("status", "unknown"),
                         "reason": (meta.get("vector") or {}).get("reason", "")})
     meta["profile_payload"] = profile_payload

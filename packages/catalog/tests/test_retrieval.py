@@ -46,15 +46,17 @@ def test_semantic_recall_is_independent_and_filtered_before_topk(store):
 
 
 def test_chinese_fts_and_source_filters_survive_query_operators(store):
-    publish(store, [record("a"), record("b", agents=["claude_code"])])
+    # Subagent files have no cross-agent open format, so a claude_code subagent stays claude_code only.
+    publish(store, [record("a"), record("b", agents=["claude_code"], type="subagent")])
     result = search(store, MatchRequest(text='重复失败 OR " :*', agents=["codex"], excluded_ids=["a"]))
     assert result["items"] == []
     assert search(store, MatchRequest(text="重复失败"))["items"]
     assert search(store, MatchRequest(text="重复失败", source_ids=["missing"]))["items"] == []
 
 
-def test_optional_filter_audit_explains_empty_pi_pool_without_changing_results(store):
-    publish(store, [record("a", agents=["codex"]), record("b", agents=["claude_code"])])
+def test_optional_filter_audit_explains_nonportable_pi_pool_without_changing_results(store):
+    publish(store, [record("a", agents=["codex"], type="subagent"),
+                    record("b", agents=["claude_code"], type="subagent")])
     request = MatchRequest(text="重复失败", agents=["pi"])
     baseline = search(store, request)
     audited = search(store, request.model_copy(update={"audit": True}))
@@ -64,6 +66,17 @@ def test_optional_filter_audit_explains_empty_pi_pool_without_changing_results(s
     assert agent["input_count"] == 2 and agent["kept_count"] == 0
     assert set(agent["rejected_ids"]) == {"a", "b"} and agent["score"] is None
     assert agent["omitted_ids"] == 0
+
+
+def test_filter_audit_preserves_mainline_portable_skill_support(store):
+    publish(store, [record("portable", agents=["codex"])])
+    request = MatchRequest(text="重复失败", agents=["pi"])
+    baseline = search(store, request)
+    audited = search(store, request.model_copy(update={"audit": True}))
+    assert audited["items"] == baseline["items"]
+    assert [item["item_id"] for item in audited["items"]] == ["portable"]
+    stage = next(s for s in audited["filter_audit"] if s["stage"] == "agents_listed")
+    assert stage["input_count"] == stage["kept_count"] == 1
 
 
 def test_recommendation_requires_evidence_scene_dimension_and_curated_friction(store):
@@ -157,7 +170,8 @@ def test_prefix_query_matches_partial_last_token(store):
 
 
 def test_lexical_finds_filtered_item_behind_many_stronger_hits(store):
-    rows = [record(f"p{n:03}", summary="retry retry retry wording", agents=["claude_code"]) for n in range(60)]
+    rows = [record(f"p{n:03}", summary="retry retry retry wording", agents=["claude_code"], type="subagent")
+            for n in range(60)]
     rows.append(record("only-codex", summary="retry once, among many other unrelated words here", agents=["codex"]))
     publish(store, rows)
     result = search(store, MatchRequest(text="retry", agents=["codex"], per_route=10))
@@ -294,11 +308,13 @@ def seeded(tmp_path_factory):
 
 
 # Query -> substring every acceptable target name contains (chosen by reading the seed, not by
-# running the ranker): the item a user typing the query is looking for.
+# running the ranker): the item a user typing the query is looking for. 2026-10-03 seed rebuild:
+# "excel spreadsheet" now also has Excel MCP servers (microsoft-excel, excel-mcp-server), which
+# are what the query asks for; the xlsx skill is no longer the only Excel item.
 GOLDEN = {"pdf docx": "docx", "playwright browser": "playwright", "postgres": "postgres", "slack": "slack",
           "kubernetes": "kubernetes", "figma design": "figma", "stripe payments": "stripe", "sentry errors": "sentry",
           "terraform": "terraform", "systematic debugging": "systematic", "notion": "notion",
-          "jupyter notebook": "jupyter", "excel spreadsheet": "xlsx", "code review": "code-review",
+          "jupyter notebook": "jupyter", "excel spreadsheet": "excel", "code review": "code-review",
           "git commit message": "commit"}
 
 
@@ -341,12 +357,13 @@ def test_seed_mmr_keeps_docx_at_or_above_its_score_rank(seeded):
 
 
 # Chinese query -> substrings of acceptable English target names (by intent, read off the seed).
+# 2026-10-03 seed rebuild added *-optimization, scikit-learn/ml-pipeline and *-design-system items.
 GOLDEN_ZH = {"代码审查": ("review",), "数据库迁移": ("sql", "migration", "database"), "浏览器测试": ("playwright", "testing"),
              "论文引用": ("research", "citation", "consensus"), "调试": ("debug",), "部署": ("deploy",),
-             "性能优化": ("performance",), "容器": ("docker", "container", "infrastructure engineer"), "安全漏洞": ("vulnerab", "security"),
+             "性能优化": ("performance", "optimiz"), "容器": ("docker", "container"), "安全漏洞": ("vulnerab", "security"),
              "表格": ("xlsx",), "幻灯片": ("pptx",), "前端": ("frontend",), "监控日志": ("logging", "monitor"),
-             "机器学习": ("machine-learning",), "持续集成": ("cicd",), "重构": ("refactor",),
-             "支付": ("payment", "stripe"), "截图": ("screenshot",), "设计系统": ("design system",)}
+             "机器学习": ("machine-learning", "scikit-learn", "ml-pipeline"), "持续集成": ("cicd",), "重构": ("refactor",),
+             "支付": ("payment", "stripe"), "截图": ("screenshot",), "设计系统": ("design system", "design-system")}
 
 
 @pytest.mark.parametrize("text", sorted(GOLDEN_ZH))

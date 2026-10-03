@@ -37,6 +37,27 @@ REASONS = {
     "human_origin_unknown": "条消息的真人来源无法确认",
     "events_unavailable": "没有可用的事件输入",
 }
+# Why read_analysis leaves a session tree out of the analysis views (coverage.excluded_sessions
+# reason codes, orbit_data.analysis_input._excluded_trees). Shown in 设置 › 数据源.
+EXCLUDED_REASONS = {
+    "excluded_kind_review": "代码审查会话（如 Codex review）",
+    "excluded_kind_automation": "自动化 / 无交互运行（如 claude -p）",
+    "excluded_kind_import": "导入的历史会话",
+    "excluded_kind_auxiliary": "辅助会话（标题生成、压缩等）",
+    "excluded_lineage_unresolved": "找不到父会话的子会话",
+    "excluded_root_not_main": "所属会话树的根不是主会话",
+}
+REASONS.update({code: "个" + label for code, label in EXCLUDED_REASONS.items()})
+LABELS["excluded_sessions"] = "未纳入分析的会话"
+
+
+def excluded_reason_label(code: str) -> str:
+    """Chinese label for an excluded_sessions reason code; unknown kinds keep their name."""
+    if code in EXCLUDED_REASONS:
+        return EXCLUDED_REASONS[code]
+    if code.startswith("excluded_kind_"):
+        return "其他类型会话（" + code.removeprefix("excluded_kind_") + "）"
+    return code
 ACTIONS = {
     "source_scans": "需要完整历史时，在来源目录之外的数据目录重新执行 ingest，记录扫描范围。",
     "events": "可继续分析已有证据；旧版截断可重算恢复，原始历史已丢失的部分仍保留缺口。",
@@ -47,6 +68,8 @@ ACTIONS = {
     "native_event_payload": "这是按需读取优化，完整已存证据仍可通过事件或原始记录 ID 回看。",
     "sample_exclusions": "这是额外的分析筛选；需要这些会话时调整筛选参数。",
 }
+
+ACTIONS["excluded_sessions"] = "这些会话不计入统计；它们的花费单独列出，不会算进总花费。"
 
 
 def _describe(coverage):

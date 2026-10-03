@@ -5,7 +5,7 @@ gateway attach installed/scan state from other modules without this package impo
 """
 
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Response
 from pydantic import Field
@@ -24,6 +24,12 @@ class EnableRequest(Contract):
 
 class EmbeddingRequest(Contract):
     max_chunks: int | None = Field(default=256, ge=1, le=1000000)
+    scope: Literal["all", "overview"] = "all"
+    all_passages: bool = False
+
+
+class ModelDownloadRequest(Contract):
+    allow_download: bool
 
 
 def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None,
@@ -72,7 +78,17 @@ def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None
 
     @router.post("/embeddings", status_code=202)
     def embeddings(request: EmbeddingRequest):
-        return invoke(lambda: service.start_embeddings(request.max_chunks))
+        return invoke(lambda: service.start_embeddings(request.max_chunks, scope=request.scope,
+                                                       all_passages=request.all_passages))
+
+    @router.get("/embeddings/status")
+    def embeddings_status():
+        return service.vector_status()
+
+    @router.put("/embeddings/model")
+    def embeddings_model(request: ModelDownloadRequest):
+        """User consent for the one-time pinned E5 download (118 MB model + 17 MB tokenizer)."""
+        return invoke(lambda: service.set_model_download(request.allow_download))
 
     @router.get("/jobs/{job_id}")
     def job(job_id: str):

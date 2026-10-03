@@ -1,284 +1,260 @@
-/* 02 推荐 → 效率（b55.6–84.4）：穿越门里的建议传送带 → 省时占比 15.6% 落定 → 一键安装 → 7 天后 → 前后对比 → 省下 15.6% 的协作时间
-   Shots, keyframes and hand-offs: STORYBOARD.md (KF 5.1–5.13).
-   5a  the 12 .rcard cards of deck 0 are re-laid by transforms into a horizontal conveyor (inside #content's clip, so they
-       are shrunk in the app and the camera zooms in); the centre card is sharp, the others blur with distance; each card
-       that crosses the centre sends its time share on an arc into the total, which rolls up and settles on the app's sum.
-   5b  the total shrinks into an eyebrow, 重复失败熔断 lifts, its install button is pressed, deck 0 turns away while
-       deck 1's install sheet turns in, two presses run the app's real install flow.
-   5c  the sheet shrinks into the ▲ install day of the tracking strip, which grows out of that point; seven days fill.
-   5d  the camera drops to the three before/after rows: after-dots slide, big figures and green pills ride on the right.
-   5e  the card falls back; Apple's number formula 「协作时间 / 省下 15.6 %」 lands on the drop at b79.4. */
+/* 40-recs 4（b39.4–63.1） — STORYBOARD.md v17「4 优化建议」+ v17.1 T10 / T10′, hand-offs T10 (in) / T11 (out).
+   v17.3: 3 beats longer than v17.2 (pitch 2.4 → 3.0, everything after b41.5 later; T11 at b58.0 instead of b55.0).
+   v17.5: 5 beats longer (start unchanged; T11 at b63.0). Intro card first (+4.5): the badges peel off the persona dial
+   row by row (b38.5–40.76, r176b) and, as each of the top three rows comes home, it writes one line out of a link at x 540
+   (b39.85 / 39.99 / 40.13):「02 · 优化建议」/「根据你的使用习惯，智能推荐」(silver, heavy) /「提高效率」(orange); they
+   stay, drifting up 12 px, while the column breathes in three soft pulse waves (b41.6 / 42.7 / 43.8); at b44.5 the three
+   lines rise, then slide left and shrink together into the top-left eyebrow slot (eyebrow 160,100; the two lines below
+   it at 26 px; 1.1 beats) as the first entry's dots step forward and emit it (b45.0); the counters come in behind the headline's tail.
+   The last entry also gets .5 beat more before the column leaves (+.5 at the end).
+   Left: the five AGD dots in one short column (x 330, rows 372 … 708 in their compass-rim y order, r 30); when entry n
+   comes up from below the dots it links to step forward to x 386, light up and emit the links; the type word wipes in
+   left → right as the first link reaches the card (the entry comes out of its dots) and its share starts rolling into its
+   counter, all while the card is still below the centre line. Middle: six real recommendation cards of deck 0 (Advance,
+   light) in one column that scrolls up at one slow constant speed (163 px/beat, no holds); entry n (big type word + card)
+   reaches the centre line at b46.0 + 3n, links to 2–3 Agent dots (solid = the app's recAgents, dashed = a filled-in
+   neighbour) and adds its share to one of the two counters on the right (recTotal of the rows that arrived, time / token
+   alternating). An entry is sharp from 260 px below to 320 px above the centre line (≈3.6 beats; two entries are sharp
+   at once between arrivals, so one can be read to the end while the next comes in). The last entry passes the centre at
+   b61.0 and the column keeps rising, easing faster from b61.9, out by b63.1. Dots and counters drift slowly so nothing
+   sits frozen. Numbers are read from recPct / recTotal at run time. */
 scene('40-recs', () => {
   css(`
-.r-or{color:var(--a1)}
-.ln.r-tot{overflow:visible}
-.ln.r-tot>span{display:inline-flex;align-items:baseline;gap:8px}
-.r-tot .r-n{font-variant-numeric:tabular-nums}
-.r-tot .r-u{font-size:72px;font-weight:600;letter-spacing:0;color:var(--a1)}
-.r-fly{position:absolute;left:0;top:0;font:700 54px var(--mono);color:var(--a1);white-space:nowrap;will-change:transform,opacity;text-shadow:0 4px 24px rgba(0,0,0,.6)}
-.ln.r-eb>span{display:inline-flex;align-items:baseline;gap:20px}
-.r-eb .r-ebl{font-family:var(--mono);font-size:24px;letter-spacing:.3em;color:rgba(255,255,255,.6)}
-.r-eb .r-ebn{font-size:48px;font-weight:700;color:var(--a1);letter-spacing:-.01em}
-.k .eb.r-or{color:var(--a1)}
-.r-day{font:600 30px var(--mono);color:#fff;letter-spacing:.06em}
-.r-dim{color:rgba(255,255,255,.62)}
-.r-mn{font-size:40px;color:rgba(255,255,255,.72)}
-.ln.r-mv{overflow:visible}
-.ln.r-mv>span{display:inline-flex;align-items:center;gap:.3em}
-.r-mv .st{color:rgba(255,255,255,.5);font-weight:500}
-.r-mv .r-ar{color:rgba(255,255,255,.5);font-weight:400}
-.r-mv b{font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
-.r-mv .r-un{font-size:40px;font-weight:400;color:rgba(255,255,255,.72)}
-.k .pill.r-g{font-size:40px;color:#7fd6a4;background:rgba(127,214,164,.13);border:1.5px solid rgba(127,214,164,.55);margin-left:.25em}
-.ln.r-vd{overflow:visible}
-.k .pill.r-ok{font:700 40px var(--sans);color:#fff;background:var(--a1);box-shadow:0 14px 40px rgba(226,96,43,.35)}
-.ln.r5{overflow:visible}
-.ln.r5>span{display:grid;grid-template-columns:auto auto;column-gap:34px;align-items:start;text-align:left}
-.r5 .r5-pre{grid-row:1;grid-column:1;display:flex;flex-direction:column;align-items:flex-end;gap:10px;padding-top:58px;font:500 30px var(--mono);letter-spacing:.24em;color:rgba(255,255,255,.72)}
-.r5 .r5-pre span{display:block;will-change:transform,opacity}
-.r5 .r5-num{grid-row:1;grid-column:2;font-family:var(--serif);font-size:300px;line-height:.92;letter-spacing:-.02em;transform-origin:30% 60%;
-  background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent;will-change:transform,opacity,filter}
-.r5 .r5-u{grid-row:2;grid-column:2;font-size:120px;font-weight:700;line-height:1.1;color:var(--a1);will-change:transform,opacity}
+.ln.xl.r4-w{font-size:128px;line-height:1}
+.ln.r4-n{font-size:96px;font-weight:700;line-height:1;color:var(--acc);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.ln.lt.r4-s{font-size:28px;color:rgba(255,255,255,.55)}
+.ln.r4-h{font-size:88px;font-weight:700;letter-spacing:-.01em;line-height:1.08}
+.ln.r4-a{font-size:64px;font-weight:600;letter-spacing:.02em;color:var(--a1)}
 `);
-  const RB = 'retry-breaker';
-  // tag() scales a top/bottom tag about its own (at·100%) point and then shifts it by at·100% of its scaled width, which
-  // lands it (1 − s)·at·width off its anchor whenever at > 0; scaling about the corner puts it back on the anchor
-  const pin = (f) => (el, tl, life, t) => { el.style.transformOrigin = '0 0'; if (f) f(el, tl, life, t); };
-  const card = (D, id) => D.querySelector('.rcard[data-id="' + id + '"]');
-  // both copies stay in the Advance edition, light theme (hand-off contract)
-  const advLight = (d) => { const W = decks[d].W; if (W.eval('S.ed') !== 'advance') W.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); W.setTheme('light'); };
-  // the engine's .promo-card ring loses to the solo shadow rule; give a solo'd promo-card its paper margin back
-  const paperCss = (D) => { if (D.getElementById('r-paper')) return; const s = D.createElement('style'); s.id = 'r-paper'; s.textContent = 'html body .promo-solo.promo-card{box-shadow:0 0 0 22px var(--surface),0 30px 90px 22px rgba(0,0,0,.55)!important;border-radius:6px}'; D.head.appendChild(s); };
+  const IDS = ['retry-breaker', 'remove-figma', 'acceptance', 'pr-wrapup', 'headless', 'think-medium'];
+  const WORD = ['Hook', 'MCP', 'Prompt', 'Skill', 'Workflow', 'Thinking'];
+  const FLD = ['t', 'k', 't', 'k', 't', 'k'];                    // which counter each entry adds to
+  const PIT = 3.0, ARR = IDS.map((_, n) => 46.0 + PIT * n);      // beat entry n reaches the centre line (46.0 … 61.0)
+  const S4 = 44.5, MV = 1.1, OUT4 = 63.1;                        // intro → eyebrow slot move (b44.5–45.6); scene clear
+  const GAP = 490, CX = 540, CY = 540, CW = 820;                 // entry pitch (screen px), card left / centre line, card width
+  // dot i → row = its y rank on the compass rim at b39.4 (order 'y', H11). The 0.0.4 dial puts the badges at the data's
+  // bearings (demo: cc 43 / cx 62 / gm 288 / ds 118 / cp 221° → rows cc cx gm ds cp), not at the v17 spots V2 assumed
+  // ([1, 3, 4, 2, 0] sent cp from the bottom of the rim to the top row and gm down through ds / cp: the dots crossed and
+  // bunched at b40.4). Same ranking as cpBadge (y = C − R·cos θ); the centre row (gm here) lands on (330, 540) for T11.
+  const ORD = (() => {
+    let pl = []; try { pl = compassData().sets.base.pl || []; } catch (e) { /* no compass data: index order */ }
+    const y = [0, 1, 2, 3, 4].map((i) => -Math.cos((pl[i] ?? i * 72 + 18) * Math.PI / 180)), o = [];
+    [0, 1, 2, 3, 4].sort((p, q) => y[p] - y[q]).forEach((d, r) => { o[d] = r; });
+    return o;
+  })();
+  const ROWDOT = ORD.map((_, r) => ORD.indexOf(r));              // row → dot
+  const sel = (id) => '.rcard[data-id="' + id + '"]';
+  const card = (D, id) => D.querySelector(sel(id));
 
-  // solo() scrolls targets into view, which also scrolls the clipped window and the desk: undo it on every ancestor
-  // the app's entrance animations (fill: both) would override the cards' inline transforms: drop them
+  /* ---------- T10: the dots leave the compass rim and close into one short column (ranked by their y on the compass,
+     so no paths cross; the centre row lands on the centre line, where T11 merges the column) ---------- */
+  const COLX = 330, STEP_X = 56;                                 // column x; a linked dot steps forward to 386
+  // r176b: the badges peel off the still-revolving rim one row at a time (top row first, .14 beat apart, from b38.5 =
+  // 30-persona CO − .9, .7 beat before the reveal block starts to leave) and glide 1.7 beats (E.inOut, bowing up ≤ 14 px)
+  // into the column, growing r 18·s → 30. Each path starts from the badge's live rim position (cpBadge: the dial is
+  // collapsing towards the column meanwhile, so the rows still on it close in with it) — the five stay one converging
+  // group and no two paths cross (closest pair ≥ 20 px apart, edge to edge).
+  // The key itself switches at once (dur ≈ 0); the live x / y0 / r carry the whole move.
+  const PEEL = 38.5, PST = .14, PD = 1.7, PARC = 14;
+  const peel = (b, i) => E.inOut(clamp((b - PEEL - PST * ORD[i]) / PD));
+  const rim = (b, i, k) => { const e = peel(b, i); return e >= 1 ? null : cpBadge(i)[k]; };
+  AGD.key(PEEL, 'column', {
+    x: (b, i) => { const e = peel(b, i), q = rim(b, i, 'x'); return q == null ? COLX : lerp(q, COLX, e); },
+    y0: (b, i) => { const e = peel(b, i), q = rim(b, i, 'y'), y = 372 + 84 * ORD[i]; return (q == null ? y : lerp(q, y, e)) - PARC * 4 * e * (1 - e); },
+    gap: 0, r: (b, i) => { const e = peel(b, i), q = rim(b, i, 'r'); return q == null ? 30 : lerp(q, 30, e); },
+    a: (b, i) => { const e = peel(b, i), q = rim(b, i, 'a'); return q == null ? 1 : lerp(q, 1, e); },
+    order: ORD, dur: .001, stag: 0
+  });
+  const ROWIN = [0, 1, 2].map((r) => PEEL + PST * r + 1.05);    // row r's dot is ≈ 70 % home: it starts writing intro line r (links b39.55 / 39.69 / 39.83)
+
+  /* ---------- app data (read once; nothing hard-coded) ---------- */
+  const W = decks[0].W;
+  let PCT = IDS.map(() => null), AGS = IDS.map(() => [0]), TOT = { t: [], k: [] };
+  try {
+    PCT = IDS.map((id) => W.eval('recPct(' + JSON.stringify(id) + ')'));
+    AGS = IDS.map((id) => W.eval('recAgents(RECI[' + JSON.stringify(id) + '])').map((a) => AGID.indexOf(a)).filter((i) => i >= 0));
+    // each counter: recTotal of its own rows that have arrived (alternatives on one problem take the best, then add)
+    for (const f of ['t', 'k']) {
+      const mine = IDS.filter((_, n) => FLD[n] === f);
+      TOT[f] = mine.map((_, j) => +W.eval('(recTotal(' + JSON.stringify(mine.slice(0, j + 1)) + '.map((id) => RECI[id])) || {}).' + f) || 0);
+    }
+  } catch (e) { console.error('promo 40-recs: app data', e); }
+  IDS.forEach((id, n) => { if (!PCT[n] || PCT[n][FLD[n]] == null) console.warn('promo 40-recs: no ' + FLD[n] + ' share for', id); });
+  // per entry: the rise of its counter when it arrives
+  const STEP = IDS.map((_, n) => { const f = FLD[n], j = IDS.slice(0, n).filter((__, m) => FLD[m] === f).length; return { f, d: (TOT[f][j] || 0) - (j ? TOT[f][j - 1] || 0 : 0) }; });
+
+  /* ---------- which dots each entry links to ---------- */
+  // solid = the Agents the app says the rec applies to (more than 3: hash01 picks 3); a single one gets a dashed neighbour
+  // row (「可转换使用」); two entries in a row never link the same set
+  const LINKS = [];
+  let prevSet = '';
+  IDS.forEach((id, n) => {
+    let solid = AGS[n].length ? AGS[n].slice() : [0], dash = [];
+    if (solid.length > 3) solid = solid.slice().sort((p, q) => hash01(n * 7 + p) - hash01(n * 7 + q)).slice(0, 3);
+    if (solid.length === 1) {
+      const r = ORD[solid[0]], nb = [r - 1, r + 1].filter((x) => x >= 0 && x <= 4).map((x) => ROWDOT[x]);
+      if (hash01(n * 7 + solid[0]) >= .5) nb.reverse();
+      const key = (d) => [...solid, d].sort().join();
+      dash = [nb.find((d) => key(d) !== prevSet) ?? nb[0]];
+    }
+    prevSet = [...solid, ...dash].sort().join();
+    LINKS.push({ solid, dash });
+  });
+  // link window: from 1.9 beats before entry n reaches the centre line (the card ≈310 px below it, coming into focus; the
+  // first one 1.4 beats before, b44.6, as the intro lines start moving up out of its way) until the next entry's links
+  // start (the last until its exit)
+  const LIVE = IDS.map((_, n) => [ARR[n] - (n ? 1.9 : 1.4), n < 5 ? ARR[n] + 1.05 : 62.5]);
+  // emission beat (b45.0, 47.5, 50.5, 53.5, 56.5, 59.5): the first link reaches the card, the type word wipes in, the dots
+  // pulse and the entry's share starts rolling into its counter
+  const EV = IDS.map((_, n) => LIVE[n][0] + .4);
+  const toCard = (id) => (b) => { const p = elXY(0, sel(id), 0, .5); return [p[0] - 4, p[1]]; };
+  IDS.forEach((id, n) => {
+    const [b0, b1] = LIVE[n], all = [...LINKS[n].solid.map((i) => [i, false]), ...LINKS[n].dash.map((i) => [i, true])];
+    all.forEach(([i, dashed], k) => {
+      AGD.link(b0 + k * .1, b1, i, toCard(id), { bend: .45, draw: .55, out: .45, pulse: 2, dash: dashed ? '3 6' : undefined });
+      AGD.glow(i, EV[n] - .2, b1 - .3, .9);
+      AGD.pulse(i, EV[n] - .05, 1.08, .6);
+    });
+  });
+  // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
+  // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
+  // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b63.0, so the merge (T11)
+  // starts from the exact column (the centre row at (330, 540)). During the intro card all five sit at a .8 and pulse in
+  // three soft waves down the column (r ×1.08 with a faint glow, b41.6 / 42.7 / 43.8, .12 beat per row)
+  [41.6, 42.7, 43.8].forEach((w) => ROWDOT.forEach((i, r) => { const b = w + .12 * r; AGD.pulse(i, b, 1.08, .8); AGD.glow(i, b + .15, b + .45, .35); }));
+  const near = (i, b, d) => {
+    let v = 0;
+    IDS.forEach((_, n) => {
+      if (!LINKS[n].solid.includes(i) && !LINKS[n].dash.includes(i)) return;
+      const [b0, b1] = LIVE[n];
+      v = Math.max(v, Math.min(E.inOut(lp(b, b0, d)), 1 - E.inOut(lp(b, b1 - d, d))));
+    });
+    return v;
+  };
+  AGD.follow(40.9, 63.0, (i, b, q) => {
+    const h = hash01(i, 11), px = 7 + 2.5 * hash01(i, 12), py = 7.5 + 2 * hash01(i, 13), ia = 1 - E.inOut(lp(b, S4, .8));
+    return { a: .6 + .4 * Math.max(near(i, b, .3), .5 * ia), x: q.x + STEP_X * near(i, b, .4) + 4 * Math.sin(2 * Math.PI * (b / px + h)), y: q.y + 8 * Math.sin(2 * Math.PI * (b / py + h * 1.7)) };
+  }, { blend: .4 });
+
+  /* ---------- deck 0: six cards in one column (b40.0 set-up, b43.8–63.1 on screen: the frame between the dial / persona column
+     leaving (b40.2–40.25) and the first card belongs to the intro card; the first card fades in from below during its last
+     .7 beat) ---------- */
+  const advLight = (d) => { const Wd = decks[d].W; if (Wd.eval('S.ed') !== 'advance') Wd.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); Wd.setTheme('light'); };
   const still = (D) => D.getAnimations().forEach((a) => { const t = a.effect && a.effect.target; if (t && t.closest && t.closest('.recs')) a.cancel(); });
   const unscroll = (D) => { for (let e = D.querySelector('#content'); e; e = e.parentElement) { if (e.scrollTop) e.scrollTop = 0; if (e.scrollLeft) e.scrollLeft = 0; } };
-
-  /* ---------- 5a conveyor + total (b55.2–64.6) ---------- */
-  // cross = the beat card i is centred and its saving leaves; gaps tighten 0.5 → 0.3 beat; arrival = cross + 0.5
-  const N = 12, CROSS = [57.7]; for (let j = 0; j < N - 1; j++) CROSS.push(CROSS[j] + .5 - .2 * j / (N - 2));
-  const ARR = CROSS.map((c) => c + .5), LAST = ARR[N - 1];                  // LAST = 62.6; settles at 63.4
-  const SETTLE = 63.4, STOP = CROSS[N - 1] + 1.2;                           // conveyor stops at 63.3
-  // the conveyor position (index at the centre, a float) as a function of the beat
-  const conv = (b) => {
-    if (b < 55.2) return -3;
-    if (b < CROSS[0]) { const p = (b - 55.2) / (CROSS[0] - 55.2); return -3 + p + 2 * p * p; }   // eases up to 2 cards/beat
-    for (let i = 0; i < N - 1; i++) if (b < CROSS[i + 1]) return i + (b - CROSS[i]) / (CROSS[i + 1] - CROSS[i]);
-    const q = clamp((b - CROSS[N - 1]) / (STOP - CROSS[N - 1])); return N - 1 + 2 * (1 - (1 - q) * (1 - q));   // decelerates onto card 13 = retry-breaker
-  };
-  const K0 = .62, PITCH = 294, CX = 1114, CY = 540;                        // in-app scale, spacing, centre (inside #content)
-  const CONV = { x: CX, y: CY, s: 2.15, ax: 960, ay: 760, rx: 12, ry: 0, rz: -1.2, z: 0, o: 1, bl: 0 };
-  let IDS = [], BASE = {}, SAVE = [], TOTAL = 15.6;
-  at(54.8, () => {
+  // the app lays the list out 820 px wide; a narrower card (WA app px) wraps into a taller, readable block at CW on screen
+  const WA = 440, S0 = CW / WA;
+  let CAM = null, X0 = 400, Y0 = 500;
+  // a card's untransformed top-left (app px): its live rect minus the translate this scene put on it (survives re-renders
+  // and the list's own scrolling, which solo() changes)
+  const base = (el) => { const r = el.getBoundingClientRect(); return { x: r.left - (+el.dataset.r4x || 0), y: r.top - (+el.dataset.r4y || 0), h: r.height }; };
+  const narrow = (el) => { if (el.style.width !== WA + 'px') { el.style.width = WA + 'px'; el.style.maxWidth = WA + 'px'; el.style.flex = 'none'; } };
+  at(40.0, () => {
     advLight(0);
-    const a = app(0); a.S.recs.sel = RB; a.S.recs.tab = 'why'; a.S.recs.dim = 'all'; a.S.recs.peek = null; a.go('recs');
-    const D = a.D, ct = D.querySelector('#content'); paperCss(D);
-    const cs = [...D.querySelectorAll('.rcard')];
-    still(D); cs.forEach((c) => { c.style.transform = 'none'; c.style.filter = 'none'; c.style.opacity = ''; });
-    if (ct) ct.scrollTop = 0;
-    IDS = cs.map((c) => c.dataset.id);
-    cs.forEach((c) => { const r = c.getBoundingClientRect(); BASE[c.dataset.id] = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-    // the share of all collaboration time each card saves, as the app computes it (recPct(id).t; null = not measured,
-    // e.g. the resident context of 移除 figma), and their sum (expected 15.6)
-    SAVE = IDS.map((id) => +a.W.eval('(recPct(' + JSON.stringify(id) + ') || {}).t || 0'));
-    TOTAL = Math.round(SAVE.reduce((x, y) => x + y, 0) * 10) / 10;
-    if (IDS.length !== N || IDS.indexOf(RB) !== 1) console.warn('promo 40-recs: expected 12 cards with retry-breaker second', IDS);
-    solo(0, IDS.map((id) => (DD) => card(DD, id)));
-    unscroll(D);
+    const a = app(0), R = a.S.recs;
+    R.aud = 2; R.lv = new Set([1, 2, 3, 4]); R.sel = 'ro-allow'; R.dim = 'all'; R.peek = null; R.tab = 'why';
+    a.go('recs');
+    const D = a.D; still(D); unscroll(D);
+    IDS.forEach((id) => { const c = card(D, id); if (!c) console.warn('promo 40-recs: no card', id); });
+    solo(0, IDS.map((id) => (DD) => card(DD, id))); unscroll(D);
+    const cs = IDS.map((id) => card(D, id)).filter(Boolean), cont = D.querySelector('#content'), cr = cont ? cont.getBoundingClientRect() : { top: 0, height: 1000 };
+    cs.forEach(narrow);
+    if (cs.length) X0 = Math.min(...cs.map((c) => base(c).x));
+    Y0 = cr.top + cr.height / 2;                                  // the column runs through the middle of #content (it clips)
+    CAM = { x: X0, y: Y0, s: S0, ax: CX, ay: CY, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 };
+    if (DEBUG) console.warn('promo 40-recs layout', JSON.stringify({ S0, X0, Y0, H: cs.map((c) => base(c).h) }));
   });
-  tween(0, 55.2, 0, CONV, E.lin, () => ({}));                               // visible only through #hole0 from here on
-  // the door opens onto one recommendation: until b56.1 card 0 waits at the belt's centre (the only place inside #content's
-  // clip) and the camera holds it big and flat right under the portal's centre (PORTAL[0], the 「建议 →」 click);
-  // b56.1–57.7 the camera pulls back (ease-in-out) into the conveyor framing while card 0 rejoins its slot, so the belt
-  // starts moving out of that card. HERO = how close the camera still is.
-  const PULL0 = 56.1, PULL = 1.6, HERO = (b) => (b < 55.2 || b >= PULL0 + PULL ? 0 : 1 - E.inOut(lp(b, PULL0, PULL)));
-  const heroCam = (b, D) => {
-    const el = card(D, IDS[0]), P = PORTAL[0] || [1650, 835];
-    const w = el ? el.offsetWidth * K0 : 400, h = el ? el.offsetHeight * K0 : 130;
-    const s = Math.min(1800 / w, 480 / h);                                  // card ≈ 1800 wide on screen (or 480 tall)
-    // the portal centre falls on the card's right part (its saving), so most of the card lies on screen as the door opens
-    return { x: CX - conv(b) * PITCH * (1 - HERO(b)) + .2 * w, y: CY, s, ax: P[0], ay: P[1], rx: 0, rz: 0 };
-  };
-  // lay the cards out every frame: wrap the first two round to the end, focus by distance, then the 5b lift
-  drive(0, 54.85, 66.6, (p, b, D) => {
-    unscroll(D); still(D);
-    const hero = HERO(b);
-    if (b >= 55.2 && b < PULL0 + PULL + .1) {                               // the camera owns no tween here (b55.2–64.2)
-      const H = heroCam(b, D), C = decks[0].C, k = 1 - hero, ls = Math.exp(lerp(Math.log(H.s), Math.log(CONV.s), k));
-      // look-at and anchor blend so the point under the screen follows the card, the zoom blends in log space
-      for (const key of ['x', 'y', 'ax', 'ay', 'rx', 'rz']) C[key] = lerp(H[key], CONV[key], k);
-      C.s = ls;
-    }
-    const c0 = conv(b), lift = E.inOut(lp(b, 64.2, .65)), fade = E.inOut(lp(b, 64.3, .6));
-    IDS.forEach((id, i) => {
-      const el = card(D, id), B = BASE[id]; if (!el || !B) return;
-      let u = i - c0; if (u < -6) u += N;
-      const d = Math.abs(u) * (i === 0 ? Math.pow(1 - hero, 3) : 1), mine = id === RB;   // card 0 stays sharp while the camera holds it
-      const sc = K0 * lerp(1, .9, clamp(d)) * (mine ? 1 + .26 * lift : 1);   // lifted: ≈ 1500 px wide on screen, title ≥ 24 px
-      if (i === 0) u *= 1 - hero;                                           // held at the centre (inside #content's clip)
-      el.style.transform = 'translate(' + (CX + u * PITCH - B.x).toFixed(1) + 'px,' + (CY - B.y).toFixed(1) + 'px) scale(' + sc.toFixed(4) + ')';
-      const bl = Math.min(4.6, d * 2.3) * (mine ? 1 - lift : 1);
-      el.style.filter = bl > .05 ? 'blur(' + bl.toFixed(2) + 'px)' : 'none';
-      el.style.opacity = ((1 - .16 * Math.min(2, d)) * (mine ? 1 : 1 - fade)).toFixed(3);
-      el.style.zIndex = mine ? '3' : '';
+  tween(0, 40.3, 0, () => CAM || { x: 400, y: 500, s: 2, ax: CX, ay: CY, o: 1 }, E.lin);
+
+  // scroll position u (entries): entry n's centre is at CY + GAP·(n − u). One constant 163 px/beat (no stop-and-go, no
+  // hold; the column is below the frame / transparent during the intro); from b61.9 an E.in term adds .6 entry so the
+  // column eases faster up and out while it fades (gone by b63.1, H12)
+  const U = (b) => (b - ARR[0]) / PIT + .6 * E.in(lp(b, 61.9, 1.2));
+  const FOC = IDS.map(() => ({ a: 0, bl: 0 }));                  // per entry: opacity and blur, shared by its card and its word
+  const MK = { t: 'rc', k: 'rk' };
+  drive(0, 40.25, OUT4, (p, b, D) => {
+    still(D); unscroll(D);
+    const u = U(b), gIn = E.out(lp(b, S4 - .7, 1.2)), gOut = 1 - E.inOut(lp(b, 62.45, .65));
+    IDS.forEach((id, n) => {
+      const el = card(D, id); if (!el) return;
+      narrow(el);
+      const B = base(el), dy = GAP * (n - u), hs = B.h * S0, top = CY + dy - (hs - 152) / 2;   // entry = 128 px word + 24 px + card, centred on dy
+      const appTop = Y0 + (top - CY) / S0, ad = Math.abs(dy), tx = X0 - B.x, ty = appTop - B.y;
+      el.dataset.r4x = tx.toFixed(1); el.dataset.r4y = ty.toFixed(1);
+      el.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px)';
+      // sharp from 260 px below to 320 px above the centre line (≈3.6 beats at 163 px/beat; above −320 the word starts to
+      // leave the frame), then dims and blurs 6 px per 360 px (≤1 px within 60 px more: ≈4.3 beats readable)
+      const af = dy < 0 ? Math.max(0, ad - 320) : Math.max(0, ad - 260), a = clamp(1 - .65 * af / 360) * gIn * gOut, bl = 6 * af / 360 + 6 * (1 - gOut);
+      FOC[n] = { a, bl };
+      el.style.opacity = a.toFixed(3);
+      el.style.filter = bl > .05 ? 'blur(' + (bl / S0).toFixed(2) + 'px)' : 'none';
+      // the card's own 省时 / token figure is swept by a marker as its share lands in the counter
+      const f = FLD[n], fig = el.querySelector('.rc-save b[data-ck="' + MK[f] + ':' + id + '"]') || el.querySelector('.rc-save b:' + (f === 't' ? 'first-of-type' : 'last-of-type'));
+      if (fig) {
+        const w = E.inOut(lp(b, EV[n] - .1, .9)) * 100;
+        fig.style.backgroundImage = w > .1 ? 'linear-gradient(rgba(226,96,43,.34),rgba(226,96,43,.34))' : '';
+        fig.style.backgroundRepeat = 'no-repeat'; fig.style.backgroundPosition = '0 88%'; fig.style.backgroundSize = w.toFixed(1) + '% .5em';
+      }
     });
   });
-  // the savings fly from each centred card on an arc into the total
-  const FLY = [];
-  every(57.6, 63.4, (p, b) => {
-    IDS.forEach((id, i) => {
-      const c = CROSS[i], q = lp(b, c, .5);
-      let f = FLY[i];
-      if (b < c || q >= 1) { if (f && f.el) { f.el.remove(); f.el = null; } return; }
-      if (!f) { f = FLY[i] = {}; }
-      if (!f.el) { f.el = document.createElement('div'); f.el.className = 'r-fly'; f.el.textContent = SAVE[i] > 0 ? '+' + SAVE[i].toFixed(1) + '%' : ''; fxEl.appendChild(f.el); }
-      if (!f.a) f.a = elXY(0, (D) => { const e = card(D, id); return e && e.querySelector('.rc-save b'); });
-      // the landing point sits just right of 「%」 on the digits' mid-line, measured every frame (the total widens as it
-      // rolls); the chip's left edge stops there, so it never covers the digits or the unit, and it shrinks and fades
-      // into the unit over the last 40 % of the flight, while the total rolls on its arrival (ARR)
-      const u = fxEl.querySelector('.r-tot .r-u'), st = stage.getBoundingClientRect(), z = st.width / 1920;
-      let ux = 1180, uy = 330; if (u) { const r = u.getBoundingClientRect(); ux = (r.right - st.left) / z; uy = (r.top + r.height * .5 - st.top) / z; }
-      const e = E.inOut(q), sk = E.inOut(lp(q, .6, .4)), s = lerp(.7, 1.1, Math.sin(Math.PI * Math.min(1, e * 1.2))) * lerp(1, .42, sk);
-      const hw = f.el.offsetWidth * s / 2, x0 = f.a[0], y0 = f.a[1] - 20, x1 = ux + 26 + hw, y1 = uy, cx = lerp(x0, x1, .5) + 160, cy = Math.min(y0, y1) - 150;
-      const x = (1 - e) * (1 - e) * x0 + 2 * (1 - e) * e * cx + e * e * x1, y = (1 - e) * (1 - e) * y0 + 2 * (1 - e) * e * cy + e * e * y1;
-      f.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translate(-50%,-50%) scale(' + s.toFixed(3) + ')';
-      f.el.style.opacity = (Math.min(1, q * 6) * (1 - E.in(lp(q, .62, .38)))).toFixed(3);
+  tween(0, OUT4 - .02, 0, { o: 0 }, E.lin);
+
+  // the type word of each entry rides 24 px above its card's top-left corner, blurred and dimmed with it. It is not on
+  // screen before its entry is emitted: it wipes in left → right (.35 beats, soft 15 % edge) from the moment the first link
+  // reaches the card's left edge (link start + .4: the link is drawn to ≈98 %, the stepping dot has landed at 386)
+  const WIPE = EV;
+  IDS.forEach((id, n) => {
+    const b0 = WIPE[n] - .05, b1 = Math.min(OUT4, n < 5 ? ARR[n] + 3.5 : OUT4);
+    txt(b0, b1, [['xl sv r4-w', WORD[n]]], { x: CX, y: -400 }, {
+      anim: (el, tl, life, t) => {
+        const F = FOC[n], p = elXY(0, sel(id), 0, 0), w = E.inOut(lp(t / BEAT, WIPE[n], .35));
+        el.style.left = p[0].toFixed(1) + 'px'; el.style.top = (p[1] - 24).toFixed(1) + 'px';
+        el.style.transform = 'translate(0,-100%)';
+        el.style.opacity = F.a.toFixed(3);
+        el.style.filter = F.bl > .05 ? 'blur(' + F.bl.toFixed(2) + 'px)' : 'none';
+        const m = w >= 1 ? 'none' : 'linear-gradient(90deg,#000 ' + (115 * w - 15).toFixed(1) + '%,transparent ' + (115 * w).toFixed(1) + '%)';
+        el.style.maskImage = m; el.style.webkitMaskImage = m;
+      }
     });
   });
-  txt(57.5, 64.5, [['eb', '02 · 推荐 · 为指挥家定制']], { x: 960, y: 150, align: 'c' }, { outB: .5 });
-  txt(58.1, 64.5, [['lt', '12 条建议 · 可省下的协作时间']], { x: 960, y: 455, align: 'c' }, { outB: .5 });
-  // the total: rolls on every arrival, the last one overshoots by 0.4 and settles (K.count), then the highlighter sweeps;
-  // b64.0–64.6 it shrinks towards the top-left corner, where the eyebrow takes over
-  const TOT0 = 57.8;
-  txt(TOT0, 64.7, [['xl sv r-tot', '<span class="mk"><span class="r-n">0.0</span><span class="r-u">%</span></span>']], { x: 960, y: 322, align: 'c' }, {
-    anim: K.all(K.rise({ in: .8, out: .3 }), K.mark(SETTLE + .1 - TOT0, .45)),
-    tick: (el, tl, life, t) => {
-      const b = t / BEAT, n = el.querySelector('.r-n');
-      if (b < LAST) { let v = 0; SAVE.forEach((h, i) => { v += h * E.out(lp(b, ARR[i], .3)); }); n.textContent = v.toFixed(1); }
-      else { const pre = Math.round((TOTAL - SAVE[N - 1]) * 10) / 10; n.dataset.from = pre; n.dataset.to = TOTAL; n.dataset.dec = 1; K.count(LAST - TOT0, SETTLE - LAST, .4)(el, tl); }
-      const q = E.inOut(lp(b, 64.0, .6));
-      el.style.transform = 'translate(-50%,-50%) translate(' + (-520 * q).toFixed(1) + 'px,' + (-212 * q).toFixed(1) + 'px) scale(' + lerp(1, .26, q).toFixed(4) + ')';
-      el.style.opacity = (1 - E.in(lp(b, 64.15, .35))).toFixed(3);   // gone before the eyebrow rises
-    }
-  });
 
-  /* ---------- 5b lift → press → flip into the install sheet (b64–69.6) ---------- */
-  txt(64.5, 69.7, [['r-eb', '<span class="r-ebl">可省时间</span><span class="r-ebn">' + '15.6%' + '</span>']], { x: L, y: 112 }, { st: 0, outB: .6, tick: (el) => { const n = el.querySelector('.r-ebn'); if (n && TOTAL) n.textContent = TOTAL.toFixed(1) + '%'; } });
-  tween(0, 64.2, .9, () => ({ ay: 480, rx: 0, rz: 0, s: CONV.s * 1.1 }), E.inOut);
-  tag(0, 64.8, 66.15, (D) => card(D, RB), 'top', [['eb r-or', '对应你的盲点 · 工具 / 环境失败']], { gap: 34, at: .5, outB: .3, tick: pin() });
-  clickAt(0, 66.0, (D) => { const c = card(D, RB); return c && c.querySelector('[data-act="install"]'); }, () => {}, { bloom: 'var(--a1)', glide: .9 });
-  tween(0, 66.1, .32, () => ({ ry: 90, s: decks[0].C.s * .96 }), E.in);
-  tween(0, 66.44, 0, { o: 0 }, E.lin);
-  at(65.0, () => {
-    advLight(1);
-    const a = app(1); a.S.recs.sel = RB; a.S.recs.tab = 'why'; a.go('recs');
-    if (a.W.eval('S.installed.has("' + RB + '")')) a.W.eval('S.installed.delete("' + RB + '")');
-    a.W.openInstall(RB); solo(1, '#modal');
-  });
-  const SHEET = [960, 420, 1180, 640];
-  tween(1, 66.42, .36, () => framing(1, '#modal', SHEET), E.out, () => ({ ry: -90, o: 1 }));
-  tween(1, 66.8, 2.6, () => ({ s: decks[1].C.s * 1.03 }), E.sine);
-  const press = (a, el) => { a.W.eval('INST && (INST.t = 0)'); a.click(el); };   // runs the app's own flow; a jump in time must not trip its double-click guard
-  clickAt(1, 67.4, '#modal .btn.p', press, { glide: 1.0 });
-  clickAt(1, 68.4, '#modal .btn.p', press, { glide: .45 });
-  txt(66.4, 69.6, [['hv sv', '预览，再写入'], ['md r-or', '<span class="sw"><span>一键安装 · 随时撤销</span><span>已安装 · 开始追踪 7 天</span></span>']], { x: 960, y: 928, align: 'c' }, {
-    anim: K.all(K.rise({ st: .25, out: .5 }), K.swap({ at: [68.6 - 66.4], dur: .35 }))
-  });
-
-  /* ---------- 5c the sheet shrinks into the ▲ install day; seven days fill (b69–72.6) ---------- */
-  const METS = (D) => { const m = D.querySelector('.rc-metric'); return m && m.parentElement; };
-  let DAYS = null;
-  const daysFrame = () => {
-    const r = rectOf(0, '.rc-days'), m = rectOf(0, '.rc-days .mark'), s = 1500 / r.w, mx = m.x + m.w / 2, my = r.y + r.h / 2;
-    return { x: mx, y: my, s, ax: 960 + (mx - (r.x + r.w / 2)) * s, ay: 430, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0 };
-  };
-  at(69.0, () => {
-    const a = app(0), S = a.S;
-    S.recs.sel = RB; S.recs.tab = 'track'; S.recs.peek = RB;
-    S.installed.set(RB, { days: 7, at: 0, target: a.W.eval('RECI["' + RB + '"].target'), scope: 'global' });
-    a.go('recs'); paperCss(a.D);
-    solo(0, ['.rc-days', METS]); unscroll(a.D);
-  });
-  // the app's own tracking view at day 7, wound back to the beat: cells after the ▲ fill one by one, the after-dots of
-  // the dumbbells wait on the before values until their row's beat
-  const DAY0 = 70.5, DAYG = .25, ROW = [73.4, 74.4, 75.4], SLIDE = .9;
-  const dayAt = (b) => clamp(Math.floor((b - DAY0) / DAYG) + 1, 0, 7);
-  let CUR = 1, DONE = false;
-  drive(0, 69.02, 79.6, (p, b, D) => {
-    const days = D.querySelector('.rc-days'), lbl = D.querySelector('.rc-dlbl'), mets = METS(D); if (!days) return;
-    [days, mets].forEach((e) => e && e.classList.add('promo-card'));
-    const k = dayAt(b); CUR = Math.max(1, k); DONE = k >= 7;
-    [...days.querySelectorAll('i:not(.base):not(.mark)')].forEach((c, j) => { c.className = j < k ? 'on' : ''; });
-    const away = 1 - E.inOut(lp(b, 72.6, .6));
-    days.style.opacity = away.toFixed(3); if (lbl) lbl.style.opacity = away.toFixed(3);
-    if (mets) mets.style.opacity = E.inOut(lp(b, 72.5, .7)).toFixed(3);
-    unscroll(D);
-    D.querySelectorAll('.rc-metric').forEach((m, i) => {
-      m.querySelectorAll('.rc-mh > .mono, .rc-mh > .rc-d, .rc-mh > .rc-ci').forEach((e) => e.style.setProperty('visibility', 'hidden', 'important'));
-      const svg = m.querySelector('svg.vz-t-dumbbell'); if (!svg) return;
-      const A = svg.querySelector('circle.vz-pt[data-s="0"]'), Bp = svg.querySelector('circle.vz-pt[data-s="1"]'), ln = svg.querySelector('line.vz-dline'), val = svg.querySelector('text.vz-val');
-      if (!A || !Bp) return;
-      if (Bp.dataset.cx == null) { Bp.dataset.cx = Bp.getAttribute('cx'); A.dataset.cx = A.getAttribute('cx'); }
-      const a0 = +A.dataset.cx, b0 = +Bp.dataset.cx, q = E.inOut(lp(b, ROW[i], SLIDE)), x = lerp(a0, b0, q);
-      Bp.setAttribute('cx', x.toFixed(2)); if (ln) ln.setAttribute('x2', x.toFixed(2));
-      if (val) val.style.opacity = E.out(lp(b, ROW[i] + SLIDE, .4)).toFixed(3);
+  /* ---------- intro card → eyebrow, and the two running totals ---------- */
+  // the three lines are written out of the dot column as it arrives (r176b): when row r's dot is ≈ 70 % home a link
+  // grows from it to the left edge of line r (x 530; rows 0–2 sit level with the eyebrow / headline / orange line), and
+  // .3 beat later, as the link lands and the dot settles, the line wipes in left → right (soft 15 % edge) while sliding
+  // 28 px out of the link (E.out); the dot pulses as it emits, and the link retracts .9 beat after. The lines then drift up
+  // 12 px while they hold (headline written by b40.6, readable ≈3.9 beats at full size, as before), then move and shrink
+  // together into the top-left eyebrow slot (no stagger, so the lines never overlap mid-move) and stay there, small, until the scene leaves.
+  // The rise leads the slide left by .25 beat (both .85 beats), so the lines pass above the dot column's top row instead
+  // of over it, and the orange line is far above the first type word, which wipes in at b45.0 from y ≈480
+  [['eb', '02 · 优化建议', 370, 100, 1, .4],
+   ['sv r4-h', '根据你的使用习惯，智能推荐', 466, 146, 26 / 88, .6],
+   ['r4-a', '提高效率', 584, 182, 26 / 64, .45]].forEach(([cls, html, y0, y1, k1, wd], r) => {
+    const m0 = mask(.18, .001, .6), wb = ROWIN[r] + .3, i = ROWDOT[r];
+    const my = (b) => E.inOut(lp(b, S4, MV - .25)), ly = (b) => lerp(y0 - 12 * lp(b, 40.3, S4 - 40.3), y1, my(b));
+    AGD.link(ROWIN[r], wb + .9, i, (b) => [530, ly(b)], { bend: .45, draw: .3, out: .4, pulse: 1 });
+    AGD.pulse(i, wb - .05, 1.08, .5); AGD.glow(i, wb - .1, wb + .35, .35);
+    txt(wb - .02, OUT4, [[cls, html]], { x: 540, y: y0 }, {
+      anim: (el, tl, life, t) => {
+        m0(el, tl, life);
+        const b = t / BEAT, mx = E.inOut(lp(b, S4 + .25, MV - .25)), k = lerp(1, k1, my(b)), w = E.inOut(lp(b, wb, wd));
+        el.style.left = (lerp(540, 160, mx) - 28 * (1 - E.out(lp(b, wb, wd + .4)))).toFixed(1) + 'px'; el.style.top = ly(b).toFixed(1) + 'px';
+        el.style.transformOrigin = '0 50%'; el.style.transform = 'translate(0,-50%) scale(' + k.toFixed(4) + ')';
+        const m = w >= 1 ? 'none' : 'linear-gradient(90deg,#000 ' + (115 * w - 15).toFixed(1) + '%,transparent ' + (115 * w).toFixed(1) + '%)';
+        el.style.maskImage = m; el.style.webkitMaskImage = m;
+      }
     });
   });
-  // deck 0 grows out of the ▲ while deck 1's sheet shrinks into it
-  tween(0, 69.3, 0, () => { DAYS = daysFrame(); return Object.assign({}, DAYS, { s: DAYS.s * .12, o: 0 }); }, E.lin, () => ({}));
-  tween(0, 69.85, .95, () => ({ s: DAYS.s, o: 1 }), E.out);
-  tween(1, 69.4, 1.0, () => ({ ax: DAYS ? DAYS.ax : 960, ay: DAYS ? DAYS.ay : 430, s: decks[1].C.s * .025 }), E.inOut);
-  tween(1, 69.95, .45, { o: 0 }, E.in);
-  txt(69.9, 72.7, [['lt', '装上之后，自动对比前后 7 天']], { x: 960, y: 205, align: 'c' }, { anim: K.blurIn({ out: .5 }) });
-  // 「第 k 天」 rides on the cell being filled; the strip's legend sits under it on black (the app's own legend is ink on paper)
-  let NN = [17, 15]; try { NN = decks[0].W.eval('(() => { const t = trackStats(RECI["' + RB + '"]); return [t.n0, t.n1]; })()'); } catch (e) { /* keep defaults */ }
-  tag(0, 70.0, 72.6, '.rc-days', 'bottom', [['r-day r-dim', '安装前 7 天 · n = ' + NN[0]]], { gap: 112, at: 0, outB: .4 });
-  tag(0, 70.0, 72.6, '.rc-days .mark', 'bottom', [['r-day', '▲ 安装日']], { gap: 112, at: .5, outB: .4, tick: pin() });
-  tag(0, 70.0, 72.6, '.rc-days', 'bottom', [['r-day r-dim', '安装后 · 第 1 / 7 天']], { gap: 112, at: 1, outB: .4, tick: pin((el) => { const s = el.querySelector('.ln>span'); if (s) s.textContent = CUR >= 7 && DONE ? '安装后 7 天 · n = ' + NN[1] : '安装后 · 第 ' + CUR + ' / 7 天'; }) });
-  tag(0, 70.35, 72.55, (D) => D.querySelectorAll('.rc-days i:not(.base):not(.mark)')[CUR - 1], 'top', [['r-day', '第 1 天']], {
-    gap: 112, at: .5, outB: .3, tick: pin((el) => { const s = el.querySelector('.ln>span'); if (s) s.textContent = '第 ' + CUR + ' 天'; })
-  });
-
-  /* ---------- 5d before / after rows (b72.5–78.8) ---------- */
-  const MET = [660, 560, 1000, 700];
-  tween(0, 72.5, 1.0, () => framing(0, METS, MET, { max: 3 }), E.inOut);
-  tween(0, 73.5, 4.9, () => ({ s: decks[0].C.s * 1.025 }), E.sine);
-  // row figures from the app's own statistics (trackStats: 23 → 7 段, 58 → 17 分钟, 12 → 5 次)
-  let ST = [];
-  try { ST = decks[0].W.eval('trackStats(RECI["' + RB + '"]).rows').map((m) => ({ name: m.name, a: m.a, b: m.b, unit: m.unit, rel: m.rel })); } catch (e) { console.error('promo 40-recs: trackStats', e); }
-  const pct = (v) => (v < 0 ? '−' : '+') + Math.round(Math.abs(v) * 100) + '%';
-  ST.forEach((m, i) => {
-    const b0 = ROW[i] - .5;
-    tag(0, b0, 78.8, (D) => D.querySelectorAll('.rc-metric')[i], 'right', [['lt r-mn', m.name], ['md r-mv', '<span class="st">' + m.a + '</span><span class="r-ar">→</span><b data-from="' + m.a + '" data-to="' + m.b + '">' + m.a + '</b><span class="r-un">' + m.unit + '</span><span class="pill r-g">' + pct(m.rel) + '</span>']], {
-      gap: 84, at: .5, tick: (el) => { el.style.textAlign = 'left'; },
-      anim: K.all(mask(.14, .9, .5), K.strike(.5, .3), K.count(.5, SLIDE), K.pop(.5 + SLIDE, 0, .3))
-    });
-  });
-  tag(0, 73.0, 78.8, METS, 'bottom', [['eb', '同一批项目 · 前后各 7 天 · 95% 区间']], { gap: 80, at: 0 });
-  tag(0, 76.6, 78.8, METS, 'top', [['r-vd', '<span class="pill r-ok">✓ 有效</span>']], {
-    gap: 78, at: 1, tick: pin(), anim: K.all(K.pop(0, 0, .3), (el, tl, life) => { el.style.opacity = exitQ(tl, life, .5).toFixed(3); })
-  });
-
-  /* ---------- 5e 省下 15.6% 的协作时间 (b78.4–84.4) ---------- */
-  tween(0, 78.3, .8, () => { const C = decks[0].C; return { rx: 58, s: C.s * .62, ay: C.ay + 300, o: 0, bl: 6 }; }, E.in);
-  const PRE = [78.8, 79.1], HIT = 79.4, UNIT = 79.6, F3 = 3 / 60 / BEAT;    // three frames, in beats
-  txt(78.7, 83.85, [['r5', '<span class="r5-pre"><span>协作时间</span><span>省下</span></span><span class="r5-num">15.6</span><span class="r5-u">%</span>']], { x: 960, y: 452, align: 'c' }, {
-    anim: (el, tl, life, t) => {
-      const b = t / BEAT;
-      el.querySelectorAll('.r5-pre span').forEach((s, i) => { const q = clamp((b - PRE[i]) / (2 / 60 / BEAT)); s.style.opacity = q.toFixed(3); s.style.transform = 'translateY(' + ((1 - E.out(lp(b, PRE[i], .25))) * 14).toFixed(1) + 'px)'; });
-      const n = el.querySelector('.r5-num'), q = lp(b, HIT, .22);
-      if (TOTAL) n.textContent = TOTAL.toFixed(1);
-      n.style.opacity = (b >= HIT ? Math.min(1, .35 + q * 4) : 0).toFixed(3);
-      n.style.transform = 'scale(' + lerp(1.16, 1, E.out(q)).toFixed(4) + ')';
-      n.style.filter = q < 1 ? 'blur(' + ((1 - E.out(q)) * 6).toFixed(1) + 'px)' : 'none';
-      n.style.fontWeight = Math.round(lerp(200, 900, clamp((b - HIT) / F3)));
-      const u = el.querySelector('.r5-u'), qu = E.out(lp(b, UNIT, .35));
-      u.style.opacity = qu.toFixed(3); u.style.transform = 'translateY(' + ((1 - qu) * 40).toFixed(1) + 'px)';
-      leave(el, exitQ(tl, life, .55), true);
-    }
-  });
-  txt(80.6, 83.85, [['lt', '12 条建议 · 按你的协作方式定制 · 装上就能验证']], { x: 960, y: 858, align: 'c' }, { anim: K.blurIn({ spread: .6, out: .55, spread2: true }) });
-  glowAt(HIT, .9, .5);
-  glowAt(80.4, 0, 2.2);
+  const pct = (v) => v <= 0 ? '0.0%' : v < 10 ? v.toFixed(1) + '%' : Math.round(v) + '%';   // = fmtPct above .1 %; no「<0.1%」mid-roll
+  const val = (f, b) => STEP.reduce((v, s, n) => v + (s.f === f ? s.d * E.out(lp(b, EV[n] - .1, 1.2)) : 0), 0);   // 1.2-beat roll from the emission
+  const num = (f) => (el, tl, life, t) => { const n = el.querySelector('.r4-v'); if (n) n.textContent = pct(val(f, t / BEAT)); };
+  // the counter block drifts up 40 px over the scene (mask in / out unchanged), so it never stands frozen between rolls. It
+  // comes in behind the moving headline's right end (b44.85 on: the headline has shrunk inside x 1500) as the first entry
+  // is emitted; it leaves over the last .5 beat, so the final token total stays readable ≈2 beats
+  const drift = (outB) => { const m = mask(.18, 1, outB); return (el, tl, life, t) => { m(el, tl, life); el.style.transform = 'translate(-50%,-50%) translateY(' + (-40 * lp(t / BEAT, 44.85, 18.25)).toFixed(2) + 'px)'; }; };
+  txt(44.85, OUT4, [['eb', '协作时间']], { x: 1640, y: 390, align: 'c' }, { anim: drift(.5) });
+  txt(45.0, OUT4, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 470, align: 'c' }, { anim: drift(.5), tick: num('t') });
+  txt(45.1, OUT4, [['eb', 'Token']], { x: 1640, y: 650, align: 'c' }, { anim: drift(.5) });
+  txt(45.2, OUT4, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 730, align: 'c' }, { anim: drift(.5), tick: num('k') });
+  txt(45.35, OUT4, [['lt r4-s', '预计节省 · 按真实轨迹估算的占比']], { x: 1640, y: 880, align: 'c' }, { anim: drift(.5) });
 });

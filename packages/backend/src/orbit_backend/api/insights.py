@@ -23,10 +23,12 @@ from ..analytics.inputs import Scope
 from ..analytics.metrics import METRICS, metrics
 from ..analytics.signals import SignalLayer, build_signal_layer
 from ..analytics.signals.dictionary import RULES_VERSION, SIGNAL_KINDS
+from ..analytics.signals.facets import root_session_uids
 
 Record = dict[str, Any]
 GetResult = Callable[[Scope], tuple[AnalysisContext, Record | None]]
 GetLabels = Callable[[Scope], list[Record] | None]
+GetFacets = Callable[[list[str]], dict[str, str]]
 ListQuery = Annotated[list[str] | None, Query()]
 
 
@@ -47,7 +49,10 @@ def insights_scope(
 
 
 def build_router(get_result: GetResult, *, get_labels: GetLabels | None = None,
+                 get_facets: GetFacets | None = None,
                  scope_dependency: Callable[..., Scope] | None = None) -> APIRouter:
+    """``get_facets(root_session_uids)`` returns AI facet outcomes (``ai_facet.outcome``) so
+    the outcome synthesis can use its facet step; without it that step is skipped."""
     router = APIRouter(prefix="/v1/analytics", tags=["insights"])
     scope_param = Depends(scope_dependency or insights_scope)
 
@@ -56,7 +61,8 @@ def build_router(get_result: GetResult, *, get_labels: GetLabels | None = None,
             context, result = get_result(scope)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        return context, result, build_signal_layer(context, result)
+        facets = get_facets(root_session_uids(context)) if get_facets else None
+        return context, result, build_signal_layer(context, result, facets=facets)
 
     @router.get("/metrics")
     def get_metrics(scope: Scope = scope_param, metric: ListQuery = None,

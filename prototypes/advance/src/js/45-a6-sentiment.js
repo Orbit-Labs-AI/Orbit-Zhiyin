@@ -63,7 +63,7 @@ function phraseSources(k, cat) {
   for (const i of idx) { if (out.length >= 3) break; out.push(pool[i]); }
   return out.sort((a, b) => (b.d - a.d) || (b.h - a.h));
 }
-const AIB = (t) => '<span class="aib" data-tip="由本地 Agent 从你的消息中抽取 · 原文不离开本机">' + ic('spark', 11) + (t || 'AI 抽取') + '</span>';
+const AIB = (t) => '<span class="aib" data-tip="由本地 Agent 从你的消息中抽取 · 只把脱敏片段发给它的模型服务">' + ic('spark', 11) + (t || 'AI 抽取') + '</span>';
 /* ---- 高频词：数据、卡片、词云布局 ---- */
 // demo: WORDS is a 30-day month of the 186 demo sessions; counts follow the selected sessions, days the window length,
 // with a stable per-word jitter so another Agent / project filter reorders the tail instead of shrinking every word alike
@@ -154,7 +154,7 @@ PAGES.sentiment = () => {
   const V = LV.live ? (LVS.view = lvSentView(sel())) : null;
   const head = tbar('情绪语义', V ? (V.state === 'ready' ? V.lang : '你的消息') : '你的消息 · 中文 62% · 英文 31% · 混合 7%', '<button type="button" class="btn gh" data-act="moodHow">' + ic('info', 14) + '情绪如何计算</button><button type="button" class="btn ai" data-act="phrasesToRule">' + ic('spark', 14) + '把高频纠偏写成规则</button>');
   if (!LV.live && S.engine === 'stats') return head + '<div class="content" id="content">' + empty('语义分析已关闭：分析引擎设为「仅统计」。<br><br><button type="button" class="btn p" data-act="openSettings" data-tab="analysis">去设置开启</button>') + '</div>';
-  const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + (V && V.state === 'ready' ? lvSentShield(V) : '语义分析由本地 Agent 完成，原文不离开本机') + '</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');
+  const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + (V && V.state === 'ready' ? lvSentShield(V) : '语义分析由本地 Agent 完成，只发送脱敏片段') + '</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');
   if (V && V.state !== 'ready') { CUR.mood = null; return head + '<div class="content" id="content">' + filterRow(shield) + lvSentShell(V) + '</div>'; }
   const L = sel(); const ms = V ? V.ms : moodSeries(L, S.range); CUR.mood = ms;
   const weeklyB = (win(S.range)[1] - win(S.range)[0] + 1) > 31;   // 按周聚合（BUG-69）

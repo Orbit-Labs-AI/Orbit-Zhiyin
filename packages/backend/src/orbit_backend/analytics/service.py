@@ -1080,17 +1080,24 @@ def analyze_context(
     return AnalysisSections(context, with_text).full(with_recommendations)
 
 
-def analyze_store(store, scope: Scope | None = None, with_text: bool = True) -> Record:
+def analyze_store(
+    store, scope: Scope | None = None, with_text: bool = True, *, with_recommendations: bool = True
+) -> Record:
     """Adapt canonical or legacy storage before entering the pure analysis engine.
 
     Canonical stores go through the read-through cache; legacy ``--db`` stores, which have
-    no fingerprints, are computed and recorded as before.
+    no fingerprints, are computed and recorded as before. ``with_recommendations=False``
+    skips the default ``bottleneck_recommendations`` (a caller that computes its own, such
+    as the CLI with a custom catalog, would otherwise compute them twice).
     """
     from .cache import AnalysisCache, supports_cache
 
     scope = scope or Scope()
     if supports_cache(store):
-        return AnalysisCache(store).full(scope, with_text)
+        if with_recommendations:
+            return AnalysisCache(store).full(scope, with_text)
+        names = [name for name in SECTIONS if name != "bottleneck_recommendations"]
+        return AnalysisCache(store).sections(scope, names, with_text)
     from .history import recorded
 
     def compute():
@@ -1099,9 +1106,12 @@ def analyze_store(store, scope: Scope | None = None, with_text: bool = True) -> 
             if hasattr(store, "analysis_bundle")
             else legacy_bundle(store)
         )
-        return analyze_bundle(bundle, scope, with_text)
+        return analyze_bundle(bundle, scope, with_text, with_recommendations=with_recommendations)
 
-    return recorded(store, "features", {"scope": asdict(scope), "with_text": with_text}, compute)
+    request = {"scope": asdict(scope), "with_text": with_text}
+    if not with_recommendations:  # the default request keeps its recorded key
+        request["with_recommendations"] = False
+    return recorded(store, "features", request, compute)
 
 
 def analyze_sections(

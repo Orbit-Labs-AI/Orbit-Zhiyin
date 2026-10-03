@@ -26,8 +26,11 @@ def scope_from(project_id: list[str] | None, agent: list[str] | None,
                until: int | None = None, include_children: bool = True) -> dict:
     if since is not None and until is not None and since >= until:
         raise ApiError(400, "invalid_request", "since 必须早于 until")
-    return {"project_ids": project_id or None, "agent_ids": agent or None,
-            "source_ids": source_id or None, "from_ts": since, "until_ts": until,
+    def explicit(values):
+        return [] if values == [""] else values
+
+    return {"project_ids": explicit(project_id), "agent_ids": explicit(agent),
+            "source_ids": explicit(source_id), "from_ts": since, "until_ts": until,
             "include_children": include_children}
 
 

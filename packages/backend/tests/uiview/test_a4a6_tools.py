@@ -248,6 +248,39 @@ def test_mcp_inventory_merge(orbit, conn):
     assert {"kind": "removal", "title": "移除闲置 MCP", "count": 1,
             "candidate_id": None} in body["automation"]
     assert build(conn)["mcp"][0]["status"] == "unscanned"
+    assert servers["idle"]["tools"] == []
+    assert servers["pw"]["tools"] == [{"name": "click", "raw": ["mcp__pw__click"], "n": 1,
+                                       "failed": 1, "known": 1, "unknown": 0, "err": 1}]
+
+
+def test_mcp_tools_per_server(orbit, conn):
+    orbit.session("a")
+    for i, (name, status) in enumerate([
+            ("mcp__codex_apps__github_search", "success"),
+            ("mcp__codex_apps__github_search", "failed"),
+            ("codex_apps.github_search", "success"),   # another agent's spelling: same tool
+            ("mcp__codex_apps__fetch", "unknown"),
+            ("mcp__pw__click", "success")]):
+        server = "pw" if "pw" in name else "codex_apps"
+        orbit.call("a", name=name, kind="mcp", mcp_server=server, status=status, at=T0 + i)
+    servers = {m["server"]: m for m in build(conn)["mcp"]}
+    ca = servers["codex_apps"]
+    assert ca["calls"] == 4 and ca["failed"] == 1
+    assert [(t["name"], t["n"], t["failed"], t["known"]) for t in ca["tools"]] == [
+        ("github_search", 3, 1, 3), ("fetch", 1, 0, 0)]
+    assert ca["tools"][0]["raw"] == ["codex_apps.github_search", "mcp__codex_apps__github_search"]
+    assert ca["tools"][0]["err"] == pytest.approx(1 / 3) and ca["tools"][1]["err"] is None
+    assert sum(t["n"] for t in ca["tools"]) == ca["calls"]
+    assert [t["name"] for t in servers["pw"]["tools"]] == ["click"]
+
+
+def test_mcp_tools_without_name_fold_into_one(orbit, conn):
+    orbit.session("a")
+    for i, name in enumerate(["", "mcp__pw__", "mcp__pw__click"]):
+        orbit.call("a", name=name, kind="mcp", mcp_server="pw", status="success", at=T0 + i)
+    tools = {m["server"]: m for m in build(conn)["mcp"]}["pw"]["tools"]
+    assert [(t["name"], t["n"], t["raw"]) for t in tools] == [
+        (None, 2, ["mcp__pw__"]), ("click", 1, ["mcp__pw__click"])]
 
 
 def test_prev_delta_and_trend(orbit, conn):
@@ -317,3 +350,19 @@ def test_register_all_skips_missing_modules():
     api = Api()
     loaded = common.register_all(api, gw=None)
     assert "a4a6_tools" in loaded and "/v1/uiview/tools" in api.paths
+
+
+def test_cache_key_names_home_and_data_identity(tmp_path):
+    """The process-wide CACHE must not serve one gateway's result to another home, nor a
+    pre-wipe result after clear-all-data restarts projection_run ids at the same data_rev."""
+    scope, params = Scope(), {"group_by": "tool"}
+    rev = {"data_rev": 1, "inventory_rev": 0, "counts": {"sessions": 5, "events": 40, "projects": 1}}
+    a = common.cache_key("tools", scope, params, rev, home=tmp_path / "a")
+    assert a == common.cache_key("tools", scope, params, dict(rev), home=tmp_path / "a")
+    assert a != common.cache_key("tools", scope, params, rev, home=tmp_path / "b")
+    reimported = {**rev, "counts": {"sessions": 3, "events": 12, "projects": 1}}  # same run id 1
+    assert a != common.cache_key("tools", scope, params, reimported, home=tmp_path / "a")
+    assert a != common.cache_key("tools", scope, params, {**rev, "data_rev": 2}, home=tmp_path / "a")
+    lru = common.LRU(4)
+    lru.put(a, {"from": "a"})
+    assert lru.get(common.cache_key("tools", scope, params, rev, home=tmp_path / "b")) is None

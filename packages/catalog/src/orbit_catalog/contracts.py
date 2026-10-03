@@ -68,8 +68,10 @@ class Resource(Contract):
     name: str = Field(min_length=1, max_length=300)
     summary: str = Field(default="", max_length=12000)
     url: str = Field(max_length=2000)
-    body: str = Field(default="", max_length=250000)
-    body_policy: Literal["metadata", "licensed"] = "metadata"
+    body: str = Field(default="", max_length=2000000)
+    # index_only keeps a public research corpus locally searchable without claiming
+    # permission to redistribute/install its upstream skill bodies.
+    body_policy: Literal["metadata", "licensed", "index_only"] = "metadata"
     license: str | None = None
     agents: list[str] = Field(default_factory=list, max_length=30)
     language: str = "any"
@@ -103,11 +105,14 @@ class SourceSpec(Contract):
     mcp: publish_every_pages (default 10, partial publication without retirement), max_pages (default 120).
     Any paged kind: max_seconds (wall-clock budget per sync call; mcp 300, others 900; the run pauses).
     clawhub: max_items (default 500). Any file kind: file (absolute local snapshot).
+    awesome: type (default mcp_server), section (h2 heading holding the entries), agents.
+    github_topic: topics, type (default skill), max_pages (<=10 per topic), per_page, min_stars,
+    min_interval (seconds between search calls, default 2.1), agents.
     """
 
     source_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,79}$")
     kind: Literal["bundle", "github", "mcp", "models_dev", "litellm", "swe_bench", "gemini", "clawhub", "local",
-                  "snapshot", "kb"]
+                  "snapshot", "kb", "bulk", "awesome", "github_topic"]
     url: str
     enabled: bool = True
     priority: int = Field(default=50, ge=0, le=100)

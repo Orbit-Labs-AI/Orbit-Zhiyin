@@ -127,8 +127,8 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 | analysis-worker 进程树（含进程池子进程）RSS > 1.5 GB | 当前任务完成后回收重启 |
 | 运行中心跳进程树 RSS > `rss_kill_bytes`（物理内存 ¾，限定 4–24 GB；真实库全时段峰值约 17 GB） | 立即杀 worker，任务记 `analysis_scope_too_large` |
 | worker 被杀或崩溃时未结束的 `analysis_run` | worker 实时上报运行 id，supervisor 将其标为 `failed(WorkerTerminated)`；gateway 启动时把早于最大预算的 `running` 行同样标记 |
-| gateway 崩溃 | 宿主 `/health` 连续 3 次失败（2 s 间隔）→ 重启 gateway（新端口、新令牌），通过 `evaluateJavaScript` 设置 `window.__ORBIT_ENDPOINT__ = {base, token}` 并触发 `orbit:endpoint` 事件，适配层重连，不整页刷新；子 worker 因 stdin 关闭自行退出，不会残留 |
-| 宿主退出 | gateway 父进程看门退出；ingest 在文件边界取消，已发布数据不受损（既有语义） |
+| gateway 崩溃 | 宿主 `terminationHandler` 发现 helper 退出（原因写入 `desktop.log`）→ 按 0.5 / 2 / 5 s 退避重启（新端口、新令牌），10 分钟内最多 3 次，期间菜单栏标记提醒；就绪后通过 `evaluateJavaScript` 设置 `window.__ORBIT_ENDPOINT__` 并触发 `orbit:endpoint`，适配层重连，不整页刷新；超过上限弹窗提供“重新启动后台 / 退出 Orbit”。worker 各自是进程组长并监视父进程：gateway 消失后 stdin EOF，3 s 宽限内未退出则对自身进程组（含进程池子进程）发 SIGTERM，不残留、不长期占用 `import.lock` |
+| 宿主退出 | ⌘Q、SIGTERM / SIGINT / SIGHUP、关机注销都走 `stopBackend`：SIGTERM gateway，最多等 8 s 后 SIGKILL（信号与关机跳过导入确认）；gateway 收到退出信号先置 `stopping` 并关闭事件总线，所有 SSE（含 realtime）立即结束，不再等满 uvicorn 3 s 排空；随后两个 worker 并行关闭 stdin，在同一个 `term_grace_s` 内等待，再对进程组 SIGTERM / 对 worker SIGKILL。宿主崩溃时 gateway 父进程看门（0.5 s）退出。`orbit.lock` 在宿主进程退出时由内核释放，退出过程中写入 `quitting`，此时再次启动会等待锁而不是激活即将退出的实例 |
 | `/health` | 进程存活 + 各服务 readiness：`{ok, version, services:{ingest:{state,pid,restarts,last_hb}, analysis:{…}}, data_rev, projection:"ready|pending|absent"}` |
 
 ### 2.8 打包
@@ -164,7 +164,7 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 | A3 会话详情与轨迹 | ✔ | ✔ | `GET /v1/analytics/sessions/{id}`；`GET /v1/sessions/{id}/events?after_seq&limit≤500`；`GET /v1/evidence/{event_id}` | 事件游标分页，保留 `record_uid` 证据定位 | 30 ms（直读 SQL） | ✔ |
 | A4 工具调用（FE-06） | ✔ | ✔ | `GET /v1/analytics/tools`；`GET /v1/analytics/tools/calls?name&limit`（AN-01.2） | `by_tool`、成功 / 失败 / 未知状态分列 | 100 ms | ✔ tools；依赖 calls |
 | A5 项目习惯（FE-07） | ✔ | ✔ | `GET /v1/analytics/projects`；`GET /v1/inventory` | 项目聚合 + 配置覆盖（清单只读） | 100 ms | ✔ |
-| A6 情绪与语义（FE-08） | ✔ | ✔ | `GET /v1/uiview/sentiment`（`days`、`agent`、`project_id`、`tz`、`bucket`） | `language_mix`、`series`（情绪分布与纠偏）、`friction`、`phrases`（高频反馈语）、`terms.items[{term,count,days,sessions,share}]`（高频词词云：只取用户本人消息，按脱敏规则清洗后用固定 jieba 词典 + 英文单词切分，过滤停用词、数字、URL、路径、代码标识与密钥样式串，前 60 个）；原语义主题 `topics` 与情绪前因 `drivers` 已随页面模块删除 | 150 ms | ✔ |
+| A6 情绪语义（FE-08） | ✔ | ✔ | `GET /v1/uiview/sentiment`（`days`、`agent`、`project_id`、`tz`、`bucket`） | `language_mix`、`series`（情绪分布与纠偏）、`friction`、`phrases`（高频反馈语）、`terms.items[{term,count,days,sessions,share}]`（高频词词云：只取用户本人消息，按脱敏规则清洗后用固定 jieba 词典 + 英文单词切分，过滤停用词、数字、URL、路径、代码标识与密钥样式串，前 60 个）；原语义主题 `topics` 与情绪前因 `drivers` 已随页面模块删除 | 150 ms | ✔ |
 | A7 优化建议（FE-09） | ✔ | ✔ | `GET /v1/recommendations`、`POST …/feedback`（推荐模块） | gateway 透传，同样返回 `meta` | 150 ms | 推荐包 |
 | A8 资源库（FE-10） | ✔ | ✔ | `GET /v1/catalog`、`/catalog/search`、`GET /v1/inventory` | 来源状态、本地清单 | 100 ms | ✔ / 依赖 |
 | A9 生成工坊、问本地 Agent（FE-11/13） | — | ✔ | `POST /v1/ai/jobs`、`GET /v1/ai/jobs/{id}`、SSE | 复用任务与 SSE 基础设施，AI 模块注册作业种类 | — | AI 包 |

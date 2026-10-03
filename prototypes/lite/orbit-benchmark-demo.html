@@ -723,6 +723,16 @@ const OrbitLive = (function () {
   // 503 analysis_unavailable says "<code>: <message>" (timeout, worker_crashed …); the code is the reason the UI names
   function analysisReason(code, message) { if (code !== 'analysis_unavailable') return null; const m = /^([a-z_]+):\s/.exec(message || ''); return m ? m[1] : null; }
   const isUnavailable = (e) => !!e && e.status === 503 && e.code === 'analysis_unavailable';
+  // projection_pending: the first import has not published yet (or a job ran before it did). That is a normal state while
+  // data is being organised, not a failure: no error banner, the resource reads as computing and reloads quietly.
+  const isPending = (e) => !!e && (e.code === 'projection_pending' || e.reason === 'projection_pending');
+  // 503 service_unavailable 'Database busy' (SQLite locked by the import writer, Retry-After 1): during an import this is the
+  // writer holding the lock, not an outage → retried quietly like projection_pending, up to BUSY_MAX times in a row (then
+  // it is a real failure and raises the banner as before). A long import can hold the lock past the cap: while its job frames
+  // keep advancing (one within BUSY_FRESH_MS) the writer is clearly alive, so the quiet retries go on
+  const isBusy = (e) => !!e && e.status === 503 && e.code === 'service_unavailable' && /^Database busy/.test(e.message || '');
+  const BUSY_MAX = 8;
+  const BUSY_FRESH_MS = 10000;
   // scope keys POST /v1/analytics/recompute accepts (the analytics scope), used to rebuild a scope from a resource query
   const SCOPE_KEYS = ['display_timezone', 'project_ids', 'legacy_project_ids', 'model_ids', 'effort_raw', 'from_ts', 'until_ts', 'root_session_uids', 'excluded_session_uids', 'include_children', 'scene', 'source_ids', 'agent_ids'];
   const JOB_DONE = ['completed', 'failed'];
@@ -802,7 +812,20 @@ const OrbitLive = (function () {
       events: { connected: false, attempt: 0, delays: [], lastId: null, resyncs: 0, running: false },
       STATES
     };
-    let pageCtrl = null, scheduled = false, statusRes = null;
+    let pageCtrl = null, scheduled = false, statusRes = null, renderMark = 0;
+    // markRender() at the start of a page render: resources read (C.resource) after it are the ones on screen, so their
+    // retries reload by themselves instead of asking for another full render (a 1 s Retry-After loop rebuilt the page)
+    C.markRender = function () { renderMark = Math.max(1, now()); };
+    // (only once the host marks its renders: without markRender a retry just flags the resource dirty and calls onChange)
+    const onScreen = (r) => renderMark > 0 && r.touchedAt != null && r.touchedAt >= renderMark;
+    // any read still waiting for the first publish (projection_pending)
+    C.isPending = function () { let p = false; resources.forEach((r) => { if (r.error && isPending(r.error)) p = true; }); return p; };
+    function retryLater(r, wait) {
+      r.retryTimer = timers.setTimeout(() => {
+        r.retryTimer = null; r.dirty = true;
+        if (onScreen(r) && !r.loading) C.load(r); else changed();
+      }, wait);
+    }
 
     function emit(name, payload) { (listeners[name] || []).slice().forEach((fn) => { try { fn(payload); } catch (e) { /* listener errors stay local */ } }); }
     C.on = function (name, fn) { (listeners[name] = listeners[name] || []).push(fn); return () => { listeners[name] = listeners[name].filter((f) => f !== fn); }; };
@@ -890,11 +913,18 @@ const OrbitLive = (function () {
         r = { key: k.key, path, scope: o.scope || null, query: o.query || null, section: o.section || sectionOf(path), state: 'idle', data: null, meta: null, error: null, updatedAt: null, dirty: true, loading: null, retryTimer: null, waitMs: o.waitMs || 0 };
         resources.set(k.key, r);
       }
+      r.touchedAt = now();
       return r;
     };
+    // an import is running: a job frame says so, or the host knows (C.importing, e.g. the first-run overlay's own job)
+    const importJobActive = () => !!(C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0);
+    // the import's job frames moved (progress / phase changed) recently: the writer is working, not stuck
+    let jobSig = null; let jobAdvancedAt = 0;
+    const importAdvancing = () => importJobActive() && now() - jobAdvancedAt < BUSY_FRESH_MS;
+    const importingNow = () => { if (importJobActive()) return true; try { return !!(C.importing && C.importing()); } catch (e) { return false; } };
     C.stateOf = function (r) {
       if (!r) return 'idle';
-      const importing = C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0;
+      const importing = importJobActive();
       if (importing && (r.state === 'empty' || (r.data == null && (r.state === 'loading' || r.state === 'idle')))) return 'importing';
       return r.state;
     };
@@ -913,11 +943,27 @@ const OrbitLive = (function () {
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
         // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
         const jid = res.meta && res.meta.job_id; if (jid && (res.state === 'computing' || res.state === 'stale')) watchJob(r, jid);
-        C.failure = null; r.fails = 0;
+        C.failure = null; r.fails = 0; r.busy = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
         if ((r.mutationVersion || 0) !== mutationVersion) return;
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
+        if (isPending(e)) {
+          // nothing published yet: keep the last data (stale) or read as computing; retry on Retry-After without a banner
+          r.error = { status: e.status || 503, code: 'projection_pending', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null };
+          r.state = r.data != null ? 'stale' : 'computing';
+          r.fails = (r.fails || 0) + 1;
+          const wait = Math.max(e.retryAfter || 0, Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))));
+          r.error.retryAfter = wait; retryLater(r, wait);
+          return;
+        }
+        if (isBusy(e) && importingNow() && ((r.busy = (r.busy || 0) + 1) <= BUSY_MAX || importAdvancing())) {
+          r.error = { status: 503, code: 'service_unavailable', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null, busy: true };
+          r.state = r.data != null ? 'stale' : 'computing';
+          retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : 1000);
+          return;
+        }
+        if (!isBusy(e)) r.busy = 0;
         r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter, reason: e.reason || null };
         r.state = 'error';
         if (r === statusRes) C.error = r.error;
@@ -927,9 +973,13 @@ const OrbitLive = (function () {
         if (!e.status || e.status >= 500) C.failure = r.error;
         // a network failure / 5xx is transient: retry on Retry-After, else with backoff (base · 2ⁿ, capped), so a resource
         // that failed while the gateway was briefly unreachable recovers by itself instead of staying 'error' (R4-11)
+        // Retry-After is a floor, not the schedule: a gateway that answers 503 projection_pending + Retry-After: 1 for the
+        // whole of a long import would otherwise be polled once a second per resource (and the page rendered twice a second)
+        // until it publishes. Consecutive failures still back off; data.published / a reconnect refetch at once anyway.
         r.fails = (r.fails || 0) + 1;
-        const wait = e.retryAfter != null ? e.retryAfter : r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
-        if (wait != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, wait);
+        const bo = r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
+        const wait = e.retryAfter != null ? Math.max(e.retryAfter, bo || 0) : bo;
+        if (wait != null) { r.error.retryAfter = wait; retryLater(r, wait); }
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
     };
@@ -961,7 +1011,11 @@ const OrbitLive = (function () {
       r.jobId = id; const w = r.jobWatch = { id };
       C.analysis.poll(id, (job) => { if (r.jobWatch === w) { r.job = job; changed(); } }).then((job) => {
         if (r.jobWatch !== w) return; r.jobWatch = null;
-        if (job.status === 'failed') {
+        if (job.status === 'failed' && isPending(job.error)) {
+          // the analysis ran before the first publish: wait for it quietly instead of offering 重新计算
+          r.state = r.data != null ? 'stale' : 'computing'; r.error = { status: 503, code: 'projection_pending', message: (job.error && job.error.message) || '', retryable: true, reason: null };
+          r.fails = (r.fails || 0) + 1; retryLater(r, Math.min(5000, 1000 * r.fails));
+        } else if (job.status === 'failed') {
           const er = job.error || {};
           r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: er.code || 'analysis_failed', message: er.message || '分析失败', retryable: false, job };
         } else r.dirty = true;
@@ -1052,6 +1106,7 @@ const OrbitLive = (function () {
       p = p || {};
       if (name === 'job') {
         C.job = p;
+        if (p.kind === 'import') { const sig = JSON.stringify([p.id, p.status, p.phase, p.progress]); if (sig !== jobSig) { jobSig = sig; jobAdvancedAt = now(); } }
         if (ACTIVE_JOB.indexOf(p.status) < 0 && p.kind === 'import') C.invalidate((r) => r === statusRes);
         changed();
       } else if (name === 'data.published') {
@@ -1147,6 +1202,13 @@ const OrbitLive = (function () {
     /* ==== studio-settings: writes, AI job polling, notify / collection frames (A9 生成工坊 · 问答 · 设置 · 通知) ==== */
     // send(method, path, body, {query, signal}) → {status, data}; failures reject with {status, code, detail, retryable}
     // (status 0 / code 'network' when the gateway cannot be reached). Writes never touch the GET cache.
+    // /v1/ai errors carry their details next to code / message ({error: {code, message, missing, reason, daily_cap …}},
+    // routes_ai.AIApiError); other routes nest them under detail. Either way the caller reads e.detail.missing etc.
+    const errDetail = (info) => {
+      if (info.detail != null) return info.detail;
+      const x = {}; Object.keys(info).forEach((k) => { if (['code', 'message', 'retryable', 'detail'].indexOf(k) < 0) x[k] = info[k]; });
+      return Object.keys(x).length ? x : null;
+    };
     C.send = function (method, path, body, o) {
       o = o || {};
       if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('OrbitLive is in mock mode'), { code: 'mock_mode', status: 0 }));
@@ -1158,7 +1220,7 @@ const OrbitLive = (function () {
         if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
         if (res.status >= 200 && res.status < 300) return { status: res.status, data };
         const info = (data && data.error) || {};
-        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: info.detail || null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: errDetail(info), retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
       }, (e) => { if (isAbort(e)) throw e; throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network', retryable: true }); });
     };
     // Failures the studio / settings bindings cover with the demo values: route not built yet (404 / 501), service down
@@ -1267,7 +1329,9 @@ const OrbitLive = (function () {
     if (!s || typeof s !== 'object' || (finite(s.time_pct) == null && finite(s.token_pct) == null)) return null;
     const share = s.share || {};
     return { t: finite(s.time_pct), k: finite(s.token_pct), st: finite(share.time), sk: finite(share.token), p: finite(s.effect),
-      tr: s.time_range || null, kr: s.token_range || null, key: s.key || c.rec_key || null, basis: s.basis || '' };
+      tr: s.time_range || null, kr: s.token_range || null, key: s.key || c.rec_key || null, basis: s.basis || '',
+      // the operation pool the problem draws on and that pool's share of the trajectory (recTotal caps a total by it)
+      g: s.group || s.op || null, cap: s.cap && typeof s.cap === 'object' ? { t: finite(s.cap.time), k: finite(s.cap.token) } : null };
   }
   function recRow(c) {
     const u = (c && c.ui) || {}; const ev = (c && c.evidence) || {}; const n = ev.counts && ev.counts.sessions != null ? ev.counts.sessions : (ev.session_uids || []).length;
@@ -1311,6 +1375,7 @@ const OrbitLive = (function () {
   function liTargets(preview) {
     return ((preview && preview.targets) || []).map((t) => ({
       idx: t.idx, agent: t.agent, path: t.path || t.display, display: t.display || t.path, status: t.status, action: t.action,
+      versionCheck: t.version_check || 'unknown', versionUnknown: t.version_check !== 'known',
       disabled: t.status === 'disabled', mappable: t.mappable !== false, reason: t.reason || null, conflict: t.conflict || null,
       units: t.units || [], lines: ((t.diff && t.diff.lines) || []).map((l) => ({ n: l.n, op: l.op, text: l.text == null ? '' : String(l.text), gap: !!l.gap })),
       adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null
@@ -1464,7 +1529,7 @@ const OrbitLive = (function () {
   }
   const REPORT_SECTIONS = { ov: ['overview', 'metrics'], persona: ['persona'], proj: ['projects'], fric: ['friction'], recs: ['recommendations'] };
   function reportSections(keys) { const out = []; Array.from(keys || []).forEach((k) => (REPORT_SECTIONS[k] || []).forEach((s) => { if (out.indexOf(s) < 0) out.push(s); })); return out; }
-  const BLOCKED = { insufficient_data: '所选范围还没有会话，暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
+  const BLOCKED = { insufficient_data: '所选范围还没有会话，暂时不能生成分享卡', unsettled_code: '类型暂不可用，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
   const RESUME_OFF = { running: '会话还在运行，结束后再继续', unsupported_agent: '这个 Agent 暂不支持继续命令', no_cwd: '会话没有记录工作目录', unknown_session: '找不到这个会话' };
 
   function ops(C, ctx) {
@@ -1514,6 +1579,7 @@ const OrbitLive = (function () {
       toolCalls: (f, o) => C.send('GET', '/v1/analytics/tool_calls', null, { query: toolCallsQuery(f), signal: o && o.signal }).then(body),
       /* export */
       tables: () => C.send('GET', '/v1/export/tables').then(body),
+      // No UI entry since F20 removed 「导出工具明细 CSV」; kept as the general export API (backend /v1/export/csv)
       // CSV is text, not JSON: read it with the bearer header and hand back the text (status / code on failure)
       csv(table, f) {
         if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('OrbitLive is in mock mode'), { code: 'mock_mode', status: 0 }));
@@ -1546,6 +1612,7 @@ const OrbitLive = (function () {
   function hm(ts) { if (ts == null) return DASH; const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts)); if (isNaN(d)) return DASH; return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   const CSS = '.tl-strip{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}.tl-strip:empty{display:none}' +
     '.tl-banner{display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;background:var(--warn-bg,#fbf0d8);color:var(--warn,#8a5a00)}' +
+    '.tl-banner.info{background:var(--sunken,#f0efeb);color:var(--ink-2,#45484f)}' +
     '.tl-banner.crit{background:var(--crit-bg,#fbe8e6);color:var(--crit,#c62f2f)}' +
     '.tl-progress{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2,#45484f)}.tl-progress .tl-bar{height:4px;border-radius:2px;background:var(--hair,#eeece7);overflow:hidden}.tl-progress .tl-bar i{display:block;height:100%;background:var(--a2,#2a78d6)}' +
     '.tl-badge{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:11px;background:var(--sunken,#f0efeb);color:var(--ink-3,#62666f);white-space:nowrap}' +
@@ -1557,7 +1624,7 @@ const OrbitLive = (function () {
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--font-mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
-  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
+  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '正在整理数据…' };
   // import stages (docs/development/import-pipeline.md §3): the gateway sends progress.label / detail / unit / overall;
   // older gateways send only progress.stage, named here. Units say what completed / total count.
   const STAGE_NAMES = { capture: '读取会话文件', normalize: '准备发布', reset_projection: '开始重建', prepare: '预读会话文件', map: '解析会话记录', derive: '汇总会话', derive_metadata: '汇总会话信息', derive_projects: '归属项目', derive_sessions: '统计轮次与工具', validate_projection: '校验', published: '已发布', progressive_batch: '分批发布' };
@@ -1576,7 +1643,8 @@ const OrbitLive = (function () {
     unitName: (unit) => UNIT_NAMES[unit] || '',
     reason: (code) => REASONS[code] || (code ? '分析失败（' + code + '）' : '分析失败'),
     // analysis_unavailable (503, a failed job or an analysis.failed frame) → its reason; null for any other error
-    unavailable: (err) => (err && err.code === 'analysis_unavailable' ? ui.reason(err.reason) : null),
+    unavailable: (err) => (err && err.code === 'analysis_unavailable' && !isPending(err) ? ui.reason(err.reason) : null),
+    pending: isPending,
     ensureStyle(doc) {
       doc = doc || (typeof document !== 'undefined' ? document : null);
       if (!doc || !doc.head || doc.getElementById('tl-style')) return;
@@ -1594,6 +1662,9 @@ const OrbitLive = (function () {
     banner(C) {
       if (!C || C.mode !== 'live') return '';
       if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Orbit 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
+      // the first import is still being organised: a calm status line (the import progress above already says so)
+      const pend = (C.failure && isPending(C.failure)) || (C.isPending && C.isPending());
+      if (pend) return ui.progress(C) ? '' : '<div class="tl-banner info" role="status" data-tl="pending">正在整理数据… · 导入的会话发布后自动显示</div>';
       if (C.failure) return '<div class="tl-banner" role="alert" data-tl="unavailable">服务暂时不可用（' + esc(C.failure.code) + '）· 显示上一屏数据' + (C.failure.retryAfter != null ? '，' + Math.ceil(C.failure.retryAfter / 1000) + ' 秒后重试' : '') + '</div>';
       // supervisor states: ok / idle (worker parked until work arrives) / stopped (shutdown) are healthy; only the rest raise it
       const bad = Object.keys(C.services).filter((k) => C.services[k] && SERVICE_OK.indexOf(C.services[k]) < 0);
@@ -1603,6 +1674,7 @@ const OrbitLive = (function () {
     badge(v) {
       if (!v) return '';
       if (v.state === 'stale') return '<span class="tl-badge" data-tl="stale">更新于 ' + hm(v.updatedAt) + ' · 正在刷新</span>';
+      if (v.error && isPending(v.error) && v.state !== 'ready') return '<span class="tl-badge" data-tl="pending">正在整理数据…</span>';
       if (v.state === 'computing') return '<span class="tl-badge" data-tl="computing">计算中</span>';
       if (v.state === 'error' && ui.unavailable(v.error)) return '<span class="tl-badge" data-tl="unavailable">' + esc(ui.unavailable(v.error)) + (v.vm ? ' · 显示上次结果' : '') + '</span>';
       if (v.state === 'error' && v.vm) return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
@@ -1618,6 +1690,7 @@ const OrbitLive = (function () {
     skeleton() { return '<div class="tl-grid" data-tl="skeleton"><div class="tl-skel"></div><div class="tl-skel"></div><div class="tl-skel"></div></div>'; },
     empty(msg) { return '<div class="tl-card tl-empty" data-tl="empty">' + esc(msg || '还没有可分析的会话。') + '<br>到 设置 › 数据源 启用来源后，导入的数据会出现在这里。</div>'; },
     errorCard(err) {
+      if (isPending(err)) return '<div class="tl-card tl-empty" data-tl="pending" role="status">正在整理数据… · 导入的会话发布后自动显示</div>';
       if (ui.unavailable(err)) return '<div class="tl-card tl-empty" data-tl="unavailable" role="alert">' + esc(ui.unavailable(err)) + ' · 可以重新计算</div>';
       return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>';
     },

@@ -77,10 +77,13 @@ test('widgets surface renders content even when the in-page widgets setting is o
   expect(box.width).toBeLessThanOrEqual(364);
   const sizes = await page.evaluate(() => window.__nativeMsgs.filter((m) => m.type === 'resizeSurface').map((m) => m.height));
   expect(Math.max(...sizes)).toBeGreaterThan(120);
+  // F22: the cards use a shadow that fits the 8px padding, so the panel edge does not clip it into a rectangle
+  const sh = await page.evaluate(() => { const c = document.querySelector('#widgets .wg'); return c ? getComputedStyle(c).boxShadow : ''; });
+  expect(sh).toContain('0px 2px 8px');
   await ctx.close();
 });
 
-test('HUD surface reports a width that fits the pill (the panel shrinks to it, no click-eating margin)', async ({ browser }) => {
+test('HUD surface reports a width that fits the pill and its shadow (the panel shrinks to it, within the native 520 pt cap)', async ({ browser }) => {
   const { ctx, page } = await launch(browser, {}, { query: '?surface=hud' });
   await page.evaluate(() => { S.hud.show = true; render(); });
   await sleep(300);
@@ -90,5 +93,53 @@ test('HUD surface reports a width that fits the pill (the panel shrinks to it, n
   const pill = await page.locator('#hud > .pill').boundingBox();
   expect(last.width).toBeGreaterThanOrEqual(Math.ceil(pill.width));
   expect(last.width).toBeLessThanOrEqual(Math.ceil(pill.width) + 24);
+  // F22: the pill's shadow (0 4px 12px → 8 above, 12 beside, 16 below) fits inside the reported box, so the panel edge
+  // never clips it into a visible rectangle
+  const fit = await page.evaluate(() => {
+    const hud = document.querySelector('#hud').getBoundingClientRect(), p = document.querySelector('#hud > .pill');
+    const r = p.getBoundingClientRect();
+    return { top: r.top - hud.top, right: hud.right - r.right, bottom: hud.top + window.__nativeMsgs.filter((m) => m.type === 'resizeSurface').pop().height - r.bottom, shadow: getComputedStyle(p).boxShadow };
+  });
+  expect(fit.top).toBeGreaterThanOrEqual(8);
+  expect(fit.right).toBeGreaterThanOrEqual(12);
+  expect(fit.bottom).toBeGreaterThanOrEqual(16);
+  expect(fit.shadow).toContain('0px 4px 12px');
+  // the longest pill plus the shadow padding stays within Orbit.swift's 520 pt HUD width clamp
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('#hud > .pill')).maxWidth)).toBe('496px');
+  await ctx.close();
+});
+
+// Title-bar alignment: the host reports its traffic-light row (Orbit.swift measureTitlebar → __ORBIT_NATIVE__.titlebar);
+// the sidebar toggle shares the lights' centre line 16px after the last light, the Lite / Advance switch and the toolbar
+// share the page title row's centre, and full screen moves the toggle to the sidebar icon column.
+test('native title bar: toggle on the lights row, edition switch on the title row (expanded, collapsed, full screen)', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 1320, height: 860 } });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.2', platform: 'macos', features: ['window'], titlebar: { height: 32, left: 9, right: 69, fullscreen: false } };
+    window.__ORBIT_PREFS__ = { edition: 'advance' };
+  });
+  await page.goto(URL0);
+  await page.waitForFunction(() => typeof S !== 'undefined' && !!document.querySelector('#content'));
+  await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
+  const geo = () => page.evaluate(() => {
+    const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { x: b.x, cy: b.y + b.height / 2 }; };
+    return { toggle: r('#wtop .sbtoggle'), edsw: r('#side .edsw'), h1: r('.main .tbar h1'), tools: r('.main .tbar .tright'), tbar: r('.main .tbar') };
+  });
+  let g = await geo();
+  expect(g.toggle.cy).toBeCloseTo(16, 0);
+  expect(g.toggle.x).toBeCloseTo(85, 0);
+  expect(g.edsw.cy).toBeCloseTo(g.tbar.cy, 0);
+  expect(g.h1.cy).toBeCloseTo(g.tbar.cy, 0);
+  expect(g.tools.cy).toBeCloseTo(g.tbar.cy, 0);
+  await page.locator('#wtop .sbtoggle').click();
+  await expect(page.locator('#win')).toHaveClass(/nosb/);
+  g = await geo();
+  expect(g.toggle.cy).toBeCloseTo(16, 0);
+  expect(g.toggle.x).toBeCloseTo(85, 0);
+  expect(g.h1.x).toBeCloseTo(20, 0);
+  await page.evaluate(() => document.documentElement.toggleAttribute('data-native-fs', true));
+  g = await geo();
+  expect(g.toggle.x).toBeCloseTo(12, 0);
   await ctx.close();
 });

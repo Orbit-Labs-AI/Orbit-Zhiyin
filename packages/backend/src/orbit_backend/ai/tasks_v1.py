@@ -13,7 +13,8 @@ import re
 
 from orbit_backend.evaluation.readability import SCENE_BUDGETS, evaluate_text
 
-from .pack import MISUNDERSTOOD, is_correction
+from ..analytics.interaction.rules import correction_kind
+from .pack import MISUNDERSTOOD
 from .redact import compact
 from .runner import default_run
 from .tasks_analysis import FEEDBACK, FRICTIONS, NARRATE_SCHEMA, S, numbers_ok
@@ -137,12 +138,20 @@ _POSITIVE = re.compile(r"谢谢|好的|不错|完美|great|thanks|lgtm", re.I)
 def feedback_rule(item: dict) -> dict:
     """L0 rule classification (``type_source = rule``)."""
     text = item.get("text") or ""
-    corr = is_correction(text)  # the single correction definition (pack.is_correction)
-    sentiment = ("frustrated" if _STRONG.search(text) else "negative") if corr else (
+    # The single correction verdict (gates included): ``correction`` redirects the agent,
+    # ``result_feedback`` only reports that its work still fails ("还是不行，同样的报错").
+    kind = correction_kind(text)
+    corr = kind == "correction"
+    negative = kind is not None
+    sentiment = ("frustrated" if _STRONG.search(text) else "negative") if negative else (
         "positive" if _POSITIVE.search(text) else "neutral")
     # A rule cannot tell a wrong approach from buggy output; only explicit "you misread me"
-    # wording maps to misunderstood_request, every other correction is "other".
-    friction = ("misunderstood_request" if MISUNDERSTOOD.search(text) else "other") if corr else "none"
+    # wording maps to misunderstood_request, every other correction is "other". Result
+    # feedback is friction with the output itself, not a redirect (is_correction stays False).
+    if corr:
+        friction = "misunderstood_request" if MISUNDERSTOOD.search(text) else "other"
+    else:
+        friction = "buggy_output" if kind == "result_feedback" else "none"
     return {"signal_id": item["signal_id"], "is_correction": corr, "feedback_kind": "correct" if corr else "other",
             "friction_type": friction, "sentiment": sentiment, "confidence": "low"}
 
@@ -522,7 +531,7 @@ WEEKLY_TASK = _task(
 
 # ---------------------------------------------------------------- narrate.persona (AI-05.4)
 
-AXES = ["D", "P", "M", "V"]
+AXES = ["D", "I", "P", "M", "V"]  # AN-08 profiles say P, the A2 page (uiview persona) says I
 PERSONA_BANNED = ("性格", "人格测试")
 PERSONA_SCHEMA = {
     "$schema": S, "type": "object", "additionalProperties": False,
@@ -545,7 +554,7 @@ PERSONA_SCHEMA = {
 PERSONA_SYSTEM = (
     "你根据协作画像为用户写一段自述式解读。headline ≤30 字，包含类型名；任一轴 letter 为 ? 时必须写「暂定」。"
     "traits ≤5 条，每条 ≤8 字，metric 写输入里数值字段的路径（如 axes.D.value、rates.planning_rate），value_ref 原样"
-    "抄该值。tradeoffs 说明某一轴（D/P/M/V）的取舍；blind_spots 只能引用输入 problems 里的 problem_id。"
+    "抄该值。tradeoffs 说明输入 axes 中某一轴的取舍；blind_spots 只能引用输入 problems 里的 problem_id。"
     "不要出现「性格」「人格测试」。所有数字原样来自输入。")
 
 
@@ -575,6 +584,9 @@ def persona_validate(output: dict, pack: dict) -> list[str]:
             errors.append(f"指标不在输入中：{t['metric']}")
         elif abs(paths[t["metric"]] - t["value_ref"]) > 1e-6:
             errors.append(f"value_ref 与输入不符：{t['metric']}")
+    axes = src.get("axes")
+    if isinstance(axes, dict) and axes:
+        errors += [f"轴不在输入中：{t['axis']}" for t in output.get("tradeoffs") or [] if t["axis"] not in axes]
     problems = {p.get("problem_id") for p in src.get("problems") or []}
     errors += foreign_ids([b["problem_id"] for b in output.get("blind_spots") or []], problems)
     if _tentative(src) and "暂定" not in output.get("headline", ""):

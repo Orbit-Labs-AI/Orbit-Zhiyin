@@ -1,6 +1,6 @@
 /* ============ live: native shell + first run (slice 7) ============
    Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
-   (22-window.js nativeWin), host menu commands (orbit:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
+   (22-window.js nativeWin), host menu commands (orbit:command → settings / palette / about / keys / onboarding / reveal / report / share / route /
    toggleEdition / refresh / page {n} / sidebar / hud / undo / find / back / mainAction / chartTable / reindex); the page sends
    menuState {sidebar, pages} so the host titles 显示 / 隐藏侧边栏 and the 前往 menu.
    Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
@@ -14,6 +14,11 @@ const LVN = { ACTIVE: ['queued', 'pending', 'running'], appState: null };
   const n = ORBIT.native; if (!n.isNative) return;
   document.body.classList.add('native');
   if (n.surface) document.body.classList.add('surface-' + n.surface);
+  // the host's traffic-light row (Orbit.swift measureTitlebar): title band height and the toggle's x after the lights
+  const tb = !n.surface && n.info && n.info.titlebar, root = document.documentElement;
+  if (tb && tb.height > 16 && tb.height < 80) root.style.setProperty('--titlebar-inset', tb.height + 'px');
+  if (tb && tb.right > 0 && tb.right < 200) root.style.setProperty('--sbtoggle-x', (tb.right + 16) + 'px');
+  if (tb && tb.fullscreen) root.setAttribute('data-native-fs', '');
 })();
 
 /* ---- host menu commands ---- */
@@ -64,7 +69,6 @@ LVN.command = function (d) {
   else if (cmd === 'reveal') { closeModal(); openReveal(); }
   else if (cmd === 'report') { closeModal(); openReport(); }
   else if (cmd === 'share') { closeModal(); openShare(); }
-  else if (cmd === 'csv') { closeModal(); openCSV(); }
   else if (cmd === 'toggleEdition') edToggle();
   else if (cmd === 'refresh') LVN.refresh();
   else if (cmd === 'route') {
@@ -100,6 +104,7 @@ LVN.addSource = async function (o) {
   }
   const agent = o.agent && o.agent !== 'auto' ? o.agent : LVN.agentFromPath(path);
   if (!agent) throw Object.assign(new Error('认不出这是哪个 Agent 的目录，先在左边选择 Agent'), { path });
+  if (!LV.importable(agent)) throw Object.assign(new Error(lvAgentOf(agent).name + ' 暂不支持导入会话：Orbit 还没有它的会话连接器'), { path });
   try {
     const res = await TL.send('POST', '/v1/app/sources', { agent, root: path, enabled: true });
     return { ok: true, source: res.data, agent, root: path };
@@ -212,7 +217,7 @@ LVN.personaOf = function (d) {
   const v = { D: 50, I: 50, M: 50, V: 50 };
   (d.axes || []).forEach((a) => { const k = a.k || a.axis; if (k in v && a.value != null) v[k] = +a.value; });
   if (d.v) Object.keys(v).forEach((k) => { if (d.v[k] != null) v[k] = +d.v[k]; });
-  const p = { ok: true, classified: d.classified != null ? !!d.classified : d.code.indexOf('?') < 0, n: d.n || 0, v, code: d.code, zh: d.zh || (d.type && d.type.zh) || '尚未定型', en: d.en || (d.type && d.type.en) || 'Undetermined', line: d.line || '', conf: d.conf || '—', server: true };
+  const p = { ok: true, classified: d.classified != null ? !!d.classified : !!TYPES[d.code], n: d.n || 0, v, code: d.code, zh: d.zh || (d.type && d.type.zh) || (TYPES[d.code] || [])[0] || d.code, en: d.en || (d.type && d.type.en) || (TYPES[d.code] || [])[1] || '', line: d.line || '', conf: d.conf || '—', server: true };
   const cands = (d.candidates || d.matches || []).map((c) => ({ c: c.code, zh: c.zh || (TYPES[c.code] || [])[0] || '', en: c.en || (TYPES[c.code] || [])[1] || '', sim: clamp(Math.round(c.match != null ? c.match : c.sim || 0), 3, 99) })).filter((c) => c.c);
   return { p, cands };
 };
@@ -392,7 +397,10 @@ if (LV.live) {
   const baseReveal = openReveal;
   openReveal = function (opt) {
     opt = Object.assign({}, opt || {});
-    const per = OB && OB.revealP && OVL === 'ob' ? Promise.resolve(OB.revealP) : LVN.reveal(S.route === 'persona' && S.persona && S.persona.period ? String(S.persona.period) : '90');
+    // 与 peLiveReveal / liteMatch 同一范围：Advance 人格页用页内周期，Lite 用顶栏范围（画像页与揭晓看的是同一批会话），其余入口回落 90 天
+    const scope = S.route === 'persona' && S.persona && S.persona.period ? String(S.persona.period)
+      : S.ed === 'lite' ? (({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range] || '90') : '90';
+    const per = OB && OB.revealP && OVL === 'ob' ? Promise.resolve(OB.revealP) : LVN.reveal(scope);
     return per.then((x) => baseReveal(Object.assign(opt, { p: x.p, cands: x.cands })));
   };
   Object.assign(ACT, {

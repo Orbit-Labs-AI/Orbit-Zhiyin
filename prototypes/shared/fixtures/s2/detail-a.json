@@ -141,7 +141,9 @@
     "res": "completed",
     "txt": null,
     "seq": 7,
-    "event_uid": "event_s2_06"
+    "event_uid": "event_s2_06",
+    "approval": "approved",
+    "wait": 1.2
    },
    {
     "id": "tool_call_s2_07",

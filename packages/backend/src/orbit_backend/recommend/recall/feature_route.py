@@ -9,7 +9,7 @@ tied to that problem, the rest stand on the profile.
 
 import json
 
-from .catalog_route import TYPE_KIND, VERIFIED, from_item
+from .catalog_route import TYPE_KIND, VERIFIED, from_item, item_support
 
 K = 20
 # Profile-only matches (no friction) need real overlap: a share of the profile weight, more than
@@ -68,15 +68,14 @@ def _items(catalog, ids: list[str]) -> dict[str, dict]:
         kind = TYPE_KIND.get(row["type"])
         if not kind:
             continue
-        meta = json.loads(row["metadata"] or "{}")
         out[row["item_id"]] = {"item_id": row["item_id"], "kind": kind, "name": row["name"],
                                "summary": row["summary"] or "", "url": row["url"],
                                "agents": json.loads(row["agents"] or "[]"), "license": row["license"],
                                "difficulty": row["difficulty"], "risk": json.loads(row["risk"] or "[]"),
                                "risk_level": row["risk_level"], "language": row["language"],
-                               "support": (meta.get("metadata") or {}).get("agent_support") or {},
                                "content_hash": row["content_hash"], "version_id": row["latest_version"],
-                               "verified": row["verification"] in VERIFIED if "verification" in row.keys() else False}
+                               "verified": row["verification"] in VERIFIED if "verification" in row.keys() else False,
+                               "support": item_support(row["metadata"])}
     return out
 
 

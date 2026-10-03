@@ -23,10 +23,13 @@ def test_inventory_reaches_analytics_and_changes_digest(tmp_path):
         result = analyze_bundle(bundle)
         product = build_products(bundle)
         assert product['configuration']['items'] == data['inventory']
-        assert product['configuration']['status'] == 'available'
+        # Codex has no subagent-definition layout (migration 015 kind 'agent'): it is reported
+        # as an incomplete layout, so the inventory is partial rather than claimed complete.
+        assert product['configuration']['status'] == 'partial'
         assert result['inventory'] == data['inventory']
         assert result['inventory_scans'] == data['inventory_scans']
-        assert result['coverage']['inventory']['status'] == 'available'
+        assert result['coverage']['inventory']['status'] == 'partial'
+        assert result['coverage']['inventory']['reason_counts'] == {'inventory_layout_incomplete': 1}
         assert bundle.versions['content_digest'] != missing.versions['content_digest']
         historical = read_analysis(store.home, AnalysisScope('UTC', until_ts=1))
         assert historical['inventory'] is None

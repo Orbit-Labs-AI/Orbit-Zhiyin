@@ -22,3 +22,25 @@ def active_ms(stamps: Iterable[int | None]) -> int | None:
     if not values:
         return None
     return sum(min(b - a, IDLE_CAP_MS) for a, b in zip(values, values[1:], strict=False))
+
+
+# Tool-call result classes, one definition for A1 tiles (``facts``), A3 lists/details
+# (``sessions`` / ``trajectory``), A4 (``a4a6_tools``) and A5/A6 (``a4a6_sentiment``). The data
+# layer writes completed / failed / interrupted / unknown; the other spellings are older or
+# connector-native values. ``stopped`` (interrupted, refused) is a known result that is not a
+# failure: it counts in an error rate's denominator, never in its numerator.
+TOOL_OK = frozenset(("success", "completed", "ok"))
+TOOL_FAILED = frozenset(("failed", "error", "failure"))
+TOOL_STOPPED = frozenset(("interrupted", "rejected", "cancelled", "aborted", "denied"))
+
+
+def tool_state(status: str | None) -> str:
+    """``ok`` / ``failed`` / ``stopped`` / ``unknown`` (running, pending, unknown, missing)."""
+    value = (status or "").lower()
+    if value in TOOL_OK:
+        return "ok"
+    if value in TOOL_FAILED:
+        return "failed"
+    if value in TOOL_STOPPED:
+        return "stopped"
+    return "unknown"

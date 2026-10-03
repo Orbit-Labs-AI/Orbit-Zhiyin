@@ -532,21 +532,18 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
     if (!sv.length || !sv[0].filename || !sv[0].mime || !sv[0].bytes) throw new Error('report save message missing filename/mime/bytes');
   }));
   await step('export-report-close', async () => { await closeAll(page); }, { shot: false });
-  mark(await step('export-csv', async (s) => {
+  // F20: the tool-call CSV export is gone from every surface (tools page, ⋯ menu, File menu, palette)
+  mark(await step('no-csv-export', async () => {
     await goRoute(page, 'tools'); await feedSettled(page, 'tools');
-    const n0 = await ev(page, () => window.__nativeMsgs.length);
-    if (!(await act(page, 'csv', { wait: 1500 }))) throw new Error('no csv button on tools');
-    if (!(await act(page, 'csvSave', { wait: 2500 }))) { const b = page.locator('#modal button').filter({ hasText: /保存|导出|下载/ }).filter({ visible: true }); if (await b.count()) { await b.last().click(); await sleep(2500); } }
-    const sv = await saves(n0); s.notes.push(JSON.stringify(sv));
-    if (!sv.length || !sv[0].bytes) throw new Error('csv save message missing or empty');
-  }));
-  await step('export-csv-close', async () => { await closeAll(page); }, { shot: false });
+    if (await page.locator('[data-act="csv"]').count()) throw new Error('tools page still offers a CSV export');
+    if (await ev(page, () => typeof openCSV !== 'undefined')) throw new Error('openCSV still defined');
+  }, { shot: false }));
   mark(await step('export-share-card', async (s) => {
     const n0 = await ev(page, () => window.__nativeMsgs.length);
     await page.keyboard.press('Meta+Shift+s'); await sleep(1500);
     // an unsettled / thin persona honestly refuses the card with a toast (部分维度尚未定型… / 样本不足…): a valid outcome
     const refusal = () => ev(page, () => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.innerText.trim() : ''; });
-    const REFUSE = /部分维度尚未定型|样本不足|协作画像还没有算好/;
+    const REFUSE = /类型暂不可用|部分维度尚未定型|样本不足|协作画像还没有算好/;
     let msg = await refusal();
     if (REFUSE.test(msg)) { s.notes.push('refused: ' + msg); return; }
     if (!(await act(page, 'shareSave', { wait: 3500 }))) {

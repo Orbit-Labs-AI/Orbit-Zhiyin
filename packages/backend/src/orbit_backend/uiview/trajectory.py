@@ -12,8 +12,10 @@ import time
 from collections import Counter
 from datetime import UTC, datetime, tzinfo
 
+from ..analytics.interaction.rules import RESPONSE_KINDS
 from ..analytics.products.journey import EXPLORE
 from ..realtime import context_windows
+from ..realtime.tail import WINDOW_SQL
 from ..sessionops import resume
 from . import metrics
 from . import moments as rules
@@ -47,12 +49,14 @@ EVENTS_SQL = f"""
 SELECT e.event_uid, e.seq, e.ts, e.kind, e.actor, e.turn_uid,
        CASE WHEN {HUMAN_WHERE} THEN e.text END AS text,
        CASE WHEN {HUMAN_WHERE} THEN 1 ELSE 0 END AS human,
-       CASE WHEN e.kind = 'message.assistant' THEN json_extract(e.attrs, '$.phase') END AS phase
+       CASE WHEN e.kind = 'message.assistant' THEN json_extract(e.attrs, '$.phase') END AS phase,
+       json_extract(e.attrs, '$.replayed_from') IS NOT NULL
+         OR json_extract(e.attrs, '$.duplicate_of') IS NOT NULL AS replay
 FROM event e WHERE e.session_uid = ? ORDER BY e.seq
 """
 CALLS_SQL = """
 SELECT call_uid, call_event_uid, name_raw, name, kind, command_head, status, exit_code,
-       error_class, started_at, duration_ms, subagent_session_uid
+       error_class, started_at, duration_ms, subagent_session_uid, approval, approval_wait_ms
 FROM tool_call WHERE session_uid = ?
 """
 CHILDREN_SQL = """
@@ -125,15 +129,22 @@ def _res(exit_code, error_class, status) -> str | None:
     return " · ".join(parts) or None
 
 
-def _ctx(model_rows, agent, overrides, t0, comps_at):
-    """Per-request prompt size / model window (estimate); None without a window table hit."""
+def _ctx(model_rows, agent, overrides, t0, comps_at, reported=None):
+    """Per-request prompt size / model window (estimate), same rule as the realtime HUD.
+
+    The window comes from ``context_windows.resolve`` (the session's reported window, then
+    the override, then the table) and a prompt above it is unknown, not 100%: the point is
+    left out, exactly like realtime's ``window_exceeded``. None without any usable point.
+    """
     points = []
     for model, _, inp, cread, cwrite, _, ts in model_rows:
-        window = context_windows.lookup(agent, model, overrides)
-        if window is None or inp is None or ts is None:
+        window = context_windows.resolve(agent, model, overrides, reported)
+        if inp is None or ts is None:
             continue
-        used = inp + (cread or 0) + (cwrite or 0)
-        points.append([_mins(ts, t0), round(min(used / window["window_tokens"] * 100, 100), 1)])
+        ratio, _ = context_windows.usage_ratio(inp + (cread or 0) + (cwrite or 0), window)
+        if ratio is None:
+            continue
+        points.append([_mins(ts, t0), round(ratio * 100, 1)])
     if not points:
         return None, []
     comps = set()
@@ -175,6 +186,7 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
     calls = conn.execute(CALLS_SQL, (uid,)).fetchall()
     children = conn.execute(CHILDREN_SQL, (uid, uid)).fetchall()
     model_rows = conn.execute(MODEL_SQL, (uid,)).fetchall()
+    reported_window = conn.execute(WINDOW_SQL, (uid,)).fetchone()
     ev_ts = {e[0]: e[2] for e in events}
     call_start = [c[9] if c[9] is not None else ev_ts.get(c[1]) for c in calls]
     stamps = [e[2] for e in events if e[2] is not None] + [t for t in call_start if t]
@@ -195,13 +207,16 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
             out_events.append(span)
             span = None
 
-    for event_uid, seq, ts, kind, _actor, _turn, text, human, phase in events:
+    responded = False  # rules.countable_messages: corrections only after the agent responded
+    for event_uid, seq, ts, kind, _actor, _turn, text, human, phase, replay in events:
         t = _mins(ts, t0)
         t = last_t if t is None else t
         last_t = t
+        if kind in RESPONSE_KINDS:
+            responded = True
         if human:
             close_span()
-            corr = is_correction(text)
+            corr = responded and not replay and is_correction(text)
             item = {"id": f"u{len(users) + 1}", "lane": "user", "t": t, "w": 0, "err": False,
                     "corr": corr, "cmd": None, "res": None, "txt": scrub(text), "seq": seq,
                     "event_uid": event_uid}
@@ -222,17 +237,26 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
             close_span()
     close_span()
     tool_events = []
+    # Tool heads repeat frequently; redact each distinct label once per response.
+    # Keep this local so changes in redaction policy apply on the very next request.
+    tool_labels: dict[str | None, str | None] = {}
     for call, start in zip(calls, call_start, strict=True):
         (call_uid, call_event_uid, name_raw, name, tkind, head, cstatus, exit_code, error_class,
-         _s, duration_ms, _sub) = call
+         _s, duration_ms, _sub, approval, wait_ms) = call
         t = _mins(start, t0)
         t = 0.0 if t is None else t
+        label = head or name_raw
+        if label not in tool_labels:
+            tool_labels[label] = scrub(label, 80)
         item = {"id": call_uid, "lane": TOOL_LANE.get(tkind, "bash"), "t": t,
                 "w": round(duration_ms / 60_000, 3) if duration_ms else 0,
-                "err": is_failed(cstatus), "corr": False, "cmd": scrub(head or name_raw, 80),
+                "err": is_failed(cstatus), "corr": False, "cmd": tool_labels[label],
                 "res": _res(exit_code, error_class, cstatus),
                 "txt": None, "seq": None, "event_uid": call_event_uid or call_uid,
-                "call_uid": call_uid, "name": name, "tool_kind": tkind, "status": cstatus}
+                "call_uid": call_uid, "name": name, "tool_kind": tkind, "status": cstatus,
+                # Permission prompt on this call: the decision and how long it waited for you.
+                "approval": approval,
+                "wait": round(wait_ms / 60_000, 3) if wait_ms else None}
         tool_events.append(item)
     tool_events.sort(key=lambda c: (c["t"], c["id"]))
     seq_of = {e[0]: e[1] for e in events}
@@ -256,7 +280,8 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
     T = round(T, 3)
     phases = _phases(stream, T)
     found = rules.detect(users, tool_events, compactions)
-    ctx, comps = _ctx(model_rows, agent, overrides, t0, [c["t"] for c in compactions])
+    ctx, comps = _ctx(model_rows, agent, overrides, t0, [c["t"] for c in compactions],
+                       reported_window and reported_window[0])
     models = Counter(r[0] for r in model_rows if r[0])
     efforts = Counter(r[1] for r in model_rows if r[1])
     if not models and events:

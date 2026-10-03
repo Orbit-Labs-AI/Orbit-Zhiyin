@@ -204,17 +204,22 @@ def statistical_analysis(context: AnalysisContext, base: Record) -> Record:
     }
     groups = []
     for field in ("project_id", "source_id"):
+        # One pass buckets every sample by group, instead of rescanning all samples
+        # once per (group, metric): O(N) rather than O(G·N).
+        buckets: dict[Any, dict[str, list[Record]]] = defaultdict(lambda: defaultdict(list))
+        for name, rows in samples.items():
+            for r in rows:
+                buckets[r[field]][name].append(r)
         group_ids = {s.get(field) for s in context.sessions}
         for group_id in sorted(group_ids, key=str):
+            by_name = buckets.get(group_id, {})
             groups.append(
                 {
                     "dimension": field,
                     "group_id": group_id,
                     "metrics": {
-                        name: summarize(
-                            [r for r in rows if r[field] == group_id], *definitions[name]
-                        )
-                        for name, rows in samples.items()
+                        name: summarize(by_name.get(name, []), *definitions[name])
+                        for name in samples
                     },
                 }
             )

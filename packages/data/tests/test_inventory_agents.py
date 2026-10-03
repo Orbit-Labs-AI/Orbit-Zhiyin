@@ -401,7 +401,7 @@ def test_kimi_current_scan_removes_deleted_cron_and_bad_records_are_partial(tmp_
         assert len(result["diagnostics"]) == 2
 
 
-def test_claude_commands_and_agents_are_inventoried_with_component_marker(tmp_path):
+def test_claude_commands_and_agents_are_inventoried_as_their_own_types(tmp_path):
     root = tmp_path / "claude"
     write(root, "commands/review.md", "Review the diff")
     write(root, "commands/git/commit.md", "---\ndescription: commit\n---\nCommit")
@@ -409,23 +409,92 @@ def test_claude_commands_and_agents_are_inventoried_with_component_marker(tmp_pa
     write(root, "agents/researcher.md", "---\nname: deep-researcher\ndescription: d\n---\nbody")
     write(root, "agents/plain.md", "no frontmatter")
     result, data, dump = run(tmp_path, "claude_code", root)
-    found = {
-        (item["name"], json.loads(item["config"])["component"])
-        if isinstance(item["config"], str)
-        else (item["name"], item["config"]["component"])
-        for item in data["items"]
-        if item["type"] == "skill"
-    }
+    found = {(item["type"], item["name"]) for item in data["items"] if item["type"] != "rule"}
     assert found == {
-        ("review", "command"),
-        ("git:commit", "command"),
-        ("deep-researcher", "agent"),
-        ("plain", "agent"),
+        ("command", "review"),
+        ("command", "git:commit"),
+        ("agent", "deep-researcher"),
+        ("agent", "plain"),
     }
     assert "Review the diff" not in dump and "body" not in dump
-    assert result["coverage"]["skill"]["rows"] == 4
+    assert result["coverage"]["skill"]["rows"] == 0
+    assert result["coverage"]["command"] == {"status": "available", "rows": 2, "reason": None}
+    assert result["coverage"]["agent"] == {"status": "available", "rows": 2, "reason": None}
     # ~/.claude.json was not passed: user-scope MCP servers are not represented.
     assert result["coverage"]["mcp"]["reason"] == "user_scope_not_scanned"
+
+
+def test_claude_plugin_commands_and_agents_are_namespaced_by_plugin(tmp_path):
+    root = tmp_path / "claude"
+    write(root, "settings.json", {"enabledPlugins": {"tools@market": True}})
+    plugin = root / "plugins/cache/market/tools/1.0.0"
+    write(plugin, ".claude-plugin/plugin.json", {"name": "tools"})
+    write(plugin, "commands/ship.md", "Ship it")
+    write(plugin, "agents/checker.md", "---\nname: checker\n---\nbody")
+    _, data, _ = run(tmp_path, "claude_code", root)
+    found = {
+        (item["type"], item["name"], item["config"].get("plugin"))
+        for item in data["items"]
+        if item["type"] in ("command", "agent")
+    }
+    assert found == {
+        ("command", "tools:ship", "tools@market"),
+        ("agent", "tools:checker", "tools@market"),
+    }
+
+
+def test_codex_plugin_cache_does_not_list_claude_markdown_components(tmp_path):
+    root = tmp_path / "codex"
+    plugin = root / "plugins/cache/market/tools/1.0.0"
+    write(plugin, ".codex-plugin/plugin.json", {"name": "tools"})
+    write(plugin, "commands/ship.md", "Ship it")
+    _, data, _ = run(tmp_path, "codex", root)
+    assert not [item for item in data["items"] if item["type"] in ("command", "agent")]
+
+
+def test_migration_015_retypes_scanner_130_command_and_agent_rows(tmp_path):
+    """A v14 library keeps its earlier observations; component-marked skills become typed."""
+    import sqlite3
+
+    with Store(tmp_path / "data") as store:
+        scan = store.db.execute(
+            "INSERT INTO inventory_scan(source_key,agent,root_path,scope,observed_at,"
+            "scanner_version,coverage,diagnostics) VALUES('k','claude_code','/r','global',1,"
+            "'1.3.0','{}','[]')"
+        ).lastrowid
+    db = sqlite3.connect(tmp_path / "data/orbit.db")
+    db.executescript(
+        "DROP TABLE inventory_item;"
+        "CREATE TABLE inventory_item (scan_id INTEGER NOT NULL REFERENCES inventory_scan,"
+        " inv_id TEXT NOT NULL, type TEXT NOT NULL CHECK(type IN"
+        " ('skill','mcp','hook','plugin','rule','scheduled_task')), name TEXT NOT NULL,"
+        " config_path TEXT NOT NULL, locator TEXT NOT NULL, enabled INTEGER CHECK(enabled IN (0,1)),"
+        " evidence TEXT NOT NULL CHECK(evidence IN ('file','configured','cached','installed')),"
+        " config TEXT NOT NULL CHECK(json_valid(config)), content_hash TEXT NOT NULL,"
+        " PRIMARY KEY(scan_id, inv_id)) STRICT;"
+        "UPDATE schema_manifest SET schema_version=14; PRAGMA user_version=14;"
+    )
+    rows = [
+        ("i1", "skill", "review", '{"component":"command"}'),
+        ("i2", "skill", "helper", '{"component":"agent"}'),
+        ("i3", "skill", "dataviz", "{}"),
+        ("i4", "mcp", "docs", '{"component":"command"}'),
+    ]
+    db.executemany(
+        "INSERT INTO inventory_item VALUES(?,?,?,?,'/p','',NULL,'file',?,'h')",
+        [(scan, inv, kind, name, config) for inv, kind, name, config in rows],
+    )
+    db.commit()
+    db.close()
+    with Store(tmp_path / "data") as store:
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] >= 15
+        typed = dict(store.db.execute("SELECT inv_id,type FROM inventory_item"))
+        # Only skill rows carrying a command/agent component marker change type.
+        assert typed == {"i1": "command", "i2": "agent", "i3": "skill", "i4": "mcp"}
+        store.db.execute(
+            "INSERT INTO inventory_item VALUES(?,?,?,?,'/p','',NULL,'file','{}','h')",
+            (scan, "i5", "command", "new"),
+        )
 
 
 def test_claude_mcp_coverage_has_no_gap_reason_when_user_config_is_scanned(tmp_path):
@@ -436,3 +505,73 @@ def test_claude_mcp_coverage_has_no_gap_reason_when_user_config_is_scanned(tmp_p
         result = scan_inventory(store, InventoryRequest("claude_code", root, claude_config=config))
     assert result["coverage"]["mcp"]["reason"] is None
     assert result["coverage"]["mcp"]["rows"] == 1
+
+
+def test_claude_plugin_manifest_command_and_agent_paths_supplement_defaults(tmp_path):
+    """plugin.json "commands"/"agents" may name extra folders or single .md files; they add
+    to commands/ and agents/, and paths outside the plugin are reported, not followed."""
+    root = tmp_path / "claude"
+    write(root, "settings.json", {"enabledPlugins": {"tools@market": True}})
+    plugin = root / "plugins/cache/market/tools/1.0.0"
+    write(
+        plugin,
+        ".claude-plugin/plugin.json",
+        {
+            "name": "tools",
+            "commands": ["./extra-commands", "./single/deploy.md", "./commands", "../escape"],
+            "agents": "./custom/reviewer.md",
+        },
+    )
+    write(plugin, "commands/ship.md", "Ship it")
+    write(plugin, "extra-commands/ops/rollback.md", "Roll back")
+    write(plugin, "single/deploy.md", "Deploy")
+    write(plugin, "custom/reviewer.md", "---\nname: code-reviewer\n---\nbody")
+    _, data, _ = run(tmp_path, "claude_code", root)
+    found = {
+        (item["type"], item["name"])
+        for item in data["items"]
+        if item["type"] in ("command", "agent")
+    }
+    assert found == {
+        ("command", "tools:ship"),
+        ("command", "tools:ops:rollback"),
+        ("command", "tools:deploy"),
+        ("agent", "tools:code-reviewer"),
+    }
+
+
+def test_opencode_commands_and_agents_use_upstream_path_names(tmp_path):
+    """config/command.ts + agent.ts: {command,commands}/**/*.md and {agent,agents}/**/*.md."""
+    root = tmp_path / "opencode"
+    write(root, "opencode.json", {})
+    write(root, "command/git/commit.md", "---\ndescription: c\n---\nSECRET-TEMPLATE")
+    write(root, "commands/review.md", "Review")
+    write(root, "agent/planner.md", "---\nname: renamed\n---\nSECRET-PROMPT")
+    write(root, "agents/nested/fixer.md", "Fix")
+    write(root, "command/notes.txt", "ignored")
+    result, data, dump = run(tmp_path, "opencode", root)
+    assert result["coverage"]["command"]["status"] == "available"
+    assert result["coverage"]["agent"]["status"] == "available"
+    names = {(i["type"], i["name"]) for i in data["items"] if i["type"] in ("command", "agent")}
+    assert names == {
+        ("command", "git/commit"),
+        ("command", "review"),
+        ("agent", "planner"),
+        ("agent", "nested/fixer"),
+    }
+    assert "SECRET-TEMPLATE" not in dump and "SECRET-PROMPT" not in dump
+
+
+def test_codex_legacy_prompts_are_listed_but_not_enabled(tmp_path):
+    """Current Codex no longer loads ~/.codex/prompts: visible as commands, enabled=0."""
+    root = tmp_path / "codex"
+    write(root, "config.toml", "")
+    write(root, "prompts/ship.md", "PRIVATE-PROMPT")
+    write(root, "prompts/old/skip.md", "nested files were never read")
+    result, data, dump = run(tmp_path, "codex", root)
+    assert result["coverage"]["command"]["status"] == "available"
+    assert result["coverage"]["agent"]["status"] == "unavailable"
+    commands = [i for i in data["items"] if i["type"] == "command"]
+    assert [(c["name"], c["enabled"]) for c in commands] == [("prompts:ship", 0)]
+    assert commands[0]["config"]["loaded"] is False
+    assert "PRIVATE-PROMPT" not in dump

@@ -59,6 +59,7 @@
  "settings": {
   "daily_usd_cap": 2.0,
   "auto_facet_new": false,
+  "auto_overview": false,
   "slots": {}
  }
 }

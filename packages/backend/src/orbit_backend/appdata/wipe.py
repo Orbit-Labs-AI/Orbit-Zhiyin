@@ -24,11 +24,11 @@ CONFIRM_WORD = "清除"
 KEEPS = ["agent_logs", "agent_configs"]
 # storage component ids removed by a clear (``logs`` stays).
 WILL_DELETE = ["orbit_db", "raw", "app_db", "catalog_db", "analysis", "snapshot_cache",
-               "backups", "exports", "app_state"]
+               "backups", "exports", "app_state", "hooks"]
 TARGETS = ("orbit.db", "orbit.db-wal", "orbit.db-shm", "raw", "archive", "analysis*.db",
            "analysis*.db-wal", "analysis*.db-shm", "analysis.sqlite*", "cache",
            "catalog.db", "catalog.db-wal", "catalog.db-shm", "backups", "exports",
-           "app.db", "app.db-wal", "app.db-shm", "app-state.json", "app-state.tmp")
+           "app.db", "app.db-wal", "app.db-shm", "app-state.json", "app-state.tmp", "hooks")
 
 
 def mark(home: Path, *, reason: str = "user") -> dict:

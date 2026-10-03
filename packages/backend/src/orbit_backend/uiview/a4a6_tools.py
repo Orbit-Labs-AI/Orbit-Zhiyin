@@ -1,12 +1,13 @@
 """A4 工具调用 + Lite 工具页 presentation adapter: ``GET /v1/uiview/tools``.
 
-One scan over ``v_analysis_tool_call`` (joined to session/source/event for ``seq``) builds
+One scan over ``v_analysis_tool_call`` (joined to session/source; ``seq`` via covering indexes) builds
 every block of the page: KPIs with previous window and 12 weekly buckets, the per-tool
 table, the kind transition matrix, repeated-failure runs, failure reasons, approval
 waits, MCP servers (calls ∪ linked inventory) and sub-agent parallelism.
 
 Rules kept honest:
-- status: success|completed|ok → ok, failed|error → failed, anything else → unknown.
+- status: ``metrics.tool_state`` (ok / failed / stopped / unknown, shared with A1 and A3);
+  interrupted or refused calls are known results that are not failures.
   Error rates use known results only; text never decides success.
 - failure reasons: ``error_class`` first, else regex rules over the redacted result text.
 - resident tokens of an MCP server are only filled when inventory measured them.
@@ -32,6 +33,7 @@ from orbit_data.privacy import redact
 from ..features.vocab import command_info
 from ..sessionops.toolcalls import args_summary, tool_name_key
 from . import a4a6_common as common
+from . import metrics
 
 NAME = "tools"
 PARALLEL_WINDOW_MS = 5000  # 待验证: sub-agents started within 5 s of a batch's first one.
@@ -42,8 +44,8 @@ MAX_DAYS = 366
 MAX_RETRIES = 10
 CHUNK = 500
 
-OK = {"success", "completed", "ok"}
-FAILED = {"failed", "error"}
+OK = metrics.TOOL_OK
+FAILED = metrics.TOOL_FAILED
 NODES = ("read", "search", "edit", "shell", "subagent", "web")
 NODE_OF = {"file.read": "read", "search": "search", "file.edit": "edit", "file.write": "edit",
            "shell": "shell", "subagent": "subagent", "web.search": "web", "web.fetch": "web"}
@@ -67,20 +69,17 @@ SELECT tc.call_uid, tc.session_uid, s.root_uid, s.kind AS session_kind,
        tc.mcp_server, tc.command_head, tc.status, tc.error_class, tc.exit_code, tc.duration_ms,
        tc.duration_quality, tc.started_at, tc.approval, tc.approval_wait_ms,
        tc.argument_digest, tc.subagent_session_uid, tc.result_event_uid, tc.call_event_uid,
-       e.seq, json_extract(e.attrs, '$.input.command') AS command
+       {rowid} AS call_event_rowid
 FROM v_analysis_tool_call tc
 JOIN session s ON s.session_uid = tc.session_uid
 LEFT JOIN source src ON src.source_id = s.source_id
-LEFT JOIN event e ON e.event_uid = tc.call_event_uid
-WHERE {where}
-"""
-
-
-STATE = {**dict.fromkeys(OK, "ok"), **dict.fromkeys(FAILED, "failed")}
+WHERE {{where}}
+""".format(rowid=common.CALL_EVENT_ROWID_SQL.format(col="tc.call_event_uid"))
 
 
 def norm_status(raw) -> str:
-    return STATE.get((raw or "").lower(), "unknown")
+    """``metrics.tool_state``: the same classes as A1 / A3 (interrupted = known, not failed)."""
+    return metrics.tool_state(raw)
 
 
 def node_of(kind: str | None) -> str:
@@ -121,9 +120,9 @@ def fetch_calls(conn, scope, *, agents=None, from_ts=None, until_ts=None) -> lis
     rows = []
     for values in cursor:
         row = dict(zip(names, values, strict=True))
-        row["state"] = STATE.get((row["status"] or "").lower(), "unknown")
+        row["state"] = metrics.tool_state(row["status"])
         rows.append(row)
-    return rows
+    return common.attach_call_command(conn, common.attach_event_seq(conn, rows))
 
 
 def _texts(conn, uids) -> dict[str, str]:
@@ -141,7 +140,7 @@ def _texts(conn, uids) -> dict[str, str]:
 
 def _counts(rows) -> dict:
     states = Counter(r["state"] for r in rows)
-    known = states["ok"] + states["failed"]
+    known = len(rows) - states["unknown"]
     return {"n": len(rows), "failed": states["failed"], "known": known,
             "unknown": len(rows) - known}
 
@@ -385,6 +384,30 @@ def _norm_name(name: str | None) -> str:
     return re.sub(r"[^a-z0-9]+", "", (name or "").lower())
 
 
+def _mcp_tools(server: str, rows) -> list[dict]:
+    """Tools called under one MCP server: ``[{name, raw, n, failed, known, unknown, err}]``.
+    ``name`` drops the ``mcp__<server>__`` prefix agents put in front of the tool name; calls with
+    no tool name (empty, or only the server prefix) fold into one item with ``name`` None."""
+    by: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        by[row["name_raw"] or ""].append(row)
+    prefix = re.compile(r"^(?:mcp__" + re.escape(server) + r"__|" + re.escape(server) + r"[./:])",
+                        re.IGNORECASE)
+    merged: dict[str, dict] = {}
+    for raw, items in by.items():
+        name = prefix.sub("", raw).strip() or None
+        entry = merged.setdefault(name, {"name": name, "raw": [], "rows": []})
+        if raw:
+            entry["raw"].append(raw)
+        entry["rows"].extend(items)
+    out = []
+    for entry in merged.values():
+        c = _counts(entry["rows"])
+        out.append({"name": entry["name"], "raw": sorted(entry["raw"]), **c,
+                    "err": common.rate(c["failed"], c["known"])})
+    return sorted(out, key=lambda t: (-t["n"], t["name"] is None, t["name"] or ""))
+
+
 def mcp(rows, inventory_items) -> list[dict]:
     servers: dict[str, dict] = {}
     for row in rows:
@@ -401,7 +424,8 @@ def mcp(rows, inventory_items) -> list[dict]:
             "err": common.rate(c["failed"], c["known"]),
             "sessions": len({r["session_uid"] for r in s["rows"]}),
             "last_used_at": max(dated) if dated else None, "status": "unscanned",
-            "resident_tokens": None, "resident_basis": "unknown", "inv_id": None}
+            "resident_tokens": None, "resident_basis": "unknown", "inv_id": None,
+            "tools": _mcp_tools(name, s["rows"])}
     seen = set()
     for item in inventory_items or []:
         if item.get("type") != "mcp":
@@ -414,7 +438,7 @@ def mcp(rows, inventory_items) -> list[dict]:
         entry = out.setdefault(key, {
             "server": item.get("name"), "calls": 0, "failed": 0, "err": None, "sessions": 0,
             "last_used_at": None, "status": None, "resident_tokens": None,
-            "resident_basis": "unknown", "inv_id": None})
+            "resident_basis": "unknown", "inv_id": None, "tools": []})
         if entry["inv_id"] is not None:
             continue  # Same server configured twice: the first scan wins.
         resident = item.get("resident") or {}
@@ -665,7 +689,7 @@ def register(api, gw) -> None:
         # Without until_ts the weekly trend ends today: the day joins the cache key.
         day = None if common.scope_dict(scope).get("until_ts") is not None \
             else now_ms // common.DAY_MS
-        key = common.cache_key(NAME, scope, {**params, "day": day}, rev)
+        key = common.cache_key(NAME, scope, {**params, "day": day}, rev, home=gw.home)
         cached = common.CACHE.get(key)
         if cached is None:
             inventory = _inventory(scope, params["agent"])

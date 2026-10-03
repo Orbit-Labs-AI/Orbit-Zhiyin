@@ -1,7 +1,8 @@
 /* A3 会话轨迹（js/42-a3-sessions.js）。时间线本体由 VZ 画（36-viz.css），这里只放页面布局、VZ 之外补画的上下文 / 相对时间轴、
    事件检视面板、关键时刻联动与列表的截断提示。颜色只走 token：强调色（墨色）表示选中 / 视窗 / 上下文；语义色只给失败、纠偏、情绪。 */
 .tl-card{container-type:inline-size}
-.tl-grid{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:4px 16px;align-items:start}
+/* 选择器带上 .tl-card：live 模式 06-live-client.js 注入的通用 .tl-grid（auto-fit 网格）同名，不能盖过这里，否则时间线被挤成半宽 */
+.tl-card .tl-grid{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:4px 16px;align-items:start}
 .tl-sum{margin:-2px 0 8px;font-variant-numeric:tabular-nums}
 .tl-main{min-width:0;display:flex;flex-direction:column;gap:4px}
 .tl-ov{min-height:28px}
@@ -58,7 +59,7 @@
 .tl-ibtn{margin-top:auto;padding-top:6px;flex-wrap:wrap;gap:6px}
 .tl-ibtn .seg button{padding:0 7px}
 @container (max-width:860px){
-  .tl-grid{grid-template-columns:minmax(0,1fr)}
+  .tl-card .tl-grid{grid-template-columns:minmax(0,1fr)}
   .tl-insp{border-left:0;border-top:1px solid var(--hair);padding:10px 0 0;margin-top:6px}
   .tl-ibtn{margin-top:0}
   .tl-legend>.tl-hint{margin-left:0}
@@ -103,6 +104,7 @@
 .sl-hd{font-size:11px;justify-content:space-between;gap:8px;padding:0 2px;flex-wrap:nowrap;font-variant-numeric:tabular-nums}
 .sl-hd>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .sess>.stack{container:sdet/inline-size}
+.sess>.stack>*{flex:none}   /* 详情列滚动时卡片不被压扁（页头卡 overflow:hidden 会被 flex 收缩到 0） */
 /* 会话头带：元信息一行，路径过长时截断；标题按语义均衡折行 */
 .sb-meta{font-size:11px;line-height:16px;color:var(--ink-3);gap:6px;min-width:0;flex-wrap:nowrap}
 .sb-meta>*{flex:none}
@@ -122,3 +124,42 @@
 /* 关键时刻 + 启示：详情列不足 760px 时上下排，避免关键时刻列被挤成逐字折行 */
 .tl-two{grid-template-columns:minmax(0,1fr) 300px}
 @container sdet (max-width:759px){.tl-two{grid-template-columns:minmax(0,1fr)}}
+/* ---------- 「这次会话发生了什么」摘要卡（js/42-a3-sessions.js sessDigestCard）：目标 / 过程 / 阶段占比条 + 阶段表 / 卡点 / 结果。
+   全部按事件规则统计，不标 AI；颜色只给状态（失败、纠偏、等你批准）。 ---------- */
+.sd-card{display:flex;flex-direction:column;gap:8px;font-size:12.5px;line-height:1.55;color:var(--ink-2)}
+.sd-card .hd{margin-bottom:0}
+.sd-card .hd .cap{margin-left:8px}
+.sd-kv{display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px;align-items:baseline}
+.sd-kv>.k{font-size:11px;color:var(--ink-3);white-space:nowrap}
+.sd-kv>.v{min-width:0;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.sd-goal{overflow-wrap:anywhere;font-weight:600}
+.sd-err{color:var(--crit)}
+.sd-corr{color:var(--vz-corr);font-size:11px}
+.sd-z{color:var(--ink-4)}
+.sd-tbl{font-size:12px}
+.sd-tbl th,.sd-tbl td{padding:5px 8px;white-space:nowrap}
+.sd-tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.sd-tbl .sd-rg{font-size:11.5px;color:var(--ink-2)}
+.sd-chip{display:grid;grid-template-columns:16px 44px auto minmax(0,1fr);gap:6px;align-items:baseline;border:0;background:none;padding:2px 6px;margin:0 -6px;border-radius:6px;text-align:left;font-size:12px;color:var(--ink-1)}
+.sd-chip:hover{background:var(--field)}
+.sd-ci{align-self:center;display:inline-flex}
+.sd-ct{font-size:11px;color:var(--ink-3)}
+.sd-cd{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sd-more{padding:2px 0}
+/* 关键时刻：时刻下方补相对时间，正文后补一句「为什么重要」 */
+.tl-mom{grid-template-columns:18px 52px minmax(0,1fr)}
+.tl-mt{display:flex;flex-direction:column;line-height:16px}
+.tl-mrel{font-size:10px;color:var(--ink-4)}
+.tl-mw{display:block;font-size:11px;line-height:16px;color:var(--ink-3)}
+/* 阶段一行概览（名称 + 时长占比 + 失败 / 等你）常显；明细表默认折叠，让轨迹在第一屏露出 */
+.sd-phs{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px}
+.sd-ph{white-space:nowrap}
+.sd-ph .num{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.sd-wt{color:var(--warn)}
+.sd-sep{color:var(--ink-4);font-size:11px}
+.sd-more-ph>summary{cursor:pointer;padding:2px 0;width:max-content}
+.sd-more-ph[open]>summary{margin-bottom:4px}
+.sd-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));column-gap:14px}
+.sd-rg-n{display:none;font-size:10.5px;color:var(--ink-3);font-weight:400}
+/* 详情列窄（主区 800–1100px）时阶段表把「时间」列并进阶段名下方的小字，不丢时间范围 */
+@container sdet (max-width:560px){.sd-tbl th:nth-child(2),.sd-tbl td:nth-child(2){display:none}.sd-tbl th,.sd-tbl td{padding:5px 6px}.sd-rg-n{display:block;line-height:14px}}

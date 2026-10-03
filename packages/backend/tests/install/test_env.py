@@ -45,7 +45,8 @@ def make_db(path, project_dirs=()):
         CREATE TABLE project (project_id TEXT, key_type TEXT, key TEXT, name TEXT, paths TEXT);
         INSERT INTO inventory_scan VALUES (1,'cc','claude_code'),(2,'cc','claude_code'),(3,'cx','codex');
         INSERT INTO inventory_item VALUES (1,'a','skill','old',1),(2,'b','skill','alpha',1),(2,'c','skill','beta',NULL),
-          (2,'d','mcp','gh',0),(2,'e','hook','fmt',1),(3,'f','rule','agents',1);
+          (2,'d','mcp','gh',0),(2,'e','hook','fmt',1),(3,'f','rule','agents',1),
+          (2,'g','command','ship',1),(2,'h','agent','helper',1);
     """)
     for i, p in enumerate(project_dirs):
         db.execute("INSERT INTO project VALUES (?, 'path', ?, ?, ?)", (f"p{i}", str(p), p.name, f'["{p}"]'))
@@ -68,8 +69,9 @@ def test_detects_agents_by_config_dir_and_binary(env, fake_run, tmp_path):
     assert layers["user_settings"]["writable"]
     cx = agent(result, "codex")
     assert cx["version"] == "0.80.0" and not cx["capabilities"]["subagents"]
-    assert cx["dirs"]["skills"]["path"] == str(env.home / ".codex/skills")
-    assert cx["dirs"]["skills"]["alternatives"] == [str(env.home / ".agents/skills")]
+    # ~/.agents/skills is Codex's current user skills root; $CODEX_HOME/skills is the deprecated one.
+    assert cx["dirs"]["skills"]["path"] == str(env.home / ".agents/skills")
+    assert cx["dirs"]["skills"]["alternatives"] == [str(env.home / ".codex/skills")]
     assert {lay["id"] for lay in cx["layers"]} == {"config_toml", "agents_md", "hooks_json"}
     assert len(fake_run.calls) == 2
     # no orbit.db: counts fall back to directory counts
@@ -111,7 +113,8 @@ def test_probe_failures_do_not_raise_and_cache_hits(env, tmp_path):
 
 
 def test_capabilities_table():
-    assert capabilities("claude_code", None) == {**dict.fromkeys(envmod.CAPABILITIES, True), "basis": "assumed"}
+    assert capabilities("claude_code", None) == {**dict.fromkeys(envmod.CAPABILITIES, True), "basis": "assumed",
+                                                 "version_unknown": []}
     old = capabilities("claude_code", "1.0.10")
     assert old["basis"] == "probed" and not old["hooks"] and old["mcp"]
     assert capabilities("codex", None)["plugins"] is False
@@ -124,10 +127,11 @@ def test_installed_counts_and_names(tmp_path):
     make_db(path)
     reads = Reads(path)
     assert installed_counts(reads, "claude_code") == {"skill": 2, "mcp": 0, "hook": 1, "plugin": 0, "rule": 0,
-                                                      "scheduled_task": 0}
+                                                      "scheduled_task": 0, "command": 1, "agent": 1}
     assert installed_counts(reads, "codex")["rule"] == 1
     assert inventory_names(reads, "claude_code", "skill") == {"alpha", "beta"}
-    assert inventory_names(reads) == {"alpha", "beta", "gh", "fmt", "agents"}
+    assert inventory_names(reads, "claude_code", "command") == {"ship"}
+    assert inventory_names(reads) == {"alpha", "beta", "gh", "fmt", "agents", "ship", "helper"}
 
 
 def test_projects_markers_and_counts(env, tmp_path):
@@ -154,8 +158,12 @@ def test_missing_and_read_only_agents(tmp_path):
     cc = agent(result, "claude_code")
     assert not cc["installed"] and cc["detected_via"] == [] and cc["installed_counts"] is None
     hermes = agent(result, "hermes")
-    assert hermes["installed"] and hermes["install_support"] == "read_only"
-    assert hermes["unsupported_reason"] == "agent_not_supported_v1" and not hermes["capabilities"]["skills"]
+    assert hermes["installed"] and hermes["install_support"] == "full" and hermes["unsupported_reason"] is None
+    assert hermes["capabilities"]["skills"] and not hermes["capabilities"]["mcp"]
+    assert hermes["dirs"]["skills"]["path"] == str(empty / ".hermes/skills")
+    kimi = agent(result, "kimi")
+    assert kimi["install_support"] == "unverified" and kimi["unsupported_reason"] == "kimi_unverified_no_source"
+    assert not any(v for k, v in kimi["capabilities"].items() if k != "basis")
     assert run.calls == []
 
 
@@ -219,7 +227,8 @@ def test_empty_inventory_falls_back_to_config_file_counts(env, tmp_path):
     result = environment(env, reads=reads)
     cc = agent(result, "claude_code")
     assert cc["counts_basis"] == "files"
-    assert cc["installed_counts"] == {"skill": 1, "mcp": 2, "hook": 3, "plugin": 1, "rule": 0, "scheduled_task": 0}
+    assert cc["installed_counts"] == {"skill": 1, "mcp": 2, "hook": 3, "plugin": 1, "rule": 0, "scheduled_task": 0,
+                                    "command": 0, "agent": 0}
     cx = agent(result, "codex")
     assert cx["counts_basis"] == "files" and cx["installed_counts"]["mcp"] == 1
     assert agent(result, "hermes")["counts_basis"] == "unknown"
@@ -246,3 +255,24 @@ def test_dir_counts_mean_installed_plugins_and_real_skills(env, tmp_path):
     (plugins / "installed_plugins.json").write_text(
         '{"version": 2, "plugins": {"a@m": [{"scope": "user"}], "b@m": [{}, {}]}}', "utf-8")
     assert agent(environment(env), "claude_code")["dirs"]["plugins"]["count"] == 2
+
+
+def test_new_agents_without_minimum_versions_report_version_unknown():
+    from orbit_backend.install.env import capabilities, version_check
+
+    assert version_check("claude_code", "skills") == "known"
+    assert version_check("claude_code", "rules") == "known"   # baseline for an agent with minimums
+    assert version_check("opencode", "skills") == "unknown"
+    caps = capabilities("opencode", "1.2.3")
+    assert caps["skills"] is True and "skills" in caps["version_unknown"]
+    assert capabilities("codex", "0.80.0")["version_unknown"] == []
+
+
+def test_plan_targets_carry_version_check(env, fake_run, tmp_path):
+    from orbit_backend.install.targets import resolve_targets
+
+    info = environment(env, cache_dir=tmp_path / "cache")
+    spec = {"kind": "skill", "id": "s", "agents": ["claude_code"],
+            "payload": {"name": "s", "files": [{"rel": "SKILL.md", "text": "x"}]}}
+    rows = [t for t in resolve_targets(spec, info, env=env) if t["mappable"]]
+    assert rows and {t["version_check"] for t in rows} == {"known"}

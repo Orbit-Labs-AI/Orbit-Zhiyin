@@ -27,8 +27,21 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "packages/backend/tests/services"))
-from synthetic import write_codex_tree  # noqa: E402  (stdlib-only fixture writer)
+
+
+def _load_synthetic():
+    """Load the stdlib-only synthetic Codex writer by file path, without touching sys.path
+    (it lives with the backend service tests; the frozen app has no copy of it)."""
+    import importlib.util
+
+    path = ROOT / "packages/backend/tests/services/synthetic.py"
+    spec = importlib.util.spec_from_file_location("orbit_synthetic_fixture", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+write_codex_tree = _load_synthetic().write_codex_tree
 
 
 def request(url: str, token: str | None = None, body: dict | None = None) -> tuple[int, dict, bytes]:

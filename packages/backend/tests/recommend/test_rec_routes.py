@@ -487,7 +487,10 @@ def test_catalog_service_from_home_and_generation(env, tmp_path):
     svc = runs.catalog_service(gw)
     assert svc is not None and runs.catalog_service(gw) is svc  # cached on gw
     generation, items = runs._catalog_state(svc)
-    assert isinstance(generation, int) and items == 0  # empty → run uses the seed fallback
+    assert generation == 0 and items == 0  # Resource revision stays INTEGER in the strict run table.
+    with svc.store.connect() as db:
+        db.execute("INSERT INTO catalog_meta(key,value) VALUES('embedding_generation','1')")
+    assert runs._catalog_state(svc) == (0, 0) and runs._embedding_generation(svc) == 1
 
 
 class _FakeCatalogStore:
@@ -538,6 +541,14 @@ def test_repeat_get_reuses_run_with_live_catalog(env, monkeypatch, tmp_path, rep
     client.get("/v1/recommendations?surface=A1")
     assert [i["candidate_id"] for i in client.get("/v1/recommendations").json()["items"]] == ids
     assert len(client.get("/v1/recommendations/runs").json()["runs"]) == 1
+    with gw.catalog.store.connect() as db:
+        db.execute("INSERT INTO catalog_meta VALUES ('embedding_generation','1')")
+        db.commit()
+    refreshed = runs.run(gw, {})
+    assert refreshed["run_id"] != first["run_id"] and not refreshed["reused"]
+    assert runs.run(gw, {})["reused"]
+    with gw.appdb.read() as conn:
+        assert store.get_run(conn, refreshed["run_id"])["catalog_generation"] == 7
 
 
 @pytest.mark.parametrize(("surface", "expected"), [("A7", 12), ("A1", 3), ("lite", 3), ("menubar", 1),

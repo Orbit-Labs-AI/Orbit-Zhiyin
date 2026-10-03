@@ -7,7 +7,7 @@ from .errors import AIUnavailable
 from .isolation import is_orbit_ai_session
 from .service import AIService, service
 
-__all__ = ["AIService", "AIUnavailable", "auto_facet_new", "is_orbit_ai_session", "service"]
+__all__ = ["AIService", "AIUnavailable", "auto_facet_new", "auto_overview", "is_orbit_ai_session", "service"]
 
 
 def auto_facet_new(gw, limit: int = 20) -> dict:
@@ -15,3 +15,10 @@ def auto_facet_new(gw, limit: int = 20) -> dict:
     from .auto import auto_facet_new as run
 
     return run(gw, limit)
+
+
+def auto_overview(gw) -> dict:
+    """Import hook: queue the default AI overview when the user enabled it."""
+    from .auto import auto_overview as run
+
+    return run(gw)

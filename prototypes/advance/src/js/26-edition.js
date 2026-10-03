@@ -52,7 +52,7 @@ function renderSideLite() {
   $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
     sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
     sideGroup('action', '行动', nav(3, '', recN || '')) +
-    sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
+    sideGroup('agents', 'Agents', sideAgents(), sideAgentsRight()) + '</div>' + sideFoot();
 }
 // edSet(ed, route?): route = the page to land on in the new edition (a menu / notification route). The swap runs after the
 // thumb animation, so the target is passed in instead of calling go(route) next to edSet (that go would run first, while
@@ -72,6 +72,7 @@ function edSet(ed, route) {
       let vt = null;
       try { vt = document.startViewTransition(swap); } catch (e) { swap(); }
       const done = () => win.classList.remove('ed-vt');
+      if (vt && vt.ready) vt.ready.catch(() => {});   // 被下一次切换打断时 ready 会拒绝（Transition was skipped），不算页面错误
       if (vt && vt.finished) vt.finished.then(done, done); else done();
     } else {
       swap();

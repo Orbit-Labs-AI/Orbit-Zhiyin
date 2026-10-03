@@ -212,6 +212,31 @@ def effect_status(tracking: dict, rows: list[dict], now: int) -> str:
     return "positive" if better else "neutral"
 
 
+def _covers_tracking(tracking: dict, inputs: dict, now: int) -> bool:
+    """A page selection must contain the tracking population and its elapsed windows."""
+    scope = inputs.get("scope") or {}
+    target = _json(tracking.get("scope_filter"), {}).get("project_id")
+    projects = scope.get("project_ids")
+    if projects is not None and (target is None or target not in projects):
+        return False
+    if any(scope.get(key) is not None for key in (
+            "source_ids", "agent_ids", "model_ids", "effort_raw",
+            "root_session_uids", "legacy_project_ids")):
+        return False
+    if scope.get("scene") or scope.get("excluded_session_uids") or scope.get("include_children") is False:
+        return False
+    start, end = scope.get("from_ts"), scope.get("until_ts")
+    if start is not None and start > tracking["baseline_from"]:
+        return False
+    elapsed = [tracking["baseline_to"] + days * DAY
+               for days in (tracking["follow_days"], tracking["extend_days"])
+               if tracking["baseline_to"] + days * DAY <= now]
+    if end is not None and elapsed and end < max(elapsed):
+        return False
+    rows = (inputs.get("facts") or {}).get("session_days") or []
+    return len(rows) >= (inputs.get("sessions") or {}).get("main", len(rows))
+
+
 def refresh(conn, inputs: dict, now: int, *, horizon_days: int = 35) -> int:
     """Recompute outcomes of recent trackings whose baseline lies inside ``inputs``."""
     sessions = inputs.get("sessions") or {}
@@ -221,6 +246,8 @@ def refresh(conn, inputs: dict, now: int, *, horizon_days: int = 35) -> int:
     for row in conn.execute("SELECT * FROM tracking WHERE reverted_at IS NULL AND "
                             "registered_at >= ?", (now - horizon_days * DAY,)).fetchall():
         tracking = dict(row)
+        if not _covers_tracking(tracking, inputs, now):
+            continue  # Preserve the last full evaluation; never publish a partial population.
         first = sessions.get("first_ts")
         if first is None or first > tracking["baseline_from"]:
             if now >= tracking["baseline_to"] + tracking["follow_days"] * DAY:
@@ -230,7 +257,7 @@ def refresh(conn, inputs: dict, now: int, *, horizon_days: int = 35) -> int:
                              "WHERE tracking_id=?",
                              (store.dumps(scope_filter), tracking["tracking_id"]))
             continue
-        rows = compute(tracking, session_days, min(now, until) if until else now)
+        rows = compute(tracking, session_days, min(now, until) if until is not None else now)
         for r in rows:
             conn.execute("INSERT OR REPLACE INTO rec_outcome VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                          (tracking["install_id"], r["window"], r["metric"], r["layer"],

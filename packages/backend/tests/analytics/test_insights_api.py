@@ -154,3 +154,111 @@ def test_targets_match_the_data_capability_matrix_and_analyzer_accepts_them():
         assert "excluded_resources" in result
     with pytest.raises(ValueError):
         recommend_bottlenecks(analysis, target_agent="cursor")
+
+
+@pytest.fixture
+def legacy_client(tmp_path, monkeypatch):
+    from orbit_backend.api import create_app
+
+    data = bundle(corpus())
+
+    class FixtureStore:
+        path = tmp_path / "fixture.db"
+
+        def analysis_bundle(self, scope):
+            return data
+
+    monkeypatch.setattr("orbit_backend.api.routes.Store", lambda _: FixtureStore())
+    return TestClient(create_app(db=tmp_path / "unused.db"))
+
+
+@pytest.mark.parametrize("agent", ["hermes", "kimi", "pi"])
+def test_legacy_routes_accept_the_same_target_agents_as_the_gateway(legacy_client, agent):
+    view = legacy_client.get("/v1/analytics/presentation", params={"target_agent": agent})
+    assert view.status_code == 200, view.text
+    assert view.json()["resources"]["for_you"]["target_agent"] == agent
+    recommendations = legacy_client.get("/v1/analytics/recommendations", params={"target_agent": agent})
+    assert recommendations.status_code == 200, recommendations.text
+    assert recommendations.json()["bottleneck_recommendations"]["target_agent"] == agent
+
+
+@pytest.mark.parametrize("route", ["presentation", "recommendations"])
+def test_legacy_routes_reject_unknown_target_agent_like_the_gateway(legacy_client, route):
+    response = legacy_client.get(f"/v1/analytics/{route}", params={"target_agent": "cursor"})
+    assert response.status_code == 422
+    assert "target_agent" in response.json()["detail"]
+
+
+def test_legacy_presentation_window_uses_the_gateway_day_anchor(legacy_client, monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    # 2026-03-10 15:30 in Shanghai: a 7d window ends at the next local midnight and
+    # starts 7 local days earlier (2026-03-04 00:00), whatever the minute of the request.
+    zone = ZoneInfo("Asia/Shanghai")
+    now = int(datetime(2026, 3, 10, 15, 30, tzinfo=zone).timestamp() * 1000)
+    monkeypatch.setattr("orbit_backend.services.routes_analytics.now_ms", lambda: now)
+    body = legacy_client.get("/v1/analytics/presentation",
+                             params={"window": "7d", "display_timezone": "Asia/Shanghai"}).json()
+    assert body["scope"]["until_ts"] == int(datetime(2026, 3, 11, tzinfo=zone).timestamp() * 1000)
+    assert body["scope"]["from_ts"] == int(datetime(2026, 3, 4, tzinfo=zone).timestamp() * 1000)
+
+
+def _app_db(path, rows):
+    import json
+    import sqlite3
+
+    db = sqlite3.connect(path)
+    db.execute("CREATE TABLE ai_facet (session_uid TEXT, prompt_version TEXT, schema_version TEXT, "
+               "content_hash TEXT, model_id TEXT, status TEXT, json TEXT, job_id TEXT, "
+               "created_at INTEGER)")
+    db.executemany("INSERT INTO ai_facet VALUES (?, 'p', 's', 'h', NULL, ?, ?, NULL, ?)",
+                   [(uid, status, json.dumps(body), at) for uid, status, body, at in rows])
+    db.commit()
+    db.close()
+
+
+def test_facet_outcomes_reads_the_newest_ok_row(tmp_path):
+    from orbit_backend.analytics.signals.facets import facet_outcomes
+
+    path = tmp_path / "app.db"
+    _app_db(path, [("c0", "ok", {"outcome": "partially_achieved"}, 1),
+                   ("c0", "ok", {"outcome": "fully_achieved"}, 2),
+                   ("c0", "failed", {"outcome": "not_achieved"}, 3),
+                   ("r0", "ok", {"goal": "no outcome"}, 1)])
+    assert facet_outcomes(path, ["c0", "r0", "zz"]) == {"c0": "fully_achieved"}
+    assert facet_outcomes(tmp_path / "missing.db", ["c0"]) == {}
+    empty = tmp_path / "empty.db"
+    empty.touch()
+    assert facet_outcomes(empty, ["c0"]) == {}  # no ai_facet table yet
+
+
+def test_session_outcome_uses_the_ai_facet_when_rules_have_no_evidence():
+    """The facet step of the outcome synthesis is live once the router gets facets."""
+    quiet = Session("q0", project="p2")  # no feedback, no verification: no rule evidence
+    quiet.user("请解释这个函数")
+    quiet.reply()
+    data = bundle([*corpus(), quiet])
+    asked = []
+
+    def get_result(scope):
+        context = AnalysisContext.select(data, scope)
+        return context, analyze_context(context, False, with_recommendations=False)
+
+    def get_facets(uids):
+        asked.append(sorted(uids))
+        return {"q0": "fully_achieved", "c0": "fully_achieved"}
+
+    without = FastAPI()
+    without.include_router(build_router(get_result))
+    plain = TestClient(without).get("/v1/analytics/sessions/q0/facts").json()["facts"]
+    assert plain["outcome"] == "unknown"
+    app = FastAPI()
+    app.include_router(build_router(get_result, get_facets=get_facets))
+    client = TestClient(app)
+    facts = client.get("/v1/analytics/sessions/q0/facts").json()["facts"]
+    assert facts["outcome"] == "completed" and facts["outcome_basis"] == "facet"
+    assert asked == [["c0", "q0", "r0", "r1", "r2"]]
+    # Explicit user feedback still outranks the facet.
+    assert client.get("/v1/analytics/sessions/c0/facts").json()["facts"]["outcome_basis"] \
+        == "explicit_feedback"

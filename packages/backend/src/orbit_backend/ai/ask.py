@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 
+from ..sessionops.exclusion import ExclusionsUnavailable
 from . import queries
 from .errors import AIError
 from .pack import features_profile
@@ -75,6 +76,8 @@ class _Q:
                 params.setdefault("scope", scope)
         try:
             r = queries.run(api, params, reads=self.reads, appdb=self.appdb, home=self.home)
+        except ExclusionsUnavailable:
+            raise  # fail-closed: an empty answer would read as "0 sessions"
         except Exception:  # noqa: BLE001 - no orbit.db yet: answer degrades, never 500
             log.debug("ask query %s failed", api, exc_info=True)
             return []
@@ -85,6 +88,8 @@ class _Q:
         """Full-inventory aggregates: {"totals": {type: {count, unused}}, "unused": [...]}."""
         try:
             r = queries.run("inventory", {"limit": 20}, reads=self.reads, appdb=self.appdb, home=self.home)
+        except ExclusionsUnavailable:
+            raise  # fail-closed: an empty answer would read as "0 sessions"
         except Exception:  # noqa: BLE001 - no orbit.db yet
             log.debug("ask inventory failed", exc_info=True)
             return {"totals": {}, "unused": [], "hooks": []}
@@ -517,16 +522,19 @@ _ANSWERS = {
 
 
 def opening_suggestion(reads, appdb=None, scope=None, home=None) -> dict | None:
-    """POP-11 idle-state hint: one sentence for the top recent problem, or None."""
+    """POP-11 idle-state hint: one sentence for the top recent problem, or None.
+
+    A rule template (no model call); ``basis: "rule"`` lets the panel label it as such instead of AI.
+    """
     q = _Q(reads, appdb, scope or {"days": 7}, home)
     problems = q("problems", limit=1)
     if problems:
         p = problems[0]
         rule = FRIC_RULE.get(p.get("type") or "")
         text = f"最近「{p.get('key')}」出现得最多" + (f"，可以试试：{rule}" if rule else "，可以交给生成工坊写一条规则。")
-        return {"text": text, "refs": q.refs[:3], "next": "studio"}
+        return {"text": text, "refs": q.refs[:3], "next": "studio", "basis": "rule"}
     m = q.metrics()
     if (m.get("corrections") or {}).get("value"):
         return {"text": f"最近有 {m['corrections']['value']} 条纠偏消息，开场时先写清完成条件。",
-                "refs": q.refs[:3], "next": "sessions"}
+                "refs": q.refs[:3], "next": "sessions", "basis": "rule"}
     return None

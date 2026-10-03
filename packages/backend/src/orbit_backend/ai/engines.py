@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import isolation, prices
+from .errors import Cancelled
 
 STDOUT_LIMIT = 4 * 1024 * 1024
 KILL_GRACE_S = 1.5
@@ -438,9 +439,15 @@ class ApiKeyEngine:
         return body
 
     def _post(self, request: urllib.request.Request, req: EngineRequest) -> dict:
+        deadline = time.monotonic() + req.timeout_s
         for attempt in range(API_RETRIES + 1):
+            if req.cancel.is_set():
+                raise Cancelled()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("API call deadline exceeded")
             try:
-                with urllib.request.urlopen(request, timeout=req.timeout_s) as response:
+                with urllib.request.urlopen(request, timeout=remaining) as response:
                     return json.loads(response.read())
             except urllib.error.HTTPError as error:
                 if error.code not in RETRY_STATUS or attempt == API_RETRIES or req.cancel.is_set():
@@ -449,7 +456,12 @@ class ApiKeyEngine:
                     wait = float(error.headers.get("retry-after") or 0) if error.headers else 0.0
                 except ValueError:
                     wait = 0.0
-                _sleep(min(RETRY_MAX_S, max(wait, RETRY_BASE_S * 2 ** attempt)))
+                delay = min(RETRY_MAX_S, max(wait, RETRY_BASE_S * 2 ** attempt),
+                            max(0.0, deadline - time.monotonic()))
+                if _sleep is time.sleep:
+                    req.cancel.wait(delay)
+                else:
+                    _sleep(delay)  # Test clock; cancellation is checked before every retry.
         raise AssertionError("unreachable")
 
     def call(self, req: EngineRequest) -> EngineResult:
@@ -469,6 +481,9 @@ class ApiKeyEngine:
             return result
         try:
             data = self._post(request, req)
+        except Cancelled:
+            result.error = "cancelled"
+            return result
         except urllib.error.HTTPError as error:
             result.error = "not_logged_in" if error.code in (401, 403) else "engine_error"
             result.detail = f"http {error.code}"
@@ -481,9 +496,6 @@ class ApiKeyEngine:
             return result
         finally:
             result.latency_ms = int((time.monotonic() - started) * 1000)
-        if req.cancel.is_set():
-            result.error = "cancelled"
-            return result
         usage = data.get("usage") or {}
         result.model_id = data.get("model") or model
         result.usage = {"input": usage.get("input_tokens") or 0,
@@ -494,6 +506,9 @@ class ApiKeyEngine:
         if cost is not None:
             result.cost_usd, result.cost_source = cost, "price_table"
         stop = data.get("stop_reason")
+        if req.cancel.is_set():
+            result.error = "cancelled"
+            return result
         if stop in ("max_tokens", "refusal"):
             result.error = "truncated" if stop == "max_tokens" else "refused"
             details = data.get("stop_details") or {}

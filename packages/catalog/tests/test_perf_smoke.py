@@ -3,12 +3,15 @@
 import statistics
 import time
 
+import pytest
+
 from orbit_catalog import query
 from orbit_catalog.contracts import MatchRequest, Page, Record, Resource, SourceSpec
 from orbit_catalog.search import search
 from orbit_catalog.store import CatalogStore
 
 WORDS = "retry flaky pytest debug cache build deploy docker review prompt token latency index schema agent hook".split()
+pytestmark = pytest.mark.serial  # Real wall-clock thresholds must not compete with xdist workers.
 
 
 def test_lexical_and_list_latency_smoke(tmp_path):

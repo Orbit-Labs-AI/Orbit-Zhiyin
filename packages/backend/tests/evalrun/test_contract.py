@@ -25,7 +25,7 @@ def test_registry_discovers_modules_lazily(monkeypatch):
     monkeypatch.setattr(registry, "ids", lambda: ["fake_one"])
     assert registry.get("fake_one") is module
     assert registry.list_suites() == [{"id": "fake_one", "title": "Fake", "ev": ["EV-12"],
-                                       "description": "Fake suite."}]
+                                       "kind": "unclassified", "description": "Fake suite."}]
     with pytest.raises(ValueError):
         registry.get("nope")
 

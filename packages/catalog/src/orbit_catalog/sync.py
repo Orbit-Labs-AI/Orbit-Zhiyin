@@ -18,7 +18,7 @@ from .sources import connector
 
 MODEL_KINDS = {"models_dev", "litellm"}
 # Long paginated scans publish every N pages so a late failure keeps what was already fetched.
-PARTIAL_DEFAULTS = {"mcp": (10, 120)}  # kind -> (publish_every_pages, max_pages per sync call)
+PARTIAL_DEFAULTS = {"mcp": (10, 120), "bulk": (2, 10000)}  # kind -> (publish_every_pages, max_pages per sync call)
 # Wall-clock budget per source and sync call; the run pauses at its checkpoint and resumes on
 # the next call, so one slow registry can neither hold the job for half an hour nor starve the
 # late benchmark phase. A source's ``config.max_seconds`` overrides it.
@@ -34,7 +34,7 @@ class CatalogSync:
         self._models: set[str] = set()
 
     def sync(self, source_ids: list[str] | None = None, *, force=False, max_pages=10000, cancelled=lambda: False,
-             concurrency: int = 3):
+             concurrency: int = 3, progress=None):
         if max_pages < 1:
             raise ValueError("max_pages_must_be_positive")
         sources = self.store.sources()
@@ -56,7 +56,7 @@ class CatalogSync:
 
         def run(index):
             started = time.perf_counter()
-            result = self._sync_one(selected[index], max_pages, cancelled)
+            result = self._sync_one(selected[index], max_pages, cancelled, progress)
             results[index] = {**result, "duration_ms": round((time.perf_counter() - started) * 1000, 1)}
 
         self._models = set()
@@ -67,7 +67,7 @@ class CatalogSync:
                 list(pool.map(run, phase))
         return [r for r in results if r is not None]
 
-    def _sync_one(self, state: dict, max_pages: int, cancelled) -> dict:
+    def _sync_one(self, state: dict, max_pages: int, cancelled, progress=None) -> dict:
         with self._db:
             run = self.store.begin_run(state["source_id"])
         pages = 0
@@ -75,11 +75,13 @@ class CatalogSync:
             if run["status"] == "ready":
                 with self._db:
                     return self.store.publish(run["run_id"])
+            spec = SourceSpec.model_validate(state["spec"])
             known_resources = getattr(self.store, "known_resources", None)
-            if known_resources:
+            # Bulk byte-offset checkpoints never need old bodies. Preserve the
+            # existing adapter hook without loading a 100k corpus just to resume it.
+            if known_resources and spec.kind != "bulk":
                 with self._db:
                     state = {**state, "known": known_resources(state["source_id"]) or {}}
-            spec = SourceSpec.model_validate(state["spec"])
             if spec.kind in LATE_KINDS:
                 state = {**state, "known_models": set(self._models)}
             seconds = float(spec.config.get("max_seconds")
@@ -113,10 +115,17 @@ class CatalogSync:
                 pages += 1
                 if page.complete:
                     with self._db:
-                        return self.store.publish(run["run_id"])
+                        result = self.store.publish(run["run_id"])
+                    if progress:
+                        progress({"source_id": spec.source_id, "stage": "completed", "pages": pages,
+                                  "seen": result.get("seen", 0), "changed": result.get("changed", 0)})
+                    return result
                 if partial and fetched % every == 0:
                     with self._db:
-                        partial(run["run_id"])
+                        published = partial(run["run_id"])
+                    if progress:
+                        progress({"source_id": spec.source_id, "stage": "published", "pages": pages,
+                                  "seen": published["seen"], "changed": published["changed"]})
             else:
                 stopped = "page_budget"
             # Pages staged so far stay visible while the run is paused at its checkpoint.

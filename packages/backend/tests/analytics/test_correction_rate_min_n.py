@@ -7,9 +7,16 @@ from orbit_backend.analytics.service import analyze_bundle
 def build(texts):
     cov = {k: {"status": "available"} for k in
            ("events", "sessions", "tool_calls", "turns", "projects", "model_calls")}
-    events = [{"event_uid": f"u{i}", "session_uid": "s", "seq": i, "ts": 100 + i,
-               "kind": "message.user", "turn_uid": f"t{i}", "actor": "human", "text": text,
-               "attrs": {"origin": "human"}} for i, text in enumerate(texts)]
+    # An assistant reply precedes each message: a correction only counts once the agent
+    # has responded (rules.countable_messages, as in signals).
+    events = []
+    for i, text in enumerate(texts):
+        events.append({"event_uid": f"a{i}", "session_uid": "s", "seq": 2 * i, "ts": 100 + 2 * i,
+                       "kind": "message.assistant", "turn_uid": f"t{i}", "actor": "assistant",
+                       "text": "好的", "attrs": {}})
+        events.append({"event_uid": f"u{i}", "session_uid": "s", "seq": 2 * i + 1,
+                       "ts": 101 + 2 * i, "kind": "message.user", "turn_uid": f"t{i}",
+                       "actor": "human", "text": text, "attrs": {"origin": "human"}})
     return AnalysisInputBundle(
         [{"session_uid": "s", "kind": "main", "root_uid": "s", "project_id": "p", "started_at": 0}],
         events, [], [], cov, projects=[{"project_id": "p", "name": "fixture"}])

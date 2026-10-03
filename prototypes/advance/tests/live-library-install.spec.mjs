@@ -53,7 +53,12 @@ async function gateway(page, opt = {}) {
       if (p.startsWith('/v1/catalog/items/')) return json(LI('catalog-item'));
       if (p === '/v1/install/environment') return json(LI('install-environment'));
       if (p === '/v1/install/plans' && m === 'POST') return json(LI('install-plan'), 201);
-      if (p === '/v1/install/plans/plan-fx-1/preview') return json(m === 'GET' ? LI('install-preview') : (body.disabled_targets || []).length ? LI(state.applies ? 'install-preview-refreshed' : 'install-preview-narrowed') : LI('install-preview'));
+      if (p === '/v1/install/plans/plan-fx-1/preview') {
+        const pv = m === 'GET' ? LI('install-preview') : (body.disabled_targets || []).length ? LI(state.applies ? 'install-preview-refreshed' : 'install-preview-narrowed') : LI('install-preview');
+        // opt.versionUnknown: those agents carry version_check 'unknown' (no checked minimum version)
+        for (const t of pv.targets) if ((opt.versionUnknown || []).includes(t.agent)) t.version_check = 'unknown';
+        return json(pv);
+      }
       if (p === '/v1/install/apply') { state.applies++; return state.applies === 1 ? json(LI('install-apply-stale'), 409) : json(LI('install-apply')); }
       if (p === '/v1/install/inst-fx-1/revert') return json(LI('install-revert'));
       if (p === '/v1/install/state') return json(LI('install-state'));
@@ -138,6 +143,7 @@ test('live install: preview, target selection, preview_stale re-confirm, apply, 
   await page.waitForTimeout(450);
   await page.locator('#modal [data-act="instNext"]').click();
   await expect(page.locator('#modal [data-tl="inst-confirm"]')).toContainText('~/.claude/settings.json');
+  await expect(page.locator('#modal [data-tl="inst-version-unknown"]')).toHaveCount(0);   // every target is version_check 'known'
   await page.waitForTimeout(450);
   await page.locator('#modal [data-act="instDo"]').click();
   // 409 preview_stale: back to the diff with a notice, nothing written
@@ -158,6 +164,25 @@ test('live install: preview, target selection, preview_stale re-confirm, apply, 
   await page.locator('[data-act="libInstalled"]').click();
   await expect(page.locator('#modal [data-tl="installed"]')).toContainText('release-check');
   await expect(page.locator('#modal [data-tl="ledger"] .tl-ev')).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test('live install: a target without a checked minimum version is not shown as compatible', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page, allow404);
+  await gateway(page, { versionUnknown: ['codex'] });
+  await page.goto('http://orbit.test/app#token=fx-token');
+  await page.addStyleTag({ content: '#notes{display:none!important}' });
+  await page.evaluate(() => go('library'));
+  await page.locator('[data-tl-item="fx:hook/retry-guard"] [data-act="getLib"]').first().click();
+  const pv = page.locator('#modal [data-tl="inst-preview"]');
+  await expect(pv.locator('[data-tl="inst-target"]')).toHaveCount(2);
+  await pv.locator('[data-chg="liTarget"][data-i="1"]').check();   // turn the Codex target on
+  await expect(pv.locator('[data-idx="1"] .code')).toBeVisible();
+  await page.waitForTimeout(450);
+  await page.locator('#modal [data-act="instNext"]').click();
+  await expect(page.locator('#modal [data-tl="inst-version-unknown"]')).toContainText('版本兼容性未知');
+  await expect(page.locator('#modal [data-tl="inst-version-unknown"]')).toContainText('Codex');
   expect(errors).toEqual([]);
 });
 

@@ -12,6 +12,8 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from orbit_data.inventory.adapters import SUPPORTED as INVENTORY_SUPPORTED
+
 from ..ai.pack import VERIFY_RE
 from ..analytics.features import LANG
 from ..analytics.outcome_subjective.extraction import classify_feedback
@@ -23,10 +25,10 @@ from .a4a6_common import ManyQuery
 from .a4a6_sentiment import (
     FAILED,
     _appdb_rows,
-    corrections,
     fetch_calls,
     fetch_humans,
     fetch_sessions,
+    message_corrections,
 )
 
 HOUR_MS = 3_600_000
@@ -40,9 +42,11 @@ COMPARE_MIN_N = 5
 SCATTER_NOTE = "相关不等于因果"
 WORKFLOW_MIN_SUPPORT = 3
 WORKFLOW_LENGTHS = (3, 4, 5)
-COVERAGE_TYPES = ("rule", "hook", "skill", "mcp", "subagent")
+COVERAGE_TYPES = ("rule", "hook", "skill", "mcp", "subagent", "command")
 CAPABILITY_OF = {"rule": "rules", "hook": "hooks", "skill": "skills", "mcp": "mcp",
-                 "subagent": "subagents"}
+                 "subagent": "subagents", "command": "commands"}
+# Inventory type per coverage row: subagent definitions are inventory type "agent" (schema 15).
+INVENTORY_TYPE = {"subagent": "agent"}
 METRICS = (
     ("avg_session_minutes", "平均会话分钟", "mean"),
     ("messages_per_session", "每会话消息", "mean"),
@@ -121,7 +125,7 @@ def load(conn, scope) -> dict:
         s = sessions[m["session_uid"]]
         s["msgs"] += 1
         s["human_events"].append(m)
-        if corrections(m["raw"]):
+        if message_corrections(m):
             s["corr"] += 1
         fb = classify_feedback(m["raw"])
         if fb:
@@ -185,8 +189,70 @@ def _persona(pid, persona_lookup) -> dict:
     if not found:
         return {"code": None, "status": "persona_pending", "n_tasks": None,
                 "reason": "persona_pending"}
-    return {"code": found.get("code"), "status": found.get("status", "available"),
-            "n_tasks": found.get("n_tasks")}
+    out = {"code": found.get("code"), "status": found.get("status", "available"),
+           "n_tasks": found.get("n_tasks")}
+    # The axis values the prototype's project persona reads (91-live-persona lvProjPersona).
+    out.update({k: found[k] for k in ("n", "v", "zh", "en", "conf", "basis", "basis_days")
+                if k in found})
+    return out
+
+
+def snapshot_covers(basis_days: int | None, since: int | None, now_ms: int | None = None) -> bool:
+    """Whether a ``basis_days`` facts snapshot (0 = all time) holds every session of a request
+    starting at ``since`` (``None`` = all time). Compared in whole days, so a local-midnight
+    request start matches the snapshot's same-length UTC window."""
+    if basis_days is None:
+        return False
+    if basis_days == 0:
+        return True
+    if since is None:
+        return False
+    import math
+    import time
+
+    now_ms = int(time.time() * 1000) if now_ms is None else now_ms
+    return math.ceil(max(now_ms - since, 0) / 86_400_000) <= basis_days
+
+
+def facts_persona_lookup(body: dict | None, *, agents=None, since: int | None = None,
+                         until: int | None = None, basis_days: int | None = 0):
+    """Per-project persona from the cached ``uiview_facts`` rows (the same rows and the same
+    ``uiview.persona.persona`` as A2), limited to the request's agents and ``[since, until)``
+    by each session's start. ``None`` (shown as pending) while no fact snapshot exists or the
+    newest one covers a narrower window than the request (a 7-day snapshot must not stand in
+    for a 90-day or all-time table). ``basis_days`` is the snapshot's window (0 = all time)."""
+    if body is None or not snapshot_covers(basis_days, since):
+        return None
+    from datetime import date
+
+    from . import derive, persona
+
+    aux = body.get("aux") or {}
+    wanted = set(agents) if agents else None
+
+    def started(row):
+        return (aux.get(row["id"]) or {}).get("t0")
+
+    rows = [r for r in derive.prepare(body.get("rows") or [], date.today())
+            if not r.get("live") and (wanted is None or r.get("a") in wanted)
+            and (since is None or (started(r) is not None and started(r) >= since))
+            and (until is None or (started(r) is not None and started(r) < until))]
+    by_project: dict = defaultdict(list)
+    for r in rows:
+        by_project[r.get("p")].append(r)
+
+    def find(pid):
+        mine = by_project.get(pid) or []
+        if not mine:
+            return {"code": None, "status": "insufficient_sample", "n_tasks": 0, "n": 0}
+        p = persona.persona(mine, aux)
+        if not p.get("ok"):
+            return {"code": None, "status": "insufficient_sample", "n_tasks": p.get("n"),
+                    "n": p.get("n")}
+        return {"code": p["code"], "status": "available", "n_tasks": p["n"], "n": p["n"],
+                "v": p["v"], "zh": p["zh"], "en": p["en"], "conf": p["conf"],
+                "basis": "uiview_facts", "basis_days": basis_days}
+    return find
 
 
 def project_row(pid, rows, project, persona_lookup) -> dict:
@@ -371,22 +437,27 @@ def coverage(items, pid, agents) -> list[dict]:
     for kind in COVERAGE_TYPES:
         cap = CAPABILITY_OF[kind]
         agents_read = sorted(a for a in agents if capabilities(a, None).get(cap))
-        if kind == "subagent" or items is None:
-            out.append({"type": kind, "configured": None, "detail": "未扫描",
-                        "agents_read": agents_read})
+        inv_type = INVENTORY_TYPE.get(kind, kind)
+        # Agents that read this type but whose inventory adapter does not scan it (e.g. Pi
+        # prompts): their cell is 未扫描, never 未配置.
+        unscanned = [a for a in agents_read if inv_type not in INVENTORY_SUPPORTED.get(a, ())]
+        if items is None:
+            out.append({"type": kind, "inventory_type": inv_type, "configured": None,
+                        "detail": "未扫描", "agents_read": agents_read, "agents_unscanned": agents_read})
             continue
-        mine = [i for i in items if i.get("type") == kind]
+        # Disabled entries (e.g. Codex prompts it no longer loads) are not configuration.
+        mine = [i for i in items if i.get("type") == inv_type and i.get("enabled") != 0]
         local = sum(1 for i in mine if i.get("scope") == "project" and i.get("project_id") == pid)
         glob = sum(1 for i in mine if i.get("scope") != "project")
-        out.append({"type": kind, "configured": bool(local or glob),
+        out.append({"type": kind, "inventory_type": inv_type, "configured": bool(local or glob),
                     "detail": f"项目 {local} · 全局 {glob}", "project": local, "global": glob,
-                    "agents_read": agents_read})
+                    "agents_read": agents_read, "agents_unscanned": unscanned})
     return out
 
 
 def evidence_preview(rows, calls, limit=5) -> list[dict]:
     """Same shape as ``ai.pack._project_evidence`` fallback: corrections, then failing calls."""
-    humans = sorted((m for s in rows for m in s["human_events"] if corrections(m["raw"])),
+    humans = sorted((m for s in rows for m in s["human_events"] if message_corrections(m)),
                     key=lambda m: (m["ts"] or 0), reverse=True)[:3]
     out = [{"event_uid": m["event_uid"], "session_uid": m["session_uid"], "kind": "human",
             "text": redact(m["text"])[:300]} for m in humans]
@@ -478,8 +549,20 @@ def register(api, gw) -> None:
 
     range_dependency = Depends(common.range_scope)
 
-    def lookup():
-        return getattr(gw, "persona_lookup", None)
+    def lookup(agents=None, since=None, until=None, tz=None):
+        custom = getattr(gw, "persona_lookup", None)
+        if custom is not None:
+            return custom
+        from . import fetch
+
+        try:
+            # The client's timezone keys the snapshot (fetch falls back to the MRU timezone
+            # the prewarm uses, then UTC); a UTC-only lookup left non-UTC users pending.
+            body, days = fetch.latest_snapshot(gw, tz)
+        except Exception:  # noqa: BLE001 - the persona column is optional, never break the page
+            return None
+        return facts_persona_lookup(body, agents=agents, since=since, until=until,
+                                    basis_days=days)
 
     @api.get("/v1/uiview/projects")
     def projects(project_id: ManyQuery = None, agent: ManyQuery = None, agents: str | None = None,
@@ -497,18 +580,20 @@ def register(api, gw) -> None:
         scope = {**scope_of(project_id, common.agent_list(agent, agents), since, until),
                  **ranges, "session_uids": ids}
         with gw.reads.read(empty=True) as conn:
-            body = build_projects(conn, scope, {"group": group}, persona_lookup=lookup())
+            body = build_projects(conn, scope, {"group": group},
+                                  persona_lookup=lookup(scope["agent_ids"], since, until, tz))
             return mark_empty(body) if gw.reads.is_empty(conn) else body
 
     @api.get("/v1/uiview/projects/{project_id}")
     def project(project_id: str, agent: ManyQuery = None, since: int | None = None,
-                until: int | None = None, compare: str = "overall",
+                until: int | None = None, compare: str = "overall", tz: str | None = None,
                 ranges: dict = range_dependency):
         scope = {**scope_of(None, agent, since, until), **ranges}
         items = _linked_items([project_id])
         with gw.reads.read(empty=True) as conn:  # nothing imported yet: 404, not 503
             body = build_project(conn, scope, project_id, {"compare": compare},
-                                 inventory_items=items, appdb=gw.appdb, persona_lookup=lookup())
+                                 inventory_items=items, appdb=gw.appdb,
+                                 persona_lookup=lookup(agent, since, until, tz))
         if body is None:
             raise ApiError(404, "not_found", f"项目 {project_id} 不存在")
         return body

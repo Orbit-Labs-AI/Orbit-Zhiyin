@@ -7,6 +7,9 @@ Two outputs share one seeded plan:
 * ``generate_bundle(sessions, seed)`` returns an ``analysis-input-v1`` dict shaped like the
   canonical reader (``orbit_data.analysis_input.read_analysis``) output, including
   ``statistical_members`` so ``analyze_bundle`` takes the canonical selection path.
+* ``generate_bundle_with_truth(sessions, seed)`` returns the same bundle plus ``truth``: the
+  quantities the generator injected (counted at injection time, not derived by analysis), so
+  tests can compare analysis results against an independent oracle.
 * ``build_canonical_home(home, sessions, seed)`` writes fictional Codex-format JSONL under
   three source roots and imports them through the public ingest path into ``orbit.db``,
   so ``read_analysis`` can be measured on a real canonical database.
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 import tempfile
 from pathlib import Path
@@ -118,6 +122,21 @@ class _Session:
 
 def generate_bundle(sessions: int = 200, seed: int = 7) -> dict:
     """Return a canonical-shaped analysis-input-v1 dict; identical for equal arguments."""
+    return generate_bundle_with_truth(sessions, seed)[0]
+
+
+TRUTH_KEYS = (
+    "sessions", "main_sessions", "subagent_sessions", "projects", "turns", "interrupted_turns",
+    "human_messages", "subagent_prompts", "request_messages", "correction_messages", "preference_messages",
+    "feedback_messages", "tool_calls", "failed_tool_calls", "model_calls", "total_tokens",
+)
+
+
+def generate_bundle_with_truth(sessions: int = 200, seed: int = 7) -> tuple[dict, dict]:
+    """``(bundle, truth)``. ``total_tokens`` follows the analysis token semantics: uncached
+    input + cache read + cache write + output (reasoning is already inside output)."""
+    truth = dict.fromkeys(TRUTH_KEYS, 0)
+    used_projects: set[str] = set()
     rng = random.Random(seed)
     bundle = {
         "input_contract": "analysis-input-v1",
@@ -144,8 +163,13 @@ def generate_bundle(sessions: int = 200, seed: int = 7) -> dict:
         "tool_calls": [],
         "model_calls": [],
     }
+    bundle["_truth"] = truth
     for index in range(sessions):
         _main_session(bundle, rng, index)
+        used_projects.add(bundle["sessions"][-1 if index % 5 else -2]["project_id"])
+    del bundle["_truth"]
+    truth["projects"] = len(used_projects)
+    truth["sessions"] = truth["main_sessions"] + truth["subagent_sessions"]
     bundle["sample_boundary"] = {
         "sources": [
             {
@@ -164,7 +188,7 @@ def generate_bundle(sessions: int = 200, seed: int = 7) -> dict:
         name: {"status": "available", "rows": count} for name, count in rows.items()
     }
     bundle["statistical_members"] = {"event_uids": [e["event_uid"] for e in bundle["events"]]}
-    return bundle
+    return bundle, truth
 
 
 def _session_row(uid, index, project, source, ts, kind="main", parent=None):
@@ -194,6 +218,7 @@ def _main_session(bundle, rng, index):
     start = BASE_TS + index * 3_600_000 + rng.randrange(600_000)
     row = _session_row(uid, index, project, source, start)
     bundle["sessions"].append(row)
+    bundle["_truth"]["main_sessions"] += 1
     session = _Session(bundle, uid, start)
     model, effort = MODELS[rng.randrange(len(MODELS))]
     session.event("session.meta", "harness", kind="main", cwd=row["cwd"])
@@ -208,13 +233,19 @@ def _turn(bundle, rng, session, row, turn_index, model, effort):
     turn_uid = _uid("turn", session.uid, turn_index)
     session.turn = turn_uid
     first_seq = session.seq
-    if turn_index == 0:
-        pool = REQUESTS
-    else:
-        pool = (REQUESTS, CORRECTIONS, PREFERENCES, FEEDBACK)[rng.randrange(4)]
+    pools = (("request_messages", REQUESTS), ("correction_messages", CORRECTIONS),
+             ("preference_messages", PREFERENCES), ("feedback_messages", FEEDBACK))
+    pool_name, pool = pools[0] if turn_index == 0 else pools[rng.randrange(4)]
     trigger = session.event(
         "message.user", "human", text=pool[rng.randrange(len(pool))], origin="human"
     )
+    truth = bundle["_truth"]
+    truth["turns"] += 1
+    if row["kind"] == "main":
+        truth["human_messages"] += 1
+        truth[pool_name] += 1
+    else:  # a parent agent's prompt to its child: not a human message
+        truth["subagent_prompts"] += 1
     status = "completed"
     previous_args = None
     for call_index in range(rng.randint(1, 4)):
@@ -236,12 +267,15 @@ def _turn(bundle, rng, session, row, turn_index, model, effort):
     if rng.random() < 0.1:
         session.event("turn.interrupted", "human", reason="user_cancel")
         status = "interrupted"
+        truth["interrupted_turns"] += 1
     else:
         session.event(
             "message.assistant", "assistant", text=ASSISTANT[rng.randrange(len(ASSISTANT))]
         )
     usage = session.event("model.usage", "harness", model=model, effort=effort)
     tokens = rng.randint(2_000, 40_000)
+    truth["model_calls"] += 1
+    truth["total_tokens"] += tokens + tokens // 4 + 0 + tokens // 10
     bundle["model_calls"].append(
         {
             "call_uid": _uid("model_call", usage),
@@ -302,6 +336,8 @@ def _tool_pair(bundle, session, row, kind, args, failed, call_index):
         "tool.call", "assistant", call_id=call_id, name=name, category=kind, command_head=head
     )
     started = session.ts
+    bundle["_truth"]["tool_calls"] += 1
+    bundle["_truth"]["failed_tool_calls"] += int(failed)
     result = session.event(
         "tool.result",
         "tool",
@@ -358,6 +394,7 @@ def _subagent(bundle, rng, parent, parent_row, index, model, effort):
     )
     parent.event("subagent.spawn", "assistant", child_session_uid=child_uid)
     bundle["sessions"].append(child_row)
+    bundle["_truth"]["subagent_sessions"] += 1
     child = _Session(bundle, child_uid, parent.ts)
     child.event("session.meta", "harness", kind="subagent", cwd=child_row["cwd"])
     _turn(bundle, rng, child, child_row, 0, model, effort)
@@ -483,3 +520,76 @@ def build_canonical_home(
         for source_root in write_codex_sources(Path(scratch), sessions, seed):
             ingest(home, "codex", source_root)
     return home
+
+
+# -- persona population (fictional users, wire-row units) ------------------------------------
+# Behaviour of a fictional user at the low / high pole of each persona axis; a user's latent
+# trait t ∈ [0, 1] interpolates between them (plus noise). These ranges are invented for a
+# health check of the persona mapping (spread, no pile-up at one end or at 50, all 16 types
+# reachable); they are *not* measurements and must not be read as calibration.
+PERSONA_POLES = {
+    # D: high = delegates (long turns, few messages, rarely stops the agent)
+    "step_share": (0.10, 0.80), "msgs": (14.0, 2.0), "stop_rate": (0.25, 0.02),
+    # I: high = improvises (no plan / acceptance, no spec, short opening, redirects often)
+    "planned_open": (0.75, 0.10), "spec_open": (0.35, 0.02), "open_len": (500.0, 40.0),
+    "corr_rate": (0.02, 0.30),
+    # M: high = many threads (sessions per day, other agents the same day, overlap, sub-agents)
+    "per_day": (1.3, 7.0), "other_agent": (0.05, 0.6), "overlap": (0.05, 0.6),
+    "subagents": (0.0, 0.35),
+    # V: high = verifies (asks for tests / builds / checks, rolls back or redoes)
+    "ask_verify": (0.02, 0.45), "rework": (0.02, 0.25),
+}
+PERSONA_AGENTS = ("claude_code", "codex", "gemini", "kimi")
+
+
+def persona_population(users: int = 300, sessions: int = 60, seed: int = 7) -> list[dict]:
+    """Fictional users → ``{"traits": {D, I, M, V}, "rows": [wire rows]}``.
+
+    Each row carries the facts wire units the persona reads (``dk`` / ``dn`` / ``vk`` / ``ik``
+    / ``kn`` / ``ol`` / ``oa`` / ``os`` / ``sc`` / ``rb`` / ``t0`` / ``t1`` plus ``msgs`` /
+    ``corr``), with ``vk`` counting turns where the *user* asked for verification.
+    """
+    rng = random.Random(seed)
+    out = []
+    for user in range(users):
+        traits = {k: rng.random() for k in "DIMV"}
+
+        def at(name, axis, noise=0.08, traits=traits):
+            lo, hi = PERSONA_POLES[name]
+            t = min(1.0, max(0.0, traits[axis] + rng.gauss(0, noise)))
+            return lo + (hi - lo) * t
+
+        step_share, mean_msgs, stop_rate = at("step_share", "D"), at("msgs", "D"), at("stop_rate", "D")
+        planned, spec, open_len = at("planned_open", "I"), at("spec_open", "I"), at("open_len", "I")
+        corr_rate = at("corr_rate", "I")
+        per_day, other, overlap = at("per_day", "M"), at("other_agent", "M"), at("overlap", "M")
+        sub = at("subagents", "M")
+        ask, rework = at("ask_verify", "V"), at("rework", "V")
+        rows, day, left = [], 0, sessions
+        while left > 0:
+            n_today = max(1, min(left, round(rng.expovariate(1 / per_day))))
+            for j in range(n_today):
+                msgs = max(1, round(rng.expovariate(1 / mean_msgs)))
+                turns = msgs
+                dk = sum(rng.random() < step_share for _ in range(turns))
+                vk = sum(rng.random() < ask for _ in range(turns))
+                ik = sum(rng.random() < stop_rate for _ in range(turns))
+                start = BASE_TS + day * 86_400_000 + j * 3_600_000
+                if j and rng.random() < overlap:
+                    start -= 1_800_000
+                agent = PERSONA_AGENTS[0] if j == 0 or rng.random() >= other else \
+                    rng.choice(PERSONA_AGENTS[1:])
+                rows.append({
+                    "id": f"u{user}-s{len(rows)}", "d": f"2026-{1 + day // 28:02d}-{1 + day % 28:02d}",
+                    "a": agent, "p": f"proj-{user % PROJECTS}",
+                    "msgs": msgs, "corr": sum(rng.random() < corr_rate for _ in range(msgs - 1)),
+                    "dk": dk, "dn": turns, "vk": vk, "ik": ik, "kn": turns,
+                    "op": int(rng.random() < planned), "oa": int(rng.random() < planned),
+                    "os": int(rng.random() < spec),
+                    "ol": round(rng.lognormvariate(math.log(open_len), 0.6)),
+                    "sc": 2 if rng.random() < sub else 0, "rb": int(rng.random() < rework),
+                    "t0": start, "t1": start + 2_400_000})
+            left -= n_today
+            day += 1 + (rng.random() < 0.3)
+        out.append({"traits": traits, "rows": rows})
+    return out

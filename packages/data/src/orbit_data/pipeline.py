@@ -398,6 +398,8 @@ def rebuild(
         from orbit_data.connectors.codex import select_history
 
         select_history(store, mappers)
+        if plan is not None:
+            plan.after_history(mappers)  # Worker results assume the whole active branch.
 
         store.db.execute(
             "UPDATE raw_record SET disposition='ignored',note=? WHERE native_type='pending_tail'",

@@ -74,5 +74,5 @@
 .range-widen{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
 .range-note .range-widen{margin-top:0}
 /* sidebar agent with no sessions in the selected range */
-.nav .ag.idle{color:var(--ink-3)}
-.nav .ag.idle .dot{opacity:.55}
+.nav .ag.idle .ag-b{color:var(--ink-3)}
+.nav .ag.idle .ag-ic{opacity:.55}

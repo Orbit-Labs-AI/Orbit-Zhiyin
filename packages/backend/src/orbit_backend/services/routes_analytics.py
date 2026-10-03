@@ -37,6 +37,10 @@ if TYPE_CHECKING:
 CONTRACT = "orbit-app-analytics-v1"
 PLAIN_SECTIONS = ("overview", "tools", "projects", "text", "tasks", "instruction", "statistics",
                   "lexical", "bottleneck")
+# GET routes that, without days/from_ts/until_ts, serve the fast-path window
+# (``fastpath.choose``) instead of the literal all-time scope. Recompute resolves the same
+# window, so its scope_hash is the one the GET response reports.
+AUTO_WINDOW_SECTIONS = frozenset({"overview"})
 PAGED_ROWS = {"products": "sessions"}  # Sections whose paged list is not their section key.
 CLIENT_ERRORS = {"not_found": 404, "invalid_request": 422, "analysis_scope_too_large": 422}
 
@@ -93,7 +97,10 @@ def failure_error(error: dict | None) -> ApiError:
     if code in CLIENT_ERRORS:
         return ApiError(CLIENT_ERRORS[code], code, message)
     if code == "projection_pending":
-        return ApiError(503, code, message, retryable=True, retry_after=1)
+        # The supervisor waits ``transient_retry_s`` before re-running the same key; asking
+        # again every second only re-read this failure (and used to re-run the analysis).
+        return ApiError(503, code, message, retryable=True,
+                        retry_after=max(1, round(error.get("retry_after") or 1)))
     return ApiError(503, "analysis_unavailable", f"{code}: {message}", retryable=True,
                     retry_after=5)
 
@@ -145,6 +152,11 @@ def check_target(target_agent: str) -> None:
     if target_agent not in TARGETS:
         raise ApiError(422, "invalid_request",
                        f"Unknown target_agent {target_agent!r}; expected one of {sorted(TARGETS)}")
+
+
+def auto_window(scope, days: int | None) -> bool:
+    """No days/from_ts/until_ts: an AUTO_WINDOW_SECTIONS route picks the window itself."""
+    return days is None and scope.from_ts is None and scope.until_ts is None
 
 
 def now_ms() -> int:
@@ -292,13 +304,28 @@ def router(gw: Gateway) -> APIRouter:
 
     def render(snapshot: Snapshot, meta_: dict, tag: str, page, view=None) -> Response:
         body = dict(snapshot.body)
+        cacheable = True
         if view is not None:
-            try:
-                body = view[1](body)
-            except ValueError as error:
-                raise ApiError(422, "invalid_request", str(error)) from error
-            if isinstance(body, Response):
-                return body
+            dynamic = callable(view[0])
+            # Catalog publication can race with the worker wait or the match itself.
+            # Retry a moving projection once, then serve without a cache validator.
+            for _ in range(2 if dynamic else 1):
+                before = view[0]() if dynamic else view[0]
+                try:
+                    body = view[1](dict(snapshot.body))
+                except ValueError as error:
+                    raise ApiError(422, "invalid_request", str(error)) from error
+                if isinstance(body, Response):
+                    return body
+                if not dynamic or before == view[0]():
+                    if dynamic:
+                        token = (snapshot.key.section if page is None else
+                                 f"{snapshot.key.section}[{page[0]}:{page[1]}]")
+                        tag = etag(snapshot.key.rules, snapshot.key.data_rev,
+                                   snapshot.key.inventory_rev, snapshot.key.scope_hash, token + before)
+                    break
+            else:
+                cacheable = False
         if page is not None:
             offset, limit = page
             key = PAGED_ROWS.get(snapshot.key.section) or SECTIONS[snapshot.key.section].key
@@ -307,7 +334,7 @@ def router(gw: Gateway) -> APIRouter:
             body["total"] = len(rows)
             body["next_offset"] = offset + limit if offset + limit < len(rows) else None
         body["meta"] = meta_
-        return JSONResponse(body, headers={"ETag": tag})
+        return JSONResponse(body, headers={"ETag": tag} if cacheable else {"Cache-Control": "no-store"})
 
     def serve(name: str, scope, params: dict, wait_ms: int, if_none_match: str | None,
               page: tuple[int, int] | None = None, view=None,
@@ -324,7 +351,7 @@ def router(gw: Gateway) -> APIRouter:
         rev = gw.revisions.snapshot()
         token = name if page is None else f"{name}[{page[0]}:{page[1]}]"
         if view is not None:
-            token = f"{token}{view[0]}"
+            token = f"{token}{view[0]() if callable(view[0]) else view[0]}"
         if rev["data_rev"] is None:
             return JSONResponse({section.key: None, "meta": meta_(
                 h, rules, "none", None, rev, "none", reason="no_projection")})
@@ -378,7 +405,7 @@ def router(gw: Gateway) -> APIRouter:
             from ..analytics.inputs import Scope
             from . import fastpath
 
-            if days is not None or scope.from_ts is not None or scope.until_ts is not None:
+            if not auto_window(scope, days):
                 return serve(name, scope, {}, wait_ms, if_none_match)
             base = asdict(scope)
             chosen, window = fastpath.choose(gw, name, base, None)
@@ -386,7 +413,7 @@ def router(gw: Gateway) -> APIRouter:
             fastpath.follow_up(gw, name, base, window)
             return response
 
-        return windowed if name == "overview" else plain
+        return windowed if name in AUTO_WINDOW_SECTIONS else plain
 
     for name in PLAIN_SECTIONS:
         api.add_api_route(f"/v1/analytics/{name}", plain_route(name), methods=["GET"], name=name)
@@ -522,14 +549,18 @@ def router(gw: Gateway) -> APIRouter:
         from orbit_catalog import get_service
 
         store = get_service(gw.home / "catalog.db").store
-        try:  # catalog changes must change the ETag (no stale 304)
-            with store.connect(True) as conn:
-                generation = store.generation(conn)
-        except sqlite3.Error:
-            generation = "unknown"
+        def revision_token():
+            from orbit_catalog.search import RANKING_VERSION
+
+            try:  # Resource and vector publication both change retrieval results.
+                with store.connect(True) as conn:
+                    return f"/{RANKING_VERSION}/match@{store.generation(conn)}.{store.embedding_generation(conn)}"
+            except sqlite3.Error:
+                return "/match@unknown"
+
         params = drop_none(project_id=project_id, model=model, scene=scene, limit=limit)
         return serve("catalog_requests", Scope(), params, wait_ms, if_none_match,
-                     view=(f"/match@{generation}", view))
+                     view=(revision_token, view))
 
     @api.get("/v1/analytics/presentation")
     def presentation(scope=scope_dependency, window: str | None = None,
@@ -601,10 +632,15 @@ def router(gw: Gateway) -> APIRouter:
         if rev["data_rev"] is None:
             raise ApiError(409, "no_projection", "No published data to analyse", retryable=True)
         rules = rules_digest()
-        scope_dict = asdict(scope)
         jobs = []
         for name in request.sections:
             params = prepared[name]
+            scope_dict = asdict(scope)
+            if name in AUTO_WINDOW_SECTIONS and auto_window(scope, request.scope.get("days")):
+                from . import fastpath
+
+                # Refresh the window the GET route serves, not the literal all-time scope.
+                scope_dict, _ = fastpath.choose(gw, name, scope_dict, None, params)
             h = scope_hash(scope_dict, params)
             gw.supervisor.analysis.clear_failures(name, h)  # Manual recompute resets the circuit.
             task = gw.supervisor.analysis.submit(name, scope_dict, params, h,

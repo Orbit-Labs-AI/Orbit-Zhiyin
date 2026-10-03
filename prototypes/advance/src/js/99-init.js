@@ -10,6 +10,19 @@ setInterval(() => {
     $$('[data-livetools]').forEach((x) => { x.textContent = S.live.tools; });
   }
 }, 1000);
+// the settings window and the first-run overlay rebuild themselves outside render() (live settings writes, job frames):
+// keep their scroll positions and the focused field across every rebuild (F03). A tab change of the settings window and a
+// step change of the overlay start at top (the old tab's positions mean nothing in the new one).
+{
+  const setBase = renderSet;
+  let setDrawn = null;   // the tab the window last showed (the tab buttons set S.setTab before they call renderSet)
+  renderSet = function () { const keep = uiKeep($('#set')); const r = setBase.apply(this, arguments); if (S.setTab === setDrawn) keep(); setDrawn = S.setTab; return r; };
+  // closing the window forgets it: reopening (even on the same tab) starts at top, like a fresh window
+  const closeBase = closeSettings;
+  closeSettings = function () { setDrawn = null; return closeBase.apply(this, arguments); };
+  const obBase = drawOB;
+  drawOB = function () { const was = OB && OB.drawn; const keep = uiKeep($('#overlay')); const r = obBase.apply(this, arguments); if (OB && OB.drawn === was) keep(); return r; };
+}
 // viewport resize: re-clamp the window at once (cheap), redraw the desktop layer after the burst settles
 let RZ = null;
 window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(RZ); RZ = setTimeout(() => { renderWidgets(); renderHud(); }, 80); });

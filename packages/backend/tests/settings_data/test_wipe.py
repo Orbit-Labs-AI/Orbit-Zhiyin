@@ -5,6 +5,8 @@ from __future__ import annotations
 from orbit_data.store import Store
 
 from orbit_backend.appdata import wipe
+from orbit_backend.platform.storage import storage_report
+from orbit_backend.realtime.hooks import HookFeed
 
 from .conftest import client_for, close_gateway, make_gateway
 
@@ -24,6 +26,20 @@ def seed(home):
 
 def agent_files(user_home):
     return sorted(p.relative_to(user_home) for p in user_home.rglob("*"))
+
+
+def test_clear_removes_hook_history_and_checkpoint(tmp_path):
+    home = tmp_path / "orbit"
+    hooks = home / "hooks"
+    hooks.mkdir(parents=True)
+    for name in ("events.jsonl", "events.jsonl.1", "events.offset.json", ".statusline-last"):
+        (hooks / name).write_text("{}")
+    usage = next(c for c in storage_report(home)["components"] if c["id"] == "hooks")
+    assert usage["bytes"] == 8
+    wipe.mark(home)
+    result = wipe.apply_pending(home)
+    assert result["deleted"] == ["hooks"] and not result["failed"]
+    assert not hooks.exists() and HookFeed(hooks).pending() == []
 
 
 def test_describe_and_validation(client, gateway, home):
@@ -102,4 +118,3 @@ def test_no_marker_is_noop(tmp_path):
     home.mkdir()
     (home / "orbit.db").write_bytes(b"x")
     assert wipe.apply_pending(home) is None and (home / "orbit.db").exists()
-

@@ -104,25 +104,16 @@ def context(tail: SessionTail, overrides: dict | None = None) -> dict | None:
     if not tail.usage:
         return None
     used = tail.usage.get("used_tokens")
-    window = context_windows.lookup(tail.agent, tail.usage.get("model"), overrides)
-    reported = tail.usage.get("window_tokens")
-    if reported and (window is None or window["basis"] != "override"):
-        # The session's own metadata (e.g. Codex model_context_window) beats the static table.
-        window = {"window_tokens": reported,
-                  "auto_compact_ratio": window and window["auto_compact_ratio"],
-                  "basis": "reported"}
-    if used is None or window is None:
-        return {"used_tokens": used, "window_tokens": window and window["window_tokens"],
-                "ratio": None, "auto_compact_ratio": window and window["auto_compact_ratio"],
-                "basis": "unknown", "window_basis": window and window["basis"]}
-    if used > window["window_tokens"]:  # the table window is wrong for this model (e.g. 1M)
+    window = context_windows.resolve(tail.agent, tail.usage.get("model"), overrides,
+                                     tail.usage.get("window_tokens"))
+    ratio, basis = context_windows.usage_ratio(used, window)
+    if basis == "window_exceeded":  # the window is wrong for this model (e.g. 1M)
         return {"used_tokens": used, "window_tokens": None, "ratio": None,
-                "auto_compact_ratio": None, "basis": "window_exceeded",
-                "window_basis": window["basis"]}
-    return {"used_tokens": used, "window_tokens": window["window_tokens"],
-            "ratio": round(used / window["window_tokens"], 4),
-            "auto_compact_ratio": window["auto_compact_ratio"], "basis": "last_call_input",
-            "window_basis": window["basis"]}
+                "auto_compact_ratio": None, "basis": basis, "window_basis": window["basis"]}
+    return {"used_tokens": used, "window_tokens": window and window["window_tokens"],
+            "ratio": None if ratio is None else round(ratio, 4),
+            "auto_compact_ratio": window and window["auto_compact_ratio"], "basis": basis,
+            "window_basis": window and window["basis"]}
 
 
 def _streak_start(tail: SessionTail) -> int:

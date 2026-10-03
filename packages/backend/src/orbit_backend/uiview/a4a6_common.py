@@ -37,6 +37,62 @@ ADAPTERS = ("a4a6_tools", "a4a6_projects", "a4a6_sentiment")
 ManyQuery = Annotated[list[str] | None, Query()]
 
 
+# -- event seq ---------------------------------------------------------------------------
+
+# ``event`` rows are wide (text + attrs JSON), so ``LEFT JOIN event e ON e.event_uid = …``
+# just to read ``e.seq`` fetches one table page per tool call: 145k calls on a 7 GB store
+# took 10 s warm / 40 s cold. Both lookups below are covering-index reads instead: the
+# primary-key index maps event_uid → rowid, UNIQUE(session_uid, seq) maps rowid → seq.
+CALL_EVENT_ROWID_SQL = "(SELECT rowid FROM event WHERE event_uid = {col})"
+
+
+def attach_event_seq(conn, rows: list[dict], *, rowid_key: str = "call_event_rowid",
+                     session_key: str = "session_uid") -> list[dict]:
+    """Replace ``row[rowid_key]`` (from ``CALL_EVENT_ROWID_SQL``) with ``row["seq"]``.
+
+    Call inside the read transaction that produced ``rows`` so rowids are stable. A call
+    whose event sits in another session falls back to a direct rowid read, never to None.
+    """
+    wanted = {r[rowid_key] for r in rows if r.get(rowid_key) is not None}
+    sessions = sorted({r[session_key] for r in rows if r.get(rowid_key) is not None})
+    seq_of: dict[int, int] = {}
+    if sessions:
+        seq_of = {rid: seq for rid, seq in conn.execute(
+            "SELECT rowid, seq FROM event WHERE session_uid IN (SELECT value FROM json_each(?))",
+            (json.dumps(sessions),)) if rid in wanted}
+    missing = sorted(wanted - seq_of.keys())
+    if missing:
+        seq_of.update((rid, seq) for rid, seq in conn.execute(
+            "SELECT rowid, seq FROM event WHERE rowid IN (SELECT value FROM json_each(?))",
+            (json.dumps(missing),)))
+    for r in rows:
+        rid = r.pop(rowid_key, None)
+        r["seq"] = None if rid is None else seq_of.get(rid)
+    return rows
+
+
+def needs_command(row) -> bool:
+    """Only an approval-gated call with a command head is classified from its full argv
+    (``features.vocab.command_info``: read-only approvals in A4 and the A6 friction rule)."""
+    return row.get("approval") is not None and bool(row.get("command_head"))
+
+
+def attach_call_command(conn, rows: list[dict], *, event_key: str = "call_event_uid") -> list[dict]:
+    """Set ``row["command"]`` (the call event's ``$.input.command``) on the rows that
+    ``needs_command``; other rows get no key. Reading attrs for every call would pull one
+    wide event row per call again (55 of 145k real calls need it)."""
+    wanted = sorted({r[event_key] for r in rows if needs_command(r) and r.get(event_key)})
+    command_of = {}
+    if wanted:
+        command_of = {uid: command for uid, command in conn.execute(
+            "SELECT event_uid, json_extract(attrs, '$.input.command') FROM event "
+            "WHERE event_uid IN (SELECT value FROM json_each(?))", (json.dumps(wanted),))}
+    for r in rows:
+        if needs_command(r):
+            r["command"] = command_of.get(r.get(event_key))
+    return rows
+
+
 # -- scope -------------------------------------------------------------------------------
 
 def scope_dict(scope) -> dict:
@@ -47,6 +103,19 @@ def scope_dict(scope) -> dict:
 
 def _in(column: str, values) -> tuple[str, list]:
     return f"{column} IN (SELECT value FROM json_each(?))", [json.dumps(list(values))]
+
+
+def project_clause(column: str, ids) -> tuple[str, list]:
+    """``column IN ids``; ``derive.NO_PROJECT_ID`` ('_none') also selects ``column IS NULL``,
+    the same rule as ``derive.project_matches`` on the fact rows (A1 / A2 / A3)."""
+    from .derive import NO_PROJECT_ID
+
+    ids = list(ids)
+    named = [i for i in ids if i != NO_PROJECT_ID]
+    sql, params = _in(column, named)
+    if len(named) < len(ids):
+        sql = f"({sql} OR {column} IS NULL)"
+    return sql, params
 
 
 def scope_where(scope, alias: str = "s", *, agents=None, time_col: str | None = None,
@@ -67,7 +136,7 @@ def scope_where(scope, alias: str = "s", *, agents=None, time_col: str | None = 
         params.extend(sql_params[1])
 
     if s.get("project_ids") is not None:
-        add(_in(f"{alias}.project_id", s["project_ids"]))
+        add(project_clause(f"{alias}.project_id", s["project_ids"]))
     if s.get("source_ids") is not None:
         add(_in(f"{alias}.source_id", s["source_ids"]))
     wanted = [*(s.get("agent_ids") or []), *(agents or [])]
@@ -141,7 +210,7 @@ def prev_window(from_ms: int | None, until_ms: int | None) -> tuple[int, int] | 
 # -- cache -------------------------------------------------------------------------------
 
 class LRU:
-    """Small thread-safe LRU; keys carry data_rev/inventory_rev so stale entries never hit."""
+    """Small thread-safe LRU; keys carry home + revision (``cache_key``) so stale entries never hit."""
 
     def __init__(self, maxsize: int = 32):
         self.maxsize = maxsize
@@ -170,9 +239,14 @@ def params_hash(params: dict) -> str:
     return _scope_hash({}, params)
 
 
-def cache_key(name: str, scope, params: dict, rev: dict) -> tuple:
-    return (name, scope_hash(scope), rev.get("data_rev"), rev.get("inventory_rev"),
-            params_hash(params))
+def cache_key(name: str, scope, params: dict, rev: dict, *, home) -> tuple:
+    """``CACHE`` is process-wide, so the key names the data it was computed from: the gateway
+    home (two gateways in one process, e.g. a re-pointed home) and the published revision.
+    ``data_rev`` is ``MAX(projection_run.run_id)`` and restarts at 1 for a fresh orbit.db
+    (clear-all-data then re-import), so the published counts join it as a data identity."""
+    counts = rev.get("counts") or {}
+    return (name, str(home), scope_hash(scope), rev.get("data_rev"), rev.get("inventory_rev"),
+            tuple(sorted(counts.items())), params_hash(params))
 
 
 def scope_hash(scope, params: dict | None = None) -> str:

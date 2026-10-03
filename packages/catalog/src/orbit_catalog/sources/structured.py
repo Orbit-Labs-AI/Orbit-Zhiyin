@@ -1,8 +1,10 @@
 """Public registries, model catalogs and benchmark snapshots."""
 
+import hashlib
 import json
 import math
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from importlib.resources import files
 from pathlib import Path
@@ -134,10 +136,96 @@ def _iso_date(value) -> str | None:
         return None
 
 
+class _MCPSnapshot:
+    """Validated raw registry pages; no arbitrary serialized Resource ingestion."""
+
+    def __init__(self, directory: str, source_url: str):
+        self.root = Path(directory)
+        if not self.root.is_absolute():
+            raise ValueError("mcp_snapshot_dir_must_be_absolute")
+        self.manifest_bytes = self._bytes(self.root / "manifest.json")
+        manifest = self._json(self.manifest_bytes)
+        pages = manifest.get("pages")
+        if manifest.get("complete") is not True or isinstance(pages, bool) or not isinstance(pages, int) or not 1 <= pages <= 10000:
+            raise ValueError("mcp_snapshot_incomplete")
+        if manifest.get("next_cursor") or manifest.get("source", source_url) != source_url:
+            raise ValueError("mcp_snapshot_manifest_mismatch")
+        try:
+            fetched = datetime.fromisoformat(manifest["fetched_at"].replace("Z", "+00:00"))
+            if fetched.tzinfo is None:
+                raise ValueError("missing_timezone")
+            self.fetched_at = fetched.isoformat()
+        except (KeyError, TypeError, AttributeError, ValueError) as exc:
+            raise ValueError("mcp_snapshot_invalid_fetched_at") from exc
+        self.paths = [self.root / f"page-{index:04d}.json" for index in range(pages)]
+        if set(self.root.glob("page-*.json")) != set(self.paths):
+            raise ValueError("mcp_snapshot_noncontiguous_pages")
+        self.hashes, self.cursors = [], [None]
+        identity, names, cursors, count = hashlib.sha256(self.manifest_bytes), set(), set(), 0
+        for index, path in enumerate(self.paths):
+            raw = self._bytes(path)
+            data = self._json(raw)
+            if not isinstance(data.get("servers"), list) or not isinstance(data.get("metadata"), dict):
+                raise ValueError("invalid_mcp_page")
+            cursor = data["metadata"].get("nextCursor")
+            if bool(cursor) != (index < pages - 1) or (cursor and (not isinstance(cursor, str) or cursor in cursors)):
+                raise ValueError("mcp_snapshot_cursor_mismatch")
+            if cursor:
+                cursors.add(cursor)
+            self.cursors.append(cursor)
+            for entry in data["servers"]:
+                name = (entry.get("server") or {}).get("name") if isinstance(entry, dict) else None
+                if not isinstance(name, str) or not name or name in names:
+                    raise ValueError("mcp_snapshot_invalid_or_duplicate_name")
+                names.add(name)
+            count += len(data["servers"])
+            if data["metadata"].get("count", len(data["servers"])) != len(data["servers"]):
+                raise ValueError("mcp_snapshot_count_mismatch")
+            page_hash = hashlib.sha256(raw).digest()
+            self.hashes.append(page_hash)
+            identity.update(page_hash)
+        if manifest.get("records", count) != count or manifest.get("unique_names", len(names)) != len(names):
+            raise ValueError("mcp_snapshot_count_mismatch")
+        self.identity = "mcp-snapshot:" + identity.hexdigest()
+
+    @staticmethod
+    def _bytes(path):
+        if not path.is_file():
+            raise ValueError("mcp_snapshot_file_not_found")
+        if path.stat().st_size > MAX_SOURCE_FILE:
+            raise ValueError("source_file_too_large")
+        return path.read_bytes()
+
+    @staticmethod
+    def _json(raw):
+        try:
+            value = json.loads(raw)
+            if not isinstance(value, dict):
+                raise ValueError("not_object")
+            return value
+        except (ValueError, UnicodeError) as exc:
+            raise ValueError("mcp_snapshot_invalid_json") from exc
+
+    def page(self, checkpoint):
+        index = checkpoint.get("pages", 0)
+        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(self.paths):
+            raise ValueError("mcp_snapshot_invalid_checkpoint")
+        if checkpoint and (checkpoint.get("snapshot_revision") != self.identity or checkpoint.get("cursor") != self.cursors[index]):
+            raise ValueError("mcp_snapshot_checkpoint_mismatch")
+        raw = self._bytes(self.paths[index])
+        if hashlib.sha256(raw).digest() != self.hashes[index] or self._bytes(self.root / "manifest.json") != self.manifest_bytes:
+            raise ValueError("mcp_snapshot_changed_during_scan")
+        return self._json(raw)
+
+
 class StructuredConnector:
     def __init__(self, source, http):
         self.source, self.http = source, http
         self.known_models: set[str] = set()
+        self._mcp_snapshot = None
+
+
+        self._last_search = float("-inf")
 
     def _load(self):
         """`config.file` imports a local fixture/cache snapshot without network or host allowlist."""
@@ -182,6 +270,10 @@ class StructuredConnector:
             return self._mcp(checkpoint, state)
         if self.source.kind == "clawhub":
             return self._clawhub(checkpoint, state)
+        if self.source.kind == "awesome":
+            return self._awesome(state)
+        if self.source.kind == "github_topic":
+            return self._github_topic(checkpoint, state)
         data = self._load() if self.source.kind in FILE_KINDS else self.http.json(self.source.url)
         revision = digest(data)
         if revision == state.get("revision"):
@@ -206,16 +298,27 @@ class StructuredConnector:
         return Page(records=records, complete=True, revision=revision)
 
     def _mcp(self, checkpoint, state):
-        params = {"limit": 100, "version": "latest"}
-        scan_started_at = checkpoint.get("scan_started_at") or datetime.now(timezone.utc).isoformat()
-        watermark = state.get("watermark")
-        mode = "incremental" if watermark else "full"
-        if watermark:
-            dt = datetime.fromisoformat(watermark.replace("Z", "+00:00")) - timedelta(minutes=5)
-            params["updated_since"] = dt.isoformat().replace("+00:00", "Z")
-        if checkpoint.get("cursor"):
-            params["cursor"] = checkpoint["cursor"]
-        data = self.http.json(self.source.url + "?" + urlencode(params))
+        snapshot = None
+        if self.source.config.get("snapshot_dir"):
+            if self._mcp_snapshot is None:
+                self._mcp_snapshot = _MCPSnapshot(self.source.config["snapshot_dir"], self.source.url)
+            snapshot = self._mcp_snapshot
+            if not checkpoint and state.get("revision") == snapshot.identity:
+                return Page(records=[], complete=True, mode="incremental", revision=snapshot.identity,
+                            watermark=snapshot.fetched_at)
+            data = snapshot.page(checkpoint)
+            scan_started_at, watermark, mode = snapshot.fetched_at, None, "full"
+        else:
+            params = {"limit": 100, "version": "latest"}
+            scan_started_at = checkpoint.get("scan_started_at") or datetime.now(timezone.utc).isoformat()
+            watermark = state.get("watermark")
+            mode = "incremental" if watermark else "full"
+            if watermark:
+                dt = datetime.fromisoformat(watermark.replace("Z", "+00:00")) - timedelta(minutes=5)
+                params["updated_since"] = dt.isoformat().replace("+00:00", "Z")
+            if checkpoint.get("cursor"):
+                params["cursor"] = checkpoint["cursor"]
+            data = self.http.json(self.source.url + "?" + urlencode(params))
         if not isinstance(data, dict) or not isinstance(data.get("servers"), list) or not isinstance(data.get("metadata"), dict):
             raise ValueError("invalid_mcp_page")
         records, maximum = [], checkpoint.get("watermark", watermark)
@@ -246,6 +349,10 @@ class StructuredConnector:
         if cursor and cursor == checkpoint.get("cursor"):
             raise ValueError("mcp_cursor_did_not_advance")
         pages = int(checkpoint.get("pages", 0)) + 1
+        if snapshot:
+            return Page(records=records, complete=pages == len(snapshot.paths), mode="full",
+                        revision=snapshot.identity, watermark=snapshot.fetched_at,
+                        checkpoint={"pages": pages, "cursor": cursor, "snapshot_revision": snapshot.identity})
         # Empty registry has no provider clock; the bounded overlap covers the initial scan time.
         maximum = maximum or scan_started_at
         # Never advance past the scan start: updates behind the pagination cursor must
@@ -391,6 +498,136 @@ class StructuredConnector:
         return Page(records=records, complete=not bool(cursor) or count >= limit, checkpoint={"cursor": cursor, "count": count})
 
 
+    def _awesome(self, state):
+        """An awesome-list README: one metadata-only item per ``- [name](https://github.com/o/r) … - text`` line.
+
+        Only the link, the list's category heading, legend emojis and the one-line description are
+        kept (the list's own text, under the list's license); nothing from the linked repository is
+        read, so ``verification`` is ``listed_only`` and the recommender's source gate rejects it.
+        """
+        text = self.http.get(self.source.url).decode("utf-8")
+        revision = digest(text)
+        if revision == state.get("revision"):
+            return Page(records=[], complete=True, mode="incremental", revision=revision)
+        kind = self.source.config.get("type", "mcp_server")
+        agents = list(self.source.config.get("agents", []))
+        records, seen = [], set()
+        for entry in awesome_entries(text, self.source.config.get("section")):
+            native_id = entry["repo"].lower()
+            if native_id in seen:
+                continue  # A server listed under two categories is one item; the first category wins.
+            seen.add(native_id)
+            features = [Feature(feature="category", value=entry["category"][:256], origin="declared",
+                                evidence="awesome list heading")] if entry["category"] else []
+            features += [Feature(feature="language", value=v, origin="declared", evidence="awesome list legend")
+                         for v in entry["languages"]]
+            if entry["scope"]:
+                features.append(Feature(feature="transport", value="remote" if entry["scope"] == "cloud" else "stdio",
+                                        origin="declared", evidence="awesome list legend"))
+            r = Resource(item_id=f"{kind}:awesome:github.com/{native_id}", type=kind, name=entry["name"][:300],
+                         summary=entry["summary"][:12000], url="https://github.com/" + entry["repo"], agents=agents,
+                         features=features,
+                         # 🎖️ = "official implementation" by the integrated service's vendor, which is not
+                         # the catalog's ``official`` (published by an agent vendor's own source).
+                         metadata={"verification": "listed_only", "resolution": "repository_pointer",
+                                   "vendor_official": entry["official"],
+                                   "list": self.source.url, "category": entry["category"],
+                                   "author": entry["repo"].split("/")[0]})
+            records.append(Record(native_id=native_id, resource=r, raw=entry))
+        return Page(records=records, complete=True, revision=revision)
+
+    def _github_topic(self, checkpoint, state):
+        """GitHub repository search by topic (``config.topics``), most-starred first, one repo = one item.
+
+        Search allows 30 requests/min with a token and 10 without, and returns at most 1000 results
+        per query (docs.github.com "REST API endpoints for search"); calls are spaced by
+        ``config.min_interval`` (default 2.1 s) and capped at ``config.max_pages`` pages per topic.
+        Repository metadata only: description, topics, license, stars, push date.
+        """
+        topics = [t for t in self.source.config.get("topics") or [] if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,49}", str(t))]
+        if not topics:
+            raise ValueError("github_topic_without_topics")
+        index, page = int(checkpoint.get("topic", 0)), int(checkpoint.get("page", 1))
+        max_pages = min(10, int(self.source.config.get("max_pages", 10)))
+        per_page = min(100, int(self.source.config.get("per_page", 100)))
+        wait = float(self.source.config.get("min_interval", GITHUB_SEARCH_INTERVAL)) - (time.monotonic() - self._last_search)
+        if wait > 0:
+            time.sleep(wait)
+        topic = topics[index]
+        query = urlencode({"q": f"topic:{topic} archived:false", "sort": "stars", "order": "desc",
+                           "per_page": per_page, "page": page})
+        data = self.http.json("https://api.github.com/search/repositories?" + query)
+        self._last_search = time.monotonic()
+        if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+            raise ValueError("invalid_github_search_page")
+        kind = self.source.config.get("type", "skill")
+        min_stars = int(self.source.config.get("min_stars", 0))
+        records = []
+        for repo in data["items"]:
+            name, stars = repo.get("full_name"), _int(repo.get("stargazers_count"))
+            if not isinstance(name, str) or "/" not in name or repo.get("fork") or (stars or 0) < min_stars:
+                continue
+            license_id = normalize_license(((repo.get("license") or {}).get("spdx_id") or "").replace("NOASSERTION", ""))
+            repo_topics = [str(t)[:256] for t in repo.get("topics") or []][:30]
+            r = Resource(item_id=f"{kind}:topic:github.com:{repo.get('id')}", type=kind, name=repo.get("name") or name,
+                         summary=str(repo.get("description") or "")[:12000], url=repo.get("html_url") or "https://github.com/" + name,
+                         license=license_id, agents=_topic_agents(repo_topics, self.source.config.get("agents", [])),
+                         repo_id=str(repo.get("id")), popularity={"stars": stars} if stars is not None else {},
+                         features=[Feature(feature="topic", value=t, origin="declared", evidence="GitHub topics") for t in repo_topics],
+                         metadata={"verification": "repository_metadata", "resolution": "repository", "author": name.split("/")[0],
+                                   "source_updated_at": repo.get("pushed_at"), "stars_scope": "repo", "topic": topic,
+                                   "repository": name})
+            records.append(Record(native_id=name.lower(), resource=r, raw={k: repo.get(k) for k in (
+                "full_name", "id", "description", "topics", "stargazers_count", "pushed_at", "html_url")}))
+        total = min(int(data.get("total_count") or 0), 1000)
+        last_page = page >= max_pages or page * per_page >= total or not data["items"]
+        if last_page and index + 1 >= len(topics):
+            return Page(records=records, complete=True)
+        nxt = {"topic": index + 1, "page": 1} if last_page else {"topic": index, "page": page + 1}
+        return Page(records=records, complete=False, checkpoint=nxt)
+
+
+GITHUB_SEARCH_INTERVAL = 2.1  # 60 s / 30 authenticated search requests, plus margin.
+# GitHub topics that name an agent; a repository that tags itself is the publisher's declaration.
+TOPIC_AGENTS = {"claude-code": "claude_code", "codex": "codex", "openai-codex": "codex",
+                "cursor": "cursor", "gemini-cli": "gemini", "opencode": "opencode", "github-copilot": "copilot",
+                "hermes-agent": "hermes", "deepseek-harness": "dsh", "dsh": "dsh", "kimi-cli": "kimi", "pi-agent": "pi"}
+
+
+def _topic_agents(topics, configured) -> list[str]:
+    return sorted(set(configured) | {TOPIC_AGENTS[t] for t in topics if t in TOPIC_AGENTS})
+
+
+_AWESOME_ENTRY = re.compile(r"^\s*[-*]\s+\[([^\]]+)\]\(https://github\.com/([\w.-]+/[\w.-]+?)/?\)(.*)$")
+_BADGE = re.compile(r"\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)|!\[[^\]]*\]\([^)]*\)")
+# punkpeye/awesome-mcp-servers README "Legend".
+AWESOME_LANGUAGES = {"🐍": "python", "📇": "typescript", "🏎️": "go", "🦀": "rust", "#️⃣": "csharp", "☕": "java",
+                     "🌊": "c++", "💎": "ruby"}
+
+
+def awesome_entries(text: str, section: str | None = None) -> list[dict]:
+    """Parse list entries; with ``section``, only under the ``## <section>`` heading until the next ``## ``."""
+    out, inside, category = [], section is None, ""
+    for line in text.splitlines():
+        heading = re.match(r"^(#{2,4})\s+(.*)$", line)
+        if heading:
+            title = re.sub(r"<[^>]+>", "", heading.group(2)).strip()
+            if len(heading.group(1)) == 2 and section is not None:
+                inside = title.casefold() == section.casefold()
+            category = re.sub(r"^[^\w(]+", "", title).strip() if len(heading.group(1)) > 2 else ""
+            continue
+        match = _AWESOME_ENTRY.match(line) if inside else None
+        if not match:
+            continue
+        rest = _BADGE.sub("", match.group(3))
+        marks, _, summary = rest.partition(" - ")
+        out.append({"name": match.group(1).strip(), "repo": match.group(2).removesuffix(".git"),
+                    "summary": summary.strip(), "category": category, "official": "🎖️" in marks,
+                    "languages": [v for k, v in AWESOME_LANGUAGES.items() if k in marks],
+                    "scope": "cloud" if "☁️" in marks else "local" if "🏠" in marks else None})
+    return out
+
+
 def safe_path(path: str) -> str:
     path = path.removeprefix("./")
     if not path or path.startswith("/") or ".." in path.split("/") or "\\" in path or re.search(r"[\x00-\x1f]", path):
@@ -446,15 +683,16 @@ def _hook_install(rule: dict) -> dict | None:
 
 
 def _kb_body(rule: dict) -> str:
+    """Library body of a KB rule: title/summary in listing wording, slots elsewhere as 〈wording〉."""
     explain = rule.get("explain") or {}
-    parts = [f"# {rule['title']}", rule.get("summary", "")]
+    parts = [f"# {listing_text(rule['title'])}", listing_text(rule.get("summary", ""))]
     for heading, key in (("原理", "mechanism"), ("试用", "trial"), ("局限", "limitation")):
         if explain.get(key):
-            parts += [f"## {heading}", explain[key]]
+            parts += [f"## {heading}", body_text(explain[key])]
     if rule.get("steps"):
-        parts += ["## 步骤", "\n".join(f"{i}. {step}" for i, step in enumerate(rule["steps"], 1))]
+        parts += ["## 步骤", "\n".join(f"{i}. {body_text(step)}" for i, step in enumerate(rule["steps"], 1))]
     if rule.get("file"):
-        parts += ["## 改动预览", "```json\n" + "\n".join(line for line, _ in rule["file"]) + "\n```"]
+        parts += ["## 改动预览", "```json\n" + "\n".join(body_text(line) for line, _ in rule["file"]) + "\n```"]
     return "\n\n".join(p for p in parts if p)
 
 
@@ -481,6 +719,20 @@ def listing_text(template: str) -> str:
         right = match.group(3) if value and after[:1].isascii() and after[:1].isalnum() else ""
         return left + value + right
     return _FILLED_SLOT.sub(fill, template).rstrip("：: ")
+
+
+# Body slots stay visible as a marked blank ("〈所用软件〉"): the preview shows where a session value
+# goes without printing raw template syntax. Unknown slots fail export like listing_text.
+BODY_SLOTS = {"software": "所用软件", "instruction": "你反复提出的要求", "build_command": "构建命令",
+              "sequence": "固定步骤序列", "platforms": "部署平台", "project": "项目名"}
+
+
+def body_text(template: str) -> str:
+    def fill(match):
+        if match.group(1) not in BODY_SLOTS:
+            raise ValueError(f"kb_slot_without_listing_text:{match.group(1)}")
+        return "〈" + BODY_SLOTS[match.group(1)] + "〉"
+    return _SLOT.sub(fill, template)
 
 
 def official_entries(kb: dict) -> list[dict]:

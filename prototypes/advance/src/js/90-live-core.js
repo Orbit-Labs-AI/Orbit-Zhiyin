@@ -19,11 +19,15 @@ function lvImporting() {
   const j = TL.job; if (j && j.kind === 'import' && LV_ACTIVE.indexOf(j.status) >= 0) return true;
   const L = typeof OB !== 'undefined' && OB && OB.live; return !!(L && L.job && LV_ACTIVE.indexOf(L.job.status) >= 0);
 }
+// Errors count by what they say (code / reason), not by object identity: a retry that fails the same way again (a 1 s
+// Retry-After loop while the first import publishes) is not new state. A load starting or ending with the same answer is
+// not either (r.loading is left out). The strip (badges, banner, import note) is patched in place (lvPatchStrip).
+const lvErrKey = (e) => (e ? (e.code || '') + '/' + (e.reason || '') + '/' + (e.status || '') : '');
 function lvSig() {
-  const parts = [lvTick, LV.rev, LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvJobSig(TL.job), lvId(TL.failure), lvId(TL.error), lvId(TL.status),
+  const parts = [lvTick, LV.rev, LV.state, LV.stale, !!LV.pending, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvJobSig(TL.job), lvErrKey(TL.failure), lvErrKey(TL.error), lvId(TL.status),
     TL.events && TL.events.connected, lvId(TL.collection), TL.collection && TL.collection.state];
   try { parts.push(JSON.stringify(TL.services || {})); } catch (e) { parts.push(++lvTick); }
-  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0) + (r.dirty ? 'd' : '')); return false; });
+  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvErrKey(r.error) + (r.dirty ? 'd' : '')); return false; });
   return parts.join('|');
 }
 // A live-triggered render is postponed while the user is in the middle of something (wheel / touch scrolling in the last
@@ -42,17 +46,19 @@ function lvUserBusy(now) {
   if (typeof DD !== 'undefined' && DD) return true;
   // a focused field only holds renders back during an import (search answers must still arrive while typing)
   const a = document.activeElement;
-  return !!(a && lvImporting() && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest('#main, #side'));
+  // an open native <select> anywhere in the window or settings would be closed by a rebuild
+  if (a && a.tagName === 'SELECT' && a.closest('#main, #side, #set, #overlay')) return true;
+  return !!(a && lvImporting() && /^(INPUT|TEXTAREA)$/.test(a.tagName) && a.closest('#main, #side, #set, #overlay'));
 }
 function lvFlush() {
   if (lvFrame) { cancelAnimationFrame(lvFrame); lvFrame = 0; }
   if (lvFrameT) { clearTimeout(lvFrameT); lvFrameT = null; }
   lvPatchProgress();
-  const sig = lvSig(); if (sig === lvLastSig) { lvDeferSince = 0; return; }
+  const sig = lvSig(); if (sig === lvLastSig) { lvDeferSince = 0; lvPatchStrip(); return; }
   const now = Date.now();
   const gap = lvImporting() && lvLastRenderT ? lvLastRenderT + LV_IMPORT_GAP - now : 0;
   const busy = lvUserBusy(now) && (!lvDeferSince || now - lvDeferSince < LV_DEFER_MAX);
-  if (gap > 0 || busy) { if (!lvDeferSince) lvDeferSince = now; lvFrameT = setTimeout(lvFlush, Math.max(400, Math.min(gap, 2000))); return; }
+  if (gap > 0 || busy) { lvPatchStrip(); if (!lvDeferSince) lvDeferSince = now; lvFrameT = setTimeout(lvFlush, Math.max(400, Math.min(gap, 2000))); return; }
   lvDeferSince = 0;
   render();
 }
@@ -63,12 +69,30 @@ function lvPatchProgress() {
   const html = TLU.progress(TL); if (!html) return;
   els.forEach((el) => { if (el.outerHTML !== html) el.outerHTML = html; });
 }
+// the status strip at the top of #content (lvStrip, 96-live-bind.js) follows the live state without a page render: the
+// banner, the page badge, 「正在整理数据…」 and elapsed-time notes change here, the page below stays as it is
+function lvPatchStrip() {
+  if (typeof document === 'undefined' || typeof lvStrip !== 'function') return;
+  const c = document.querySelector('#content'); if (!c) return;
+  const old = c.querySelector(':scope > [data-tl="strip"]');
+  let html = ''; try { html = lvStrip(S.route); } catch (e) { return; }
+  if (old && old.outerHTML === html) return;
+  if (old && old.contains(document.activeElement)) return;   // a focused 重试 / 重新计算 stays put until it is used
+  const top = c.scrollTop;
+  if (old) old.remove();
+  if (html) c.insertAdjacentHTML('afterbegin', html);
+  c.scrollTop = top;
+  if (typeof ddFollow === 'function') ddFollow();
+}
 function lvSchedule() {
   if (lvFrame || lvFrameT) return;
   if (typeof requestAnimationFrame === 'function') lvFrame = requestAnimationFrame(lvFlush);
   lvFrameT = setTimeout(lvFlush, 120);
 }
 const TL = OrbitLive.create({ onChange: () => lvSchedule() });
+// the first-run overlay runs its own import job (no job frame on TL yet): tell the client so a 'Database busy' 503 while it
+// writes is retried quietly instead of raising the outage banner (F08)
+TL.importing = () => lvImporting();
 const TLU = OrbitLive.ui;
 const TL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
 
@@ -129,7 +153,7 @@ ORBIT.native = (function () {
       if (!post(type, payload)) { waits.delete(id); reject(Object.assign(new Error('no host'), { code: 'no_host' })); }
     });
   }
-  // orbit:command {cmd:'settings'|'palette'|'about'|'keys'|'onboarding'|'reveal'|'report'|'share'|'csv'|'route'|'toggleEdition'|'refresh', route?}
+  // orbit:command {cmd:'settings'|'palette'|'about'|'keys'|'onboarding'|'reveal'|'report'|'share'|'route'|'toggleEdition'|'refresh', route?}
   function onCommand(fn) { const h = (e) => fn((e && e.detail) || {}); window.addEventListener('orbit:command', h); return () => window.removeEventListener('orbit:command', h); }
   return { isNative: !!info, info, surface, post, request, onCommand, has: (f) => !!info && (info.features || []).indexOf(f) >= 0, hasHost: () => !!handler() };
 })();
@@ -148,17 +172,25 @@ function lvAgentOf(backendId) {
   return { id: k || 'unknown', key: k, keys: [k], name: backendId || '未知', short: backendId || '未知', slot: 0 };
 }
 
+// D9: agents Orbit can import sessions from — the gateway's connector registry (/v1/app/about components.mappers, i.e.
+// orbit_data MAPPERS; the settings page stores it in LV.mappers once read), and until then the same list as
+// orbit_data/discovery.inputs. Gemini CLI and Copilot CLI have no session connector: an installed one is an install target
+// (library / environment) only, never a sidebar agent, filter entry, source row or 「导入会话」 choice.
+const LV_IMPORTABLE = ['claude_code', 'codex', 'dsh', 'pi', 'hermes', 'opencode', 'kimi'];
 /* ---- LV ---- */
 const LV = {
   live: TL.mode === 'live',
   demo: (() => { try { return new URLSearchParams(location.search).get('demo') === '1'; } catch (e) { return false; } })(),
   AGENTS: LV_AGENTS,
   agentOf: lvAgentOf,
+  mappers: null,
+  importable: (bid) => { const ms = LV.mappers || LV_IMPORTABLE; return lvAgentOf(bid).keys.some((k) => ms.indexOf(k) >= 0); },
   state: 'connecting',         // connecting | computing | ready | empty | error
   stale: false,                // facts is recomputing; the screen keeps the previous spine
   meta: null, wire: null, rev: 0, excluded: [], undated: 0,
   feeds: {}, applied: {}
 };
+const lvChanged = TL.changed;   // schedules a flush without bumping lvTick: only a real change of lvSig re-renders
 { const ch0 = TL.changed; TL.changed = function () { lvTick++; return ch0.apply(this, arguments); }; }
 // job frames are progress, not data (see lvJobSig): they do not count as a change of the live state
 TL.on('event', (ev) => { if (!ev || ev.name !== 'job') lvTick++; });
@@ -263,7 +295,10 @@ LV.feedState = (route) => {
 LV.ready = (route) => !LV.live || LV.feedState(route) === 'ready';
 // pending / empty placeholders in the prototype's own card language (no tl-table / tl-kpi)
 LV.pend = (h) => '<div class="lv-pend" data-lv="pending" style="height:' + (h || 120) + 'px" aria-busy="true"></div>';
-LV.na = (txt) => '<span class="cap" data-lv="na">' + esc(txt || '暂无数据') + '</span>';
+// nothing published yet and the data still on its way: charts say so instead of 暂无数据 / 所选范围内没有会话 (F08)
+{ const vzE = VZ.emptyText; VZ.emptyText = (spec) => { const b = dataBusy(); return b ? b.t : vzE(spec); }; }
+// F08: while importing / analysing every 「no data」 slot says so — explicit fallbacks (「暂无数据」, 「没有工具调用」) included
+LV.na = (txt) => { const b = dataBusy(); return '<span class="cap" data-lv="na"' + (b ? ' data-busy' : '') + '>' + esc(b ? b.t : txt || '暂无数据') + '</span>'; };
 
 /* ---- spine: /v1/uiview/facts → ALL / BYID / AG / PJ ---- */
 function lvToday() {
@@ -382,8 +417,9 @@ LV.hydrate = function (spine) {
   agentSync();
   const ags = {};
   const add = (bid, extra) => { const m = lvAgentOf(bid); const a = ags[m.id] || (ags[m.id] = lvMakeAgent(m)); Object.assign(a, extra || {}); return a; };
-  (spine.discovered || []).forEach((x) => add(x.agent, { detected: true, path: x.root || '—' }));
-  (spine.environment || []).forEach((x) => { const m = lvAgentOf(x.agent); if (ags[m.id] || x.installed) add(x.agent, { detected: true, path: x.root || ags[m.id] && ags[m.id].path || '—', ver: x.version || '—' }); });
+  // detected agents are listed only when Orbit can import their sessions (D9); agents with sessions always are
+  (spine.discovered || []).forEach((x) => { if (LV.importable(x.agent)) add(x.agent, { detected: true, path: x.root || '—' }); });
+  (spine.environment || []).forEach((x) => { const m = lvAgentOf(x.agent); if (ags[m.id] || (x.installed && LV.importable(x.agent))) add(x.agent, { detected: true, path: x.root || ags[m.id] && ags[m.id].path || '—', ver: x.version || '—' }); });
   // projects
   const pj = {};
   (spine.projects || []).forEach((p) => { pj[p.id] = p; });
@@ -395,11 +431,11 @@ LV.hydrate = function (spine) {
     ag.all++;
     const p = r.p || '_none';
     if (!pj[p]) pj[p] = { id: p, name: r.p ? r.p : '未归属项目', path: null };
-    ALLX.push({ id: r.id, d: Math.round((lvUtc(r.d) - DAY0) / 86400000), h: r.h || 0, mi: r.mi || 0, a: ag.id, p,
-      dur: r.dur != null ? r.dur : r.span != null ? r.span : 0, msgs: r.msgs || 0, tools: r.tools || 0, errors: r.errors || 0, corr: r.corr || 0,
-      steps: r.steps != null ? r.steps : null, out: r.out || null, live: !!r.live, verify: !!r.verify, mood: r.mood != null ? r.mood : null,
-      topic: r.topic || 'other', fric: r.fric || null, tok: r.tok || 0, title: r.title || '（无标题）', model: r.model || null, effort: r.effort || null,
-      dk: r.dk, dn: r.dn, vk: r.vk, op: r.op, t0: r.t0, t1: r.t1, raw: r });
+    // msgs / corr / persona unit columns / raw come from psRowFields (15-derive.js), shared with the parity tool
+    ALLX.push(Object.assign({ id: r.id, d: Math.round((lvUtc(r.d) - DAY0) / 86400000), h: r.h || 0, mi: r.mi || 0, a: ag.id, p,
+      dur: r.dur != null ? r.dur : r.span != null ? r.span : 0, tools: r.tools || 0, errors: r.errors || 0,
+      steps: r.steps != null ? r.steps : null, out: r.out || null, live: !!r.live, verify: r.verify == null ? null : !!r.verify, mood: r.mood != null ? r.mood : null,
+      topic: r.topic || 'other', fric: r.fric || null, tok: r.tok || 0, title: r.title || '（无标题）', model: r.model || null, effort: r.effort || null }, psRowFields(r)));
   });
   ALLX.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi) || (x.id < y.id ? -1 : 1));
   ALL.length = 0; ALLX.forEach((s) => ALL.push(s));
@@ -445,6 +481,15 @@ let lvSpineAgain = false, lvSpineTimer = null, lvSpineBusy = null, lvSpineFails 
 const LV_SECTION = 'uiview_facts';
 LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
 LV.job = null;      // the analysis job being polled for the spine: {id, status, elapsed_s, timeout_s}
+LV.pending = false; // the spine read answered projection_pending: the first import is still being published (not a failure)
+let lvPendN = 0;
+// projection_pending (the read, or the analysis job behind it): show 「正在整理数据…」 and read again shortly — quietly, the
+// spine's own state is part of lvSig, so a retry that changes nothing renders nothing
+function lvSpinePending() {
+  LV.pending = true; LV.job = null; LV.failed = null;
+  if (LV.state === 'ready') LV.stale = true; else LV.state = 'computing';
+  lvPendN++; lvSpineLater(Math.min(5000, 1000 * lvPendN));
+}
 function lvSpineFailed(f) {
   LV.failed = f; LV.job = null; LV.stale = false;
   if (LV.state !== 'ready') LV.state = 'error';
@@ -455,6 +500,7 @@ function lvWatchSpine(id) {
   LV.job = { id, status: 'queued' };
   TL.analysis.poll(id, (j) => { if (LV.job && LV.job.id === id) { LV.job = Object.assign({ id }, j); TL.changed(); } }).then((j) => {
     if (!LV.job || LV.job.id !== id) return;
+    if (j.status === 'failed' && j.error && j.error.code === 'projection_pending') { lvSpinePending(); lvChanged(); return; }
     if (j.status === 'failed') { lvSpineFailed({ reason: (j.error && j.error.code) || 'analysis_failed', message: j.error && j.error.message }); return; }
     LV.job = null;
     if (j.status === 'gone') lvSpineLater(1200); else LV.loadSpine();
@@ -487,11 +533,12 @@ LV.loadSpine = function () {
       // analysis is not running (its failure circuit is open), so the strip offers 重新计算 instead of retrying blindly
       const jid = res.meta && res.meta.job_id;
       if (jid) lvWatchSpine(jid);
+      else if (TL.analysis && TL.analysis.failed[LV_SECTION] === 'projection_pending') lvSpinePending();
       else if (TL.analysis) lvSpineFailed({ reason: TL.analysis.failed[LV_SECTION] || null });
       else lvSpineLater(1200);
       return;
     }
-    LV.stale = false; LV.failed = null; LV.job = null; LV.progress = null;
+    LV.stale = false; LV.failed = null; LV.job = null; LV.progress = null; LV.pending = false; lvPendN = 0;
     if (res.data && res.data.meta && res.data.meta.window) LV.noteWindow(res.data.meta.window);
     // 304: nothing changed — but a read that failed meanwhile has now succeeded, so leave the error state (R4-11)
     if (res.data === lvSpineData && LV.state !== 'connecting') { if (LV.state === 'error') LV.state = ALL.length ? 'ready' : 'empty'; return; }
@@ -514,6 +561,7 @@ LV.loadSpine = function () {
       const fb = LV.scopeTooLarge(days);
       if (fb != null && fb !== days) { LV.spineDays = fb; lvSpineAgain = true; return; }
     }
+    if (e && (e.code === 'projection_pending' || e.reason === 'projection_pending')) { LV.error = null; lvSpinePending(); return; }
     if (e && e.code === 'analysis_unavailable') { LV.error = e; lvSpineFailed({ reason: e.reason || null, message: e.message }); return; }
     lvSpineFails++;
     // the gateway answered with an error (5xx / 4xx): that is a failed read, not a connection still being set up
@@ -526,7 +574,8 @@ LV.loadSpine = function () {
     // the wanted window changed while this read was in flight (SSE analysis.ready, a range switch, a 422 fallback)
     if (lvSpineAgain || (LV.spineDays != null && LV.spineDays !== days)) { lvSpineAgain = false; setTimeout(() => LV.loadSpine(), 0); }
     else LV.widen();
-    TL.changed();
+    // the spine's state is in lvSig: a read that changed nothing (304, the same failure again) does not re-render
+    lvChanged();
   });
   return lvSpineBusy;
 };
