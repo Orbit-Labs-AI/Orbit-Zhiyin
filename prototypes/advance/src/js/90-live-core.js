@@ -338,8 +338,8 @@ LV.hydrate = function (spine) {
   LASTDAY = Math.round((t - DAY0) / 86400000);
   // 全部 starts at the earliest session, not at the 120-day spine floor (R4-04); no rows keeps the full spine
   FIRSTDAY = first ? Math.max(0, Math.min(LASTDAY, Math.round((lvUtc(first) - DAY0) / 86400000))) : 0;
-  // agents: present in facts or detected, ordered by session count; deselections survive by id
-  const prevOff = new Set(AG.filter((a) => !S.agents.has(a.id)).map((a) => a.id));
+  // agents: present in facts or detected, ordered by session count; default all; an explicit deselection survives by id (agentOff)
+  agentSync();
   const ags = {};
   const add = (bid, extra) => { const m = lvAgentOf(bid); const a = ags[m.id] || (ags[m.id] = lvMakeAgent(m)); Object.assign(a, extra || {}); return a; };
   (spine.discovered || []).forEach((x) => add(x.agent, { detected: true, path: x.root || '—' }));
@@ -376,7 +376,7 @@ LV.hydrate = function (spine) {
   Object.keys(PJI).forEach((k) => { delete PJI[k]; }); PJ.forEach((p) => { PJI[p.id] = p; });
   LV.excluded = excluded; LV.undated = undated; LV.rev++;
   // S fix-ups
-  S.agents = new Set(AG.map((a) => a.id).filter((id) => !prevOff.has(id)));
+  agentApply();
   S.srcOff = new Set(Array.from(S.srcOff).filter((id) => AGI[id]));
   if (S.project && !PJI[S.project]) S.project = null;
   const done = ALL.filter((s) => !s.live);
