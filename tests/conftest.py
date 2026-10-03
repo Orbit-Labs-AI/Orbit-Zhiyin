@@ -65,6 +65,12 @@ def gateway_harness(tmp_path, monkeypatch) -> Callable[..., GatewayHarness]:
     monkeypatch.setattr(engines, "FALLBACK_DIRS", ())
     monkeypatch.setattr("tandem_catalog.network.HttpClient.get", no_network)
     envmod._memo.clear()
+    # The A4 tools view caches results in a process-global LRU keyed by scope and revision but
+    # not by gateway home, so a second gateway in the same process at the same data_rev would
+    # be served the first one's numbers (follow-up for uiview). One fresh cache per test.
+    from tandem_backend.uiview import a4a6_common
+
+    monkeypatch.setattr(a4a6_common, "CACHE", a4a6_common.LRU(32))
     stack = ExitStack()
 
     def make(*, discovery=lambda: [], agent_dirs=(".claude", ".codex"), fetcher=None,
