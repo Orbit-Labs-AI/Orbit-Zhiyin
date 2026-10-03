@@ -197,7 +197,11 @@ def test_tokens_cache_buckets_reasoning_and_invalid_requests():
     for mutation in ({"usage_scope": "session_snapshot"}, {"measurement": "cumulative"}, {"boundary_reliable": False}):
         u = usage([request(**mutation)], [], [session()], Scope())
         assert u["total_tokens"] is None and u["request_count"] is None
-    assert usage([request()], [], [session()], Scope(), records_complete=False)["total_tokens"] is None
+    partial = usage([request()], [], [session()], Scope(), records_complete=False)
+    # Incomplete records no longer erase the total: the known row is a lower bound.
+    assert (partial["total_tokens"], partial["total_basis"], partial["total_complete"]) == (
+        2000, "call_delta_known_rows", False)
+    assert partial["total_unknown"]["records_incomplete"] is True
     assert usage([request(cost_usd=1, cost_source="estimate")], [], [session()], Scope())["cost_usd"] is None
 
 
@@ -254,12 +258,12 @@ def test_text_json_is_serializable_with_real_clustering():
     json.dumps(representation(es), allow_nan=False)
 
 
-@pytest.mark.parametrize("text", ["不对，请重新来", "还是不行", "wrong, try again", "你理解错了。", "改成两段"])
+@pytest.mark.parametrize("text", ["不对，请重新来", "这个方向错了，先回滚再说", "wrong, try again", "你理解错了。", "改成两段"])
 def test_correction_positive(text):
     assert correction_terms(text)
 
 
-@pytest.mark.parametrize("text", ["这个函数不对称", "不是看不懂，请继续", "不要输出错误答案", "请解释 wrong 的含义", "如果不对就重试", "> 不对\n请继续", '示例里写着“还是不行”'])
+@pytest.mark.parametrize("text", ["这个函数不对称", "不是看不懂，请继续", "还是不行", "不要输出错误答案", "请解释 wrong 的含义", "如果不对就重试", "> 不对\n请继续", '示例里写着“还是不行”'])
 def test_correction_negation_and_quotes(text):
     assert not correction_terms(text)
 

@@ -43,14 +43,14 @@ def validate_observation(item, candidate):
     if any(q not in text for q in quotes):
         raise ValueError("observation quotation is absent from direct source text")
     from ..instruction.extraction import CONDITION, _clauses
-    from ..instruction.structure import FILE
+    from ..instruction.structure import file_pattern
     from ..outcome_subjective.extraction import _HYPOTHETICAL, _META_REQUEST
 
     clauses = list(_clauses(text))
     for control in observation.controls:
         if not any(control.quote in clause for clause in clauses):
             raise ValueError("control quotation is narrative or crosses directive boundaries")
-        if CONDITION.search(FILE.sub("", control.quote)) and not control.condition:
+        if CONDITION.search(file_pattern().sub("", control.quote)) and not control.condition:
             raise ValueError("conditional directive lost its condition")
     if observation.feedback and (
         _HYPOTHETICAL.search(observation.feedback.quote)

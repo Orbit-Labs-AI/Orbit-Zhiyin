@@ -20,39 +20,21 @@ from pathlib import Path
 
 from tandem_backend import privacy
 
+from ..analytics.interaction.rules import CORRECTION_CHARS
+from ..analytics.interaction.rules import is_correction as _is_correction
 from .redact import compact, est_tokens, redact_value
 
 log = logging.getLogger(__name__)
 
 DAY_MS = 86_400_000
 MARKER = "[tandem-analysis"
-# Corrections are short pushback near the start of a message (B8): a bare "不是" inside a long
-# prompt is a copula, "again" is mostly a client retry ("Try again").
-CORRECTION_MAX_CHARS = 200
-_CORRECTION_HEAD = 60
-_CORRECTION_ZH = re.compile(r"^(?:不是|错了|搞错)|(?<!对)不对(?![应称劲齐])|我说的是|别再|不是这样|不是这个|不是我要"
-                            r"|不是让你|理解错|搞错了|还是不行")
-# English pushback only counts at the start of a sentence ("No, use X", "That's wrong",
-# "Wrong file", "Still failing"): mid-sentence "wrong" is mostly a request about an object
-# ("fix the wrong import", "what's wrong with this test"). Unambiguous phrases count anywhere.
-_CORRECTION_EN_START = re.compile(
-    r"^(?:(?:no|nope|hmm+|ugh|wait|actually|again)[,.!\s]+)?"
-    r"(?:no|nope)\b(?=[\s,.!]|$)(?!\s+(?:problem|worries|thanks|rush|idea|need)\b)"
-    r"|^(?:(?:no|nope|hmm+|ugh|wait|actually)[,.!\s]+)?"
-    r"(?:that'?s|this is|it'?s|you'?re|you are)\s+(?:still\s+)?(?:not right|not correct|wrong|incorrect|not it|not what)"
-    r"|^(?:(?:no|nope|hmm+|ugh|wait|actually)[,.!\s]+)?(?:wrong|incorrect)\b(?!\s+with)"
-    r"|^(?:(?:no|nope|hmm+|ugh|wait|actually)[,.!\s]+)?(?:i said|i meant|i asked (?:you )?(?:to|for))\b"
-    r"|^(?:(?:no|nope|hmm+|ugh|wait|actually)[,.!\s]+)?(?:still (?:wrong|broken|failing|not working|doesn'?t work)"
-    r"|don'?t do that|stop doing|you (?:did|got) (?:it|that) wrong|you broke)",
-    re.I)
-_CORRECTION_EN_ANY = re.compile(r"\bnot what i (?:asked|meant|wanted|said)\b|\byou misunderstood\b"
-                                r"|\bthat'?s not what\b|\bi told you (?:not )?to\b", re.I)
-_SENTENCES = re.compile(r"(?<=[.!?。！？;；])\s*|\n+")
+# Corrections: the single definition is ``analytics.interaction.rules.is_correction`` (length
+# gate, client-retry exclusion, zh/en pushback rules, result feedback kept apart).
+CORRECTION_MAX_CHARS = CORRECTION_CHARS[1]
 # Cues that the agent misread the request (vs. a wrong approach / buggy output), used by the
 # rule fallback of classify.feedback to pick friction_type.
 MISUNDERSTOOD = re.compile(r"我说的是|不是我要|不是让你|理解错|没听懂|not what i (?:asked|meant|wanted|said)"
                            r"|you misunderstood|\bi meant\b|\bi said\b|\bi asked (?:you )?(?:to|for)\b", re.I)
-_CLIENT_RETRY = re.compile(r"^(?:try again|retry|continue|please continue|go on|keep going)[.!。！]?$", re.I)
 # No protocol outcome: not counted in failure-rate denominators (declined = user refused).
 UNKNOWN_STATUS = ("unknown", "orphan_result", "declined", "denied")
 VERIFY_RE = re.compile(r"pytest|npm (run )?test|pnpm (check|test)|cargo test|go test|make( test)?|tsc|ruff|eslint"
@@ -139,14 +121,9 @@ def window_sql(start: int, end: int, project_id, home, alias: str = "s", *,
 
 
 def is_correction(text) -> bool:
-    """A short human message that pushes back on the agent (see ``CORRECTION_MAX_CHARS``)."""
-    t = (text or "").strip()
-    if not t or len(t) > CORRECTION_MAX_CHARS or _CLIENT_RETRY.match(t):
-        return False
-    head = t[:_CORRECTION_HEAD]
-    if _CORRECTION_ZH.search(head) or _CORRECTION_EN_ANY.search(head):
-        return True
-    return any(_CORRECTION_EN_START.match(part.strip()) for part in _SENTENCES.split(head) if part.strip())
+    """A short human message that redirects the agent; delegates to the analytics verdict so the
+    AI packs, uiview and signals count the same messages."""
+    return _is_correction(text)
 
 
 def union_ms(intervals, lo: int | None = None, hi: int | None = None) -> int:
