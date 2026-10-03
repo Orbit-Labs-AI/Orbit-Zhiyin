@@ -32,7 +32,23 @@ function openCSV() {
   CUR.csv = ['tool,calls,error_rate,failures,avg_duration,approval_rate'].concat(rows.map((r) => [r.name, r.n, (r.err * 100).toFixed(1) + '%', r.fails, r.avg, Math.round(r.ap * 100) + '%'].join(','))).join('\n');
   openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · ' + rows.length + ' 种工具 · 复制后可以粘贴到表格软件') + '<div class="mb"><textarea readonly aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.csv) + '</textarea></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyCSV">复制 CSV</button></div>', 'wide');
 }
-const SHAREQ = { DIMV: ['把目标交出去，', '把验收留给自己。'], DIFV: ['让 Agent 带路，', '方向由我来核实。'], DIMT: ['同时开很多条线，', '顺着结果往前走。'], DIFT: ['放手让它发挥，', '享受意外的收获。'], DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], SIFV: ['一次只做一件事，', '每一步都亲自确认。'], SPFV: ['先想清楚，再动手，', '每一步都有依据。'] };
+// 分享卡的两行引语：16 型各一句，跟 TYPES（05-data.js）的一句话描述同一个意思，写成第一人称
+const SHAREQ = {
+  DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], DPMT: ['需求讲清楚就放手，', '让几条线同时开工。'],
+  DPFV: ['一次只推一件事，', '交代清楚，严格验收。'], DPFT: ['把想法写成好任务书，', '精力留给关键判断。'],
+  DIMV: ['把目标交出去，', '把验收留给自己。'], DIMT: ['同时开很多条线，', '顺着结果往前走。'],
+  DIFV: ['让 Agent 先去探路，', '每一步由我来核实。'], DIFT: ['放手让它发挥，', '享受意外的收获。'],
+  SPMV: ['几条线一起推进，', '每一步都逐项核对。'], SPMT: ['计划排得周全，', '几件事亲自轮番操盘。'],
+  SPFV: ['先想清楚，再动手，', '每一步都有依据。'], SPFT: ['把步骤一条条讲清楚，', 'Agent 照着就能抵达。'],
+  SIMV: ['同时试几种做法，', '让结果告诉我哪个更好。'], SIMT: ['和几个 Agent 快速往来，', '彼此激发新思路。'],
+  SIFV: ['小步尝试，即时查看，', '一点点刻出想要的形状。'], SIFT: ['像结对编程一样，', '边聊边把事做成。']
+};
+// 分享卡的配色（HTML 与 PNG 共用）：纸色 / 深色两套；花是两色（墨色前排 + 浅灰后排）加 Orbit 石板色的领瓣，与画像页一致；
+// 字标是 Orbit·知音（01-brand.js，取自 docs/design/logo/kit），纸色上用墨色版、深色上用夜色版
+const shareColors = (dk) => dk ? { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54', lead: '#a3adb0', wm: ORBIT_WM.night }
+  : { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5', lead: '#5f6b6f', wm: ORBIT_WM.ink };
+// 分享卡上的花（80 视框，领瓣朝上）：完整的 bloom()，领瓣单独着色
+const shareGlyph = (p) => bloom(p, 40, 36);
 function sharePersona() { const per = PERIODS[S.persona.period]; const L = sel({ win: [per[0], per[1]] }); return { L, p: persona(L), label: /月$/.test(per[2]) ? '2026 年 ' + per[2].replace(' ', ' ') : per[2] }; }
 function qrSVG(seed, C) {
   const r = rng(hash(seed)); const N = 17; let cells = '';
@@ -42,12 +58,12 @@ function qrSVG(seed, C) {
 }
 function shareCard(sp) {
   const p = sp.p, L = sp.L, dk = S.shareDark, nn = S.shareNoNum;
-  const C = dk ? { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' } : { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' };
-  const g = bloomGlyph(p); const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
+  const C = shareColors(dk);
+  const g = shareGlyph(p); const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
   const nAg = new Set(L.map((s) => s.a)).size;
   return '<div class="sharecard" style="background:' + C.bg + ';color:' + C.ink + '"><div style="position:relative;height:100%;padding:7cqw 7.5cqw 6.5cqw;display:flex;flex-direction:column">' +
-    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--font-num);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
-    '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.major + '" fill="' + C.mj + '"/>' + bloomHeart(g, 40, 40, C.mj, 'none', 1.6) + '</svg>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:2cqw">' + wordmarkSVG(24, C.wm, { style: 'height:3.6cqw;width:auto;flex:none;display:block' }) + '<span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
+    '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true" data-bloom="' + g.code + '">' + bloomLayers(g, 40, 40, { ink: C.mj, gray: C.mn, lead: C.lead, bg: C.bg, hw: 1.6 }) + '</svg>' +
     '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:700 14cqw/.9 var(--font-type)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--font-num);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
     '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--font-display)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--font-display);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
     '<div style="margin-top:5cqw;font:500 4.6cqw/1.5 var(--font-display)">「' + esc(q[0]) + '<br>' + esc(q[1]) + '」</div>' +
@@ -88,10 +104,10 @@ function expSave(filename, mime, data) {
   }, (e) => { toast('保存失败：' + ((e && (e.message || e.code)) || '未知错误')); return { ok: false }; });
 }
 /* share card → 1080 × 1350 PNG drawn with canvas 2D (WebKit taints a canvas that draws SVG foreignObject, so the HTML card
-   cannot be rasterised as is). The model mirrors shareCard(): colours, code letters, names, quote, stats, glyph, QR seed. */
+   cannot be rasterised as is). The model mirrors shareCard(): colours, wordmark, code letters, names, quote, stats, flower, QR seed. */
 function shareModel(sp) {
   const p = sp.p; const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
-  const g = bloomGlyph(p); const nAg = new Set(sp.L.map((s) => s.a)).size;
+  const g = shareGlyph(p); const nAg = new Set(sp.L.map((s) => s.a)).size;
   return { code: p.code, label: sp.label, zh: p.zh, en: p.en, q, glyph: g,
     axes: AXES.map((ax, i) => { const v = axisView(p, i); return { L: v.letter, name: v.name, strong: v.strong + '%' }; }),
     stats: [[fmt(p.st.n), '会话'], [Math.round(p.st.hours) + 'h', '协作时长'], [String(nAg), 'Agent'], [f1(p.st.auto) + '×', '自主比']], foot: '全部分析在本机完成' };
@@ -101,19 +117,29 @@ async function sharePNG(m, dark, noNum) {
   const W = 1080, H = 1350, u = W / 100; const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const x = cv.getContext('2d'); const cs = getComputedStyle(document.documentElement);
   const F = { type: cs.getPropertyValue('--font-type').trim() || 'sans-serif', serif: cs.getPropertyValue('--font-display').trim() || 'sans-serif', mono: cs.getPropertyValue('--font-num').trim() || 'sans-serif', sans: cs.getPropertyValue('--font-sans').trim() || 'sans-serif' };
-  const C = dark ? { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' } : { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' };
+  const C = shareColors(dark);
   const L = 7.5 * u, R = W - 7.5 * u;
   const text = (t, px, py, font, col, align) => { x.font = font; x.fillStyle = col; x.textAlign = align || 'left'; x.fillText(t, px, py); };
   x.fillStyle = C.bg; x.fillRect(0, 0, W, H); x.textBaseline = 'alphabetic';
-  if ('letterSpacing' in x) x.letterSpacing = (0.32 * 2.6 * u).toFixed(1) + 'px';
-  text('ORBIT', L, 7 * u + 2.6 * u, '700 ' + 2.6 * u + 'px ' + F.mono, C.ink);
-  if ('letterSpacing' in x) x.letterSpacing = '0px';
-  text('我的 AI 协作人格 · ' + m.label, R, 7 * u + 2.6 * u, 2.5 * u + 'px ' + F.sans, C.ink3, 'right');
-  if (m.glyph && typeof Path2D === 'function') {
+  // 字标 Orbit·知音：01-brand.js 的原样 path，按 viewBox 等比缩放到 3.6 cqw 高，垂直居中对齐右侧的期间文字
+  const hy = 7 * u + 1.8 * u;
+  if (typeof Path2D === 'function') {
+    const vb = ORBIT_WM.viewBox.split(' ').map(Number), k = 3.6 * u / vb[3];
+    x.save(); x.translate(L, hy - 1.8 * u); x.scale(k, k); x.translate(-vb[0], -vb[1]); x.fillStyle = C.wm;
+    ORBIT_WM.d.forEach((d) => x.fill(new Path2D(d))); x.restore();
+  }
+  x.textBaseline = 'middle'; text('我的 AI 协作人格 · ' + m.label, R, hy, 2.5 * u + 'px ' + F.sans, C.ink3, 'right'); x.textBaseline = 'alphabetic';
+  // 花：与 HTML 卡同一组图层（bloomLayers 的顺序）：后排浅灰 → 领瓣 → 前排墨色 → 花蕊 → 圆点 → 花心
+  const gl = m.glyph;
+  if (gl && typeof Path2D === 'function') {
     const k = 32 * u / 80; x.save(); x.translate(W - 5 * u - 32 * u, 12 * u); x.scale(k, k);
-    x.fillStyle = C.mj; x.fill(new Path2D(m.glyph.major)); x.strokeStyle = C.mj; x.lineWidth = 1.6;
-    if (m.glyph.ring) { x.beginPath(); x.arc(40, 40, m.glyph.hr, 0, Math.PI * 2); x.stroke(); x.beginPath(); x.arc(40, 40, 2.1, 0, Math.PI * 2); x.fill(); }
-    else { x.beginPath(); x.arc(40, 40, m.glyph.hr * 0.62, 0, Math.PI * 2); x.fill(); }
+    const fill = (d, c) => { if (d) { x.fillStyle = c; x.fill(new Path2D(d)); } };
+    fill(gl.back, C.mn); fill(gl.lead, C.lead); fill(gl.major, C.mj);
+    if (gl.st) { x.strokeStyle = C.mj; x.lineWidth = gl.sw; x.lineCap = 'round'; x.stroke(new Path2D(gl.st)); }
+    fill(gl.dotF, C.mj); fill(gl.dotB, C.mn);
+    x.fillStyle = C.mj; x.strokeStyle = C.mj; x.lineWidth = 1.6;
+    if (gl.ring) { x.beginPath(); x.arc(40, 40, gl.hr, 0, Math.PI * 2); x.fillStyle = C.bg; x.fill(); x.stroke(); x.fillStyle = C.mj; x.beginPath(); x.arc(40, 40, 1.6 * 1.3, 0, Math.PI * 2); x.fill(); }
+    else { x.beginPath(); x.arc(40, 40, gl.hr * 0.62, 0, Math.PI * 2); x.fill(); }
     x.restore();
   }
   let cx = L; const by = 7 * u + 2.6 * u + 9 * u + 12.6 * u;

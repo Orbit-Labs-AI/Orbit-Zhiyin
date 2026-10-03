@@ -106,8 +106,8 @@ function bloomParts(g, cx, cy, c) {
 function bloomLayers(g, cx, cy, c) { const q = bloomParts(g, cx, cy, c); return q.back + q.front + q.heart; }
 // 一个类型的代表花（算法说明的 16 型表）：四个维度都取该极、强度 72
 const typeP = (code) => ({ v: { D: code[0] === 'D' ? 72 : 28, I: code[1] === 'I' ? 72 : 28, M: code[2] === 'M' ? 72 : 28, V: code[3] === 'V' ? 72 : 28 } });
-// 小尺寸花（菜单栏、小组件、分享卡，80 视框）：领瓣并入墨色
-function bloomGlyph(p) { const g = bloom(p, 40, 36); return Object.assign(g, { hr: +g.hr.toFixed(1), major: g.lead + g.major }); }
+// 小尺寸花（菜单栏面板、小组件、画像页图例、算法说明的 16 型表，80 视框）：领瓣并入墨色，小尺寸下只靠瓣形与两色辨认
+//（分享卡的大花见 55-exports.js 的 shareGlyph，领瓣用 Orbit 石板色）
 function glyphSVG(p, size) {
   const g = bloom(p, 40, 36);
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 80 80" aria-hidden="true" data-bloom="' + bloomCode(p) + '">' + bloomLayers(g, 40, 40, { ink: 'var(--ink-1)', gray: 'var(--h3)', lead: 'var(--ink-1)', bg: 'none', hw: 2 }) + '</svg>';
