@@ -150,3 +150,28 @@ def test_section_reuses_the_memoised_analysis():
     assert seen == [(tuple(section.INPUTS), True, 7)]
     assert out["rows"] == body["rows"]
     assert SECTIONS["uiview_facts"].cost == "heavy"
+
+
+@pytest.mark.parametrize(("raw", "want"), [
+    ("Write a SwiftUI preview for the profile screen with dark mode and dynamic type",
+     "Write a SwiftUI preview for the profile screen…"),
+    ("x" * 48, "x" * 48),
+    ("a" * 47 + " ", "a" * 47),
+    ("  short title  ", "short title"),
+    ("修复导入时界面反复重渲染导致下拉框关闭的问题，并补充回归测试以及截图核对多种窗口尺寸下的表现，同时检查深浅色",
+     "修复导入时界面反复重渲染导致下拉框关闭的问题，并补充回归测试以及截图核对多种窗口尺寸下的表现，同时检查深浅色"[:48] + "…"),
+    ("Write a SwiftUI preview for the profile         ", "Write a SwiftUI preview for the profile"),
+])
+def test_wire_title_ellipsis_without_trailing_space(raw, want):
+    got = facts.wire_title(raw)
+    assert got == want
+    assert got == got.strip() and len(got) <= facts.WIRE_TITLE_LEN + 1
+
+
+def test_compact_titles_end_with_ellipsis_not_space():
+    body = analysed()[4]
+    long = "Write a SwiftUI preview for the profile screen with many states"
+    rows = [{**body["rows"][0], "title": long}, *body["rows"][1:]]
+    wire = facts.compact({**body, "rows": rows})
+    back = facts.expand(wire)
+    assert back[0]["title"].endswith("…") and " …" not in back[0]["title"]
