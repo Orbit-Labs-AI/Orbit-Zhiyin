@@ -37,9 +37,11 @@ from tandem_data.indexing import index_file, indexed_rows, iter_lines_with_rows
 from tandem_data.source_reader import SourceUnavailable, _zstd_lines, source_path, source_stat
 from tandem_data.store import SQL_TABLES, insert_tuples
 
-# Mappers that only read their own file. Others (Codex history/forks, Kimi indexes,
-# OpenCode/Hermes databases) always stay on the writer.
-PARALLEL_AGENTS = frozenset({"claude_code", "pi", "dsh"})
+# Mappers whose line files can be mapped from their own file. Codex rollouts qualify too:
+# the writer re-maps the few files that need other files' results (a forked child's
+# inherited prefix, a branch that history selection supersedes; see ``map_file`` and
+# ``MapPlan.after_history``). Kimi indexes and OpenCode/Hermes databases stay on the writer.
+PARALLEL_AGENTS = frozenset({"claude_code", "pi", "dsh", "codex"})
 LINE_FORMATS = ("jsonl", "jsonl_zstd", "json")
 PARALLEL_THRESHOLD = 24  # Smaller jobs are cheaper in-process than spawning a pool.
 CAPTURE_ERRORS = (OSError, RuntimeError, ValueError, sqlite3.Error, zstandard.ZstdError)
@@ -675,34 +677,75 @@ def _lite(mapped):
     return replace(mapped, prepared=prepared, encoded=encoded)
 
 
+SPILL_CHUNK_RECORDS = 2000  # Mapped records per pickled chunk of a spill file.
+
+
+def _needs_parent_events(info, mapper) -> bool:
+    """A Codex fork maps its inherited prefix against its parent's events (writer only)."""
+    return (
+        info["agent"] == "codex"
+        and getattr(mapper, "cut", None) is not None
+        and bool(getattr(mapper, "parent", None))
+    )
+
+
 def map_file(task, spill_dir=None):
-    """Worker: prepare and map one independent file without touching SQLite."""
+    """Worker: prepare and map one independent file without touching SQLite.
+
+    The file is read twice (prepare, then map), like the writer's serial path, instead of
+    being held in memory; mapped results go to the spill file in chunks of
+    ``SPILL_CHUNK_RECORDS``, so a worker holds at most one chunk of a large rollout.
+    """
     from tandem_data.pipeline import map_native
 
     info = task["info"]
     facade = FacadeStore()
     path = source_path(task["root_path"], info["relative_path"])
+
+    def records():
+        return iter_lines_with_rows(path, task["meta"], task["rows"])
+
+    mapper = MAPPERS[info["agent"]](facade, info)
+    out = spill = None
     try:
-        records = list(iter_lines_with_rows(path, task["meta"], task["rows"]))
+        try:
+            mapper.prepare(records())
+        except SourceUnavailable:
+            raise
+        except NeedsWriter:
+            return {"serial": True}
+        except (ValueError, KeyError, TypeError, AttributeError) as error:
+            return {"prepare_error": type(error).__name__, "prepare_actions": facade.take()}
+        prepare_actions = facade.take()
+        if _needs_parent_events(info, mapper):
+            return {"serial": True}
+        if spill_dir is not None:
+            handle, spill = tempfile.mkstemp(dir=spill_dir, suffix=".map")
+            out = os.fdopen(handle, "wb")
+        results = []
+        try:
+            for record in records():
+                if record.native_type == "table:session_model_usage":
+                    continue
+                mapped = _lite(map_native(mapper, record, task["mapper_version"]))
+                results.append((replace(record, data={}), mapped, facade.take()))
+                if out is not None and len(results) >= SPILL_CHUNK_RECORDS:
+                    pickle.dump(results, out, protocol=pickle.HIGHEST_PROTOCOL)
+                    results = []
+        except NeedsWriter:
+            return {"serial": True}
+        if out is not None:
+            pickle.dump(results, out, protocol=pickle.HIGHEST_PROTOCOL)
+            out.close()
+            out, results, spill = None, spill, None
     except SourceUnavailable as error:
         return {"unavailable": error.status, "message": str(error)}
-    mapper = MAPPERS[info["agent"]](facade, info)
-    try:
-        mapper.prepare(iter(records))
-    except NeedsWriter:
-        return {"serial": True}
-    except (ValueError, KeyError, TypeError, AttributeError) as error:
-        return {"prepare_error": type(error).__name__, "prepare_actions": facade.take()}
-    prepare_actions = facade.take()
-    results = []
-    try:
-        for record in records:
-            if record.native_type == "table:session_model_usage":
-                continue
-            mapped = _lite(map_native(mapper, record, task["mapper_version"]))
-            results.append((replace(record, data={}), mapped, facade.take()))
-    except NeedsWriter:
-        return {"serial": True}
+    finally:
+        if out is not None:
+            out.close()
+        if spill is not None:  # Not handed to the writer: an error or a serial fallback.
+            with contextlib.suppress(OSError):
+                os.unlink(spill)
     stub = {
         "header": mapper.header,
         "session_uid": mapper.session_uid,
@@ -711,12 +754,29 @@ def map_file(task, spill_dir=None):
     for name in ("parent_file_id", "parent", "cut"):
         if hasattr(mapper, name):
             stub[name] = getattr(mapper, name)
-    if spill_dir is not None:
-        handle, spill = tempfile.mkstemp(dir=spill_dir, suffix=".map")
-        with os.fdopen(handle, "wb") as out:
-            pickle.dump(results, out, protocol=pickle.HIGHEST_PROTOCOL)
-        results = spill
     return {"stub": stub, "prepare_actions": prepare_actions, "results": results}
+
+
+def _drop_results(mapper):
+    results, mapper.results = mapper.results, None
+    if isinstance(results, str):
+        with contextlib.suppress(OSError):
+            os.unlink(results)
+
+
+def _result_chunks(results):
+    """Mapped results of one file: a list, or chunks loaded one at a time from its spill."""
+    if not isinstance(results, str):
+        yield results
+        return
+    with open(results, "rb") as handle:
+        while True:
+            try:
+                chunk = pickle.load(handle)
+            except EOFError:
+                break
+            yield chunk
+    os.unlink(results)
 
 
 class ReplayMapper:
@@ -852,7 +912,8 @@ class MapPlan:
             if info["file_id"] not in unavailable and map_candidate(store.db, info)
         ]
         executor = self.pool.executor(len(candidates))
-        spill = self.pool.spill_dir(store.home) if executor is not INLINE else None
+        # In-process mapping spills too, so the writer never holds a whole file's results.
+        spill = self.pool.spill_dir(store.home) if candidates else None
         premapped = getattr(self.pool, "premapped", {})
         # Submit while reading L1 rows so workers start before the last file is loaded.
         for info in candidates:
@@ -909,31 +970,54 @@ class MapPlan:
         return isinstance(mapper, ReplayMapper)
 
     def records(self, mapper):
-        results = mapper.results
-        if isinstance(results, str):
-            with open(results, "rb") as handle:
-                results = pickle.load(handle)
-            os.unlink(mapper.results)
-        mapper.results = None
-        uids = [
-            draft.event_uid
-            for _, mapped, _ in results
-            if mapped is not None and not mapped.error
-            for draft, _ in mapped.prepared
-        ]
+        results, mapper.results = mapper.results, None
         self.present = set()
-        for start in range(0, len(uids), 500):
-            chunk = uids[start : start + 500]
-            self.present.update(
-                row[0]
-                for row in self.store.db.execute(
-                    f"SELECT event_uid FROM event WHERE event_uid IN ({','.join('?' * len(chunk))})",
-                    chunk,
+        for chunk in _result_chunks(results):
+            # Events of earlier chunks of this file are in ``present`` already; a chunk
+            # only adds the ones that existed before this file was applied.
+            uids = [
+                draft.event_uid
+                for _, mapped, _ in chunk
+                if mapped is not None and not mapped.error
+                for draft, _ in mapped.prepared
+            ]
+            for start in range(0, len(uids), 500):
+                part = uids[start : start + 500]
+                self.present.update(
+                    row[0]
+                    for row in self.store.db.execute(
+                        f"SELECT event_uid FROM event WHERE event_uid IN ({','.join('?' * len(part))})",
+                        part,
+                    )
                 )
-            )
-        for record, mapped, actions in results:
-            self.current[record.record_uid] = (mapped, actions)
-            yield record
+            for record, mapped, actions in chunk:
+                self.current[record.record_uid] = (mapped, actions)
+                yield record
+
+    def after_history(self, mappers):
+        """Re-map on the writer the worker-mapped Codex files that history selection bounds.
+
+        Workers map every rollout as the whole active branch. ``select_history`` runs only
+        after every file is prepared; a superseded branch (``history_excluded``) or an
+        ancestor cut at a later fork (``history_end``) is prepared again here with the
+        selected bounds and mapped serially. Mirrors are never mapped, so they keep their
+        replay stand-in. Prepare's store effects are idempotent (identities, issue upserts).
+        """
+        for file_id, mapper in list(mappers.items()):
+            if not isinstance(mapper, ReplayMapper):
+                continue
+            if getattr(mapper, "mirror_file_id", None):
+                _drop_results(mapper)  # A mirror is never mapped.
+                continue
+            excluded = getattr(mapper, "history_excluded", False)
+            end = getattr(mapper, "history_end", float("inf"))
+            if not excluded and end == float("inf"):
+                continue
+            serial = MAPPERS[mapper.info["agent"]](self.store, mapper.info)
+            serial.prepare(self.store.iter_file(file_id))
+            serial.history_excluded, serial.history_end = excluded, end
+            _drop_results(mapper)
+            mappers[file_id] = serial
 
     def apply(self, mapper, record, apply_mapped, sequences, first_by_native, parent_keys, pending):
         from tandem_data.connectors.base import Mapping

@@ -44,7 +44,9 @@ def select_history(store, mappers):
     groups = defaultdict(list)
     active_paths = {}
     for mapper in mappers.values():
-        if not isinstance(mapper, CodexMapper):
+        # A worker-mapped rollout is a replay stand-in (``parallel.ReplayMapper``) with
+        # the same info and header, so select by agent rather than by class.
+        if mapper.info["agent"] != "codex":
             continue
         if mapper.info["role"] == "state_index":
             for record in store.iter_file(mapper.info["file_id"]):
