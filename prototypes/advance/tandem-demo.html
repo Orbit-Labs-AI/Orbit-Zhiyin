@@ -527,6 +527,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-ct .cap{font-weight:400;font-size:11px}
 .vz-kpi{padding:11px 14px 10px;display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid var(--line);cursor:default;width:100%;container-type:inline-size}
 .vz-kpi-h{justify-content:space-between;width:100%}
+/* a tile without a trend line keeps the 24px head of its spark-carrying siblings, so labels and values line up */
+.tiles:has(.vz-spark) .vz-kpi-h{min-height:24px}
 .vz-kpi-l{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @container (max-width:150px){.vz-kpi .vz-spark{display:none}}
 .vz-kpi-v{align-items:baseline;gap:3px}
@@ -812,7 +814,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* KPI tiles: compact spark stays visible at 150px tiles (the period label refers to it); period label sits right, under the spark */
 #ovTiles .vz-kpi{padding:12px 12px 10px}
 #ovTiles .vz-kpi .vz-spark{display:block;flex:none}
-#ovTiles .vz-kpi-h{gap:6px}
+#ovTiles .vz-kpi-h{gap:6px;min-height:20px}
 #ovTiles .vz-kpi-p{margin-left:auto;font-size:10px;color:var(--ink-4)}
 #ovTiles .vz-kpi-d{letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis}
 @container (max-width:132px){#ovTiles .vz-kpi-d{font-size:10px}}

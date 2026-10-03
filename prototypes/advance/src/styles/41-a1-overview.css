@@ -12,7 +12,7 @@
 /* KPI tiles: compact spark stays visible at 150px tiles (the period label refers to it); period label sits right, under the spark */
 #ovTiles .vz-kpi{padding:12px 12px 10px}
 #ovTiles .vz-kpi .vz-spark{display:block;flex:none}
-#ovTiles .vz-kpi-h{gap:6px}
+#ovTiles .vz-kpi-h{gap:6px;min-height:20px}
 #ovTiles .vz-kpi-p{margin-left:auto;font-size:10px;color:var(--ink-4)}
 #ovTiles .vz-kpi-d{letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis}
 @container (max-width:132px){#ovTiles .vz-kpi-d{font-size:10px}}

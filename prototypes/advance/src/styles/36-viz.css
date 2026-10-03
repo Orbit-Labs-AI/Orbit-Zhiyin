@@ -156,6 +156,8 @@
 .vz-ct .cap{font-weight:400;font-size:11px}
 .vz-kpi{padding:11px 14px 10px;display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid var(--line);cursor:default;width:100%;container-type:inline-size}
 .vz-kpi-h{justify-content:space-between;width:100%}
+/* a tile without a trend line keeps the 24px head of its spark-carrying siblings, so labels and values line up */
+.tiles:has(.vz-spark) .vz-kpi-h{min-height:24px}
 .vz-kpi-l{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @container (max-width:150px){.vz-kpi .vz-spark{display:none}}
 .vz-kpi-v{align-items:baseline;gap:3px}
