@@ -167,11 +167,13 @@ function renderSide() {
     group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
 }
 // the published footer, shared by both editions: index indicator light (live / paused / manual) + session count, then the user row
-// sideIdx() → { st: 'live' | 'busy' | 'off' | 'err', n: session count or null, t: state label }; live mode (96-live-bind) swaps in the gateway state
-function sideIdx() {
+// sideIdx() → { st: 'live' | 'busy' | 'off' | 'err', n: session count or null, t: state label }; live mode (96-live-bind) swaps in the
+// gateway's connection state and its session count, then falls through to sideMode (S.paused / S.index mirror collection.paused / sync_mode)
+function sideMode(n) {
   if (S.paused) return { st: 'off', n: null, t: '采集已暂停' };
-  return { st: S.index === 'live' ? 'live' : 'off', n: 2416 + S.extraSrc.length * 37, t: S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动' };
+  return { st: S.index === 'live' ? 'live' : 'off', n, t: S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动' };
 }
+function sideIdx() { return sideMode(2416 + S.extraSrc.length * 37); }
 function sideFoot() {
   const x = sideIdx(), me = personaNow();
   return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="sources" data-st="' + x.st + '" data-tip="打开设置 › 数据源">' +

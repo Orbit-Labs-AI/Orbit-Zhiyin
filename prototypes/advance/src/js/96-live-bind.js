@@ -112,12 +112,14 @@ if (LV.live) {
     const strip = lvStrip(S.route);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
-  // sidebar indicator: the gateway's state instead of the demo index mode; the count is the live session spine
+  // sidebar indicator, in order: gateway unreachable / connecting, collection paused, spine read failed, computing; once ready
+  // the index mode — S.paused / S.index mirror the gateway's collection.paused and settings.sync_mode (97-live-studio-settings)
   sideIdx = function () {
     if (LV.state === 'connecting') return TL.error ? { st: 'err', n: null, t: '本机服务未连接' } : { st: 'busy', n: null, t: '正在连接本机服务' };
-    if (LV.state === 'error') return { st: 'err', n: ALL.length || null, t: '本机服务未连接' };
+    if (S.paused) return sideMode(null);   // the gateway answered collection.paused; nothing is being indexed
+    if (LV.state === 'error') return { st: 'err', n: ALL.length || null, t: '数据读取失败' };
     if (LV.state === 'computing') return { st: 'busy', n: ALL.length || null, t: '索引中' };
-    return { st: 'live', n: ALL.length, t: '实时' };
+    return sideMode(ALL.length);
   };
   TL.start();
 }

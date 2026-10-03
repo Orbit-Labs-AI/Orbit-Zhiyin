@@ -161,8 +161,11 @@ test('settings live: storage, collection pause, notify policy / preset / snooze 
   await pause.click();
   await expect(pause).toHaveAttribute('aria-checked', 'true');
   await expect.poll(() => sent(gw, 'POST', '/v1/platform/collection/pause').length).toBe(1);
+  await expect(page.locator('#side .sb-foot .pv')).toHaveAttribute('data-st', 'off');   // sidebar indicator: gray, 采集已暂停
+  await expect(page.locator('#side .sb-foot .pv')).toContainText('采集已暂停');
   await pause.click();
   await expect.poll(() => sent(gw, 'POST', '/v1/platform/collection/resume').length).toBe(1);
+  await expect(page.locator('#side .sb-foot .pv')).not.toContainText('采集已暂停');
   await expect(page.locator('#toast')).toContainText('正在补采');
   // 通知: matrix from the policy (done → hud only), one cell → PUT, preset → ?preset=all, mute → snooze, test → POST
   await page.evaluate(() => { S.setTab = 'notify'; renderSet(); });
