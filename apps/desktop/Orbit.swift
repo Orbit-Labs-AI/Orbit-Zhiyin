@@ -225,6 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     var output = Data()
     var bookmarks: [URL] = []
     lazy var bridge = BridgeProxy(self)
+    var titlebar: [String: Double] = [:]
 
     var mainWebView: WKWebView { hosts[.main]!.webView }
 
@@ -247,6 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.minSize = NSSize(width: 960, height: 640)
         window.contentView = main.webView
         window.dragView = main.webView
+        titlebar = measureTitlebar(window)
         window.delegate = self
         window.center()
         window.setFrameAutosaveName("OrbitMainWindow")  // Remembers size and position.
@@ -307,8 +309,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         origin.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 
+    /// The traffic-light row of the main window, in page coordinates (top-left origin, points): its height (twice the
+    /// lights' vertical centre) and the lights' left / right edges. macOS 26+ draws a 32 pt row with the lights further in
+    /// than macOS 14–15 (28 pt), so the page aligns its sidebar toggle and title rows to these numbers (20-window.css).
+    func measureTitlebar(_ win: NSWindow) -> [String: Double] {
+        guard let close = win.standardWindowButton(.closeButton), let zoom = win.standardWindowButton(.zoomButton) else { return [:] }
+        let c = close.convert(close.bounds, to: nil), z = zoom.convert(zoom.bounds, to: nil)
+        let height = (win.frame.height - c.midY) * 2
+        guard height > 16, height < 80, z.maxX > c.minX else { return [:] }
+        return ["height": Double(height), "left": Double(c.minX), "right": Double(z.maxX)]
+    }
+
+    /// Full screen hides the traffic lights: the page moves its sidebar toggle to the left edge (data-native-fs).
+    func windowWillEnterFullScreen(_ notification: Notification) { setNativeFullScreen(true) }
+    func windowWillExitFullScreen(_ notification: Notification) { setNativeFullScreen(false) }
+    func setNativeFullScreen(_ on: Bool) {
+        hosts[.main]?.webView.evaluateJavaScript("document.documentElement.toggleAttribute('data-native-fs', \(on));")
+    }
+
     func bootstrapScript(_ origin: URL) -> String {
-        let native: [String: Any] = ["v": 1, "app": appVersion, "platform": "macos", "features": nativeFeatures]
+        var native: [String: Any] = ["v": 1, "app": appVersion, "platform": "macos", "features": nativeFeatures]
+        if !titlebar.isEmpty {
+            var tb: [String: Any] = titlebar
+            tb["fullscreen"] = window?.styleMask.contains(.fullScreen) ?? false
+            native["titlebar"] = tb
+        }
         return "window.__TANDEM_TOKEN__ = \(jsString(token)); window.__TANDEM_ENDPOINT__ = \(jsString(endpoint(origin)));" +
             " window.__ORBIT_NATIVE__ = \(jsonLiteral(native)); window.__ORBIT_PREFS__ = \(jsonLiteral(prefs.values));"
     }

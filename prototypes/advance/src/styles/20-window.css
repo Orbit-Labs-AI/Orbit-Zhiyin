@@ -104,8 +104,12 @@
    The fake desktop (menu bar, wallpaper, desktop widgets, the in-page menubar panel / HUD) and the fake traffic lights go;
    #win fills the viewport (22-window.js "native" mode) without radius or shadow, and the transparent title bar of the real
    window gets --titlebar-inset: the sidebar toggle sits in that strip right of the real traffic lights, the page title row
-   starts under it. Window dragging is the host's (drag strip), so the title row keeps no move / resize handles. */
-:root{--titlebar-inset:28px}
+   starts under it. Window dragging is the host's (drag strip), so the title row keeps no move / resize handles.
+   The host reports its traffic-light row (95-live-native.js): --titlebar-inset = twice the lights' centre, so the toggle
+   (vertically centred in the band) shares their centre line; --sbtoggle-x = 16px right of the last light (the same gap as
+   the page-drawn lights). The Lite / Advance switch is centred on the page title row (band + 52px row: band + 11px for its
+   30px). Full screen (data-native-fs, no lights) moves the toggle to the sidebar's icon column. */
+:root{--titlebar-inset:28px;--sbtoggle-x:94px}
 body.native .desk{background:var(--bg)}
 body.native :is(.mbar,.wall){display:none!important}
 body.native:not(.surface-widgets) #widgets{display:none!important}
@@ -113,9 +117,11 @@ body.native:not([class*="surface-"]) :is(#hud,#pop){display:none!important}
 body.native .win{border-radius:0;box-shadow:none;transition:opacity .15s,grid-template-columns .2s var(--ease)}
 body.native .win .rz{display:none}
 body.native .win .lights{display:none}
-body.native .wtop{height:var(--titlebar-inset);padding-left:78px}
+body.native .wtop{height:var(--titlebar-inset);padding-left:var(--sbtoggle-x)}
+body.native .wtop .sbtoggle{margin-left:0}
+:root[data-native-fs] body.native .wtop{padding-left:12px}
 body.native .main{padding-top:var(--titlebar-inset)}
-body.native .side{border-radius:0}
+body.native .side{border-radius:0;padding-top:calc(var(--titlebar-inset) + 11px)}
 body.native .win.nosb .tbar{padding-left:20px}
 /* settings card title is the dialog's name (h2); in the App the page-drawn traffic lights give way to a plain close button */
 .ptop h2.ptitle{margin:0}
