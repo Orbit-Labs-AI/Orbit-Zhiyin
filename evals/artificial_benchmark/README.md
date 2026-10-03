@@ -49,6 +49,8 @@ Docker 可通过 `DOCKER_HOST` 选择独立实例，`--docker` 指定 CLI。
 `ORBIT_BUILD_PROXY` 只作为构建期间的 HTTP/HTTPS proxy 参数；正式任务无网络。
 `prepare --apt-mirror URL --pip-index HTTPS_URL` 可明确选择软件包镜像源；
 URL 与生成的 Dockerfile 都进入冻结记录，不改变上游指定的 Python 包版本。
+论文下载按完整版本 URL 缓存到 Docker 的构建缓存；下载成功并检查 PDF 文件头后才入缓存。
+缓存不进入任务镜像，每道文件整理任务仍包含上游指定的 100 篇论文与原始文件名。
 Colima 用户可把 `COLIMA_HOME`、`XDG_CACHE_HOME`、`DOCKER_CONFIG` 设到专用外置目录，
 使用 `--mount none --activate=false --ssh-config=false` 创建独立 profile。
 建议 4 CPU、8 GiB 内存、100 GiB 稀疏数据盘。外置盘断开前停止实验和虚拟机。

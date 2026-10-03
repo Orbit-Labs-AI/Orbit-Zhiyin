@@ -76,6 +76,28 @@ def strip_skills(dockerfile: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def cache_arxiv_downloads(dockerfile: str) -> str:
+    """Reuse exact versioned URLs during builds; the cache never enters a task image."""
+    header = "RUN <<'EOF'\nset -euo pipefail\nmkdir -p /root/papers/all"
+    start = '    if [ ! -f "$paper" ]; then\n'
+    end = '            -O "$paper" "$url"\n    fi\n'
+    if any(dockerfile.count(marker) != 1 for marker in (header, start, end)):
+        raise ValueError("Unsupported upstream paper downloader")
+    dockerfile = dockerfile.replace(header, header.replace(
+        "RUN ", "RUN --mount=type=cache,id=orbit-arxiv-pdfs,target=/var/cache/orbit-arxiv,sharing=locked ", 1))
+    dockerfile = dockerfile.replace(start,
+        '    cache_key="$(printf \'%s\' "$url" | sha256sum | cut -d \' \' -f 1)"\n'
+        '    cached="/var/cache/orbit-arxiv/$cache_key"\n'
+        '    if [ ! -s "$cached" ]; then\n')
+    return dockerfile.replace(end,
+        '            -O "$cached.part" "$url"\n'
+        '        test "$(head -c 5 "$cached.part")" = "%PDF-"\n'
+        '        mv "$cached.part" "$cached"\n'
+        '    fi\n'
+        '    test "$(head -c 5 "$cached")" = "%PDF-"\n'
+        '    cp "$cached" "$paper"\n')
+
+
 def offline_verifier(script: str) -> str:
     """Use preinstalled pinned packages; retain the official pre/post processing and verdict."""
     lines, replaced = [], 0
@@ -125,6 +147,8 @@ def prepare(source: Path, output: Path, pi: Path, apt_mirror: str | None = None,
             if not any(dep.startswith("pytest-json-ctrf==") for dep in dependencies):
                 dependencies.append("pytest-json-ctrf==0.3.5")
             dockerfile = strip_skills((directory / "environment/Dockerfile").read_text())
+            if family == "organize-messy-files":
+                dockerfile = cache_arxiv_downloads(dockerfile)
             if apt_mirror:
                 if not re.fullmatch(r"https?://[A-Za-z0-9./:_-]+", apt_mirror):
                     raise ValueError("APT mirror must be a plain HTTP(S) URL without credentials")
