@@ -7,7 +7,7 @@
    60-close 曲线画起前（场景拍 b70.4–75.4）长淡到 0，此后保持全黑到片尾。时间只按 SHIFT 表换算，不读场景对象。 */
 scene('05-light', () => {
   css(`
-.light{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.light{position:absolute;inset:0;pointer-events:none;overflow:hidden;-webkit-mask-image:radial-gradient(ellipse 70% 75% at 50% 52%,#000 55%,rgba(0,0,0,.35) 100%);mask-image:radial-gradient(ellipse 70% 75% at 50% 52%,#000 55%,rgba(0,0,0,.35) 100%)}
 .light .lb{position:absolute;left:0;top:0;background:center/contain no-repeat;opacity:0;will-change:transform,opacity}
 `);
   const box = document.createElement('div'); box.className = 'light'; stage.insertBefore(box, stage.firstChild);
@@ -15,7 +15,8 @@ scene('05-light', () => {
   const ASP = { circle: .738, ring: .927, prism: 1.002, warm: .998, wave: .383, ribbon: .738 };
   // v18.1: ring.webp is a lumpy blob, not a donut — a radial mask (in % of the layer, so it scales with w and turns with the
   // layer about its centre) cuts a soft dark disc, so the rim haloes what sits at the waypoint (1e dot ring, persona dial)
-  const MASK = { ring: 'radial-gradient(circle farthest-corner at 50% 50%, transparent 0 33%, rgba(0,0,0,.5) 40%, #000 50%)' };
+  // v18.2: a band that also fades at its outer edge (closest-side), so the halo rings the dot ring / dial instead of washing the frame
+  const MASK = { ring: 'radial-gradient(circle closest-side at 50% 50%, transparent 0 44%, rgba(0,0,0,.6) 52%, #000 58%, #000 74%, transparent 100%)' };
   const GAIN = 1.35, CAP = .7, FADE_IN = [0, 4.5], FADE_TAIL = 3.6;
   // k: [film beat, x, y (centre, stage px), width px, strength]; img: [first image, [beat, next image], …] (3-beat dissolve)
   // spin: own constant turn (deg / beat) on top of the breathing wobble; rot0: starting angle; d: drift phase
@@ -24,23 +25,23 @@ scene('05-light', () => {
     // A: ring from b27 haloes the R420 dot ring of the 1e peak (centre 960,540, dark disc ≥ ring), then sits concentric with
     // the persona dial (600,560) and swells at the DIMV reveal; back to circle before recs so no ring under the column / cards
     { name: 'A', img: ['circle', [27, 'ring'], [62.9, 'circle']], spin: .167, rot0: -6, d: 1,
-      k: [[0, 1560, 1240, 1200, 0], [6.0, 1380, 900, 1250, .26], [18.0, 1150, 700, 1300, .28], [28.4, 960, 540, 1500, .42], [35.9, 960, 540, 1500, .46],
-        [41.9, 900, 548, 1200, .36], [49.4, 720, 560, 1000, .30], [61.4, 600, 560, 1000, .38], [83.8, 240, 560, 820, .34], [95.8, 520, 560, 950, .3],
-        [107.8, 960, 540, 1250, .3], [116.7, 960, 470, 1300, .3], [119.7, 960, 330, 1250, .3], [131.7, 960, 300, 1300, 0]] },
+      k: [[0, 1560, 1240, 1200, 0], [6.0, 1380, 900, 1250, .20], [18.0, 1150, 700, 1300, .28], [28.4, 960, 540, 1500, .50], [35.9, 960, 540, 1500, .52],
+        [41.9, 900, 548, 1200, .36], [49.4, 720, 560, 1000, .30], [61.4, 600, 560, 1000, .38], [83.8, 240, 560, 820, .34], [96.6, 520, 560, 950, .20], [99.4, 960, 680, 820, .34],
+        [108.6, 960, 540, 1250, .3], [117.5, 960, 470, 1300, .3], [120.5, 960, 330, 1250, .3], [131.7, 960, 300, 1300, 0]] },
     // B: warm accent near the 1b headline; late swell behind the right side of the centred recs payoff
-    { name: 'B', img: ['prism', [89.8, 'warm']], spin: -.12, rot0: 8, d: 2,
-      k: [[0, 180, -260, 1100, 0], [7.5, 520, 120, 1150, .36], [19.5, 860, 100, 1150, .3], [31.4, 1440, 190, 1100, .32], [46.4, 1560, 480, 1100, .3],
-        [56.9, 1520, 600, 1100, .3], [68.8, 1660, 520, 1000, .32], [80.8, 1880, 560, 1000, .40], [92.8, 1420, 720, 1050, .34], [103.3, 1640, 980, 1050, .3],
-        [121.2, 1500, 900, 1000, .26], [131.7, 1450, 950, 1000, 0]] },
+    { name: 'B', img: ['prism', [90.6, 'warm']], spin: -.12, rot0: 8, d: 2,
+      k: [[0, 180, -260, 1100, 0], [7.5, 520, 120, 1150, .28], [19.5, 860, 100, 1150, .3], [31.4, 1440, 190, 1100, .32], [46.4, 1560, 480, 1100, .16],
+        [56.9, 1520, 600, 1100, .16], [68.8, 1660, 520, 1000, .24], [80.8, 1880, 560, 1000, .40], [84.8, 1300, 600, 950, .40], [93.6, 1420, 720, 1050, .22],
+        [99.8, 1640, 860, 1000, .18], [104.1, 1640, 980, 1050, .3], [122.0, 1500, 900, 1000, .26], [131.7, 1450, 950, 1000, 0]] },
     // C: floor glow under the intro bar (y 1120), then the wave / ribbon low band
-    { name: 'C', img: ['wave', [110.7, 'ribbon']], spin: .08, rot0: -5, d: 3,
+    { name: 'C', img: ['wave', [111.5, 'ribbon']], spin: .08, rot0: -5, d: 3,
       k: [[0, -200, 1000, 1700, 0], [9.0, 640, 1120, 1800, .3], [21.0, 1060, 1120, 1800, .34], [32.9, 1400, 1030, 1800, .26], [44.9, 1780, 1150, 1700, .12],
-        [59.9, 1100, 1080, 1800, .2], [74.8, 860, 1000, 1900, .26], [89.8, 900, 1080, 1800, .2], [104.8, 820, 980, 1700, .26], [115.2, 950, 770, 1500, .36],
-        [125.7, 965, 740, 1550, .38], [131.7, 975, 728, 1600, 0]] }
+        [59.9, 1100, 1080, 1800, .2], [74.8, 860, 1000, 1900, .26], [90.6, 900, 1080, 1800, .14], [105.6, 820, 980, 1700, .26], [116.0, 950, 770, 1500, .36],
+        [126.5, 965, 740, 1550, .38], [131.7, 975, 728, 1600, 0]] }
   ];
   // v18.1 parallax: scripted [film beat, dur, dx, dy, ease], ≈ 1/3 of each foreground move in the same direction
-  // (A, B × 1, C × .6; b98.2 dy −40: the trajectory card leaves upward and SKILL.md rises in); the eased sum is an offset that stays (see the waypoint note below). Still no reads of scene objects.
-  const PAR = [[49.7, 1.4, -120, 0, 'inOut'], [85.9, 1.4, 40, 0, 'out'], [98.2, 1.2, -60, -40, 'inOut'], [106.1, 1.0, 0, -40, 'inOut']];
+  // (A, B × 1, C × .6; b99.0 dy −40: the trajectory card leaves upward and SKILL.md rises in); the eased sum is an offset that stays (see the waypoint note below). Still no reads of scene objects.
+  const PAR = [[49.7, 1.4, -120, 0, 'inOut'], [86.7, 1.4, 40, 0, 'out'], [99.0, 1.2, -60, -40, 'inOut'], [106.9, 1.0, 0, -40, 'inOut']];
   const par = (b) => PAR.reduce((a, [pb, du, x, y, ez]) => { const q = E[ez](clamp((b - pb) / du)); a[0] += x * q; a[1] += y * q; return a; }, [0, 0]);
 
   // ---- path: centripetal Catmull-Rom (Barry–Goldman) over [x, y, w, strength], knots from the x/y chord ** .5 (v18.1: at least 12, so a
