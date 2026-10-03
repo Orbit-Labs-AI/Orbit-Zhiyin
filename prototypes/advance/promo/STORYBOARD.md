@@ -423,6 +423,8 @@ markRing(o)          // 便捷函数：{ cx, cy, R, grow, tilt, a } → 俯视/�
 - **compass key**：b26.4 的 `AGD.key('compass')` 由 30-persona 写；20-orbit 只在没有这一 key 时补写。
 - **H11**：deck 2 用 `E.inOut` .85 拍缩小淡出（b39.4 起，约 b40.2 清空）；40-recs 的相机、驱动与卡片淡入提前到 b40.55–40.6，随点飞行升起，不留只剩点的空场。
 - **H12**：推荐列提前 0.2 拍滚出（b55.1 清空），会话轨迹卡提前到 b55.4 入画，与五点合并重叠。
+- **H9**：罗盘方位字推迟到 b27.7–28.2 淡入，等右侧徽章与翻平的标志外圈让开后再出现。
+- **H13**：工坊卡改 E.inOut 淡出（b68.1–69.1）；合并点提前到 **b68.9** 散开（dur 1.9），圆环 b69.3–71.1 画出，不再剩一个静止的点。
 - 2.2 螺旋仍按计划 E.inOut 1.4 拍长出，b22.85 前几乎不可见（已知，未改）。
 
 ## 交接汇总
@@ -434,7 +436,7 @@ markRing(o)          // 便捷函数：{ cx, cy, R, grow, tilt, a } → 俯视/�
 | b26.4 | `20-orbit` | `30-persona` | 标志 TOP 姿态 R 328 中心 (960, 540)（到 b28.2 淡完，归 20-orbit）；deck 2 归 30-persona：中心 (960, 540)，s .86；AGD key compass |
 | b39.4 | `30-persona` | `40-recs` | AGD key column（从 cpBadge 出发）；deck 2 由 30-persona 画到 b40.4 并淡出 |
 | b55.0 | `40-recs` | `50-tools` | AGD key merge（220, 540）；deck 0 在 b55.4 前已透明 |
-| b69.4 | `50-tools` | `60-close` | AGD key compass（收拢罗盘 = r 300 圆环）；deck 0 / 1 在 b70 前透明；deck 2 归 60-close |
+| b68.9 | `50-tools` | `60-close` | AGD key compass（收拢罗盘 = r 300 圆环）；deck 0 / 1 在 b70 前透明；deck 2 归 60-close |
 
 AGD 的 key / follow / link / bubble / glow 由当段的场景调用；同一拍只有上表的接手方写新的 key。
 
