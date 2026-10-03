@@ -435,3 +435,19 @@ def test_combine_is_exact_for_shared_days_across_agents():
     merged = sig.combine(sig.by_agent(rows, aux).values())
     assert merged == whole
 
+
+
+def test_v_counts_only_turns_where_the_user_asked_for_verification():
+    """V = how *you* make sure it is right: a test the agent ran on its own does not count."""
+    from orbit_backend.uiview import facts
+    # [steps, verify, requested, ran, stopped, known]
+    turns = [[6, 1, 1, 0, 0, 1], [6, 1, 0, 1, 0, 1], [6, 1, 1, 1, 0, 1], [2, 0, 0, 0, 0, 1]]
+    assert sig.requested_turns(turns) == 2
+    assert facts.aux_units({"turns": turns})["vk"] == 2
+    # Snapshots from before the split ([steps, verify]) fall back to ``verify``.
+    assert sig.requested_turns([[6, 1], [2, 0], [3, 1]]) == 2
+    asked = persona.persona([{"id": "s", "d": "2026-09-01", "a": "codex"}],
+                            {"s": {"turns": [[3, 1, 1, 0, 0, 1]] * 4}})
+    agent_only = persona.persona([{"id": "s", "d": "2026-09-01", "a": "codex"}],
+                                 {"s": {"turns": [[3, 1, 0, 1, 0, 1]] * 4}})
+    assert asked["code"][3] == "V" and agent_only["code"][3] == "T"

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 import tempfile
 from pathlib import Path
@@ -519,3 +520,76 @@ def build_canonical_home(
         for source_root in write_codex_sources(Path(scratch), sessions, seed):
             ingest(home, "codex", source_root)
     return home
+
+
+# -- persona population (fictional users, wire-row units) ------------------------------------
+# Behaviour of a fictional user at the low / high pole of each persona axis; a user's latent
+# trait t ∈ [0, 1] interpolates between them (plus noise). These ranges are invented for a
+# health check of the persona mapping (spread, no pile-up at one end or at 50, all 16 types
+# reachable); they are *not* measurements and must not be read as calibration.
+PERSONA_POLES = {
+    # D: high = delegates (long turns, few messages, rarely stops the agent)
+    "step_share": (0.10, 0.80), "msgs": (14.0, 2.0), "stop_rate": (0.25, 0.02),
+    # I: high = improvises (no plan / acceptance, no spec, short opening, redirects often)
+    "planned_open": (0.75, 0.10), "spec_open": (0.35, 0.02), "open_len": (500.0, 40.0),
+    "corr_rate": (0.02, 0.30),
+    # M: high = many threads (sessions per day, other agents the same day, overlap, sub-agents)
+    "per_day": (1.3, 7.0), "other_agent": (0.05, 0.6), "overlap": (0.05, 0.6),
+    "subagents": (0.0, 0.35),
+    # V: high = verifies (asks for tests / builds / checks, rolls back or redoes)
+    "ask_verify": (0.02, 0.45), "rework": (0.02, 0.25),
+}
+PERSONA_AGENTS = ("claude_code", "codex", "gemini", "kimi")
+
+
+def persona_population(users: int = 300, sessions: int = 60, seed: int = 7) -> list[dict]:
+    """Fictional users → ``{"traits": {D, I, M, V}, "rows": [wire rows]}``.
+
+    Each row carries the facts wire units the persona reads (``dk`` / ``dn`` / ``vk`` / ``ik``
+    / ``kn`` / ``ol`` / ``oa`` / ``os`` / ``sc`` / ``rb`` / ``t0`` / ``t1`` plus ``msgs`` /
+    ``corr``), with ``vk`` counting turns where the *user* asked for verification.
+    """
+    rng = random.Random(seed)
+    out = []
+    for user in range(users):
+        traits = {k: rng.random() for k in "DIMV"}
+
+        def at(name, axis, noise=0.08, traits=traits):
+            lo, hi = PERSONA_POLES[name]
+            t = min(1.0, max(0.0, traits[axis] + rng.gauss(0, noise)))
+            return lo + (hi - lo) * t
+
+        step_share, mean_msgs, stop_rate = at("step_share", "D"), at("msgs", "D"), at("stop_rate", "D")
+        planned, spec, open_len = at("planned_open", "I"), at("spec_open", "I"), at("open_len", "I")
+        corr_rate = at("corr_rate", "I")
+        per_day, other, overlap = at("per_day", "M"), at("other_agent", "M"), at("overlap", "M")
+        sub = at("subagents", "M")
+        ask, rework = at("ask_verify", "V"), at("rework", "V")
+        rows, day, left = [], 0, sessions
+        while left > 0:
+            n_today = max(1, min(left, round(rng.expovariate(1 / per_day))))
+            for j in range(n_today):
+                msgs = max(1, round(rng.expovariate(1 / mean_msgs)))
+                turns = msgs
+                dk = sum(rng.random() < step_share for _ in range(turns))
+                vk = sum(rng.random() < ask for _ in range(turns))
+                ik = sum(rng.random() < stop_rate for _ in range(turns))
+                start = BASE_TS + day * 86_400_000 + j * 3_600_000
+                if j and rng.random() < overlap:
+                    start -= 1_800_000
+                agent = PERSONA_AGENTS[0] if j == 0 or rng.random() >= other else \
+                    rng.choice(PERSONA_AGENTS[1:])
+                rows.append({
+                    "id": f"u{user}-s{len(rows)}", "d": f"2026-{1 + day // 28:02d}-{1 + day % 28:02d}",
+                    "a": agent, "p": f"proj-{user % PROJECTS}",
+                    "msgs": msgs, "corr": sum(rng.random() < corr_rate for _ in range(msgs - 1)),
+                    "dk": dk, "dn": turns, "vk": vk, "ik": ik, "kn": turns,
+                    "op": int(rng.random() < planned), "oa": int(rng.random() < planned),
+                    "os": int(rng.random() < spec),
+                    "ol": round(rng.lognormvariate(math.log(open_len), 0.6)),
+                    "sc": 2 if rng.random() < sub else 0, "rb": int(rng.random() < rework),
+                    "t0": start, "t1": start + 2_400_000})
+            left -= n_today
+            day += 1 + (rng.random() < 0.3)
+        out.append({"traits": traits, "rows": rows})
+    return out

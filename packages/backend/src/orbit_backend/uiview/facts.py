@@ -17,7 +17,7 @@ from contextvars import ContextVar
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from . import CONTRACT, metrics, outcome
+from . import CONTRACT, metrics, outcome, persona_signals
 
 UIDS = "(SELECT value FROM json_each(?))"
 # Turn statuses that do not say how a turn ended (tool results are classified by metrics.tool_state).
@@ -699,7 +699,8 @@ DICT_FIELDS = ("a", "p", "corr_basis", "out", "out_basis", "fric", "fric_basis",
                "tok_basis", "model", "effort", "title_source")
 ID_PREFIX = "session_"
 # Per-session persona units (from ``aux``) so the client can re-derive the persona on any
-# subset: dk/dn = turns with ≥ STEP_THRESHOLD steps / turns, vk = verified turns,
+# subset: dk/dn = turns with ≥ STEP_THRESHOLD steps / turns, vk = turns where the user asked
+# for verification (agent-only validation runs are not counted, see persona_signals),
 # op = structured opening (0 / 1 / null), t0 / t1 = observed interval (ms); the persona's
 # further signals: ik / kn = turns that ended stopped / turns with a known status,
 # ol = opening length (chars), oa = opening states a plan or acceptance (0 / 1 / null),
@@ -756,7 +757,7 @@ def aux_units(a: dict | None) -> dict:
         return dict.fromkeys(AUX_KEYS)
     turns = a.get("turns") or []
     return {"dk": sum(1 for t in turns if t[0] >= STEP_THRESHOLD), "dn": len(turns),
-            "vk": sum(1 for t in turns if t[1]), "op": a.get("open"), "t0": a.get("t0"),
+            "vk": persona_signals.requested_turns(turns), "op": a.get("open"), "t0": a.get("t0"),
             "t1": a.get("t1"),
             "ik": sum(1 for t in turns if len(t) >= 6 and t[4] and t[5]),
             "kn": sum(1 for t in turns if len(t) >= 6 and t[5]),
