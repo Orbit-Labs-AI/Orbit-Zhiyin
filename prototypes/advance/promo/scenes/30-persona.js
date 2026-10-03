@@ -156,11 +156,16 @@ scene('30-persona', () => {
   AGD.morph(28.6, 'all', 'petal', { dur: .5, stag: 0, aim: HEART, hold: .2, back: .6 });
   // ② 三次逐瓣换花：旧花的瓣从 12 点起顺时针在 u = .55·φ/360 收起、新瓣在 u ≈ .14 + .55·φ/360 打开（drawCompass relay）。
   // 每个点在扫动到达它当时的方位（公转中，取不动点）前 .1 拍变花瓣，新瓣打开时回圆——与花瓣同向同速顺时针传过去
+  // review：公转方位跨过 12 点时原来的不动点迭代在 0° / 360° 间来回跳，换花开头就让 12 点前（≈ 290–330°）的点变花瓣，
+  // 扫动其实约 1 拍后才到——改为在展开的角度上二分求「扫动角 = 点的角」；扫动追不上（点在扫动收尾前已回到 12 点）时取最接近的扫动收尾
   CH.forEach((c) => {
+    const SW = c.L * .55;
     for (let i = 0; i < 5; i++) {
-      if (bearing(i, c.s) == null) continue;
-      let t = c.s;
-      for (let n = 0; n < 6; n++) t = c.s + c.L * .55 * bearing(i, t) / 360;
+      const d = D0.sets.base.pl[i];
+      if (d == null) continue;
+      const off = d + revAt(c.s)[i] - bearing(i, c.s), f = (t) => 360 * (t - c.s) / SW - (d + revAt(t)[i] - off);
+      let t = c.s + SW;
+      if (f(c.s + SW) >= 0) { let lo = c.s, hi = c.s + SW; for (let n = 0; n < 30; n++) { const m = (lo + hi) / 2; if (f(m) < 0) lo = m; else hi = m; } t = hi; }
       AGD.morph(t - .1, i, 'petal', { dur: .3, aim: HEART, hold: .25, back: .45 });
     }
   });
