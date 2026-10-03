@@ -24,6 +24,10 @@ close's own END (CLOSE_END) + SHIFT of 60-close; the groove stops at FADE0 = TUR
 v18.1: one `lead` voice carries the motif M = E5 G5 A5 | E5 (from the AG badges) through all seven segments, the same
 7-note letter phrase E G A C | A G E sounds at both wordmark moments; HITS put the groove kick ON every big picture hit
 (kick / clap / open hat within ±.3 beat dropped); HATS_OFF lets the typing keys act as the hats.
+v18.2: keys +8 dB (dry) with the pads / arp16 sidechained -3 dB under the typing; lead +6 dB with a presence shelf and
+arp16 an octave lower; the line bridges b41–45 and b61–68, answers in the studio, quotes the motif on the compass and
+rises E G A D → E6 with the closing stroke; the groove stops on agent ✓4 (LAST) with a final button, then Cadd9, the
+lead's C and a C2 pedal ring out; tagline / 「agent」 hits on the picture beats; -6 dB low shelf, +2 dB at 2–4 kHz, wide pads.
 """
 import os
 import wave
@@ -453,14 +457,16 @@ def words(beats, gain, pan=0.0):
 # ================= 10-intro: 1a 用 AI Agent，正在成为每个人的日常 (b0–6.6) · 1b 从想法到交付 (b7–11.8) · 1c We Are Redesigning Everything
 section('10-intro')
 chords((0, 'Am'), (7, 'F'), (11.25, 'C'), (13.5, 'Am'), (15.3, 'C'), (17.0, 'G'))   # We Are Redesigning on Am7, Everything on I
-padlvl(0, 0.30, 800)
+padlvl(0, 0.30, 1300)
 padlvl(6.0, 0.22, 1000)
 padlvl(7.0, 0.15, 1300)
 padlvl(13.2, 0.15, 1600)
 put(bass_note(33, 6.6 * BEAT), 0, 0.38, to='duck')
 grain(0, 6.6, 24, 0.05)
-for i, m in enumerate(AG):                                                  # the cluster pops (b0.2 + .12 i): Am7 tones
-    put(blip(q(m + 12, 0.2), 0.6), 0.2 + 0.12 * i, 0.11, -0.6 + 0.3 * i, to='verbsend')
+for i, m in enumerate(AG):                                                  # the cluster pops (b0.2 + .12 i): E G A = the motif's first statement,
+    put(blip(q(m + 12, 0.2), 0.6), 0.2 + 0.12 * i, 0.11 if i < 3 else 0.06, -0.6 + 0.3 * i, to='verbsend')   # the last two pops stay under the words
+put(lead(lq(81, 0.5), 2.1 * BEAT, 2000), 0.5, 0.035, 0.0, to='lead')       # the first line is sung: A under 「AI Agent，正在成为每个人的」
+put(lead(lq(76, 2.6), 0.9 * BEAT, 2000), 2.6, 0.035, 0.0, to='lead')       # … resolving to E on 「日常」
 words((0.5,), 0.07)                                                         # 「AI Agent，」 wipes in (b0.4 + .1, v18.1 one step)
 words((1.1, 1.5, 1.95), 0.1)                                                # 「正在」「成为」「每个人的」, each with its settle
 put(kick(0.3, 0.7), 2.6, 0.3, to='kick')                                    # 「日常」 stamps in (b2.3) and hits (b2.6)
@@ -585,6 +591,8 @@ for k in range(7):                                                          # th
 put(whoosh(1.7 * BEAT), 30.0, 0.08, 0.2)                                    # the O turns back into the icon (b30.0–31.7)
 groove(29.5, 33.0, clap_on=False, lvl=0.84)
 put(whoosh(1.3 * BEAT), 31.7, 0.12, 0.2)                                    # the flip onto the compass (b31.7–33.0)
+put(lead(lq(81, 29.5), 2.2 * BEAT), 29.5, 0.06, 0.0, to='lead')             # bridge (film b40.8–45): A on the retract …
+put(lead(lq(76, 31.7), 1.5 * BEAT), 31.7, 0.06, 0.0, to='lead')             # … E on the flip, handing over to persona's motif
 
 # ================= 30-persona: compass, bud, title, the scrolling analysis column, petal-by-petal changes, reveal (b25.7–45.4)
 section('30-persona')
@@ -628,7 +636,7 @@ put(whoosh(1.1 * BEAT), 45.0, 0.1, 0.3)                                     # th
 
 # ================= 40-recs: peel into the column, intro card, six recommendations + two counters (b38.5–63.1) — peak on the last
 section('40-recs')
-chords((39.1, 'F'), (43.1, 'G'), (45.1, 'Am'), (49.1, 'F'), (53.1, 'C'), (57.1, 'G'), (62.35, 'Am+'))   # film 62 … 85.1: V → deceptive Am9 on the payoff
+chords((39.1, 'F'), (43.1, 'G'), (45.1, 'Am'), (49.1, 'F'), (53.1, 'C'), (57.1, 'G'), (62.35, 'Am+'), (63.4, 'G'))   # film 62 … 85.1: V → deceptive Am9 on the payoff
 padlvl(38.5, 0.17, 2000)
 padlvl(40.0, 0.16, 1900)
 padlvl(45.1, 0.17, 2200)
@@ -639,6 +647,8 @@ for k in range(5):                                                          # th
     b_ = 38.5 + 0.14 * k
     put(blip(tone(b_, 4 - k, 72), 0.4), b_, 0.045, -0.4 + 0.2 * k, to='verbsend')
 put(whoosh(1.7 * BEAT), 38.5, 0.06, -0.4)                                   # and glide into the column
+motif(38.5, 0.06, notes=(76, 79, 81), times=(0, 0.5, 1.35), held=2.0)       # bridge (film b61.4–67.9): E on the peel, G on the glide, A on line 1
+motif(42.7, 0.05, notes=(79, 76), times=(0, 1.1), held=1.2)                 # the column's second wave answers G E, into the entries at 45.0
 groove(39.4, 45.1, style='half', lvl=0.86, arp16=True, bed=0.2)             # the intro card reads over half time
 for r, b_ in enumerate((39.85, 39.99, 40.13)):                              # each top row writes one line out of a link:
     put(whoosh(0.3 * BEAT), b_ - 0.3, 0.03, -0.5)                           # 02 · 优化建议 / 根据你的使用习惯，智能推荐 / 提高效率
@@ -661,13 +671,15 @@ put(tick(1.2), 47.4, 0.05, 0.45)                                            # th
 for k, (g0, g1) in enumerate(zip([45.1] + EV[1:], EV[1:] + [61.35], strict=True)):   # the groove grows one step per card
     groove(g0, g1, lvl=0.82 * 1.06 ** k, arp16=True)
 breath(61.35, 62.35)                                                        # one beat of air, then the payoff
-groove(62.35, 63.1, lvl=1.0, arp16=True)
-hits(*EV, 62.35)
+groove(62.35, 63.4, lvl=1.0, arp16=True)
+groove(63.4, 64.3, style='half', lvl=0.86, arp16=True, bed=0.2)             # v18.2 the payoff holds .8 beat longer: the groove carries on
+hits(*EV, 62.35, 63.4)                                                      # the payoff leaves (film b86.3): a closing hit on a V suspension
 put(swell(0.9 * BEAT), 61.45, 0.32)
 peak(62.35, 'Am+', 1.0, 0.7)                                                # the payoff lands: centred % counters + 提高效率 (PO + POD, film b85.25)
 put(lead(lq(81, 62.35), 2.5 * BEAT), 62.35, 0.07, 0.0, to='lead')           # the motif's A on the peak
 counter(62.35, 0.8, 8, 0.05)
 put(whoosh(1.1 * BEAT), 61.9, 0.12, 0.2)                                    # the column speeds up and leaves
+put(stab(tuple(tone(63.4, j, 55) for j in range(4)), 1.4), 63.4, 0.1, 0.0, to='verbsend')   # V under the held A (the 9th), resolving to Am at film b86.8
 
 # ================= 50-tools: merge, session trajectory, studio (b55.0–75.2)
 section('50-tools')
@@ -692,7 +704,10 @@ for j, g in enumerate((0.08, 0.05)):                                        # �
 put(puff(), 65.0, 0.03, 0.3, to='verbsend')
 put(whoosh(1.4 * BEAT), 67.0, 0.1, -0.3)                                    # trajectory out, studio in (b67.1 / 67.3)
 put(whoosh(0.7 * BEAT), 68.2, 0.05, 0.1)                                   # the camera pushes in on 开始生成 (b68.2)
+arp(68.5, 68.8, 0.1, 0.05, base=72, span=3)                                 # the .3-beat hover: a rising up-beat into the press
 put(press(), 68.8, 0.16, 0.2)                                               # the dot presses 开始生成
+for m, b_, d_ in ((81, 68.8, 1.1), (79, 69.95, 2.8), (76, 72.85, 0.9), (84, 73.75, 1.5)):   # the studio's answer: A (press) G E C (done ✓, on I)
+    put(lead(lq(m, b_), d_ * BEAT), b_, 0.06, 0.0, to='lead')
 put(blip(tone(68.8, 0, 72), 0.4), 68.8, 0.07, 0.2, to='verbsend')
 for b_ in (68.95, 69.45, 69.95, 72.85, 73.3):                               # run steps (soft ticks)
     put(tick(1.2), b_, 0.06, 0.3)
@@ -713,13 +728,16 @@ padlvl(TURN0, 0.19, 2300)
 padlvl(TURN0 + 0.3, 0.22, 2400)
 padlvl(TURN0 + 3.8, 0.20, 2000)
 padlvl(TURN0 + 5.3, 0.22, 2300)
-padlvl(FADE0, 0.24, 2300)
+padlvl(FADE0, 0.22, 2000)
 put(whoosh(1.0 * BEAT), 69.2, 0.12, -0.2)                                   # the merged dot spirals out
 shimmer(69.4, 1.6, 12, 0.03)                                                # the ring draws on behind the dots
 groove(69.2, 75.4, style='half', clap_on=False, lvl=0.72, bed=0.2)
 roll(71.04, 5, 0.05, 0.1, 60)                                               # the ring opens into the compass
 roll(71.44, 4, 0.04, 0.08, 69)                                              # your type's flower
 put(blip(tone(72.64, 3, 76), 0.6), 72.64, 0.04, 0.2, to='verbsend')         # the type code is lit
+motif(71.04, 0.06, notes=(76, 79, 81), times=(0, 0.4, 1.6), held=1.5)        # the compass quotes the motif: E (ring opens) G (flower) A (type code)
+motif(75.6, 0.06, notes=(76, 79, 81, 86), times=(0, 1, 2, 3), held=1.6)      # augmented, rising with the stroke one note per beat; D = the 9th over G
+put(lead(lq(88, 80.2), 1.6 * BEAT), 80.2, 0.06, 0.0, to='lead')             # E6 as the icon stands, handed to the boom
 put(swell(1.2 * BEAT), 74.2, 0.18)                                          # it folds back into the ring
 put(whoosh(1.0 * BEAT), 75.3, 0.06, 0.3)                                    # the dots fly onto the pen head
 groove(75.4, 80.2, kick_on=False, clap_on=False, lvl=0.74, bed=0.18)        # the pulse stays, the floor drops out
@@ -727,18 +745,28 @@ put(sweep_pad(tuple(m + 12 for m in CH['F'][0]), 3.0 * BEAT, 0.4 * BEAT), 75.6, 
 arp(75.6, 78.6, 0.5, 0.055, base=67, span=6, accel=0.25)                    # (b75.6–78.6): a rising swell following the stroke
 put(riser(3.0 * BEAT, 300, 5000), 75.6, 0.14, to='verbsend')
 put(whoosh(1.6 * BEAT), 78.6, 0.1, -0.2)                                    # it turns and tilts into the 45° icon
-hits(80.2, TURN0 + 2.475, TURN0 + 4.0 - 0.1, TURN0 + 5.4 - 0.1)            # icon stands · letters · tagline · agent (film 117.1 / 120.4 / 121.9 / 123.3)
+TAG0 = TURN0 + 4.0
+LAST = TAG0 + 1.4 + 0.64                                                    # agent ✓4: the last strong beat (film b124.74)
+hits(80.2, TURN0 + 2.475, TAG0, TAG0 + 1.4)                                # icon stands · letters · tagline · agent, on the picture beats
 put(boom(2.4, 48, 28), 80.2, 0.2, to='verbsend')                            # the icon stands (b80.2)
 put(stab(tuple(tone(80.2, j, 62) for j in range(4)), 1.6), 80.2, 0.1, to='verbsend')
 groove(80.2, TURN0 + 0.3, style='half', clap_on=False, lvl=0.7, bed=0.18)  # it breathes in the centre
 put(swell(0.9 * BEAT), TURN0 - 0.6, 0.36)
 peak(TURN0 + 0.3, 'C+', 0.95, 0.8)                                          # the kit reveal turn (TURN0) — third peak
-groove(TURN0 + 0.3, FADE0, lvl=0.74, arp16=True, bed=0.18)                  # the groove runs under the end card and stops at FADE0
+groove(TURN0 + 0.3, TAG0 + 1.3, lvl=0.74, arp16=True, bed=0.18)            # the groove runs under the end card …
+groove(TAG0 + 1.3, LAST, lvl=0.74, bed=0.18)                                # … no arp under the agent ✓ row (the five blips are the only high ticks)
+HATS_OFF.append((TAG0 + 1.3 + SH, LAST + SH))                               # … and no hats; it stops on agent ✓4
+breath(LAST, CLOSE_END)
+put(kick(0.6, 1.0), LAST, 0.7, to='kick')                                   # the final button
+put(crash(3.0), LAST, 0.12, 0.15)
+put(stab(CH['C+'][0], 2.4), LAST, 0.14, to='verbsend')
+padlvl(LAST, 0.26, 2300)
+_d = (CLOSE_END - LAST) * BEAT
+put(np.sin(2 * np.pi * midi(36) * tt(_d)) * np.clip(tt(_d) / 0.05, 0, 1) * np.exp(-tt(_d) * 0.35), LAST, 0.2, to='dry')   # a C2 pedal rings to END
 for k in range(7):                                                          # 「rbit·知音」 rise (LET0 + .242 k): the same phrase as 20-orbit
     b_ = TURN0 + 2.475 + 0.242 * k
     put(bell(lq(LETTERS[k], b_), 1.4), b_, 0.045 - 0.002 * k, -0.45 + 0.15 * k, to='verbsend')
     put(lead(lq(LETTERS[k], b_), (0.242 if k < 6 else 1.2) * BEAT), b_, 0.035, 0.0, to='lead')
-TAG0 = TURN0 + 4.0
 for k in range(7):                                                          # An Assistant Redesign for everyone & every (TAG0 + .2 k)
     b_ = TAG0 + 0.2 * k
     put(blip(tone(b_, k % 4, 72), 0.3), b_, 0.02, -0.45 + 0.15 * k, to='verbsend')
@@ -747,8 +775,8 @@ CLOSE_AG = (76, 79, 81, 76, 84)                                             # �
 for i, m in enumerate(CLOSE_AG):
     b_ = TAG0 + 1.4 + 0.16 * i
     put(blip(lq(m, b_), 0.7 if i < 4 else 3.0), b_, 0.1, -0.6 + 0.3 * i, to='verbsend')
-put(lead(lq(84, TAG0 + 2.04), 5.5 * BEAT), TAG0 + 2.04, 0.05, 0.0, to='lead')   # the last motif note rings out over the fade
-put(bell(lq(84, TAG0 + 2.04), 6.0), TAG0 + 2.04, 0.04, 0.1, to='verbsend')
+put(lead(lq(84, LAST), (CLOSE_END - LAST - 0.4) * BEAT), LAST, 0.05, 0.0, to='lead')   # the last motif note rings out over the fade
+put(bell(lq(84, LAST), 6.0), LAST, 0.04, 0.1, to='verbsend')
 put(sweep_pad(tuple(m + 12 for m in CH['C'][0]), 5.0 * BEAT, 2.5 * BEAT), TAG0 + 3.0, 0.035, to='verbsend')   # soft swell under the push-in
 FADE = (FADE0 + SH, END)                                                    # FADE0 = TURN0 + 11.2: everything decays to 0 by END
 
@@ -831,7 +859,9 @@ mcues([(69.2, 'low')] + [(69.5 + 0.06 * k, 'air') for k in (0, 2, 4)]
       + [(75.55, 'pluck'), (78.6, 'bell'), (79.1, 'air')]
       + [(TURN0 + 2.475 + 0.2 * k, 'air') for k in range(5)]
       + [(TURN0 + 5.4 + 0.16 * k, 'air') for k in range(5)]
-      + [(TURN0 + 11.2, 'low')])
+      )
+put(m_low(tone(TURN0 + 11.2, 0, 36), 1.4 * BEAT), TURN0 + 10.9, 0.022, 0.0, to='morph')   # the final merge, softer: the groove has stopped
+MCUES.append((SCENE, [TURN0 + 11.2 + SH]))
 
 
 # ---------------- render the grid layers: groove, pads ----------------
@@ -879,9 +909,10 @@ def render_groove():
         if p['bass'] and abs(frac - .5) < 1e-6:
             putf(bass_note(CH[ch][1] + (12 if ph in (1.5, 3.5) else 0), BEAT * 0.45), bi, 0.62 * lvl, to='duck')
         if p['arp16']:                                   # soft sixteenth chord-tone ostinato, the same shape all film
-            tones = [m for m in range(72, 90) if m % 12 in PCS[ch]][:3]
+            tones = [m for m in range(60, 76) if m % 12 in PCS[ch]][:3]   # v18.2 an octave below the lead, so it never masks it
             k = int(round(bi * 4)) % 4
-            putf(pluck((tones[0], tones[1], tones[2], tones[1])[k], BEAT * 0.4), bi, 0.07 * lvl, 0.35 if k % 2 else -0.35, to='verbsend')
+            g = 0.05 * lvl * (0.71 if typing else 1.0)  # -3 dB, and -3 dB more under the typing
+            putf(pluck((tones[0], tones[1], tones[2], tones[1])[k], BEAT * 0.4), bi, g, 0.35 if k % 2 else -0.35, to='verbsend')
         if p['bed'] and abs(frac - .5) < 1e-6:
             putf(shaker(), bi, p['bed'] * 0.7, 0.5)
     # sustained sub under the half-time spans: one note per run of owned steps, split at chord changes
@@ -916,12 +947,17 @@ def render_pads():
         cut = float(np.interp(at(s), xs, [f for _, _, f in pts]))
         start = max(0.0, s - xover / 2)
         d = (e - start + xover) * BEAT
-        sig = pad(CH[c][0], d, cut, att=xover * BEAT, rel=xover * BEAT)
         i0 = at(start)
-        g = gain[i0:i0 + len(sig)]
-        putf(sig[:len(g)] * g, start, 1.0, to='duckverb')
+        for pan_ in (-0.7, 0.7):                         # v18.2 two decorrelated pads (random saw phases) spread wide
+            sig = pad(CH[c][0], d, cut, att=xover * BEAT, rel=xover * BEAT)
+            g = gain[i0:i0 + len(sig)] * TYP[i0:i0 + len(sig)]
+            putf(sig[:len(g)] * g, start, 0.75, pan_, to='duckverb')
 
 
+TYPING = [(7.2, 10.8), (12.95 + SHIFT['15-redesign'], 17.95 + SHIFT['15-redesign'])]   # 1b / 1d typed passages (film beats)
+TYP = np.ones(N)                                         # the pads sidechain -3 dB under the typing (.25-beat ramps)
+for b0, b1 in TYPING:
+    TYP *= 1 - (1 - 10 ** (-3 / 20)) * np.interp(np.arange(N), [at(b0 - .25), at(b0), at(b1), at(b1 + .25)], [0, 1, 1, 0], left=0, right=0)
 render_groove()
 render_pads()
 
@@ -936,6 +972,8 @@ ir = lp(ir, 5500)
 ir /= np.sqrt(np.sum(ir ** 2))
 
 ld_l, ld_r = bus('lead')
+ld_l, ld_r = (x + (10 ** (3 / 20) - 1) * hp(x, 2500) for x in (ld_l, ld_r))   # +3 dB presence shelf on the lead only
+KG = 10 ** (8 / 20)                                      # v18.2 keys +8 dB: the typing reads clearly (dry, no reverb)
 dly = at(0.375)
 echo_l, echo_r = np.zeros(N), np.zeros(N)
 src = (ld_l + ld_r) * 0.5
@@ -949,22 +987,23 @@ for k in range(1, 5):                                    # ping-pong: odd repeat
         echo_r += seg
 bus('verbsend')
 BUS['verbsend'] = (BUS['verbsend'][0] + ld_l * 0.35 + echo_l, BUS['verbsend'][1] + ld_r * 0.35 + echo_r)
-out_l = bus('dry')[0] + ld_l * 0.65 + bus('keys')[0] + bus('morph')[0] + bus('kick')[0] + bus('verbsend')[0] + (bus('duck')[0] + bus('duckverb')[0]) * duck
-out_r = bus('dry')[1] + ld_r * 0.65 + bus('keys')[1] + bus('morph')[1] + bus('kick')[1] + bus('verbsend')[1] + (bus('duck')[1] + bus('duckverb')[1]) * duck
+out_l = bus('dry')[0] + ld_l * 1.3 + bus('keys')[0] * KG + bus('morph')[0] + bus('kick')[0] + bus('verbsend')[0] + (bus('duck')[0] + bus('duckverb')[0]) * duck
+out_r = bus('dry')[1] + ld_r * 1.3 + bus('keys')[1] * KG + bus('morph')[1] + bus('kick')[1] + bus('verbsend')[1] + (bus('duck')[1] + bus('duckverb')[1]) * duck
 send_l = bus('verbsend')[0] + bus('duckverb')[0] * duck * 0.6 + bus('morph')[0] * 0.5
 send_r = bus('verbsend')[1] + bus('duckverb')[1] * duck * 0.6 + bus('morph')[1] * 0.5
 out_l += signal.fftconvolve(send_l, ir)[:N] * 0.3
 out_r += signal.fftconvolve(send_r, np.roll(ir, 211))[:N] * 0.3
 
 mix = np.stack([out_l, out_r])
-KEYS = np.stack(bus('keys'))   # for the level report below
+KEYS = np.stack(bus('keys')) * KG   # for the level report below
 MORPH = np.stack(bus('morph'))
 for b0, b1, b2, b3, fc in LPF:                      # low-pass automation: zero-phase copy, crossfaded in and out
     w = np.interp(np.arange(N), [at(b0), at(b1), at(b2), at(b3)], [0, 1, 1, 0], left=0, right=0)
     sos = signal.butter(2, fc, 'low', fs=SR, output='sos')
     mix = mix * (1 - 0.8 * w) + signal.sosfiltfilt(sos, mix) * 0.8 * w
 mix = hp(mix, 25)
-mix = mix + (10 ** (-4 / 20) - 1) * lp(mix, 70, 2)    # master low shelf: -4 dB below ~70 Hz
+mix = mix + (10 ** (-6 / 20) - 1) * lp(mix, 80, 2)    # master low shelf: -6 dB below ~80 Hz
+mix = mix + (10 ** (2 / 20) - 1) * bp(mix, 2000, 4000)  # +2 dB presence (2–4 kHz)
 norm = 1 / (np.max(np.abs(mix)) + 1e-9)
 mix *= norm
 mix = np.tanh(mix * 1.6) / np.tanh(1.6)
