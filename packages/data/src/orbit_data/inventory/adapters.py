@@ -132,10 +132,11 @@ def _frontmatter_name(raw: bytes) -> str | None:
     return name.strip() if isinstance(name, str) and name.strip() else None
 
 
-def claude_markdown_components(reader, root):
+def claude_markdown_components(reader, root, namespace=None):
     """Claude Code slash commands (commands/**/*.md, `/dir:name`) and subagent definitions
     (agents/**/*.md, frontmatter `name`). Stored as their own inventory types (schema 15);
-    config.component repeats the type for readers of scanner-1.3.0 rows."""
+    config.component repeats the type for readers of scanner-1.3.0 rows. Plugin components
+    are invoked as `<plugin>:<name>`, so ``namespace`` (the plugin name) prefixes them."""
     for component, directory in (("command", "commands"), ("agent", "agents")):
         folder = root / directory
         for path in reader.walk(folder, (component,)):
@@ -150,6 +151,8 @@ def claude_markdown_components(reader, root):
                 if component == "command"
                 else _frontmatter_name(raw) or relative.name
             )
+            if namespace:
+                name = f"{namespace}:{name}"
             reader.add(
                 component,
                 name,
@@ -169,7 +172,7 @@ def rules(reader, root, names, directory="rules"):
             reader.file(path, "rule", name=str(path.relative_to(root)))
 
 
-def plugin_cache(reader, root, configured):
+def plugin_cache(reader, root, configured, *, markdown=False):
     components = ("plugin", "skill", "mcp", "hook")
     for market in reader.directories(root / "plugins/cache", components):
         for plugin in reader.directories(market, components):
@@ -197,7 +200,14 @@ def plugin_cache(reader, root, configured):
                 from .components import plugin_components
 
                 plugin_components(
-                    reader, version, doc, manifest, key, enabled=enabled, evidence="cached"
+                    reader,
+                    version,
+                    doc,
+                    manifest,
+                    key,
+                    enabled=enabled,
+                    evidence="cached",
+                    markdown=markdown,
                 )
 
 
@@ -336,9 +346,15 @@ def claude(reader: ScanReader, root: Path):
                 manifest = reader.document(manifest_path, COMPONENT_KINDS, required=True)
                 if manifest:
                     plugin_components(
-                        reader, folder, manifest, manifest_path, name, enabled=plugins.get(name)
+                        reader,
+                        folder,
+                        manifest,
+                        manifest_path,
+                        name,
+                        enabled=plugins.get(name),
+                        markdown=True,
                     )
-    plugin_cache(reader, root, plugins)
+    plugin_cache(reader, root, plugins, markdown=True)
     from .claude_desktop import synced_plugins
 
     synced_plugins(reader, root / "plugins/synced", plugins)
