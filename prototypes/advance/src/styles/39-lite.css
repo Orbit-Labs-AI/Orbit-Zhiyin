@@ -18,7 +18,7 @@
 .lite .vz-kpi-l{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .lite .vz-kpi .v{font-family:var(--font-num);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
 .lite .vz-kpi-u{font-size:15px}
-.lite .vz-kpi-d{font-size:12px;line-height:16px}
+.lite .vz-kpi-d{font-size:12px;line-height:16px;white-space:normal;overflow-wrap:anywhere}   /* narrow tiles: the delta wraps instead of running past the edge */
 .lite .vz-kpi.l-warn .v{color:var(--crit)}
 .lite .l-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
 

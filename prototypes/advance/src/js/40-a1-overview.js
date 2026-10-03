@@ -58,6 +58,9 @@ PAGES.overview = () => {
     ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
     ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
+  // 0 sessions in range: no praise / friction verdict (the backend's 「这段时间还没有会话」 next to 「查看 3 条建议」 read as
+  // contradictory); the range note under the filter row offers the wider range instead
+  if (!st.n) { ai[0][3] = '—'; ai[0][4] = ''; ai[1][3] = '—'; ai[1][4] = ''; }
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
   const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
@@ -78,7 +81,7 @@ PAGES.overview = () => {
   const terr = (t) => t.err == null ? '<span class="mono e"' + (t.why ? ' data-tip="' + esc(t.why) + '"' : '') + '>—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
-  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
+  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有接入 Agent'),
     '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +

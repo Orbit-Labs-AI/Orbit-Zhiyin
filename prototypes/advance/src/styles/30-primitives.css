@@ -68,3 +68,6 @@
 @keyframes slidein{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 .fade{animation:fadein .15s var(--ease)}
 .stale{opacity:.45;transition:opacity .15s}
+/* text links and sortable table headers: the hit area grows to ≥ 24px tall without changing how they look */
+.lnk,.tbl th button{position:relative}
+.lnk::after,.tbl th button::after{content:'';position:absolute;left:-2px;right:-2px;top:50%;height:max(100%,24px);transform:translateY(-50%)}

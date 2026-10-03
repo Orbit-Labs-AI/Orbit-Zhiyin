@@ -19,11 +19,10 @@ from pathlib import Path
 
 import zstandard
 
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION, parallel, scheduler
+from tandem_data import parallel, scheduler
 from tandem_data.connectors import MAPPERS
 from tandem_data.contract import now_ms
 from tandem_data.discovery import inputs
-from tandem_data.privacy import REDACTION_VERSION
 from tandem_data.query import event_page as event_page
 from tandem_data.store import Store
 
@@ -297,14 +296,9 @@ class ImportService:
                             "UPDATE source_file SET status='gone_upstream',last_scan_at=? WHERE file_id=?",
                             (now_ms(), row["file_id"]),
                         )
-            # A failed/cancelled previous run can leave new L1 revisions unpublished.
-            stale_sources = {
-                row[0]
-                for row in self.store.db.execute(
-                    "SELECT DISTINCT source_id FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) OR COALESCE(json_extract(watermark,'$.mapper_version'),'')<>? OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>? OR COALESCE(json_extract(watermark,'$.redaction_version'),'')<>?",
-                    (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION),
-                )
-            }
+            # A failed/cancelled previous run can leave new L1 revisions unpublished. A
+            # revision settled as retained is not stale: it waits for its next capture.
+            stale_sources = set(scheduler.stale_files(self.store.db))
             unpublished = not self.store.db.execute(
                 "SELECT 1 FROM projection_run LIMIT 1"
             ).fetchone()

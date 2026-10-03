@@ -97,8 +97,9 @@ def query(table: Table, *, project_ids=(), agents=(), from_ts=None, until_ts=Non
 
 
 def open_snapshot(path: Path) -> sqlite3.Connection:
-    """Read-only connection holding one read transaction for the whole download."""
-    from tandem_data.query import current_projection
+    """Read-only connection holding one read transaction for the whole download: the
+    published snapshot, also while newer captures are still being published."""
+    from tandem_data.query import published_projection
 
     if not path.is_file():
         raise ExportError(503, "no_projection", "No canonical database yet; import a source")
@@ -109,10 +110,11 @@ def open_snapshot(path: Path) -> sqlite3.Connection:
         connection.execute("PRAGMA query_only = ON")
         connection.execute("PRAGMA busy_timeout = 5000")
         connection.execute("BEGIN")
-        current_projection(connection)
+        published_projection(connection)
     except ValueError as error:
         connection.close()
-        raise ExportError(503, "projection_pending", str(error)) from error
+        code = "projection_pending" if "pending" in str(error) else "rebuild_required"
+        raise ExportError(503, code, str(error)) from error
     except sqlite3.Error as error:
         connection.close()
         raise ExportError(503, "no_projection", str(error)) from error

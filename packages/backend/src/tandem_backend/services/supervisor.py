@@ -19,6 +19,8 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
   RSS) kills it and fails the task ``analysis_scope_too_large``; idle 5 min recycles too
 - analysis runs a killed or crashed worker left ``running`` in ``analysis.sqlite`` are
   failed (the worker reports open runs); at start, runs older than ``max_budget_s`` are too
+- an import with no progress frame for ``ingest_stall_s`` (15 min) is stopped and recorded
+  ``interrupted(job_stalled)``; the next job starts a fresh worker
 """
 
 from __future__ import annotations
@@ -99,6 +101,11 @@ class SupervisorConfig:
     rss_limit_bytes: int = 1_500_000_000
     rss_kill_bytes: int = field(default_factory=lambda: default_rss_kill_bytes())
     analysis_idle_s: float = 300.0
+    # A running import that reports no progress for this long is stopped (job_stalled) so
+    # the user can retry it; every stage reports at least per file or per session, and the
+    # longest silent steps measured on a 7 GB home (deleting a source's facts, committing)
+    # take minutes, not a quarter of an hour.
+    ingest_stall_s: float = 900.0
     max_failures: int = 3
     max_preemptions: int = 2  # an interactive task may interrupt the same prewarm this often
     tick_s: float = 0.2
@@ -293,6 +300,7 @@ class IngestRunner:
         self.current: str | None = None
         self.pending: dict | None = None
         self.paused = False
+        self.last_progress = time.monotonic()
         self.lock = threading.RLock()
         self.on_state = on_state
         self.worker = WorkerProcess("ingest", home, config, self._message, self._exit,
@@ -305,6 +313,7 @@ class IngestRunner:
             if not self.worker.ensure() and self.worker.state != "restarting":
                 raise RuntimeError(f"ingest worker {self.worker.state}")
             self.current = job["id"]
+            self.last_progress = time.monotonic()
             # During a backoff restart the job waits and is sent once the worker respawns.
             self.pending = {"op": "run", "job": {**job, "sources": sources,
                                                  "plan": {**self.config.plan,
@@ -339,8 +348,25 @@ class IngestRunner:
                 self.worker.send({"op": "pause" if paused else "resume"})
             self.paused = paused
 
+    def check(self, now: float) -> None:
+        """Watchdog tick: stop an import that made no progress for ``ingest_stall_s``.
+
+        The heartbeat only proves the worker process is alive; a job thread stuck inside
+        one step would otherwise keep the job ``running`` (and every sync behind it)
+        forever. Time spent paused for interactive analysis does not count.
+        """
+        with self.lock:
+            if self.paused or self.current is None or self.pending is not None:
+                self.last_progress = now
+                return
+            stalled = now - self.last_progress > self.config.ingest_stall_s
+        if stalled:
+            self.worker.kill("stalled")
+
     def _message(self, message: dict) -> None:
         kind, job_id = message.get("t"), message.get("job")
+        if kind in ("started", "progress", "published"):
+            self.last_progress = time.monotonic()
         if kind == "ready" and self.paused:
             self.worker.send({"op": "pause"})
         elif kind == "started" and job_id:
@@ -349,7 +375,7 @@ class IngestRunner:
             self.jobs.progress(job_id, message.get("progress") or {}, message.get("phase"))
         elif kind == "published":
             entry = {k: message.get(k) for k in ("phase", "source_id", "data_rev",
-                                                 "inventory_rev", "counts")}
+                                                 "inventory_rev", "counts", "freshness")}
             self.jobs.published(job_id, entry)
             self.on_published(entry)
         elif kind == "done" and job_id:
@@ -364,9 +390,15 @@ class IngestRunner:
             if self.pending is not None:
                 return  # Not yet delivered: the job is sent to the next worker.
             job_id, self.current = self.current, None
-        if job_id is not None:
-            self.jobs.interrupted(job_id, "worker_exited",
-                                  f"ingest worker exited ({reason or 'crash'})")
+        if job_id is None:
+            return
+        if reason == "stalled":
+            minutes = round(self.config.ingest_stall_s / 60)
+            self.jobs.interrupted(job_id, "job_stalled",
+                                  f"导入 {minutes} 分钟没有任何进展，已停止；可以重试")
+            return
+        self.jobs.interrupted(job_id, "worker_exited",
+                              f"ingest worker exited ({reason or 'crash'})")
 
     def stop(self) -> None:
         self.worker.stop()
@@ -770,6 +802,7 @@ class Supervisor:
                             and now - worker.last_hb > self.config.stale_s)
                 if hung:
                     worker.kill(None)  # Counts as a crash: backoff restart, in-flight requeue.
+            self.ingest.check(now)
             self.analysis.check()
 
     def services(self) -> dict:
