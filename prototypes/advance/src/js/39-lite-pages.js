@@ -42,7 +42,12 @@ function liteOneCard(open) {
     '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
     '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, ' · 预计节省') + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' +
     (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
-    : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
+    : liteNoneCard(recNone());
+}
+// no open recommendation (F21): only a real 「都已处理」 points at the applied ones and their 7-day effect
+function liteNoneCard(rn) {
+  return '<div class="card pad l-one l-done" data-rec-none="' + rn.k + '"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">' + esc(rn.k === 'done' ? '建议都已处理。7 天后在「优化建议」里看效果。' : rn.t) + '</p>' +
+    (rn.k === 'done' ? '<button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button>' : '') + '</div>';
 }
 // 没有会话时的花（F21）：六片虚线花瓣的轮廓 + 花心，只表示「还没长出来」——不对应任何类型，也不带任何数值
 function emptyBloomSVG(size) {
@@ -59,22 +64,22 @@ function emptyActs(big) {
 PAGES['l-home'] = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
-  const pers = personaNow();
+  const pers = personaNow(); const busy = dataBusy();   // 导入 / 分析还在进行（F08）：说明进度，不写「没有会话」
   // live: the L0 insight lede of /v1/uiview/overview (same scope) when it is there; the persona line otherwise
   const ins = LV.live && LV.ready('l-home') && LV.ov ? LV.ov.insight : null;
-  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。';
-  const ev = st.n ? (st.verKnown ? Math.round(st.verify) + '% 的会话要求验证 · ' : '') + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + pctKnown(st.ok, st.okKnown) : '这段时间没有会话';
+  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : busy ? busy.t.replace(/…$/, '') + '，完成后在这里给出协作画像。' : '所选范围还没有会话，暂时无法给出协作画像。';
+  const ev = busy ? busyNote(busy) : st.n ? (st.verKnown ? Math.round(st.verify) + '% 的会话要求验证 · ' : '') + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + pctKnown(st.ok, st.okKnown) : '这段时间没有会话';
   // 没有会话时那句话是固定说明，不是 AI 写的：不挂解读标记（F21）；有话时按来源标 AI 或规则
   const said = (ins && ins.lede) || pers.ok;
   const hero = '<div class="card pad l-hero"><div class="col l-lede">' + (said ? '<div class="row" style="flex-wrap:wrap">' + ovInsBadge(ins) + '<span class="cap">' + (LV.live ? esc(ovInsWhen(ins)) : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' : '') +
     '<p class="serif l-say">' + esc(lede) + '</p><span class="cap mono l-ev">' + ev + '</span></div>' +
     (pers.ok ? '<button type="button" class="ov-code l-code" data-act="go" data-r="l-persona" aria-label="查看协作画像：' + pers.code + ' ' + pers.zh + '"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="serif ov-code-l" data-hero="code">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap;gap:8px"><span class="serif l-zh">' + pers.zh + '</span><span class="serif l-en">' + pers.en + '</span></span><span class="cap">查看协作画像 →</span></button>'
-      : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false) + '</div>') + '</div>';
+      : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + (busy ? '<span class="l-ez">' + esc(busy.t) + '</span><span class="cap">分析完成后自动显示</span>' : '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false)) + '</div>') + '</div>';
   const d = (cur, prev, o) => P ? Object.assign({ cur, prev }, o) : { text: S.range ? '无可比上期' : '全部历史 · 不比较', cls: '' };
   const tiles = [
     liteCount(VZ.kpi({ label: '会话', value: fmt(st.n), delta: d(st.n, P && P.n, { unit: 'pct', goodDown: false, fmt: 'int' }), act: 'go', attrs: ' data-r="l-sessions"' }), st.n),
     liteCount(VZ.kpi({ label: '协作时长', value: st.hours >= 100 ? fmt(st.hours) : f1(st.hours), unit: 'h', delta: d(st.hours, P && P.hours, { unit: 'pct', goodDown: false, fmt: (v) => f1(v) + 'h' }) }), st.hours, st.hours >= 100 ? 0 : 1),
-    (st.msgs ? liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: P && P.msgs ? d(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null }), st.fric, 1) : VZ.kpi({ label: '摩擦率', value: '—', sub: '没有你发出的消息' })),
+    (st.msgs ? liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: P && P.msgs ? d(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null }), st.fric, 1) : VZ.kpi({ label: '摩擦率', value: '—', sub: busy ? '' : '没有你发出的消息' })),
     (st.okKnown ? liteCount(VZ.kpi({ label: '完成率', value: String(Math.round(st.ok)), unit: '%', delta: d(st.ok, P && P.okKnown ? P.ok : null, { unit: 'pt', goodDown: false, fmt: (v) => Math.round(v) + '%' }) }), st.ok) : VZ.kpi({ label: '完成率', value: '—', sub: st.n ? '这些会话没有完成信号' : '' }))
   ].join('');
   // 活跃条带：至少 30 天，当前范围内的日子用实色，范围外的用浅色
@@ -84,7 +89,7 @@ PAGES['l-home'] = () => {
   const strip = '<div class="l-strip" role="img" aria-label="每日会话数 · ' + md(days[0]) + ' — ' + md(w[1]) + '">' + days.map((x) => '<i class="' + (x >= w[0] ? 'in' : '') + '" style="height:' + Math.max(4, (per[x] || 0) / mx * 100).toFixed(1) + '%" data-tip="' + md(x) + ' 周' + WD[wd(x)] + ' · ' + (per[x] || 0) + ' 个会话"></i>').join('') + '</div>' +
     '<div class="row cap l-strip-l"><span class="mono">' + md(days[0]) + '</span><span style="flex:1;text-align:center">每日会话 · 深色为' + rangeLabel() + '</span><span class="mono">' + md(w[1]) + '</span></div>';
   const one = liteOneCard(recTop('lite'));
-  return liteBar('概览', winLabel() + ' · ' + st.n + ' 个会话') +
+  return liteBar('概览', winLabel() + ' · ' + (busy ? busyMeta(busy) : st.n + ' 个会话')) +
     '<div class="content" id="content"><div class="lite l-home">' + hero +
     '<section class="l-sec"><div class="tiles l-tiles">' + tiles + '</div>' + strip + '</section>' + one +
     liteFoot([['overview', '完整概览'], ['tools', '工具调用'], ['projects', '项目习惯']]) + '</div></div>';
@@ -104,7 +109,8 @@ PAGES['l-persona'] = () => {
   const L = personaScope(); const p = persona(L);
   if (p.pending) return liteBar('协作画像', rangeLabel() + ' · ' + L.length + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona">' + LV.pend(360) + LV.pend(220) + '</div></div>';
   if (!p.ok) {
-    return liteBar('协作画像', rangeLabel() + ' · ' + p.n + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona"><div class="card l-low" data-lv="pers-empty">' + emptyBloomSVG(132) + '<div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">协作画像 · ' + rangeLabel() + '</span><p class="serif l-say" style="margin:0">' + (p.error ? '画像暂时取不到，稍后会自动重试。' : '这段时间还没有会话。有 1 个会话，就能看到你的协作画像。') + '</p>' + emptyActs(true) + '</div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
+    const busy = dataBusy();
+    return liteBar('协作画像', rangeLabel() + ' · ' + (busy ? busyMeta(busy) : p.n + ' 个会话')) + '<div class="content" id="content"><div class="lite l-persona"><div class="card l-low" data-lv="pers-empty">' + emptyBloomSVG(132) + '<div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">协作画像 · ' + rangeLabel() + '</span><p class="serif l-say" style="margin:0">' + esc(busy ? busyNote(busy) + '。分析完成后自动显示协作画像。' : p.error ? '画像暂时取不到，稍后会自动重试。' : '这段时间还没有会话。有 1 个会话，就能看到你的协作画像。') + '</p>' + (busy || p.error ? '' : emptyActs(true)) + '</div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
   }
   // 画像主卡吸收「播放揭晓」第 05 步（F13）：已读取 N 个会话 · N 次工具调用、四字母下的维度分、匹配度、类型名与一句话、
   // 「已经知道的」统计 / 轨迹 / 语义 / 人格四行——都用揭晓页同一组函数（genFacts / genCands，live 用揭晓接口的候选）算同一批会话
@@ -202,7 +208,7 @@ PAGES['l-recs'] = () => {
         (tot.t != null && tot.k != null ? '<span class="cap mono l-tot2">token 预计省下 ' + fmtPct(tot.k) + ' · 按近期真实轨迹的占比计算</span>' : '<span class="cap mono l-tot2">按近期真实轨迹的占比计算</span>')
       : open.length ? '<p class="serif l-say">这 ' + open.length + ' 件事还没有节省比例的估计。应用后 7 天，在效果追踪里看实际变化。</p>'
       : top.length ? '<p class="serif l-say">前三条都已应用。7 天后看效果追踪，或在 Advance 里挑下一条。</p>'
-      : '<p class="serif l-say">还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。</p>') + '</div>';
+      : '<p class="serif l-say">' + esc(/^(busy|computing|error|none)$/.test(recNone().k) ? recNone().t : '还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。') + '</p>') + '</div>';
   const card = (r, i) => {
     const inst = S.installed.get(r.id);
     const state = inst ? '<span class="tag">' + ic('okc', 12, 'color:var(--good)') + (inst.days >= 7 ? '已应用 · ' + VERDICT[trackStats(r).verdict][0] : '已应用 · 追踪中 ' + inst.days + ' / 7 天') + '</span><button type="button" class="btn gh l-big" data-act="liteRecAdv" data-id="' + r.id + '">查看追踪</button><button type="button" class="btn l-big" data-act="uninstall" data-id="' + r.id + '">' + ic('undo', 13) + '撤销</button>' : liteRecBtn(r);

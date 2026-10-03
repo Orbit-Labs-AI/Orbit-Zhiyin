@@ -34,16 +34,18 @@ function persPending(e) { return !!e && (e.code === 'projection_pending' || e.re
 // 人格未揭晓：保留卡片的结构（占位码 + 进度 + 四轴空轨），不留大块空白，也不编造数值（R4-14）
 function ovPersEmpty(pers) {
   const n = pers.n || 0; const need = 0;   // 1 个会话即可出结论：这里只剩「没有会话 / 取不到 / 暂不计算」三种空态，不再有进度条
-  const pend = persPending(pers.error);   // 首次导入还没发布：正在整理，不是取不到也不是没有会话（F08）
-  const why = pend ? '导入的会话发布后会自动显示画像' : pers.error ? '画像暂时取不到，稍后会自动重试' : !n ? '还没有会话 · 有 1 个会话即可揭晓' : '当前筛选下暂不计算画像';
+  const busy = dataBusy();   // 导入 / 整理 / 分析还在进行：说明进度，不写「还没有会话」，也不给导入入口（F08）
+  const pend = persPending(pers.error) || !!busy;   // 首次导入还没发布：正在整理，不是取不到也不是没有会话（F08）
+  const why = busy ? (busy.n ? '已导入 ' + fmt(busy.n) + ' 个会话 · ' : '') + '分析完成后自动显示画像' : pend ? '导入的会话发布后会自动显示画像' : pers.error ? '画像暂时取不到，稍后会自动重试' : !n ? '还没有会话 · 有 1 个会话即可揭晓' : '当前筛选下暂不计算画像';
   // 没有画像时不放占位码（F21）：虚线花形轮廓 + 一句说明；没有会话时给导入入口
-  return '<div class="ov-code-r" data-lv="pers-empty">' + emptyBloomSVG(56) + '<span class="col" style="gap:4px;min-width:0"><span class="serif" style="font-size:18px;font-weight:600;color:var(--ink-2)">' + (pend ? '正在整理数据…' : pers.error ? '画像暂时取不到' : '还没有长出来') + '</span>' + (!n && !pers.error ? emptyActs(false) : '') + '</span></div>' +
+  return '<div class="ov-code-r" data-lv="pers-empty">' + emptyBloomSVG(56) + '<span class="col" style="gap:4px;min-width:0"><span class="serif" style="font-size:18px;font-weight:600;color:var(--ink-2)">' + (busy ? busy.t : pend ? '正在整理数据…' : pers.error ? '画像暂时取不到' : '还没有长出来') + '</span>' + (!n && !pers.error && !pend ? emptyActs(false) : '') + '</span></div>' +
     '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;gap:8px"><span class="cap">' + why + '</span>' + (need ? '<span class="mono cap">' + n + '</span>' : '') + '</div>' +
     (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:0%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
     '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
 }
 // 「AI 解读」徽标只给模型写成的解读：live 下以 insight.basis 为准（ai_narrative），规则模板写成的标中性的「规则解读」，
 // 不用 AI 紫；demo 是预置的 Claude Code 示例，保持原样
+let OV_BADGE = null;
 function ovInsAI(ins) { return !LV.live || !!(ins && ins.basis === 'ai_narrative'); }
 function ovInsBadge(ins) { return ovInsAI(ins) ? '<span class="aib">' + ic('spark', 11) + 'AI 解读</span>' : '<span class="tag" data-lv="ins-basis">规则解读</span>'; }
 // live 的来源行：模型写成的写明执行者与完成时间，否则是规则模板
@@ -64,7 +66,7 @@ PAGES.overview = () => {
   const topF = fr[0];
   const projC = {}; L.forEach((s) => { if (s.corr) projC[s.p] = (projC[s.p] || 0) + s.corr; });
   const topP = Object.entries(projC).sort((a, b) => b[1] - a[1]).slice(0, 2).map((x) => PJI[x[0]].name);
-  const topR = recTop('A1').slice(0, 3);
+  const topR = recTop('A1').slice(0, 3); const rNone = recNone(); const busy = dataBusy();
   const okN = L.filter((s) => s.out === 'ok').length;
   // live: the insight texts come from /v1/uiview/overview (L0 template, same scope); the micro evidence stays spine-derived
   const OVL = LV.live ? (LV.ready('overview') && LV.ov ? LV.ov : null) : undefined; const ins = OVL && OVL.insight;
@@ -72,13 +74,13 @@ PAGES.overview = () => {
   const ai = [
     ['做得好', 'okc', 'var(--good)', ins && ins.good ? ins.good.text : (st.verKnown ? Math.round(st.verify) + '% 的会话要求测试或线上验证，' : '') + '完成率 ' + pctKnown(st.ok, st.okKnown) + '。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.okKnown ? st.ok : null)],
     ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : st.msgs ? '这段时间没有明显的摩擦。' : '会话里没有你发出的消息，暂时判断不了卡在哪。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
-    ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
+    ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text && !rNone.k.match(/busy|none/) ? ins.next.text : rNone.t, topR.length ? '查看 ' + topR.length + ' 条建议' : rNone.k === 'done' ? '查看已处理的建议' : '', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
   // 0 sessions in range: no praise / friction verdict (the backend's 「这段时间还没有会话」 next to 「查看 3 条建议」 read as
   // contradictory); the range note under the filter row offers the wider range instead
   if (!st.n) { ai[0][3] = '—'; ai[0][4] = ''; ai[1][3] = '—'; ai[1][4] = ''; }
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
-  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
+  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : busy ? busy.t.replace(/…$/, '') + '，完成后在这里给出协作画像。' : '所选范围还没有会话，暂时无法给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? ovInsWhen(ins) : '本地 Claude Code 生成 · 9/30 23:10';
   const caveat = LV.live && ins && ins.basis === 'ai_narrative' && (ins.caveats || []).length ? ins.caveats.join('；') : '';
   // live「重新生成」提交 narrate.overview：「全部」与带筛选的视图没有可用的 ai_scope，按钮如实不可用
@@ -89,6 +91,7 @@ PAGES.overview = () => {
   const regenTip = regenOff ? (ins ? '「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选' : '数据载入后可生成') : LV.live ? '交给本地 Agent 依据当前数据重写（会调用其模型服务，计入今日 AI 花费）' : '';
   // 无会话且没有洞察 lede 时，那句话是固定说明而不是 AI 输出：不挂解读标记与生成来源（与 Lite 首页 said 同一规则）
   const said = (S.ov.lede && S.ov.lede.key === ledeKey) || (ins && ins.lede) || pers.ok || pendTxt || regenRun;
+  OV_BADGE = said ? (ovInsAI(ins) ? 'AI 解读' : '规则解读') : null;   // the page guide names this badge (37-motion GUIDE)
   const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
   const unitName = S.metric === 'h' ? '小时' : S.metric === 'tok' ? 'tokens · 估算' : '会话';
@@ -99,7 +102,7 @@ PAGES.overview = () => {
   const night = stats(L.filter((s) => s.h < 3)), day = stats(L.filter((s) => s.h >= 9 && s.h < 18));
   const ratio = day.fric ? night.fric / day.fric : 0;
   const peakV = hmap.H[peak[0]][peak[1]];
-  const heatLine = S.ov.heat === 'msgs' ? !peakV ? '这段时间没有你发出的消息' : '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + fricTxt(st);
+  const heatLine = busy ? busy.t : S.ov.heat === 'msgs' ? !peakV ? '这段时间没有你发出的消息' : '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + fricTxt(st);
   // live: tool top 6 from /v1/uiview/overview.tools (real tool names, err over known statuses only; null → —)
   const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => { const why = typeof lvtpRateWhy === 'function' ? lvtpRateWhy(t) : null; return { name: t.name, n: t.n, err: why ? null : t.err, why: why || (t.err == null ? '状态未知，不计算错误率' : null) }; }) : []) : toolRows(L).slice(0, 6);
   const tmx = Math.max(1, trows[0] ? trows[0].n : 1); const tkinds = LV.live ? (OVL && OVL.tools ? OVL.tools.kinds_total : 0) : 11;
@@ -107,7 +110,7 @@ PAGES.overview = () => {
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outKnown = outc.reduce((a, o) => a + o.value, 0);   // sessions with an outcome signal; the rest are 结果未知
   const outLine = outc.map((o) => o.name + ' ' + pctKnown(o.value / Math.max(1, outKnown) * 100, outKnown)).join(' · ') + (outKnown < st.n ? ' · 结果未知 ' + (st.n - outKnown) + ' 个会话' : '');
-  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有接入 Agent'),
+  return tbar('概览', winLabel() + ' · ' + (busy ? busyMeta(busy) : st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有会话')),
     '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
@@ -178,7 +181,7 @@ PAGES.overview.after = () => {
 TIPS.heat = (di, h) => { const v = CUR.heat.H[di][h], c = CUR.heat.C[di][h]; return '<b>周' + WD[di] + ' ' + h + ':00–' + (+h + 1) + ':00</b>\n' + v + ' 条消息 · 纠偏 ' + c + ' 次' + (v ? '（' + f1(c / v * 100) + '%）' : ''); };
 // 「本周建议」card (also appended to the live overview by 97-live-recs.js)
 function ovRecsCard(topR) {
-  return '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn" title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + esc(recGain(r)) + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>';
+  return '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn" title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + esc(recGain(r)) + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap" data-rec-none="' + recNone().k + '">' + esc(recNone().k === 'done' ? '建议都已处理，下周再看看。' : recNone().t) + '</div>') + '</div></div>';
 }
 function recPrimaryBtn(r, small) {
   const inst = S.installed.has(r.id);

@@ -96,7 +96,9 @@ function countTick(now) {
 /* ---------- page guide: 「这页回答：…」 ---------- */
 // [the question this page answers, where to look first]
 const GUIDE = {
-  overview: () => [rangeLabel() + '你和 Agent 协作得怎么样', '先看顶部「AI 解读」，再看五张指标卡'],
+  // the hint names the badge the top card actually wears (OV_BADGE, set by the overview render): AI 解读 only when the lede is
+  // a model's, 规则解读 for the template, and no badge name while there is no lede at all
+  overview: () => [rangeLabel() + '你和 Agent 协作得怎么样', (typeof OV_BADGE !== 'undefined' && OV_BADGE ? '先看顶部「' + OV_BADGE + '」' : '先看顶部的协作画像') + '，再看五张指标卡'],
   persona: () => ['你属于哪一类协作者、和过去相比变了什么', '先看人格代码和四个维度的条'],
   sessions: () => ['某一次会话里发生了什么、卡在了哪一刻', '先在左侧选会话，再看时间线上的失败与关键时刻'],
   tools: () => ['Agent 最常用哪些工具、哪里在失败或在等你审批', '先看「错误率」卡，再看表里失败多的工具'],

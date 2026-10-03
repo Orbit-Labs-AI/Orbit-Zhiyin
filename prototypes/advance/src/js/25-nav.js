@@ -232,7 +232,7 @@ function sidePinsRight() {
 }
 function sidePins() {
   const man = pinsManual(), ids = man.length ? man : pinsAuto();
-  if (!ids.length) return '<div class="sb-note">' + rangeLabel() + '内没有项目会话</div>';
+  if (!ids.length) return '<div class="sb-note">' + (dataBusy() ? '分析完成后显示' : rangeLabel() + '内没有项目会话') + '</div>';
   return ids.map((id) => { const pin = isPinned(id); return '<div class="pjp" data-p="' + esc(id) + '"><button type="button" data-act="pinProject" data-p="' + esc(id) + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + esc(PJI[id].name) + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>' +
     (id === '_none' ? '' : '<button type="button" class="pin-b' + (pin ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(id) + '" aria-pressed="' + pin + '" aria-label="' + (pin ? '取消置顶 ' : '置顶 ') + esc(PJI[id].name) + '" data-tip="' + (pin ? '取消置顶' : '置顶到侧栏') + '">' + ic('pin', 13) + '</button>') + '</div>'; }).join('');
 }
@@ -263,7 +263,11 @@ function sideFoot() {
 }
 function personaNow() { return persona(sel({ noExtra: true })); }
 /* page toolbar: lives on the window's 52px title row (title 15px semibold, meta, page items, global search → command palette) */
+// pages whose numbers all come from the sessions: while nothing is published yet (dataBusy, F08) their title meta says what is
+// happening instead of 「0 次调用 · 0 种工具」 / 「0 个会话」
+const BUSY_META_ROUTES = ['overview', 'persona', 'sentiment', 'projects', 'sessions', 'tools', 'l-home', 'l-persona', 'l-sessions'];
 function tbar(title, meta, right) {
+  if (BUSY_META_ROUTES.indexOf(S.route) >= 0) { const b = dataBusy(); if (b) meta = busyMeta(b); }
   const hasInput = /<input\b/i.test(right || '');
   return '<div class="tbar"><div class="grow"><h1>' + title + '</h1>' + (meta ? '<span class="meta">' + meta + '</span>' : '') + '</div>' + (right ? '<div class="tright">' + right + '</div>' : '') +
     '<button type="button" class="tsearch' + (hasInput ? ' ico-only" data-ico="1' : '') + '" data-act="palette" aria-label="搜索（' + kb('⌘K') + '）" data-tip="搜索会话、项目、建议与操作 ' + kb('⌘K') + '">' + ic('search', 14) + '<span>搜索</span><kbd>' + kb('⌘K') + '</kbd></button></div>';
@@ -301,5 +305,30 @@ function rangeWidenNote() {
   return '<div class="card pad range-note" data-range-note><span>' + rangeLabel() + '内没有会话 · 全部历史共 ' + fmt(sel({ range: 0, noExtra: true }).length) + ' 个</span>' + b + '</div>';
 }
 // 画像不可用时的短词：1 个会话就能出画像（F04），所以 0 个会话写「还没有会话」而不是「样本不足」
-function persNone(p) { return p && p.pending ? '计算中' : p && p.error ? '暂时取不到' : '还没有会话'; }
-function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
+function persNone(p) { return dataBusy() ? '计算中' : p && p.pending ? '计算中' : p && p.error ? '暂时取不到' : '还没有会话'; }
+/* F08: live mode with nothing on screen yet because the data is still on its way — connecting, importing, being organised
+   (projection_pending) or analysed (202). That is not 「没有会话」: titles and empty cards say what is happening instead, with
+   the imported count from /v1/status when the gateway reports one. null in demo, once any session is shown, and once the
+   spine has answered for real (ready / empty / error). */
+function dataBusy() {
+  let lv = null; try { lv = LV; } catch (e) { return null; }
+  if (!lv || !lv.live || ALL.length) return null;
+  const st = (TL.status && TL.status.counts) || {}; const n = st.sessions || 0;
+  const j = TL.job; const importing = !!j && j.kind === 'import' && ['queued', 'pending', 'running'].indexOf(j.status) >= 0;
+  if (lv.state === 'connecting') return TL.error ? { k: 'offline', t: '本机服务未连接', n: 0 } : { k: 'connecting', t: '正在连接本机服务…', n: 0 };
+  if (importing) return { k: 'importing', t: '正在导入会话…', n };
+  if (lv.pending) return { k: 'pending', t: '正在整理数据…', n };
+  if (lv.state === 'computing') return { k: 'computing', t: '正在分析会话…', n };
+  return null;
+}
+// one line for titles / empty cards: 「正在分析会话… · 已导入 26 个会话 · 已用 12 / 60 秒」
+function busyNote(b) {
+  b = b || dataBusy(); if (!b) return '';
+  let p = '';
+  if (b.k === 'computing' && typeof lvSpineProgress === 'function') { try { p = lvSpineProgress(); } catch (e) { p = ''; } }
+  return b.t + (b.n ? ' · 已导入 ' + fmt(b.n) + ' 个会话' : '') + p;
+}
+// the title meta while busy: the calm status instead of 「0 个会话 · 还没有接入 Agent」
+function busyMeta(b) { b = b || dataBusy(); return b ? (b.n ? '已导入 ' + fmt(b.n) + ' 个会话 · ' : '') + (b.k === 'computing' ? '分析中' : b.k === 'importing' ? '导入中' : b.k === 'pending' ? '整理中' : b.t) : ''; }
+function busyCard(b) { b = b || dataBusy(); return '<div class="card pad" data-lv="busy" role="status" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + esc(busyNote(b)) + '<div class="cap" style="margin-top:6px">完成后自动显示，不用刷新</div></div>'; }
+function empty(msg) { return dataBusy() ? busyCard() : '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
