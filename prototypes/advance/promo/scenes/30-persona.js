@@ -4,7 +4,9 @@
    → 揭晓块减速到中心线后慢漂（不停住）→ 徽章按行依次从公转的外圈剥离、滑成左侧竖列，表盘同时朝点列收缩淡出、揭晓块上漂淡出。
    本场景拥有 deck 2（b26.4 直接设定相机，drawCompass 每帧调用，pl: 0）与 b26.4 的 AGD compass key；标志归 20-orbit
    （到 b28.2），CO − .9 起的剥离（column key）归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass
-   一直调到 b41.5 + XL，deck 2 自 CO + .8 起已透明）。 */
+   一直调到 b41.5 + XL，deck 2 自 CO + .8 起已透明）。
+   v18.1：五枚徽章（cc / cx / gm / ds / cp）在罗盘段全程都在外圈上（gm / cp 借用 App 的 km / oc 会话，见 D0 下方），
+   pa 恒为 1，不再淡出淡入；揭晓块到中心线时前面的问题行与字母牌淡到 0。 */
 scene('30-persona', () => {
   css(`
 .k .ln.pe-or>span{color:var(--a1)}
@@ -33,6 +35,19 @@ scene('30-persona', () => {
 .pe-r7 .m{font-family:var(--mono);font-size:22px;letter-spacing:.24em;color:rgba(255,255,255,.5)}
 `);
   const D0 = compassData(), ME = D0.me, AX = D0.AXES, W0 = decks[0].W;
+  // v18.1 五点贯穿：App 的 Agent 表已改为 cc / cx / km / ds / oc，promo 的 AGID 仍是 cc / cx / gm / ds / cp，罗盘的基础数据里
+  // gm / cp 没有会话 → 粉、绿徽章 pa 0，在罗盘段淡出又淡回。promo 侧补上：gm / cp 依次借用 App 里不在 AGID 中的 Agent（km / oc）
+  // 的会话方位与曲线（只改 promo 的数据副本，App 源码不动）。这正是下方注释里的 0.0.4 方位 gm 288 / cp 221°（避让已在 App 的
+  // fpOrbit 里按五枚一起算过，不相碰）；40-recs 的竖列顺序与 60-close 的螺旋都读同一份 compassData，跟着一致
+  {
+    const bs = D0.sets.base, spare = bs.orb.layers.filter((y) => y.n && !AGID.includes(y.a.id)).map((y) => y.a.id);
+    AGID.forEach((id, i) => {
+      if (bs.pl[i] != null || !spare.length) return;
+      const src = spare.shift(), pl = bs.orb.planets.find((y) => y.a.id === src), ly = bs.orb.layers.find((y) => y.a.id === src);
+      if (pl) bs.pl[i] = pl.deg;
+      if (ly && bs.ly[i] == null) bs.ly[i] = ly.outer;
+    });
+  }
   const ME_IDX = CODES.indexOf(ME.code);
   const typeDeg = (code) => (CODES.indexOf(code) + .5) * 22.5;
   const PC = [960, 540];
@@ -298,7 +313,9 @@ scene('30-persona', () => {
         // 带外才变糊变暗。匀速 V 130 时每条完整可读约 3.7 拍，中心那条仍最亮
         const dd = s > 0 ? Math.max(0, s - 170) : Math.max(0, -s - 310), bl = 6 * dd / 300;
         let a = clamp(1 - .3 * Math.min(Math.abs(s), 200) / 200 - .45 * dd / 300);
-        if (it.fy == null) a *= 1 - .6 * E.inOut(lp(b, T6, 1.0));           // 揭晓时前面的条目退暗，让出视线（R5 的字母牌先读满 2 拍）
+        // 揭晓时前面的条目退暗，让出视线（R5 的字母牌先读满 2 拍）；v18.1：揭晓块到中心线（T6 + .3）时问题行与字母牌
+        // （多线、求证—信任、M / V 残影）淡到 0，画面只留你的协作人格 / DIMV / 名字 / 一句话 / 优势·盲点
+        if (it.fy == null) a *= 1 - E.inOut(lp(b, T6 - .3, 1.0));
         if (it.r7 != null) { const q = E.out(lp(b, T6 + .05 + .2 * it.r7, .5)); a *= q; y += (1 - q) * 18; }
         node.style.transform = 'translateY(' + (y - 1).toFixed(1) + 'px) translateY(-50%)';
         node.style.opacity = a.toFixed(3);
