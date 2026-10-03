@@ -236,7 +236,7 @@ scene('15-redesign', () => {
   // v18.3: the fall-over is a .24-beat ride, then straight into the pill (b12.04, .45 beat) so outside the ride the dots
   // are never thin dim dashes (the arc key grows r 16 → 34 meanwhile); the box (b12.5) is pulled out while they round
   AGD.morph(11.8, 'all', 'caret', { hpx: 24, rot: 90, dur: .24, stag: .03 });
-  AGD.morph(12.04, 'all', 'pill', { aim: BOX, w: 2.6, dur: .45, stag: .03 });
+  AGD.morph(12.04, 'all', 'pill', { aim: BOX, w: 2.6, dur: .5, stag: .03, ease: E.out }); // E.out: thick + dark within ~.12 beat, no thin pale dashes
   // the highlighter (「交互本身」, from b13.85): ds becomes a pen head, rises from the arc onto the band under 「交互本身」
   // (b13.72–14.0, as 「交互本身」 steps in), rides the tip of the stroke as it starts to draw (x 1010 + 402·progress, the line's 6 px/beat drift) and
   // drops back onto the arc by b14.5, before its own bubble (b14.55). v18.1: was a 24 / 18 px nudge ≈ 300 px below the band
