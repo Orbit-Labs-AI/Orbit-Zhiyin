@@ -10,7 +10,7 @@ open .local/macos-build/Orbit.app
 ```
 
 - 关闭主窗口只隐藏，Orbit 留在菜单栏，⌘Q 退出；窗口 › 显示 HUD（⌥⌘H）、桌面小组件（⌥⌘W）。
-- 版本 0.0.1，bundle id `ai.actionmesh.orbit`，Apple Silicon，macOS 15+。
+- 版本 0.0.1，bundle id `ai.actionmesh.orbit`，Apple Silicon，macOS 14+。
 - 数据目录：`~/Library/Application Support/Tandem`；设置环境变量 `TANDEM_HOME` 可改用其他目录（演示、验收一律用独立目录）。
 - 本地构建为 ad-hoc 签名，未公证：首次打开需在 Finder 中右键 › 打开，或执行 `xattr -dr com.apple.quarantine /Applications/Orbit.app`。配置 `TANDEM_SIGN_IDENTITY`（Developer ID）与 `TANDEM_NOTARY_PROFILE` 可签名并公证。
 
