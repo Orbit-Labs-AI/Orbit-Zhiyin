@@ -13,7 +13,13 @@
       AGD.back，半径每帧取 cc 到 (960, 540) 的距离，所以 20-orbit 在（后移后的）b26.0 收紧圆环时它跟着收，b26.8–27.4 淡出。
    v17.5 逐词节奏（总长不变）：每个词组快速进场（≈ .25 拍）后带一点缩放/模糊的落定再停半拍左右——「人与 Agent 的」b13.4 ·「交互本身，」13.85 ·
    「也需要被」15.1 ·「重新定义」15.6（落在 15.9）；「So，」21.1 ·「我们做了一个」21.36 ·「Assistant」21.6（落在 21.84）；三行大字仍硬切，各带 .32 拍落定。
-   b26.0 起圆环的 key 归 20-orbit；本场景只写 b11.8（H3，在 10-intro 段内，10-intro 不写 b11.8 之后的 key）与 b20.3 两个 key。 */
+   b26.0 起圆环的 key 归 20-orbit；本场景只写 b11.8（H3，在 10-intro 段内，10-intro 不写 b11.8 之后的 key）与 b20.3 两个 key。
+   v17.7 点形态（STORYBOARD「v17.7」F3）：b11.8 1c 的五色分段光标逐段转 90° 倒下（.4 拍），b12.2 圆回带 logo 的 pill、指向将长出的输入框，
+   b12.9 起是沿弧切线略扁的珠子（w 2.2，随字上移）；打字时接收该句的点变 caret（hpx 38，逐字 ×1.04 轻跳，框内光标染成该 Agent 色），
+   发送前 .2 拍变 tail；每个纠正气泡的点先出尾巴（.15 拍，描边 1.6 + 底色 .15 一拍，代替旧的 .94 缩一下），气泡收回时尾巴先收、点再圆；
+   b13.85 ds 变笔头沿荧光笔方向右上滑 24 / 18 px 再回；b15.9「重新定义」落定时弧两端轻压（h .92）；b19.85 五点变 pill 把输入框收回；
+   b20.4 起展开成环途中逐个变 bead；虚线圆从五颗珠子处向两侧画出（b22.1–22.9）；三行硬切各让珠子沿环前跳 4°（spin 改 9/5.7，交接角仍 228°）；
+   「everyone」落定（b23.0）珠子 glow .5 一拍；三行大字从最近珠子一侧轻移 12 px 进场。 */
 'use strict';
 css(`
 .k .ln.rd-h{font-size:100px}
@@ -44,7 +50,10 @@ scene('15-redesign', () => {
   // ring still reaches 228 exactly at the hand-off. H3E instead of E.inOut: T6 has gm above y 300 by b20.9, before
   // 「So，」 (y 400) lands (with E.inOut it would still be at y ≈ 506 and cross the word at b21.1); H3E puts it at y ≈ 320
   // at b20.9 and clears line 3 (bottom 420) only after the 1d lines are gone (b20.7)
-  AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: 420, ph: 207, spin: 21 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
+  // v17.7: each of 1e's three hard cuts (b21.9 / 22.3 / 22.7) steps the beads 4° on along the ring (.2 beat, E.inOut, no
+  // rebound); the spin gives those 12° back (9° over 5.7 beats), so the ring still hands on at 228° (b26.0)
+  const JUMP = (b) => 4 * [21.9, 22.3, 22.7].reduce((s, t) => s + E.inOut(clamp((b - t) / .2)), 0);
+  AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: 420, ph: (b) => 207 + JUMP(b), spin: 9 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
 
   /* ---------- 1d 文字（三行底边 ≤ 420，b20.1–20.7 一起向上淡出、模糊） ---------- */
   // pacing: the reveals run slower, and while they are up all three lines drift up together at 6 px/beat (no dead
@@ -108,7 +117,10 @@ scene('15-redesign', () => {
   // the box grows out of the dots' centroid ((960, ≈570) at b12.6, the arc still landing) down to (960, 880) by b13.2,
   // and shrinks back into it over b20.1–20.5
   const c = AGD.chat(12.6, 20.5, { x: 960, y: 880, w: 980, from: AGD.centroid, to: AGD.centroid });
-  typeOn(c, 12.95, '请你修改', 41); typeOn(c, 14.55, 'fix', 42); typeOn(c, 15.8, '请你继续', 43); typeOn(c, 17.15, '看清需求', 44);
+  // v17.7: [dot that becomes the caret, first key, text, seed, send beat | null (the 4th is never sent: cp keeps the caret
+  // until the box retracts)]; the box caret takes that Agent's colour while its line shows
+  const TY = [[1, 12.95, '请你修改', 41, 13.95], [2, 14.55, 'fix', 42, 15.26], [1, 15.8, '请你继续', 43, 16.78], [4, 17.15, '看清需求', 44, null]]
+    .map(([i, k0, text, seed, send]) => { const K = typeOn(c, k0, text, seed); c.types[c.types.length - 1].ci = i; return { i, K, send }; });
   // every correction bubble: [dot, b0, text, send beat | null]; sent ones pop at send + .15 (AGD.chat). Ten bubbles, two
   // per dot, gaps shrinking from .55 to .19 beats (v17.4: the v17.3 stream from b14.1 slowed × 1.3 more, so every one
   // can be read). T5 layers: cx / ds (UP) hang above their dots, a newer one replacing the older (AGD's replace; while
@@ -148,7 +160,6 @@ scene('15-redesign', () => {
     }
     if (u.send != null) c.send(u.send, u.i, o); else AGD.bubble(u.i, u.b0, u.b1, u.text, o);
     const r = AGD_BUB[AGD_BUB.length - 1]; slow.push([r, r.b0, r.b1]);
-    AGD.pulse(u.i, u.b0, .94, .45);                                                          // flinch: 被打断
   }
   // AGD pops a bubble in .25 beats and shrinks it in .2 (agBubbles reads u.b0 / u.b1 every frame). This drive runs
   // before applyAgents and re-times this scene's records so the pop takes PIN beats and the shrink POUT beats, starting
@@ -160,16 +171,75 @@ scene('15-redesign', () => {
     }
   });
 
+  /* ---------- v17.7 Agent 点形态（STORYBOARD「v17.7」F3 1c 末条 / 1d / 1e） ---------- */
+  // one state per dot at a time, highest priority wins: caret (typing, 3) > tail / head (bubble up, highlighter, 2) >
+  // pill (box grows / retracts, 1) > the resting bead; a morph is registered only where a dot's state changes, so every
+  // change blends from the live shape (no restarts, no pops)
+  const bump = (b, t, len) => { const u = (b - t) / len; return u > 0 && u < 1 ? Math.sin(Math.PI * u) : 0; };
+  const plate = (b, t0, t1, ramp) => Math.min(E.inOut(clamp((b - t0) / ramp)), E.inOut(clamp((t1 - b) / ramp)));
+  const BOX = [960, 880];
+  // 「重新定义」 lands (b15.9) with a light press of the arc's low ends (cc / cp, h × .92 for .2 beat)
+  const press = (i) => (b) => (i === 0 || i === 4 ? 1 - .08 * bump(b, 15.8, .2) : 1);
+  // a bubble's dot: tail toward it, the stroke pulled wider and warmer for a beat as it pops (被打断: no shrink, no shake)
+  const fx = (i) => (b) => BUB.filter((u) => u.i === i).reduce((v, u) => Math.max(v, plate(b, u.b0 - .15, u.b0 + .85, .2)), 0);
+  const ST = {
+    rest: (i) => ['bead', { w: 2.2, h: (b) => 1.85 * press(i)(b), rad: .9, ls: .9 }, .4],     // a string of beads rising with the lines
+    pill: () => ['pill', { aim: BOX, w: 2.6 }, .3],                                            // the box is pulled out of / back into them
+    head: () => ['head', { rot: 0, w: 2.6, h: 1.5 }, .2],                                      // points along the highlighter
+    caret: (i, w) => ['caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)) }, .25],
+    tail: (i) => ['tail', { rot: 0, tailDir: UP[i] ? -90 : 90, h: (b) => 2 * press(i)(b), ring: (b) => 1 + .6 * fx(i)(b), fill: (b) => .15 * fx(i)(b) }, .15]
+  };
+  const WIN = [];                                                                              // { i, t0, t1, st, pr, w }
+  for (let i = 0; i < 5; i++) { WIN.push({ i, t0: 12.2, t1: 12.9, st: 'pill', pr: 1 }, { i, t0: 19.85, t1: 20.4, st: 'pill', pr: 1 }); }
+  for (const w of TY) WIN.push({ i: w.i, t0: w.K[0] - .2, t1: w.send != null ? w.send - .2 : 19.85, st: 'caret', pr: 3, w });
+  for (const u of BUB) WIN.push({ i: u.i, t0: u.send != null ? u.send - .2 : u.b0 - .15, t1: u.b1 - POUT, st: 'tail', pr: 2 });
+  WIN.push({ i: 3, t0: 13.85, t1: 14.35, st: 'head', pr: 2 });
+  for (let i = 0; i < 5; i++) {
+    const W = WIN.filter((w) => w.i === i), at = (b) => W.filter((w) => b >= w.t0 && b < w.t1).sort((p, q) => q.pr - p.pr || q.t0 - p.t0)[0];
+    const T = [...new Set(W.flatMap((w) => [w.t0, w.t1]))].filter((t) => t >= 12.2 && t < 20.4).sort((p, q) => p - q);
+    let prev = 'pill';                                                                         // the hand-off below owns b12.2
+    for (const t of T) {
+      const w = at(t), id = w ? (w.st === 'caret' ? 'caret' + w.t0 : w.st) : 'rest';
+      if (id === prev) continue;
+      const [name, o, dur] = ST[w ? w.st : 'rest'](i, w);
+      if (prev === 'tail' && id === 'rest') {                                                   // the tail is drawn in first, then the dot rounds
+        AGD.morph(t, i, 'tail', { ...ST.tail(i)[1], tail: 0, dur: .2 });
+        AGD.morph(t + .2, i, name, { ...o, dur: .3 });
+      } else AGD.morph(t, i, name, { ...o, dur });
+      prev = id;
+    }
+  }
+  // b18.7 hand-off (F3 1c): 1c's five-colour caret falls over — every segment turns 90° (.4 beat) as the arc opens —
+  // then rounds back out (.5 beat, the logos return) as a pill aimed at the input box about to grow out of them
+  AGD.morph(11.8, 'all', 'caret', { hpx: 24, rot: 90, dur: .4, stag: .03 });
+  AGD.morph(12.2, 'all', 'pill', { aim: BOX, w: 2.6, dur: .5, stag: .03 });
+  // the highlighter (「交互本身」, from b13.85): ds, nearest its start, becomes a pen head and slides 24 px right, 18 px up
+  // along it, then back (the dots either side leave it no more room)
+  const hm = (b) => E.inOut(clamp((b - 13.85) / .5)) * (1 - E.inOut(clamp((b - 14.35) / .3)));
+  AGD.follow(13.8, 14.7, (i, b, q) => (i === 3 ? { x: q.x + 24 * hm(b), y: q.y - 18 * hm(b) } : null), { blend: .05 });
+  // 1e: on the way out to the ring each dot becomes a bead (ls .85) threaded on the dashed circle; 「everyone」 lands
+  // (b23.0) with a beat of glow
+  AGD.morph(20.4, 'all', 'bead', { ls: .85, dur: .8, stag: .05, glow: (b) => .5 * plate(b, 23.0, 24.0, .3) });
+
   /* ---------- 1e 虚线圆（#agdBack，跟着 cc 的半径，b26.8–27.4 淡出） ---------- */
   // 1e → 2 hand-off: while the three lines spread out (b25.8–26.4) the circle brightens .14 → .32, so in b26.4–26.9,
   // before the spiral shows, the screen is the ring tightening with the dots (R 420 → 300), not five loose dots; the
   // spiral's tail then starts on this very circle (R 300) as it fades (20-orbit's b21.6 / b22.4, pushed 4.4 by SHIFT)
+  // v17.7: the circle is drawn out of the five beads — from each bead's bearing both ways (36° each, b22.1–22.9), so
+  // it closes halfway between them; the arcs ride with the beads (their bearings each frame) and their radius
   AGD.back(22.1, 27.4, (b) => {
-    const p = AGD.pos(0, b), R = Math.hypot(p.x - 960, p.y - 540), ang = Math.atan2(p.x - 960, -(p.y - 540)) * 180 / Math.PI;
-    const a = E.inOut(clamp((b - 22.1) / .5)) * (1 - E.inOut(clamp((b - 26.8) / .6))) * (.14 + .18 * E.inOut(clamp((b - 25.8) / .7)));
-    if (a <= .002 || R < 1) return '';
-    return '<circle cx="960" cy="540" r="' + R.toFixed(1) + '" fill="none" stroke="#fff" stroke-opacity="' + a.toFixed(3) +
-      '" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 7" transform="rotate(' + ang.toFixed(2) + ' 960 540)"/>';
+    const p = AGD.pos(0, b), R = Math.hypot(p.x - 960, p.y - 540);
+    const a = E.inOut(clamp((b - 22.1) / .3)) * (1 - E.inOut(clamp((b - 26.8) / .6))) * (.14 + .18 * E.inOut(clamp((b - 25.8) / .7)));
+    const s = 36.4 * E.inOut(clamp((b - 22.1) / .8));
+    if (a <= .002 || R < 1 || s < .2) return '';
+    const P = (g) => (960 + R * Math.sin(g * Math.PI / 180)).toFixed(1) + ' ' + (540 - R * Math.cos(g * Math.PI / 180)).toFixed(1);
+    let d = '';
+    for (let i = 0; i < 5; i++) {
+      const q = AGD.pos(i, b), g = Math.atan2(q.x - 960, -(q.y - 540)) * 180 / Math.PI;
+      d += 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 1 ' + P(g + s) + 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 0 ' + P(g - s);
+    }
+    return '<path d="' + d + '" fill="none" stroke="#fff" stroke-opacity="' + a.toFixed(3) +
+      '" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 7"/>';
   });
 
   /* ---------- 1e 环内一行小字 + 三行大字（fit，b25.8–26.4 字距拉开退场） ---------- */
@@ -186,14 +256,24 @@ scene('15-redesign', () => {
   txt(21.1, 26.4, [['rd-cj', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w">Assistant</span>']],
     { x: 960, y: 362, align: 'c' }, { anim: K.all(K.big({ scale: 1.9, dur: .28, out: .6, spread: true }), step([null, [.26, .22, 1.07], [.5, .24, 1.12]], { dy: 18 })), tick: zoom(362, true) });
   // v17.5: each big line still cuts in hard (K.words), then settles from 1.06× (.32 beat) before the next one
-  const settle = (el, tl) => el.querySelectorAll('.w').forEach((w) => {
-    const z = E.out(clamp(tl / BB(.32)));
-    w.style.transform = z < .999 ? 'scale(' + lerp(1.06, 1, z).toFixed(4) + ')' : '';
+  // v17.7: and it comes in 12 px from the side of the bead nearest it (the ring's bearings at its cut, landed), as if
+  // that bead set it down inside the ring
+  const fromBead = (b, y) => {
+    let best = null;
+    for (let i = 0; i < 5; i++) {
+      const g = (207 + JUMP(b + .2) + 72 * i + 9 / 5.7 * (b - 20.3)) * Math.PI / 180, x = 960 + 420 * Math.sin(g), yy = 540 - 420 * Math.cos(g);
+      const d = Math.hypot(x - 960, yy - y); if (!best || d < best.d) best = { d, ux: (x - 960) / d, uy: (yy - y) / d };
+    }
+    return best;
+  };
+  const settle = (u) => (el, tl) => el.querySelectorAll('.w').forEach((w) => {
+    const z = E.out(clamp(tl / BB(.32))), n = 12 * (1 - z);
+    w.style.transform = z < .999 ? 'translate(' + (u.ux * n).toFixed(2) + 'px,' + (u.uy * n).toFixed(2) + 'px) scale(' + lerp(1.06, 1, z).toFixed(4) + ')' : '';
     w.style.filter = z < .5 ? 'blur(' + ((1 - z * 2) * 3).toFixed(1) + 'px)' : 'none';
   });
   // [beat, y, html, fit]
   for (const [b, y, h, fit] of [[21.9, 462, 'Redesign', 560], [22.3, 568, 'Agent Workflow', 620], [22.7, 674, 'for <b class="rd-or">everyone</b>', 600]]) {
     txt(b, 26.4, [['xl sv rd-xl', '<span class="w">' + h + '</span>']], { x: 960, y, align: 'c' },
-      { anim: K.all(K.words({ at: [0], fit, out: .6, spread: true }), settle), tick: zoom(y) });
+      { anim: K.all(K.words({ at: [0], fit, out: .6, spread: true }), settle(fromBead(b, y))), tick: zoom(y) });
   }
 });
