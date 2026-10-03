@@ -4,9 +4,11 @@ failures without error_class, and denied approvals."""
 import json
 import sqlite3
 
+import pytest
 from fact_db import SCHEMA, FakeStore
 
-from orbit_backend.recommend import problems, section
+from orbit_backend.recommend import handoff, problems, section
+from orbit_backend.recommend.engine import build_slate
 
 
 def _db(tmp_path):
@@ -95,3 +97,73 @@ def test_sequences_see_unwrapped_short_heads(tmp_path):
         calls = section._calls_by_root(conn, root_of)
     assert [head for _, head, _, _ in seqs["s0"]][:2] == ["git status", "ls"]
     assert [call["head"] for call in calls["s0"]][:3] == ["git status", "ls", "wrangler"]
+
+
+@pytest.mark.parametrize("native_class", [None, "command_not_found"])
+def test_compound_shell_failures_keep_the_actual_missing_program(tmp_path, native_class):
+    store, roots = _db(tmp_path)
+    root_of = {r["session_uid"]: r["session_uid"] for r in roots}
+    with store.connect() as db:
+        db.execute("UPDATE tool_call SET status='completed'")
+        # Same absent dependency, different command heads. No literal benchmark logs.
+        commands = [("python3", "python3 --version; unzip input.docx"),
+                    ("rm", "rm -f old.txt && unzip input.docx"),
+                    ("unzip", "unzip input.docx"),
+                    ("python3", "python3 -c 'print(1)'\nunzip input.docx"),
+                    ("rm", "rm -f old.txt; mkdir -p output; unzip input.docx")]
+        for n, (head, command) in enumerate(commands):
+            cid = f"s{n}-c3"
+            db.execute("UPDATE event SET attrs=? WHERE event_uid=?",
+                       (json.dumps({"input": {"command": command}}), cid + "-call"))
+            db.execute("UPDATE event SET text=? WHERE event_uid=?",
+                       ("bash: line 2: unzip: command not found\n\nCommand exited with code 127", cid + "-res"))
+            if n == 4:  # _db only adds c3 for the first four sessions.
+                db.execute("INSERT INTO event(event_uid,session_uid,kind,attrs) VALUES (?,?,'tool.call',?)",
+                           (cid + "-call", f"s{n}", json.dumps({"input": {"command": command}})))
+                db.execute("INSERT INTO event(event_uid,session_uid,kind,text) VALUES (?,?,'tool.result',?)",
+                           (cid + "-res", f"s{n}", "bash: line 2: unzip: command not found"))
+                db.execute("INSERT INTO tool_call(call_uid,session_uid,name,kind,call_event_uid,result_event_uid) "
+                           "VALUES (?,?,'bash','shell',?,?)", (cid, f"s{n}", cid + "-call", cid + "-res"))
+            db.execute("UPDATE tool_call SET command_head=?,status='failed',exit_code=NULL,error_class=? "
+                       "WHERE call_uid=?", (head, native_class, cid))
+        facts, agents = section._facts(db, root_of, roots, [], [])
+    assert facts["failures_by_software"] == [{"software": "unzip", "error_class": "command_not_found",
+                                             "count": 5, "sessions": 5,
+                                             "session_uids": [f"s{i}" for i in range(5)]}]
+    assert "unzip" not in facts["scope_sessions"]["software"]  # incomplete head-only exposure
+    inputs = {"sessions": {"main": 6, "weeks": 1}, "facts": facts, "agents": agents,
+              "profile": {"tools": ["shell", "file.write"]}, "inventory": []}
+    problem = next(p for p in problems.build(inputs) if p["key"] == "tool_env_failure:unzip")
+    assert (problem["status"], problem["denominator"]) == ("active", 6)
+    slate = build_slate(inputs, {"settings": {"ai_generate": True}})
+    assert any(c["rec_key"] == "kb:retry-breaker" and c["rank"] for c in slate["candidates"])
+
+
+def test_ambiguous_compound_or_dumped_text_is_not_attributed_to_first_program():
+    assert section.failure_software("rm", "rm old; python3 work.py", "missing_dependency",
+                                    "ModuleNotFoundError: No module named 'pandas'") is None
+    assert section.failure_software("cat", "cat log.txt", "command_not_found",
+                                    "bash: line 1: unzip: command not found") == "cat"
+    assert section.failure_software("rm", "rm old; a; b", "command_not_found",
+                                    "bash: line 1: a: command not found\nbash: line 1: b: command not found") is None
+
+
+def test_pi_and_canonical_write_kinds_reach_all_edit_consumers(tmp_path):
+    store, roots = _db(tmp_path)
+    root_of = {r["session_uid"]: r["session_uid"] for r in roots}
+    with store.connect() as db:
+        for i, name in enumerate(["write", "Write", "custom_write"]):
+            db.execute("INSERT INTO model_call VALUES (?,?,'k3','max',10,5,0)", (f"m{i}", f"s{i}"))
+            for n in range(6):
+                db.execute("INSERT INTO tool_call(call_uid,session_uid,name,kind,files,status,started_at) "
+                           "VALUES (?,?,?,'file.write',?,'completed',?)",
+                           (f"edit-{i}-{n}", f"s{i}", name, json.dumps([f"output/a{n}.py"]), n + 100))
+        facts, _ = section._facts(db, root_of, roots, [], [])
+        calls = section._calls_by_root(db, root_of)
+        prompt = handoff.build(db, "s0")
+        task_types = section._task_kinds(db, json.dumps(list(root_of)), root_of, None)
+    assert facts["model_mix"][0]["readonly_sessions"] == 0
+    assert facts["unverified_edits"]["sessions"] == 3
+    assert all(section._is_edit(c) for seq in calls.values() for c in seq if c["kind"] == "file.write")
+    assert prompt["parts"]["verify_pending"] and len(prompt["parts"]["recent_files"]) == 6
+    assert task_types["s0"]["tasks"] > 0

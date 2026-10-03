@@ -51,6 +51,11 @@ class PlanRequest(BaseModel):
     fetch: bool = False
 
 
+class ResolveRequest(BaseModel):
+    source: Source
+    fetch: bool = False
+
+
 class SelectionRequest(BaseModel):
     selected_units: dict[str, list[str]] | None = None
     disabled_targets: list[int] = Field(default_factory=list)
@@ -176,6 +181,10 @@ def router(gw: Gateway) -> APIRouter:
     def create_plan(body: PlanRequest):
         return call(svc.plan, body.source.model_dump(), agents=body.agents, scope=body.scope,
                     project_path=body.project_path, fetch=body.fetch)
+
+    @api.post("/v1/install/resolve")
+    def resolve(body: ResolveRequest):
+        return call(svc.resolve, body.source.model_dump(), fetch=body.fetch)
 
     @api.get("/v1/install/plans/{plan_id}/preview")
     def get_preview(plan_id: str):
