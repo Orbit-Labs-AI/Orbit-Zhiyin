@@ -36,7 +36,7 @@ scene('40-recs', () => {
 .ln.r5>span{display:grid;grid-template-columns:auto auto;column-gap:34px;align-items:start;text-align:left}
 .r5 .r5-pre{grid-row:1;grid-column:1;display:flex;flex-direction:column;align-items:flex-end;gap:10px;padding-top:58px;font:500 30px var(--mono);letter-spacing:.24em;color:rgba(255,255,255,.72)}
 .r5 .r5-pre span{display:block;will-change:transform,opacity}
-.r5 .r5-num{grid-row:1;grid-column:2;font-family:var(--serif);font-size:300px;line-height:.92;letter-spacing:-.02em;transform-origin:30% 60%;
+.r5 .r5-num{grid-row:1;grid-column:2;font-family:var(--display);font-size:300px;line-height:.92;letter-spacing:-.02em;transform-origin:30% 60%;
   background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent;will-change:transform,opacity,filter}
 .r5 .r5-u{grid-row:2;grid-column:2;font-size:120px;font-weight:700;line-height:1.1;color:var(--a1);will-change:transform,opacity}
 `);

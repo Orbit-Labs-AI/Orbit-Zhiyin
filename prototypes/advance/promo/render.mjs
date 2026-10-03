@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(here, '..');
+const root = path.join(here, '../../..');   // the repo: the end card reads the wordmark from docs/design/logo/kit
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const FPS = +opt('--fps', 60), SCALE = +opt('--scale', 2), FROM = +opt('--from', 0);
@@ -38,7 +38,7 @@ await ctx.clock.pauseAt(new Date('2026-10-01T15:30:01+08:00'));   // time moves 
 const page = await ctx.newPage();
 page.on('pageerror', (e) => console.error('[pageerror]', e.message));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.error('[console]', m.text()); });
-await page.goto(base + '/promo/' + (process.env.PROMO_PAGE || 'promo.html') + '?render' + (args.includes('--debug') ? '&debug' : ''));
+await page.goto(base + '/prototypes/advance/promo/' + (process.env.PROMO_PAGE || 'promo.html') + '?render' + (args.includes('--debug') ? '&debug' : ''));
 for (let i = 0; i < 400 && !(await page.evaluate(() => !!window.PROMO && PROMO.ready)); i++) await ctx.clock.runFor(16);
 const DUR = +opt('--to', await page.evaluate(() => PROMO.duration));
 const BPM = await page.evaluate(() => BPM);

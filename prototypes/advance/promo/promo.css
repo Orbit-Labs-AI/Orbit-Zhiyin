@@ -1,9 +1,11 @@
 /* Tandem promo stage: a fixed 1920×1080 pure-black frame. Two live copies of the app (#app0/#app1) each show one
    component at a time (everything else is hidden); the .cam/.rig pairs are their cameras; #fx holds the type. */
 :root{
-  --sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",sans-serif;
-  --serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC",serif;
-  --mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+  /* the app's type (src/styles/00-base.css): SF Pro + PingFang SC, SF Mono, SF Pro Rounded for persona type codes */
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+  --display:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace,"PingFang SC","Hiragino Sans GB";
+  --type:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,"PingFang SC","Hiragino Sans GB",sans-serif;
   --a1:#e2602b;--a2:#2a78d6;--a3:#009f6b;--a4:#c27800;--a5:#d0658f;--ai:#a99bff;--acc:#9fb5bc;--orbit:#a3adb0;
   color-scheme:light;
 }
@@ -25,7 +27,8 @@ body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smooth
 .md{font-size:58px;font-weight:500;letter-spacing:.005em}
 .hv{font-size:108px;font-weight:700;letter-spacing:-.012em;line-height:1.08}
 .xl{font-size:200px;font-weight:700;letter-spacing:-.02em;line-height:1}
-.serif{font-family:var(--serif)}
+.display{font-family:var(--display)}
+.tcode{font-family:var(--type);font-weight:700}
 .mono{font-family:var(--mono)}
 .dim{color:rgba(255,255,255,.45)}
 .ai{color:var(--ai)}
@@ -33,8 +36,8 @@ body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smooth
 .chip{display:inline-flex;align-items:center;gap:14px;font-family:var(--mono);font-size:30px;color:rgba(255,255,255,.86)}
 .chip i{width:14px;height:14px;border-radius:50%;display:inline-block}
 .mark{width:280px;height:auto;display:block}
-.word{font-family:var(--serif);font-weight:600;font-size:118px;letter-spacing:.02em}
-.letter{font-family:var(--serif);font-weight:700;font-size:300px;line-height:1}
+.wordmark{display:block;height:100px;width:auto}
+.letter{font-family:var(--display);font-weight:700;font-size:300px;line-height:1}
 .odo{display:inline-flex;font-size:150px;font-weight:700;line-height:1;letter-spacing:-.01em;transform-origin:50% 50%;will-change:transform}
 .odo .dg{display:inline-block;height:1em;overflow:hidden}
 .odo .st{display:block;line-height:1}
@@ -53,18 +56,14 @@ body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smooth
 .cursor .ripple{position:absolute;left:6px;top:3px;width:46px;height:46px;border-radius:50%;border:2px solid rgba(163,173,176,.95);opacity:0}
 .orbit{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none}
 .compass{display:block}
-.compass .cp-hc{font:600 34px var(--serif);fill:#fff}
-.compass .cp-hs{font:500 17px var(--mono);fill:rgba(255,255,255,.5)}
-.compass .cp-l{font:700 38px var(--serif);fill:#fff}
-.compass .cp-s{font:500 18px var(--mono);fill:rgba(255,255,255,.6)}
+.compass{--surface:#0e0f12}
+.compass .cp-pole{font:600 26px var(--sans);fill:rgba(255,255,255,.72);paint-order:stroke;stroke:#000;stroke-width:8px}
 .md.acc,.lt.acc{font-weight:400}
 .tag{white-space:nowrap;pointer-events:none;z-index:6}
 .phr{position:absolute;display:inline-flex;align-items:center;gap:10px;padding:10px 18px;border-radius:999px;background:rgba(14,15,18,.92);border:1px solid rgba(255,255,255,.16);color:#fff;font:600 24px var(--sans);white-space:nowrap;transform-origin:50% 100%;box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;z-index:6}
 .phr i{width:10px;height:10px;border-radius:50%}
 .phr b{font:600 18px var(--mono);color:rgba(255,255,255,.6)}
 .phr small{font:500 16px var(--mono);color:rgba(255,255,255,.45);letter-spacing:.1em}
-.compass .cp-tc{font:700 30px var(--mono);fill:#fff;letter-spacing:.12em}
-.compass .cp-tn{font:600 24px var(--sans);fill:var(--acc)}
 .ph-d.crit{color:#ff8a7a}.ph-d.warn{color:#f3c56b}.ph-d.good{color:#7fd6a4}
 .sv-t{background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent}
 .hole{position:absolute;inset:0;pointer-events:none}

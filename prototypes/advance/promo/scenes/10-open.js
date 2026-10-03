@@ -85,7 +85,7 @@ scene('10-open', () => {
 
   // 2: the mark (orbitAt) — brand words under it, gone before it tips over into the top view
   glowAt(7.9, 1, 3);
-  txt(9.6, 12.2, [['word', 'Orbit']], { x: 960, y: 690, align: 'c' }, { inB: 1.4, outB: .8 });
-  txt(10.6, 12.2, [['lt', '看见你与 Agent 的每一次协作']], { x: 960, y: 790, align: 'c' }, { inB: 1.2, outB: .8 });
+  txt(9.6, 12.2, [['', WORDMARK]], { x: 960, y: 690, align: 'c' }, { inB: 1.4, outB: .8 });
+  txt(10.6, 12.2, [['lt', '看见你与 Agent 的每一次协作']], { x: 960, y: 800, align: 'c' }, { inB: 1.2, outB: .8 });
   glowAt(12.6, 0, 1.6);
 });
