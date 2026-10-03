@@ -1,10 +1,10 @@
-/* 30-persona 3（b26.4–40.4） — STORYBOARD.md v17「3」与「转场关键帧」H9–H11.
+/* 30-persona 3（b26.4–42.2；v17.3 读字加长 1.8 拍，见下方 XL） — STORYBOARD.md v17「3」与「转场关键帧」H9–H11.
    罗盘在翻平的标志下成形（刻度 → 描边光从标志尾端出发 → 轨道层随扫描展开 → 花苞边转边减速落在你的类型并绽开）
    → 标题「引入协作人格分析」→ 罗盘左移 → 右侧竖向滚动列（R1–R7），条目经过中心线 y 540 时罗盘做对应反应
    → 揭晓块减速到中心线后慢漂（不停住）→ 列上移淡出、罗盘缩小淡出。
    本场景拥有 deck 2（b26.4 直接设定相机，drawCompass 每帧调用，pl: 0）与 b26.4 的 AGD compass key；标志归 20-orbit
-   （到 b28.2），b39.4 的 column key 归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass 一直调到 b41.5，
-   deck 2 自 b40.4 起已透明）。 */
+   （到 b28.2），CO（旧 b39.4 + XL = b41.2）的 column key 归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass
+   一直调到 b41.5 + XL，deck 2 自 CO + .85 起已透明）。 */
 scene('30-persona', () => {
   css(`
 .k .ln.pe-or>span{color:var(--a1)}
@@ -54,18 +54,23 @@ scene('30-persona', () => {
   }, { blend: .01 });
 
   /* ---------- deck 2 相机（H9 / H10 / H11） ---------- */
-  // 节奏（v17 放慢）：罗盘 b30.9–32.3 左移（比原来早 .5 拍），省下的时间和原来揭晓的定格一起给右侧滚动列；
+  // 节奏（v17 放慢）：罗盘 MV–MV + 1.4 左移（v17.3 起 b31.4–32.8），之后的时间给右侧滚动列；
   // 标题期间与滚动列期间都慢推，不定格
-  const MV = 30.9, MVD = 1.4;
+  // v17.3 读字（每行完整可读 ≥ max(1.4, .9 + .12 / 汉字) 拍）：本场景加长 XL = 1.8 拍，起点 b26.4 不变——
+  // ① 左移从 b30.9 推到 b31.4（+.5），标题 / 强调行读到 b31.8 才退场；② R1 先以慢漂进场、再 1.2 拍加速到匀速（+.3）；
+  // ③ 揭晓块到中心线后多漂 1.0 拍再退场（含优势 / 盲点两行的进场）。旧 b39.2 及以后的退场与交接全部晚 XL
+  // （40-recs 的 column key 由集成方用 SHIFT 推后同样的拍数）。
+  const XL = 1.8, EX = 39.2 + XL, CO = 39.4 + XL;          // EX：滚动列退场；CO：罗盘退场 = 交给 40-recs 的拍
+  const MV = 31.4, MVD = 1.4;
   // 罗盘中心 (400, 400) → 舞台 (960, 540)，s .86：描边光半径 381 × .86 = 328 = 俯视标志外圈 R；描边光与标志 b28.4 前收完，b29.5 起才慢推
   // 相机几何在 HB 先就位（仍透明），compass key 从 HB 起读 cpBadge 就是最终的舞台坐标；b26.4 才显示 deck 2
   tween(2, HB, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0 });
   tween(2, 26.4, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
   tween(2, 29.5, MV - 29.5, { s: .875 }, E.sine);
   tween(2, MV, MVD, { ax: 600, ay: 560, s: .78 }, E.inOut);
-  tween(2, MV + MVD, 39.4 - MV - MVD, { s: .81 }, E.sine);
+  tween(2, MV + MVD, CO - MV - MVD, { s: .81 }, E.sine);
   // v17.1 T10：缩小淡出时中心同拍左移 600 → 480，表盘朝 40-recs 的点列（x 330）收去，像被点带走
-  tween(2, 39.4, .85, { s: .6, o: 0, ax: 480 }, E.inOut);     // E.inOut：表盘底盘与轨道层不在点飞走后残留（b40.25 已透明）
+  tween(2, CO, .85, { s: .6, o: 0, ax: 480 }, E.inOut);     // E.inOut：表盘底盘与轨道层不在点飞走后残留（CO + .85 已透明）
 
   /* ---------- 花苞：随扫描转（梯形速度），b28.4 起减速，b29.6 落在你的类型（+1 圈） ---------- */
   const DEG1 = typeDeg(ME.code) + 360, B0 = 27.2, BT = 2.4, ACC = .3, DEC = 1.2;
@@ -80,9 +85,12 @@ scene('30-persona', () => {
   };
 
   /* ---------- 滚动列的时间（R1–R6 过中心线的拍）与罗盘反应 ---------- */
-  // 匀速 V 滚过 R1–R5（每条 1.05 拍、相距 157px），b37.2 起平滑减速到慢漂 VR，b38.0 揭晓块到中心线后继续慢漂，不停住
-  const V = 150, VR = 50;                                  // px / beat
-  const TR = [32.3, 33.35, 34.4, 35.45, 36.5], T6 = 38.0, SLOW = 37.2;
+  // v17.3：列 C0 淡入时 R1 在中心线下 25px 以慢漂 VR 进场，TR0 过线后 RU 拍内按余弦加速到匀速 V，
+  // 匀速滚过 R2–R5（相距 GAP，每条 1.05 拍），SLOW 起平滑减速到慢漂 VR，T6 揭晓块到中心线后继续慢漂，不停住
+  const V = 150, VR = 50, GAP = 157.5;                     // px / beat；条目间距 px
+  const C0 = MV + .8, TR0 = C0 + .5, RU = 1.2, YR = RU * (V + VR) / 2;
+  const TR = [0, 1, 2, 3, 4].map((k) => (k ? TR0 + RU + (GAP * k - YR) / V : TR0));   // b32.7 / 34.15 / 35.2 / 36.25 / 37.3
+  const SLOW = TR[4] + .7, T6 = SLOW + .8;                 // b38.0 / 38.8
   // 4 个维度依次排除不符的一半扇区（16 → 8 → 4 → 2 → 1）
   const axQ = (k, b) => E.inOut(lp(b, TR[k + 1] - .1, .6));
   const keepAt = (b) => CODES.map((c) => { let v = 1; for (let k = 0; k < 4; k++) if (c[k] !== ME.code[k]) v *= 1 - axQ(k, b); return v; });
@@ -91,7 +99,7 @@ scene('30-persona', () => {
   // 从罗盘上 x 最大的徽章（相机只平移缩放、rz 0，所以按方位 sin 最大取下标，左移全程不变）连到右列中心线左端
   // (1100, 540)：白 30%（连线自带 stroke-opacity .7，.43 × .7），1.5px，长出 .5 拍，pulse 1，收回 .4 拍。
   // 拍号跟 R1：V2 写的 b32.2–33.6 对应排速前 R1 在 b33.0 过线；排速后 R1 在 TR[0]（b32.3）过线，
-  // 所以照同样的相对关系写成线在 R1 过线前 .2 拍长满、过线后 .2 拍开始收回（b31.6 → 32.1 长满 → 32.5–32.9 收回）。
+  // 所以照同样的相对关系写成线在 R1 过线前 .2 拍长满、过线后 .2 拍开始收回（v17.3：R1 b32.7 过线 → b32.0 → 32.5 长满 → 32.9–33.3 收回）。
   const T9I = D0.sets.base.pl.reduce((m, d, i) => (d != null && (m < 0 || Math.sin(d * Math.PI / 180) > Math.sin(D0.sets.base.pl[m] * Math.PI / 180)) ? i : m), -1);
   if (T9I >= 0) AGD.link(TR[0] - .7, TR[0] + .6, T9I, [1100, 540], { color: 'rgba(255,255,255,.43)', width: 1.5, draw: .5, out: .4, pulse: 1 });
   // 表圈上 16 个扇区的亮弧（罗盘坐标，跟着相机走）：R1 依次闪亮一遍；之后仍可能的扇区微亮，最后你的扇区留橙色
@@ -116,9 +124,9 @@ scene('30-persona', () => {
     });
   };
 
-  /* ---------- 罗盘：每帧一次（b26.4–41.5；deck 2 自 b40.4 透明，之后只为 40-recs 的点提供出发位置） ---------- */
-  drive(2, 26.4, 41.5, (p, b) => {
-    const out = 1 - E.inOut(lp(b, 39.4, .8)), keep = keepAt(b);
+  /* ---------- 罗盘：每帧一次（b26.4–41.5 + XL；deck 2 自 CO + .85 透明，之后只为 40-recs 的点提供出发位置） ---------- */
+  drive(2, 26.4, 41.5 + XL, (p, b) => {
+    const out = 1 - E.inOut(lp(b, CO, .8)), keep = keepAt(b);
     const dial = E.out(lp(b, 26.5, .8)) * out;
     drawCompass({
       pl: 0, deg: degAt(b), fi: ME_IDX, grow: E.inOut(lp(b, 28.4, 1.2)), mine: E.inOut(lp(b, T6 - .3, 1.4)),
@@ -133,31 +141,34 @@ scene('30-persona', () => {
   });
 
   /* ---------- 3.3 / 3.4 文字 ---------- */
-  // 眉题：居中出现，b30.9–32.3 随罗盘移到左上 x 160（左对齐），b39.4 退场
-  txt(28.8, 40.0, [['eb', '01 · 协作人格']], { x: 160, y: 100 }, {
+  // 眉题：居中出现，MV 起随罗盘移到左上 x 160（左对齐），CO 退场
+  txt(28.8, 40.0 + XL, [['eb', '01 · 协作人格']], { x: 160, y: 100 }, {
     anim: K.all(mask(.18, 1.0, .6), (el, tl, life, t) => {
       const b = t / BEAT, e = E.inOut(lp(b, MV, MVD)), dx = (960 - el.offsetWidth / 2 - 160) * (1 - e);
-      // 居中时比标题（y 150，72px）上沿高出 18px，不贴字，并跟标题一起慢慢上漂 12px；移到左上时回到 y 100
-      el.style.transform = 'translate(' + dx.toFixed(1) + 'px,calc(-50% - ' + ((18 + 12 * clamp((b - 29.0) / 2.5)) * (1 - e)).toFixed(1) + 'px))';
+      // 居中时比标题（y 150，72px）上沿高出 18px，不贴字，并跟标题一起慢慢上漂 12px（漂到左移开始）；移到左上时回到 y 100
+      el.style.transform = 'translate(' + dx.toFixed(1) + 'px,calc(-50% - ' + ((18 + 12 * clamp((b - 29.0) / (MV - 28.9))) * (1 - e)).toFixed(1) + 'px))';
     })
   });
-  // 标题与强调行：在场时各自慢慢离开罗盘（标题连同眉题上漂 12px、强调行下漂 10px，配合罗盘慢推），b30.9–31.5 随左移退场
+  // 标题与强调行：在场时各自慢慢离开罗盘（标题连同眉题上漂 12px、强调行下漂 10px，配合罗盘慢推），左移开始 .4 拍后
+  // （MV + .4 = b31.8，罗盘才移出 10%）退场：标题 b29.35–31.8 完整可读 2.45 拍，强调行提前到 b29.1 起解码（步长 .04），b29.65–31.8 约 2.15 拍
   const drift = (px) => (el, tl, life) => { el.style.transform = 'translate(-50%,calc(-50% + ' + (px * clamp(tl / life)).toFixed(1) + 'px))'; };
-  txt(29.0, 31.5, [['hv sv pe72', '引入协作人格分析']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
-  txt(29.35, 31.5, [['lt pe44 pe-or', '精准识别你的交互特征']], { x: 960, y: 975, align: 'c' }, { anim: K.all(K.decode({ step: .055, dur: .5, out: .6, spread: true }), drift(10)) });
+  txt(29.0, MV + 1.0, [['hv sv pe72', '引入协作人格分析']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
+  txt(29.1, MV + 1.0, [['lt pe44 pe-or', '精准识别你的交互特征']], { x: 960, y: 975, align: 'c' }, { anim: K.all(K.decode({ step: .04, dur: .5, out: .6, spread: true }), drift(10)) });
 
   /* ---------- 3.5–3.7 右侧竖向滚动列 ---------- */
-  // Y(b)：已滚动的 px。R1 在 b32.3 过中心线；匀速 V；b37.2–38.0 速度按余弦平滑降到 VR，b38.0 揭晓条目到中心线，
-  // 之后以 VR 慢漂（不停住）；b39.2 起整列加速上移淡出
+  // Y(b)：已滚动的 px。R1 以 VR 慢漂、b32.7 过中心线，之后 RU 拍按余弦加速到 V；SLOW–T6 速度按余弦平滑降到 VR，
+  // T6 揭晓条目到中心线，之后以 VR 慢漂（不停住）；EX 起整列加速上移淡出
   const scrollY = (b) => {
     let y;
-    if (b <= SLOW) y = V * (b - TR[0]);
+    if (b <= TR0) y = VR * (b - TR0);
+    else if (b <= TR0 + RU) { const u = b - TR0; y = VR * u + (V - VR) * (u / 2 - RU / (2 * Math.PI) * Math.sin(Math.PI * u / RU)); }
+    else if (b <= SLOW) y = YR + V * (b - TR0 - RU);
     else {
       const d = T6 - SLOW, u = Math.min(b - SLOW, d);
-      y = V * (SLOW - TR[0]) + VR * u + (V - VR) * (u / 2 + d / (2 * Math.PI) * Math.sin(Math.PI * u / d));
+      y = YR + V * (SLOW - TR0 - RU) + VR * u + (V - VR) * (u / 2 + d / (2 * Math.PI) * Math.sin(Math.PI * u / d));
       if (b > T6) y += VR * (b - T6);
     }
-    return y + 330 * E.in(lp(b, 39.2, 1.0));
+    return y + 330 * E.in(lp(b, EX, 1.0));
   };
   const P6 = scrollY(T6);                                  // 揭晓块锚点（R5 下方 185px）
   const FLAP = 'DSIPMFVT', DRUM = FLAP + FLAP[0];
@@ -170,7 +181,7 @@ scene('30-persona', () => {
   const ITEMS = [
     { y: 0, html: '<div class="pe-tx"><span class="eb">16 种协作人格 · 4 个维度</span><span class="pe-s">每个会话，落到它的方位</span></div>' },
     ...[0, 1, 2, 3].map((k) => ({
-      y: V * (TR[k + 1] - TR[0]), k,
+      y: GAP * (k + 1), k,
       html: '<div class="pe-tx"><span class="pe-q">' + AX[k].q + '</span><span class="pe-pl"><span class="pL">' + AX[k].Ln + '</span><span class="ar">⟷</span><span class="pR">' + AX[k].Rn + '</span></span></div>' +
         '<span class="pe-fc"><span class="pe-fs">' + DRUM.split('').map((x) => '<i>' + x + '</i>').join('') + '</span></span>'
     })),
@@ -178,11 +189,13 @@ scene('30-persona', () => {
     { y: P6, fy: P6, code: true, html: '<span class="pe-code">' + ME.code + '</span>' },
     { y: P6 + 112, fy: P6, name: true, html: '<span class="pe-nm">' + ME.zh + '<i>' + ME.en + '</i></span>' },
     { y: P6 + 180, fy: P6, line: true, html: '<span class="pe-ln">' + ME.line.split('，')[0] + '</span>' },
-    { y: P6 + 262, html: '<span class="pe-r7"><span class="ic" style="color:var(--a3)">✓</span><span class="m">优势</span>' + STRONG + '</span>' },
-    ...(BLIND ? [{ y: P6 + 314, html: '<span class="pe-r7"><span class="ic" style="color:#f3b25c">⚠</span><span class="m">盲点</span>' + BLIND + '</span>' }] : [])
+    { y: P6 + 262, fy: P6, r7: 0, html: '<span class="pe-r7"><span class="ic" style="color:var(--a3)">✓</span><span class="m">优势</span>' + STRONG + '</span>' },
+    ...(BLIND ? [{ y: P6 + 314, fy: P6, r7: 1, html: '<span class="pe-r7"><span class="ic" style="color:#f3b25c">⚠</span><span class="m">盲点</span>' + BLIND + '</span>' }] : [])
   ];
+  // 揭晓块的进场（相对 T6）：类型码 T6 − .8（居中向外显影），中文名 T6 − .55，一句话 T6 − .4（解码），
+  // 优势 / 盲点 T6 + .05 / + .25 依次上浮淡入（原来只是糊着滚进来，读不到）；都读到 EX = T6 + 2.2
   const codeIn = K.centerOut({ step: .15, dur: .55, out: 0 }), lineIn = K.decode({ step: .04, dur: .45, out: 0, from: .3 });
-  txt(31.7, 40.3, [['', '']], { x: 0, y: 0 }, {
+  txt(C0, 40.3 + XL, [['', '']], { x: 0, y: 0 }, {
     anim: (el, tl, life, t) => {
       const b = t / BEAT;
       if (!el._pe) {
@@ -190,13 +203,19 @@ scene('30-persona', () => {
         el.innerHTML = '<div class="pe-col">' + ITEMS.map((it) => '<div class="pe-it">' + it.html + '</div>').join('') + '</div>';
         el._it = [...el.querySelectorAll('.pe-it')];
       }
-      const Y = scrollY(b), colA = E.out(lp(b, 31.7, .8)) * (1 - E.inOut(lp(b, 39.2, 1.0)));
+      const Y = scrollY(b), colA = E.out(lp(b, C0, .8)) * (1 - E.inOut(lp(b, EX, 1.0)));
       el.querySelector('.pe-col').style.opacity = colA.toFixed(3);
       ITEMS.forEach((it, n) => {
-        const node = el._it[n], y = 540 + it.y - Y, dy = Math.abs((it.fy ?? it.y) - Y);
+        const node = el._it[n], s = (it.fy ?? it.y) - Y;
+        let y = 540 + it.y - Y;
         if (y < -200 || y > 1280) { node.style.visibility = 'hidden'; return; }
         node.style.visibility = '';
-        const bl = 6 * dy / 400, a = clamp(1 - .65 * dy / 400);
+        // v17.3 清晰带：中心线下 110px（将到）到上 230px（刚读过）之间不模糊，只按距离微暗（中心 1 → 带边 .7）；
+        // 带外才变糊变暗。匀速 V 时每条完整可读约 2.3 拍（含 ≤ 1px 的轻糊约 2.9 拍），中心那条仍最亮
+        const dd = s > 0 ? Math.max(0, s - 110) : Math.max(0, -s - 230), bl = 6 * dd / 300;
+        let a = clamp(1 - .3 * Math.min(Math.abs(s), 200) / 200 - .45 * dd / 300);
+        if (it.fy == null) a *= 1 - .6 * E.inOut(lp(b, T6 - .3, 1.0));      // 揭晓时前面的条目退暗，让出视线
+        if (it.r7 != null) { const q = E.out(lp(b, T6 + .05 + .2 * it.r7, .5)); a *= q; y += (1 - q) * 18; }
         node.style.transform = 'translateY(' + (y - 1).toFixed(1) + 'px) translateY(-50%)';
         node.style.opacity = a.toFixed(3);
         node.style.filter = bl > .05 ? 'blur(' + bl.toFixed(2) + 'px)' : 'none';
@@ -207,9 +226,9 @@ scene('30-persona', () => {
           const tgt = FLAP.indexOf(ME.code[k]), u = clamp((tk - b) / 1.5), pos = (((tgt - 8 * u * u) % 8) + 8) % 8;
           node.querySelector('.pe-fs').style.transform = 'translateY(' + (-pos * 112).toFixed(1) + 'px)';
         }
-        if (it.code) codeIn(node.firstChild, (b - 37.4) * BEAT, 99, t);
-        if (it.name) { const q = E.out(lp(b, 37.65, .65)), f = node.firstChild; f.style.display = 'inline-block'; f.style.opacity = Math.min(1, q * 1.4).toFixed(3); f.style.transform = 'translateY(' + ((1 - q) * 26).toFixed(1) + 'px)'; }
-        if (it.line) lineIn(node.firstChild, (b - 37.85) * BEAT, 99, t);
+        if (it.code) codeIn(node.firstChild, (b - (T6 - .8)) * BEAT, 99, t);
+        if (it.name) { const q = E.out(lp(b, T6 - .55, .65)), f = node.firstChild; f.style.display = 'inline-block'; f.style.opacity = Math.min(1, q * 1.4).toFixed(3); f.style.transform = 'translateY(' + ((1 - q) * 26).toFixed(1) + 'px)'; }
+        if (it.line) lineIn(node.firstChild, (b - (T6 - .4)) * BEAT, 99, t);
       });
     }
   });
