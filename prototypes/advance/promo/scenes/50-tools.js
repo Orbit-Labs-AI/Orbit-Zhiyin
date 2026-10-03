@@ -403,7 +403,9 @@ scene('50-tools', () => {
   at(75.2, () => skillCard(decks[1].D)?.querySelectorAll('.code > div').forEach((r) => { r.style.opacity = ''; }));
   AGD.glow(0, 68.95, 73.75, 1);
   // v18.5 5→6: the orb that took SKILL.md in glows as it grows 1 → 1.5 on its way to the centre (the close splits it)
-  AGD.glow(0, BACK, 75.05, .9);
+  // hand-off: the glow is drawn at r·2.6 of dot 0, and at b75.2 60-close shrinks dot 0 from the orb (r 40) to its micro badge,
+  // so a glow still on then shrank in one frame (film b106.9); it now eases out b74.9–75.2 and is gone at the split
+  AGD.glow(0, BACK, 74.9, .9);
   // v18.5 04 value landing, b72.6 (film 104.3): the header's「生成中」becomes a green「已写入 ✓」(pops .85 → 1) and the two
   // grey skeleton bars under the code fold to height 0 in .25 beat (the run's re-render at b72.85 then drops them unseen);
   // re-applied after every re-render through the exit (the app's own「待审阅」at b73.75 is replaced too)
