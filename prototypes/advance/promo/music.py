@@ -35,7 +35,7 @@ SR = 48000
 BPM = 132
 BEAT = 60 / BPM
 # = SHIFT in promo.js: each scene plays this many beats later (the integrator fills these in; all cues follow)
-SHIFT = {'10-intro': 0, '15-redesign': 6.9, '20-orbit': 11.3, '30-persona': 16.9, '40-recs': 22.9, '50-tools': 30.9, '60-close': 36.9}
+SHIFT = {'10-intro': 0, '15-redesign': 6.9, '20-orbit': 11.3, '30-persona': 16.9, '40-recs': 22.9, '50-tools': 31.7, '60-close': 37.7}
 TURN0 = 81.0                  # scenes/60-close.js TURN0 (v18.1: 81.8 -> 81.0); every close cue after it follows
 CLOSE_END = TURN0 + 13.0      # = END of 60-close in its own beats (94.0)
 FADE0 = TURN0 + 11.2          # the groove stops here; the last Cadd9 and motif note ring out into the fade

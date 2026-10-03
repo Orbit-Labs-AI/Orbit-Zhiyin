@@ -11,7 +11,7 @@ let END = 88;                                             // length in beats of 
    link, bubble, glow, back, chat). Callbacks (drive, markAt, ticks, AGD live params, AGD follow / back / link targets /
    bubble offsets / chat from / to) receive the scene's own beats; while one runs, CTX_SH holds its shift, so AGD.pos(i, b)
    and AGD.centroid(b) called inside it read b in that scene's beats too. music.py carries the same table. */
-const SHIFT = { '10-intro': 0, '15-redesign': 6.9, '20-orbit': 11.3, '30-persona': 16.9, '40-recs': 22.9, '50-tools': 30.9, '60-close': 36.9 };
+const SHIFT = { '10-intro': 0, '15-redesign': 6.9, '20-orbit': 11.3, '30-persona': 16.9, '40-recs': 22.9, '50-tools': 31.7, '60-close': 37.7 };
 let SH = 0, CTX_SH = 0;
 // run f with the callback context of a scene shifted by sh (AGD.pos / centroid inside read that scene's beats)
 function inCtx(sh, f) { const p = CTX_SH; CTX_SH = sh; try { return f(); } finally { CTX_SH = p; } }
