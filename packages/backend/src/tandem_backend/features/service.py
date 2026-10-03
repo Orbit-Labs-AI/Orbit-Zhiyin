@@ -201,8 +201,10 @@ class FeatureService:
                 and (not wanted_status or item.get("status") == wanted_status)])
         return result
 
-    def search(self, q: str, kinds=None, scope=None, limit: int = 20) -> dict:
+    def search(self, q: str, kinds=None, scope=None, limit: int = 20,
+               session_cover: bool = False) -> dict:
         result = run_search(self.home, q, kinds=kinds, scope=normalize(scope), limit=limit,
+                            session_cover=session_cover,
                             data_rev=self.data_rev(), tandem_db=self.home / "tandem.db",
                             catalog_db=self.home / "catalog.db", app_db=self.appdb.path,
                             linked=self.linked_inventory)  # search's own bounded pool

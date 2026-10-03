@@ -222,3 +222,37 @@ def test_full_queue_sheds_with_reason(seeded, monkeypatch):
     assert set(out["partial_reasons"].values()) == {"overloaded"}
     monkeypatch.setattr(search_mod, "MAX_QUEUED", 64)
     assert run(world, index, "login", kinds=["session"])["complete"]
+
+
+def _many(world, n, per=1):
+    for i in range(n):
+        world.session(f"m{i:03d}", title=f"会话 {i}", started=NOW - DAY)
+        for j in range(per):
+            world.message(f"m{i:03d}", f"部署流水线第 {i} 次排查 {j}", ts=NOW - DAY)
+    index = SearchIndex(world.home)
+    index.sync(world.tandem, data_rev=1)
+    return index
+
+
+def test_session_cover_lists_every_matching_session(world):
+    """UT-03: 70 sessions match (> the old 50-hit cap); the cover keeps all of them."""
+    index = _many(world, 70)
+    out = run(world, index, "部署流水线", kinds=["message"], limit=10, session_cover=True)
+    assert len(out["results"]) == 10  # ranking limit unchanged
+    assert out["session_uids"] == [f"m{i:03d}" for i in range(70)]
+    assert out["session_cover_complete"] is True
+    # Without the cover the response shape is unchanged.
+    assert "session_uids" not in run(world, index, "部署流水线", kinds=["message"])
+
+
+def test_session_cover_reports_source_cap_and_limit_clamp(world):
+    """140 messages (2 per session) exceed PER_SOURCE=100: the cover is flagged incomplete."""
+    from tandem_backend.features.search import MAX_LIMIT, PER_SOURCE
+
+    index = _many(world, 70, per=2)
+    out = run(world, index, "部署流水线", kinds=["message"], limit=10_000, session_cover=True)
+    assert out["counts"]["message"] == PER_SOURCE and out["counts_at_least"] == ["message"]
+    assert out["session_cover_complete"] is False
+    assert len(out["session_uids"]) <= PER_SOURCE
+    # limit is clamped to MAX_LIMIT (= PER_SOURCE), the same cap /v1/search declares.
+    assert MAX_LIMIT == PER_SOURCE and len(out["results"]) <= MAX_LIMIT

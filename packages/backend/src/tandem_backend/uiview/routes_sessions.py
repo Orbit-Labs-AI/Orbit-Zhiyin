@@ -80,12 +80,13 @@ def router(gw: Gateway, facts_provider: Callable[[], dict | None] | None = None)
         if svc is None:
             return None, True
         try:
-            result = svc.search(q, kinds=SEARCH_KINDS, limit=100)
+            # Every matched session, not the top fused hits: a list filter must not drop
+            # sessions past the ranking limit. Partial when a source was capped or slow.
+            result = svc.search(q, kinds=SEARCH_KINDS, limit=1, session_cover=True)
         except Exception:  # noqa: BLE001 - search is best effort; substring match still runs.
             return None, True
-        uids = {h.get("session_uid") or (h.get("ref") or {}).get("id")
-                for h in result.get("results", [])}
-        return {u for u in uids if u}, bool(result.get("partial"))
+        return set(result.get("session_uids") or []), \
+            not result.get("session_cover_complete", False)
 
     def detail_for(session_uid: str, tz_name: str | None) -> dict:
         tz = zone(tz_name)
