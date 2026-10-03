@@ -854,8 +854,22 @@ const TandemLive = (function () {
     '.tl-ev{font:12px/1.5 var(--font-mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
   const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
+  // import stages (docs/development/import-pipeline.md §3): the gateway sends progress.label / detail / unit / overall;
+  // older gateways send only progress.stage, named here. Units say what completed / total count.
+  const STAGE_NAMES = { capture: '读取会话文件', normalize: '准备发布', reset_projection: '开始重建', prepare: '预读会话文件', map: '解析会话记录', derive: '汇总会话', derive_metadata: '汇总会话信息', derive_projects: '归属项目', derive_sessions: '统计轮次与工具', validate_projection: '校验', published: '已发布', progressive_batch: '分批发布' };
+  const UNIT_NAMES = { files: '个文件', sessions: '个会话', batches: '批' };
   const ui = {
     DASH, esc, num, pct, money, hm,
+    // progress → stage name / 「N / M 个文件」 / note (name · detail) / bar ratio (overall: the whole job, never moving back)
+    stageName: (pr) => (pr && (pr.label || STAGE_NAMES[pr.stage] || pr.stage)) || null,
+    stageCount: (pr) => (pr && pr.total != null ? num(pr.completed || 0) + ' / ' + num(pr.total) + (UNIT_NAMES[pr.unit] ? ' ' + UNIT_NAMES[pr.unit] : '') : ''),
+    stageNote: (pr) => { const n = ui.stageName(pr); return n ? (pr.detail ? n + ' · ' + pr.detail : n) : null; },
+    stageRatio: (pr) => {
+      if (!pr) return null;
+      if (pr.overall != null && Number.isFinite(+pr.overall)) return Math.max(0, Math.min(1, +pr.overall));
+      return pr.total > 0 && pr.completed != null ? Math.max(0, Math.min(1, pr.completed / pr.total)) : null;
+    },
+    unitName: (unit) => UNIT_NAMES[unit] || '',
     reason: (code) => REASONS[code] || (code ? '分析失败（' + code + '）' : '分析失败'),
     // analysis_unavailable (503, a failed job or an analysis.failed frame) → its reason; null for any other error
     unavailable: (err) => (err && err.code === 'analysis_unavailable' ? ui.reason(err.reason) : null),
@@ -866,10 +880,11 @@ const TandemLive = (function () {
     },
     progress(C) {
       const j = C && C.job; if (!j || ACTIVE_JOB.indexOf(j.status) < 0) return '';
-      const pr = j.progress || {}; const total = pr.total, done = pr.completed;
-      const ratio = total > 0 && done != null ? Math.max(0, Math.min(1, done / total)) : null;
+      const pr = j.progress || {};
+      const ratio = ui.stageRatio(pr);
+      const note = ui.stageNote(pr), count = ui.stageCount(pr);
       return '<div class="tl-progress" role="progressbar" aria-label="导入进度"' + (ratio != null ? ' aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(ratio * 100) + '"' : '') + '>' +
-        '<span>' + ({ import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (pr.stage ? ' · ' + esc(pr.stage) : '') + ' · ' + num(done) + ' / ' + num(total) + '</span>' +
+        '<span>' + ({ import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (note ? ' · ' + esc(note) : '') + (count ? ' · ' + count : '') + '</span>' +
         '<div class="tl-bar"><i style="width:' + (ratio != null ? Math.round(ratio * 100) : 8) + '%"></i></div></div>';
     },
     banner(C) {

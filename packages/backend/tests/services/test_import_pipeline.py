@@ -157,9 +157,11 @@ def test_import_progress_explains_itself_and_never_moves_backwards(tmp_path):
     frames = [m["progress"] for m in io.messages if m["t"] == "progress"]
     assert all(f["label"] and "detail" in f and f["steps"] == 1 for f in frames)
     capture = next(f for f in frames if f["stage"] == "capture" and f.get("total"))
-    assert capture["unit"] == "files" and "个文件" in capture["detail"]
+    assert capture["unit"] == "files" and capture["label"] == "读取会话文件"
+    assert capture["detail"].startswith("Codex · 第 1/3 批")
     mapped = [f for f in frames if f["stage"] == "map" and f.get("records")]
-    assert mapped and "条记录" in mapped[-1]["detail"]
+    assert mapped and mapped[-1]["unit"] == "files" and "条记录" in mapped[-1]["detail"]
+    assert {f["scope"] for f in frames if f["stage"] == "prepare"} == {"source"}
     assert {f["batch_phase"] for f in frames} == {"head", "window", "rest"}
     overall = [f["overall"] for f in frames]
     assert overall == sorted(overall) and overall[-1] == 1.0

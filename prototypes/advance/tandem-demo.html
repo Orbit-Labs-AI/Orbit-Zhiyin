@@ -3125,8 +3125,22 @@ const TandemLive = (function () {
     '.tl-ev{font:12px/1.5 var(--font-mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
   const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
+  // import stages (docs/development/import-pipeline.md §3): the gateway sends progress.label / detail / unit / overall;
+  // older gateways send only progress.stage, named here. Units say what completed / total count.
+  const STAGE_NAMES = { capture: '读取会话文件', normalize: '准备发布', reset_projection: '开始重建', prepare: '预读会话文件', map: '解析会话记录', derive: '汇总会话', derive_metadata: '汇总会话信息', derive_projects: '归属项目', derive_sessions: '统计轮次与工具', validate_projection: '校验', published: '已发布', progressive_batch: '分批发布' };
+  const UNIT_NAMES = { files: '个文件', sessions: '个会话', batches: '批' };
   const ui = {
     DASH, esc, num, pct, money, hm,
+    // progress → stage name / 「N / M 个文件」 / note (name · detail) / bar ratio (overall: the whole job, never moving back)
+    stageName: (pr) => (pr && (pr.label || STAGE_NAMES[pr.stage] || pr.stage)) || null,
+    stageCount: (pr) => (pr && pr.total != null ? num(pr.completed || 0) + ' / ' + num(pr.total) + (UNIT_NAMES[pr.unit] ? ' ' + UNIT_NAMES[pr.unit] : '') : ''),
+    stageNote: (pr) => { const n = ui.stageName(pr); return n ? (pr.detail ? n + ' · ' + pr.detail : n) : null; },
+    stageRatio: (pr) => {
+      if (!pr) return null;
+      if (pr.overall != null && Number.isFinite(+pr.overall)) return Math.max(0, Math.min(1, +pr.overall));
+      return pr.total > 0 && pr.completed != null ? Math.max(0, Math.min(1, pr.completed / pr.total)) : null;
+    },
+    unitName: (unit) => UNIT_NAMES[unit] || '',
     reason: (code) => REASONS[code] || (code ? '分析失败（' + code + '）' : '分析失败'),
     // analysis_unavailable (503, a failed job or an analysis.failed frame) → its reason; null for any other error
     unavailable: (err) => (err && err.code === 'analysis_unavailable' ? ui.reason(err.reason) : null),
@@ -3137,10 +3151,11 @@ const TandemLive = (function () {
     },
     progress(C) {
       const j = C && C.job; if (!j || ACTIVE_JOB.indexOf(j.status) < 0) return '';
-      const pr = j.progress || {}; const total = pr.total, done = pr.completed;
-      const ratio = total > 0 && done != null ? Math.max(0, Math.min(1, done / total)) : null;
+      const pr = j.progress || {};
+      const ratio = ui.stageRatio(pr);
+      const note = ui.stageNote(pr), count = ui.stageCount(pr);
       return '<div class="tl-progress" role="progressbar" aria-label="导入进度"' + (ratio != null ? ' aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(ratio * 100) + '"' : '') + '>' +
-        '<span>' + ({ import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (pr.stage ? ' · ' + esc(pr.stage) : '') + ' · ' + num(done) + ' / ' + num(total) + '</span>' +
+        '<span>' + ({ import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (note ? ' · ' + esc(note) : '') + (count ? ' · ' + count : '') + '</span>' +
         '<div class="tl-bar"><i style="width:' + (ratio != null ? Math.round(ratio * 100) : 8) + '%"></i></div></div>';
     },
     banner(C) {
@@ -8132,8 +8147,13 @@ const OB_TEXT = {
   stages: [['backfill', '导入历史会话'], ['stats', '统计分析'], ['semantic', '语义分析'], ['persona', '协作画像']],
   semanticOff: '仅统计模式：不调用模型',
   preparing: '准备来源', queued: '排队中', failed: '导入失败', skipped: '跳过',
-  // raw progress.stage from the job frame → the note under 导入历史会话 (unchanged for now; mapping comes later)
-  stageNote: (raw) => (raw ? String(raw) : null),
+  partial: '已导入；少量记录未能解析或暂时保留了上一版本',
+  // job frame progress → the note under 导入历史会话: the gateway's stage name and detail (which source / batch, whether it
+  // rebuilds the affected sessions or the whole source, a retry after a source changed mid-import); older gateways only
+  // send progress.stage, named by the shared adapter. count: 「N / M 个文件」; ratio: the whole job (never moves back).
+  stageNote: (pr) => TandemLive.ui.stageNote(pr),
+  count: (x) => (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) + (TandemLive.ui.unitName(x.unit) ? ' ' + TandemLive.ui.unitName(x.unit) : '') : x.status === 'skipped' ? OB_TEXT.skipped : ''),
+  ratio: (pr) => TandemLive.ui.stageRatio(pr),
   headRun: '正在导入你的会话', headDone: '导入已完成',
   bgHint: '可以关闭窗口，完成后通知你',
   side: { run: '导入中', analyze: '分析中', fail: '导入未完成', done: '重新打开引导', start: '开始导入', view: '查看', retry: '重试' }
@@ -8164,9 +8184,9 @@ function obLiveStep() {
   let foot;
   if (L.job || L.starting) {
     const st = L.stages || [];
-    const pr = L.job && L.job.progress || {}; const ratio = pr.total ? clamp(pr.completed / pr.total, 0, 1) : null;
+    const pr = L.job && L.job.progress || {}; const ratio = OB_TEXT.ratio(pr);
     foot = '<div class="st-steps ob-stages" data-ob="stages">' + st.map((x, i) => { const k = x.status === 'done' ? 'done' : x.status === 'running' ? 'run' : x.status === 'failed' ? 'stop' : 'todo';
-      return '<div class="step ' + k + '" data-stage="' + esc(x.id) + '" data-st="' + esc(x.status) + '"><span class="mk">' + (k === 'done' ? '✓' : k === 'stop' ? '!' : i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><span class="t">' + esc(x.label) + '</span>' + (x.note ? '<span class="s">' + esc(x.note) + '</span>' : '') + '</span><span class="mono cap" style="font-size:11px;text-align:right">' + (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? OB_TEXT.skipped : '') + '</span></div>'; }).join('') + '</div>' +
+      return '<div class="step ' + k + '" data-stage="' + esc(x.id) + '" data-st="' + esc(x.status) + '"><span class="mk">' + (k === 'done' ? '✓' : k === 'stop' ? '!' : i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><span class="t">' + esc(x.label) + '</span>' + (x.note ? '<span class="s">' + esc(x.note) + '</span>' : '') + '</span><span class="mono cap" style="font-size:11px;text-align:right">' + OB_TEXT.count(x) + '</span></div>'; }).join('') + '</div>' +
       '<div class="g-bar"><i data-ob="bar" style="width:' + (ratio == null ? 4 : Math.round(ratio * 100)) + '%"></i></div>' +
       (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
       '<div class="row" style="justify-content:space-between"><span class="cap">' + (L.done ? '协作画像已生成' : OB_TEXT.bgHint) + '</span>' + (L.err ? '<button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px">重试</button>' : L.done ? '<button type="button" class="btn p" data-act="obPlay" style="height:32px;padding:0 18px">查看揭晓</button>' : '<button type="button" class="btn" data-act="obBgImport">在后台继续</button>') + '</div>';
@@ -10910,11 +10930,12 @@ function lvnPatch(L) {
     const row = box.querySelector('[data-stage="' + x.id + '"]'); if (!row) return;
     const col = row.querySelector('.col'); let n = col && col.querySelector('.s');
     if (x.note) { if (!n && col) { n = document.createElement('span'); n.className = 's'; col.appendChild(n); } if (n && n.textContent !== x.note) n.textContent = x.note; } else if (n) n.remove();
-    const c = row.lastElementChild; const t = x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? OB_TEXT.skipped : '';
+    const c = row.lastElementChild; const t = OB_TEXT.count(x);
     if (c && c.textContent !== t) c.textContent = t;
   });
   const pr = L.job && L.job.progress || {}; const bar = o.querySelector('[data-ob="bar"]');
-  if (bar) bar.style.width = (pr.total ? Math.round(clamp(pr.completed / pr.total, 0, 1) * 100) : 4) + '%';
+  const ratio = OB_TEXT.ratio(pr);
+  if (bar) bar.style.width = (ratio != null ? Math.round(ratio * 100) : 4) + '%';
   return true;
 }
 function lvnDraw(ob) {
@@ -10929,8 +10950,9 @@ function lvnJob(ob, job) {
   const L = ob.live; if (!job || !L.job || job.id !== L.job.id) return;
   L.job = Object.assign({}, L.job, job);
   const pr = L.job.progress || {}; const st = L.job.status;
-  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, note: OB_TEXT.stageNote(pr.stage) || (st === 'queued' ? OB_TEXT.queued : null) });
-  else if (st === 'completed') { lvnStage(L, 'backfill', { status: 'done', done: pr.total != null ? pr.total : pr.completed, total: pr.total, note: null }); lvnAfter(ob); }
+  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, unit: pr.unit || null, note: OB_TEXT.stageNote(pr) || (st === 'queued' ? OB_TEXT.queued : null) });
+  // partial: published, with records that could not be parsed or files kept at their last version (results[] says which)
+  else if (st === 'completed' || st === 'partial') { lvnStage(L, 'backfill', { status: 'done', done: pr.total != null ? pr.total : pr.completed, total: pr.total, note: st === 'partial' ? OB_TEXT.partial : null }); lvnAfter(ob); }
   else { lvnStage(L, 'backfill', { status: 'failed', note: (L.job.error && (L.job.error.message || L.job.error)) || OB_TEXT.failed }); L.err = '导入没有完成：' + ((L.job.error && (L.job.error.message || L.job.error)) || st); lvnStop(L); }
   lvnDraw(ob);
 }
@@ -11050,7 +11072,7 @@ function lvnPlay(ob) {
 LVN.obImport = async function () {
   const ob = OB; const L = ob && ob.live; if (!L || L.starting || (L.job && !L.err)) return;
   // 重试 after a completed import whose analysis failed: only redo the analysis half
-  if (L.err && L.job && L.job.status === 'completed') { L.rev0 = LV.rev; lvnAfter(ob); return; }
+  if (L.err && L.job && (L.job.status === 'completed' || L.job.status === 'partial')) { L.rev0 = LV.rev; lvnAfter(ob); return; }
   const chosen = L.sources.filter((x) => L.sel.has(x.id));
   if (!chosen.length) return;
   L.err = null; L.starting = true; L.after = false; L.stages = lvnStages(L); L.job = null; lvnStage(L, 'backfill', { status: 'running', note: OB_TEXT.preparing });
@@ -11116,7 +11138,7 @@ if (LV.live) {
   LVN.sideState = function () {
     const L = LVN.imp && LVN.imp.live, T = OB_TEXT.side;
     const tj = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
-    const pct = (j) => { const pr = (j && j.progress) || {}; return pr.total ? ' ' + Math.round(clamp(pr.completed / pr.total, 0, 1) * 100) + '%' : ''; };
+    const pct = (j) => { const r = OB_TEXT.ratio((j && j.progress) || {}); return r != null ? ' ' + Math.round(r * 100) + '%' : ''; };
     if (L && L.err) return { k: 'fail', t: T.fail, a: T.retry, ico: 'alert' };
     if (L && L.done) return { k: 'done', t: T.done, a: '', ico: 'spark' };
     if (L && L.after) return { k: 'run', t: T.analyze, a: T.view, ico: 'sync' };
@@ -11225,6 +11247,24 @@ ACT.lvRecompute = (el) => {
   render();
 };
 ACT.lvRetry = (el) => { if (el) el.disabled = true; TL.retry(); LV.loadSpine(); render(); };
+// The published data stays behind with no import running (one was stopped half way, /v1/status projection_info.stuck):
+// say so, keep showing the last published data, and 重新导入 posts the retry the gateway offers (all enabled sources).
+function lvStuck() {
+  const info = TL.status && TL.status.projection_info;
+  if (!info || !info.stuck) return '';
+  const files = info.pending_files ? '（' + fmt(info.pending_files) + ' 个文件）' : '';
+  const what = info.state === 'invalid' ? '数据需要按新版本重建' : '最近的会话变化还没有发布' + files;
+  return '<div class="tl-banner" role="alert" data-tl="projection-stuck">' + esc(what) + ' · 显示上次发布的数据' +
+    '<button type="button" class="btn sm" data-act="lvReimport" data-tl="reimport" style="margin-left:auto">重新导入</button></div>';
+}
+ACT.lvReimport = (el) => {
+  if (el) el.disabled = true;
+  const info = TL.status && TL.status.projection_info;
+  const retry = (info && info.retry) || { method: 'POST', path: '/v1/app/jobs', body: { kind: 'import' } };
+  TL.send(retry.method || 'POST', retry.path, retry.body).then(() => toast('已开始重新导入'),
+    (e) => { if (el) el.disabled = false; toast(e.code === 'job_conflict' ? '已有导入任务在进行' : '重新导入失败：' + (e.message || e.code)); })
+    .then(() => { TL.invalidate((r) => r === TL.statusResource()); return TL.ensureStatus(); }).catch(() => {});
+};
 function lvJobNote() {
   const j = LV.job; if (!j || j.elapsed_s == null) return '';
   return ' · 已用 ' + Math.round(j.elapsed_s) + (j.timeout_s ? ' / ' + Math.round(j.timeout_s) : '') + ' 秒';
@@ -11260,12 +11300,20 @@ function lvStrip(route) {
   // offline / unavailable banner: 重试 refetches now (failed resources also retry by themselves with backoff, R4-11)
   let banner = TLU.banner(TL);
   if (banner && (TL.error || TL.failure)) banner = banner.replace(/<\/div>$/, '<button type="button" class="btn sm" data-act="lvRetry" data-tl="retry" style="margin-left:auto">重试</button></div>');
-  const html = TLU.progress(TL) + banner + (b ? '<div>' + b + '</div>' : '');
+  const html = TLU.progress(TL) + (banner || lvStuck()) + (b ? '<div>' + b + '</div>' : '');
   return html ? '<div class="tl-strip" data-tl="strip">' + html + '</div>' : '';
 }
 
 if (LV.live) {
   TLU.ensureStyle(document);
+  // while the published data is behind (pending / invalid) the gateway turns it "stuck" after a minute without an
+  // import; re-read /v1/status meanwhile so the banner appears without waiting for another event
+  setInterval(() => {
+    const p = TL.status && TL.status.projection;
+    if (p !== 'pending' && p !== 'invalid') return;
+    TL.invalidate((r) => r === TL.statusResource());
+    TL.ensureStatus().catch(() => { /* the strip keeps the last status */ });
+  }, 20000);
   const baseRender = render, baseSide = renderSide;
   render = function () {
     LV.pump(S.route);

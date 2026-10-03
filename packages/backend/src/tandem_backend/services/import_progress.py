@@ -6,8 +6,6 @@ The ingest worker adds where the job is (source, batch) to the data layer's prog
 
 from __future__ import annotations
 
-from tandem_data.progress import UNITS
-
 AGENT_NAMES = {
     "claude_code": "Claude Code",
     "codex": "Codex",
@@ -29,7 +27,9 @@ SCOPE_NAMES = {"closure": "只重建受影响的会话", "source": "重建整个
 
 
 def detail(frame: dict) -> str:
-    """One readable line for a progress frame: where the job is and what the numbers mean."""
+    """One readable line for a progress frame: which source and batch, what the step rebuilds
+    and why it reruns. ``completed``/``total`` stay numbers with their ``unit`` (the UI shows
+    「419 / 975 个文件」); only the map stage's record count is spelled out here."""
     parts = []
     agent = frame.get("source_agent")
     if agent:
@@ -52,10 +52,6 @@ def detail(frame: dict) -> str:
         parts.append(SCOPE_NAMES[frame["scope"]])
     if (frame.get("attempt") or 1) > 1:
         parts.append(f"第 {frame['attempt']} 次尝试：源文件在导入途中变化，保留其上次的事实")
-    unit = frame.get("unit")
-    if unit and frame.get("total") is not None and frame.get("completed") is not None:
-        count = f"{frame['completed']} / {frame['total']} {UNITS.get(unit, unit)}"
-        if frame.get("records"):
-            count += f"，已解析 {frame['records']} 条记录"
-        parts.append(count)
+    if frame.get("stage") == "map" and frame.get("records"):
+        parts.append(f"已解析 {frame['records']:,} 条记录")
     return " · ".join(parts)

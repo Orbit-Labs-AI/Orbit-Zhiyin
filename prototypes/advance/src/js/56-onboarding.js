@@ -95,8 +95,13 @@ const OB_TEXT = {
   stages: [['backfill', '导入历史会话'], ['stats', '统计分析'], ['semantic', '语义分析'], ['persona', '协作画像']],
   semanticOff: '仅统计模式：不调用模型',
   preparing: '准备来源', queued: '排队中', failed: '导入失败', skipped: '跳过',
-  // raw progress.stage from the job frame → the note under 导入历史会话 (unchanged for now; mapping comes later)
-  stageNote: (raw) => (raw ? String(raw) : null),
+  partial: '已导入；少量记录未能解析或暂时保留了上一版本',
+  // job frame progress → the note under 导入历史会话: the gateway's stage name and detail (which source / batch, whether it
+  // rebuilds the affected sessions or the whole source, a retry after a source changed mid-import); older gateways only
+  // send progress.stage, named by the shared adapter. count: 「N / M 个文件」; ratio: the whole job (never moves back).
+  stageNote: (pr) => TandemLive.ui.stageNote(pr),
+  count: (x) => (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) + (TandemLive.ui.unitName(x.unit) ? ' ' + TandemLive.ui.unitName(x.unit) : '') : x.status === 'skipped' ? OB_TEXT.skipped : ''),
+  ratio: (pr) => TandemLive.ui.stageRatio(pr),
   headRun: '正在导入你的会话', headDone: '导入已完成',
   bgHint: '可以关闭窗口，完成后通知你',
   side: { run: '导入中', analyze: '分析中', fail: '导入未完成', done: '重新打开引导', start: '开始导入', view: '查看', retry: '重试' }
@@ -127,9 +132,9 @@ function obLiveStep() {
   let foot;
   if (L.job || L.starting) {
     const st = L.stages || [];
-    const pr = L.job && L.job.progress || {}; const ratio = pr.total ? clamp(pr.completed / pr.total, 0, 1) : null;
+    const pr = L.job && L.job.progress || {}; const ratio = OB_TEXT.ratio(pr);
     foot = '<div class="st-steps ob-stages" data-ob="stages">' + st.map((x, i) => { const k = x.status === 'done' ? 'done' : x.status === 'running' ? 'run' : x.status === 'failed' ? 'stop' : 'todo';
-      return '<div class="step ' + k + '" data-stage="' + esc(x.id) + '" data-st="' + esc(x.status) + '"><span class="mk">' + (k === 'done' ? '✓' : k === 'stop' ? '!' : i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><span class="t">' + esc(x.label) + '</span>' + (x.note ? '<span class="s">' + esc(x.note) + '</span>' : '') + '</span><span class="mono cap" style="font-size:11px;text-align:right">' + (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? OB_TEXT.skipped : '') + '</span></div>'; }).join('') + '</div>' +
+      return '<div class="step ' + k + '" data-stage="' + esc(x.id) + '" data-st="' + esc(x.status) + '"><span class="mk">' + (k === 'done' ? '✓' : k === 'stop' ? '!' : i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><span class="t">' + esc(x.label) + '</span>' + (x.note ? '<span class="s">' + esc(x.note) + '</span>' : '') + '</span><span class="mono cap" style="font-size:11px;text-align:right">' + OB_TEXT.count(x) + '</span></div>'; }).join('') + '</div>' +
       '<div class="g-bar"><i data-ob="bar" style="width:' + (ratio == null ? 4 : Math.round(ratio * 100)) + '%"></i></div>' +
       (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
       '<div class="row" style="justify-content:space-between"><span class="cap">' + (L.done ? '协作画像已生成' : OB_TEXT.bgHint) + '</span>' + (L.err ? '<button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px">重试</button>' : L.done ? '<button type="button" class="btn p" data-act="obPlay" style="height:32px;padding:0 18px">查看揭晓</button>' : '<button type="button" class="btn" data-act="obBgImport">在后台继续</button>') + '</div>';
