@@ -16,10 +16,10 @@ CLI 形如 `uv run tandem-data --home .tandem search "修复第 7"`。这些子�
 
 ## 检索（DT-23）
 
-- **命中来源**：消息与标题事件（`message.user`、`message.assistant`、`message.summary`、`session.title`）、`session.title`、项目名、`tool_call.command_head`（只含程序头，如 `git status`、`ruff`）、`tool_call.files`。工具输出不参与检索。
+- **命中来源**：消息与标题事件（`message.user`、`message.assistant`、`session.title`）、`session.title`、项目名、`tool_call.command_head`（只含程序头，如 `git status`、`ruff`）、`tool_call.files`。工具输出不参与检索。
 - **引擎**：库中存在带 `text` 列的 `event_search`（trigram FTS5，`content='event'`，rowid 与 `event` 对齐）时，长度不小于 3 的查询走该表，支持中文和任意子串。否则 `event_fts`（unicode61）处理整词；含非 ASCII 字符或少于 3 个字符的查询改走限定消息 / 标题类事件的 `LIKE` 回退，按时间倒序，最多 `max_hits` 条（默认 1000）。`LIKE` 的 `%`、`_` 按字面匹配。
 - **过滤**：`source_ids` 按 `session.source_id` 过滤；时间窗对消息用 `event.ts`，对工具调用用 `tool_call.started_at`（缺失时取会话开始时间），对标题和项目用 `session.started_at`。不同来源的命中互不重叠，所以分来源计数之和等于合并计数。
-- **排序**：相关度 × 类型权重（标题 3、项目 2、命令和文件 1.5、消息 1）× 时间衰减（半衰期 30 天，最低 0.25）。相关度对 FTS 命中由 bm25 映射到 [1, 2)，对 `LIKE` 命中固定为 1。
+- **排序**：相关度 × 类型权重（标题 3、项目 2、命令和文件 1.5、消息 1）× 时间衰减（半衰期 30 天，保底 0.25；无时间戳的命中直接取保底，不优于任何有时间的同类命中）。相关度对 FTS 命中由 bm25 映射到 [1, 2)，对 `LIKE` 命中固定为 1。这些常量是产品默认，未用真实点击数据校准；依据是 `packages/data/tests/test_search_ranking_eval.py` 中 12 条手写成对偏好与参数网格：保底必须大于 0（否则归档会话按标题搜不到），标题权重在网格上只能取 3 或 4，半衰期 7–90 天都可行，出厂值位于可行域中部。
 - **返回**：`total`、`truncated`、按类型的 `counts` 和分页后的 `hits`。每条命中包含 `session_uid`、`source_id`、`agent`、`title`、`project`、`hit_type`、`event_uid` 或 `call_uid`、`ts`、`score`、`snippet`。片段先在匹配点前后 2000 字符的窗口内重新执行 `privacy.redact`，再截取，所以落在窗口边缘的密钥也能识别。
 - **实测**（med 合成数据：900 个会话，77,403 个事件，`tandem.db` 约 404 MiB；Apple M4 Pro 14 核 48 GB；并行任务同时占用 CPU，负载约 32；每个查询取 3 次中的最好值）：
   - 无 `event_search` 表：中文子串（走 `LIKE` 回退）33–43 ms，英文词、命令头、项目名 3–11 ms。
