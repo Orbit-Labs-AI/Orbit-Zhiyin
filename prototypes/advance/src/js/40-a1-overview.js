@@ -13,19 +13,19 @@ function ovTiles(L, P, brushed) {
   const cmp = S.compare && !brushed && P;
   const dl = (cur, prev, o) => cmp ? Object.assign({ cur, prev }, o) : null;
   const sub = brushed ? '刷选范围' : S.compare && !P ? '无可比上期' : '';
-  const autoD = cmp && P.auto ? { text: (st.auto - P.auto >= 0 ? '▲ +' : '▼ −') + f1(Math.abs(st.auto - P.auto)) + ' · 上期 ' + f1(P.auto) + '×', cls: '' } : null;
+  const autoD = cmp && P.msgs && P.auto ? { text: (st.auto - P.auto >= 0 ? '▲ +' : '▼ −') + f1(Math.abs(st.auto - P.auto)) + ' · 上期 ' + f1(P.auto) + '×', cls: '' } : null;
   const tiles = [
     { k: 'n', label: '会话', value: fmt(st.n), delta: dl(st.n, P && P.n, { unit: 'pct', fmt: 'int' }), trend: ovTrend((x) => x.length, endDay), r: 'sessions' },
     { k: 'h', label: '协作时长', value: f1(st.hours).replace('.0', ''), unit: 'h', delta: dl(st.hours, P && P.hours, { unit: 'pct', fmt: (v) => f1(v) + 'h' }), trend: ovTrend((x) => sum(x, (s) => s.dur), endDay), r: 'sessions' },
     { k: 'm', label: '你发出的消息', value: fmt(st.msgs), delta: dl(st.msgs, P && P.msgs, { unit: 'pct', fmt: 'int' }), sub: f1(st.per) + ' 条 / 会话', trend: ovTrend((x) => sum(x, (s) => s.msgs), endDay), r: 'sentiment' },
-    { k: 'a', label: '自主比', value: f1(st.auto), unit: '×', delta: autoD, trend: ovTrend((x) => stats(x).auto, endDay), r: 'persona' },
-    { k: 'f', label: '摩擦率', value: f1(st.fric), unit: '%', delta: dl(st.fric, P && P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }), trend: ovTrend((x) => stats(x).fric, endDay), r: 'sentiment' }
+    { k: 'a', label: '自主比', value: autoTxt(st), unit: st.msgs ? '×' : '', delta: st.msgs ? autoD : null, trend: ovTrend((x) => stats(x).auto, endDay), r: 'persona' },
+    { k: 'f', label: '摩擦率', value: st.msgs ? f1(st.fric) : '—', unit: st.msgs ? '%' : '', delta: st.msgs && P && P.msgs ? dl(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null, trend: ovTrend((x) => stats(x).fric, endDay), r: 'sentiment' }
   ];
   return tiles.map((t) => VZ.kpi({ label: t.label, value: t.value, unit: t.unit, delta: t.delta, sub: t.sub && !t.delta ? t.sub : sub, trend: t.trend, trendLabel: tl, sparkOpt: { w: 40, h: 20 }, act: 'go', attrs: ' data-r="' + t.r + '" data-k="' + t.k + '"', tf: 'def|' + t.k })).join('');
 }
 // AI 解读三栏的 24px 微型证据：完成率环 / 摩擦类型条 / 建议数
 function ovMini(kind, a, b) {
-  if (kind === 'ring') { const r = 9, c = 2 * Math.PI * r; return '<svg class="ov-mini" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="' + r + '" fill="none" stroke="var(--line)" stroke-width="3"/><circle cx="12" cy="12" r="' + r + '" fill="none" stroke="var(--good)" stroke-width="3" stroke-linecap="round" stroke-dasharray="' + (c * a / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 12 12)"/></svg>'; }
+  if (kind === 'ring') { const r = 9, c = 2 * Math.PI * r; return '<svg class="ov-mini" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="' + r + '" fill="none" stroke="var(--line)" stroke-width="3"/>' + (a == null ? '' : '<circle cx="12" cy="12" r="' + r + '" fill="none" stroke="var(--good)" stroke-width="3" stroke-linecap="round" stroke-dasharray="' + (c * a / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 12 12)"/>') + '</svg>'; }
   if (kind === 'bars') { const mx = Math.max(1, ...a); return '<svg class="ov-mini" width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">' + a.slice(0, 3).map((v, i) => '<rect x="0" y="' + (i * 8) + '" width="' + Math.max(2, v / mx * 36).toFixed(1) + '" height="6" rx="1.5" fill="' + (i === 0 ? 'var(--crit)' : 'var(--h2)') + '"/>').join('') + '</svg>'; }
   return '<svg class="ov-mini" width="' + (Math.max(1, a + b) * 9) + '" height="24" viewBox="0 0 ' + (Math.max(1, a + b) * 9) + ' 24" aria-hidden="true">' + Array.from({ length: a + b }, (_, i) => '<rect x="' + (i * 9) + '" y="8" width="7" height="7" rx="1.5" fill="' + (i < a ? 'var(--ai)' : 'none') + '" stroke="var(--ai)" stroke-width="1.2"/>').join('') + '</svg>';
 }
@@ -70,8 +70,8 @@ PAGES.overview = () => {
   const OVL = LV.live ? (LV.ready('overview') && LV.ov ? LV.ov : null) : undefined; const ins = OVL && OVL.insight;
   const pendTxt = LV.live && !OVL && LV.feedState('overview') !== 'error';   // 404 / 501: the spine-derived texts stay, tools say 暂无数据
   const ai = [
-    ['做得好', 'okc', 'var(--good)', ins && ins.good ? ins.good.text : (st.verKnown ? Math.round(st.verify) + '% 的会话要求测试或线上验证，' : '') + '完成率 ' + pctKnown(st.ok, st.okKnown) + '。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.ok)],
-    ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
+    ['做得好', 'okc', 'var(--good)', ins && ins.good ? ins.good.text : (st.verKnown ? Math.round(st.verify) + '% 的会话要求测试或线上验证，' : '') + '完成率 ' + pctKnown(st.ok, st.okKnown) + '。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.okKnown ? st.ok : null)],
+    ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : st.msgs ? '这段时间没有明显的摩擦。' : '会话里没有你发出的消息，暂时判断不了卡在哪。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
     ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
   // 0 sessions in range: no praise / friction verdict (the backend's 「这段时间还没有会话」 next to 「查看 3 条建议」 read as
@@ -99,7 +99,7 @@ PAGES.overview = () => {
   const night = stats(L.filter((s) => s.h < 3)), day = stats(L.filter((s) => s.h >= 9 && s.h < 18));
   const ratio = day.fric ? night.fric / day.fric : 0;
   const peakV = hmap.H[peak[0]][peak[1]];
-  const heatLine = S.ov.heat === 'msgs' ? !peakV ? '这段时间没有你发出的消息' : '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + f1(st.fric) + '%';
+  const heatLine = S.ov.heat === 'msgs' ? !peakV ? '这段时间没有你发出的消息' : '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + fricTxt(st);
   // live: tool top 6 from /v1/uiview/overview.tools (real tool names, err over known statuses only; null → —)
   const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => { const why = typeof lvtpRateWhy === 'function' ? lvtpRateWhy(t) : null; return { name: t.name, n: t.n, err: why ? null : t.err, why: why || (t.err == null ? '状态未知，不计算错误率' : null) }; }) : []) : toolRows(L).slice(0, 6);
   const tmx = Math.max(1, trows[0] ? trows[0].n : 1); const tkinds = LV.live ? (OVL && OVL.tools ? OVL.tools.kinds_total : 0) : 11;

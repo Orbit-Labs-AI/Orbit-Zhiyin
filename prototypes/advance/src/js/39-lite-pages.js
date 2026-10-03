@@ -74,7 +74,7 @@ PAGES['l-home'] = () => {
   const tiles = [
     liteCount(VZ.kpi({ label: '会话', value: fmt(st.n), delta: d(st.n, P && P.n, { unit: 'pct', goodDown: false, fmt: 'int' }), act: 'go', attrs: ' data-r="l-sessions"' }), st.n),
     liteCount(VZ.kpi({ label: '协作时长', value: st.hours >= 100 ? fmt(st.hours) : f1(st.hours), unit: 'h', delta: d(st.hours, P && P.hours, { unit: 'pct', goodDown: false, fmt: (v) => f1(v) + 'h' }) }), st.hours, st.hours >= 100 ? 0 : 1),
-    liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: d(st.fric, P && P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) }), st.fric, 1),
+    (st.msgs ? liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: P && P.msgs ? d(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null }), st.fric, 1) : VZ.kpi({ label: '摩擦率', value: '—', sub: '没有你发出的消息' })),
     (st.okKnown ? liteCount(VZ.kpi({ label: '完成率', value: String(Math.round(st.ok)), unit: '%', delta: d(st.ok, P && P.okKnown ? P.ok : null, { unit: 'pt', goodDown: false, fmt: (v) => Math.round(v) + '%' }) }), st.ok) : VZ.kpi({ label: '完成率', value: '—', sub: st.n ? '这些会话没有完成信号' : '' }))
   ].join('');
   // 活跃条带：至少 30 天，当前范围内的日子用实色，范围外的用浅色

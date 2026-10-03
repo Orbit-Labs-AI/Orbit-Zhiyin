@@ -216,9 +216,15 @@ function axisView(p, i) {
   const leftWins = leftIsValue ? val >= 50 : val < 50;   // 恰好 50 归高值一极，与 persona() 的字母一致
   return { ax, val, pos, strong, leftWins, letter: leftWins ? ax.L : ax.R, name: leftWins ? ax.Ln : ax.Rn };
 }
-function fitOf(L) { if (L.length < 5) return null; const st = stats(L); return Math.round(clamp(130 - st.fric * 4 - (st.okKnown ? 100 - st.ok : 0) * 1.0, 20, 98)); }
+// 契合度只在两项信号都在时计分：没有完成信号（okKnown = 0）或没有用户消息（摩擦率无从算起）就是 null，界面显示「—」
+// 并说明原因（fitWhy），不能把「没有数据」算成满分
+function fitOf(L) { if (L.length < 5) return null; const st = stats(L); if (!st.okKnown || !st.msgs) return null; return Math.round(clamp(130 - st.fric * 4 - (100 - st.ok) * 1.0, 20, 98)); }
+function fitWhy(st, n) { return n < 5 ? '样本少（' + n + ' 个会话），不计分' : !st.okKnown ? '没有完成信号，不计分' : !st.msgs ? '没有你发出的消息，摩擦率无从计算，不计分' : ''; }
 // a completion / verification rate whose basis may be empty: n = stats().okKnown / verKnown
 const pctKnown = (v, n) => (n ? Math.round(v) + '%' : '—');
+// 摩擦率 / 自主比的分母是你发出的消息：msgs = 0 时是未知「—」，不是 0（live 行可能没有用户消息）
+const fricTxt = (st) => (st.msgs ? f1(st.fric) + '%' : '—');
+const autoTxt = (st) => (st.msgs ? f1(st.auto) : '—');
 // 「AI」only for text a model wrote: live insights carry basis (l0_template = rule template); the same test as 92-live-sessions
 const insIsAI = (ins) => !LV.live || !!(ins && /\b(ai|llm|model)\b/i.test(String(ins.basis || '').replace(/_/g, ' ')));
 // the head badge of an insight block: purple AI, or a neutral「规则」tag for template text

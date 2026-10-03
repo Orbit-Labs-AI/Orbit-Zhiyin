@@ -9,9 +9,9 @@ import { stubGateway, openLive, collectErrors, fx } from './live-helpers.mjs';
 
 test.beforeEach(async ({ page }) => { test.skip(test.info().project.name !== 'mac-14', 'interaction checks run once'); await page.emulateMedia({ reducedMotion: 'reduce' }); });
 
-function factsNoOutcome() {
+function factsNoOutcome(extra) {
   const f = fx('core/facts.json');
-  const drop = ['out', 'verify'];
+  const drop = ['out', 'verify'].concat(extra || []);
   const idx = drop.map((k) => f.fields.indexOf(k)).filter((i) => i >= 0).sort((a, b) => b - a);
   idx.forEach((i) => { f.fields.splice(i, 1); f.rows.forEach((r) => r.splice(i, 1)); });
   drop.forEach((k) => { f.constants[k] = null; });
@@ -20,7 +20,10 @@ function factsNoOutcome() {
 
 test('unknown outcome / verify never shows as 0 % or 完成', async ({ page }) => {
   const errors = collectErrors(page);
-  await stubGateway(page, 'core', { 'GET /v1/uiview/facts': factsNoOutcome() });
+  await stubGateway(page, 'core', {
+    'GET /v1/uiview/facts': factsNoOutcome(),
+    'GET /v1/uiview/persona': (req, u) => fx(u.searchParams.get('period') === '30' ? 's1/persona-30.json' : 's1/persona-90.json')
+  });
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => ALL.length)).toBeGreaterThan(0);
   expect(await page.evaluate(() => ALL.every((s) => s.out == null && s.verify == null))).toBe(true);
@@ -42,6 +45,33 @@ test('unknown outcome / verify never shows as 0 % or 完成', async ({ page }) =
   await page.evaluate(() => go('l-sessions'));
   await expect(page.locator('#main .l-shead')).toContainText('结果未知');
   await expect(page.locator('#main .l-shead')).not.toContainText('部分完成');
+  // A2 persona: facts line, V-axis evidence and the per-agent fit rows never read 0 % / 完成 0%
+  await page.evaluate(() => edSet('advance', 'persona'));
+  await expect(page.locator('#main .pe-facts')).toBeVisible();
+  await expect(page.locator('#main .pe-facts')).toContainText('— 要求验证');
+  await expect(page.locator('#main')).not.toContainText('0% 要求验证');
+  await expect(page.locator('#main')).not.toContainText('0% 会话要求或运行了验证');
+  await expect(page.locator('#main')).not.toContainText('完成 0%');
+  // no outcome signal: the fit score is not computed (no made-up 98)
+  const fit = page.locator('#main .pe-fit').filter({ has: page.locator('[data-lv="fit-na"]') });
+  await expect(fit.first()).toContainText('没有完成信号');
+  await expect(fit.first().locator('.pe-fit-t b')).toHaveText('—');
+  expect(errors).toEqual([]);
+});
+
+test('no user messages: 摩擦率 / 自主比 read —, not 0', async ({ page }) => {
+  const errors = collectErrors(page);
+  await stubGateway(page, 'core', { 'GET /v1/uiview/facts': factsNoOutcome(['msgs', 'corr']) });
+  await openLive(page, 'overview');
+  await expect.poll(() => page.evaluate(() => ALL.length)).toBeGreaterThan(0);
+  await page.evaluate(() => go('overview'));
+  const tiles = page.locator('#ovTiles');
+  await expect(tiles.locator('[data-k="f"] .v')).toHaveText('—');
+  await expect(tiles.locator('[data-k="a"] .v')).toHaveText('—');
+  await expect(page.locator('#aiCard')).not.toContainText('没有明显的摩擦');
+  await page.evaluate(() => { go('overview'); edSet('lite'); });
+  const lt = page.locator('#main .vz-kpi').filter({ hasText: '摩擦率' });
+  await expect(lt.locator('.v')).toHaveText('—');
   expect(errors).toEqual([]);
 });
 
