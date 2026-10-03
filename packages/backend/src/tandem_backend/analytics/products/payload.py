@@ -16,17 +16,17 @@ CAPPED_KEYS = frozenset({
 })
 
 
-def compact(value: Any, limit: int = EVIDENCE_LIMIT) -> Any:
-    """Return a copy whose ``CAPPED_KEYS`` arrays hold ≤ ``limit`` items and ``<key>_total``."""
+def compact(value: Any, limit: int = EVIDENCE_LIMIT, keys: frozenset[str] = CAPPED_KEYS) -> Any:
+    """Return a copy whose ``keys`` arrays hold ≤ ``limit`` items and ``<key>_total``."""
     if isinstance(value, list):
-        return [compact(item, limit) for item in value]
+        return [compact(item, limit, keys) for item in value]
     if not isinstance(value, dict):
         return value
     result = {}
     for key, item in value.items():
-        if key in CAPPED_KEYS and isinstance(item, list) and len(item) > limit:
-            result[key] = [compact(entry, limit) for entry in item[:limit]]
+        if key in keys and isinstance(item, list) and len(item) > limit:
+            result[key] = [compact(entry, limit, keys) for entry in item[:limit]]
             result[f"{key}_total"] = len(item)
         else:
-            result[key] = compact(item, limit)
+            result[key] = compact(item, limit, keys)
     return result

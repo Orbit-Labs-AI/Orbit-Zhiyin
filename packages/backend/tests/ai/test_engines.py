@@ -75,7 +75,7 @@ def test_codex_argv_usage_and_cleanup(fake_cli, ai_env):
     home = ai_env.tmp / "tandem"
     result = CodexEngine(home).call(request())
     assert result.error is None and result.output == {"answer": "ok"}
-    assert result.usage == {"input": 1000, "cache_read": 200, "cache_write": 0, "output": 50}
+    assert result.usage == {"input": 800, "cache_read": 200, "cache_write": 0, "output": 50}
     assert result.cost_source == "unknown" and result.cost_usd is None
     call = fake_cli.calls()[-1]
     argv = call["argv"][1:]
@@ -91,7 +91,9 @@ def test_codex_argv_usage_and_cleanup(fake_cli, ai_env):
 def test_codex_price_table_when_model_known(fake_cli, ai_env):
     result = CodexEngine(ai_env.tmp / "t").call(request(model="claude-haiku-4-5"))
     assert result.cost_source == "price_table"
-    assert result.cost_usd == prices.estimate(1000, 50, "claude-haiku-4-5")
+    # fake codex: 2 turns x (500 input incl. 100 cached, 25 output) -> 800 uncached, 200 cached, 50 out
+    assert result.usage == {"input": 800, "cache_read": 200, "cache_write": 0, "output": 50}
+    assert result.cost_usd == pytest.approx((800 * 1 + 200 * 0.1 + 50 * 5) / 1e6)
 
 
 def test_cancel_and_timeout_kill_process_group(fake_cli, ai_env):
@@ -107,32 +109,126 @@ def test_cancel_and_timeout_kill_process_group(fake_cli, ai_env):
     assert time.monotonic() - started < 3
 
 
-def test_api_key_engine_forced_tool(monkeypatch, ai_env):
+class _Response(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
+def _api(monkeypatch, *replies):
+    """Patch urlopen with a queue of replies: dict -> 200 JSON body, int -> HTTPError status."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-not-a-real-key")
-    seen = {}
-
-    class Response(io.BytesIO):
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_):
-            return False
+    monkeypatch.setattr(engines, "_sleep", lambda s: seen["sleeps"].append(s))
+    queue = list(replies)
+    seen = {"bodies": [], "sleeps": []}
 
     def urlopen(req, timeout):
         seen["headers"] = dict(req.header_items())
-        seen["body"] = json.loads(req.data)
-        return Response(json.dumps({
-            "model": "claude-haiku-4-5", "content": [
-                {"type": "tool_use", "name": "emit", "input": {"answer": "hi"}}],
-            "usage": {"input_tokens": 100, "output_tokens": 10}}).encode())
+        seen["bodies"].append(json.loads(req.data))
+        reply = queue.pop(0)
+        if isinstance(reply, int):
+            raise engines.urllib.error.HTTPError(req.full_url, reply, "err", {}, None)
+        return _Response(json.dumps(reply).encode())
 
     monkeypatch.setattr(engines.urllib.request, "urlopen", urlopen)
-    result = ApiKeyEngine(ai_env.tmp).call(request(slot="cheap"))
+    return seen
+
+
+def _text_reply(model, payload, stop="end_turn", **usage):
+    return {"model": model, "stop_reason": stop,
+            "content": [{"type": "thinking", "thinking": ""},
+                        {"type": "text", "text": json.dumps(payload)}],
+            "usage": {"input_tokens": 100, "output_tokens": 10, **usage}}
+
+
+def test_api_key_engine_haiku_structured_output(monkeypatch, ai_env):
+    seen = _api(monkeypatch, _text_reply("claude-haiku-4-5", {"answer": "hi"}))
+    result = ApiKeyEngine(ai_env.tmp).call(request(slot="cheap", max_tokens=600))
     assert result.output == {"answer": "hi"} and result.cost_source == "price_table"
-    assert seen["body"]["tool_choice"] == {"type": "tool", "name": "emit"}
-    assert seen["body"]["model"] == "claude-haiku-4-5"
+    body = seen["bodies"][0]
+    assert body["model"] == "claude-haiku-4-5" and "tool_choice" not in body and "tools" not in body
+    assert body["output_config"] == {"format": {"type": "json_schema", "schema": ANSWER}}  # no effort on haiku
+    assert body["max_tokens"] == 600  # haiku does not think unless asked: no headroom
     assert seen["headers"]["Anthropic-version"] == "2023-06-01"
     assert "sk-test" not in repr(result)
+    # 100 in x $1 + 10 out x $5 per MTok
+    assert result.cost_usd == pytest.approx((100 * 1 + 10 * 5) / 1e6)
+
+
+@pytest.mark.parametrize("model,slot,effort", [("claude-sonnet-5-5", "main", "medium"),
+                                               ("claude-opus-5-5", "main", "medium"),
+                                               ("claude-fable-5-1", "cheap", "low")])
+def test_api_key_engine_new_models_never_force_tool_choice(monkeypatch, ai_env, model, slot, effort):
+    seen = _api(monkeypatch, _text_reply(model, {"answer": "ok"}))
+    result = ApiKeyEngine(ai_env.tmp).call(request(slot=slot, model=model, max_tokens=1500))
+    assert result.error is None and result.output == {"answer": "ok"}
+    body = seen["bodies"][0]
+    assert body.get("tool_choice", {}).get("type") not in ("any", "tool")
+    assert body["output_config"]["effort"] == effort
+    assert body["output_config"]["format"]["type"] == "json_schema"
+    assert body["max_tokens"] == 1500 + engines.THINKING_HEADROOM
+    assert "thinking" not in body  # always-on adaptive; "disabled" would 400
+
+
+def test_api_key_engine_open_schema_falls_back_to_auto_tool(monkeypatch, ai_env):
+    schema = {"type": "object", "properties": {"m": {"type": "object", "additionalProperties": {"type": "integer"}}}}
+    reply = {"model": "claude-sonnet-5-5", "stop_reason": "tool_use",
+             "content": [{"type": "tool_use", "name": "emit", "input": {"m": {"a": 1}}}],
+             "usage": {"input_tokens": 1, "output_tokens": 1}}
+    seen = _api(monkeypatch, reply)
+    result = ApiKeyEngine(ai_env.tmp).call(request(schema=schema, slot="main", model="claude-sonnet-5-5"))
+    body = seen["bodies"][0]
+    assert body["tool_choice"] == {"type": "auto"} and "emit" in body["messages"][0]["content"]
+    assert "format" not in body["output_config"] and result.output == {"m": {"a": 1}}
+
+
+def test_strict_schema_strips_unsupported_constraints():
+    schema = {"type": "object", "required": ["n"], "properties": {
+        "n": {"type": "integer", "minimum": 0, "maximum": 5},
+        "s": {"type": "string", "maxLength": 9},
+        "xs": {"type": "array", "maxItems": 3, "minItems": 2, "items": {"type": "object", "properties": {}}}}}
+    assert engines.strict_schema(schema) == {
+        "type": "object", "required": ["n"], "additionalProperties": False, "properties": {
+            "n": {"type": "integer"}, "s": {"type": "string"},
+            "xs": {"type": "array", "items": {"type": "object", "properties": {}, "additionalProperties": False}}}}
+
+
+@pytest.mark.parametrize("stop,error", [("max_tokens", "truncated"), ("refusal", "refused")])
+def test_api_key_engine_stop_reason_is_an_explicit_error(monkeypatch, ai_env, stop, error):
+    reply = {"model": "claude-sonnet-5-5", "stop_reason": stop,
+             "content": [{"type": "text", "text": '{"answer": "half'}],
+             "usage": {"input_tokens": 5, "output_tokens": 9508}}
+    if stop == "refusal":
+        reply["stop_details"] = {"type": "refusal", "category": "cyber"}
+    _api(monkeypatch, reply)
+    result = ApiKeyEngine(ai_env.tmp).call(request(slot="main", model="claude-sonnet-5-5"))
+    assert result.error == error and result.output is None
+    assert f"stop_reason={stop}" in result.detail
+    assert result.cost_usd is not None  # tokens were billed even though the output is unusable
+
+
+def test_api_key_engine_http_400_is_not_retried(monkeypatch, ai_env):
+    seen = _api(monkeypatch, 400)
+    result = ApiKeyEngine(ai_env.tmp).call(request())
+    assert (result.error, result.detail) == ("engine_error", "http 400")
+    assert len(seen["bodies"]) == 1 and seen["sleeps"] == []
+
+
+@pytest.mark.parametrize("status", [429, 529])
+def test_api_key_engine_retries_overload_then_succeeds(monkeypatch, ai_env, status):
+    seen = _api(monkeypatch, status, status, _text_reply("claude-haiku-4-5", {"answer": "ok"}))
+    result = ApiKeyEngine(ai_env.tmp).call(request())
+    assert result.output == {"answer": "ok"} and len(seen["bodies"]) == 3
+    assert seen["sleeps"] == [1.0, 2.0]  # exponential backoff from RETRY_BASE_S
+
+
+def test_api_key_engine_gives_up_after_bounded_retries(monkeypatch, ai_env):
+    seen = _api(monkeypatch, 529, 529, 529)
+    result = ApiKeyEngine(ai_env.tmp).call(request())
+    assert (result.error, result.detail) == ("engine_error", "http 529")
+    assert len(seen["bodies"]) == engines.API_RETRIES + 1
 
 
 def test_default_engines_register_api_key_only_with_env(monkeypatch, ai_env):
@@ -183,10 +279,47 @@ def test_is_tandem_ai_session(ai_env):
     assert isolation.is_tandem_ai_session("/x", "[tandem-analysis v1 task=a job=b]\nhi")
     assert not isolation.is_tandem_ai_session("/x", "hello", home)
     assert oct(cwd.stat().st_mode & 0o777) == "0o700"
-    assert set(isolation.env()) <= {*isolation.ENV_KEEP, *isolation.ENV_OPTIONAL, "NO_COLOR"}
+    assert set(isolation.env()) <= {*isolation.ENV_KEEP, *isolation.ENV_OPTIONAL, *isolation.ENV_NETWORK, "NO_COLOR"}
 
 
-def test_prices():
-    assert prices.estimate(1_000_000, 0, "claude-sonnet-5-5") == 2.0
-    assert prices.estimate(0, 1_000_000, "opus") == 20.0
-    assert prices.estimate(10, 10, "gpt-5") is None
+def test_isolation_env_keeps_network_drops_credentials(monkeypatch):
+    keep = {"HTTPS_PROXY": "http://p:1", "http_proxy": "http://p:2", "ALL_PROXY": "socks5://p:3",
+            "no_proxy": "localhost", "SSL_CERT_FILE": "/ca.pem", "NODE_EXTRA_CA_CERTS": "/ca2.pem"}
+    drop = {"ANTHROPIC_API_KEY": "sk-x", "OPENAI_API_KEY": "sk-y", "GITHUB_TOKEN": "t",
+            "ANTHROPIC_BASE_URL": "http://x", "CLAUDE_CODE_USE_BEDROCK": "1", "AWS_SECRET_ACCESS_KEY": "s"}
+    for k, v in {**keep, **drop}.items():
+        monkeypatch.setenv(k, v)
+    env = isolation.env()
+    assert {k: env.get(k) for k in keep} == keep
+    assert not set(drop) & set(env)
+
+
+@pytest.mark.parametrize("model,price_in,price_out", [
+    ("claude-fable-5-1", 10, 50), ("claude-opus-5-5", 4, 20), ("claude-opus-5", 5, 25),
+    ("claude-opus-4-8", 5, 25), ("claude-sonnet-5-5", 2, 10), ("claude-sonnet-4-6", 3, 15),
+    ("claude-haiku-4-5", 1, 5), ("claude-opus-4-8-20260101", 5, 25), ("claude-sonnet-5-5[1m]", 2, 10),
+    ("anthropic.claude-opus-5-5", 4, 20)])
+def test_prices_by_full_model_id(model, price_in, price_out):
+    # List prices per MTok (Anthropic API price table, 2026-09-25); versions must not collapse.
+    assert prices.estimate(1_000_000, 0, model) == price_in
+    assert prices.estimate(0, 1_000_000, model) == price_out
+
+
+@pytest.mark.parametrize("model", ["opus", "sonnet", "gpt-5", "claude-opus-6", None, ""])
+def test_prices_unknown_model_is_none(model):
+    assert prices.estimate(10, 10, model) is None
+    assert prices.cost({"input": 10}, model) is None
+
+
+def test_cache_pricing():
+    million = 1_000_000
+    # sonnet-4-6: write 1.25 x $3 = $3.75, read 0.1 x $3 = $0.30
+    assert prices.cost({"cache_write": million}, "claude-sonnet-4-6") == 3.75
+    assert prices.cost({"cache_read": million}, "claude-sonnet-4-6") == 0.3
+    # models with a published cache-read price: opus-5-5 $0.20, fable-5-1 $0.25
+    assert prices.cost({"cache_read": million}, "claude-opus-5-5") == 0.2
+    assert prices.cost({"cache_read": million}, "claude-fable-5-1") == 0.25
+    assert prices.cost({"input": 1000, "cache_write": 1000, "cache_read": 1000, "output": 1000},
+                       "claude-haiku-4-5") == round((1000 * 1 + 1000 * 1.25 + 1000 * 0.1 + 1000 * 5) / 1e6, 6)
+    # unknown model: conservative = most expensive table rate ($10 / $50)
+    assert prices.conservative(million, million) == 60.0

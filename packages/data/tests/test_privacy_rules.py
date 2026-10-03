@@ -35,7 +35,7 @@ REPOSITORY_SAMPLES = [
 def test_rule_list_matches_declared_rules():
     listing = rules()
     assert listing["version"] == REDACTION_VERSION
-    assert listing["count"] == len(listing["rules"]) == len(RULES) == 9
+    assert listing["count"] == len(listing["rules"]) == len(RULES) == 11
     ids = [rule["id"] for rule in listing["rules"]]
     assert len(set(ids)) == len(ids)
     assert not listing["editable"]
@@ -70,3 +70,87 @@ def test_preview_limits():
         preview("x" * (MAX_PREVIEW_CHARS + 1))
     with pytest.raises(TypeError):
         preview(None)
+
+
+# (rule id, text that must change, secret substring that must disappear, text that must not change)
+TOKEN_CASES = [
+    ("slack", "SLACK=xoxb-1234567890-abcdefghijkl ok", "xoxb-1234567890", "the xox- prefix alone"),
+    ("google", "key AIza" + "Q" * 35 + " end", "AIza" + "Q" * 35, "AIza is a prefix"),
+    ("huggingface", "hf_" + "a1" * 17, "hf_" + "a1" * 17, "from hf_hub_download import x"),
+    ("npm", "//registry/:_authToken npm_" + "b" * 36, "npm_" + "b" * 36, "npm_config_cache=/tmp"),
+    ("stripe", "use sk_live_" + "c" * 24, "sk_live_" + "c" * 24, "sk_live_ is short"),
+    ("stripe_restricted", "rk_test_" + "d" * 24, "rk_test_" + "d" * 24, "rk_test_x"),
+    ("gitlab", "glpat-" + "e" * 20, "glpat-" + "e" * 20, "glpat-short"),
+    ("aws_sts", "id ASIA" + "F" * 16, "ASIA" + "F" * 16, "ASIAN markets"),
+    (
+        "jwt",
+        "t=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmaXh0dXJlIn0.c2lnbmF0dXJlLXZhbHVl",
+        "eyJzdWIiOiJmaXh0dXJlIn0",
+        'eyJ is base64 for {"',
+    ),
+    ("curl_user", "curl -u fixture:pa55word https://x", "pa55word", "ls -u /tmp"),
+    ("curl_user_eq", "curl --user=fixture:pa55word x", "pa55word", "id --user=fixture"),
+    ("mysql", "mysql -h db -u root -ppa55word app", "pa55word", "mkdir -p build && ssh -p 22 h"),
+    ("mysql_bare_p", "mysqldump -pS3cr3t app", "S3cr3t", "mysql -p app"),
+    ("password_flag", "tool --password pa55word --x", "pa55word", "docker login --password-stdin"),
+    ("token_flag", "gh --token 'abc def' repo", "abc def", "count --token-limit 5"),
+    ("api_key_flag", "cli --api-key K3y-value", "K3y-value", "cli --api-key --verbose"),
+]
+
+
+@pytest.mark.parametrize(("case", "secret_text", "secret", "plain"), TOKEN_CASES)
+def test_each_rule_has_a_positive_and_a_negative_case(case, secret_text, secret, plain):
+    redacted = redact(secret_text)
+    assert secret not in redacted, case
+    assert "<redacted:" in redacted
+    assert redact(plain) == plain, case
+
+
+def test_cli_rules_keep_the_command_shape():
+    assert redact("curl -u bob:pw https://x") == "curl -u bob:<redacted:secret> https://x"
+    assert redact("mysql -u root -phunter2 db") == "mysql -u root -p<redacted:secret> db"
+    assert (
+        redact("t --password hunter2 --token 'a b'")
+        == "t --password <redacted:secret> --token '<redacted:secret>'"
+    )
+    assert preview("x --secret abcd")["matches"] == {"secret": 1}
+
+
+# Synthetic tokens are assembled at runtime so no literal resembles a live credential.
+_ALNUM = "A1b2C3d4E5f6G7h8J9k0"
+VENDOR_TOKENS = {
+    "google": ("AI" + "za" + (_ALNUM * 2)[:35], "<redacted:api_key>"),
+    "slack_bot": ("xo" + "xb-" + "1234567890-0987654321-" + _ALNUM, "<redacted:api_key>"),
+    "slack_user": ("xo" + "xp-" + "1234567890-" + _ALNUM, "<redacted:api_key>"),
+    "stripe_secret": ("sk" + "_live_" + _ALNUM + "XyZ", "<redacted:api_key>"),
+    "stripe_restricted": ("rk" + "_live_" + _ALNUM, "<redacted:api_key>"),
+    "stripe_test": ("sk" + "_test_" + _ALNUM, "<redacted:api_key>"),
+    "huggingface": ("hf" + "_" + (_ALNUM * 2)[:34], "<redacted:api_key>"),
+    "npm": ("np" + "m_" + (_ALNUM * 2)[:36], "<redacted:api_key>"),
+    "gitlab": ("gl" + "pat-" + _ALNUM, "<redacted:api_key>"),
+    "jwt": (
+        "ey" + "JhbGciOiJIUzI1NiJ9" + ".ey" + "JzdWIiOiJmaXh0dXJlIn0" + "." + _ALNUM,
+        "<redacted:token>",
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(VENDOR_TOKENS))
+def test_vendor_tokens_in_plain_text_are_redacted(name):
+    token, marker = VENDOR_TOKENS[name]
+    text = f"deploy failed, retry with {token} then report"
+    assert redact(text) == f"deploy failed, retry with {marker} then report"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "call hf_hub_download and npm_config_cache before AIzawa visits",
+        "the sk_live_ prefix and rk_test_ prefix are Stripe conventions",
+        "set xoxb- tokens in Slack; glpat- is the GitLab prefix",
+        "a header eyJhbGciOiJIUzI1NiJ9 alone is not a JWT",
+        "version 1.2.3.4 and file a.b.c are not tokens",
+    ],
+)
+def test_vendor_prefixes_in_prose_are_not_redacted(text):
+    assert redact(text) == text

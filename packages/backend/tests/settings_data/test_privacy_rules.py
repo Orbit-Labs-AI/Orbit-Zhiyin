@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tandem_data.privacy import REDACTION_VERSION
+
 from tandem_backend import privacy_rules
 from tandem_backend.ai.redact import redact2
 
@@ -25,7 +27,8 @@ def test_rule_table(client):
     credentials = body["rules"][0]
     assert credentials["locked"] and credentials["stage"] == "ingest"
     assert {r["stage"] for r in body["rules"][1:]} == {"outbound"}
-    assert body["version"] == "1.2.0" and body["active_count"] == 6 and body["custom"] == []
+    # The rule table is versioned with the ingest redaction it describes (data layer constant).
+    assert body["version"] == REDACTION_VERSION and body["active_count"] == 6 and body["custom"] == []
     assert "scope_note" in body
     assert client.get("/v1/status").json()["privacy"] == {"active_rules": 6}
 

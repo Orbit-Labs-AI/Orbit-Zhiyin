@@ -105,6 +105,25 @@ def test_daily_cap(ai_svc):
     assert wait_done(ai_svc, job_id)["status"] == "ok"
 
 
+def test_daily_cap_counts_unpriced_calls_conservatively(ai_svc):
+    # A codex call with no list price (cost_usd NULL) used 30k in + 30k out tokens. At the
+    # conservative $10/$50 per MTok that is 0.3 + 1.5 = $1.80; with $0.30 known spend the
+    # $2 default cap is crossed although SUM(cost_usd) alone is only $0.30.
+    with ai_svc.appdb.write() as db:
+        db.execute("INSERT INTO ai_usage (job_id, task_id, engine, input_tokens, output_tokens, "
+                   "cost_usd, cost_source, status, ts) VALUES ('x', 't', 'codex', 30000, 30000, "
+                   "NULL, 'unknown', 'ok', ?)", (now_ms(),))
+        db.execute("INSERT INTO ai_usage (job_id, task_id, engine, cost_usd, cost_source, "
+                   "status, ts) VALUES ('y', 't', 'fake', 0.3, 'reported', 'ok', ?)", (now_ms(),))
+    assert ai_svc.today_cost() == pytest.approx(2.1)
+    with pytest.raises(AIError) as error:
+        ai_svc.submit("test.echo", {"slots": {"goal": "x"}})
+    assert error.value.code == "budget_exhausted"
+    usage = ai_svc.usage()
+    assert usage["totals"]["unknown_calls"] == 1 and usage["totals"]["cost_usd"] == 0.3
+    assert {r["engine"]: r["unknown_calls"] for r in usage["by_engine"]} == {"codex": 1, "fake": 0}
+
+
 def test_restart_marks_interrupted_and_prunes(ai_svc, ai_gw):
     old = now_ms() - 91 * 86400 * 1000
     with ai_gw.appdb.write() as db:

@@ -111,3 +111,28 @@ def test_counts_are_per_distinct_task_and_old_records_remain_unknown(fixtures):
     assert inputs == before
     assert summarize_task_distribution(None)["domain_details"] is None
     assert summarize_task_distribution([])["domain_details"]["rates"] is None
+
+
+# Audit B8: everyday development requests that v2.1 left without any domain/task type.
+@pytest.mark.parametrize("text, domain, task_types", [
+    ("修复登录页面按钮点击没反应的问题", "software", {"debug"}),
+    ("写一个 Swift 的 SwiftUI 视图", "software", {"create"}),
+    ("帮我把这个PR合并并发布新版本", "software", {"git", "publish"}),
+    ("重构这个模块", "software", {"modify"}),
+    ("安装依赖并配置 CI", "software", {"configure"}),
+    ("帮我 review 一下这个 diff", "software", {"review"}),
+    ("给这个功能增加特征开关", "software", {"create"}),
+])
+def test_everyday_development_requests_get_domain_and_type(text, domain, task_types, fixtures):
+    session, event, _ = fixtures
+    result = extract_task_features(semantic_messages([event(text)], [session()]))
+    assert domain in (result["domain"] or [])
+    assert task_types <= set(result["task_type"] or [])
+
+
+def test_ambiguous_feature_and_build_words_are_contextual(fixtures):
+    session, event, _ = fixtures
+    flag = extract_task_features(semantic_messages([event("给这个功能增加特征开关")], [session()]))
+    assert "data_analysis" not in (flag["domain"] or [])  # 特征开关 is a feature flag
+    build = extract_task_features(semantic_messages([event("explain why the build fails")], [session()]))
+    assert build["task_type"] == ["explain"]  # "the build" is a noun, not a create request

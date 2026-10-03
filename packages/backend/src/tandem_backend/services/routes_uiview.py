@@ -177,7 +177,9 @@ def router(gw: Gateway) -> APIRouter:
 
     def fact_overlay() -> dict | None:
         rows = fetch.latest_rows(gw)
-        clock = ("d", "h", "mi", "live", "excluded")
+        # Clock/liveness fields belong to the request, not the snapshot; ``out`` is merged by
+        # sessions.overlay (live rows keep 'live') and ``out_basis`` is the row's own.
+        clock = ("d", "h", "mi", "live", "excluded", "out_basis")
         return {uid: {k: v for k, v in r.items() if k not in clock}
                 for uid, r in rows.items()} if rows else None
 

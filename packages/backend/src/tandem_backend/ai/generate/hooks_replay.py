@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 from functools import cache
 
+from ..pack import FAIL_STATUS, OK_STATUS
 from .templates import Template
 
 
@@ -34,8 +35,13 @@ def _events(call: dict, session_uid: str):
         tool_input = {"file_path": "f" + (exts[0] if exts else "")}
     base = {"session_id": session_uid, "tool_name": tool, "tool_input": tool_input}
     yield {**base, "hook_event_name": "PreToolUse"}
-    yield {**base, "hook_event_name": "PostToolUse",
-           "tool_response": {"success": call.get("status") == "ok", "exit_code": call.get("exit_code")}}
+    # tool_call.status uses the canonical vocabulary (completed/failed/unknown/declined/orphan_result…).
+    # Only a known outcome produces a PostToolUse; an unknown outcome is neither a success (which would
+    # reset failure streaks / count as a verification) nor a failure (which would inflate recall).
+    status = call.get("status")
+    if status in OK_STATUS or status in FAIL_STATUS:
+        yield {**base, "hook_event_name": "PostToolUse",
+               "tool_response": {"success": status in OK_STATUS, "exit_code": call.get("exit_code")}}
 
 
 def replay(template: Template, config: dict, replay_calls: list[dict] | None) -> dict:

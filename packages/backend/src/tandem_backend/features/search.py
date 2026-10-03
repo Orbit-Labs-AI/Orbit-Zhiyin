@@ -40,6 +40,7 @@ MAX_WAIT_S = 2.0  # hard per-request cap, including time queued behind other cli
 POOL_SIZE = 16
 MAX_QUEUED = 64  # source tasks queued or running across all requests
 PER_SOURCE = 100
+MAX_LIMIT = PER_SOURCE  # fused results never exceed what one source may contribute
 BM25_CAP = 1000
 FUSE_TOP = 50
 MAX_MESSAGES_PER_SESSION = 2
@@ -464,7 +465,14 @@ def search(home: Path, q: str, *, kinds=None, scope=None, limit: int = 20, data_
            tandem_db: Path | None = None, catalog_db: Path | None = None,
            app_db: Path | None = None, linked=None, executor=None,
            index: SearchIndex | None = None, now_ms: int | None = None,
-           timeout_s: float = TIMEOUT_S, max_wait_s: float = MAX_WAIT_S) -> dict:
+           timeout_s: float = TIMEOUT_S, max_wait_s: float = MAX_WAIT_S,
+           session_cover: bool = False) -> dict:
+    """Fused, ranked hits (``limit`` <= ``MAX_LIMIT``).
+
+    ``session_cover=True`` also returns ``session_uids``: every session any source hit,
+    taken before fusion, the per-session message cap and ``limit`` (for list filtering).
+    ``session_cover_complete`` is False when a source was partial or hit ``PER_SOURCE``.
+    """
     started = time.perf_counter()
     parsed = parse(q)
     wanted = tuple(dict.fromkeys(kinds or DEFAULT_KINDS))
@@ -472,7 +480,7 @@ def search(home: Path, q: str, *, kinds=None, scope=None, limit: int = 20, data_
     if unknown:
         raise ValueError(f"unknown kinds: {', '.join(unknown)}")
     scope = {k: v for k, v in (scope or {}).items() if v not in (None, [], ())}
-    limit = max(1, min(50, int(limit)))
+    limit = max(1, min(MAX_LIMIT, int(limit)))
     home = Path(home)
     tandem_db = tandem_db or home / "tandem.db"
     catalog_db = catalog_db or home / "catalog.db"
@@ -527,12 +535,19 @@ def search(home: Path, q: str, *, kinds=None, scope=None, limit: int = 20, data_
         results.append(hit)
         if len(results) >= limit:
             break
-    return {"q": parsed["q"], "took_ms": round((time.perf_counter() - started) * 1000, 2),
+    capped = sorted(k for k, n in counts.items() if n >= PER_SOURCE)
+    body = {"q": parsed["q"], "took_ms": round((time.perf_counter() - started) * 1000, 2),
             "index": index_status, "counts": counts,
             # A kind that hit the per-source cap has at least this many matches.
-            "counts_at_least": sorted(k for k, n in counts.items() if n >= PER_SOURCE),
+            "counts_at_least": capped,
             "results": results, "partial": sorted(set(partial)),
             "partial_reasons": dict(sorted(reasons.items())), "complete": not partial}
+    if session_cover:
+        uids = {h.get("session_uid") or (h.get("ref") or {}).get("id")
+                for hits in lists.values() for h in hits}
+        body["session_uids"] = sorted(u for u in uids if u)
+        body["session_cover_complete"] = not partial and not capped
+    return body
 
 
 def _run_sources(tasks: dict, pool, budget_s: float, hard_deadline: float):

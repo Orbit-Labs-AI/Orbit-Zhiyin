@@ -31,7 +31,7 @@ class Tandem:
         self.db.execute("PRAGMA foreign_keys = OFF")
         self.roots = roots
         self.n = 0
-        for agent in ("claude_code", "codex", "gemini"):
+        for agent in ("claude_code", "codex", "opencode", "pi", "hermes", "dsh", "kimi", "gemini"):
             root = roots / agent
             root.mkdir(parents=True, exist_ok=True)
             self.db.execute("INSERT INTO source VALUES (?, ?, ?, NULL, 1, 0)",

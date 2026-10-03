@@ -538,3 +538,30 @@ def test_repeat_get_reuses_run_with_live_catalog(env, monkeypatch, tmp_path, rep
     client.get("/v1/recommendations?surface=A1")
     assert [i["candidate_id"] for i in client.get("/v1/recommendations").json()["items"]] == ids
     assert len(client.get("/v1/recommendations/runs").json()["runs"]) == 1
+
+
+@pytest.mark.parametrize(("surface", "expected"), [("A7", 12), ("A1", 3), ("lite", 3), ("menubar", 1),
+                                                   ("widget", 1), ("palette", 10), ("ask", 5), ("hud", 1)])
+def test_surface_default_limits(env, surface, expected):
+    client, _, state = env
+    state["inputs"] = {**INPUTS, "legacy_cards": [legacy_card(i) for i in range(12)]}
+    items = client.get(f"/v1/recommendations?surface={surface}").json()["items"]
+    assert len(items) == expected
+    assert routes_recommend.SURFACE_LIMIT is runs.SURFACE_LIMIT
+
+
+def test_top_surfaces_apply_dim_filter(env):
+    client, _, _ = env
+    assert client.get("/v1/recommendations?surface=menubar").json()["items"][0]["dim"] == "hook"
+    only = client.get("/v1/recommendations?surface=menubar&dim=mcp").json()["items"]
+    assert len(only) == 1 and only[0]["dim"] == "mcp"
+    # the cached unfiltered top is unaffected by the filtered request
+    assert client.get("/v1/recommendations?surface=menubar").json()["items"][0]["dim"] == "hook"
+
+
+def test_scope_whitelist_matches_analytics_scope():
+    import inspect
+
+    from tandem_backend.services.routes_analytics import analytics_scope
+
+    assert routes_recommend.SCOPE_KEYS == set(inspect.signature(analytics_scope).parameters)

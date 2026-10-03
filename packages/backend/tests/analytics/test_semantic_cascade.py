@@ -433,3 +433,21 @@ def test_correction_without_acceptance_enters_graph_as_candidate_feedback(fixtur
 def test_invalid_budget_fails_early(values):
     with pytest.raises(ValueError):
         Budget(**values)
+
+
+def test_cascade_context_includes_phaseless_assistant_delivery():
+    from tandem_backend.analytics.semantic_cascade.candidates import select_candidates
+
+    def ev(seq, kind, text, actor, **attrs):
+        return {"event_uid": f"e{seq}", "session_uid": "s", "seq": seq, "ts": seq, "kind": kind,
+                "actor": actor, "text": text, "turn_uid": None,
+                "attrs": {"task_id": "t", **({"origin": "human"} if actor == "human" else {}), **attrs}}
+
+    # Claude/Kimi shape: no attrs.phase; the last assistant message before the human reply is final.
+    events = [ev(0, "message.user", "写一份周报", "human"),
+              ev(1, "message.assistant", "我先看下数据", "assistant"),
+              ev(2, "message.assistant", "周报如下", "assistant"),
+              ev(3, "message.user", "不对，要月报", "human")]
+    candidates, _ = select_candidates(events, {"s"})
+    context = [c["event_uid"] for c in candidates[-1]["context"]]
+    assert context == ["e0", "e2"]

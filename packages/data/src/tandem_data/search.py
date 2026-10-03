@@ -21,7 +21,8 @@ from pathlib import Path
 from tandem_data.privacy import redact
 from tandem_data.store import readonly_connection
 
-SEARCH_KINDS = ("message.user", "message.assistant", "message.summary", "session.title")
+# The kinds event_search indexes (migration 008); contract.KINDS has no message.summary.
+SEARCH_KINDS = ("message.user", "message.assistant", "session.title")
 HIT_TYPES = ("title", "project", "message", "command", "file")
 WEIGHTS = {"title": 3.0, "project": 2.0, "command": 1.5, "file": 1.5, "message": 1.0}
 HALF_LIFE_DAYS = 30.0
@@ -250,7 +251,8 @@ def _session_filter(scope: SearchScope, ts_column: str) -> tuple[str, list]:
         clauses.append(f"{ts_column} >= ?")
         params.append(int(scope.from_ts))
     if scope.until_ts is not None:
-        clauses.append(f"{ts_column} <= ?")
+        # Half-open [from_ts, until_ts), the same window as analysis_input.
+        clauses.append(f"{ts_column} < ?")
         params.append(int(scope.until_ts))
     return "".join(" AND " + clause for clause in clauses), params
 

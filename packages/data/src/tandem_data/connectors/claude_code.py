@@ -3,6 +3,69 @@ from pathlib import PurePosixPath
 from tandem_data.connectors.base import BaseMapper, Mapping, text_content
 from tandem_data.contract import unused
 
+# Title record type -> (text field, title_source). custom-title is the user's /rename,
+# ai-title the harness-generated summary, agent-name the name given to the agent run.
+TITLE_FIELDS = {
+    "custom-title": ("customTitle", "custom"),
+    "ai-title": ("aiTitle", "ai"),
+    "agent-name": ("agentName", "agent_name"),
+}
+# cost-state session-wide totals (the per-model token split is in modelUsage).
+COST_STATE_TOTALS = {
+    "total_cost_usd": "totalCostUSD",
+    "has_unknown_model_cost": "hasUnknownModelCost",
+    "api_duration_ms": "totalAPIDuration",
+    "api_duration_without_retries_ms": "totalAPIDurationWithoutRetries",
+    "tool_duration_ms": "totalToolDuration",
+    "wall_duration_ms": "totalDuration",
+    "lines_added": "totalLinesAdded",
+    "lines_removed": "totalLinesRemoved",
+}
+# attachment.type -> context_type for the resource-usage signals recommendations read;
+# other attachment types keep their own name as context_type.
+ATTACHMENT_CONTEXT = {
+    "skill_listing": "skill_listing",
+    "invoked_skills": "skill_invocation",
+    "hook_success": "hook_output",
+    "hook_additional_context": "hook_output",
+    "hook_system_message": "hook_output",
+    "mcp_instructions_delta": "mcp_instructions",
+    "deferred_tools_delta": "tool_listing",
+    "agent_listing_delta": "agent_listing",
+}
+
+
+def _names(values) -> list[str] | None:
+    if not isinstance(values, list):
+        return None
+    names = [
+        value if isinstance(value, str) else value.get("name")
+        for value in values
+        if isinstance(value, str) or isinstance(value, dict)
+    ]
+    return [name for name in names if isinstance(name, str)]
+
+
+def attachment_attrs(attachment: dict) -> dict:
+    kind = attachment.get("type")
+    kind = kind if isinstance(kind, str) else None
+    attrs = {
+        "attachment_type": kind,
+        "context_type": ATTACHMENT_CONTEXT.get(kind, kind) if kind else None,
+    }
+    if kind == "skill_listing":
+        attrs["skill_names"] = _names(attachment.get("names"))
+    elif kind == "invoked_skills":
+        attrs["skill_names"] = _names(attachment.get("skills"))
+    elif ATTACHMENT_CONTEXT.get(kind) == "hook_output":
+        for name, field in (("hook_event", "hookEvent"), ("hook_name", "hookName")):
+            value = attachment.get(field)
+            attrs[name] = value if isinstance(value, str) else None
+    elif kind == "mcp_instructions_delta":
+        attrs["mcp_added"] = _names(attachment.get("addedNames"))
+        attrs["mcp_removed"] = _names(attachment.get("removedNames"))
+    return attrs
+
 
 class ClaudeMapper(BaseMapper):
     def prepare(self, records):
@@ -119,7 +182,10 @@ class ClaudeMapper(BaseMapper):
             origin = (
                 origin_value.get("kind", "human") if isinstance(origin_value, dict) else "human"
             )
-            origin = {"task-notification": "notification"}.get(origin, origin)
+            # A workflow coordinator messaging a running worker is another agent speaking.
+            origin = {"task-notification": "notification", "coordinator": "peer"}.get(
+                origin, origin
+            )
             if origin not in ("human", "queued", "notification", "peer", "automation", "injected"):
                 origin = "unknown"
             if origin == "human" and typ == "user":
@@ -229,10 +295,6 @@ class ClaudeMapper(BaseMapper):
                         )
                     elif result.get("interrupted"):
                         event.attrs["status"] = "interrupted"
-                    elif event.attrs.get("status") == "unknown":
-                        # Claude Code omits is_error on success; a paired result
-                        # without the flag is a protocol-level completion.
-                        event.attrs["status"] = "completed"
                     event.ext["toolUseResult"] = data.get("toolUseResult", result)
             events.extend(contents)
             if (
@@ -271,15 +333,18 @@ class ClaudeMapper(BaseMapper):
                     )
                 )
 
-        elif typ in ("custom-title", "ai-title", "agent-name"):
+        elif typ in TITLE_FIELDS:
+            # Each title record names its text field; `title` is the legacy spelling.
+            field, source = TITLE_FIELDS[typ]
+            title = data.get(field, data.get("title"))
             events.append(
                 self.make(
                     record,
                     "session.title",
                     "title",
-                    text=data.get("customTitle", data.get("title", data.get("agentName"))),
-                    attrs={"title_source": "custom" if typ == "custom-title" else "ai"},
-                    ext=unused(data, ("type", "customTitle", "title", "agentName")),
+                    text=title if isinstance(title, str) else None,
+                    attrs={"title_source": source},
+                    ext=unused(data, ("type", field, "title")),
                 )
             )
         elif typ == "system" and data.get("subtype") == "turn_duration":
@@ -293,14 +358,22 @@ class ClaudeMapper(BaseMapper):
             )
         elif typ == "cost-state":
             models = data.get("modelUsage", {})
+            totals = {
+                name: data.get(field)
+                for name, field in COST_STATE_TOTALS.items()
+                if data.get(field) is not None
+            }
             previous_model = self.model
             for model, value in models.items():
                 self.model = model
+                # thinkingTokens is a subset of outputTokens (Anthropic bills thinking as
+                # output), the same shape as per-call output_tokens_details.thinking_tokens.
                 reported = {
                     "input_tokens": value.get("inputTokens"),
                     "output_tokens": value.get("outputTokens"),
                     "cache_read_input_tokens": value.get("cacheReadInputTokens"),
                     "cache_creation_input_tokens": value.get("cacheCreationInputTokens"),
+                    "output_tokens_details": {"thinking_tokens": value.get("thinkingTokens")},
                 }
                 events.append(
                     self.usage(
@@ -312,31 +385,57 @@ class ClaudeMapper(BaseMapper):
                         path="cost-state.modelUsage." + model,
                         cost_usd=value.get("costUSD"),
                         cost_source="reported",
+                        web_search_requests=value.get("webSearchRequests"),
+                        session_totals=totals,
                     )
                 )
             self.model = previous_model
             if not models:
-                events.append(self.make(record, "ui.state", "cost-state", ext=data))
+                events.append(
+                    self.make(
+                        record, "ui.state", "cost-state", attrs={"session_totals": totals}, ext=data
+                    )
+                )
         elif typ == "system":
+            subtype = data.get("subtype")
+            # session.meta is reserved for the session header; other system records are
+            # harness notices (away recap, local slash-command output, safety notes).
             kind = (
                 "context.compaction"
-                if data.get("subtype") == "compact_boundary"
+                if subtype == "compact_boundary"
                 else "error"
-                if data.get("subtype") == "api_error"
+                if subtype == "api_error"
                 else "hook.run"
-                if "hook" in str(data.get("subtype"))
-                else "session.meta"
+                if "hook" in str(subtype)
+                else "ui.state"
             )
-            events.append(self.make(record, kind, "system", ext=data))
-        elif typ in ("attachment", "mode", "permission-mode"):
+            content = data.get("content")
+            command = data.get("commandRun")
             events.append(
                 self.make(
                     record,
-                    "context.inject" if typ == "attachment" else "setting.change",
-                    typ,
+                    kind,
+                    "system",
+                    text=content if kind == "ui.state" and isinstance(content, str) else None,
+                    attrs={
+                        "system_subtype": subtype if isinstance(subtype, str) else None,
+                        "command": command.get("command")
+                        if isinstance(command, dict) and isinstance(command.get("command"), str)
+                        else None,
+                    },
                     ext=data,
                 )
             )
+        elif typ == "attachment":
+            attachment = data.get("attachment")
+            attachment = attachment if isinstance(attachment, dict) else {}
+            events.append(
+                self.make(
+                    record, "context.inject", typ, attrs=attachment_attrs(attachment), ext=data
+                )
+            )
+        elif typ in ("mode", "permission-mode"):
+            events.append(self.make(record, "setting.change", typ, ext=data))
         elif typ in ("pr-link", "file-history-snapshot", "file-history-delta", "queue-operation"):
             events.append(
                 self.make(
@@ -426,7 +525,7 @@ class ClaudeMapper(BaseMapper):
                 Mapping(events, "ignored", "non-trajectory UI record")
                 if events
                 else Mapping(disposition="ignored", reason="non-trajectory UI record")
-                if typ in ("last-prompt", "atis-latch", "bridge-session", "frame-link")
+                if typ in ("last-prompt", "atis-latch", "bridge-session", "frame-link", "launched")
                 or str(typ).startswith("artifact-")
                 else Mapping(events + self.unknown(record).events)
             )

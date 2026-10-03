@@ -1358,3 +1358,573 @@ def test_claude_metadata_comes_from_later_records_when_first_line_lacks_cwd(tmp_
         assert session["client"] == "cli"
         assert session["project_id"] is not None
         assert {t["project_id"] for t in rows(store, "turn")} <= {session["project_id"]}
+
+
+@pytest.mark.parametrize("retries", [1, 3])
+def test_dsh_each_retry_is_one_error_with_backoff_attrs(tmp_path, retries):
+    # Shape copied from a real dsh log: `llm/retry` carries the failure and backoff,
+    # `llm/retry-started` (same retryId) only marks the re-issued request.
+    records = [
+        {"type": "session", "version": 4, "id": "s", "createdAt": T, "cwd": "/fixture"},
+        {"type": "turn/start", "seq": 0, "time": T, "data": {"turn": 1}},
+    ]
+    seq = 1
+    for attempt in range(1, retries + 1):
+        retry_id = f"r{attempt}"
+        records += [
+            {
+                "type": "llm/retry",
+                "seq": seq,
+                "time": T + seq,
+                "data": {
+                    "retryId": retry_id,
+                    "turn": 1,
+                    "step": 1,
+                    "provider": "kimi-coding",
+                    "mode": "normal",
+                    "retry": attempt,
+                    "maxRetries": 5,
+                    "delayMs": 457.5,
+                    "failure": {"message": "429 overloaded", "code": "RATE_LIMIT"},
+                },
+            },
+            {
+                "type": "llm/retry-started",
+                "seq": seq + 1,
+                "time": T + seq + 1,
+                "data": {"retryId": retry_id, "turn": 1, "step": 1, "retry": attempt},
+            },
+        ]
+        seq += 2
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "dsh", records)
+        store.rebuild()
+        errors = [
+            (r["text"], json.loads(r["attrs"]))
+            for r in rows(store, "event")
+            if r["kind"] == "error"
+        ]
+        assert len(errors) == retries
+        assert [a["attempt"] for _, a in errors] == list(range(1, retries + 1))
+        for text, attrs in errors:
+            assert text == "429 overloaded"
+            assert attrs["error_class"] == "RATE_LIMIT"
+            assert attrs["max_retries"] == 5
+            assert attrs["delay_ms"] == 457.5
+            assert attrs["recoverable"] is True
+        started = [r for r in rows(store, "event") if r["kind"] == "ui.state"]
+        assert len(started) == retries
+        assert_sound(store)
+
+
+def test_claude_real_format_titles_cost_state_system_and_attachments(tmp_path):
+    # Shapes copied (and anonymised) from real Claude Code 2.1.x transcripts.
+    common = {"sessionId": "s1", "cwd": "/fixture", "version": "2.1.284", "entrypoint": "cli"}
+    records = [
+        {**common, "type": "user", "uuid": "u", "timestamp": ISO, "message": {"content": "hi"}},
+        {
+            **common,
+            "type": "user",
+            "uuid": "c",
+            "timestamp": ISO,
+            "origin": {"kind": "coordinator"},
+            "message": {"role": "user", "content": "The coordinator sent a message"},
+        },
+        {"type": "ai-title", "aiTitle": "Review lists", "sessionId": "s1"},
+        {"type": "agent-name", "agentName": "bug fixing run", "sessionId": "s1"},
+        {
+            "type": "cost-state",
+            "sessionId": "s1",
+            "totalCostUSD": 37.5,
+            "totalAPIDuration": 7180539,
+            "totalAPIDurationWithoutRetries": 6905320,
+            "totalToolDuration": 2818547,
+            "totalLinesAdded": 2504,
+            "totalLinesRemoved": 418,
+            "totalDuration": 43040575,
+            "startTime": T,
+            "modelUsage": {
+                "claude-fixture": {
+                    "inputTokens": 3052,
+                    "outputTokens": 405802,
+                    "thinkingTokens": 166512,
+                    "cacheReadInputTokens": 1000,
+                    "cacheCreationInputTokens": 766,
+                    "webSearchRequests": 2,
+                    "costUSD": 37.5,
+                }
+            },
+            "hasUnknownModelCost": False,
+        },
+        {
+            **common,
+            "type": "system",
+            "subtype": "away_summary",
+            "uuid": "s-away",
+            "timestamp": ISO,
+            "content": "You asked how predicates are produced.",
+        },
+        {
+            **common,
+            "type": "system",
+            "subtype": "local_command",
+            "uuid": "s-cmd",
+            "timestamp": ISO,
+            "level": "info",
+            "content": "<local-command-stdout>Found 6 items</local-command-stdout>",
+            "commandRun": {"command": "import", "args": "codex --dry-run"},
+        },
+        {"type": "launched"},
+    ]
+    attachments = [
+        {"type": "skill_listing", "names": ["surge", "zsxq"], "skillCount": 2, "content": "-"},
+        {"type": "invoked_skills", "skills": [{"name": "dataviz", "path": "bundled:dataviz"}]},
+        {
+            "type": "hook_success",
+            "hookName": "SessionStart:startup",
+            "hookEvent": "SessionStart",
+            "content": "# rules",
+        },
+        {"type": "mcp_instructions_delta", "addedNames": ["hf"], "removedNames": []},
+        {"type": "date", "content": "2026-10-02"},
+    ]
+    for i, attachment in enumerate(attachments):
+        records.append(
+            {
+                **common,
+                "type": "attachment",
+                "uuid": f"at{i}",
+                "timestamp": ISO,
+                "attachment": attachment,
+            }
+        )
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records, path="projects/-fixture/s1.jsonl")
+        store.rebuild()
+        events = [{**r, "attrs": json.loads(r["attrs"])} for r in rows(store, "event")]
+
+        titles = {
+            e["attrs"]["title_source"]: e["text"] for e in events if e["kind"] == "session.title"
+        }
+        assert titles == {"ai": "Review lists", "agent_name": "bug fixing run"}
+
+        (usage,) = [e for e in events if e["kind"] == "model.usage"]
+        assert usage["attrs"]["reasoning_tokens"] == 166512
+        assert usage["attrs"]["output_tokens"] == 405802
+        assert usage["attrs"]["web_search_requests"] == 2
+        assert usage["attrs"]["session_totals"] == {
+            "total_cost_usd": 37.5,
+            "has_unknown_model_cost": False,
+            "api_duration_ms": 7180539,
+            "api_duration_without_retries_ms": 6905320,
+            "tool_duration_ms": 2818547,
+            "wall_duration_ms": 43040575,
+            "lines_added": 2504,
+            "lines_removed": 418,
+        }
+
+        # session.meta is only the header; system notices are ui.state with their subtype.
+        assert sum(e["kind"] == "session.meta" for e in events) == 1
+        notices = {
+            e["attrs"]["system_subtype"]: e
+            for e in events
+            if e["kind"] == "ui.state" and "system_subtype" in e["attrs"]
+        }
+        assert set(notices) == {"away_summary", "local_command"}
+        assert notices["away_summary"]["text"] == "You asked how predicates are produced."
+        assert notices["local_command"]["attrs"]["command"] == "import"
+
+        (coordinator,) = [e for e in events if e["text"] == "The coordinator sent a message"]
+        assert coordinator["attrs"]["origin"] == "peer"
+
+        injected = {
+            e["attrs"]["attachment_type"]: e["attrs"]
+            for e in events
+            if e["kind"] == "context.inject" and "attachment_type" in e["attrs"]
+        }
+        assert {k: v["context_type"] for k, v in injected.items()} == {
+            "skill_listing": "skill_listing",
+            "invoked_skills": "skill_invocation",
+            "hook_success": "hook_output",
+            "mcp_instructions_delta": "mcp_instructions",
+            "date": "date",
+        }
+        assert injected["skill_listing"]["skill_names"] == ["surge", "zsxq"]
+        assert injected["invoked_skills"]["skill_names"] == ["dataviz"]
+        assert injected["hook_success"]["hook_event"] == "SessionStart"
+        assert injected["hook_success"]["hook_name"] == "SessionStart:startup"
+        assert injected["mcp_instructions_delta"]["mcp_added"] == ["hf"]
+
+        ledger = {
+            r["disposition"]
+            for r in store.db.execute(
+                "SELECT disposition FROM raw_record WHERE native_type='launched'"
+            )
+        }
+        assert ledger == {"ignored"}
+        assert not [e for e in events if e["kind"] == "unknown"]
+        assert_sound(store)
+
+
+def test_pi_error_and_aborted_stop_reasons_end_turns(tmp_path):
+    # Assistant shapes copied from real pi logs (provider error, user abort).
+    def assistant(id_, parent, stop, error, cost):
+        return {
+            "type": "message",
+            "id": id_,
+            "parentId": parent,
+            "timestamp": ISO,
+            "message": {
+                "role": "assistant",
+                "content": [],
+                "api": "openai-responses",
+                "provider": "openai",
+                "model": "fixture",
+                "usage": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0,
+                    "totalTokens": 0,
+                    "cost": cost,
+                },
+                "stopReason": stop,
+                "timestamp": T,
+                "errorMessage": error,
+            },
+        }
+
+    records = [
+        {"type": "session", "id": "s", "version": 3, "timestamp": ISO, "cwd": "/fixture"},
+        {
+            "type": "message",
+            "id": "u1",
+            "timestamp": ISO,
+            "message": {"role": "user", "content": "a"},
+        },
+        assistant("a1", "u1", "error", "OpenAI API error (400): model not supported", None),
+        {
+            "type": "message",
+            "id": "u2",
+            "parentId": "a1",
+            "timestamp": ISO,
+            "message": {"role": "user", "content": "b"},
+        },
+        assistant("a2", "u2", "aborted", "Operation aborted", {"total": 0}),
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "pi", records)
+        store.rebuild()
+        events = rows(store, "event")
+        errors = [e for e in events if e["kind"] == "error"]
+        assert [e["text"] for e in errors] == ["OpenAI API error (400): model not supported"]
+        ends = [json.loads(e["attrs"]) for e in events if e["kind"] == "turn.end"]
+        assert [(a["status"], a["reason"]) for a in ends] == [
+            ("failed", "OpenAI API error (400): model not supported"),
+            ("interrupted", "Operation aborted"),
+        ]
+        assert sorted(t["status"] for t in rows(store, "turn")) == ["failed", "interrupted"]
+        costs = [
+            json.loads(e["attrs"]).get("cost_usd") for e in events if e["kind"] == "model.usage"
+        ]
+        assert costs == [None, 0]
+        assert_sound(store)
+
+
+def test_hermes_tool_status_comes_from_explicit_result_fields(tmp_path):
+    # Result bodies follow hermes-agent tool handlers: terminal {output, exit_code, error},
+    # tools/registry.tool_error {"error": msg}, handlers' {"success": bool}, plain text.
+    results = [
+        ("t0", canonical({"output": "/repo", "exit_code": 0, "error": None})),
+        ("t1", canonical({"output": "", "exit_code": 2, "error": "No such file"})),
+        ("t2", canonical({"error": "File not found: a.py"})),
+        ("t3", canonical({"success": False, "message": "patch did not apply"})),
+        ("t4", canonical({"success": True, "path": "a.py"})),
+        ("t5", "plain text listing"),
+        ("t6", canonical({"results": []})),
+    ]
+    calls = [{"id": cid, "function": {"name": "terminal", "arguments": "{}"}} for cid, _ in results]
+    records = [
+        sqlrow("sessions", {"id": "a", "model": "A", "started_at": 1790900000}),
+        sqlrow(
+            "messages",
+            {
+                "id": 1,
+                "session_id": "a",
+                "message_uid": "m",
+                "role": "assistant",
+                "content": "run",
+                "active": 1,
+                "tool_calls": canonical(calls),
+                "timestamp": 1790900001,
+            },
+        ),
+    ]
+    for i, (cid, content) in enumerate(results):
+        records.append(
+            sqlrow(
+                "messages",
+                {
+                    "id": 10 + i,
+                    "session_id": "a",
+                    "message_uid": f"r{i}",
+                    "role": "tool",
+                    "content": content,
+                    "tool_call_id": cid,
+                    "active": 1,
+                    "timestamp": 1790900002 + i,
+                },
+            )
+        )
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "hermes", records, "state.db", "sqlite_rows")
+        store.rebuild()
+        by_call = {
+            r["native_call_id"]: (r["status"], r["exit_code"]) for r in rows(store, "tool_call")
+        }
+        assert by_call == {
+            "t0": ("completed", 0),
+            "t1": ("failed", 2),
+            "t2": ("failed", None),
+            "t3": ("failed", None),
+            "t4": ("completed", None),
+            "t5": ("unknown", None),
+            "t6": ("unknown", None),
+        }
+        assert_sound(store)
+
+
+def test_opencode_v1_message_and_part_full_path(tmp_path):
+    # V1 storage (sdk gen/types.gen.ts): message rows hold metadata and NamedError,
+    # part rows hold text/reasoning/tool/step-finish/agent/subtask content.
+    def message(id_, created, **data):
+        return sqlrow(
+            "message",
+            {"id": id_, "session_id": "s", "time_created": created, "data": canonical(data)},
+        )
+
+    def part(id_, message_id, created, **data):
+        return sqlrow(
+            "part",
+            {
+                "id": id_,
+                "message_id": message_id,
+                "session_id": "s",
+                "time_created": created,
+                "data": canonical(data),
+            },
+        )
+
+    def tool(status, start, end, **extra):
+        return {
+            "status": status,
+            "input": {"command": "pwd"},
+            "time": {"start": start, "end": end},
+            **extra,
+        }
+
+    records = [
+        sqlrow("session", {"id": "s", "directory": "/fixture", "title": "fixture"}),
+        message("m1", T, role="user", time={"created": T}),
+        message(
+            "m2",
+            T + 1,
+            role="assistant",
+            parentID="m1",
+            modelID="model",
+            providerID="provider",
+            path={"cwd": "/fixture"},
+            error={
+                "name": "APIError",
+                "data": {"message": "rate limited", "statusCode": 429, "isRetryable": True},
+            },
+        ),
+        part("p1", "m1", T, type="text", text="check the repo"),
+        part("p2", "m1", T, type="agent", name="explore"),
+        part("p3", "m2", T + 1, type="reasoning", text="thinking it over"),
+        part("p4", "m2", T + 2, type="text", text="Checking"),
+        part(
+            "p5",
+            "m2",
+            T + 3,
+            type="tool",
+            callID="c1",
+            tool="bash",
+            state=tool("completed", T + 3, T + 6, output="ok"),
+        ),
+        part(
+            "p6",
+            "m2",
+            T + 7,
+            type="tool",
+            callID="c2",
+            tool="bash",
+            state=tool("error", T + 7, T + 8, error="boom"),
+        ),
+        part(
+            "p7",
+            "m2",
+            T + 9,
+            type="subtask",
+            prompt="look around",
+            description="d",
+            agent="general",
+        ),
+        part(
+            "p8",
+            "m2",
+            T + 10,
+            type="step-finish",
+            reason="tool-calls",
+            cost=0.25,
+            tokens={"input": 8, "output": 4, "reasoning": 2, "cache": {"read": 3, "write": 0}},
+        ),
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "opencode", records, "opencode.db", "sqlite_rows")
+        store.rebuild()
+        events = rows(store, "event")
+        kinds = [e["kind"] for e in events]
+        tools = {
+            r["native_call_id"]: (r["status"], r["duration_ms"]) for r in rows(store, "tool_call")
+        }
+        assert tools == {"c1": ("completed", 3), "c2": ("failed", 1)}
+        (usage,) = rows(store, "model_call")
+        # opencode output excludes reasoning; canonical output includes it: 4 + 2.
+        assert (usage["output_tokens"], usage["reasoning_tokens"], usage["cost_usd"]) == (
+            6,
+            2,
+            0.25,
+        )
+        (error,) = [e for e in events if e["kind"] == "error"]
+        assert error["text"] == "rate limited"
+        assert json.loads(error["attrs"])["error_class"] == "APIError"
+        assert json.loads(error["attrs"])["status_code"] == 429
+        (spawn,) = [e for e in events if e["kind"] == "subagent.spawn"]
+        assert spawn["text"] == "look around"
+        assert json.loads(spawn["attrs"])["agent_name"] == "general"
+        assert "reasoning" in kinds
+        assert [e["text"] for e in events if e["kind"] == "message.assistant"] == ["Checking"]
+        assert len(rows(store, "v_human_message")) == 1
+        assert "unknown" not in kinds
+        assert_sound(store)
+
+
+def test_string_or_null_source_cost_and_error_do_not_abort_mapping(tmp_path):
+    with Store(tmp_path / "data") as store:
+        # Claude image block whose source is a bare string: no media type, event kept.
+        capture(
+            store,
+            tmp_path,
+            "claude_code",
+            [
+                {
+                    "type": "user",
+                    "uuid": "u",
+                    "sessionId": "c",
+                    "timestamp": ISO,
+                    "cwd": "/fixture",
+                    "message": {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "see"},
+                            {"type": "image", "source": "https://example.invalid/a.png"},
+                        ],
+                    },
+                }
+            ],
+            path="projects/-fixture/c.jsonl",
+        )
+        # pi usage.cost as a string and as null.
+        capture(
+            store,
+            tmp_path,
+            "pi",
+            [
+                {"type": "session", "id": "p", "version": 3, "timestamp": ISO, "cwd": "/fixture"},
+                {
+                    "type": "message",
+                    "id": "a1",
+                    "timestamp": ISO,
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": "x"}],
+                        "usage": {"input": 1, "output": 1, "cost": "0.1"},
+                        "stopReason": "stop",
+                    },
+                },
+                {
+                    "type": "usage",
+                    "id": "u1",
+                    "timestamp": ISO,
+                    "usage": {"input": 1, "output": 1, "cost": None},
+                },
+            ],
+            path="sessions/p.jsonl",
+        )
+        # dsh tool/result error as a string, assistant source as null.
+        capture(
+            store,
+            tmp_path,
+            "dsh",
+            [
+                {"type": "session", "version": 4, "id": "d", "createdAt": T, "cwd": "/fixture"},
+                {"type": "turn/start", "seq": 0, "time": T, "data": {"turn": 1}},
+                {
+                    "type": "assistant/message",
+                    "seq": 1,
+                    "time": T + 1,
+                    "data": {
+                        "turn": 1,
+                        "step": 1,
+                        "message": {
+                            "role": "assistant",
+                            "source": None,
+                            "content": [
+                                {"type": "tool-call", "id": "t", "name": "bash", "arguments": "{}"}
+                            ],
+                        },
+                    },
+                },
+                {
+                    "type": "tool/call",
+                    "seq": 2,
+                    "time": T + 2,
+                    "data": {
+                        "turn": 1,
+                        "step": 1,
+                        "callId": "t",
+                        "name": "bash",
+                        "arguments": "{}",
+                    },
+                },
+                {
+                    "type": "tool/result",
+                    "seq": 3,
+                    "time": T + 3,
+                    "data": {
+                        "turn": 1,
+                        "step": 1,
+                        "error": "spawn failed",
+                        "message": {
+                            "role": "tool",
+                            "toolCallId": "t",
+                            "isError": True,
+                            "content": [{"type": "text", "text": "spawn failed"}],
+                        },
+                    },
+                },
+            ],
+            path="sessions/d/session.jsonl",
+        )
+        store.rebuild()
+        events = [{**e, "attrs": json.loads(e["attrs"])} for e in rows(store, "event")]
+        (image,) = [e for e in events if e["attrs"].get("content_type") == "image"]
+        assert image["attrs"]["mime_type"] is None
+        costs = [e["attrs"]["cost_usd"] for e in events if e["kind"] == "model.usage"]
+        assert costs == [None, None]
+        (result,) = [e for e in events if e["kind"] == "tool.result"]
+        assert result["attrs"]["error_class"] is None
+        assert result["attrs"]["status"] == "failed"
+        assert not [e for e in events if e["kind"] == "unknown"]
+        assert_sound(store)

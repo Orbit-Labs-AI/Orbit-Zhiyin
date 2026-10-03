@@ -367,7 +367,8 @@ class Store:
             migration = files("tandem_data").joinpath(f"migrations/{number:03d}.sql")
             if version < number and migration.is_file():
                 sql = migration.read_text()
-                if number in (11, 12, 13):
+                # 014 is also additive-only: a re-applied upgrade skips columns it finds.
+                if number in (11, 12, 13, 14):
                     sql = _fact_migration(self.db, sql)
                 self.db.executescript(
                     "BEGIN IMMEDIATE;\n"
