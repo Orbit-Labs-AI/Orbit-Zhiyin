@@ -17,9 +17,12 @@ import traceback
 from pathlib import Path
 
 from tandem_data.contract import now_ms
+from tandem_data.progress import describe
+from tandem_data.scheduler import CLOSURE_AGENTS
 from tandem_data.service import ImportRequest, ImportService
 from tandem_data.store import Store, readonly_connection
 
+from .import_progress import detail
 from .ingest_plan import Batch, plan_batches
 from .worker_protocol import WorkerIO, debug_delay
 
@@ -96,16 +99,33 @@ def inventory_request(source: dict, data_home: Path, user_home: Path | None = No
 
 
 def revision(home: Path) -> dict:
-    """Published revision read back after a batch: run id, inventory scan and counts."""
+    """Published revision read back after a batch: run id, inventory scan, counts and the
+    freshness of that publication (``freshness``, see ``freshness_of``)."""
     with readonly_connection(home / "tandem.db") as db:
+        db.execute("BEGIN")  # One snapshot for the run id, the counts and the freshness.
         data_rev = db.execute("SELECT MAX(run_id) FROM projection_run").fetchone()[0]
         inventory_rev = db.execute("SELECT COALESCE(MAX(scan_id),0) FROM inventory_scan"
                                    ).fetchone()[0]
         counts = {name: db.execute(f"SELECT count(*) FROM {name}").fetchone()[0]
                   for name in ("session", "event", "project")}
+        freshness = freshness_of(db, data_rev)
     return {"data_rev": data_rev, "inventory_rev": inventory_rev,
             "counts": {"sessions": counts["session"], "events": counts["event"],
-                       "projects": counts["project"]}}
+                       "projects": counts["project"]}, "freshness": freshness}
+
+
+def freshness_of(db, data_rev) -> dict:
+    """``projection``: absent (nothing published) | ready | pending (captured files not
+    published yet; the published snapshot stays readable) | invalid (needs a rebuild)."""
+    from tandem_data.query import projection_state
+
+    try:
+        state = projection_state(db)
+    except ValueError as error:
+        return {"projection": "absent" if data_rev is None else "invalid",
+                "pending_files": None, "retained_files": None, "reason": str(error)[:200]}
+    return {"projection": "pending" if state["pending"] else "ready",
+            "pending_files": state["pending_files"], "retained_files": state["retained_files"]}
 
 
 def _partial(results: list[dict]) -> bool:
@@ -123,10 +143,13 @@ class IngestWorker:
         self.resume.set()
         self.thread: threading.Thread | None = None
         self.phase: str | None = None
+        self.where: dict = {}
+        self.overall = 0.0
 
     def serve(self) -> None:
         self.io.start_heartbeat()
-        self.io.send("ready", role="ingest", pid=os.getpid())
+        removed = remove_stale_spills(self.home)
+        self.io.send("ready", role="ingest", pid=os.getpid(), removed_spills=len(removed))
         for message in self.io.ops():
             op = message.get("op")
             if op == "run":
@@ -163,17 +186,46 @@ class IngestWorker:
         if phase == "full":  # Age-bounded full import: one request over the kept files.
             files = tuple(path for batch in plan for path in batch.files)
             return [Batch("full", files)] if files else []
+        if source["agent"] not in CLOSURE_AGENTS:
+            # Without session closures every batch rebuilds the whole source, so 200-file
+            # rest chunks made the first import rebuild it once per chunk (v0.0.2: 974
+            # Codex files, 4 rebuilds). One rest batch keeps head/window first and the
+            # total work linear.
+            rest = tuple(path for batch in plan if batch.phase == "rest" for path in batch.files)
+            plan = [b for b in plan if b.phase != "rest"] + ([Batch("rest", rest)] if rest else [])
         return [b for b in plan if phase == "auto" or b.phase == phase]
+
+    def _progress(self, job: dict):
+        """The data layer's progress plus where the job is (source and batch), a label, the
+        unit of completed/total, one readable ``detail`` line and ``overall`` (0..1), an
+        estimate that never moves backwards within a job, so retries and the next source
+        no longer look like the import starting over."""
+
+        def report(update: dict) -> None:
+            info = describe(update)
+            frame = {**update, **self.where, "label": info["label"], "unit": info["unit"]}
+            steps = self.where.get("steps") or 1
+            if info["fraction"] is not None:
+                batches = self.where.get("batches") or 1
+                within = ((self.where.get("batch") or 1) - 1 + info["fraction"]) / batches
+                estimate = ((self.where.get("step") or 1) - 1 + within) / steps
+                self.overall = max(self.overall, min(1.0, estimate))
+            frame["overall"] = round(self.overall, 4)
+            frame["detail"] = detail(frame)
+            self.io.send("progress", job=job["id"], progress=frame, phase=self.phase)
+
+        return report
 
     def run(self, job: dict) -> None:
         self.io.current_job = job["id"]
         debug_delay()
         self.io.send("started", job=job["id"])
         results: list[dict] = []
+        self.where, self.overall = {"step": 1, "steps": 1}, 0.0
+        wal = None
         try:
             with Store(self.home) as store:
-                service = ImportService(store, progress=lambda p: self.io.send(
-                    "progress", job=job["id"], progress=p, phase=self.phase))
+                service = ImportService(store, progress=self._progress(job))
                 try:
                     kind = job["kind"]
                     if kind in ("verify", "rebuild", "backup"):
@@ -201,9 +253,11 @@ class IngestWorker:
                     # Stop the import process pool before reporting done, so the next
                     # job never sees this thread still alive ("worker busy").
                     service.close()
+                    wal = checkpoint(store)
             status = ("cancelled" if self.cancel.is_set() else
                       "partial" if _partial(results) else "completed")
-            self.io.send("done", job=job["id"], status=status, results=results, error=None)
+            self.io.send("done", job=job["id"], status=status, results=results, error=None,
+                         wal=wal)
         except Exception as error:  # Reported as a failed job; the worker stays alive.
             traceback.print_exc()
             self.io.send("done", job=job["id"], status="failed", results=results, error={
@@ -212,14 +266,19 @@ class IngestWorker:
             self.io.current_job = None
 
     def _import(self, job: dict, service: ImportService, results: list[dict]) -> None:
-        for source in job["sources"]:
-            for batch in self._batches(job, source):
+        sources = job["sources"]
+        for step, source in enumerate(sources, 1):
+            batches = self._batches(job, source)
+            for index, batch in enumerate(batches, 1):
                 if self.cancel.is_set():
                     return
                 while batch is not None and batch.phase == "rest" and not self.resume.wait(0.2):
                     if self.cancel.is_set():
                         return  # Paused rest yields to interactive work; cancel still wins.
                 self.phase = batch.phase if batch else "full"
+                self.where = {"step": step, "steps": len(sources), "source_id": source["id"],
+                              "source_agent": source["agent"], "batch": index,
+                              "batches": len(batches), "batch_phase": self.phase}
                 try:
                     result = service.import_source(ImportRequest(
                         source["agent"], Path(source["root"]),
@@ -253,6 +312,34 @@ class IngestWorker:
         if (self.home / "app-state.json").exists():
             shutil.copy2(self.home / "app-state.json", target / "app-state.json")
         return {"path": str(target), "status": "available"}
+
+
+def checkpoint(store: Store) -> dict | None:
+    """Fold the WAL back into tandem.db and truncate it at the end of a job.
+
+    One whole-source rebuild writes gigabytes of WAL; without this (and the store's
+    ``journal_size_limit``) the file never shrank (v0.0.2 RC-5: 5.8 GB). Readers holding
+    an older snapshot make it return busy after a short wait; the next job tries again.
+    """
+    try:
+        return store.checkpoint()
+    except sqlite3.Error as error:
+        return {"error": type(error).__name__}
+
+
+def remove_stale_spills(home: Path) -> list[str]:
+    """Mapping spill directories left by import processes that were killed (RC-6)."""
+    from tandem_data.parallel import remove_stale_spills as remove
+    from tandem_data.service import _lock
+
+    try:
+        fd = _lock(home)
+    except (RuntimeError, OSError):
+        return remove(home, legacy=False)  # Another writer is active: only dead owners.
+    try:
+        return remove(home, legacy=True)
+    finally:
+        os.close(fd)
 
 
 def main(home: Path) -> int:

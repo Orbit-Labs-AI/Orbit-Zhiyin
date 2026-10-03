@@ -1,5 +1,10 @@
-"""Streaming L0/L1 indexes. Native session bytes are never copied into Tandem."""
+"""Streaming L0/L1 indexes. Native session bytes are never copied into Tandem storage.
 
+The captured rows of a live SQLite index stay in memory only until the same import has
+projected them (``remember_capture``); nothing is written to disk.
+"""
+
+import contextlib
 import hashlib
 import json
 from pathlib import Path
@@ -111,11 +116,15 @@ def index_file(store, source_id, path, role, scan=None):
             (revision_uid, file_id, revision, captured, canonical(before)),
         )
         store.db.execute("INSERT INTO source_reference VALUES(?,'',0,?)", (revision_uid, encoding))
+        kept = None
         if scan is not None:
             count, length, sha = _index_scanned(store, file_id, revision_uid, scan, latest)
             after = scan["after"]
         else:
             with native_lines(path, encoding, source["agent"]) as lines:
+                if encoding == "sqlite_rows":
+                    kept = []
+                    lines = _keep(lines, kept)
                 count, length, sha = store._index_lines(
                     file_id, revision_uid, lines, encoding, role, reference=True
                 )
@@ -162,8 +171,40 @@ def index_file(store, source_id, path, role, scan=None):
         store.db.execute(
             "UPDATE source_file SET watermark=? WHERE file_id=?", (canonical(watermark), file_id)
         )
+    if kept is not None:
+        remember_capture(
+            store, file_id, latest["revision_uid"] if unchanged else revision_uid, kept
+        )
     store._resolve_capture_issues(source_id, file_id)
     return {"file_id": file_id, "changed": not unchanged, "records": count}
+
+
+# Rows of a live SQLite index as captured (per Store, bounded). The projection of the same
+# import reads these instead of re-reading a database the agent keeps writing: otherwise a
+# row updated in between (Codex ``state_5.sqlite``) fails the digest check, rolls the whole
+# rebuild back and retains the file. Every line still passes the same per-line and
+# aggregate digest checks against the captured revision.
+CAPTURE_CACHE_BYTES = 64 * 1024 * 1024
+
+
+def _keep(lines, sink):
+    for line in lines:
+        sink.append(line)
+        yield line
+
+
+def remember_capture(store, file_id, revision_uid, lines) -> None:
+    cache = store.__dict__.setdefault("_captured_lines", {})
+    cache.pop(file_id, None)
+    size = sum(len(line) for line in lines)
+    used = sum(entry[2] for entry in cache.values())
+    if size <= CAPTURE_CACHE_BYTES and used + size <= CAPTURE_CACHE_BYTES:
+        cache[file_id] = (revision_uid, lines, size)
+
+
+def captured_lines(store, file_id, revision_uid):
+    entry = store.__dict__.get("_captured_lines", {}).get(file_id)
+    return entry[1] if entry is not None and entry[0] == revision_uid else None
 
 
 def _captured(lines, length):
@@ -303,16 +344,22 @@ def indexed_rows(db, file_id):
     return info, rows
 
 
-def iter_lines_with_rows(path, info, rows):
+def iter_lines_with_rows(path, info, rows, captured=None):
     """Yield verified records of the captured revision of one indexed file.
 
     Agents keep appending to their logs while Tandem imports. Reading stops at the
     captured ``byte_len`` (the same length and digest the append scan extends), so an
     appended file still projects its captured records, while a truncated or rewritten
-    prefix fails the per-line and aggregate checks.
+    prefix fails the per-line and aggregate checks. ``captured`` replaces the live read
+    with the lines kept at capture (``remember_capture``); the checks are the same.
     """
     digest = hashlib.sha256()
-    with native_lines(path, info["format"], info["agent"]) as lines:
+    source = (
+        contextlib.nullcontext(iter(captured))
+        if captured is not None
+        else native_lines(path, info["format"], info["agent"])
+    )
+    with source as lines:
         for ordinal, line in enumerate(_captured(lines, info["byte_len"])):
             digest.update(line)
             row = rows.get(ordinal)
@@ -342,7 +389,9 @@ def iter_indexed_file(store, file_id):
     info, rows = indexed_rows(store.db, file_id)
     path = source_path(info["root_path"], info["relative_path"])
     try:
-        yield from iter_lines_with_rows(path, info, rows)
+        yield from iter_lines_with_rows(
+            path, info, rows, captured_lines(store, file_id, info["revision_uid"])
+        )
     except SourceUnavailable as error:
         error.file_id = file_id  # A rebuild can retain just this file's facts.
         raise

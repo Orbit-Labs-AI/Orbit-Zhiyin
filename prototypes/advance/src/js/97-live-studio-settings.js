@@ -417,17 +417,28 @@ if (TL.mode === 'live') {
     return (seg[0] || '/' + seg[1]) + '/…/' + (tail.length > 32 ? '…' + tail.slice(-31) : tail);
   }
   srcMissing = function () {
-    const ab = TL.resource(R.about).data; const disc = discList() || [];
-    const have = new Set(disc.map((x) => x.agent)); const maps = (ab && ab.components && ab.components.mappers) || [];
-    return maps.filter((k) => !have.has(k)).map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
+    const ab = TL.resource(R.about).data; const disc = discList();
+    if (!disc) return [];   // discovery not answered yet: nothing is known to be missing
+    // discovery and the about mappers spell agents differently (claude / claude_code, dsh / deepseek …): compare UI ids
+    const norm = (k) => lvAgentOf(k).id || k;
+    const have = new Set(disc.map((x) => norm(x.agent)).concat(AG.map((a) => a.id))); const maps = (ab && ab.components && ab.components.mappers) || [];
+    const seen = new Set();
+    return maps.filter((k) => { const id = norm(k); if (have.has(id) || seen.has(id)) return false; seen.add(id); return true; })
+      .map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
   };
-  srcIndexed = function () { const st = TL.resource(R.state).data; const n = st && st.storage && st.storage.counts ? st.storage.counts.sessions : ALL.length; return fmt(n || 0); };
+  // the sidebar counts root sessions (ALL); storage.counts.sessions also counts sub-agent sessions, so it is labelled as such
+  srcIndexed = function () {
+    const st = TL.resource(R.state).data; const all = st && st.storage && st.storage.counts ? +st.storage.counts.sessions || 0 : 0;
+    return '已索引 ' + fmt(ALL.length) + ' 个会话' + (all > ALL.length ? '（含子会话共 ' + fmt(all) + ' 个）' : '');
+  };
 
   // 隐私: rules from GET /v1/privacy/rules; the test box asks POST /v1/privacy/preview (nothing stored)
   ruleRows = function () {
     const d = TL.resource(R.rules).data; if (!d || !d.rules) return [];
-    return d.rules.map((r) => ({ k: r.id, label: esc(r.label) + (r.locked ? ' <span class="cap" style="font-size:11px">始终开启</span>' : ''), ph: r.placeholder || '', on: !!r.enabled, locked: !!r.locked }));
+    return d.rules.map((r) => ({ k: r.id, label: esc(r.label) + (r.locked ? ' <span class="cap" style="font-size:11px">始终开启</span>' : ''), ph: tlsPh(r), on: !!r.enabled, locked: !!r.locked }));
   };
+  // home_user replaces /Users/<name> with「~」: a lone ~ in the mono column reads as a dash, so it shows what it stands for
+  function tlsPh(r) { const ph = r.placeholder || ''; return /user/i.test(r.id || '') && ph.length <= 1 ? '[user] → ' + (ph || '~') : ph || (/user/i.test(r.id || '') ? '[user]' : ''); }
   redact = function (text) {
     const d = TL.resource(R.rules).data; if (!d) return { n: 0, html: esc(text) };
     const p = TLS.rd; if (!p || p.text !== text) { tlsPreviewRules(text); return { n: p ? p.n : 0, html: p ? p.html : esc(text) }; }
@@ -595,6 +606,7 @@ if (TL.mode === 'live') {
     base(el, ev);
   });
   wrap('setTestNotif', (base, el, ev) => {
+    TLS.testAt = Date.now();   // the frame of POST /v1/notifications/test (type system) goes to the system as well
     TL.send('POST', '/v1/notifications/test', {}).then(() => { if (!TL.events.connected) base(el, ev); else toast('已发送测试通知'); }, (e) => { if (TL.unavailable(e)) base(el, ev); else tlsErr(e, '发送测试通知'); });
   });
   wrap('setUpdate', () => { const ab = TL.resource(R.about).data; const u = ab && ab.update; toast(u && u.available ? '有新版本 ' + u.available : u && u.checked_at ? '已是最新版本' : '还没有检查过更新'); });
@@ -616,29 +628,55 @@ if (TL.mode === 'live') {
   });
 
   /* ---------- notify frames → banner / HUD / 菜单栏角标 ---------- */
-  // in the native shell a banner raised while the window is hidden also goes to the system (notify → UNUserNotification)
+  // In the native shell a banner raised while Orbit is not the focused app (window hidden, or visible on another screen
+  // behind another app) also goes to the system (notify → UNUserNotification). n.system (测试 / 预览通知) always goes, with
+  // force:true, so the first authorisation prompt can appear; a {delivered:false, reason} reply is shown instead of swallowed.
   const tlsNotifyBase = notify;
   notify = function (n) {
     tlsNotifyBase(n);
-    if (ORBIT.native.isNative && document.hidden && !(S.paused && !n.force)) ORBIT.native.post('notify', { id: n.id || undefined, title: n.t || '', body: n.b || '' });
+    if (!ORBIT.native.isNative || (S.paused && !n.force)) return;
+    let away = true; try { away = document.hidden || !document.hasFocus(); } catch (e) { /* keep away */ }
+    if (!n.system && !away) return;
+    const msg = { id: n.id || undefined, title: n.t || '', body: n.b || '' };
+    if (!n.system) { ORBIT.native.post('notify', msg); return; }
+    msg.force = true;
+    NATV.ask('notify', msg, 5000, 'tandem:notified').then((r) => {
+      if (r && r.delivered === false) {
+        if (/denied|not.?authori[sz]ed/i.test(r.reason || '')) S.notifAuth = 'denied';
+        toast('系统通知没有送达：' + (r.reason === 'denied' ? '通知权限已关闭，在「设置 › 通知」中打开' : r.reason || '原因未知'));
+        renderSet();
+      } else if (r && r.delivered) NATV.notifGet();
+    }, () => { /* an older host does not answer: the post itself went out */ });
   };
+  // 菜单栏角标 in the native shell: the kinds delivered on the badge channel, pruned once they are no longer open; posted as
+  // statusBadge {state: none | info | warn} on change (paused → none). The simulated menu bar (S.sim) is hidden in body.native.
+  TLS.badgeK = new Set(); TLS.badgeSent = null;
+  function tlsBadge() {
+    if (!NATV.has('statusBadge')) return;
+    const K = TLS.badgeK;
+    if (K.has('waiting') && !S.waitOpen) K.delete('waiting');
+    ['stuck', 'ctx'].forEach((k) => { if (K.has(k) && !S.attn.has(k)) K.delete(k); });
+    const st = S.paused || !K.size ? 'none' : K.has('waiting') || K.has('stuck') ? 'warn' : 'info';
+    if (st !== TLS.badgeSent) { TLS.badgeSent = st; ORBIT.native.post('statusBadge', { state: st }); }
+  }
   function tlsNotify(d) {
     const k = tlsKind(d.type); const ch = d.channels || [];
     const toHud = ch.indexOf('hud') >= 0 && !S.hud.mute, toBadge = ch.indexOf('badge') >= 0;
     const set = (v) => { if (toHud) S.hudSim = v; if (toBadge) S.sim = v; };
+    if (k && toBadge) TLS.badgeK.add(k);
     if (k && (toHud || toBadge)) {
-      if (k === 'done') { set('done'); clearTimeout(TLS.doneT); TLS.doneT = setTimeout(() => { simClear('done'); render(); }, 8000); }
+      if (k === 'done') { set('done'); clearTimeout(TLS.doneT); TLS.doneT = setTimeout(() => { simClear('done'); TLS.badgeK.delete('done'); render(); }, 8000); }
       else if (k === 'waiting') { S.waitOpen = true; set('waiting'); }
       else if (k === 'stuck' || k === 'ctx') { S.attn.add(k); set(k); }
     }
-    if (ch.indexOf('banner') >= 0) notify({ id: d.id, t: d.title || '通知', b: d.body || '', force: true, a1: '查看', on1: () => { S.pop = true; render(); }, a2: '稍后', on2: () => { if (d.id) TL.send('POST', '/v1/notifications/' + encodeURIComponent(d.id) + '/ack', { snooze_s: 3600 }).catch(() => {}); } });
+    if (ch.indexOf('banner') >= 0) notify({ id: d.id, t: d.title || '通知', b: d.body || '', force: true, system: d.type === 'system' && Date.now() - (TLS.testAt || 0) < 15000, a1: '查看', on1: () => { S.pop = true; render(); }, a2: '稍后', on2: () => { if (d.id) TL.send('POST', '/v1/notifications/' + encodeURIComponent(d.id) + '/ack', { snooze_s: 3600 }).catch(() => {}); } });
     render();
   }
   TL.on('event', (ev) => {
     const d = ev.data || {};
     if (ev.name === 'notification') tlsNotify(d);
     else if (ev.name === 'attention') TL.invalidate((r) => r.path === R.attn);
-    else if (ev.name === 'service' && d.name === 'collection') { TLS.colFrame = d.state === 'paused'; S.paused = TLS.colFrame; }
+    else if (ev.name === 'service' && d.name === 'collection') { TLS.colFrame = d.state === 'paused'; S.paused = TLS.colFrame; tlsBadge(); }
   });
 
   /* ---------- status strip on the studio (refreshStudio redraws #main without the 96 render wrapper) ---------- */
@@ -650,5 +688,5 @@ if (TL.mode === 'live') {
   }
   RENDER_HOOKS.push(() => tlsStrip());
   const tlsRenderBase = render;
-  render = function () { tlsSync(); tlsRenderBase(); tlsStrip(); };
+  render = function () { tlsSync(); tlsRenderBase(); tlsStrip(); tlsBadge(); };
 }

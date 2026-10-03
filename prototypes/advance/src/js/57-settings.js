@@ -12,6 +12,9 @@ const RULE_RE = {
 const ENGINE_TXT = { stats: '只做计数与时序统计。语义主题、情绪曲线、AI 解读与生成工坊都不可用。', agent: '语义分析交给你本机的 Agent（默认 Claude Code），用它自己的登录与额度；Orbit 只传结构化摘要。', ollama: '用本机模型（如 qwen3:8b）做语义分析，完全离线但较慢；生成工坊仍然需要本地 Agent。' };
 const NEV = [['waiting', '有会话等你确认'], ['done', '会话完成（超过 10 分钟的）'], ['stuck', '同一命令连续失败 / 长时间无进展'], ['ctx', '上下文即将压缩'], ['weekly', '每周报告已生成']];
 const NEV_COL = [['横幅', '右上角滑入，7 秒后自动收起'], ['悬浮组件', '胶囊切换为该事件的状态'], ['菜单栏角标', '图标角标变色 / 变形']];
+// 菜单栏角标 exists in the browser demo (simulated menu bar) and in a shell that implements statusBadge; elsewhere the column hides
+const badgeOn = () => !(window.ORBIT && window.ORBIT.native && window.ORBIT.native.isNative) || NATV.has('statusBadge');
+const nevCols = () => (badgeOn() ? [0, 1, 2] : [0, 1]);
 // what leaves the machine when the analysis engine is a local Agent or model (settings › 分析 › AI 通道)
 S.aiCh = S.aiCh || { sum: true, snip: true, raw: false };
 const AI_CH = [['sum', '结构化摘要', '计数、时序、工具名、结果；不含任何原文'], ['snip', '脱敏后的片段', '关键时刻前后各 2 条消息，先过脱敏规则'], ['raw', '完整原文', '仅本机模型（Ollama）可选；本地 Agent 通道始终关闭']];
@@ -22,16 +25,92 @@ function redact(text) {
   Object.keys(RULE_RE).forEach((k) => { if (!S.rules[k]) return; const rr = RULE_RE[k]; t = t.replace(rr[0], (...m) => { n++; const pre = rr[1].startsWith('$1') ? m[1] : ''; return pre + '\u0001' + rr[1].replace('$1', '') + '\u0002'; }); });
   return { n, html: esc(t).replace(/\u0001/g, '<mark class="rd">').replace(/\u0002/g, '</mark>') };
 }
+// Native capabilities of the shell (contract: native-shell batch). A control shows only when the host lists the feature in
+// __ORBIT_NATIVE__.features and a message handler exists; in a browser or an older shell the row is hidden, never broken.
+// NATV.ask(type, payload, ms, ev) posts {type, id, ...} (Orbit.swift answers with the same id) and resolves the reply event
+// 'tandem:<type>' (or ev, e.g. notify → 'tandem:notified'); no reply within ms rejects with code 'timeout'.
+const NATV = {
+  on() { const n = window.ORBIT && window.ORBIT.native; return !!(n && n.isNative && n.hasHost()); },
+  has(f) { const n = window.ORBIT && window.ORBIT.native; return NATV.on() && n.has(f); },
+  seq: 0,
+  ask(type, payload, ms, ev) {
+    const n = window.ORBIT && window.ORBIT.native;
+    if (!NATV.on()) return Promise.reject(Object.assign(new Error('no host'), { code: 'no_host' }));
+    const id = (payload && payload.id != null) ? payload.id : type + '-n' + (++NATV.seq) + '-' + Date.now().toString(36);
+    return new Promise((resolve, reject) => {
+      const evs = ['tandem:' + type, ev || 'tandem:reply'];
+      const done = (fn, v) => { evs.forEach((x) => window.removeEventListener(x, h)); clearTimeout(t); fn(v); };
+      const h = (e) => { const d = (e && e.detail) || {}; if (d.id === id) done(resolve, d); };
+      const t = setTimeout(() => done(reject, Object.assign(new Error('timeout'), { code: 'timeout' })), ms || 4000);
+      evs.forEach((x) => window.addEventListener(x, h));
+      if (!n.post(type, Object.assign({}, payload || {}, { id }))) done(reject, Object.assign(new Error('no host'), { code: 'no_host' }));
+    });
+  },
+  // 登录时启动: the switch mirrors SMAppService; S.login stays false until the host answered
+  loginGet() {
+    if (!NATV.has('loginItem')) return;
+    NATV.ask('loginItem', { op: 'get' }).then((r) => { S.login = !!r.enabled; S.loginStatus = r.status || null; renderSet(); }, () => { /* older host: keep off */ });
+  },
+  loginSet() {
+    if (!NATV.has('loginItem') || S.loginBusy) return;
+    const prev = !!S.login, to = !prev; S.login = to; S.loginBusy = true; renderSet();
+    const fail = (why) => { S.login = prev; toast('没能' + (to ? '开启' : '关闭') + '登录时启动' + (why ? '：' + why : '')); };
+    NATV.ask('loginItem', { op: 'set', enabled: to }).then((r) => {
+      S.loginStatus = r.status || null;
+      if (r.ok === false || (r.enabled != null && !!r.enabled !== to)) fail(r.reason || r.error || (r.status === 'requiresApproval' ? '需要在「系统设置 › 通用 › 登录项」中允许 Orbit' : ''));
+      else if (r.status === 'requiresApproval') toast('请在「系统设置 › 通用 › 登录项」中允许 Orbit');
+    }, (e) => fail(e.code === 'timeout' ? '系统没有响应' : e.message)).then(() => { S.loginBusy = false; renderSet(); });
+  },
+  // system notification permission (settings › 通知)
+  notifGet() {
+    if (!NATV.has('notificationStatus')) return;
+    NATV.ask('notificationStatus', {}).then((r) => { const v = r.status || r.value; if (v && v !== S.notifAuth) { S.notifAuth = v; renderSet(); } }, () => { /* unknown */ });
+  }
+};
+S.loginStatus = null; S.notifAuth = null;
 // settings › 数据源 / 隐私 rows; live mode (97-live-studio-settings.js) swaps these for the gateway's sources and rules
 let srcRows = () => AG.map((a) => ({ name: a.name, ver: a.ver, path: a.path, n: fmt(a.all), st: SRC_ST[a.id] || ['—', 'minus', 'var(--ink-3)', '—'], on: !S.srcOff.has(a.id), t: a.t, c: a.c, attrs: ' data-a="' + a.id + '"' }));
 let srcMissing = () => (S.extraSrc.some((x) => /cursor/i.test(x.name)) ? [] : [{ name: 'Cursor', v: 'Cursor', hint: '未检测到 · 可以手动指定数据库位置' }]);
-let srcIndexed = () => fmt(2416 + S.extraSrc.length * 37);
+let srcIndexed = () => '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话';
 let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE[k] ? RULE_RE[k][1].replace('$1', '') : '', on: S.rules[k], locked: false }));
 // A sheet left open by the previous tab (工具名映射表, 协作人格如何计算 …) or by the main window would cover the settings window and
 // swallow every pointer event, so opening settings or switching tabs closes it first (palette excluded: it has no host).
 function setDropSheet() { if (!$('#modal').hidden && MODAL_HOST) closeModal(); tipOff(); }
-function openSettings(tab) { if (tab) S.setTab = tab; S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
-function closeSettings() { if (MODAL_HOST === $('#set')) closeModal(); $('#set').hidden = true; S.keyWin = 'main'; keyWinApply(); }
+// The settings window is a dialog (role, name from its title) that takes the focus when it opens, keeps Tab inside itself
+// while it is the key window, and gives the focus back to whatever opened it (⌘, / palette / menu button) when it closes.
+let SET_OPENER = null, SET_OPENER_SEL = null;
+// a selector that finds the opener again after a render replaced it (the toolbar and sidebar are redrawn on every render)
+const setOpenerSel = (a) => { if (!a || !a.tagName) return null; if (a.id) return '#' + CSS.escape(a.id); const act = a.dataset && a.dataset.act; if (!act) return null; return a.tagName.toLowerCase() + '[data-act="' + act + '"]' + (a.dataset.v != null ? '[data-v="' + a.dataset.v + '"]' : '') + (a.classList[0] ? '.' + CSS.escape(a.classList[0]) : ''); };
+const setFocusables = () => $$('#set button:not([disabled]), #set input:not([disabled]), #set textarea:not([disabled]), #set select:not([disabled]), #set a[href], #set [tabindex]:not([tabindex="-1"])').filter((x) => x.offsetParent !== null || x === document.activeElement);
+function setFocusIn() { const el = $('#set'); if (el.hidden) return; const f = el.querySelector('[role="tab"][aria-selected="true"]') || setFocusables()[0]; if (f) f.focus({ preventScroll: true }); }
+function openSettings(tab) {
+  const el = $('#set'); const a = document.activeElement;
+  if (el.hidden) { SET_OPENER = a && a !== document.body && !el.contains(a) ? a : null; SET_OPENER_SEL = setOpenerSel(SET_OPENER); }
+  if (tab) S.setTab = tab; NATV.loginGet(); if (S.setTab === 'notify') NATV.notifGet();
+  S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-labelledby', 'setName setTitle'); el.removeAttribute('aria-label');
+  el.hidden = false; render(); setPlace(); keyWinApply();
+  if (!el.contains(document.activeElement)) setFocusIn();
+}
+function closeSettings() {
+  if (MODAL_HOST === $('#set')) closeModal();
+  const el = $('#set'); const had = el.contains(document.activeElement);
+  el.hidden = true; S.keyWin = 'main'; keyWinApply();
+  let o = SET_OPENER; const sel = SET_OPENER_SEL; SET_OPENER = null; SET_OPENER_SEL = null;
+  if (o && !o.isConnected && sel) o = $$(sel).find((x) => x.offsetParent !== null) || null;
+  if (o && o.isConnected && o.offsetParent !== null) { try { o.focus({ preventScroll: true }); return; } catch (e) { /* fall through */ } }
+  if (had || document.activeElement === document.body) { const h = $('#main .tbar h1'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
+}
+document.addEventListener('keydown', (e) => {
+  const el = $('#set'); if (!el || el.hidden || S.keyWin !== 'set' || !$('#modal').hidden || (typeof OVL !== 'undefined' && OVL)) return;
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); closeSettings(); return; }
+  if (e.key !== 'Tab') return;
+  const fs = setFocusables(); if (!fs.length) return;
+  const i = fs.indexOf(document.activeElement);
+  if (i < 0) { e.preventDefault(); (e.shiftKey ? fs[fs.length - 1] : fs[0]).focus(); }
+  else if (!e.shiftKey && i === fs.length - 1) { e.preventDefault(); fs[0].focus(); }
+  else if (e.shiftKey && i === 0) { e.preventDefault(); fs[fs.length - 1].focus(); }
+}, true);
 /* centred horizontally, 60px under the menu bar (or wherever it was dragged to), always fully inside the stage */
 function setPlace() {
   const el = $('#set'); if (el.hidden) return;
@@ -49,7 +128,7 @@ function renderSet() {
   const card = (title, sub, inner, right) => '<div class="card"><div class="row set-ch"><div style="flex:1;min-width:200px"><div class="ct">' + title + '</div>' + (sub ? '<div class="cap set-cs">' + sub + '</div>' : '') + '</div>' + (right || '') + '</div><div class="set-cb">' + inner + '</div></div>';
   let body = '';
   if (t === 'general') {
-    body = card('外观与组件', '', '<div class="form">' + row('外观', seg('setTheme', S.theme, [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']], '外观')) + row('悬浮组件', swBtn(S.hud.show, 'setHud', '', '悬浮组件'), kb('⌥⌘P') + ' 显示或隐藏 · 拖动吸附到 6 个位置，按住 ⌥ 自由放置') + row('桌面小组件', swBtn(S.widgets, 'setWidgets', '', '桌面小组件'), '<span data-tip="屏幕宽度不小于 1500 时主窗口默认让出左侧一列；更窄时小组件在主窗口之下，移动或缩小主窗口可以看到">显示在桌面层，主窗口之下 · 宽屏时主窗口让出左侧一列</span>') + row('小组件尺寸', seg('wgSize', S.wgSize || 'm', WG_SIZES, '小组件尺寸'), '小：人格、今日 · 中：+ 本周、建议 · 大：+ 运行中、7 天趋势') + row('小组件只显示数字', swBtn(S.numOnly, 'setNumOnly', '', '小组件只显示数字'), '隐藏项目名与会话标题，适合录屏与演示') + row('登录时启动', swBtn(S.login, 'setLogin', '', '登录时启动'), '只在菜单栏常驻，不打开主窗口') + '</div>') +
+    body = card('外观与组件', '', '<div class="form">' + row('外观', seg('setTheme', S.theme, [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']], '外观'), S.theme === 'system' ? '默认跟随 macOS 的浅色 / 深色' : '只影响 Orbit，不改变系统外观' + (NATV.has('appearance') ? '（Orbit 的面板、对话框与菜单栏弹窗一并切换）' : '')) + row('悬浮组件', swBtn(S.hud.show, 'setHud', '', '悬浮组件'), kb('⌥⌘P') + ' 显示或隐藏 · 拖动吸附到 6 个位置，按住 ⌥ 自由放置') + row('桌面小组件', swBtn(S.widgets, 'setWidgets', '', '桌面小组件'), '<span data-tip="屏幕宽度不小于 1500 时主窗口默认让出左侧一列；更窄时小组件在主窗口之下，移动或缩小主窗口可以看到">显示在桌面层，主窗口之下 · 宽屏时主窗口让出左侧一列</span>') + row('小组件尺寸', seg('wgSize', S.wgSize || 'm', WG_SIZES, '小组件尺寸'), '小：人格、今日 · 中：+ 本周、建议 · 大：+ 运行中、7 天趋势') + row('小组件只显示数字', swBtn(S.numOnly, 'setNumOnly', '', '小组件只显示数字'), '隐藏项目名与会话标题，适合录屏与演示') + (NATV.has('loginItem') ? row('登录时启动', swBtn(S.login, 'setLogin', S.loginBusy ? ' disabled' : '', '登录时启动'), S.loginStatus === 'requiresApproval' ? '等待你在「系统设置 › 通用 › 登录项」中允许' : '登录 Mac 时自动打开 Orbit') : '') + '</div>') +
       card('统计', '', '<div class="form">' + row('默认时间范围', seg('setRange', String(S.range), [['7', '7 天'], ['30', '30 天'], ['90', '90 天'], ['0', '全部']], '默认时间范围')) + row('键盘快捷键', '<button type="button" class="btn sm" data-act="openKeys">查看全部</button>') + '</div>');
   } else if (t === 'sources') {
     body = card('已检测到的 Agent', '自动扫描默认目录 · 只读会话日志，不读凭据文件', srcRows().map((r) => '<div class="srcrow" style="opacity:' + (r.on ? 1 : 0.55) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + r.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + r.c) + '</span><div style="min-width:0"><div class="row" style="gap:6px;flex-wrap:wrap"><b style="font-size:13px">' + r.name + '</b><span class="mono cap" style="font-size:11px">' + r.ver + '</span><span class="row" style="gap:3px;font-size:11px;color:' + r.st[2] + '">' + ic(r.st[1], 12) + r.st[0] + '</span></div><div class="mono cap" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + r.path + ' · ' + r.n + ' 个会话</div></div><span class="mono cap when" style="font-size:11px">' + r.st[3] + '</span>' + swBtn(r.on, 'setSrc', r.attrs, '启用 ' + r.name) + '</div>').join('') +
@@ -58,7 +137,7 @@ function renderSet() {
       (S.addSrc ? '<div class="col" style="gap:10px;margin-top:10px;padding:12px;border-radius:10px;background:var(--sunken)"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><label class="l" for="srcName">名称</label><input id="srcName" value="' + esc(S.addSrc === 'Cursor' ? 'Cursor' : '导出的聊天记录') + '" style="' + FIELD + '"><label class="l" for="srcPath">位置</label><input id="srcPath" value="' + esc(S.addSrc === 'Cursor' ? '~/Library/Application Support/Cursor/User/workspaceStorage' : '~/Documents/chat-export') + '" style="' + FIELD + ';font-family:var(--font-mono)"><span class="l">格式</span>' + seg('setParser', S.addSrcFmt, [['jsonl', 'JSONL'], ['sqlite', 'SQLite'], ['md', 'Markdown 导出']], '格式') + '</div><div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="setAddCancel">取消</button><button type="button" class="btn sm p" data-act="setAddDo">添加并索引</button></div></div>' : ''),
       '<button type="button" class="btn sm" data-act="setMap">工具名映射表</button>') +
       '<div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-act="setAddSrc">' + ic('plus', 14) + '添加自定义来源…</button><span class="cap" style="font-size:11px">支持 JSONL、SQLite、Markdown 导出</span></div>' +
-      card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), '暂停后菜单栏图标不显示状态角标，也不产生任何事件') + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', '已索引 ' + srcIndexed() + ' 个会话') + '</div>');
+      card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), (badgeOn() ? '暂停后菜单栏图标不显示状态角标，也不产生任何事件' : '暂停后不产生任何事件')) + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', srcIndexed()) + '</div>');
   } else if (t === 'privacy') {
     const rd = redact(S.ruleSample);
     body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Orbit 的数据库', ruleRows().map((r) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + r.label + '</span><span class="mono cap" style="font-size:11px">' + esc(r.ph) + '</span>' + swBtn(r.on, 'setRule', ' data-k="' + esc(r.k) + '"' + (r.locked ? ' disabled' : ''), String(r.label).replace(/<[^>]*>/g, '').trim()) + '</div>').join('') +
@@ -76,13 +155,22 @@ function renderSet() {
   } else if (t === 'notify') {
     // each column is its own channel: a row with only 悬浮组件 ticked changes the HUD and nothing else (BUG-40)
     const nOn = (c) => NEV.filter((e) => S.notif[e[0]][c]).length;
-    body = card('投递矩阵', '默认克制：只在需要你动作或有明确结果时打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + NEV_COL.map((c, i) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + [0, 1, 2].map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + NEV_COL.map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:6px">每列独立生效 · 用菜单栏「演示」菜单模拟事件即可预览</div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
-      card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div><span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span><div class="row" style="gap:10px;padding-top:6px;border-top:1px solid var(--hair)">' + swBtn(!S.hud.tipOff, 'setTipOn', '', '悬浮组件里的上下文提示') + '<span style="flex:1;min-width:0;font-size:13px">悬浮组件里的上下文提示<span class="cap" style="display:block;font-size:11px">上下文超过 60% 时建议「先总结进度」' + (S.hud.tipOff ? '；已被「不再提示此类」关闭' : '') + '</span></span></div><div><button type="button" class="btn sm" data-act="setTestNotif">发送测试通知</button></div></div>');
+    const AUTH = { authorized: ['已允许', 'var(--good)'], provisional: ['静默投递（临时授权）', 'var(--ink-2)'], denied: ['已关闭', 'var(--warn)'], notDetermined: ['还没有询问过', 'var(--ink-2)'] };
+    const au = AUTH[S.notifAuth] || ['读取中…', 'var(--ink-3)'];
+    const sys = NATV.has('notificationStatus') ? card('系统通知', 'Orbit 不在前台时，横幅改由 macOS 通知中心投递', '<div class="row" data-tl="notif-auth" data-v="' + esc(S.notifAuth || '') + '" style="gap:10px;flex-wrap:wrap"><span style="font-size:13px;color:' + au[1] + '">' + au[0] + '</span>' + (S.notifAuth === 'denied' ? '<button type="button" class="btn sm" data-act="setNotifSys">打开系统设置</button><span class="cap" style="font-size:11px">在「通知 › Orbit」里允许通知</span>' : S.notifAuth === 'notDetermined' ? '<span class="cap" style="font-size:11px">点「预览通知」时系统会询问一次</span>' : '') + '</div>') : '';
+    body = sys + card('投递矩阵', '默认克制：只在需要你动作或有明确结果时打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + nevCols().map((i) => [NEV_COL[i], i]).map(([c, i]) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + nevCols().map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + nevCols().map((i) => NEV_COL[i]).map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap"><span class="cap" style="font-size:11px;flex:1;min-width:160px">每列独立生效 · 点「预览通知」发一条测试通知' + (NATV.has('notify') ? '，Orbit 不在前台时也会出现在通知中心' : '') + '</span><button type="button" class="btn sm" data-act="setTestNotif">' + ic('bell', 13) + '预览通知</button></div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
+      card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div>' + (badgeOn() ? '<span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span>' : '') + '<div class="row" style="gap:10px;padding-top:6px;border-top:1px solid var(--hair)">' + swBtn(!S.hud.tipOff, 'setTipOn', '', '悬浮组件里的上下文提示') + '<span style="flex:1;min-width:0;font-size:13px">悬浮组件里的上下文提示<span class="cap" style="display:block;font-size:11px">上下文超过 60% 时建议「先总结进度」' + (S.hud.tipOff ? '；已被「不再提示此类」关闭' : '') + '</span></span></div></div>');
   } else {
     body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px">' + appIcon(64) + '</span><div style="font-size:22px;font-weight:700">Orbit</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">' + (LV.live ? '关于 Orbit' : '关于这个 Demo') + '</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
   }
-  el.innerHTML = '<div class="ptop"><div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div><span class="ptitle">' + curTab[1] + '</span></div>' +
+    // the App draws real traffic lights on its own windows: inside it the page-drawn ones (yellow / green greyed out) would be a
+  // fake window, so the settings card keeps a plain close button instead (Esc and ⌘W close it as well)
+  const fakeLights = !(window.ORBIT && window.ORBIT.native && window.ORBIT.native.isNative);
+  const keepF = el.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement : null;
+  const keepK = keepF && keepF.dataset.act ? '[data-act="' + keepF.dataset.act + '"]' + (keepF.dataset.v != null ? '[data-v="' + keepF.dataset.v + '"]' : '') + (keepF.dataset.k != null ? '[data-k="' + keepF.dataset.k + '"]' : '') : null;
+  el.innerHTML = '<div class="ptop">' + (fakeLights ? '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div>' : '<button type="button" class="ib set-x" data-act="setClose" aria-label="关闭设置" data-tip="关闭（Esc）">' + ic('x', 13) + '</button>') + '<span class="vh" id="setName">设置</span><h2 class="ptitle" id="setTitle">' + curTab[1] + '</h2></div>' +
     '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>';
+  if (keepK) { const f = el.querySelector(keepK); if (f) f.focus({ preventScroll: true }); }
 }
 function doReset() {
   store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null); store.set('range', null); store.set('wgSize', null);
@@ -94,13 +182,13 @@ function resetDemo() {
 }
 Object.assign(ACT, {
   openSettings: (el) => openSettings(el && el.dataset ? el.dataset.tab : undefined),
-  setTab: (el) => { S.setTab = el.dataset.v; setDropSheet(); renderSet(); },
+  setTab: (el) => { S.setTab = el.dataset.v; setDropSheet(); renderSet(); if (S.setTab === 'notify') NATV.notifGet(); },
   setClose: () => closeSettings(),
   setTheme: (el) => { setTheme(el.dataset.v); render(); },
   setHud: () => toggleHud(),
   setWidgets: () => { S.widgets = !S.widgets; render(); },
   setNumOnly: () => { S.numOnly = !S.numOnly; render(); },
-  setLogin: () => { S.login = !S.login; renderSet(); },
+  setLogin: () => NATV.loginSet(),
   setRange: (el) => { S.range = +el.dataset.v; store.set('range', S.range); render(); },
   setSrc: (el) => { const id = el.dataset.a; if (S.srcOff.has(id)) S.srcOff.delete(id); else S.srcOff.add(id); render(); toast(S.srcOff.has(id) ? agent(id).name + ' 已停用：数据在所有页面隐藏，但不删除' : agent(id).name + ' 已重新启用'); },
   setAddSrc: (el) => { S.addSrc = el.dataset.v || '自定义'; S.addSrcFmt = S.addSrc === 'Cursor' ? 'sqlite' : 'jsonl'; renderSet(); const n = $('#srcPath'); if (n) n.focus(); },
@@ -134,7 +222,8 @@ Object.assign(ACT, {
   setTipOn: () => { S.hud.tipOff = !S.hud.tipOff; render(); toast(S.hud.tipOff ? '已关闭悬浮组件里的上下文提示' : '已恢复悬浮组件里的上下文提示'); },
   setAiCh: (el) => { const k = el.dataset.k; S.aiCh[k] = !S.aiCh[k]; renderSet(); },
   setMute: () => setHudMuted(!S.hud.mute),
-  setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true }),
+  setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true, system: true }),
+  setNotifSys: () => { if (window.ORBIT && ORBIT.native) ORBIT.native.post('openNotificationSettings', {}); },
   setUpdate: () => toast('已是最新版本（演示）'),
   obReplay: () => openOnboarding(0),
   doReset: () => doReset()

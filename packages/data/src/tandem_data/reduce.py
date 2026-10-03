@@ -414,6 +414,10 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
     metas = {}
     recorded_roots = {}
     spawn_ids = {}  # child session -> native id of the parent's spawning tool call
+    # child session -> record whose metadata named its parent: an unresolved lineage is
+    # reported against that record, so a session closure rebuilding it recomputes the
+    # issue (a source-wide issue would force every later increment to rebuild the source).
+    parent_records = {}
     progress({"stage": "derive_metadata", "completed": 0, "total": len(identities)})
     for index, (session_uid, identity) in enumerate(identities.items()):
         values = {
@@ -429,7 +433,7 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
         # substring test is a superset of both (checked again below), so the other
         # events are neither fetched nor decoded twice (derive_sessions reads them).
         for row in store.db.execute(
-            "SELECT kind,attrs,text FROM event WHERE session_uid=? AND (kind IN "
+            "SELECT kind,attrs,text,record_uid FROM event WHERE session_uid=? AND (kind IN "
             "('session.meta','setting.change','session.title') OR instr(attrs,'\"git_root\"')>0) "
             "ORDER BY seq",
             (session_uid,),
@@ -438,6 +442,8 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
             if isinstance(attrs.get("git_root"), str):
                 recorded_roots[session_uid] = attrs["git_root"]
             if row["kind"] in ("session.meta", "setting.change"):
+                if attrs.get("parent_uid") is not None:
+                    parent_records[session_uid] = row["record_uid"]
                 for name in (
                     "kind",
                     "parent_uid",
@@ -519,6 +525,7 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
                     values["source_id"],
                     "unresolved_session_lineage",
                     stage="l3",
+                    record_uid=parent_records.get(session_uid),
                     detail={"session_uid": session_uid},
                 )
                 break

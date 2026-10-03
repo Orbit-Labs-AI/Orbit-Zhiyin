@@ -69,3 +69,10 @@
 .log{flex:1;min-height:160px;border-radius:9px;background:var(--sunken);border:1px solid var(--line);padding:10px 12px;font:11px/17px var(--font-mono);overflow:auto;max-height:340px}
 .log div{white-space:pre-wrap;word-break:break-all}
 
+/* range widening (empty range, wider history has sessions) */
+.range-note{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;color:var(--ink-2);font-size:13px}
+.range-widen{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.range-note .range-widen{margin-top:0}
+/* sidebar agent with no sessions in the selected range */
+.nav .ag.idle{color:var(--ink-3)}
+.nav .ag.idle .dot{opacity:.55}
