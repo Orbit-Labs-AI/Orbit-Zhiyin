@@ -77,6 +77,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [后端全面审计（2026-10-03）](audits/2026-10-03-backend-gap-audit.md) | 12 个区两轮审计的修复清单、遗留项与需要 UI 侧配合的事项 |
 | [后端缺口](audits/backend-gap.md) | 数据、分析、推荐与横切程序对照两版 UI 的差距与补齐顺序 |
 | [数据模块审计](audits/data-audit.md) | DT 完成度、导入性能与优化任务包 |
 | [分析模块审计](audits/analysis-audit.md) | AN 功能覆盖、持久化与性能 |
