@@ -142,13 +142,20 @@ scene('40-recs', () => {
   // three soft waves down the column (r ×1.08 with a faint glow, b41.6 / 42.7 / 43.8, .12 beat per row)
   // v17.7: each wave is a small pill breath of the bullet (w 2 → 2.3 → 2 along x, logo whole) instead of the r pulse
   [41.6, 42.7, 43.8].forEach((w) => ROWDOT.forEach((i, r) => { const b = w + .12 * r; AGD.morph(b, i, 'bullet', { w: 2.3, dur: .35, hold: .05, back: .4, to: 'bullet' }); AGD.glow(i, b + .15, b + .45, .35); }));
-  const near = (i, b, d) => {
-    let v = 0;
+  // a dot linked by two consecutive entries stays forward across the hand-over (its windows touch: b1 → b1 + .05), instead
+  // of stepping back to 330 / a .6 and forward again within ≈.5 beat (a visible dip at b69.9 / 72.9 / 75.9 / 78.9)
+  const WIN = [0, 1, 2, 3, 4].map((i) => {
+    const w = [];
     IDS.forEach((_, n) => {
       if (!LINKS[n].solid.includes(i) && !LINKS[n].dash.includes(i)) return;
-      const [b0, b1] = LIVE[n];
-      v = Math.max(v, Math.min(E.inOut(lp(b, b0, d)), 1 - E.inOut(lp(b, b1 - d, d))));
+      const [b0, b1] = LIVE[n], l = w[w.length - 1];
+      if (l && b0 - l[1] < .5) l[1] = b1; else w.push([b0, b1]);
     });
+    return w;
+  });
+  const near = (i, b, d) => {
+    let v = 0;
+    for (const [b0, b1] of WIN[i]) v = Math.max(v, Math.min(E.inOut(lp(b, b0, d)), 1 - E.inOut(lp(b, b1 - d, d))));
     return v;
   };
   AGD.follow(40.9, 63.0, (i, b, q) => {
