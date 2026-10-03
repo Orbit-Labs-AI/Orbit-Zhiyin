@@ -44,7 +44,10 @@ function stats(L) {
   const errors = sum(L, (s) => s.errors), corr = sum(L, (s) => s.corr);
   // live rows carry observed steps (uiview/derive.py); the demo rows keep the tools × 1.54 stand-in
   const stepped = L.some((s) => s.steps != null), steps = stepped ? sum(L, (s) => s.steps || 0) : 0;
-  return { n, hours: mins / 60, msgs, tools, errors, corr, tok: sum(L, (s) => s.tok), auto: msgs ? (stepped ? steps / msgs : tools * 1.54 / msgs) : 0, fric: msgs ? corr / msgs * 100 : 0, per: n ? msgs / n : 0, verify: n ? L.filter((s) => s.verify).length / n * 100 : 0, ok: n ? L.filter((s) => s.out === 'ok').length / n * 100 : 0, err: tools ? errors / tools * 100 : 0 };
+  // live rows may carry no outcome / verify signal (null): rates use only the sessions that have one; okKnown / verKnown = 0
+  // means unknown, shown as「—」(pctKnown) instead of a made-up 0 %
+  const okKnown = L.filter((s) => s.out === 'ok' || s.out === 'part' || s.out === 'fail').length, verKnown = L.filter((s) => s.verify != null).length;
+  return { n, hours: mins / 60, msgs, tools, errors, corr, tok: sum(L, (s) => s.tok), auto: msgs ? (stepped ? steps / msgs : tools * 1.54 / msgs) : 0, fric: msgs ? corr / msgs * 100 : 0, per: n ? msgs / n : 0, verify: verKnown ? L.filter((s) => s.verify).length / verKnown * 100 : 0, verKnown, ok: okKnown ? L.filter((s) => s.out === 'ok').length / okKnown * 100 : 0, okKnown, err: tools ? errors / tools * 100 : 0 };
 }
 // ===== 协作人格 · 多信号口径（与 uiview/persona_signals.py 同一份锚点、权重与统计量；示例与 live 共用）=====
 // 每个维度综合多个信号：信号先经有界分段线性锚点映射到 0–100（高 = D / I / M / V 一极），再按权重加权平均；
@@ -213,7 +216,19 @@ function axisView(p, i) {
   const leftWins = leftIsValue ? val >= 50 : val < 50;   // 恰好 50 归高值一极，与 persona() 的字母一致
   return { ax, val, pos, strong, leftWins, letter: leftWins ? ax.L : ax.R, name: leftWins ? ax.Ln : ax.Rn };
 }
-function fitOf(L) { if (L.length < 5) return null; const st = stats(L); return Math.round(clamp(130 - st.fric * 4 - (100 - st.ok) * 1.0, 20, 98)); }
+// 契合度只在两项信号都在时计分：没有完成信号（okKnown = 0）或没有用户消息（摩擦率无从算起）就是 null，界面显示「—」
+// 并说明原因（fitWhy），不能把「没有数据」算成满分
+function fitOf(L) { if (L.length < 5) return null; const st = stats(L); if (!st.okKnown || !st.msgs) return null; return Math.round(clamp(130 - st.fric * 4 - (100 - st.ok) * 1.0, 20, 98)); }
+function fitWhy(st, n) { return n < 5 ? '样本少（' + n + ' 个会话），不计分' : !st.okKnown ? '没有完成信号，不计分' : !st.msgs ? '没有你发出的消息，摩擦率无从计算，不计分' : ''; }
+// a completion / verification rate whose basis may be empty: n = stats().okKnown / verKnown
+const pctKnown = (v, n) => (n ? Math.round(v) + '%' : '—');
+// 摩擦率 / 自主比的分母是你发出的消息：msgs = 0 时是未知「—」，不是 0（live 行可能没有用户消息）
+const fricTxt = (st) => (st.msgs ? f1(st.fric) + '%' : '—');
+const autoTxt = (st) => (st.msgs ? f1(st.auto) : '—');
+// 「AI」only for text a model wrote: live insights carry basis (l0_template = rule template); the same test as 92-live-sessions
+const insIsAI = (ins) => !LV.live || !!(ins && /\b(ai|llm|model)\b/i.test(String(ins.basis || '').replace(/_/g, ' ')));
+// the head badge of an insight block: purple AI, or a neutral「规则」tag for template text
+const insBadge = (ai, label) => ai ? '<span class="aib">' + ic('spark', 11) + label + '</span>' : '<span class="row" style="gap:6px;flex:none;white-space:nowrap"><span class="eb">' + label.replace(/^AI ?/, '') + '</span><span class="tag" data-tip="由规则模板生成，不是 AI">规则</span></span>';
 function buckets(range) {
   const w = win(range); const n = w[1] - w[0] + 1;
   if (n <= 31) return Array.from({ length: n }, (_, i) => ({ a: w[0] + i, b: w[0] + i, lbl: md(w[0] + i) }));

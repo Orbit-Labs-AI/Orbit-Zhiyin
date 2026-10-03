@@ -6,7 +6,7 @@
 // gw.set(key, value) swaps an answer mid-test, gw.push(frames) queues SSE frames for the next /v1/events connection,
 // gw.seen lists every request ({method, path, query, auth}).
 // LIVE_GATEWAY=http://127.0.0.1:<port> ORBIT_TOKEN=<token> switches /v1/* to a pass-through proxy (no CORS: the page still
-// runs on http://orbit.test); /v1/events then answers an empty stream so the test never hangs on a live SSE connection.
+// runs on http://orbit.test); /v1/events and other …/stream SSE paths then answer an empty stream so the test never hangs on a live SSE connection.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,6 +53,8 @@ export async function stubGateway(page, dirs, extra, opts) {
     const req = route.request(); const u = new URL(req.url());
     state.seen.push({ method: req.method(), path: u.pathname, query: u.search, auth: req.headers().authorization || null });
     if (u.pathname === '/app' || u.pathname === '/app/') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(ADV_FILE, 'utf8') });
+    // pass-through: long-lived SSE streams (/v1/events, …/stream) answer an empty stream so route.fetch never waits on them
+    if (PASS && /\/stream$/.test(u.pathname)) return route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' });
     if (u.pathname === '/v1/events') return route.fulfill({ status: 200, contentType: 'text/event-stream', body: PASS ? '' : sseText(state.queue.shift() || []) });
     if (PASS && u.pathname.startsWith('/v1/')) {
       const res = await route.fetch({ url: PASS + u.pathname + u.search, headers: Object.assign({}, req.headers(), { authorization: 'Bearer ' + token }) });

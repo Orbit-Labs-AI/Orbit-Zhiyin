@@ -156,7 +156,7 @@ function sessDigest(s, tr) {
 }
 const BLK_IC = { err: ['alert', 'var(--crit)'], corr: ['undo', 'var(--vz-corr)'], wait: ['clock', 'var(--warn)'], comp: ['collapse', 'var(--ink-2)'], deny: ['xc', 'var(--crit)'] };
 function sessDigestCard(s, tr) {
-  const o = OUT[s.out] || OUT.ok; const dg = sessDigest(s, tr);
+  const o = outOf(s); const dg = sessDigest(s, tr);
   if (tr.state === 'pending') return '<div class="card pad sd-card" data-lv="pending" aria-busy="true"><div class="hd"><div class="grow"><span class="ct">这次会话发生了什么</span></div></div><div class="cap">正在载入事件…</div></div>';
   if (tr.state === 'error') return '';
   const T = tr.T || 1;
@@ -381,7 +381,7 @@ function sessRows(list) {
   const rows = list.slice(0, S.sess.limit).map((x) => {
     let h = '';
     if (x.d !== lastDay) { lastDay = x.d; h += '<div class="dayh">' + A3H.dayLabel(x.d) + '</div>'; }
-    const o = OUT[x.out] || OUT.ok;
+    const o = outOf(x);
     const isSel = x.id === S.sess.sel, isCmp = x.id === S.sess.cmp;
     return h + '<button type="button" class="srow' + (isSel || isCmp ? ' sel' : '') + '" data-act="pickSession" data-id="' + x.id + '" aria-pressed="' + (isSel || isCmp) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + (S.sess.mode === 'cmp' && (isSel || isCmp) ? '<span class="bdg">' + (isSel ? 'A' : 'B') + '</span>' : '') + (S.excluded.has(x.id) ? '<span class="tag" style="height:16px;font-size:10px">不计入</span>' : '') + ic(o[0], 14, 'color:' + o[1]) + '</span><span class="m">' + PJI[x.p].name + ' · ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + ' · ' + x.tools + ' 工具' + (x.corr ? ' · ' + x.corr + ' 纠偏' : '') + '</span><span style="padding-left:16px;width:100%">' + barcode(x, 280) + '</span></button>';
   }).join('');
@@ -437,7 +437,7 @@ PAGES.sessions = () => {
   const listCard = '<div class="card" style="overflow:hidden"><div class="sl-top"><label class="row sl-q">' + ic('search', 14) + '<span class="vh">搜索会话</span><input id="sessQ" type="search" data-in="sessQ" placeholder="搜索标题、项目、Agent…" value="' + esc(S.sess.q) + '" ></label><div class="row cap sl-hd"><span id="sessCount" title="' + esc(sessCount(list)) + '">' + sessCountShort(list) + '</span>' + (S.sess.mode === 'cmp' ? '<span title="依次点选 A、B">下一次点选作为 <b>' + (S.sess.turn === 'B' ? 'B' : 'A') + '</b></span>' : '<span>最新在前</span>') + '</div></div><div class="slist" id="slist">' + sessRows(list) + '</div></div>';
   const meta = sessCount(list);
   if (!s) return tbar('会话轨迹', '', right) + '<div class="content" id="content">' + filterRow() + empty('没有会话') + '</div>';
-  const tr = traj(s); const o = OUT[s.out] || OUT.ok; const ag = agent(s.a);
+  const tr = traj(s); const o = outOf(s); const ag = agent(s.a);
   const errN = tr.ev.filter((e) => e.err).length; const corrN = tr.users.filter((u) => u[2]).length;
   const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span class="st-k">' + label + '</span><span class="st-v"' + (col ? ' style="color:' + col + '"' : '') + '>' + v + '</span></button>';
   let detail;
