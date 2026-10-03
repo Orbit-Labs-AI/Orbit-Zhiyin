@@ -11,7 +11,7 @@ import zstandard
 from tandem_data import SCHEMA_VERSION
 from tandem_data.contract import canonical
 from tandem_data.service import ImportRequest, ImportService, event_page
-from tandem_data.store import Store
+from tandem_data.store import Store, readonly_connection
 
 T = 1790900000000
 ISO = "2026-10-02T00:00:00Z"
@@ -1023,8 +1023,17 @@ def test_analysis_reader_rejects_obsolete_projection_without_new_input(tmp_path,
         store.db.execute(
             "UPDATE source_file SET watermark=json_remove(watermark,'$.projected_revision')"
         )
-        with pytest.raises(ValueError, match="incomplete"):
-            read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
+        # An unpublished capture leaves the published run readable (pending, not obsolete).
+        bundle = read_analysis(store.home, AnalysisScope("Asia/Shanghai"))
+        latest = store.db.execute("SELECT MAX(run_id) FROM projection_run").fetchone()[0]
+        assert bundle["projection_run_id"] == latest
+        from tandem_data.query import current_projection
+
+        with (
+            readonly_connection(store.home / "tandem.db") as db,
+            pytest.raises(ValueError, match="pending"),
+        ):
+            current_projection(db)
 
 
 def test_untimed_tool_result_does_not_enter_historical_analysis(tmp_path):

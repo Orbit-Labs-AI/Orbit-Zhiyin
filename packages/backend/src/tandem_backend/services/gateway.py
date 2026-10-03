@@ -44,18 +44,27 @@ from .supervisor import Supervisor, SupervisorConfig
 log = logging.getLogger(__name__)
 PARENT_ENV = "TANDEM_PARENT_PID"
 HOURLY_SYNC_S = 3600.0  # sync_mode "hour"
+STUCK_AFTER_S = 60.0  # pending with no import running this long: offer the retry
+FINISHED = frozenset({"completed", "partial", "cancelled", "failed", "interrupted"})
 STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
                 405: "method_not_allowed", 409: "conflict", 422: "invalid_request",
                 503: "service_unavailable"}
 
 
 class Revisions:
-    """Published data_rev / inventory_rev kept in memory; updated by worker events only."""
+    """Published data_rev / inventory_rev and the freshness of that publication, in memory.
+
+    Updated from worker events (``published`` carries the freshness read right after the
+    publication) and re-read from the database after every import ends and at start, so
+    ``projection`` never claims ``ready`` while captured files wait (v0.0.2 RC-4).
+    ``pending_since`` is when the published snapshot first fell behind.
+    """
 
     def __init__(self):
         self.lock = threading.Lock()
         self.value = {"data_rev": None, "inventory_rev": 0, "projection": "absent",
-                      "counts": None, "published_at": None}
+                      "counts": None, "published_at": None, "pending_files": None,
+                      "retained_files": None, "pending_since": None}
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -64,31 +73,41 @@ class Revisions:
     def update(self, **values) -> tuple[dict, dict]:
         with self.lock:
             before = dict(self.value)
+            freshness = values.pop("freshness", None)
             self.value.update(values)
+            if freshness:
+                self._fresh(freshness)
             return before, dict(self.value)
 
-    def load(self, home: Path) -> None:
-        """One read at startup (off the request path); absent database stays absent."""
-        path = home / "tandem.db"
-        if not path.is_file():
-            return
-        from tandem_data.query import current_projection
-        from tandem_data.store import readonly_connection
+    def _fresh(self, freshness: dict) -> None:
+        state = freshness.get("projection") or "ready"
+        if self.value["data_rev"] is None and state != "invalid":
+            state = "absent"
+        behind = state in ("pending", "invalid")
+        self.value.update(
+            projection=state, pending_files=freshness.get("pending_files"),
+            retained_files=freshness.get("retained_files"),
+            pending_since=(self.value.get("pending_since") or int(time.time() * 1000))
+            if behind else None)
 
+    def load(self, home: Path) -> None:
+        """Read the published revision and its freshness (startup, after an import ends)."""
+        if not (home / "tandem.db").is_file():
+            return
         from .worker_ingest import revision
 
         try:
             info = revision(home)
-            with readonly_connection(path) as db:
-                db.execute("BEGIN")
-                try:
-                    current_projection(db)
-                    projection = "ready"
-                except ValueError:
-                    projection = "pending"
         except (sqlite3.Error, OSError):
             return
-        self.update(projection=projection if info["data_rev"] is not None else "absent", **info)
+        with self.lock:
+            current = self.value["data_rev"]
+            if current is not None and (info["data_rev"] is None or info["data_rev"] < current):
+                return  # Read before a newer publication landed: never move backwards.
+            freshness = info.pop("freshness", None)
+            self.value.update(info)
+            if freshness:
+                self._fresh(freshness)
 
 
 class LegacyApp:
@@ -177,6 +196,36 @@ def next_sync_interval(mode: str | None, interval: float, changed: bool,
     return low if changed else min(high, interval * 2)
 
 
+SYNC_FAILED = frozenset({"failed", "interrupted", "cancelled"})
+
+
+def sync_wait(mode: str | None, last: dict | None, now_ms: int, idle: float,
+              bounds: tuple[float, float], hourly: float = 3600.0) -> float:
+    """Seconds until the next sync import may start, measured from the end of the last one.
+
+    ``live`` used to start the next full import 2 s after any import that saw a change; an
+    agent in use changes something every round, so imports ran back to back (v0.0.2
+    RC-1). Now the pause after a sync import is at least as long as that import took, so
+    continuous sync spends at most half the time importing; ``idle`` (2 s → 30 s while
+    rounds find nothing) applies when nothing changed, and a failed, interrupted or
+    cancelled sync import waits the long bound before the next attempt.
+    """
+    low, high = bounds
+    if last is None or last.get("finished_at") is None:
+        return 0.0
+    elapsed = (now_ms - last["finished_at"]) / 1000
+    if mode == "hour":
+        return max(0.0, hourly - elapsed)
+    if last.get("status") in SYNC_FAILED:
+        wanted = high
+    else:
+        changed = any(r.get("changed") for r in last.get("results") or [])
+        wanted = low if changed else idle
+    started = last.get("started_at") or last["finished_at"]
+    took = max(0.0, (last["finished_at"] - started) / 1000)
+    return max(0.0, max(wanted, took) - elapsed)
+
+
 class Gateway:
     def __init__(self, home: Path, *, config: SupervisorConfig | None = None,
                  discovery: Callable[[], list[dict]] | None = None,
@@ -206,6 +255,7 @@ class Gateway:
         self.prewarm_debounce_s, self.prewarm_mru = prewarm_debounce_s, prewarm_mru
         self.sync_interval_s = sync_interval_s
         self.hourly_sync_s = HOURLY_SYNC_S
+        self.stuck_after_s = STUCK_AFTER_S
         self.prewarm_timer: threading.Timer | None = None
         self.prewarm_heavy = False
         self.lock = threading.Lock()
@@ -272,13 +322,33 @@ class Gateway:
         """Publish to SSE and let the platform observe (metrics, notifications)."""
         frame_id = self.bus.publish(topic, event, data)
         self.platform.observe(topic, event, data)
+        if (topic == "job" and data.get("kind") in ("import", "rebuild")
+                and data.get("status") in FINISHED):
+            # Cancelled, failed or interrupted imports can leave captured files unpublished;
+            # the freshness is read again instead of trusting the last ``published``.
+            threading.Thread(target=self.revisions.load, args=(self.home,), daemon=True,
+                             name="tandem-freshness").start()
         return frame_id
+
+    def projection_info(self, revisions: dict, importing: bool) -> dict:
+        """Freshness for ``/v1/status``: a published snapshot that stays behind with no
+        import running for ``stuck_after_s`` is ``stuck`` and offers the retry request."""
+        state = revisions.get("projection")
+        since = revisions.get("pending_since")
+        stuck = bool(state in ("pending", "invalid") and since and not importing
+                     and time.time() * 1000 - since > self.stuck_after_s * 1000)
+        info = {"state": state, "pending_files": revisions.get("pending_files"),
+                "retained_files": revisions.get("retained_files"), "pending_since": since,
+                "stuck": stuck}
+        if stuck:
+            info["retry"] = {"method": "POST", "path": "/v1/app/jobs", "body": {"kind": "import"}}
+        return info
 
     def _published(self, entry: dict) -> None:
         before, after = self.revisions.update(
             data_rev=entry.get("data_rev"), inventory_rev=entry.get("inventory_rev") or 0,
-            counts=entry.get("counts"), projection="ready",
-            published_at=int(time.time() * 1000))
+            counts=entry.get("counts"), published_at=int(time.time() * 1000),
+            freshness=entry.get("freshness") or {"projection": "ready"})
         if (before["data_rev"], before["inventory_rev"]) == (after["data_rev"],
                                                              after["inventory_rev"]):
             return  # Nothing new was published (for example a cancelled batch).
@@ -390,7 +460,9 @@ class Gateway:
         return queued
 
     def _sync_loop(self) -> None:
-        """Continuous sync (opt-in): adaptive polling 2 s → 30 s while nothing changes."""
+        """Continuous sync (opt-in), one ``_sync_round`` at a time: ``live`` polls 2 s → 30 s
+        while nothing changes and waits after each sync import at least as long as it took
+        (``sync_wait``); ``hour`` imports hourly. A bad round is logged, never fatal."""
         low, high = self.sync_interval_s
         interval = low
         collection = self.platform.collection
@@ -527,23 +599,41 @@ def run_gateway(home: Path, *, port: int = 0, host: str = "127.0.0.1") -> int:
 
 
 def _sync_round(self, collection, interval: float) -> float:
-    """One continuous-sync round for gateway ``self``; returns the wait before the next."""
+    """One continuous-sync round for gateway ``self``; returns the wait before the next.
+
+    v0.0.2 submitted the next full import 2 s after any sync import that saw a change; an
+    agent in use changes something every round, so imports ran back to back (RC-1). Now a
+    round waits ``sync_wait`` after the last sync import ended: at least as long as it took,
+    2 s → 30 s (``self._sync_idle``) while rounds find nothing, 30 s after a failed,
+    interrupted or cancelled one. While any job is active it only looks again soon; a
+    collection catch-up runs as soon as nothing else is active; never while stopping.
+    """
     low, high = self.sync_interval_s
     if collection.paused:
         return high  # Collection paused (DT-02.1); explicit re-index still works.
     state = self.state.snapshot()
     enabled = [k for k, s in state["sources"].items() if s.get("enabled")]
-    catch_up = collection.consume_catch_up()
     mode = state["settings"].get("sync_mode")
-    if (mode not in ("live", "hour") and not catch_up) or not enabled:
+    if (mode not in ("live", "hour") and not collection.catch_up_pending) or not enabled:
         return high
+    if self.state.active_job() is not None:
+        return low  # Another job is active; look again soon.
     last = self.state.latest_job("sync")
-    changed = bool(last and any(r.get("changed") for r in last.get("results") or []))
-    interval = next_sync_interval(mode, interval, changed, self.sync_interval_s,
-                                  getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
+    idle = getattr(self, "_sync_idle", low)
+    if last is not None and last["id"] != getattr(self, "_sync_seen", None):
+        self._sync_seen = last["id"]
+        changed = any(r.get("changed") for r in last.get("results") or [])
+        idle = self._sync_idle = low if changed else min(high, idle * 2)
+    if not collection.catch_up_pending:
+        wait = sync_wait(mode, last, int(time.time() * 1000), idle, self.sync_interval_s,
+                         getattr(self, "hourly_sync_s", HOURLY_SYNC_S))
+        if wait > 0:
+            return min(wait, high) if mode == "live" else wait
+    if self.stopping.is_set():
+        return high  # Shutting down: never start an import on the way out.
+    catch_up = collection.consume_catch_up()
     try:
         self.jobs.submit("import", enabled, phase="full", origin="sync")
     except (JobConflict, ValueError):
         collection.catch_up_pending |= catch_up  # Retry the catch-up next round.
-        interval = low  # A user job is running; check again soon.
-    return interval
+    return low

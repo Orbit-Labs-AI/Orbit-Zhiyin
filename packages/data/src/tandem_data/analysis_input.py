@@ -13,7 +13,7 @@ from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
 from tandem_data.models import PRICE_TABLE_VERSION
 from tandem_data.payload import INLINE_TEXT_KINDS, TEXT_MARK, restore_row
-from tandem_data.query import current_projection
+from tandem_data.query import published_projection
 from tandem_data.store import readonly_connection
 
 # Bumped when read_analysis returns different values for the same database; analysis
@@ -243,7 +243,9 @@ def read_analysis(
     """
     with readonly_connection(Path(home) / "tandem.db") as connection:
         connection.execute("BEGIN")
-        manifest, run = current_projection(connection)
+        # The published run is one committed snapshot: newer captures that are still being
+        # projected do not make it unreadable (the bundle names ``projection_run_id``).
+        manifest, run, _ = published_projection(connection)
         sources = [
             decoded(row) for row in connection.execute("SELECT * FROM source ORDER BY source_id")
         ]

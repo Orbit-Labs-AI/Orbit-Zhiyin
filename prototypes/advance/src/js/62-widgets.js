@@ -7,8 +7,11 @@ const WG_SIZES = [['s', '小'], ['m', '中'], ['l', '大']];
 function wgPair() { return typeof LV !== 'undefined' && LV.live ? [AG[0] ? AG[0].id : null, AG[1] ? AG[1].id : null] : ['cc', 'cx']; }
 const wgC = (k) => (k && AGI[k] ? AGI[k].c : 'var(--h2)');
 const wgN = (k) => (k && AGI[k] ? AGI[k].short : '—');
+// The native widgets panel (?surface=widgets) always shows them: opening it from the menu is the request, whatever the
+// in-window setting (S.widgets follows the window width there and would leave the panel blank).
+const WG_SURFACE = /[?&]surface=widgets(&|$)/.test(location.search || '');
 function renderWidgets() {
-  const w = $('#widgets'); const on = S.widgets && !S.win.full;
+  const w = $('#widgets'); const on = WG_SURFACE || (S.widgets && !S.win.full);
   w.hidden = !on; if (!on) { w.innerHTML = ''; return; }
   const size = S.wgSize || 'm';
   const p = personaNow();

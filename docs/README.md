@@ -34,8 +34,12 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [贡献指南](../CONTRIBUTING.md) | 开发环境、提交规范、检查与 PR 流程 |
+| [行为准则](../CODE_OF_CONDUCT.md) | 协作约定与争议处理 |
+| [安全政策](../SECURITY.md) | 漏洞报告渠道、支持范围与隐私保护 |
 | [使用指南](development/usage.md) | CLI、真实来源授权、旧库兼容 |
 | [测试与验收](development/testing.md) | 检查分类、执行条件与 CI |
+| [导入流程](development/import-pipeline.md) | 导入状态机、阶段与数字含义、v0.0.2 导入循环的根因与排障 |
 | [后端九小时改进计划](development/backend-improvement-plan.md) | 契约、任务关系、语义、鲁棒性与推荐效用验收 |
 | [分析与推荐鲁棒性验收](development/analytics-robustness.md) | 受控扰动、证据关系、全量增量、损坏恢复与规模 |
 | [过去到未来推荐 Benchmark](../evals/benchmark/README.md) | 效用、Regret、时间与个性化的统一评测协议 |
@@ -73,6 +77,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [后端全面审计（2026-10-03）](audits/2026-10-03-backend-gap-audit.md) | 12 个区两轮审计的修复清单、遗留项与需要 UI 侧配合的事项 |
 | [后端缺口](audits/backend-gap.md) | 数据、分析、推荐与横切程序对照两版 UI 的差距与补齐顺序 |
 | [数据模块审计](audits/data-audit.md) | DT 完成度、导入性能与优化任务包 |
 | [分析模块审计](audits/analysis-audit.md) | AN 功能覆盖、持久化与性能 |
@@ -84,6 +89,7 @@
 | [调研总结](research/landscape.md) | 主流 Agent、设计哲学、开源项目与算法选型 |
 | [竞品分析](research/competitors.md) | 7 类约 60 个产品与开源项目 |
 | [先借鉴哪些项目](research/backend-research.md) | 已核对的开源实现与取舍 |
+| [Apple macOS 指南对照](research/apple-macos-guidelines.md) | HIG 与 AppKit / WebKit 文档对照 Orbit 原生壳与 UI 的 Mac 习惯符合度 |
 | [Agent 会话格式对比](research/agent-sessions/README.md) | [Claude Code](research/agent-sessions/claude-code.md)、[Codex](research/agent-sessions/codex.md)、[DSH](research/agent-sessions/dsh.md)、[Hermes](research/agent-sessions/hermes-agent.md)、[OpenCode](research/agent-sessions/opencode.md)、[pi](research/agent-sessions/pi.md) 的落盘格式 |
 
 ## 8. 历史

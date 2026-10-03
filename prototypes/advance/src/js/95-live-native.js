@@ -1,7 +1,8 @@
 /* ============ live: native shell + first run (slice 7) ============
    Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
    (22-window.js nativeWin), host menu commands (tandem:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
-   toggleEdition / refresh).
+   toggleEdition / refresh / page {n} / sidebar / hud / undo / find / back / mainAction / chartTable / reindex); the page sends
+   menuState {sidebar, pages} so the host titles 显示 / 隐藏侧边栏 and the 前往 menu.
    Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
    /v1/shell/onboarding (+ /v1/app/discovery) with estimates, 添加文件夹 = LVN.addSource() (native chooseFolder, browser: the
    path field) → POST /v1/app/sources; 开始分析 aligns the sources, PATCHes recent_days and POSTs an import job; job frames
@@ -21,8 +22,40 @@ LVN.refresh = function () {
   TL.invalidate(); LV.loadSpine(); TL.changed();
   toast('正在刷新');
 };
+// a shortcut the page itself just handled (85-keyboard.js kbDid) also fired the host menu item: act once
+const LVN_KB = { sidebar: 1, hud: 1, share: 1, report: 1, undo: 1, find: 1, mainAction: 1, back: 1, page: 1, chartTable: 1 };
+// the host asks before routing Edit › 撤销 here: an undoable install, and no text field that owns ⌘Z
+LVN.canUndo = function () {
+  const a = document.activeElement; const tag = ((a && a.tagName) || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || (a && a.isContentEditable)) return false;
+  return typeof LAST_INSTALL !== 'undefined' && !!LAST_INSTALL && typeof instDone === 'function' && !!instDone(LAST_INSTALL);
+};
+// menu titles that follow page state (显示 › 显示 / 隐藏侧边栏): sent to the host whenever they change
+LVN.menuState = function () {
+  if (!ORBIT.native.isNative || ORBIT.native.surface) return;
+  const st = { sidebar: !!S.side, pages: navRoutes().slice(0, 9).map((r) => r[1]) };
+  const k = JSON.stringify(st); if (LVN.lastMenu === k) return;
+  LVN.lastMenu = k; ORBIT.native.post('menuState', st);
+};
+function lvnChartTable() {
+  if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); }
+  else toast('图表 ↔ 表格只在概览页可用');
+}
 LVN.command = function (d) {
   const cmd = d && d.cmd; if (!cmd) return;
+  if (LVN_KB[cmd] && typeof KB_DID !== 'undefined' && KB_DID[cmd] && Date.now() - KB_DID[cmd] < 600) return;
+  if (cmd === 'page') {   // 前往 › page n (⌘1–9) of the edition in use
+    const r = navRoutes()[(+d.n || 0) - 1]; if (!r) return;
+    if (OVL) closeOverlay(); closeModal(); S.winGone = false; go(r[0]); return;
+  }
+  if (cmd === 'sidebar') { toggleSide(); return; }
+  if (cmd === 'hud') { toggleHud(); return; }
+  if (cmd === 'undo') { undoInstall(); return; }
+  if (cmd === 'find') { findCmd(); return; }
+  if (cmd === 'back') { goBack(); return; }
+  if (cmd === 'mainAction') { mainAction(); return; }
+  if (cmd === 'chartTable') { lvnChartTable(); return; }
+  if (cmd === 'reindex') { reindex(); return; }
   if (cmd === 'settings') { closeModal(); openSettings(d.tab || undefined); }
   else if (cmd === 'palette') { closeModal(); openPalette(); }
   else if (cmd === 'about') { closeModal(); openAbout(); }
@@ -38,10 +71,17 @@ LVN.command = function (d) {
     const r = String(d.route || '').replace(/^#/, '');
     if (r === 'settings' || /^settings[:/]/.test(r)) { openSettings(r.split(/[:/]/)[1] || undefined); return; }
     if (r === 'onboarding') { openOnboarding(0); return; }
-    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance'); go(r); }
+    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); S.pop = false; S.winGone = false; if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance', r); else go(r); }
   }
 };
 ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.error('tandem:command', e); } });
+if (ORBIT.native.isNative && !ORBIT.native.surface) {
+  const lvnBaseSide = toggleSide;
+  toggleSide = function () { const r = lvnBaseSide.apply(this, arguments); LVN.menuState(); return r; };
+  const lvnBaseRender = render;   // edition switches change the 前往 titles
+  render = function () { const r = lvnBaseRender.apply(this, arguments); LVN.menuState(); return r; };
+  setTimeout(() => LVN.menuState(), 0);
+}
 
 /* ---- sources ---- */
 const LVN_PATHS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, 'codex'], [/gemini/i, 'gemini'], [/copilot/i, 'copilot'],
@@ -113,11 +153,12 @@ function lvnPatch(L) {
     const row = box.querySelector('[data-stage="' + x.id + '"]'); if (!row) return;
     const col = row.querySelector('.col'); let n = col && col.querySelector('.s');
     if (x.note) { if (!n && col) { n = document.createElement('span'); n.className = 's'; col.appendChild(n); } if (n && n.textContent !== x.note) n.textContent = x.note; } else if (n) n.remove();
-    const c = row.lastElementChild; const t = x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? OB_TEXT.skipped : '';
+    const c = row.lastElementChild; const t = OB_TEXT.count(x);
     if (c && c.textContent !== t) c.textContent = t;
   });
   const pr = L.job && L.job.progress || {}; const bar = o.querySelector('[data-ob="bar"]');
-  if (bar) bar.style.width = (pr.total ? Math.round(clamp(pr.completed / pr.total, 0, 1) * 100) : 4) + '%';
+  const ratio = OB_TEXT.ratio(pr);
+  if (bar) bar.style.width = (ratio != null ? Math.round(ratio * 100) : 4) + '%';
   return true;
 }
 function lvnDraw(ob) {
@@ -132,8 +173,9 @@ function lvnJob(ob, job) {
   const L = ob.live; if (!job || !L.job || job.id !== L.job.id) return;
   L.job = Object.assign({}, L.job, job);
   const pr = L.job.progress || {}; const st = L.job.status;
-  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, note: OB_TEXT.stageNote(pr.stage) || (st === 'queued' ? OB_TEXT.queued : null) });
-  else if (st === 'completed') { lvnStage(L, 'backfill', { status: 'done', done: pr.total != null ? pr.total : pr.completed, total: pr.total, note: null }); lvnAfter(ob); }
+  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, unit: pr.unit || null, note: OB_TEXT.stageNote(pr) || (st === 'queued' ? OB_TEXT.queued : null) });
+  // partial: published, with records that could not be parsed or files kept at their last version (results[] says which)
+  else if (st === 'completed' || st === 'partial') { lvnStage(L, 'backfill', { status: 'done', done: pr.total != null ? pr.total : pr.completed, total: pr.total, note: st === 'partial' ? OB_TEXT.partial : null }); lvnAfter(ob); }
   else { lvnStage(L, 'backfill', { status: 'failed', note: (L.job.error && (L.job.error.message || L.job.error)) || OB_TEXT.failed }); L.err = '导入没有完成：' + ((L.job.error && (L.job.error.message || L.job.error)) || st); lvnStop(L); }
   lvnDraw(ob);
 }
@@ -253,7 +295,7 @@ function lvnPlay(ob) {
 LVN.obImport = async function () {
   const ob = OB; const L = ob && ob.live; if (!L || L.starting || (L.job && !L.err)) return;
   // 重试 after a completed import whose analysis failed: only redo the analysis half
-  if (L.err && L.job && L.job.status === 'completed') { L.rev0 = LV.rev; lvnAfter(ob); return; }
+  if (L.err && L.job && (L.job.status === 'completed' || L.job.status === 'partial')) { L.rev0 = LV.rev; lvnAfter(ob); return; }
   const chosen = L.sources.filter((x) => L.sel.has(x.id));
   if (!chosen.length) return;
   L.err = null; L.starting = true; L.after = false; L.stages = lvnStages(L); L.job = null; lvnStage(L, 'backfill', { status: 'running', note: OB_TEXT.preparing });
@@ -306,8 +348,10 @@ if (LV.live) {
   // an import job already running on the gateway (TL.job or GET /v1/app/jobs): show its stages instead of the source picker
   LVN.attach = async function (ob) {
     const L = ob.live; if (!L || L.job || L.starting || OB !== ob) return;
-    let job = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
-    if (!job) { const js = await lvnTry('/v1/app/jobs'); job = (Array.isArray(js) ? js : []).find((j) => j && j.kind === 'import' && LVN.ACTIVE.indexOf(j.status) >= 0) || null; }
+    // a background sync (origin 'sync', sync_mode live / hour) is not the first run: it never takes over the stage view
+    const userImport = (j) => !!j && j.kind === 'import' && j.origin !== 'sync' && LVN.ACTIVE.indexOf(j.status) >= 0;
+    let job = userImport(TL.job) ? TL.job : null;
+    if (!job) { const js = await lvnTry('/v1/app/jobs'); job = (Array.isArray(js) ? js : []).find(userImport) || null; }
     if (!job || !job.id || OB !== ob || L.job || L.starting) return;
     L.stages = lvnStages(L); L.rev0 = LV.rev; L.after = false;
     L.job = { id: job.id, status: job.status || 'queued', progress: job.progress || null };
@@ -318,8 +362,9 @@ if (LV.live) {
   LVN.bg = false;
   LVN.sideState = function () {
     const L = LVN.imp && LVN.imp.live, T = OB_TEXT.side;
-    const tj = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
-    const pct = (j) => { const pr = (j && j.progress) || {}; return pr.total ? ' ' + Math.round(clamp(pr.completed / pr.total, 0, 1) * 100) + '%' : ''; };
+    // background syncs show in the page strip (后台同步 …) only; the entry is for imports the user started
+    const tj = TL.job && TL.job.kind === 'import' && TL.job.origin !== 'sync' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
+    const pct = (j) => { const r = OB_TEXT.ratio((j && j.progress) || {}); return r != null ? ' ' + Math.round(r * 100) + '%' : ''; };
     if (L && L.err) return { k: 'fail', t: T.fail, a: T.retry, ico: 'alert' };
     if (L && L.done) return { k: 'done', t: T.done, a: '', ico: 'spark' };
     if (L && L.after) return { k: 'run', t: T.analyze, a: T.view, ico: 'sync' };

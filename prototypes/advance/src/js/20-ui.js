@@ -4,6 +4,9 @@ const APP_MARK = appIcon(32);
 function setTheme(t) {
   S.theme = t; store.set('theme', t);
   if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  // native shell: NSApp.appearance follows (system → nil), so open / save panels, notifications and popovers match the page
+  const n = window.ORBIT && window.ORBIT.native;
+  if (n && n.isNative && n.has('appearance') && n.hasHost()) n.post('appearance', { mode: t === 'light' || t === 'dark' ? t : 'system' });
 }
 /* tooltip: light, 11px, shows after a 0.8s hover delay (tipOn() itself is immediate) */
 let TIPS = {}, TIP_T = null;
