@@ -64,7 +64,7 @@ function openModal(html, cls) {
   MODAL_HOST = pal ? null : sheetHost();
   if (MODAL_HOST === $('#win') && S.winGone) { S.winGone = false; render(); }
   m.className = 'modal' + (cls ? ' ' + cls : ''); m.innerHTML = html; m.hidden = false;
-  if (!pal && !m.querySelector('[data-act="closeModal"]')) { const mh = m.querySelector('.mh'); if (mh) mh.insertAdjacentHTML('beforeend', '<button type="button" class="ib mx" data-act="closeModal" aria-label="关闭">' + ic('x', 14) + '</button>'); }
+  if (!pal) { const mh = m.querySelector('.mh'); if (mh && !mh.querySelector('[data-act="closeModal"]')) mh.insertAdjacentHTML('beforeend', '<button type="button" class="ib mx" data-act="closeModal" aria-label="关闭对话框" data-tip="关闭（Esc）">' + ic('x', 14) + '</button>'); }
   $('#scrim').hidden = pal; closeDD(); tipOff(); sheetPlace();
   const f = m.querySelector('[autofocus]') || m.querySelector('.mf .btn.p:not([disabled])') || m.querySelector('input:not([type="checkbox"]):not([type="radio"]),textarea') || m.querySelector('button.p:not([disabled])') || m.querySelector('button:not([disabled]):not(.mx)');
   if (f) setTimeout(() => { if (!m.hidden && m.contains(f)) f.focus({ preventScroll: true }); }, 20);

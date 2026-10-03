@@ -233,11 +233,11 @@ test('ask live: presets from the gateway, a preset answer and a free question vi
   await expect(page.locator('#modal .mh')).not.toContainText('Demo 中为预置回答');
   await chips.nth(1).click();
   await expect(page.locator('#askA')).toContainText('FX 合成回答');
-  expect(sent(gw, 'POST', '/v1/ai/ask')[0].body).toEqual({ context: 'overview', preset_index: 1 });
+  expect(sent(gw, 'POST', '/v1/ai/ask')[0].body).toMatchObject({ context: 'overview', preset_index: 1, scope: { excluded_session_uids: [] } });
   await page.locator('#askIn').fill('FX 自由问题');
   await page.locator('#modal [data-act="askSend"]').click();
   await expect(page.locator('#askA')).toContainText('FX 自由提问回答');
-  expect(sent(gw, 'POST', '/v1/ai/ask')[1].body).toEqual({ context: 'overview', question: 'FX 自由问题' });
+  expect(sent(gw, 'POST', '/v1/ai/ask')[1].body).toMatchObject({ context: 'overview', question: 'FX 自由问题', scope: { excluded_session_uids: [] } });
   expect(errors).toEqual([]);
 });
 

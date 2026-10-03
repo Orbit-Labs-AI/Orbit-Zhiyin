@@ -27,12 +27,34 @@ const tlsDemo = (r) => !!(r && r.data == null && r.error && TL.unavailable(r.err
 function tlsBytes(n) { if (n == null || !Number.isFinite(n)) return TLU.DASH; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + u[i]; }
 function tlsDate(ts) { const d = new Date(ts); return isNaN(d) ? TLU.DASH : (d.getMonth() + 1) + '/' + String(d.getDate()).padStart(2, '0'); }
 function tlsErr(e, what) { toast(what + '失败：' + (e.message || e.code)); }
-// optimistic write against a cached GET resource: patch r.data now, replace it with the answer, roll back on any failure
-function tlsWrite(path, patch, req, label, ok) {
-  const r = TL.resource(path); const prev = r.data; if (prev == null) return false;
-  r.data = Object.assign({}, prev, patch);
-  req().then((x) => { if (x && x.data && typeof x.data === 'object') r.data = Object.assign({}, prev, x.data); if (ok) ok(x && x.data); render(); },
-    (e) => { r.data = prev; render(); toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code)); });
+// Serialize writes to the same resource. Keep later clicks visible while an earlier request is in flight;
+// neither an older response nor a rollback may undo the user's latest choice.
+const TLS_WRITES = new Map();
+function tlsWriteView(w) {
+  let value = w.base;
+  w.pending.forEach((p) => { value = p.patch(value); });
+  w.resource.data = value;
+}
+function tlsWrite(path, patch, req, label, ok, field) {
+  const r = TL.resource(path); if (r.data == null) return false;
+  let w = TLS_WRITES.get(path);
+  if (!w) { w = { resource: r, base: r.data, pending: [], tail: Promise.resolve() }; TLS_WRITES.set(path, w); }
+  const apply = (value, update) => field ? Object.assign({}, value, { [field]: Object.assign({}, value[field], update) }) : Object.assign({}, value, update);
+  const p = { patch: (value) => apply(value, patch) };
+  r.mutationVersion = (r.mutationVersion || 0) + 1;
+  w.pending.push(p); tlsWriteView(w);
+  w.tail = w.tail.then(req).then((x) => {
+    w.base = apply(w.base, x && x.data && typeof x.data === 'object' ? x.data : patch);
+    if (ok) ok(x && x.data);
+  }, (e) => {
+    toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code));
+  }).finally(() => {
+    r.mutationVersion++;
+    w.pending.shift(); tlsWriteView(w);
+    if (!w.pending.length) TLS_WRITES.delete(path);
+    TLS.stateAt = null;
+    render();
+  });
   return true;
 }
 
@@ -294,33 +316,66 @@ if (TL.mode === 'live') {
   };
 
   /* ---------- 问本地 Agent ---------- */
+  const ASK_TEMPLATES = [['', '自由提问'], ['analyze.collaboration', '协作与反馈'], ['analyze.quality', '验证与交付'], ['analyze.workflow', '流程与工具'], ['analyze.cost', '成本与时间']];
+  function tlsAskScope() {
+    const scope = LV.scope(); const end = Date.now();
+    const range = scope.range > 0 ? scope.range : 0;
+    const start = range ? new Date(new Date(end).getFullYear(), new Date(end).getMonth(), new Date(end).getDate() - range + 1).getTime() : 0;
+    const out = { start_ms: start, end_ms: end, excluded_session_uids: Array.from(S.excluded || []) };
+    if (scope.project) out.project_id = scope.project;
+    if (scope.agents != null) out.source_ids = OrbitLive.sourceIdsFor(scope.agents, TL.status);
+    return out;
+  }
+  function tlsCancelQuestion() {
+    const q = TLS.question; if (!q) return;
+    TLS.question = null; q.ctl.abort();
+    if (q.job) TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(q.job) + '/cancel', {}).catch(() => {});
+  }
+  const tlsCloseAskBase = closeModal;
+  closeModal = function () { if (MODAL_KEY === 'ask') { tlsCancelQuestion(); clearInterval(ASKT); } tlsCloseAskBase(); };
   const tlsAskOpenBase = openAsk;
   openAsk = function (ctx) {
+    tlsCancelQuestion();
     TLS.ask = null; tlsAskOpenBase(ctx); if (!ASK) return;
-    const c = ASK.ctx;
-    TL.send('GET', '/v1/ai/ask/presets', null, { query: { context: c } }).then((r) => {
+    const owner = ASK, c = ASK.ctx;
+    ASK.scope = tlsAskScope(); ASK.session_uid = c === 'session' ? S.sess.sel : null; ASK.template = '';
+    const input = $('#askIn');
+    if (input) input.parentElement.insertAdjacentHTML('beforebegin', '<label class="row" style="gap:8px;font-size:12px">分析方式<select id="askTemplate" data-chg="askTemplate" style="' + FIELD + ';width:auto">' + ASK_TEMPLATES.map((t) => '<option value="' + t[0] + '">' + t[1] + '</option>').join('') + '</select><span class="cap">沿用当前时间、项目与 Agent 范围</span></label>');
+    TL.send('GET', '/v1/ai/ask/presets', null, { query: { context: c, session_uid: ASK.session_uid } }).then((r) => {
       const xs = Array.isArray(r.data) ? r.data : (r.data && (r.data.items || r.data.presets)) || [];
       const first = $('#modal [data-act="askPick"]');
-      if (!xs.length || !ASK || ASK.ctx !== c || !first) return;
+      if (!xs.length || ASK !== owner || MODAL_KEY !== 'ask' || !first) return;
       TLS.ask = { ctx: c, presets: xs };
       const box = first.parentElement; box.setAttribute('data-tl', 'ask-presets');
       box.innerHTML = xs.map((p, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(p.question) + '</button>').join('');
     }, () => { /* the generic questions stay; answers still go through POST /v1/ai/ask */ });
   };
-  const tlsAnswer = (d) => (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '');
+  const tlsAnswer = (d) => d.summary != null ? [d.summary, ...(d.findings || []).map((f) => (f.kind === 'hypothesis' ? '待验证的推测：' : '观察：') + f.text + ((f.evidence_ids || []).length ? '\n证据：' + f.evidence_ids.join('、') : '')), (d.next_steps || []).length ? '下一步：\n' + d.next_steps.join('\n') : '', (d.limitations || []).length ? '分析边界：\n' + d.limitations.join('\n') : ''].filter(Boolean).join('\n\n') : (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '');
   function tlsThinking(q) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">本地 Agent 正在回答…</span>'; }
   function tlsAsk(body, q) {
+    tlsCancelQuestion();
+    const request = { owner: ASK, ctl: new AbortController(), job: null }; TLS.question = request;
+    const current = () => TLS.question === request && ASK === request.owner && MODAL_KEY === 'ask';
+    body = Object.assign({}, body, { scope: ASK.scope, session_uid: ASK.session_uid });
+    const task = ASK.template;
+    const path = task ? '/v1/ai/jobs' : '/v1/ai/ask';
+    const payload = task ? { task_id: task, scope: ASK.scope, goal: q, goal_source: 'ask', params: { question: q, session_uid: ASK.session_uid } } : body;
     clearInterval(ASKT); tlsThinking(q);
-    TL.send('POST', '/v1/ai/ask', body).then((r) => {
+    TL.send('POST', path, payload).then((r) => {
       const d = r.data || {};
+      if (!current()) { if (d.job_id) TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(d.job_id) + '/cancel', {}).catch(() => {}); return null; }
       if (d.answer != null) return d;
       if (!d.job_id) return { answer: '' };
-      return TL.pollJob(d.job_id, null).then((job) => { if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error((job.error && (job.error.message || job.error.code)) || '回答失败'), { status: 500, code: 'job_' + job.status }); return job.result || {}; });
-    }).then((d) => { if (ASK) askStream(q, tlsAnswer(d)); }, (e) => {
-      if (TL.unavailable(e)) { if (ASK) askStream(q, '本地服务暂不提供问答接口，暂时无法回答。'); return; }
-      if (ASK) askStream(q, '无法回答：' + (e.message || e.code) + (e.code === 'consent_required' ? '\n\n到 设置 › 分析 授权后再试。' : ''));
+      request.job = d.job_id;
+      return TL.pollJob(d.job_id, null, { signal: request.ctl.signal }).then((job) => { request.job = null; if (TLS_DONE.indexOf(job.status) < 0 && job.status !== 'fallback') throw Object.assign(new Error((job.error && (job.error.message || job.error.code)) || '回答失败'), { status: 500, code: 'job_' + job.status }); return job.result || {}; });
+    }).then((d) => { if (current() && d) { TLS.question = null; askStream(q, tlsAnswer(d)); } }, (e) => {
+      if (!current() || e.name === 'AbortError') return;
+      TLS.question = null;
+      if (TL.unavailable(e)) { askStream(q, '本地服务暂不提供问答接口，暂时无法回答。'); return; }
+      askStream(q, '无法回答：' + (e.message || e.code) + (e.code === 'consent_required' ? '\n\n到 设置 › 分析 授权后再试。' : ''));
     });
   }
+  ACT.askTemplate = (el) => { if (ASK && ASK_TEMPLATES.some((t) => t[0] === el.value)) ASK.template = el.value; };
   ACT.askPick = (el) => {
     if (!ASK) return;
     const a = TLS.ask; const i = +el.dataset.i;
@@ -350,6 +405,7 @@ if (TL.mode === 'live') {
   // server state → the demo's S fields (skipped while a demo handler is mid-way, see TLS.hold)
   function tlsSync() {
     if (TLS.hold) return;
+    TLS_WRITES.forEach(tlsWriteView);
     if (setOpen()) (TAB_RES[S.setTab] || []).forEach((k) => tlsRes(R[k]));
     const col = tlsRes(R.col), pol = tlsRes(R.pol), snz = tlsRes(R.snz), attn = tlsRes(R.attn), st = tlsRes(R.state);
     // a collection frame is newer than a GET that was already in flight: it patches the cached answer once it lands
@@ -384,10 +440,9 @@ if (TL.mode === 'live') {
   const ago = (ts) => { if (!ts) return '—'; const m = Math.round((Date.now() - ts) / 60000); return m < 1 ? '刚刚' : m < 60 ? m + ' 分钟前' : m < 1440 ? Math.round(m / 60) + ' 小时前' : Math.round(m / 1440) + ' 天前'; };
   // PATCH /v1/app/settings, optimistic on the cached /v1/app/state
   function tlsSetting(patch, label) {
-    const r = TL.resource(R.state); const prev = r.data;
-    if (prev) r.data = Object.assign({}, prev, { settings: Object.assign({}, prev.settings, patch) });
-    TL.send('PATCH', '/v1/app/settings', patch).then((x) => { const p2 = r.data || prev; if (p2 && x.data && typeof x.data === 'object') { r.data = Object.assign({}, p2, { settings: x.data }); TLS.stateAt = null; } },
-      (e) => { if (prev) r.data = prev; TLS.stateAt = null; render(); toast(TL.unavailable(e) ? label + '未同步：本地服务暂不可用，只在本机生效' : label + '失败：' + (e.message || e.code)); });
+    if (!tlsWrite(R.state, patch, () => TL.send('PATCH', '/v1/app/settings', patch), label, null, 'settings')) {
+      tlsRes(R.state); toast(label + '未保存：正在读取设置，请稍后重试');
+    }
   }
 
   // 数据源: one row per discovered source (GET /v1/app/discovery), else the spine's agents without a status
@@ -542,7 +597,7 @@ if (TL.mode === 'live') {
     const unpause = () => { const rt = TL.ops && TL.ops.rt; if (!to && rt && (rt.status === 'paused' || rt.reason === 'collection_paused')) TL.ops.rt = Object.assign({}, rt, { status: 'idle', reason: null }); };
     if (tlsWrite(R.col, { paused: to }, req, label, after)) { unpause(); base(el, ev); return; }
     // the collection setting is not loaded here (menu-bar panel / HUD / widgets surface): write first, flip after the answer
-    req().then((x) => { TL.invalidate((r) => r.path === R.col); unpause(); base(el, ev); after(x && x.data); },
+    req().then((x) => { TL.invalidate((r) => r.path === R.col); unpause(); S.paused = to; render(); toast(to ? '已暂停采集' : '已恢复采集'); after(x && x.data); },
       (e) => toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code)));
   });
   // 隐私
