@@ -74,6 +74,11 @@ class RunContext:
         self.model_id: str | None = None
         self.started: dict[str, float] = {}
 
+    def granted(self, data_class: str) -> bool:
+        """Whether this job's engine may receive ``data_class`` (tasks that pick their own
+        queries at run time, like ask.question, check this before sending results)."""
+        return self.runner.svc.consent_store.granted(self.engine, data_class)
+
     # -- model calls ---------------------------------------------------------------------
     def call(self, *, system=None, prompt=None, schema=None, slot=None, validate=None,
              task_id=None) -> dict:
