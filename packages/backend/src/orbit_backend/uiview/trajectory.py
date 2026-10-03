@@ -12,6 +12,7 @@ import time
 from collections import Counter
 from datetime import UTC, datetime, tzinfo
 
+from ..analytics.interaction.rules import RESPONSE_KINDS
 from ..analytics.products.journey import EXPLORE
 from ..realtime import context_windows
 from ..sessionops import resume
@@ -47,7 +48,9 @@ EVENTS_SQL = f"""
 SELECT e.event_uid, e.seq, e.ts, e.kind, e.actor, e.turn_uid,
        CASE WHEN {HUMAN_WHERE} THEN e.text END AS text,
        CASE WHEN {HUMAN_WHERE} THEN 1 ELSE 0 END AS human,
-       CASE WHEN e.kind = 'message.assistant' THEN json_extract(e.attrs, '$.phase') END AS phase
+       CASE WHEN e.kind = 'message.assistant' THEN json_extract(e.attrs, '$.phase') END AS phase,
+       json_extract(e.attrs, '$.replayed_from') IS NOT NULL
+         OR json_extract(e.attrs, '$.duplicate_of') IS NOT NULL AS replay
 FROM event e WHERE e.session_uid = ? ORDER BY e.seq
 """
 CALLS_SQL = """
@@ -195,13 +198,16 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
             out_events.append(span)
             span = None
 
-    for event_uid, seq, ts, kind, _actor, _turn, text, human, phase in events:
+    responded = False  # rules.countable_messages: corrections only after the agent responded
+    for event_uid, seq, ts, kind, _actor, _turn, text, human, phase, replay in events:
         t = _mins(ts, t0)
         t = last_t if t is None else t
         last_t = t
+        if kind in RESPONSE_KINDS:
+            responded = True
         if human:
             close_span()
-            corr = is_correction(text)
+            corr = responded and not replay and is_correction(text)
             item = {"id": f"u{len(users) + 1}", "lane": "user", "t": t, "w": 0, "err": False,
                     "corr": corr, "cmd": None, "res": None, "txt": scrub(text), "seq": seq,
                     "event_uid": event_uid}

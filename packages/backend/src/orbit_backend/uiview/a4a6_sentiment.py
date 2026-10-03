@@ -20,7 +20,7 @@ from datetime import time as dt_time
 from zoneinfo import ZoneInfo
 
 from ..analytics.common import quantile
-from ..analytics.interaction.rules import correction_kind, correction_verdict
+from ..analytics.interaction.rules import correction_kind, correction_verdict, responded_sql
 from ..analytics.products.feedback import classify_emotion
 from ..features.vocab import command_info
 from ..privacy import direct_user_text, redact
@@ -60,6 +60,12 @@ PHRASE_RULES = (  # priority: 纠偏 > 验证 > 规划 > 风格 > 偏好
 
 
 # ------------------------------------------------------------------ pure text helpers
+
+def message_corrections(m: dict) -> list[dict]:
+    """``corrections`` of a fetched human message, counted only once the agent had
+    responded in its session (same rule as signals and the sessions page)."""
+    return corrections(m["raw"]) if m.get("responded", True) else []
+
 
 def semantic_text(text: str | None) -> str:
     """Local copy of ``analytics.common.semantic_messages`` quote stripping (pure)."""
@@ -180,14 +186,17 @@ def fetch_humans(conn, session_ids) -> list[dict]:
     out = []
     for chunk in _chunks(session_ids):
         for r in conn.execute(
-                f"SELECT h.event_uid, h.session_uid, h.seq, h.ts, h.text, h.attrs FROM v_human_message h "
+                f"SELECT h.event_uid, h.session_uid, h.seq, h.ts, h.text, h.attrs, "
+                f"{responded_sql('h')} AS responded FROM v_human_message h "
                 f"WHERE h.session_uid IN ({_in(chunk)}) ORDER BY h.session_uid, h.seq", chunk):
             attrs = json.loads(r["attrs"] or "{}")
             if attrs.get("replayed_from") or attrs.get("duplicate_of"):
                 continue
             out.append({"event_uid": r["event_uid"], "session_uid": r["session_uid"],
                         "seq": r["seq"], "ts": r["ts"], "raw": r["text"] or "",
-                        "text": semantic_text(r["text"])})
+                        "text": semantic_text(r["text"]),
+                        # rules.countable_messages: only after the agent responded.
+                        "responded": bool(r["responded"])})
     return out
 
 
@@ -264,7 +273,7 @@ def build_series(humans, sessions, mode, zone) -> list[dict]:
         score = emotion_score(m["text"])
         if score is not None:
             b["scores"][m["session_uid"]].append(score)
-        if corrections(m["raw"]):
+        if message_corrections(m):
             b["corr"] += 1
     hot_line = quantile([b["corr"] for b in per.values()], 0.75) or 0
     out = []
@@ -333,7 +342,7 @@ def _typical(humans_by_session, uids, limit=3) -> list[str]:
     picked: list[str] = []
     for uid in uids:
         msgs = humans_by_session.get(uid, [])
-        best = next((m for m in msgs if corrections(m["raw"])), msgs[0] if msgs else None)
+        best = next((m for m in msgs if message_corrections(m)), msgs[0] if msgs else None)
         if best and best["text"]:
             picked.append(redact(best["text"])[:80])
         if len(picked) >= limit:

@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from orbit_data.privacy import redact
 
+from ..analytics.interaction.rules import countable_sql
 from ..analytics.interaction.rules import is_correction as _is_correction
 from . import derive, metrics, outcome
 
@@ -47,8 +48,11 @@ SELECT root, MIN(ts), MAX(ts), SUM(MIN(COALESCE(gap, 0), ?)) FROM (
 """
 HUMAN_WHERE = ("e.kind = 'message.user' AND json_extract(e.attrs, '$.origin') = 'human' "
                "AND e.actor IN ('human', 'user')")
+# ``countable``: the message may count as a correction (``rules.countable_sql``: the agent
+# responded earlier in the session, not a replayed/duplicated copy), as in signals.
 HUMAN_SQL = f"""
-SELECT e.session_uid, e.text FROM event e JOIN session s ON s.session_uid = e.session_uid
+SELECT e.session_uid, e.text, {countable_sql("e")} AS countable
+FROM event e JOIN session s ON s.session_uid = e.session_uid
 WHERE s.kind = 'main' AND {HUMAN_WHERE} ORDER BY e.session_uid, e.seq
 """
 CALLS_SQL = """
@@ -158,8 +162,10 @@ def l1_facts(conn: sqlite3.Connection, tz: tzinfo, *, excluded: Iterable[str] = 
     excluded, live = set(excluded), set(live)
     active = {r[0]: r[1:] for r in conn.execute(ACTIVE_SQL, (ACTIVE_GAP_MS,))}
     humans: dict[str, list[str]] = defaultdict(list)
-    for uid, text in conn.execute(HUMAN_SQL):
+    corrections: dict[str, int] = defaultdict(int)
+    for uid, text, countable in conn.execute(HUMAN_SQL):
         humans[uid].append(text or "")
+        corrections[uid] += bool(countable) and is_correction(text)
     calls: dict[str, list[str]] = defaultdict(list)
     for root, status, _ in conn.execute(CALLS_SQL):
         calls[root].append(status)
@@ -186,7 +192,7 @@ def l1_facts(conn: sqlite3.Connection, tz: tzinfo, *, excluded: Iterable[str] = 
             "dur_basis": "active_estimate", "span": round((last - first) / 60_000, 1)
             if first is not None else None,
             "msgs": len(texts), "tools": len(statuses), "errors": errors_of(statuses),
-            "corr": (corr := sum(is_correction(t) for t in texts) if texts else None),
+            "corr": (corr := corrections[uid] if texts else None),
             "corr_basis": "lexical_candidate",
             "out": estimate_outcome(uid in live, s[7], last_turn.get(uid), statuses, corr,
                                     len(texts)),

@@ -23,10 +23,10 @@ from .a4a6_common import ManyQuery
 from .a4a6_sentiment import (
     FAILED,
     _appdb_rows,
-    corrections,
     fetch_calls,
     fetch_humans,
     fetch_sessions,
+    message_corrections,
 )
 
 HOUR_MS = 3_600_000
@@ -121,7 +121,7 @@ def load(conn, scope) -> dict:
         s = sessions[m["session_uid"]]
         s["msgs"] += 1
         s["human_events"].append(m)
-        if corrections(m["raw"]):
+        if message_corrections(m):
             s["corr"] += 1
         fb = classify_feedback(m["raw"])
         if fb:
@@ -448,7 +448,7 @@ def coverage(items, pid, agents) -> list[dict]:
 
 def evidence_preview(rows, calls, limit=5) -> list[dict]:
     """Same shape as ``ai.pack._project_evidence`` fallback: corrections, then failing calls."""
-    humans = sorted((m for s in rows for m in s["human_events"] if corrections(m["raw"])),
+    humans = sorted((m for s in rows for m in s["human_events"] if message_corrections(m)),
                     key=lambda m: (m["ts"] or 0), reverse=True)[:3]
     out = [{"event_uid": m["event_uid"], "session_uid": m["session_uid"], "kind": "human",
             "text": redact(m["text"])[:300]} for m in humans]

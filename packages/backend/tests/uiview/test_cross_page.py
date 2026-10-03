@@ -138,7 +138,53 @@ def test_feature_corrections_use_the_shared_verdict():
                 "ts": 1_790_000_000_000, "actor": "human", "text": text,
                 "attrs": {"origin": "human"}}
 
-    result = session_features({"session_uid": "s"}, [ev("u1", short), ev("u2", long_)], [],
-                              {"s"})
+    reply = {"event_uid": "a0", "session_uid": "s", "kind": "message.assistant", "seq": 0,
+             "ts": 1_790_000_000_000, "actor": "assistant", "text": "好的", "attrs": {}}
+    result = session_features({"session_uid": "s"}, [reply, ev("u1", short), ev("u2", long_)],
+                              [], {"s"})
     assert result["features"]["correction_signal_count"] == 1
     assert [c["event_uid"] for c in result["correction_signals"]] == ["u1"]
+
+
+def test_corrections_count_only_after_the_agent_responded_on_every_page(orbit, conn):  # noqa: F811
+    """signals.detect_correction counts a correction only once the agent has replied in the
+    session and never a replayed copy; A1 (session_features), A3 list and detail, A5 and A6
+    use the same rule (``rules.countable_messages`` / ``countable_sql``)."""
+    from orbit_backend.analytics.common import human
+    from orbit_backend.analytics.features import session_features
+    from orbit_backend.analytics.interaction.rules import countable_messages
+    from orbit_backend.uiview import a4a6_projects, trajectory
+
+    text = "不对，改回去"
+    orbit.session("s")
+    first = orbit.event("s", ts=T0 + 1_000, kind="message.user", text=text,
+                        attrs={"origin": "human"})
+    orbit.event("s", ts=T0 + 2_000, kind="message.assistant", text="好的")
+    second = orbit.event("s", ts=T0 + 3_000, kind="message.user", text=text,
+                         attrs={"origin": "human"})
+    replay = orbit.event("s", ts=T0 + 4_000, kind="message.user", text=text,
+                         attrs={"origin": "human", "replayed_from": second})
+    orbit.db.execute("UPDATE event SET actor = 'human' WHERE kind = 'message.user'")
+    orbit.db.execute("INSERT INTO event_context(event_uid, project_id) "
+                     "SELECT event_uid, 'p1' FROM event WHERE session_uid = 's'")
+
+    rows = [dict(r) for r in conn.execute("SELECT * FROM event WHERE session_uid='s' ORDER BY seq")]
+    import json
+    for r in rows:
+        r["attrs"] = json.loads(r["attrs"] or "{}")
+    assert [e["event_uid"] for e in countable_messages(rows, lambda e: human(e, {"s"}))] \
+        == [second]
+    features = session_features({"session_uid": "s"}, rows, [], {"s"})
+    assert features["features"]["correction_signal_count"] == 1
+    assert [c["event_uid"] for c in features["correction_signals"]] == [second]
+
+    listed = {r["id"]: r for r in sessions.l1_facts(conn, UTC)}["s"]
+    assert listed["msgs"] == 3 and listed["corr"] == 1
+    detail = trajectory.build_detail(conn, "s", tz=UTC)
+    flags = {e["event_uid"]: e["corr"] for e in detail["trajectory"]["events"] if e["lane"] == "user"}
+    assert flags == {first: False, second: True, replay: False}
+
+    humans = a4a6_sentiment.fetch_humans(conn, ["s"])  # replays are already dropped here
+    assert [bool(a4a6_sentiment.message_corrections(m)) for m in humans] == [False, True]
+    loaded = a4a6_projects.load(conn, {})
+    assert loaded["sessions"]["s"]["corr"] == 1

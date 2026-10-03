@@ -99,3 +99,44 @@ def correction_kind(text) -> str | None:
 def is_correction(text) -> bool:
     """A human message that redirects the agent (result feedback alone does not count)."""
     return correction_kind(text) == "correction"
+
+
+# A message can only redirect the agent once the agent has responded in that session: an
+# assistant message or a tool call earlier in the same session (``signals.detect_correction``).
+# Replayed and duplicated copies of a message are never counted again.
+RESPONSE_KINDS = ("message.assistant", "tool.call")
+
+
+def responded_sql(alias: str = "e") -> str:
+    """SQL predicate: the agent responded before event ``alias`` in its session."""
+    kinds = ", ".join(f"'{k}'" for k in RESPONSE_KINDS)
+    return (f"EXISTS (SELECT 1 FROM event r WHERE r.session_uid = {alias}.session_uid "
+            f"AND r.seq < {alias}.seq AND r.kind IN ({kinds}))")
+
+
+def countable_sql(alias: str = "e") -> str:
+    """SQL predicate for a human message that may count as a correction (see above)."""
+    return (f"({responded_sql(alias)} AND json_extract({alias}.attrs, '$.replayed_from') IS NULL "
+            f"AND json_extract({alias}.attrs, '$.duplicate_of') IS NULL)")
+
+
+def countable_messages(events, is_human) -> list[dict]:
+    """Human events (``is_human(e)``) that may count as corrections: the agent responded
+    earlier in the same session and the message is not a replayed or duplicated copy.
+    ``events`` may hold several sessions; order is by ``seq`` within each session."""
+    first: dict[str, int] = {}
+    for e in events:
+        if e.get("kind") in RESPONSE_KINDS and e.get("seq") is not None:
+            sid = e["session_uid"]
+            first[sid] = min(first.get(sid, e["seq"]), e["seq"])
+    out = []
+    for e in events:
+        if not is_human(e):
+            continue
+        attrs = e.get("attrs") or {}
+        if attrs.get("replayed_from") or attrs.get("duplicate_of"):
+            continue
+        start = first.get(e["session_uid"])
+        if start is not None and e.get("seq") is not None and e["seq"] > start:
+            out.append(e)
+    return out
