@@ -60,20 +60,47 @@ CORRECTION_CHARS = (5, 200)
 FRUSTRATION = re.compile(
     r"算了|别弄了|怎么又|又错了|第几次|烦死|好烦|seriously|again\?!|\bugh\b", re.I)
 
-# Read-only shell heads (契约 §4.2 command.readonly); compared on the normalized head.
+# Read-only shell heads (契约 §4.2 command.readonly); compared on the normalized head of
+# every segment. A head alone is not enough: the argument checks below reject the forms
+# of these programs that write or execute (``find -delete``, ``git branch -D``,
+# ``echo x > f``, ``env FOO=1 cmd``).
 READONLY_COMMANDS = frozenset({
     "ls", "cat", "head", "tail", "pwd", "wc", "rg", "grep", "find", "tree", "stat", "file",
     "which", "echo", "du", "df", "env", "date", "git status", "git log", "git diff",
     "git show", "git branch", "git rev-parse", "git ls-files",
 })
+# Segments that only change shell state; they neither read nor write project files.
+STATE_ONLY_COMMANDS = frozenset({"cd", "pushd", "popd"})
+# find(1) actions that delete, run commands or write files.
+FIND_WRITE_ACTIONS = frozenset({"-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint",
+                                "-fprint0", "-fprintf", "-fls"})
+# git-branch(1) options that create, delete, rename, copy or re-track branches.
+GIT_BRANCH_WRITE = frozenset({"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy",
+                              "-f", "--force", "-u", "--set-upstream-to", "--unset-upstream",
+                              "--edit-description", "-t", "--track", "--no-track"})
+# With one of these a positional argument is a pattern/commit filter, not a new branch name.
+GIT_BRANCH_LIST = frozenset({"-l", "--list", "--contains", "--no-contains", "--merged",
+                             "--no-merged", "--points-at"})
+# Output redirections that write a file (``2>&1``/``>&`` duplicate descriptors instead).
+WRITE_REDIRECTS = frozenset({">", ">>", ">|", "&>", "&>>"})
 
-# DT-13 destructive command families; matched on command head and argument text.
+# DT-13 destructive command families.
+# rm: recursive + force only counts when a target is the filesystem root, the home
+# directory, a parent directory, a top-level absolute directory or a wildcard outside the
+# usual regenerable build/cache directories (``rm -rf node_modules`` is routine cleanup).
+RM_DANGEROUS_TARGETS = frozenset({"/", "~", "$HOME", "${HOME}", ".."})
+RM_REGENERABLE_DIRS = frozenset({"node_modules", "dist", "build", ".venv", "__pycache__", "target",
+                                 ".cache"})
+# SQL DROP only counts when it reaches a database client (argument, pipe or heredoc);
+# writing a migration file that contains DROP is not executing it.
+SQL_CLIENTS = frozenset({"sqlite3", "psql", "mysql", "mariadb", "duckdb", "sqlcmd",
+                         "clickhouse-client"})
+SQL_DROP = re.compile(r"\bdrop\s+(?:table|database|schema)\b", re.I)
+# Remaining families are matched on the full command text.
 RISKY_COMMANDS: tuple[tuple[str, re.Pattern], ...] = (
-    ("rm_recursive_force", re.compile(r"\brm\s+(?:-[a-z]*r[a-z]*f|-[a-z]*f[a-z]*r|-r\s+-f|-f\s+-r)", re.I)),
     ("git_push_force", re.compile(r"\bgit\s+push\b.*(?:--force\b|\s-f\b|--force-with-lease)", re.I)),
     ("git_reset_hard", re.compile(r"\bgit\s+reset\s+--hard\b", re.I)),
     ("git_clean_force", re.compile(r"\bgit\s+clean\s+-[a-z]*f", re.I)),
-    ("sql_drop", re.compile(r"\bdrop\s+(?:table|database|schema)\b", re.I)),
     ("disk_format", re.compile(r"\b(?:mkfs(?:\.\w+)?|dd\s+if=)", re.I)),
     ("chmod_recursive_777", re.compile(r"\bchmod\s+-R\s+0?777\b", re.I)),
 )

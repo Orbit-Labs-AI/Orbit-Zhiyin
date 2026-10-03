@@ -110,7 +110,7 @@ def test_labels_are_read_only_and_never_overwritten():
 def test_unsafe_operation_upgrades_with_one_session():
     s = Session("a")
     s.user("清理")
-    s.tool("rm -rf dist", status="success")
+    s.tool("rm -rf ~", status="success")
     result = problems_of([s, chat_session("b")])
     [problem] = find(result, key="risky_command:rm_recursive_force")
     assert problem["type"] == "unsafe_operation" and problem["min_sessions"] == 1

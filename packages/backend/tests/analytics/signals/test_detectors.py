@@ -143,22 +143,46 @@ def shell_session(sid, head="ls", **meta):
     return s
 
 
-def test_would_prompt_positive_negative_and_unknown():
-    found = detected([shell_session("a", permission_mode="default")])["would_prompt"]
+def connector_shell(sid, command, *, approval=None, wait=None, extra_calls=()):
+    """Real L3 shape: command_head is the program only; argv lives in the tool.call event input."""
+    s = Session(sid)
+    s.user("看看目录")
+    for cmd, appr, w in ((command, approval, wait), *extra_calls):
+        head = cmd.split()[0] if not cmd.startswith("git ") else " ".join(cmd.split()[:2])
+        s.tool(head, status="success", approval=appr, approval_wait_ms=w)
+        s.events[-2]["attrs"]["input"] = {"command": cmd}
+    return s
+
+
+def test_would_prompt_uses_call_approval_without_permission_mode():
+    found = detected([connector_shell("a", "ls -la src", approval="approved", wait=4200)])["would_prompt"]
     assert keys(found) == [("would_prompt:readonly_shell", 1)]
-    assert found[0]["basis"] == "proxy"  # inventory unknown: allow rules cannot be checked
-    assert found[0]["problem_type"] == "permission_friction"
+    assert found[0]["basis"] == "measured" and found[0]["problem_type"] == "permission_friction"
+    assert found[0]["occurrences"][0]["approval_wait_ms"] == 4200
+    # An allow rule for the head already removes the prompt: no friction left to fix.
     allow = [{"inv_id": "r1", "type": "rule", "name": "settings",
               "config": {"permissions": {"allow": ["Bash(ls:*)"]}}}]
-    assert detected([shell_session("b", permission_mode="default")], inventory=allow)["would_prompt"] == []
-    covered = detected([shell_session("b2", head="cat", permission_mode="default")], inventory=allow)
-    assert covered["would_prompt"][0]["basis"] == "measured"
-    assert detected([shell_session("c", permission_mode="acceptEdits")])["would_prompt"] == []
-    assert detected([shell_session("d", head="pnpm", permission_mode="default")])["would_prompt"] == []
-    assert detected([shell_session("e")])["would_prompt"] is None
+    assert detected([connector_shell("b", "ls -la", approval="approved")], inventory=allow)["would_prompt"] == []
+    # Approval data exists for the session but the read-only command was not prompted.
+    quiet = connector_shell("c", "ls", extra_calls=(("pnpm install", "approved", 900),))
+    assert detected([quiet])["would_prompt"] == []
+    # Prompted commands that are not read-only are not friction to allow-list.
+    assert detected([connector_shell("d", "find . -delete", approval="approved")])["would_prompt"] == []
+    # No approval data at all: unknown, not zero.
+    assert detected([connector_shell("e", "ls -la")])["would_prompt"] is None
 
 
-# ---------------------------------------------------------------- permission_denied
+@pytest.mark.parametrize("command,readonly", [
+    ("ls -la", True), ("find . -name '*.py'", True), ("git branch -a", True), ("git branch", True),
+    ("git branch --list 'feat/*'", True), ("echo hi", True), ("echo hi >/dev/null", True), ("env", True),
+    ("cd repo && git status", True), ("rg foo | head -5", True),
+    ("find . -name x -delete", False), ("find . -exec rm {} ;", False), ("git branch -D old", False),
+    ("git branch new-feature", False), ("echo x > out.txt", False), ("echo x >> log", False),
+    ("env FOO=1 make", False), ("cat list | xargs rm", False), ("ls $(pwd)", False),
+])
+def test_readonly_command_rejects_writing_forms(command, readonly):
+    from tandem_backend.analytics.signals.detectors import is_readonly_command
+    assert is_readonly_command(command) is readonly
 
 
 def test_permission_denied_positive_negative_and_unknown():
@@ -182,13 +206,29 @@ def test_permission_denied_positive_negative_and_unknown():
 
 
 @pytest.mark.parametrize("head,family", [
-    ("rm -rf build", "rm_recursive_force"), ("git push --force origin main", "git_push_force"),
+    ("rm -rf /", "rm_recursive_force"), ("git push --force origin main", "git_push_force"),
     ("git reset --hard HEAD~1", "git_reset_hard"), ("psql -c 'DROP TABLE users'", "sql_drop"),
 ])
 def test_risky_command_vocabulary(head, family):
     found = detected([shell_session("a", head=head)])["risky_command"]
     assert keys(found) == [(f"risky_command:{family}", 1)]
     assert found[0]["problem_type"] == "unsafe_operation"
+
+
+@pytest.mark.parametrize("command,family", [
+    ("rm -rf ~", "rm_recursive_force"), ("rm -rf $HOME", "rm_recursive_force"),
+    ("rm -rf ..", "rm_recursive_force"), ("rm --recursive --force /", "rm_recursive_force"),
+    ("rm -r -f *", "rm_recursive_force"), ("sudo rm -Rf /usr", "rm_recursive_force"),
+    ("sqlite3 x.db 'DROP TABLE tmp'", "sql_drop"), ("echo 'drop table x' | psql", "sql_drop"),
+    ("sqlite3 app.db <<EOF\nDROP TABLE t;\nEOF", "sql_drop"),
+    ("rm -rf node_modules", None), ("rm -rf dist build .venv", None), ("rm -rf build/*", None),
+    ("rm -rf __pycache__ target .cache", None), ("rm -rf ./tmp/out", None), ("rm build.log", None),
+    ("cat <<EOF > m.sql\nDROP TABLE x;\nEOF", None), ("rg 'drop table' migrations", None),
+])
+def test_risky_command_targets_and_clients(command, family):
+    # Real connector shape: arguments only exist in the tool.call event input.
+    found = detected([connector_shell("a", command)])["risky_command"]
+    assert keys(found) == ([] if family is None else [(f"risky_command:{family}", 1)])
 
 
 def test_risky_command_negative_and_unknown():
