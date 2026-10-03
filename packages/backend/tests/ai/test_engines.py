@@ -231,6 +231,24 @@ def test_api_key_engine_gives_up_after_bounded_retries(monkeypatch, ai_env):
     assert len(seen["bodies"]) == engines.API_RETRIES + 1
 
 
+def test_api_cancel_during_retry_never_sends_again(monkeypatch, ai_env):
+    seen = _api(monkeypatch, 503, _text_reply("claude-haiku-4-5", {"answer": "late"}))
+    req = request()
+    monkeypatch.setattr(engines, "_sleep", lambda _: req.cancel.set())
+    result = ApiKeyEngine(ai_env.tmp).call(req)
+    assert result.error == "cancelled" and len(seen["bodies"]) == 1
+
+
+def test_api_retries_share_one_deadline(monkeypatch, ai_env):
+    seen = _api(monkeypatch, 503, 503, 503)
+    clock = [0.0]
+    monkeypatch.setattr(engines.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(engines, "_sleep", lambda delay: clock.__setitem__(0, clock[0] + delay))
+    result = ApiKeyEngine(ai_env.tmp).call(request(timeout_s=1.5))
+    assert result.error == "timeout" and len(seen["bodies"]) == 2
+    assert clock[0] == 1.5
+
+
 def test_default_engines_register_api_key_only_with_env(monkeypatch, ai_env):
     assert set(engines.default_engines(ai_env.tmp)) == {"claude_code", "codex"}
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-not-a-real-key")
