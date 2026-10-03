@@ -44,7 +44,7 @@ def test_model_card_ev_matches_its_resolvable_sessions():
 
 
 def test_removal_gain_is_never_minus_zero_and_estimates_say_so():
-    inv = problems.build({"sessions": {"main": 40, "weeks": 6, "first_ts": "2026-07-01T00:00:00Z",
+    inv = problems.build({"sessions": {"main": 40, "weeks": 6, "first_ts": "2026-05-01T00:00:00Z",
                                        "last_ts": "2026-09-01T00:00:00Z"},
                           "facts": {"usage": {"skill": {}, "mcp": {}}},
                           "inventory": [{"inv_id": "m1", "type": "mcp", "name": "figma", "enabled": True}]})

@@ -1,5 +1,7 @@
 """Recommendation quality: time-split replay with / without AI rerank, gate and score-term
-ablations with the RC-09 / RC-17 contribution report, and exposure rates from app.db.
+ablations with the RC-09 / RC-17 contribution report, the static replay's negative cases
+(``evals/recommendation/replay.py``: inputs that must yield no problem recommendation) with its
+synthetic-set disclaimer, and exposure rates from app.db.
 
 Fixtures are ``evals/recommendation/fixtures/{replay,timeline}-cases.json`` (repo only; the
 suite skips without them). The rerank pass uses ``FakeEngine``, so no model runs. Exposure
@@ -9,6 +11,7 @@ reported in metrics, never asserted (EV-05.2 findings).
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sqlite3
 from pathlib import Path
@@ -19,6 +22,8 @@ ID = "recommend"
 TITLE = "Recommendation evaluation"
 EV = ("EV-05", "EV-05.1", "EV-05.2", "EV-12")
 HIT_AT_3, NDCG_AT_3 = .5, .7  # HitRate@3 ≥ 0.5 per plan; nDCG@3 calibrated on the fixture (0.94)
+# Every negative case must hold: one recommendation where none is warranted is a failure.
+NEGATIVE_PASS = 1.0
 
 
 def _fixtures(ctx: EvalContext) -> Path | None:
@@ -35,6 +40,17 @@ def _appdb(ctx: EvalContext) -> Path | None:
     if ctx.real and ctx.home is not None and (ctx.home / "app.db").is_file():
         return ctx.home / "app.db"
     return None
+
+
+def _replay(fixtures: Path, cases: list[dict]) -> dict | None:
+    """Static replay (positive + negative cases) via evals/recommendation/replay.py next to the fixtures."""
+    path = fixtures.parent / "replay.py"
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("tandem_eval_replay", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.run_replay(cases)
 
 
 def _exposure(path: Path) -> dict:
@@ -75,10 +91,21 @@ def run(ctx: EvalContext) -> SuiteResult:
         Check(f"{ID}.rc17.repeat_na", on is not None and off is not None and on < off, on, off,
               "repeat not-applicable@3 with RC-17 on (value) vs off (threshold)"),
     ]
+    replay = _replay(fixtures, cases)
+    if replay is not None and replay["negative_pass_rate"] is not None:
+        failing = [f"{c['id']}: {'; '.join(c['errors'])}" for c in replay["negatives"] if not c["passed"]]
+        checks.append(Check(f"{ID}.replay.negative_pass_rate", replay["negative_pass_rate"] >= NEGATIVE_PASS,
+                            replay["negative_pass_rate"], NEGATIVE_PASS,
+                            f"{replay['n_negative']} negative cases; " + (", ".join(failing) or "all hold")
+                            + f"; {replay['disclaimer']}"))
     metrics = {"split": {k: v for k, v in base.items() if k != "per_cutoff"},
                "rerank": {k: v for k, v in reranked.items() if k != "per_cutoff"},
                "rc17_off": {k: v for k, v in no_rc17.items() if k != "per_cutoff"},
                "per_cutoff": base["per_cutoff"]}
+    if replay is not None:
+        metrics["replay"] = {k: replay[k] for k in ("hit_rate@3", "ndcg@3", "negative_pass_rate", "n_positive",
+                                                     "n_negative", "negatives")}
+        metrics["disclaimer"] = replay["disclaimer"]
     if ctx.params.get("ablation", True):
         metrics["ablation"] = ev.ablation_report(cases, users)
     if (path := _appdb(ctx)) is not None:
