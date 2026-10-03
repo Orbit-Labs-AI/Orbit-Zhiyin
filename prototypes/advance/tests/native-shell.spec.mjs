@@ -79,3 +79,16 @@ test('widgets surface renders content even when the in-page widgets setting is o
   expect(Math.max(...sizes)).toBeGreaterThan(120);
   await ctx.close();
 });
+
+test('HUD surface reports a width that fits the pill (the panel shrinks to it, no click-eating margin)', async ({ browser }) => {
+  const { ctx, page } = await launch(browser, {}, { query: '?surface=hud' });
+  await page.evaluate(() => { S.hud.show = true; render(); });
+  await sleep(300);
+  const last = await page.evaluate(() => window.__nativeMsgs.filter((m) => m.type === 'resizeSurface').pop());
+  expect(last && last.height).toBeGreaterThan(30);
+  expect(last.height).toBeLessThan(120);
+  const pill = await page.locator('#hud > .pill').boundingBox();
+  expect(last.width).toBeGreaterThanOrEqual(Math.ceil(pill.width));
+  expect(last.width).toBeLessThanOrEqual(Math.ceil(pill.width) + 24);
+  await ctx.close();
+});

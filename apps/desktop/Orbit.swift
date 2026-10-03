@@ -577,7 +577,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func makePanel(_ surface: Surface) -> FloatingPanel {
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let size = surface == .hud ? NSSize(width: 340, height: 200) : NSSize(width: 320, height: 620)
+        // Start at the surface's own size: the HUD pill is ~80 pt tall and the widgets column is 364 pt wide (98-live-ops.js
+        // body.surface-widgets #widgets), so no transparent margin covers other windows before the first resizeSurface.
+        let size = surface == .hud ? NSSize(width: 340, height: 80) : NSSize(width: AppDelegate.widgetsWidth, height: 480)
         let offset: CGFloat = surface == .hud ? 0 : 360  // Widgets sit left of the HUD by default.
         let frame = NSRect(x: screen.maxX - size.width - 20 - offset, y: screen.maxY - size.height - 20,
                            width: size.width, height: size.height)
@@ -594,12 +596,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         panel.isReleasedWhenClosed = false
         panel.contentView = makeHost(surface).webView
         panel.setFrameAutosaveName(surface == .hud ? "OrbitHUD" : "OrbitWidgets")  // Remembers position.
+        if surface == .widgets, panel.frame.width != AppDelegate.widgetsWidth {  // an older build saved 320 pt
+            var f = panel.frame; f.size.width = AppDelegate.widgetsWidth; panel.setFrame(f, display: false)
+        }
         if surface == .hud { hudPanel = panel } else { widgetsPanel = panel }
         return panel
     }
 
-    func resizeSurface(_ host: WebHost, height raw: Double) {
-        let height = CGFloat(min(max(raw, 80), 900))
+    static let widgetsWidth: CGFloat = 364
+
+    /// The page reports its component's size; the HUD also reports its width so the panel never extends past the pill
+    /// (the transparent rest of a wider window would swallow clicks meant for the windows below).
+    func resizeSurface(_ host: WebHost, height raw: Double, width rawWidth: Double? = nil) {
+        let height = CGFloat(min(max(raw, host.surface == .hud ? 32 : 80), 900))
         switch host.surface {
         case .panel: popover?.contentSize = NSSize(width: popover?.contentSize.width ?? 360, height: height)
         case .hud, .widgets:
@@ -607,6 +616,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             var frame = panel.frame
             frame.origin.y += frame.height - height  // Keep the top edge where the user put it.
             frame.size.height = height
+            if host.surface == .hud, let w = rawWidth, w.isFinite {
+                let width = CGFloat(min(max(w, 120), 520))
+                frame.origin.x += frame.width - width  // Keep the right edge (the HUD sits at the top right).
+                frame.size.width = width
+            }
             panel.setFrame(frame, display: true, animate: false)
         case .main: break
         }
@@ -749,7 +763,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         case "dragRegions": if host.surface == .main { window.updateRegions(body) }
         case "menuState": if host.surface == .main { updateMenuState(body) }
         case "resizeSurface":
-            if let height = (body["height"] as? NSNumber)?.doubleValue { resizeSurface(host, height: height) }
+            if let height = (body["height"] as? NSNumber)?.doubleValue {
+                resizeSurface(host, height: height, width: (body["width"] as? NSNumber)?.doubleValue)
+            }
         default: break
         }
     }
