@@ -26,7 +26,7 @@ SR = 48000
 BPM = 132
 BEAT = 60 / BPM
 # = SHIFT in promo.js: each scene plays this many beats later (the integrator fills these in; all cues follow)
-SHIFT = {'10-intro': 0, '15-redesign': 6.9, '20-orbit': 11.3, '30-persona': 17.7, '40-recs': 23.7, '50-tools': 31.7, '60-close': 37.7}
+SHIFT = {'10-intro': 0, '15-redesign': 6.9, '20-orbit': 11.3, '30-persona': 16.9, '40-recs': 22.9, '50-tools': 30.9, '60-close': 36.9}
 END = 89 + SHIFT['60-close']   # film beats (scenes/60-close.js sets END = 89 in its own beats)
 TAIL = 1.0                     # seconds of silence after END, so the mux never cuts a sample short
 N = int((END * BEAT + TAIL) * SR)
