@@ -68,8 +68,9 @@ def test_detects_agents_by_config_dir_and_binary(env, fake_run, tmp_path):
     assert layers["user_settings"]["writable"]
     cx = agent(result, "codex")
     assert cx["version"] == "0.80.0" and not cx["capabilities"]["subagents"]
-    assert cx["dirs"]["skills"]["path"] == str(env.home / ".codex/skills")
-    assert cx["dirs"]["skills"]["alternatives"] == [str(env.home / ".agents/skills")]
+    # ~/.agents/skills is Codex's current user skills root; $CODEX_HOME/skills is the deprecated one.
+    assert cx["dirs"]["skills"]["path"] == str(env.home / ".agents/skills")
+    assert cx["dirs"]["skills"]["alternatives"] == [str(env.home / ".codex/skills")]
     assert {lay["id"] for lay in cx["layers"]} == {"config_toml", "agents_md", "hooks_json"}
     assert len(fake_run.calls) == 2
     # no tandem.db: counts fall back to directory counts
@@ -154,8 +155,12 @@ def test_missing_and_read_only_agents(tmp_path):
     cc = agent(result, "claude_code")
     assert not cc["installed"] and cc["detected_via"] == [] and cc["installed_counts"] is None
     hermes = agent(result, "hermes")
-    assert hermes["installed"] and hermes["install_support"] == "read_only"
-    assert hermes["unsupported_reason"] == "agent_not_supported_v1" and not hermes["capabilities"]["skills"]
+    assert hermes["installed"] and hermes["install_support"] == "full" and hermes["unsupported_reason"] is None
+    assert hermes["capabilities"]["skills"] and not hermes["capabilities"]["mcp"]
+    assert hermes["dirs"]["skills"]["path"] == str(empty / ".hermes/skills")
+    kimi = agent(result, "kimi")
+    assert kimi["install_support"] == "unverified" and kimi["unsupported_reason"] == "kimi_unverified_no_source"
+    assert not any(v for k, v in kimi["capabilities"].items() if k != "basis")
     assert run.calls == []
 
 
