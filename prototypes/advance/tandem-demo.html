@@ -1088,11 +1088,13 @@ body.native .win.nosb .tbar{padding-left:20px}
 .tt-cta-t{flex:1;min-width:160px;font-size:12px;line-height:1.45;color:var(--ink-2)}
 .tt-cta-t b{color:var(--ink-1)}
 .tt-par-note{align-items:flex-start;gap:6px;font-size:11px;line-height:1.45;color:var(--ink-2)}
+.tt-par-note>.ico{margin-top:calc((1lh - 16px) / 2)!important}   /* 多行说明：图标对齐首行中心，覆盖模板内联 margin-top */
 .tt-retry .tt-cmd{font-size:11px;color:var(--ink-1)}
 .tbl.tt td{padding:6px 8px}
 .tbl.tt .mono{font-size:12px}
 .tt-num{min-width:40px;text-align:right}   /* 调用次数定宽右对齐，各行条形等长起止 */
 .tbl.tt .tt-name{white-space:nowrap;font-size:12px}
+.tbl.tt .tt-name>.ico{position:relative;top:1.5px}   /* 16px 展开箭头比 12px 等宽字中心高 1.5px；相对位移不改行高 */
 .tbl.tt .tt-n{min-width:120px}
 .tt-bar{flex:1;min-width:40px;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
 .tt-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-3)}
@@ -1387,7 +1389,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lb-bar.sm{height:6px;flex:1;background:var(--sunken)}
 .lb-body{padding:12px 16px 14px;display:flex;flex-direction:column;gap:8px;flex:1}
 .lb-why{align-items:flex-start;gap:8px;font-size:12px;line-height:18px;color:var(--ink-2)}
-.lb-why svg{margin-top:2px!important}
+.lb-why svg{margin-top:1px!important}   /* 16px 图标在 18px 行高首行居中 */
 .lb-foot{margin-top:auto;flex-wrap:wrap;gap:8px;padding-top:12px;border-top:1px solid var(--hair)}
 .lb-fc{font-size:11px;line-height:16px}
 .lb-acts{gap:4px;margin-left:auto}
@@ -1400,6 +1402,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lb-row:last-child{border-bottom:0}
 .lb-row>div>.row{flex-wrap:nowrap;gap:6px;min-width:0;margin-bottom:2px}
 .lb-nm{font-size:12px;line-height:16px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* .lnk::after 左右各外扩 2px 扩大点击区，但这里 overflow:hidden 会把它算进 scrollWidth，名称看似被截 2px；收回横向外扩 */
+.lb-nm::after{left:0;right:0}
 .lb-row b.mono{white-space:nowrap}
 .lb-mv{font-size:12px;min-width:20px;text-align:right}
 .lb-ico{width:32px;height:32px;border-radius:8px;color:var(--ink-2);background:var(--sunken);display:grid;place-items:center}
@@ -1479,7 +1483,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 @keyframes st-pulse{0%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 0 var(--ai-bg)}70%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 6px transparent}100%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 0 transparent}}
 /* four check rows (spec / safety / replay dry-run / judge) */
 .st-chk{display:grid;grid-template-columns:14px 86px minmax(0,1fr);gap:2px 8px;align-items:start;padding:6px 0;border-bottom:1px solid var(--hair);font-size:12px;line-height:1.45}
-.st-chk .ico{margin-top:2px}
+.st-chk .ico{margin-top:calc((1lh - 16px) / 2)}   /* 16px 图标对齐首行文字中心（行高 1.45） */
 .st-chk .nm{font-weight:600;color:var(--ink-1)}
 .st-chk .rs{color:var(--ink-2)}
 .st-chk.pend .nm,.st-chk.skip .nm,.st-chk.pend .rs,.st-chk.skip .rs{color:var(--ink-3)}
