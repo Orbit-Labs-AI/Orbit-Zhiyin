@@ -59,7 +59,7 @@ def test_inventory_resident_cost_and_installed_unused():
            {"inv_id": "i2", "type": "mcp", "name": "figma", "enabled": True, "resident_tokens": 2100},
            {"inv_id": "i3", "type": "skill", "name": "used", "resident_tokens": 100}]
     facts = {"usage": {"skill": {"used": {"calls": 4}}, "mcp": {}}}
-    sessions = {"main": 20, "weeks": 4, "first_ts": "2026-08-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
+    sessions = {"main": 20, "weeks": 4, "first_ts": "2026-06-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
     out = {p["key"]: p for p in problems.build(inputs(inventory=inv, facts=facts, sessions=sessions))}
     assert out["resident_cost:rules_file:AGENTS.md"]["vars"]["lines"] == 312
     unused = out["installed_unused:i2"]
@@ -85,6 +85,6 @@ def test_installed_unused_skips_items_without_usage_attribution():
            {"inv_id": "cc", "type": "skill", "name": "claude-skill", "agent": "claude_code",
             "usage": {"attributable": True, "basis": "tool_call.skill"}}]
     facts = {"usage": {"skill": {"other": {"calls": 3}}, "mcp": {}}}
-    sessions = {"main": 20, "weeks": 4, "first_ts": "2026-08-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
+    sessions = {"main": 20, "weeks": 4, "first_ts": "2026-06-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
     keys = {p["key"] for p in problems.build(inputs(inventory=inv, facts=facts, sessions=sessions))}
     assert "installed_unused:cc" in keys and "installed_unused:cx" not in keys

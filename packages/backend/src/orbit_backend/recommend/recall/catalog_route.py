@@ -7,8 +7,10 @@ a per-call timeout so a slow catalog never stalls the engine. Without a
 catalog service we fall back to a small BM25 over the bundled legacy seeds.
 """
 
+import json
 import math
 import re
+import sqlite3
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +24,7 @@ from .sparse import tokenize
 # catalog_item.verification values meaning "repository and resource source were read"
 # (same set as orbit_catalog.index.VERIFIED; anything else, or a missing field, is unverified).
 VERIFIED = ("repository_and_skill_read", "repository_and_source_read")
+SUPPORT_VALUES = {"native", "manual", "adaptation_required", "unsupported"}
 
 TYPE_KIND = {"skill": "skill", "plugin": "plugin", "marketplace": "plugin", "mcp_server": "mcp", "hook": "hook",
              "subagent": "subagent", "command": "prompt", "rule": "rule", "workflow": "workflow", "guide": "workflow",
@@ -47,9 +50,10 @@ def _user_trial(text: str | None) -> str:
 def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: str) -> dict:
     """RawCand from a normalised catalog item dict (catalog response row or legacy seed)."""
     kind = item["kind"]
-    # Only an explicit support matrix (legacy seeds) states native/manual; a catalog row's ``agents``
-    # list is often inferred by the connector, so it stays a hint and every agent is "unknown"
-    # (agent_supported → needs_context) until the catalog provides a declared matrix.
+    # Only an explicit support matrix states native/manual: legacy seeds, or a catalog item's declared
+    # metadata.agent_support (Orbit KB entries). A catalog row's ``agents`` list is often inferred by
+    # the connector, so it stays a hint and undeclared agents are "unknown" (agent_supported →
+    # needs_context).
     support = dict(item.get("support") or {})
     risk_flags = list(item.get("risk") or ())
     limitation = item.get("limitation") or ""
@@ -104,8 +108,55 @@ def _normalise_catalog(row: dict) -> dict | None:
             "summary": row.get("summary") or "", "url": row.get("url"), "agents": row.get("agents") or [],
             "license": row.get("license"), "difficulty": row.get("difficulty"), "risk": row.get("risk") or [],
             "language": row.get("language"), "content_hash": row.get("content_hash"),
-            "version_id": row.get("version_id"), "verified": row.get("verification") in VERIFIED,
+            "version_id": row.get("version_id"),
+            # a search row may not carry verification / declared support: None = look it up in catalog_item
+            "verified": row["verification"] in VERIFIED if "verification" in row else None,
+            "support": declared_support(row.get("agent_support")),
             "tags": tags, "score": row.get("score", 0.)}
+
+
+def declared_support(value) -> dict:
+    """A catalog item's declared per-agent support (metadata.agent_support), valid levels only."""
+    if not isinstance(value, dict):
+        return {}
+    return {str(agent): level for agent, level in value.items() if level in SUPPORT_VALUES and agent != "generic"}
+
+
+def item_support(metadata) -> dict:
+    """``agent_support`` from a catalog_item.metadata blob (top level or under ``metadata``)."""
+    try:
+        meta = json.loads(metadata) if isinstance(metadata, (str, bytes)) else dict(metadata or {})
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(meta, dict):
+        return {}
+    inner = meta.get("metadata") if isinstance(meta.get("metadata"), dict) else {}
+    return declared_support(meta.get("agent_support") or inner.get("agent_support"))
+
+
+def enrich(catalog, items: list[dict], diagnostics: list) -> None:
+    """Fill verification and declared agent support that the search rows left out from catalog_item.
+
+    The catalog's search result omits ``verification`` and the KB-declared ``agent_support``; without
+    them every crawled item failed the source_verified gate. One read of catalog_item covers all
+    items; when it is unavailable, they stay unverified (False) and a diagnostic says why."""
+    missing = sorted({it["item_id"] for it in items if it.get("verified") is None or not it.get("support")})
+    found: dict[str, tuple] = {}
+    if missing:
+        try:
+            with catalog.store.connect(True) as conn:
+                for row in conn.execute("SELECT item_id, verification, metadata FROM catalog_item WHERE item_id IN "
+                                        "(SELECT value FROM json_each(?))", (json.dumps(missing),)):
+                    found[row[0]] = (row[1], row[2])
+        except (AttributeError, sqlite3.Error, OSError) as exc:
+            diagnostics.append({"source": "catalog.verification", "status": "unavailable",
+                                "reason": type(exc).__name__})
+    for it in items:
+        verification, metadata = found.get(it["item_id"], (None, None))
+        if it.get("verified") is None:
+            it["verified"] = verification in VERIFIED
+        if not it.get("support"):
+            it["support"] = item_support(metadata)
 
 
 @lru_cache(maxsize=1)
@@ -211,6 +262,7 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
     profile_rows: dict[str, float] = {}
     profile_payload: dict[str, dict] = {}
     payload: dict[str, dict] = {}
+    kept: list[tuple[dict | None, dict, float]] = []
     pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="orbit-rec-catalog")
     # 2 s per call; four run at once, so the whole batch gets one deadline per wave.
     deadline = time.monotonic() + TIMEOUT_S * math.ceil(len(queries) / 4)
@@ -239,16 +291,19 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
                     remedy = "remedy" in ((row.get("score_parts") or {}).get("routes") or {})
                     if not (friction or remedy):
                         continue
-                    key, raw = "catalog:" + item["item_id"], float(row.get("score") or 0.) + 1e-6
-                    if raw > rows.get(key, 0):
-                        rows[key] = raw
-                        payload[key] = from_item(item, problem, inputs, match_basis="catalog_feature")
-                else:
-                    key = "catalog:" + item["item_id"]
-                    profile_rows[key] = max(profile_rows.get(key, 0), float(row.get("score") or 0.) + 1e-6)
-                    profile_payload.setdefault(key, from_item(item, None, inputs, match_basis="profile"))
+                kept.append((problem, item, float(row.get("score") or 0.) + 1e-6))
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
+    enrich(catalog, [item for _, item, _ in kept], diagnostics)
+    for problem, item, raw in kept:
+        key = "catalog:" + item["item_id"]
+        if problem is not None:
+            if raw > rows.get(key, 0):
+                rows[key] = raw
+                payload[key] = from_item(item, problem, inputs, match_basis="catalog_feature")
+        else:
+            profile_rows[key] = max(profile_rows.get(key, 0), raw)
+            profile_payload.setdefault(key, from_item(item, None, inputs, match_basis="profile"))
     diagnostics.append({"source": "catalog.vector", "status": (meta.get("vector") or {}).get("status", "unknown"),
                         "reason": (meta.get("vector") or {}).get("reason", "")})
     meta["profile_payload"] = profile_payload

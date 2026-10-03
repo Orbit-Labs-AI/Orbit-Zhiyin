@@ -19,16 +19,17 @@ from ...privacy import direct_user_text
 from ...profiling.bottlenecks import _expected_failure
 from ..common import clauses, human
 from ..context import AnalysisContext
-from ..interaction.rules import QUOTED, correction_terms
+from ..interaction.rules import QUOTED, correction_kind, correction_terms
 from ..lexicon import emotion_cues
 from .dictionary import (
-    CORRECTION_CHARS,
     EDIT_KINDS,
     FIND_WRITE_ACTIONS,
     FRUSTRATION_STREAK_CHARS,
     GIT_BRANCH_LIST,
     GIT_BRANCH_WRITE,
     READONLY_COMMANDS,
+    RETRY_LOOP_MIN_CHAIN,
+    RETRY_LOOP_MIN_FAILURES,
     RISKY_COMMANDS,
     RM_DANGEROUS_TARGETS,
     RM_REGENERABLE_DIRS,
@@ -359,10 +360,12 @@ def _order(row: Record) -> tuple:
 
 
 def detect_correction(view: SessionView) -> list[Record] | None:
-    """Lexical correction proxy between assistant replies (``CORRECTION_CHARS`` direct characters)."""
+    """Lexical correction proxy between assistant replies: ``interaction.rules.correction_kind``
+    is ``correction`` (its ``CORRECTION_CHARS`` gate included); result feedback alone
+    ("还是不行，测试依然失败") is not a correction."""
     if view.events is None:
         return None
-    responded, groups = set(), defaultdict(list)
+    responded, occurrences = set(), []
     for e in view.events:
         if e["kind"] in ("message.assistant", "tool.call"):
             responded.add(e["session_uid"])
@@ -370,17 +373,12 @@ def detect_correction(view: SessionView) -> list[Record] | None:
         if not human(e, view.main_ids) or e.get("attrs", {}).get("replayed_from") \
                 or e.get("attrs", {}).get("duplicate_of") or e["session_uid"] not in responded:
             continue
-        text = direct_user_text(e.get("text") or "")
-        if not CORRECTION_CHARS[0] <= len(text) <= CORRECTION_CHARS[1]:
-            continue
-        terms = correction_terms(text)
-        if terms:
-            dimension = (e.get("attrs", {}).get("interaction") or {}).get("dimension")
-            groups[dimension].append(_event_occurrence(e, terms=terms, chars=len(text)))
-    return [_signal(view, "correction", f"correction:{dim or 'none'}", occ,
-                    problem_type="repeated_instruction" if dim else "misunderstood_request",
-                    evidence={"dimension": dim})
-            for dim, occ in sorted(groups.items(), key=lambda kv: kv[0] or "")]
+        raw = e.get("text") or ""
+        if correction_kind(raw) == "correction":
+            occurrences.append(_event_occurrence(e, terms=correction_terms(raw),
+                                                 chars=len(direct_user_text(raw))))
+    return [_signal(view, "correction", "correction:session", occurrences,
+                    problem_type="misunderstood_request")] if occurrences else []
 
 
 def detect_frustration(view: SessionView) -> list[Record] | None:
@@ -395,7 +393,8 @@ def detect_frustration(view: SessionView) -> list[Record] | None:
             hits.append(_event_occurrence(e, reason="emotion_cue"))
             streak = []
             continue
-        if len(text) <= FRUSTRATION_STREAK_CHARS and correction_terms(text):
+        # A short streak of corrections or "still failing" result feedback both count.
+        if len(text) <= FRUSTRATION_STREAK_CHARS and correction_kind(text):
             streak.append(e)
             if len(streak) == 2:
                 hits.append(_event_occurrence(e, reason="short_correction_streak"))
@@ -419,7 +418,8 @@ def _expected_failure_context(view: SessionView, call: Record) -> bool:
 
 
 def detect_retry_loop(view: SessionView) -> list[Record] | None:
-    """Adapter over ``respond.retry_links``: ≥2 same-argument links in one turn, ≥3 failures."""
+    """Adapter over ``respond.retry_links``: a same-argument chain of ``RETRY_LOOP_MIN_CHAIN``
+    calls with ``RETRY_LOOP_MIN_FAILURES`` failures (see ``dictionary.THRESHOLDS``)."""
     if view.calls is None or view.retry_links is None:
         return None
     by_uid = {c["call_uid"]: c for c in view.calls}
@@ -442,7 +442,7 @@ def detect_retry_loop(view: SessionView) -> list[Record] | None:
             chain.append(eligible[chain[-1]])
         calls = [by_uid[uid] for uid in chain]
         failures = sum(c.get("tool_result_status") == "failed" for c in calls)
-        if len(chain) < 3 or failures < 3:
+        if len(chain) < RETRY_LOOP_MIN_CHAIN or failures < RETRY_LOOP_MIN_FAILURES:
             continue
         if _expected_failure_context(view, calls[0]):
             expected += 1

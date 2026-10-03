@@ -1,11 +1,9 @@
 """Report examples execute the production recommendation pipeline."""
 
 import importlib
-from pathlib import Path
 
 
 def test_generated_counterfactuals_and_arithmetic_are_fixed_oracles(monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
     validation = importlib.import_module("evals.recommendation.validation")
     _, analysis, items, cases = validation.generate_cases()
     assert len(items) == 4 and all(i["source"]["verified_sha"] for i in items)

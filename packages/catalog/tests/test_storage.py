@@ -17,7 +17,8 @@ def store(tmp_path):
 
 def record(name="debugger", **kwargs):
     kwargs.setdefault("summary", "Debug failing tests 调试重复失败")
-    return Record(native_id=name, resource=Resource(item_id=name, type="skill", name=name,
+    kwargs.setdefault("type", "skill")
+    return Record(native_id=name, resource=Resource(item_id=name, name=name,
                   url="https://example.org/skill", **kwargs))
 
 

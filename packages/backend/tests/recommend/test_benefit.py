@@ -157,3 +157,14 @@ def test_beta_interval_is_a_clipped_normal_band():
     lo, hi = beta_interval(9, 1)
     # mean .9, sd = √(9·1 / (10²·11)) = .0904534 ; ±1.645·sd = .1487958 ; upper clipped at 1
     assert lo == pytest.approx(.7512042, abs=1e-6) and hi == 1.
+
+
+@pytest.mark.parametrize("agent", ["generic", "claude_code", "codex", "opencode", "pi", "hermes", "dsh", "kimi"])
+def test_context_agent_accepts_the_analytics_targets(agent):
+    assert RecommendationContext(agent=agent).agent == agent
+
+
+@pytest.mark.parametrize("agent", ["claude", "Codex", "gemini", "unknown"])
+def test_context_agent_rejects_names_outside_the_targets(agent):
+    with pytest.raises(ValueError, match="Unknown agent"):
+        RecommendationContext(agent=agent)

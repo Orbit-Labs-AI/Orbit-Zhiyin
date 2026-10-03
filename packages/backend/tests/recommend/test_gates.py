@@ -131,7 +131,7 @@ def test_unverified_catalog_row_is_rejected():
 
     row = {"item_id": "x", "type": "skill", "name": "X", "license": "MIT", "content_hash": "ab" * 32,
            "agents": ["claude_code"]}
-    assert _normalise_catalog(row)["verified"] is False
+    assert _normalise_catalog(row)["verified"] is None  # not in the search row: looked up in catalog_item
     assert _normalise_catalog(row | {"verification": "metadata_only"})["verified"] is False
     assert _normalise_catalog(row | {"verification": "repository_and_skill_read"})["verified"] is True
     cand = from_item(_normalise_catalog(row), None, INPUTS, match_basis="profile")

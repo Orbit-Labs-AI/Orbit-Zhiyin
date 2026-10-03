@@ -64,6 +64,9 @@ def test_facts_from_events_and_sequences(inputs):
 
 
 def test_fact_problems_are_active(inputs):
+    # The synthetic DB spans 30 days; "unused" needs the 90-day window features.linked uses,
+    # so widen the observed window for the inventory half of this test.
+    inputs["sessions"] = {**inputs["sessions"], "first_ts": _days_before(inputs["sessions"]["last_ts"], 91)}
     rows = problems.build(inputs)
     by_key = {row["key"]: row for row in rows}
     expected = {"tool_env_failure:retry": "tool_env_failure", "context_loss:compaction": "context_loss",
@@ -94,6 +97,18 @@ def test_signals_take_precedence_per_root(inputs):
                           "scope": {"root_session_uid": root}, "evidence": []}]
     retry = next(row for row in problems.build(inputs) if row["key"] == "tool_env_failure:retry")
     assert retry["sessions"] == GROUP - 1 and root not in retry["evidence"]["session_uids"]
+
+
+def _days_before(ts, days):
+    if isinstance(ts, (int, float)):
+        return ts - days * 86_400_000
+    from datetime import datetime, timedelta
+    return (datetime.fromisoformat(str(ts).replace("Z", "+00:00")) - timedelta(days=days)).isoformat()
+
+
+def test_unused_needs_the_linked_90_day_window(inputs):
+    # 30 days of zero calls is features.linked "insufficient_history", not unused.
+    assert not [row for row in problems.build(inputs) if row["type"] == "installed_unused"]
 
 
 def test_disabled_items_are_not_unused(inputs):

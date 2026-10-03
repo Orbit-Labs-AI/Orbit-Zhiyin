@@ -41,9 +41,13 @@ class LocalE5Encoder:
         import onnxruntime as ort
         from tokenizers import Tokenizer
 
+        from .embedding_model import model_files
+
         ort.disable_telemetry_events()
         directory = Path(directory).expanduser().resolve()
-        model_path, tokenizer_path = directory / "onnx/model.onnx", directory / "onnx/tokenizer.json"
+        model_path, tokenizer_path, manifest = model_files(directory)
+        self.directory = directory
+        self.manifest = manifest
         def sha(path):
             with path.open("rb") as stream:
                 return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -51,7 +55,7 @@ class LocalE5Encoder:
                            "tokenizer_sha256": sha(tokenizer_path), "dimensions": self.dimensions,
                            "query_prefix": "query: ", "document_prefix": "passage: ",
                            "pooling": "masked-mean/window-mean/l2-v1", "max_tokens": 512, "overlap": 64,
-                           "precision": "float32", "distance": "cosine", "runtime": ort.__version__}
+                           "precision": manifest.get("precision", "float32"), "distance": "cosine", "runtime": ort.__version__}
         self.model_id = "e5:" + digest(self.descriptor)
         options = ort.SessionOptions()
         options.intra_op_num_threads = threads
@@ -127,26 +131,54 @@ def blocked_scores(matrix: np.ndarray, query: np.ndarray) -> np.ndarray:
     return np.clip(scores, -1, 1)
 
 
+_MISSING = ("NOT EXISTS (SELECT 1 FROM embedding_cache e WHERE e.model_key=(SELECT model_key FROM embedding_model "
+            "WHERE model_id=?) AND e.text_hash=c.text_hash)")
+
+
 def _pending(conn, model_id: str) -> int:
-    return conn.execute("SELECT count(*) FROM resource_chunk c WHERE c.embed=1 AND NOT EXISTS (SELECT 1 FROM "
-                        "embedding_cache e WHERE e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) AND e.text_hash=c.text_hash)", (model_id,)).fetchone()[0]
+    return conn.execute("SELECT count(*) FROM resource_chunk c JOIN catalog_item i USING(item_id) "
+                        f"WHERE c.embed=1 AND i.status='active' AND {_MISSING}", (model_id,)).fetchone()[0]
+
+
+def embedding_coverage(store, model_id: str) -> dict:
+    """Embed chunks of active items with / without a vector for ``model_id`` (one model)."""
+    with store.connect(True) as conn:
+        eligible = conn.execute("SELECT count(*) FROM resource_chunk c JOIN catalog_item i USING(item_id) "
+                                "WHERE c.embed=1 AND i.status='active'").fetchone()[0]
+        pending = _pending(conn, model_id)
+    return {"model_id": model_id, "eligible_chunks": eligible, "embedded_chunks": eligible - pending,
+            "pending_chunks": pending, "ratio": round((eligible - pending) / eligible, 4) if eligible else None}
 
 
 def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None, cancelled=lambda: False):
     """Embed chunks (embed=1) whose text has no vector for this model; completed batches survive crashes.
 
     Vectors are keyed by text hash, so republished or copied text never needs re-encoding.
+    The catalog generation (which invalidates the in-memory search index and its vector
+    matrix) moves once per call, not per batch: a background slice must not force a full
+    index rebuild on every 64 chunks while the user searches.
     """
     if batch_size < 1 or (max_chunks is not None and max_chunks < 0):
         raise ValueError("invalid_embedding_batch_limit")
     register_model(store, encoder)
-    indexed, computed, reused = 0, 0, 0
-    while not cancelled() and (max_chunks is None or indexed < max_chunks):
-        limit = min(batch_size, max_chunks - indexed) if max_chunks is not None else batch_size
+    counts = {"indexed": 0, "computed": 0, "reused": 0}
+    try:
+        _index_batches(store, encoder, batch_size, max_chunks, cancelled, counts)
+    finally:
+        if counts["indexed"]:  # also after a crash/cancel: committed batches must become visible
+            with store.writer(), store.connect() as conn:
+                conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 WHERE key='generation'")
+    with store.connect(True) as conn:
+        pending = _pending(conn, encoder.model_id)
+    return {"model_id": encoder.model_id, **counts, "pending": pending, "status": "ready" if pending == 0 else "partial"}
+
+
+def _index_batches(store, encoder, batch_size, max_chunks, cancelled, counts):
+    while not cancelled() and (max_chunks is None or counts["indexed"] < max_chunks):
+        limit = min(batch_size, max_chunks - counts["indexed"]) if max_chunks is not None else batch_size
         with store.connect(True) as conn:
             rows = conn.execute("SELECT c.item_id,c.ordinal,c.text_hash FROM resource_chunk c JOIN catalog_item i USING(item_id) "
-                                "WHERE c.embed=1 AND NOT EXISTS (SELECT 1 "
-                                "FROM embedding_cache e WHERE e.model_key=(SELECT model_key FROM embedding_model WHERE model_id=?) AND e.text_hash=c.text_hash) "
+                                f"WHERE c.embed=1 AND i.status='active' AND {_MISSING} "
                                 "ORDER BY CASE i.type WHEN 'skill' THEN 0 WHEN 'workflow' THEN 1 WHEN 'rule' THEN 2 "
                                 "WHEN 'hook' THEN 3 WHEN 'command' THEN 4 WHEN 'subagent' THEN 5 WHEN 'plugin' THEN 6 "
                                 "WHEN 'mcp_server' THEN 7 ELSE 8 END,c.ordinal,c.item_id LIMIT ?",
@@ -158,17 +190,12 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
                 if row["text_hash"] not in missing:
                     missing[row["text_hash"]] = store.chunk_texts(conn, row["item_id"])[row["ordinal"]]
         encoded = normalize_vectors(encoder.encode(list(missing.values())), len(missing), encoder.dimensions)
-        computed += len(missing)
-        reused += len(rows) - len(missing)
         with store.writer(), store.connect() as conn:
             # Text-keyed: a sync that replaced the chunk meanwhile only leaves a reusable cache row.
             key = conn.execute("SELECT model_key FROM embedding_model WHERE model_id=?", (encoder.model_id,)).fetchone()[0]
             conn.executemany("INSERT OR IGNORE INTO embedding_cache VALUES(?,?,?,?)",
                              [(key, text_hash, encoder.dimensions, vector.astype("<f2").tobytes())
                               for text_hash, vector in zip(missing, encoded, strict=True)])
-            conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 WHERE key='generation'")
-        indexed += len(rows)
-    with store.connect(True) as conn:
-        pending = _pending(conn, encoder.model_id)
-    return {"model_id": encoder.model_id, "indexed": indexed, "computed": computed, "reused": reused,
-            "pending": pending, "status": "ready" if pending == 0 else "partial"}
+        counts["indexed"] += len(rows)
+        counts["computed"] += len(missing)
+        counts["reused"] += len(rows) - len(missing)

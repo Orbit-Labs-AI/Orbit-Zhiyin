@@ -1,67 +1,62 @@
-"""Share-card payload (EXP-03/04): experimental persona with a hard sample-size gate.
+"""Share-card payload (EXP-03/04) and the persona request shared by the report and the reveal.
 
-The card reads the A2 persona (``/v1/uiview/persona`` payload, ``uiview-persona-v0``), so the
-card and the page always show the same code, axis values and copy. One card per time span:
-``span`` names it (7 → 周卡, 30 → 月卡, 90 → 季卡, all → 全时卡, a calendar month → N 月卡), and
-the persona inside is the one computed for that window, so different spans can give different
-types. Gate: the persona is ``ok`` (≥ 1 session; the
-page always gives a full four-letter code, so ``unsettled_code`` only guards legacy payloads).
-Rendering (PNG/SVG) belongs to the frontend.
-
-``persona_profile`` / ``gate`` / ``blocked_reason`` remain for the report's persona section
-(``presentation.profile`` four axes).
+The card, the report's persona section and ``/v1/shell/reveal`` all read the A2 persona
+(``uiview.persona.page``, ``uiview-persona-v0``), so every surface shows the same code, axis values
+and copy under the same rule: one session is enough for a full four-letter code (value ≥ 50 → high
+letter, an axis without units counts as 50); only no persona at all (no session in the window)
+blocks it. ``unsettled_code`` only guards legacy payloads. One card per time span: ``span`` names
+it (7 → 周卡, 30 → 月卡, 90 → 季卡, all → 全时卡, a calendar month → N 月卡), and the persona inside
+is the one computed for that window, so different spans can give different types. Rendering
+(PNG/SVG) belongs to the frontend.
 """
 
 from __future__ import annotations
 
+import math
 import time
 
 from .type_copy import copy_for
 
-MIN_UNITS, MIN_ACTIVE_DAYS = 30, 10
 DISCLAIMER = "实验性画像，仅供参考"
-PERSONA_SECTIONS = ("tasks", "instruction", "preferences", "overview")
+DAY_MS = 86_400_000
+# Fact windows the gateway prewarms (``services.fastpath.LADDER``): a request is served from
+# the smallest one that covers it, so the reveal and the report reuse the page's snapshot.
+FACT_WINDOWS = (7, 30)
 
 
-def persona_profile(bodies: dict[str, dict | None]) -> dict | None:
-    """Profile from section bodies, or None when any input section is missing."""
-    from ..analytics.presentation.profile import build_profile
-
-    tasks, instruction, preferences = (bodies.get(k) for k in PERSONA_SECTIONS[:3])
-    if not (tasks and instruction and preferences):
-        return None
-    return build_profile({"scope": tasks.get("scope") or {}, "tasks": tasks.get("tasks") or {},
-                          "instruction": instruction.get("instruction") or {},
-                          "preferences": preferences.get("preferences") or {},
-                          "sessions": [], "coverage": tasks.get("coverage") or {}})
+def window_days(scope: dict, now_ms: int | None = None) -> int:
+    """Whole days from ``scope['from_ts']`` to now (0 = no lower bound, i.e. all time)."""
+    from_ts = scope.get("from_ts")
+    if from_ts is None:
+        return 0
+    now = now_ms if now_ms is not None else int(time.time() * 1000)
+    return max(1, math.ceil((now - from_ts) / DAY_MS))
 
 
-def active_days(overview_body: dict | None) -> int | None:
-    rhythm = ((overview_body or {}).get("overview") or {}).get("activity_rhythm") or {}
-    return rhythm.get("active_days")
+def persona_request(scope: dict, now_ms: int | None = None) -> tuple[dict, dict, list[str]]:
+    """(uiview facts scope, ``persona.page`` params, notes) for an analytics scope dict.
 
+    The persona's period counts days back from today, so ``from_ts`` becomes ``period``
+    and ``until_ts`` is not applied; one ``project_ids`` entry becomes the page's project
+    filter, several are not applied. ``notes`` names every part of the scope left out.
+    """
+    from ..services.fastpath import windowed
+    from ..uiview import fetch
 
-def persona_code(profile: dict) -> str:
-    return "".join(axis.get("direction") or "?" for axis in profile["axes"].values())
-
-
-def gate(profile: dict | None, days: int | None) -> dict:
-    axes = [{"axis": key, "n_units": axis.get("effective_task_n") or 0}
-            for key, axis in ((profile or {}).get("axes") or {}).items()]
-    passed = bool(axes) and all(a["n_units"] >= MIN_UNITS for a in axes) \
-        and (days or 0) >= MIN_ACTIVE_DAYS
-    return {"min_units": MIN_UNITS, "min_active_days": MIN_ACTIVE_DAYS, "axes": axes,
-            "active_days": days, "passed": passed}
-
-
-def blocked_reason(profile: dict | None, gate_: dict) -> str | None:
-    if profile is None:
-        return "persona_unavailable"
-    if not gate_["passed"]:
-        return "insufficient_data"
-    if "?" in persona_code(profile):
-        return "unsettled_code"
-    return None
+    days = window_days(scope, now_ms)
+    base = fetch.default_scope(scope.get("display_timezone"))
+    if scope.get("excluded_session_uids") is not None:
+        base["excluded_session_uids"] = list(scope["excluded_session_uids"])
+    window = next((w for w in FACT_WINDOWS if days and days <= w), 0)
+    projects = scope.get("project_ids") or []
+    params = {"period": str(days) if days else "all", "agents": None,
+              "project": projects[0] if len(projects) == 1 else None, "vs": None}
+    notes = []
+    if scope.get("until_ts") is not None:
+        notes.append("画像按起始日至今统计，未应用结束时间")
+    if len(projects) > 1:
+        notes.append("画像不支持多个项目筛选，按全部项目统计")
+    return windowed(base, window), params, notes
 
 
 def card_gate(p: dict | None) -> dict:

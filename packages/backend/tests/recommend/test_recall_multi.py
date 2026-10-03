@@ -15,7 +15,7 @@ def signal(rule_id, root, value=2):
 
 def make(signals=(), facts=None, inventory=None, main=30, **over):
     return {"version": "rec-inputs-v1", "scope": "all", "scope_hash": "h", "agents": {"claude_code": main, "codex": 2},
-            "sessions": {"main": main, "weeks": 4, "first_ts": "2026-08-01T00:00:00Z", "last_ts": "2026-09-30T00:00:00Z"},
+            "sessions": {"main": main, "weeks": 4, "first_ts": "2026-06-01T00:00:00Z", "last_ts": "2026-09-30T00:00:00Z"},
             "signals": list(signals), "assessments": [], "tasks": [{"domain": ["web"], "task_type": ["deploy"]}],
             "facts": facts or {"usage": {"skill": {}, "mcp": {}}}, "inventory": inventory, "profile": None,
             "legacy_cards": [], **over}

@@ -120,6 +120,15 @@ def scope_note(f: dict) -> str:
     return " / ".join(names) + "筛选不计入人格" if names else ""
 
 
+def _narrative_scope(range_: int, f: dict, brushed: bool) -> dict | None:
+    """The ``narrate.overview`` scope that describes this view, or ``None`` when the view
+    has filters the narrative task cannot take (its scope is only days + project_id)."""
+    if brushed or any(f.get(k) not in (None, "", []) for k in
+                      ("agents", "topic", "outcome", "fric", "hour")):
+        return None
+    return {"days": range_, "project_id": f.get("project")}
+
+
 def build(body: dict, params: dict, today: date) -> dict:
     meta = body.get("meta") or {}
     tz = meta.get("display_timezone") or "UTC"
@@ -162,7 +171,9 @@ def build(body: dict, params: dict, today: date) -> dict:
         "heat": derive.heat(L),
         "tools": tools_top(L, aux),
         "persona_mini": persona.mini(p),
-        "insight": insight.build(L, st, p, projects),
+        "insight": insight.with_ai(insight.build(L, st, p, projects),
+                                   _narrative_scope(range_, f, brushed),
+                                   meta.get("data_rev")),
         "recs_ref": insight.RECS_REF,
     }
     if params.get("edition") == "lite":

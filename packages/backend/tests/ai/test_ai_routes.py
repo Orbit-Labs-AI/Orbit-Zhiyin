@@ -159,3 +159,23 @@ def test_gateway_mounts_ai_routes(tmp_path, ai_env):
     finally:
         gateway._ai.close()
         gateway.close()
+
+
+
+def test_artifact_adapters_are_owned_by_routes_ai(tmp_path):
+    """materialize / to_library moved from routes_settings to routes_ai, same paths/status."""
+    from orbit_backend.services.gateway import Gateway
+
+    gw = Gateway(tmp_path / "orbit", discovery=lambda: [])
+    try:
+        app = gw.app(token="synthetic-test-token-0123456789abcdef", port=8765)
+        owners = {}
+        for route in app.routes:
+            for sub in getattr(route, "routes", None) or [route]:
+                if "POST" in (getattr(sub, "methods", None) or ()):
+                    owners[sub.path] = (sub.endpoint.__module__, sub.status_code)
+    finally:
+        gw.close()
+    mod = "orbit_backend.services.routes_ai"
+    assert owners["/v1/ai/artifacts/{artifact_id}/materialize"] == (mod, None)
+    assert owners["/v1/ai/artifacts/{artifact_id}/to_library"] == (mod, 201)

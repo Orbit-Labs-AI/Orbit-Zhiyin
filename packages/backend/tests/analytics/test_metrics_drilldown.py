@@ -5,8 +5,6 @@ from signal_fixtures import DAY, Session, analyze, bundle, retry_session
 
 from orbit_backend.analytics.drilldown import tool_calls
 from orbit_backend.analytics.metrics import GROUP_BY, metrics
-from orbit_backend.analytics.signals import analyze_signals
-from orbit_backend.analytics.signals.inventory import installed_unused
 from orbit_backend.analytics.stats import INSUFFICIENT_N, count, median, proportion, wilson
 
 # ---------------------------------------------------------------- stats
@@ -139,35 +137,18 @@ def test_drilldown_limit_bounds_and_unknown_tool():
 # ---------------------------------------------------------------- AN-11
 
 
-def test_installed_unused_and_resident_tokens():
-    s = Session("a")
-    s.user("查文档")
-    s.tool(None, kind="skill", name="Skill", status="success", skill="pdf")
-    s.tool(None, kind="other", name="mcp__github__search", status="success", mcp_server="github")
-    inventory = [{"inv_id": "1", "type": "skill", "name": "pdf"},
-                 {"inv_id": "2", "type": "skill", "name": "docx"},
-                 {"inv_id": "3", "type": "mcp", "name": "github"},
-                 {"inv_id": "4", "type": "hook", "name": "pre-commit"},
-                 {"inv_id": "5", "type": "skill", "name": "off", "enabled": 0}]
-    # (uncached input, cache_read, cache_write): input side = sum of the three buckets.
+def test_resident_tokens_median_from_first_request_input_side():
+    # (uncached input, cache_read, cache_write): input side of each session's FIRST request.
+    # a: 40+8000+960=9000 (the second request is ignored), b: 7000, c: 8+7992=8000,
+    # d: 100+5900=6000, e: 10000 -> median of {6000, 7000, 8000, 9000, 10000} = 8000.
     buckets = [("a", (40, 8000, 960)), ("a", (50, 0, 0)), ("b", (7000, 0, 0)), ("c", (8, 0, 7992)),
                ("d", (100, 5900, 0)), ("e", (10000, 0, 0))]
     model_calls = [{"call_uid": f"m{i}", "session_uid": sid, "ts": 1_790_000_000_000 + i,
                     "input_tokens": i_, "cache_read_tokens": r, "cache_write_tokens": w,
                     "output_tokens": 999}
                    for i, (sid, (i_, r, w)) in enumerate(buckets)]
-    others = [Session(sid) for sid in "bcde"]
-    for o in others:
-        o.user("你好")
-    context, result, _ = analyze(bundle([s, *others], inventory=inventory, model_calls=model_calls))
-    facts = analyze_signals(context, result)["inventory"]
-    unused = facts["installed_unused"]
-    assert [i["name"] for i in unused["installed_unused"]] == ["docx"]
-    assert {i["name"]: i["status"] for i in unused["items"]} == {
-        "pdf": "used", "docx": "unused", "github": "used", "pre-commit": "not_matchable"}
-    resident = facts["resident_tokens_median"]
-    assert resident["value"] == 8000 and resident["n"] == 5 and resident["basis"] == "estimated"
-    assert installed_unused(None, [])["installed_unused"] is None
+    resident = _resident(model_calls)
+    assert resident["value"] == 8000 and resident["n"] == 5
 
 
 def _resident(model_calls):
@@ -175,7 +156,7 @@ def _resident(model_calls):
     for o in sessions:
         o.user("你好")
     context, result, _ = analyze(bundle(sessions, model_calls=model_calls))
-    return analyze_signals(context, result)["inventory"]["resident_tokens_median"]
+    return metrics(context, result, ["resident_tokens_median"])["metrics"]["resident_tokens_median"]["overall"]
 
 
 def test_resident_tokens_count_cache_buckets_for_claude_shape():
@@ -225,20 +206,3 @@ def test_tool_failure_rate_uses_status_coverage_gate(failed, success, unknown, e
         assert overall["unknown_n"] == 0
 
 
-@pytest.mark.parametrize("item,call,used", [
-    ({"type": "skill", "name": "pdf"}, {"kind": "skill", "skill": "pdf"}, True),
-    ({"type": "skill", "name": "pdf"}, {"kind": "skill", "skill": "anthropic-skills:pdf"}, True),
-    ({"type": "skill", "name": "pdf"}, {"kind": "skill", "skill": "pdf-extractor"}, False),
-    ({"type": "skill", "name": "pdf"}, {"kind": "skill", "name_raw": "pdf-extractor"}, False),
-    ({"type": "skill", "name": "docs:pdf"}, {"kind": "skill", "skill": "pdf"}, False),
-    ({"type": "mcp", "name": "github"}, {"kind": "mcp", "name_raw": "mcp__github__search"}, True),
-    ({"type": "mcp", "name": "github"},
-     {"kind": "mcp", "name_raw": "mcp__plugin_github_github__search"}, True),
-    ({"type": "mcp", "name": "github"}, {"kind": "mcp", "mcp_server": "plugin_github_github"}, True),
-    ({"type": "mcp", "name": "Claude Browser"}, {"kind": "mcp", "name_raw": "mcp__Claude_Browser__navigate"}, True),
-    ({"type": "mcp", "name": "github"}, {"kind": "mcp", "name_raw": "mcp__github_enterprise__search"}, False),
-    ({"type": "mcp", "name": "hub"}, {"kind": "mcp", "name_raw": "mcp__plugin_github_github__search"}, False),
-])
-def test_inventory_name_matching(item, call, used):
-    from orbit_backend.analytics.signals.inventory import _uses
-    assert _uses(item, call) is used
