@@ -344,6 +344,18 @@ scene('50-tools', () => {
     });
     remark1();                                              // refreshStudio replaced the solo cards this frame
   });
+  // v18.3: SKILL.md is framed from its top edge and its lower part ran off the frame (two grey skeleton bars at the bottom
+  // edge): clip it with a rounded mask at screen y 1000 (the card's own corner radius), re-applied every frame after the
+  // run's re-render above, so it reads as a whole card that ends inside the frame
+  const SKY = 1000;
+  const skClip = () => {
+    const el = skillCard(decks[1].D); if (!el) return;
+    const a = stageXY(1, 0, 0)[1], c = stageXY(1, 0, 1000)[1], fy = (SKY - a) / (c - a) * 1000, r = el.getBoundingClientRect();
+    const cut = Math.max(0, r.bottom - fy), rad = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 12;
+    el.style.clipPath = cut > .5 ? 'inset(0 0 ' + cut.toFixed(1) + 'px 0 round ' + rad + 'px)' : '';
+  };
+  drive(1, 68.9, 75.2, () => skClip());
+  at(75.2, () => { const el = skillCard(decks[1].D); if (el) el.style.clipPath = ''; });
   // the merged dot is the generator: once it has backed off to 56 px left of the run card (b69.0–69.6), its wire grows from it
   // and carries pulses into the card while SKILL.md is written (no separate guide line: the dot itself was on the button)
   const skillEdge = () => elXY(1, (D) => skillCard(D)?.querySelector('.code') || skillCard(D), 0, .5);
@@ -397,5 +409,6 @@ scene('50-tools', () => {
   // QA v18.2: α on its own in-out (.7 beat) — on the blur's E.in the white card was still ≈ .5 opaque at blur 6–8 (b74.6–74.75)
   // and read as a translucent light slab; now it is nearly gone by the time the blur is heavy
   tween(1, BACK, .9, { bl: 8 }, E.in);
-  tween(1, BACK, .7, { o: 0 }, E.inOut);
+  // v18.3: .5 beat — the card is fully gone by b74.4 (film 106.1), before the orb's travel, so no grey ghost trails it
+  tween(1, BACK, .5, { o: 0 }, E.inOut);
 });
