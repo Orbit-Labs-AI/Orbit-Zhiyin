@@ -40,10 +40,12 @@ def test_profile_cache_and_stale_rebuild(seeded, make_service, revs):
     revs.value["data_rev"] = 2
     stale = svc.profile()
     assert stale["cache"] == "stale" and stale["revs"]["data"] == 1
+    assert stale["stale"] is True and stale["current_revs"]["data"] == 2
     assert stale["n_sessions"] == first["n_sessions"]
     svc.wait_idle(10)
     fresh = svc.profile()
     assert fresh["cache"] == "hit" and fresh["n_sessions"] == 4
+    assert fresh["stale"] is False and fresh["rebuilding"] is False and "current_revs" not in fresh
     assert "skill:docx" in fresh["vector"]
     with svc.hub.read() as db:
         assert db.execute("SELECT COUNT(*) FROM feat_profile").fetchone()[0] == 1
@@ -77,3 +79,30 @@ def test_centroid_deterministic(seeded, make_service):
 def test_profile_without_tandem(home, make_service):
     body = make_service().profile()
     assert body["n_sessions"] == 0 and body["tags"] == [] and body["centroid"] is None
+
+
+def test_stale_profile_says_it_is_rebuilding(seeded, make_service, revs):
+    """While the background rebuild runs, the old body is labelled stale + rebuilding."""
+    import threading
+
+    svc = make_service()
+    svc.profile()
+    seeded.session("s9", project="p2", day=5, features=[("skill", "docx", 3)])
+    revs.value["data_rev"] = 2
+    gate = threading.Event()
+    build = svc._build
+
+    def slow_build(*args):
+        gate.wait(10)
+        return build(*args)
+
+    svc._build = slow_build
+    try:
+        stale = svc.profile()
+        assert stale["stale"] is True and stale["rebuilding"] is True
+        assert stale["revs"]["data"] == 1 and stale["current_revs"]["data"] == 2
+    finally:
+        gate.set()
+        svc.wait_idle(10)
+    done = svc.profile()
+    assert done["stale"] is False and done["revs"]["data"] == 2

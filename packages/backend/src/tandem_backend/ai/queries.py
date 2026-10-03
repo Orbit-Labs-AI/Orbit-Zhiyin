@@ -128,8 +128,12 @@ def _excluded(appdb) -> list[str]:
         return exclusion.merged(None)
     try:
         return exclusion.excluded_uids(appdb)
-    except Exception:  # noqa: BLE001 - app.db without the table: nothing excluded.
-        return []
+    except Exception as error:  # noqa: BLE001 - any read failure: refuse rather than leak
+        # Fail-closed like ``exclusion.merged``: session_exclusion is part of the app.db schema
+        # (appdb/schema/sessionops.sql), so a failed read means a broken/closed app.db, and
+        # answering would include sessions the user excluded as private.
+        exclusion.log.warning("session exclusions unavailable: %s: %s", type(error).__name__, error)
+        raise exclusion.ExclusionsUnavailable(error) from error
 
 
 def _filters(scope: dict) -> dict:

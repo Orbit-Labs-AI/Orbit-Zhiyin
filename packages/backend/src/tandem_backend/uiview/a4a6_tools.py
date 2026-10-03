@@ -665,7 +665,7 @@ def register(api, gw) -> None:
         # Without until_ts the weekly trend ends today: the day joins the cache key.
         day = None if common.scope_dict(scope).get("until_ts") is not None \
             else now_ms // common.DAY_MS
-        key = common.cache_key(NAME, scope, {**params, "day": day}, rev)
+        key = common.cache_key(NAME, scope, {**params, "day": day}, rev, home=gw.home)
         cached = common.CACHE.get(key)
         if cached is None:
             inventory = _inventory(scope, params["agent"])

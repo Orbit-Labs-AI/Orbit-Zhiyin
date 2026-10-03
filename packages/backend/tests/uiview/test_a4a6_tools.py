@@ -317,3 +317,19 @@ def test_register_all_skips_missing_modules():
     api = Api()
     loaded = common.register_all(api, gw=None)
     assert "a4a6_tools" in loaded and "/v1/uiview/tools" in api.paths
+
+
+def test_cache_key_names_home_and_data_identity(tmp_path):
+    """The process-wide CACHE must not serve one gateway's result to another home, nor a
+    pre-wipe result after clear-all-data restarts projection_run ids at the same data_rev."""
+    scope, params = Scope(), {"group_by": "tool"}
+    rev = {"data_rev": 1, "inventory_rev": 0, "counts": {"sessions": 5, "events": 40, "projects": 1}}
+    a = common.cache_key("tools", scope, params, rev, home=tmp_path / "a")
+    assert a == common.cache_key("tools", scope, params, dict(rev), home=tmp_path / "a")
+    assert a != common.cache_key("tools", scope, params, rev, home=tmp_path / "b")
+    reimported = {**rev, "counts": {"sessions": 3, "events": 12, "projects": 1}}  # same run id 1
+    assert a != common.cache_key("tools", scope, params, reimported, home=tmp_path / "a")
+    assert a != common.cache_key("tools", scope, params, {**rev, "data_rev": 2}, home=tmp_path / "a")
+    lru = common.LRU(4)
+    lru.put(a, {"from": "a"})
+    assert lru.get(common.cache_key("tools", scope, params, rev, home=tmp_path / "b")) is None
