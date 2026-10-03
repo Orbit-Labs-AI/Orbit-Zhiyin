@@ -68,3 +68,19 @@ test('rule-template insights carry the 规则 tag, not the AI badge', async ({ p
   await expect(page.locator('#main .l-ins .aib')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('A4: no call with a known status shows 失败次数 — and 错误率 — (not 0)', async ({ page }) => {
+  const errors = collectErrors(page);
+  const tools = fx('s3/tools.json');
+  const n = tools.kpis.calls ? tools.kpis.calls.value : 0;
+  tools.kpis.error_rate = Object.assign({}, tools.kpis.error_rate, { value: null, lo: null, hi: null, failed: 0, known: 0, unknown: n, prev: null, delta: null });
+  await stubGateway(page, ['core', 's3'], { 'GET /v1/uiview/tools': tools });
+  await openLive(page, 'tools');
+  await expect.poll(() => page.evaluate(() => S.tools && S.tools.failOnly !== false ? 'fail' : 'all')).toBe('fail');
+  const fail = page.locator('#main .vz-kpi').filter({ hasText: '失败次数' });
+  await expect(fail.locator('.v')).toHaveText('—');
+  const rate = page.locator('#main .vz-kpi').filter({ hasText: '错误率' });
+  await expect(rate.locator('.v')).toHaveText('—');
+  await expect(rate.locator('.vz-kpi-u')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
