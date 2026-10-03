@@ -109,3 +109,17 @@ test('a projection stuck behind its captures offers 重新导入', async ({ page
   expect(gw.seen.some((x) => x.method === 'POST' && x.path === '/v1/app/jobs')).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('a background sync reads as 后台同步 and leaves the sidebar import entry alone', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page);
+  await stubGateway(page, ['core']);
+  await openLive(page, 'sessions');
+  const sync = { id: 'sync-1', kind: 'import', status: 'running', origin: 'sync',
+    progress: { stage: 'map', completed: 3, total: 3, unit: 'files', label: '解析会话记录', detail: 'Claude Code · 只重建受影响的会话', overall: 0.6, origin: 'sync' } };
+  await frame(page, 'job', sync);
+  await expect(page.locator('#content .tl-progress')).toContainText('后台同步 · 解析会话记录 · Claude Code · 只重建受影响的会话');
+  await expect(page.locator('#content .tl-progress')).toContainText('3 / 3 个文件');
+  await expect(page.locator('#side [data-side="import"]')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

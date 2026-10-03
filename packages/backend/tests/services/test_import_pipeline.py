@@ -218,3 +218,27 @@ def test_import_without_sources_reindexes_every_enabled_source(client_factory, c
     assert wait_job(client, job["id"])["status"] == "completed"
     wait_for(lambda: client.get("/v1/status").json()["projection"] == "ready", 10,
              message="freshness re-read after the import")
+
+
+def test_progress_frames_carry_origin_and_every_new_source(tmp_path):
+    from tandem_backend.services.jobs import JobService
+
+    state = AppState(tmp_path / "app-state.json")
+    root = tmp_path / "codex"
+    root.mkdir()
+    source = state.configure("codex", str(root), True, tmp_path / "home")
+    frames = []
+    service = JobService(state, SimpleNamespace(start=lambda *_: None, cancel=lambda *_: None),
+                         lambda topic, event, data: frames.append(data), progress_interval_s=60)
+    job = service.submit("import", [source["id"]], phase="full", origin="sync")
+    service.started(job["id"])
+    frames.clear()
+    capture = {"stage": "capture", "completed": 0, "total": 5}
+    service.progress(job["id"], {**capture, "step": 1})
+    service.progress(job["id"], {**capture, "completed": 1, "step": 1})  # coalesced
+    service.progress(job["id"], {**capture, "step": 2})  # next source: always sent
+    service.progress(job["id"], {"stage": "reset_projection", "step": 2, "attempt": 1})
+    service.progress(job["id"], {"stage": "reset_projection", "step": 2, "attempt": 2})
+    assert [f["progress"].get("step") for f in frames] == [1, 2, 2, 2]
+    assert [f["progress"].get("attempt") for f in frames][-2:] == [1, 2]
+    assert {f["origin"] for f in frames} == {"sync"}  # the UI shows it as 后台同步

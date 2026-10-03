@@ -1580,7 +1580,7 @@ const TandemLive = (function () {
       const ratio = ui.stageRatio(pr);
       const note = ui.stageNote(pr), count = ui.stageCount(pr);
       return '<div class="tl-progress" role="progressbar" aria-label="导入进度"' + (ratio != null ? ' aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(ratio * 100) + '"' : '') + '>' +
-        '<span>' + ({ import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (note ? ' · ' + esc(note) : '') + (count ? ' · ' + count : '') + '</span>' +
+        '<span>' + (j.kind === 'import' && j.origin === 'sync' ? '后台同步' : { import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (note ? ' · ' + esc(note) : '') + (count ? ' · ' + count : '') + '</span>' +
         '<div class="tl-bar"><i style="width:' + (ratio != null ? Math.round(ratio * 100) : 8) + '%"></i></div></div>';
     },
     banner(C) {

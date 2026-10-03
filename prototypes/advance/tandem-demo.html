@@ -3155,7 +3155,7 @@ const TandemLive = (function () {
       const ratio = ui.stageRatio(pr);
       const note = ui.stageNote(pr), count = ui.stageCount(pr);
       return '<div class="tl-progress" role="progressbar" aria-label="导入进度"' + (ratio != null ? ' aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(ratio * 100) + '"' : '') + '>' +
-        '<span>' + ({ import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (note ? ' · ' + esc(note) : '') + (count ? ' · ' + count : '') + '</span>' +
+        '<span>' + (j.kind === 'import' && j.origin === 'sync' ? '后台同步' : { import: '正在导入', verify: '正在校验', rebuild: '正在重建', backup: '正在备份' }[j.kind] || '正在处理') + (note ? ' · ' + esc(note) : '') + (count ? ' · ' + count : '') + '</span>' +
         '<div class="tl-bar"><i style="width:' + (ratio != null ? Math.round(ratio * 100) : 8) + '%"></i></div></div>';
     },
     banner(C) {
@@ -11125,8 +11125,10 @@ if (LV.live) {
   // an import job already running on the gateway (TL.job or GET /v1/app/jobs): show its stages instead of the source picker
   LVN.attach = async function (ob) {
     const L = ob.live; if (!L || L.job || L.starting || OB !== ob) return;
-    let job = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
-    if (!job) { const js = await lvnTry('/v1/app/jobs'); job = (Array.isArray(js) ? js : []).find((j) => j && j.kind === 'import' && LVN.ACTIVE.indexOf(j.status) >= 0) || null; }
+    // a background sync (origin 'sync', sync_mode live / hour) is not the first run: it never takes over the stage view
+    const userImport = (j) => !!j && j.kind === 'import' && j.origin !== 'sync' && LVN.ACTIVE.indexOf(j.status) >= 0;
+    let job = userImport(TL.job) ? TL.job : null;
+    if (!job) { const js = await lvnTry('/v1/app/jobs'); job = (Array.isArray(js) ? js : []).find(userImport) || null; }
     if (!job || !job.id || OB !== ob || L.job || L.starting) return;
     L.stages = lvnStages(L); L.rev0 = LV.rev; L.after = false;
     L.job = { id: job.id, status: job.status || 'queued', progress: job.progress || null };
@@ -11137,7 +11139,8 @@ if (LV.live) {
   LVN.bg = false;
   LVN.sideState = function () {
     const L = LVN.imp && LVN.imp.live, T = OB_TEXT.side;
-    const tj = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
+    // background syncs show in the page strip (后台同步 …) only; the entry is for imports the user started
+    const tj = TL.job && TL.job.kind === 'import' && TL.job.origin !== 'sync' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
     const pct = (j) => { const r = OB_TEXT.ratio((j && j.progress) || {}); return r != null ? ' ' + Math.round(r * 100) + '%' : ''; };
     if (L && L.err) return { k: 'fail', t: T.fail, a: T.retry, ico: 'alert' };
     if (L && L.done) return { k: 'done', t: T.done, a: '', ico: 'spark' };
