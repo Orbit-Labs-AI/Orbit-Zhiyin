@@ -2,12 +2,14 @@
 
 Inputs are ``t.session_feature`` (mapped through the vocabulary) plus features
 ``orbit.db`` does not keep: error classes, project path markers and friction counts
-derived from ``t.tool_call``. Only sessions whose signature
-``ended_at|tool_calls|vocab`` changed are recomputed.
+derived from ``t.tool_call``. Signatures cover the narrow metadata columns actually
+used below, including corrections that preserve timestamps and row counts.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 from collections import Counter, defaultdict
 
@@ -21,6 +23,7 @@ from .vocab import (
 )
 
 DATA_REV_KEY = "__data_rev__"
+VERSION = "sessfeat-2"
 FAILED = "(tc.status IN ('error','failed') OR COALESCE(tc.exit_code, 0) <> 0)"
 MARKER_LIKE = " OR ".join(["j.value LIKE ?"] * len(PATH_MARKERS))
 MARKER_PARAMS = ["%" + p.replace("*", "%") + ("%" if p.startswith("*") else "")
@@ -28,11 +31,17 @@ MARKER_PARAMS = ["%" + p.replace("*", "%") + ("%" if p.startswith("*") else "")
 
 
 def _signatures(db) -> dict[str, str]:
-    rows = db.execute(
-        "SELECT s.session_uid, s.ended_at, COALESCE(c.n, 0) FROM t.session s "
-        "LEFT JOIN (SELECT session_uid, COUNT(*) n FROM t.tool_call GROUP BY session_uid) c "
-        "USING(session_uid)").fetchall()
-    return {uid: f"{ended}|{n}|{VOCAB_VERSION}" for uid, ended, n in rows}
+    hashes = {uid: hashlib.sha256(f"{VERSION}|{VOCAB_VERSION}|{ended}".encode())
+              for uid, ended in db.execute("SELECT session_uid, ended_at FROM t.session")}
+    for sql in (
+        "SELECT session_uid,feature,value,n FROM t.session_feature ORDER BY session_uid,feature,value",
+        "SELECT session_uid,call_uid,command_head,status,exit_code,error_class,files,"
+        "approval_wait_ms,duration_ms,name_raw,started_at FROM t.tool_call ORDER BY session_uid,call_uid",
+    ):
+        for row in db.execute(sql):
+            if row[0] in hashes:
+                hashes[row[0]].update(json.dumps(tuple(row[1:]), ensure_ascii=False).encode() + b"\n")
+    return {uid: value.hexdigest() for uid, value in hashes.items()}
 
 
 def _batch_queries(uids: list[str]) -> dict:
@@ -114,17 +123,20 @@ def data_rev_seen(svc) -> int | None:
     with svc.hub.read() as db:
         row = db.execute("SELECT sig FROM sess_feat_state WHERE session_uid = ?",
                          (DATA_REV_KEY,)).fetchone()
-    return int(row[0]) if row else None
+    prefix = VERSION + ":"
+    return int(row[0][len(prefix):]) if row and row[0].startswith(prefix) else None
 
 
 def stale(svc) -> bool:
     return data_rev_seen(svc) != svc.data_rev()
 
 
-def materialize(svc, batch: int = 500) -> dict:
-    if not svc.materialize_lock.acquire(blocking=False):
+def materialize(svc, batch: int = 500, *, wait: bool = False) -> dict:
+    if not svc.materialize_lock.acquire(blocking=wait):
         return {"skipped": True}
     try:
+        if wait and not stale(svc):
+            return {"changed": 0, "removed": 0}
         return _materialize(svc, batch)
     finally:
         svc.materialize_lock.release()
@@ -164,6 +176,6 @@ def _materialize(svc, batch: int) -> dict:
             db.execute(f"DELETE FROM sess_feat WHERE session_uid IN ({marks})", part)
             db.execute(f"DELETE FROM sess_feat_state WHERE session_uid IN ({marks})", part)
         db.execute("INSERT OR REPLACE INTO sess_feat_state VALUES (?, ?, ?)",
-                   (DATA_REV_KEY, str(data_rev), now))
+                   (DATA_REV_KEY, f"{VERSION}:{data_rev}", now))
     return {"changed": len(changed), "removed": len(removed),
             "ms": round((time.perf_counter() - started) * 1000, 1)}

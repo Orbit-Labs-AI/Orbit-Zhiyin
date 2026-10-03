@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 
 import pytest
 from ai_support import answer_task
 
 from orbit_backend.ai import AIUnavailable
-from orbit_backend.ai.engines import EngineResult
+from orbit_backend.ai.engines import EngineResult, FakeEngine
 from orbit_backend.ai.errors import AIError
 from orbit_backend.ai.runner import now_ms
 from orbit_backend.ai.service import AIService
@@ -103,6 +104,62 @@ def test_daily_cap(ai_svc):
     assert (error.value.status, error.value.code) == (409, "budget_exhausted")
     job_id = ai_svc.submit("test.echo", {"slots": {"goal": "x"}, "override": True})["job_id"]
     assert wait_done(ai_svc, job_id)["status"] == "ok"
+
+
+def test_queued_jobs_recheck_budget_before_each_call(ai_svc):
+    entered, release = threading.Event(), threading.Event()
+    ai_svc.register_task(answer_task("test.budget", cache_ttl_s=0))
+    ai_svc.set_consent({"settings": {"daily_usd_cap": 0.2}})
+
+    def paid(req):
+        entered.set()
+        assert release.wait(5)
+        return EngineResult(output={"answer": "ok"}, cost_usd=0.075, cost_source="reported")
+
+    ai_svc.fake.responses["test.budget"] = paid
+    first = ai_svc.submit("test.budget", {"goal": "first"})
+    assert entered.wait(5)
+    try:
+        queued = [ai_svc.submit("test.budget", {"goal": goal}) for goal in ("second", "third")]
+    finally:
+        release.set()
+    jobs = [wait_done(ai_svc, j["job_id"]) for j in [first, *queued]]
+    assert [j["status"] for j in jobs] == ["ok", "ok", "fallback"]
+    assert jobs[-1]["result"]["answer"] == "fallback:budget_exceeded"
+    assert len(ai_svc.fake.requests) == 2 and ai_svc.today_cost() == pytest.approx(0.15)
+    assert ai_svc.reserved_usd == 0
+
+
+def test_concurrent_engine_queues_share_budget_reservations(ai_svc):
+    entered, release = threading.Event(), threading.Event()
+    ai_svc.set_consent({"settings": {"daily_usd_cap": 0.1},
+                        "grants": {"codex": {"summary": True}}})
+    other = FakeEngine({"*": {"answer": "other"}})
+    ai_svc.register_engine("codex", other)
+
+    def block(req):
+        entered.set()
+        assert release.wait(5)
+        return {"answer": "ok"}
+
+    ai_svc.fake.responses["test.echo"] = block
+    first = ai_svc.submit("test.echo", {"goal": "first"})
+    assert entered.wait(5)
+    try:
+        second = ai_svc.submit("test.echo", {"goal": "second", "engine": "codex"})
+        assert wait_done(ai_svc, second["job_id"])["result"]["answer"] == "fallback:budget_exceeded"
+        assert other.requests == []
+    finally:
+        release.set()
+    assert wait_done(ai_svc, first["job_id"])["status"] == "ok"
+
+
+def test_schema_retry_respects_remaining_daily_budget(ai_svc):
+    ai_svc.set_consent({"settings": {"daily_usd_cap": 0.1}})
+    ai_svc.fake.responses["test.echo"] = EngineResult(output={"wrong": True}, cost_usd=0.1)
+    job = wait_done(ai_svc, ai_svc.submit("test.echo", {"goal": "retry"})["job_id"])
+    assert job["result"]["answer"] == "fallback:budget_exceeded"
+    assert len(ai_svc.fake.requests) == 1
 
 
 def test_daily_cap_counts_unpriced_calls_conservatively(ai_svc):

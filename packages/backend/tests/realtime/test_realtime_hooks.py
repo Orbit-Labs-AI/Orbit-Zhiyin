@@ -62,6 +62,22 @@ def test_passive_events_keep_the_wait_open(home):
     assert feed.waits()[0]["wait_s"] == 4.0
 
 
+def test_hook_secrets_are_redacted_before_views_and_checkpoint(home):
+    secret = "audit_dummy_secret_never_a_real_credential"
+    append(home, line("PermissionRequest", 1000, command=f"curl --token {secret}"))
+    feed = HookFeed(home / "hooks")
+    feed.poll()
+    assert secret not in json.dumps(feed.pending())
+    assert secret not in feed.checkpoint.read_text()
+    # Old checkpoints are cleaned without needing a new event.
+    raw = json.loads(feed.checkpoint.read_text())
+    raw["sessions"]["claude_code:s1"]["pending"]["command"] = f"curl --token {secret}"
+    feed.checkpoint.write_text(json.dumps(raw))
+    again = HookFeed(home / "hooks")
+    assert secret not in json.dumps(again.session("claude_code", "s1"))
+    assert secret not in again.checkpoint.read_text()
+
+
 def test_realtime_uses_hook_approval_and_statusline_context(orbit, home):
     orbit.session("s1", started=NOW - 60_000, title="部署")
     orbit.event("s1", NOW - 20_000, actor="assistant")

@@ -24,6 +24,7 @@ COMPONENTS = (
     ("backups", "备份", ("backups",), False, "数据库备份"),
     ("logs", "日志", ("logs",), True, "本机日志，2 MB × 5 轮转"),
     ("exports", "导出", ("exports",), True, "诊断包与导出文件，保留最近 5 个"),
+    ("hooks", "实时采集记录", ("hooks",), False, "审批历史、实时采集事件与读取进度"),
 )
 
 

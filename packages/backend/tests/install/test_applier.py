@@ -105,6 +105,30 @@ def test_atomic_write_failure_leaves_original(env, monkeypatch):
     assert not [p for p in env["home"].iterdir() if p.name.startswith(".orbit-")]
 
 
+@pytest.mark.parametrize("exists", [True, False])
+def test_directory_fsync_failure_rolls_back_current_target(env, monkeypatch, exists):
+    path = env["home"] / "settings.json"
+    before = b'{"user_setting":true}\n'
+    if exists:
+        path.write_bytes(before)
+    actual = applier._fsync_dir
+    calls = 0
+
+    def fail_first(directory):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("injected fsync failure after replace")
+        actual(directory)
+
+    monkeypatch.setattr(applier, "_fsync_dir", fail_first)
+    with pytest.raises(ApplyFailed) as caught:
+        run([tgt(0, path, pointer="", content={"orbit_added": True})], env)
+    assert caught.value.detail["rolled_back"] == [0]
+    assert caught.value.detail["rollback_failed"] == []
+    assert path.read_bytes() == before if exists else not path.exists()
+
+
 def test_second_target_failure_rolls_back_first(env):
     a = env["home"] / "CLAUDE.md"
     a.write_bytes(b"# mine\r\nkeep\n")

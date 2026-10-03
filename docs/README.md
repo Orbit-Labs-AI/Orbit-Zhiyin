@@ -82,6 +82,7 @@
 | [分析与 AI 可靠性审计](audits/analysis-ai-reliability-2026-10-03.md) | 范围隔离、证据校验、专业分析模板和 UI 输入输出映射 |
 | [推荐与资源库可靠性审计](audits/recommendation-reliability-2026-10-03.md) | 多路召回、质量维度、目录扩充、AI 专家建议和评测边界 |
 | [端到端集成审计](audits/integration-reliability-2026-10-03.md) | 设置并发、问答范围、页面接线、交互证据与本轮验收 |
+| [后端深度排查修复](audits/backend-debug-fixes-2026-10-04.md) | 12 项隐私、缓存、AI 控制、安装回滚与实时状态缺陷的修复和回归 |
 
 ## 7. 调研
 
