@@ -15,10 +15,10 @@ from __future__ import annotations
 import pytest
 
 from tandem_backend.ai.pack import is_correction
+from tandem_backend.ai.tasks_v1 import feedback_rule
 from tandem_backend.analytics.interaction.rules import correction_kind
 from tandem_backend.analytics.interaction.rules import is_correction as analytics_is_correction
 from tandem_backend.uiview import a4a6_sentiment, sessions
-from tandem_backend.ai.tasks_v1 import feedback_rule
 
 LABELS: list[tuple[str, bool]] = [
     # --- zh corrections
