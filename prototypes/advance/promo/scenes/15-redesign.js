@@ -1,11 +1,14 @@
-/* 15-redesign 1d–1e（b11.8–23.0） — STORYBOARD.md v17.1（V1 / V2 T4–T6 / V4）.
-   1d 但，人与 Agent 的交互本身，也需要被重新定义（v17.2 文案，b12.8–17.8）：b11.8 起 1c 的光标（10-intro 的短列，停在 (1400, 615)）
-      「躺倒」向左展开成窄 ∩ 弧 arcD（H3，b13.4 落定 cc (744, 584) … cp (1176, 584)）；输入框从点组中心生出、落到 (960, 880)，
-      b17.2–17.6 缩回点组。纠正气泡分两层：cx / ds 挂在点上方（同一点新气泡替换旧的），cc / gm / cp 挂在点下方（新的把旧的
-      下推 64px，每点 2 个）；b16.8 起剩下的从最新到最旧依次缩回各自的点。
-   1e So，我们做了一个 Assistant / Redesign / Agent Workflow / for everyone（v17.2 文案，b18.2–22.0）：弧展开成 R 420 圆环（H4，polar (960, 700)），环内三行字；b19.2 起虚线圆画进
-      AGD.back，半径每帧取 cc 到 (960, 540) 的距离，所以 20-orbit 在 b21.6 收紧圆环时它跟着收，b22.4–23.0 淡出。
-   b21.6 起圆环的 key 归 20-orbit；本场景只写 b11.8（H3，在 10-intro 段内，10-intro 不写 b11.8 之后的 key）与 b17.4 两个 key。 */
+/* 15-redesign 1d–1e（b11.8–25.1） — STORYBOARD.md v17.1（V1 / V2 T4–T6 / V4）.
+   v17.3 节奏（看清文字）：本场景比 v17.2 长 2.1 拍——1d 从 b14.1 起的纠正气泡流按 ×1.4 放慢、之后的事件全部后移 1.6 拍，
+   1e 在退场前再加 .5 拍；起点不变，交出的圆环形状不变（20-orbit 的 b21.6 key 由 SHIFT 推到 b23.7，见 H4 的 spin）。
+   1d 但，人与 Agent 的交互本身，也需要被重新定义（v17.2 文案，b12.8–19.4）：b11.8 起 1c 的光标（10-intro 的短列，停在 (1400, 615)）
+      「躺倒」向左展开成窄 ∩ 弧 arcD（H3，b13.4 落定 cc (744, 584) … cp (1176, 584)，此后整条弧随 1d 文字以 6px/拍 缓缓上移）；
+      输入框从点组中心生出、落到 (960, 880)，b18.8–19.2 缩回点组。纠正气泡分两层：cx / ds 挂在点上方（同一点新气泡替换旧的），
+      cc / gm / cp 挂在点下方（新的把旧的下推 64px，每点 2 个）；每个气泡完整可读 ≥ 1.47 拍，b17.0 起由旧到新依次缩回，
+      b18.4 起剩下的从最新到最旧缩回各自的点。
+   1e So，我们做了一个 Assistant / Redesign / Agent Workflow / for everyone（v17.2 文案，b19.8–24.1）：弧展开成 R 420 圆环（H4，polar (960, 700)），环内三行字；b20.8 起虚线圆画进
+      AGD.back，半径每帧取 cc 到 (960, 540) 的距离，所以 20-orbit 在（后移后的）b23.7 收紧圆环时它跟着收，b24.5–25.1 淡出。
+   b23.7 起圆环的 key 归 20-orbit；本场景只写 b11.8（H3，在 10-intro 段内，10-intro 不写 b11.8 之后的 key）与 b19.0 两个 key。 */
 'use strict';
 css(`
 .k .ln.rd-h{font-size:100px}
@@ -26,15 +29,19 @@ scene('15-redesign', () => {
   // H3 (T4): from 1c's caret (column x 1400, y 547 … 683, r 16) the column lies down to the left into the 1d arc; cc, top
   // of the caret, travels furthest and leaves first (stag .05), the path bows up 40px. Lands b13.4 at cc (744, 584) /
   // cx (852, 566) / gm (960, 560) / ds (1068, 566) / cp (1176, 584), r 34, while 1c's icons fly out the other way
-  AGD.key(11.8, 'arc', { ...AGD.P.arcD, dur: 1.4, stag: .05, arc: 40, ease: H3E });                            // H3
+  // v17.3: from b13.4 the arc rises with the 1d lines (6 px/beat, the same drift), so the dots and their bubbles never sit
+  // frozen while the stream is read; by H4 (b19.0) it is 34 px higher, which only helps gm clear the lines above
+  AGD.key(11.8, 'arc', { ...AGD.P.arcD, cy: (b) => AGD.P.arcD.cy - 6 * Math.max(0, b - 13.4), dur: 1.4, stag: .05, arc: 40, ease: H3E }); // H3
   // H4 (T6): polar about (960, 700), below the arc, so the bearings 298 / 321 / 0 / 39 / 62° open clockwise without
   // crossing: gm rises straight up the middle, cc / cp swing out and down like a flower opening. ph 207 = 209 − 5·0.4
-  // keeps the v17 landing points and the b21.6 angle (228) that 20-orbit hands on from. H3E instead of E.inOut: T6 has
-  // gm above y 300 by b18.0, before 「So，」 (y 400) lands (with E.inOut it would still be at y ≈ 506 and cross the word
-  // at b18.2); H3E puts it at y ≈ 320 at b18.0 and clears line 3 (bottom 420) only after the 1d lines are gone (b17.8)
-  AGD.key(17.4, 'ring', { cx: 960, cy: 540, R: 420, ph: 207, spin: 5, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
+  // keeps the v17 landing points and the angle (228) that 20-orbit hands on from. v17.3: this key moved b17.4 → b19.0 and
+  // 20-orbit's ring key (b21.6) is pushed to b23.7 by SHIFT, so the spin is 21° over 4.7 beats (was 5 × 4.2): the ring
+  // still reaches 228 exactly at the hand-off. H3E instead of E.inOut: T6 has gm above y 300 by b19.6, before 「So，」
+  // (y 400) lands (with E.inOut it would still be at y ≈ 506 and cross the word at b19.8); H3E puts it at y ≈ 320 at
+  // b19.6 and clears line 3 (bottom 420) only after the 1d lines are gone (b19.4)
+  AGD.key(19.0, 'ring', { cx: 960, cy: 540, R: 420, ph: 207, spin: 21 / 4.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
 
-  /* ---------- 1d 文字（三行底边 ≤ 420，b17.2–17.8 一起向上淡出、模糊） ---------- */
+  /* ---------- 1d 文字（三行底边 ≤ 420，b18.8–19.4 一起向上淡出、模糊） ---------- */
   // pacing: the reveals run slower, and while they are up all three lines drift up together at 6 px/beat (no dead
   // hold between the reveal and the exit); line 1 also lifts 36px on its exit (lines 2–3 rise with mask's own exit)
   const drift = (exit) => (el, tl, life, ts) => {
@@ -44,16 +51,17 @@ scene('15-redesign', () => {
   // v17.2 copy: 「但，」 / 「人与 Agent 的交互本身，」 / 「也需要被重新定义」. 「但，」 lands alone first, the way 1e's 「So，」
   // does (K.big: soft and large, settled within .4 beats), and the dots flinch with it (r × .9); line 2 rises at b13.4 as
   // the arc lands; the orange highlighter under 「交互本身」 is driven by the correction bubbles (each one moves it a tenth
-  // further, so it speeds up as they crowd in, b13.85 → b15.9); line 3: 「也需要被」 rises, then 「重新定义」 (orange)
-  // drops in last through the line's mask and settles (scale 1.06 → 1, no flash), landing with the last bubble
-  txt(12.8, 17.8, [['rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
+  // further, so it speeds up as they crowd in, b13.85 → b16.6); line 3: 「也需要被」 rises (b15.1), then 「重新定义」
+  // (orange) drops in last through the line's mask and settles (scale 1.06 → 1, no flash), landing with the last bubble
+  // (b16.5) and readable 2.3 beats before the exit (b18.8)
+  txt(12.8, 19.4, [['rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
     { anim: K.big({ scale: 2.2, dur: .4, out: .6, spread: true }), tick: drift(true) });
   for (let i = 0; i < 5; i++) AGD.pulse(i, 12.8, .9, .5);
   const markBy = (el, b) => {
     const p = BUB.reduce((s, u) => s + E.inOut(clamp((b - u.b0 + .25) / .4)), 0) / BUB.length;
     el.querySelectorAll('.mk').forEach((m) => { m.style.backgroundSize = (p * 100).toFixed(1) + '% .26em'; });
   };
-  txt(13.4, 17.8, [['hv sv rd-h', '人与 Agent 的<span class="mk rd-mk">交互本身</span>，']], { x: 960, y: 255, align: 'c' },
+  txt(13.4, 19.4, [['hv sv rd-h', '人与 Agent 的<span class="mk rd-mk">交互本身</span>，']], { x: 960, y: 255, align: 'c' },
     { inB: 1.2, outB: .6, tick: (el, tl, life, ts) => { drift()(el, tl, life, ts); markBy(el, ts / BEAT); } });
   const fall = (o) => (el, tl, life) => {
     const [a, w] = el.querySelectorAll('.w'), q = exitQ(tl, life, o.out);
@@ -64,34 +72,36 @@ scene('15-redesign', () => {
     w.style.opacity = Math.min(1, p1 * 1.6).toFixed(3);
     leave(el, q, true);
   };
-  txt(14.8, 17.8, [['hv sv rd-h', '<span class="w">也需要被</span><span class="w rd-or">重新定义</span>']], { x: 960, y: 370, align: 'c' },
-    { anim: fall({ inB: 1.2, at: .6, dur: .5, out: .6 }), tick: drift() });
+  txt(15.1, 19.4, [['hv sv rd-h', '<span class="w">也需要被</span><span class="w rd-or">重新定义</span>']], { x: 960, y: 370, align: 'c' },
+    { anim: fall({ inB: 1.2, at: .85, dur: .55, out: .6 }), tick: drift() });
 
   /* ---------- 1d 输入框 + 纠正气泡 ---------- */
-  // typing ~.1–.2 beats a character, faster as the corrections pile up; the box is never idle: the 4th one is typed
-  // but never sent (the box sinks with it at b17.2)
+  // typing ~.2 beats a character; the box is never idle: the 4th one is typed but never sent (done b17.4, readable
+  // 1.4 beats, the box sinks with it at b18.8)
   // the box grows out of the dots' centroid ((960, ≈570) at b12.6, the arc still landing) down to (960, 880) by b13.2,
-  // and shrinks back into it over b17.2–17.6
-  const c = AGD.chat(12.6, 17.6, { x: 960, y: 880, w: 980, from: AGD.centroid, to: AGD.centroid });
-  c.type(13.0, '请你修改', .8); c.type(14.05, 'fix', .47); c.type(14.82, '请你继续', .58); c.type(15.8, '看清需求', .9);
+  // and shrinks back into it over b18.8–19.2
+  const c = AGD.chat(12.6, 19.2, { x: 960, y: 880, w: 980, from: AGD.centroid, to: AGD.centroid });
+  c.type(13.0, '请你修改', .8); c.type(14.12, 'fix', .62); c.type(15.12, '请你继续', .82); c.type(16.25, '看清需求', 1.15);
   // every correction bubble: [dot, b0, text, send beat | null]; sent ones pop at send + .15 (AGD.chat). Ten bubbles, two
-  // per dot, gaps shrinking from .3 to .1 beats. T5 layers: cx / ds (UP) hang above their dots, a newer one replacing
-  // the older (AGD's replace; while the new one pops over PIN the old one shrinks back into the dot), so each of them
-  // holds its pair as far apart as the stream allows (14.1 / 15.66 and 14.4 / 15.76); cc / gm / cp hang below, the
+  // per dot, gaps shrinking from .4 to .14 beats (v17.3: the v17.2 stream from b14.1 slowed × 1.4, so every one can be
+  // read). T5 layers: cx / ds (UP) hang above their dots, a newer one replacing the older (AGD's replace; while the new
+  // one pops over PIN the old one shrinks back into the dot), so each of them holds its pair as far apart as the stream
+  // allows (14.1 / 16.28 and 14.45 / 16.42: the older one readable 1.68 / 1.47 beats); cc / gm / cp hang below, the
   // newer one pushing the older down 64px (replace: false), at most 2 stacked
   const BUB = [
-    [1, 14.1, '请你修改', 13.95], [3, 14.4, '不对，重来'], [4, 14.65, '说中文'], [2, 14.82, 'fix', 14.67],
-    [0, 15.12, '别动这个文件'], [4, 15.28, '再改一版'], [0, 15.42, '还是报错'], [2, 15.54, 'fix again'],
-    [1, 15.66, '请你继续', 15.51], [3, 15.76, '继续']
+    [1, 14.1, '请你修改', 13.95], [3, 14.45, '不对，重来'], [4, 14.85, '说中文'], [2, 15.11, 'fix', 14.96],
+    [0, 15.53, '别动这个文件'], [4, 15.75, '再改一版'], [0, 15.95, '还是报错'], [2, 16.12, 'fix again'],
+    [1, 16.28, '请你继续', 16.13], [3, 16.42, '继续']
   ].map(([i, b0, text, send], k) => ({ i, b0, text, send, k }));
   // T5 tail anchors (dot x + dx, the box centre is dot x + 2·dx, see agBubbles): above cx 812 / ds 1108 (dy −r − 18,
   // boxes y ≈ 446–506 under line 3, bottom 420); below cc 690 / gm 960 / cp 1230 (dy r + 18, boxes from y ≈ 620, two
   // stacked reach ≈ 770, above the input box's top edge 836)
   const UP = [false, true, false, true, false], DX = [-54, -40, 0, 40, 54], R = AGD.P.arcD.r;
-  // each bubble pops over PIN beats, stays ≥ 1.2 beats fully readable, shrinks over POUT beats; a natural life of LIFE
-  // beats turns it into a rolling stream; whatever would outlive R0 + POUT shrinks back newest → oldest from R0 (T5:
-  // b16.8–17.2), RS apart, the last one gone by b17.4 as H4 sets off
-  const PIN = .5, POUT = .35, LIFE = 2.1, R0 = 16.8, RS = .05;
+  // each bubble pops over PIN beats, stays ≥ 1.47 beats fully readable (1.65 for a natural life), shrinks over POUT
+  // beats; a natural life of LIFE beats turns it into a rolling stream (b17.0–18.6, oldest first, so something is always
+  // moving while the stream is read); whatever would outlive R0 + POUT shrinks back newest → oldest from R0 (T5:
+  // b18.4–18.8), RS apart, the last one gone before H4 sets off (b19.0)
+  const PIN = .5, POUT = .35, LIFE = 2.5, R0 = 18.4, RS = .05;
   for (const u of BUB) {
     const same = BUB.filter((v) => v.i === u.i && v.b0 > u.b0);
     u.b1 = u.b0 + LIFE;
@@ -116,40 +126,41 @@ scene('15-redesign', () => {
   // AGD pops a bubble in .25 beats and shrinks it in .2 (agBubbles reads u.b0 / u.b1 every frame). This drive runs
   // before applyAgents and re-times this scene's records so the pop takes PIN beats and the shrink POUT beats, starting
   // at b0 and ending at b1 as registered (pure function of b, so seeking / --only renders get the same frame)
-  every(13.0, 17.8, (p, b) => {
+  every(13.0, 19.4, (p, b) => {
     for (const [r, B0, B1] of slow) {
       r.b0 = b < B0 ? B0 : b < B0 + PIN ? b - (b - B0) * .25 / PIN : B0 + PIN - .25;
       r.b1 = b < B1 - POUT ? B1 - POUT + .2 : b < B1 ? b + .2 - .2 * (b - B1 + POUT) / POUT : B1;
     }
   });
 
-  /* ---------- 1e 虚线圆（#agdBack，跟着 cc 的半径，b22.4–23.0 淡出） ---------- */
-  // 1e → 2 hand-off: while the three lines spread out (b21.4–22.0) the circle brightens .14 → .32, so in b22.0–22.5,
+  /* ---------- 1e 虚线圆（#agdBack，跟着 cc 的半径，b24.5–25.1 淡出） ---------- */
+  // 1e → 2 hand-off: while the three lines spread out (b23.5–24.1) the circle brightens .14 → .32, so in b24.1–24.6,
   // before the spiral shows, the screen is the ring tightening with the dots (R 420 → 300), not five loose dots; the
-  // spiral's tail then starts on this very circle (R 300) as it fades
-  AGD.back(19.2, 23.0, (b) => {
+  // spiral's tail then starts on this very circle (R 300) as it fades (20-orbit's b21.6 / b22.4, pushed 2.1 by SHIFT)
+  AGD.back(20.8, 25.1, (b) => {
     const p = AGD.pos(0, b), R = Math.hypot(p.x - 960, p.y - 540), ang = Math.atan2(p.x - 960, -(p.y - 540)) * 180 / Math.PI;
-    const a = E.inOut(clamp((b - 19.2) / .5)) * (1 - E.inOut(clamp((b - 22.4) / .6))) * (.14 + .18 * E.inOut(clamp((b - 21.4) / .7)));
+    const a = E.inOut(clamp((b - 20.8) / .5)) * (1 - E.inOut(clamp((b - 24.5) / .6))) * (.14 + .18 * E.inOut(clamp((b - 23.5) / .7)));
     if (a <= .002 || R < 1) return '';
     return '<circle cx="960" cy="540" r="' + R.toFixed(1) + '" fill="none" stroke="#fff" stroke-opacity="' + a.toFixed(3) +
       '" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 7" transform="rotate(' + ang.toFixed(2) + ' 960 540)"/>';
   });
 
-  /* ---------- 1e 环内一行小字 + 三行大字（fit，b21.4–22.0 字距拉开退场） ---------- */
+  /* ---------- 1e 环内一行小字 + 三行大字（fit，b23.5–24.1 字距拉开退场） ---------- */
   // v17.2 copy: 「So，我们做了一个 Assistant」 / 「Redesign」 / 「Agent Workflow」 / 「for everyone」. The small line comes
   // first (「So，」 lands soft and large like 1d's 「但，」, the rest follows from lower right), then the three big lines cut
-  // in one per .45 beats from b19.0. From b18.4 everything pushes in together (scale 1 → 1.04 about the ring centre,
+  // in one per .45 beats from b20.6 and all stay until b23.5 (small line 2.7, Redesign 2.9, Agent Workflow 2.45, for
+  // everyone 2.0 beats readable). From b20.0 everything pushes in together (scale 1 → 1.04 about the ring centre,
   // constant speed) so it never sits still under the turning ring; the fit widths keep every line's corners inside the
   // ring's inner edge (radius 380) at 1.04
   const zoom = (y, own) => (el, tl, life, ts) => {
-    const s = 1 + .04 * clamp((ts / BEAT - 18.4) / 3.6), add = ' translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
+    const s = 1 + .04 * clamp((ts / BEAT - 20.0) / 4.1), add = ' translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
     el.style.transform = (own ? 'translate(-50%,-50%)' : el.style.transform) + add;     // K.words rewrites it every frame, K.big never
   };
-  txt(18.2, 22.0, [['rd-cj', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w">Assistant</span>']],
+  txt(19.8, 24.1, [['rd-cj', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w">Assistant</span>']],
     { x: 960, y: 362, align: 'c' }, { anim: K.big({ scale: 2.4, dur: .6, fly: .2, out: .6, spread: true }), tick: zoom(362, true) });
   // [beat, y, html, fit]
-  for (const [b, y, h, fit] of [[19.0, 462, 'Redesign', 560], [19.45, 568, 'Agent Workflow', 620], [19.9, 674, 'for <b class="rd-or">everyone</b>', 600]]) {
-    txt(b, 22.0, [['xl sv rd-xl', '<span class="w">' + h + '</span>']], { x: 960, y, align: 'c' },
+  for (const [b, y, h, fit] of [[20.6, 462, 'Redesign', 560], [21.05, 568, 'Agent Workflow', 620], [21.5, 674, 'for <b class="rd-or">everyone</b>', 600]]) {
+    txt(b, 24.1, [['xl sv rd-xl', '<span class="w">' + h + '</span>']], { x: 960, y, align: 'c' },
       { anim: K.words({ at: [0], fit, out: .6, spread: true }), tick: zoom(y) });
   }
 });
