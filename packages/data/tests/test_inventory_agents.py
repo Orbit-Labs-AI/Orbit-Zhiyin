@@ -399,3 +399,40 @@ def test_kimi_current_scan_removes_deleted_cron_and_bad_records_are_partial(tmp_
         result = scan_inventory(store, request)
         assert result["coverage"]["scheduled_task"]["status"] == "partial"
         assert len(result["diagnostics"]) == 2
+
+
+def test_claude_commands_and_agents_are_inventoried_with_component_marker(tmp_path):
+    root = tmp_path / "claude"
+    write(root, "commands/review.md", "Review the diff")
+    write(root, "commands/git/commit.md", "---\ndescription: commit\n---\nCommit")
+    write(root, "commands/notes.txt", "not a command")
+    write(root, "agents/researcher.md", "---\nname: deep-researcher\ndescription: d\n---\nbody")
+    write(root, "agents/plain.md", "no frontmatter")
+    result, data, dump = run(tmp_path, "claude_code", root)
+    found = {
+        (item["name"], json.loads(item["config"])["component"])
+        if isinstance(item["config"], str)
+        else (item["name"], item["config"]["component"])
+        for item in data["items"]
+        if item["type"] == "skill"
+    }
+    assert found == {
+        ("review", "command"),
+        ("git:commit", "command"),
+        ("deep-researcher", "agent"),
+        ("plain", "agent"),
+    }
+    assert "Review the diff" not in dump and "body" not in dump
+    assert result["coverage"]["skill"]["rows"] == 4
+    # ~/.claude.json was not passed: user-scope MCP servers are not represented.
+    assert result["coverage"]["mcp"]["reason"] == "user_scope_not_scanned"
+
+
+def test_claude_mcp_coverage_has_no_gap_reason_when_user_config_is_scanned(tmp_path):
+    root = tmp_path / "claude"
+    root.mkdir()
+    config = write(tmp_path, "claude.json", {"mcpServers": {"docs": {"command": "x"}}})
+    with Store(tmp_path / "data") as store:
+        result = scan_inventory(store, InventoryRequest("claude_code", root, claude_config=config))
+    assert result["coverage"]["mcp"]["reason"] is None
+    assert result["coverage"]["mcp"]["rows"] == 1

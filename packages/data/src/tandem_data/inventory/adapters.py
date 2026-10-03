@@ -117,6 +117,51 @@ def skills(reader, directory, overrides=()):
         reader.add("skill", name, path, enabled=enabled, evidence="file", raw=raw)
 
 
+def _frontmatter_name(raw: bytes) -> str | None:
+    try:
+        text = raw.decode("utf-8-sig")
+        if not (text.startswith("---\n") and "\n---" in text[4:]):
+            return None
+        header = text[4:].split("\n---", 1)[0]
+        if len(header) > 16384 or any(isinstance(e, yaml.AliasEvent) for e in yaml.parse(header)):
+            return None
+        meta = yaml.safe_load(header)
+    except (ValueError, UnicodeError, yaml.YAMLError, RecursionError):
+        return None
+    name = meta.get("name") if isinstance(meta, dict) else None
+    return name.strip() if isinstance(name, str) and name.strip() else None
+
+
+def claude_markdown_components(reader, root):
+    """Claude Code slash commands (commands/**/*.md, `/dir:name`) and subagent definitions
+    (agents/**/*.md, frontmatter `name`). Both are prompt documents the user can invoke;
+    Claude Code now treats commands as skills, so they are stored as kind "skill" with
+    config.component telling them apart (the inventory DDL has no command/agent type)."""
+    for component, directory in (("command", "commands"), ("agent", "agents")):
+        folder = root / directory
+        for path in reader.walk(folder, ("skill",)):
+            if path.suffix != ".md":
+                continue
+            raw = reader.read(path, ("skill",))
+            if raw is None:
+                continue
+            relative = path.relative_to(folder).with_suffix("")
+            name = (
+                ":".join(relative.parts)
+                if component == "command"
+                else _frontmatter_name(raw) or relative.name
+            )
+            reader.add(
+                "skill",
+                name,
+                path,
+                f"{directory}/{relative.as_posix()}",
+                evidence="file",
+                raw=raw,
+                config={"component": component},
+            )
+
+
 def rules(reader, root, names, directory="rules"):
     for name in names:
         reader.file(root / name, "rule", name=name)
@@ -248,6 +293,7 @@ def claude(reader: ScanReader, root: Path):
                 raw=_source_bytes(enabled),
             )
     skills(reader, root / "skills")
+    claude_markdown_components(reader, root)
     rules(reader, root, ("CLAUDE.md",))
     path = root / "plugins/installed_plugins.json"
     doc = reader.document(path, ("plugin",))
