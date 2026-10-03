@@ -105,7 +105,7 @@ function lvSentBadge(V, k, aiText) {
   return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">词面规则</span>';
 }
 function lvSentShield(V) {
-  if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，原文不离开本机';
+  if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，只发送脱敏片段';
   return '按词面规则在本机统计，不调用模型，原文不离开本机';
 }
 const LVS_ICON = { session: 'sessions', message: 'sessions', command: 'term', file: 'file', project: 'projects', recommendation: 'recs', catalog: 'library', inventory: 'library', event: 'sessions' };

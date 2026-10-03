@@ -500,6 +500,13 @@ const OrbitLive = (function () {
     /* ==== studio-settings: writes, AI job polling, notify / collection frames (A9 生成工坊 · 问答 · 设置 · 通知) ==== */
     // send(method, path, body, {query, signal}) → {status, data}; failures reject with {status, code, detail, retryable}
     // (status 0 / code 'network' when the gateway cannot be reached). Writes never touch the GET cache.
+    // /v1/ai errors carry their details next to code / message ({error: {code, message, missing, reason, daily_cap …}},
+    // routes_ai.AIApiError); other routes nest them under detail. Either way the caller reads e.detail.missing etc.
+    const errDetail = (info) => {
+      if (info.detail != null) return info.detail;
+      const x = {}; Object.keys(info).forEach((k) => { if (['code', 'message', 'retryable', 'detail'].indexOf(k) < 0) x[k] = info[k]; });
+      return Object.keys(x).length ? x : null;
+    };
     C.send = function (method, path, body, o) {
       o = o || {};
       if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('OrbitLive is in mock mode'), { code: 'mock_mode', status: 0 }));
@@ -511,7 +518,7 @@ const OrbitLive = (function () {
         if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
         if (res.status >= 200 && res.status < 300) return { status: res.status, data };
         const info = (data && data.error) || {};
-        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: info.detail || null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: errDetail(info), retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
       }, (e) => { if (isAbort(e)) throw e; throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network', retryable: true }); });
     };
     // Failures the studio / settings bindings cover with the demo values: route not built yet (404 / 501), service down

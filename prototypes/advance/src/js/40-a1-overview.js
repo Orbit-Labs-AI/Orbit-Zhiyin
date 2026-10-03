@@ -42,6 +42,18 @@ function ovPersEmpty(pers) {
     (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:0%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
     '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
 }
+// 「AI 解读」徽标只给模型写成的解读：live 下以 insight.basis 为准（ai_narrative），规则模板写成的标中性的「规则解读」，
+// 不用 AI 紫；demo 是预置的 Claude Code 示例，保持原样
+function ovInsAI(ins) { return !LV.live || !!(ins && ins.basis === 'ai_narrative'); }
+function ovInsBadge(ins) { return ovInsAI(ins) ? '<span class="aib">' + ic('spark', 11) + 'AI 解读</span>' : '<span class="tag" data-lv="ins-basis">规则解读</span>'; }
+// live 的来源行：模型写成的写明执行者与完成时间，否则是规则模板
+function ovInsWhen(ins) {
+  if (!ins) return '规则模板 · 本地生成';
+  if (ins.basis !== 'ai_narrative') return ins.when || '规则模板 · 本地生成';
+  const src = ins.source || {}; const nm = src.engine ? (typeof tlsEngName === 'function' ? tlsEngName(src.engine) : src.engine) : null;
+  const t = src.finished_at ? new Date(src.finished_at) : null;
+  return (ins.when || 'AI 撰写') + (nm ? ' · ' + nm : '') + (t ? ' · ' + (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '');
+}
 PAGES.overview = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
@@ -67,9 +79,16 @@ PAGES.overview = () => {
   if (!st.n) { ai[0][3] = '—'; ai[0][4] = ''; ai[1][3] = '—'; ai[1][4] = ''; }
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
   const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
-  const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
-  // 无会话且没有洞察 lede 时，那句话是固定说明而不是 AI 输出：不挂「AI 解读」与生成来源（与 Lite 首页 said 同一规则）
-  const said = (S.ov.lede && S.ov.lede.key === ledeKey) || (ins && ins.lede) || pers.ok || pendTxt;
+  const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? ovInsWhen(ins) : '本地 Claude Code 生成 · 9/30 23:10';
+  const caveat = LV.live && ins && ins.basis === 'ai_narrative' && (ins.caveats || []).length ? ins.caveats.join('；') : '';
+  // live「重新生成」提交 narrate.overview：「全部」与带筛选的视图没有可用的 ai_scope，按钮如实不可用
+  // 不可用时用 aria-disabled 而非 disabled：按钮仍可悬停 / 聚焦看到原因，点击由 ACT.regen 提示
+  const regenOff = LV.live && !(ins && ins.ai_scope);
+  // 生成中（LV.ovRegen，91-live-persona）：重绘后仍显示进度，按钮变为「停止」可取消作业
+  const regenRun = LV.live && LV.ovRegen;
+  const regenTip = regenOff ? (ins ? '「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选' : '数据载入后可生成') : LV.live ? '交给本地 Agent 依据当前数据重写（会调用其模型服务，计入今日 AI 花费）' : '';
+  // 无会话且没有洞察 lede 时，那句话是固定说明而不是 AI 输出：不挂解读标记与生成来源（与 Lite 首页 said 同一规则）
+  const said = (S.ov.lede && S.ov.lede.key === ledeKey) || (ins && ins.lede) || pers.ok || pendTxt || regenRun;
   const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
   const unitName = S.metric === 'h' ? '小时' : S.metric === 'tok' ? 'tokens · 估算' : '会话';
@@ -92,7 +111,7 @@ PAGES.overview = () => {
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
     // 先下结论：AI 解读一句话 + 三栏（每栏一个微型证据图 + 证据链接）
-    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih">' + (said ? '<span class="aib">' + ic('spark', 11) + 'AI 解读</span><button type="button" class="btn sm gh" data-act="regen">' + ic('sync', 12) + '重新生成</button>' : '<span class="eb">协作画像</span>') + '</div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + (said ? '<span class="cap ov-aigen" data-aigen>' + ledeWhen + '</span>' : '') + '</div>' +
+    '<div class="card pad ov-ai" id="aiCard"><div class="col ov-aic ov-ail"><div class="row ov-aih">' + (said ? ovInsBadge(ins) + (regenRun ? '<button type="button" class="btn sm gh" data-act="regenStop" data-tip="取消这次生成，卡片保持现有内容">' + ic('x', 12) + '停止</button>' : '<button type="button" class="btn sm gh" data-act="regen"' + (regenOff ? ' aria-disabled="true"' : '') + (regenTip ? ' data-tip="' + esc(regenTip) + '"' : '') + '>' + ic('sync', 12) + (LV.live && !ovInsAI(ins) ? 'AI 生成' : '重新生成') + '</button>') : '<span class="eb">协作画像</span>') + '</div>' + ledeP + (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') + (said ? '<span class="cap ov-aigen" data-aigen' + (caveat && !regenRun ? ' data-tip="' + esc(caveat) + '"' : '') + '>' + (regenRun ? '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ' + esc(LV.ovRegen.msg || '已提交给本地 Agent…') : esc(ledeWhen)) + '</span>' : '') + '</div>' +
     ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div>' + (pendTxt && g[5] !== 'evRec' ? LV.pend(36) : '<p class="ov-aip">' + esc(g[3]) + '</p>') + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
     '<div class="tiles" id="ovTiles">' + ovTiles(L, P) + '</div>' +
     // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）

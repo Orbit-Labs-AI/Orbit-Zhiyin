@@ -156,3 +156,18 @@ def test_insight_uses_matching_ai_narrative_and_names_it():
     assert calls == []
     card.set_ai_provider(lambda scope, data_rev: None)
     assert overview.build(_with_rev(7), base, TODAY)["insight"] == l0
+
+
+def test_insight_names_the_scope_regenerate_posts():
+    """``ai_scope`` is the narrate.overview scope this card reads back (the page's 「重新生成」
+    posts it verbatim); 「全部」 and filtered views have none, so they stay rule-based."""
+    from orbit_backend.uiview import insight as card
+
+    card.set_ai_provider(lambda scope, data_rev: None)
+    base = {"range": 7, "agents": None, "project": None, "compare": False, "metric": "n",
+            "edition": "advance"}
+    assert overview.build(_with_rev(3), base, TODAY)["insight"]["ai_scope"] == \
+        {"days": 7, "project_id": None}
+    assert overview.build(_with_rev(3), {**base, "range": 0}, TODAY)["insight"]["ai_scope"] is None
+    assert overview.build(_with_rev(3), {**base, "agents": ["codex"]}, TODAY)["insight"]["ai_scope"] \
+        is None

@@ -114,6 +114,7 @@ def test_answers_degrade_without_db(orbit_home):
 def test_opening_suggestion(data, orbit_home):
     s = ask.opening_suggestion(data.reads, home=orbit_home, scope={"days": 7})
     assert s["text"] and s["next"] in ("studio", "sessions")
+    assert s["basis"] == "rule"  # template text, never labelled AI
 
 
 def test_out_of_scope_routes_pages():
