@@ -5,7 +5,7 @@ Stages (exclusive wall time, nested stages are subtracted from their parent):
 read        canonical mode only: ``read_analysis`` on a synthetic ``tandem.db``
 bundle      ``AnalysisInputBundle.from_dict``
 select      ``AnalysisContext.select`` (statistical members, linked context)
-session_rows ``_session_rows`` excluding text representation
+session_rows ``compute_row_cores`` (per-session rows, possibly in worker processes) excluding text representation
 text        task text representation (only with ``--with-text``)
 lexical     ``lexical_analysis``
 statistics  ``statistical_analysis``
@@ -94,7 +94,7 @@ def instrumented(timer):
     """Temporarily wrap module attributes; the analysis code itself is unchanged."""
     targets = [
         (context_module, "select", "select"),
-        (service_module, "_session_rows", "session_rows"),
+        (service_module, "compute_row_cores", "session_rows"),
         (service_module, "representation", "text"),
         (lexical_module, "lexical_analysis", "lexical"),
         (statistics_module, "statistical_analysis", "statistics"),
