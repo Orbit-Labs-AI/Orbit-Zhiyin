@@ -50,6 +50,16 @@ def test_grounding_rejects_foreign_sessions_and_fabricated_step_refs():
     assert validate({"candidates": [candidate]}, evidence_pack())
 
 
+def test_unavailable_projection_is_not_misreported_as_missing_history():
+    from orbit_backend.ai.learning_feedback import validate_history_pack, validate_pack
+
+    unavailable = {"content": {"trajectories": {"sessions": [], "unavailable": True}}}
+    for check in (validate_history_pack, validate_pack):
+        assert "rebuild" in check(unavailable)[0]
+    assert "two selected" in validate_history_pack({"content": {"trajectories": {"sessions": []}}})[0]
+    assert not validate_history_pack(evidence_pack())
+
+
 def test_step_evidence_is_merged_instead_of_demanding_redundant_citations():
     candidate = example()
     candidate["evidence"] = candidate["evidence"][:1]

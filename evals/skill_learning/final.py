@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 from orbit_backend.recommend.learned import DEFAULTS, retrieve
 
 from .interventions import ACTIVATION, export_llm, export_selection
-from .runtime import one_run
+from .providers import grouped, policy, run_group
 from .study import REPOSITORY, command, digest, object_digest, read, save, tree, validate_protocol
 
 RUNTIME_KEYS = ("pi", "provider", "model", "thinking", "memory", "context_limit", "max_turns",
@@ -20,7 +21,8 @@ RUNTIME_KEYS = ("pi", "provider", "model", "thinking", "memory", "context_limit"
                 "pip_index", "apt_mirror", "pi_version")
 
 
-def freeze(root, library_path, llm_path, validation_path, *, mode="bundle", top_k=2):
+def freeze(root, library_path, llm_path, validation_path, *, mode="bundle", top_k=2,
+           credentials=None, prepaid_keys=None):
     if (root / "freeze.json").exists():
         raise ValueError("A final freeze already exists; never overwrite it")
     if command(["git", "-C", REPOSITORY, "status", "--porcelain"]):
@@ -87,6 +89,8 @@ def freeze(root, library_path, llm_path, validation_path, *, mode="bundle", top_
                "validation_proof": proof, "headroom_sha256": digest(root / "headroom-summary.json"),
                "retrieval": {**DEFAULTS, "top_k": top_k}, "intervention_mode": mode,
                "activation_instruction": ACTIVATION, "run_order": order,
+               "scheduling": "Group by first task appearance; preserve frozen arm order within each task",
+               "provider_recovery": policy(credentials, prepaid_keys) if prepaid_keys else None,
                "heldout_content_present_at_freeze": False,
                "rules": ["No test feedback enters learning, retrieval parameters or family selection",
                          "Preserve all attempts, costs, unknown usage and valid task failures",
@@ -147,13 +151,17 @@ def execute(root, credentials, docker="docker"):
          "study_digest": object_digest(study), "attempts": [
              {"task_id": t["task_id"], "arm": arm, "output": str(output),
               "assets": tree(assets) if assets else None} for t, output, arm, assets in prepared]})
+    primary_unavailable = threading.Event()
     with ThreadPoolExecutor(max_workers=study["workers"]) as pool:
-        futures = {pool.submit(one_run, study, task, output, docker, credentials, arm=arm, assets=assets): output
-                   for task, output, arm, assets in prepared}
+        futures = {pool.submit(run_group, root, study, items, credentials, docker,
+                               receipt.get("provider_recovery"), index, primary_unavailable): items[0][0]["task_id"]
+                   for index, items in enumerate(grouped(prepared))}
         failures = []
         for future in as_completed(futures):
             try:
-                future.result()
+                result = future.result()
+                if result["status"] != "completed":
+                    failures.append({"task_id": result["task_id"], "status": result["status"]})
             except BaseException as error:
                 failures.append({"output": str(futures[future]), "type": type(error).__name__, "message": str(error)})
     save(root / "execution-status.json", {"status": "completed_with_infrastructure_failures" if failures else "completed",
@@ -170,12 +178,14 @@ def main():
     parser.add_argument("--mode", choices=["skill", "bundle"], default="bundle")
     parser.add_argument("--top-k", type=int, default=2)
     parser.add_argument("--credentials", type=Path, default=Path.home() / ".pi/agent")
+    parser.add_argument("--prepaid-keys", type=Path)
     parser.add_argument("--docker", default="docker")
     args = parser.parse_args()
     if args.action == "freeze":
         if any(path is None for path in (args.library, args.llm_result, args.validation)):
             parser.error("Freeze needs the library, LLM result and validation proof")
-        result = freeze(args.root, args.library, args.llm_result, args.validation, mode=args.mode, top_k=args.top_k)
+        result = freeze(args.root, args.library, args.llm_result, args.validation, mode=args.mode, top_k=args.top_k,
+                        credentials=args.credentials, prepaid_keys=args.prepaid_keys)
         print(json.dumps({"code_commit": result["code_commit"], "tasks": len(result["run_order"])}))
     else:
         execute(args.root, args.credentials, args.docker)

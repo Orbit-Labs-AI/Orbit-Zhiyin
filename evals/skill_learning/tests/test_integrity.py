@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
-from evals.skill_learning.runtime import summarize_events
+from evals.skill_learning.runtime import completion_state, summarize_events
 from evals.skill_learning.study import offline_verifier, strip_skills, tree, validate_protocol
 
 
@@ -17,6 +17,16 @@ def test_repeated_agent_end_does_not_double_count_tokens():
     result = summarize_events(events)
     assert result["usage"]["total_tokens"] == 40
     assert result["usage"]["complete"]
+
+
+def test_provider_errors_are_unknown_and_task_budget_failures_are_retained():
+    trajectory = {"termination": "completed", "exit_code": 0, "last_stop_reason": "error"}
+    assert completion_state(trajectory, {"passed": False}) == (None, "provider_error")
+    trajectory.update(last_stop_reason="stop")
+    assert completion_state(trajectory, {"passed": False}) == (False, "completed")
+    assert completion_state(trajectory, {"passed": True}) == (True, "completed")
+    trajectory.update(termination="turn_limit")
+    assert completion_state(trajectory, {"passed": True}) == (False, "budget_exhausted")
 
 
 @pytest.mark.parametrize("last", [{"stopReason": "error"}, {"stopReason": "aborted"},

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .learning_feedback import validate_pack, validate_request
+from .learning_feedback import validate_history_pack, validate_pack, validate_request
 from .pack import content_hash
 from .redact import compact
 
@@ -121,7 +121,7 @@ TASKS = {"recommend.learn": {
     "pack_items": [("trajectories", True)], "stages": ["pack", "draft", "check"],
     "system": SYSTEM, "schema": SCHEMA,
     "build_prompt": lambda pack: "<trajectory_evidence>\n" + compact(pack["content"]) + "\n</trajectory_evidence>",
-    "validate": validate, "finalize": finalize,
+    "validate": validate, "validate_pack": validate_history_pack, "finalize": finalize,
 }}
 
 REFINEMENT = """

@@ -71,6 +71,18 @@ def events_from(path: Path):
             raise ValueError(f"Invalid or truncated event stream: {path}") from None
 
 
+def completion_state(trajectory: dict, verdict: dict) -> tuple[bool | None, str]:
+    """Provider/infrastructure failures are unknown; task budget failures remain failures."""
+    if trajectory["termination"] in ("timeout", "turn_limit"):
+        return (False, "budget_exhausted") if verdict["passed"] is not None else (None, "verifier_error")
+    if trajectory["last_stop_reason"] == "error":
+        return None, "provider_error"
+    if trajectory["termination"] != "completed" or trajectory["exit_code"] != 0 \
+            or trajectory["last_stop_reason"] != "stop":
+        return None, "interrupted"
+    return verdict["passed"], "completed" if verdict["passed"] is not None else "verifier_error"
+
+
 def agent_directory(target: Path, source: Path, study: dict) -> dict:
     target.mkdir(parents=True, mode=0o700)
     credentials = read(source / "auth.json")
@@ -331,9 +343,9 @@ def one_run(study: dict, task: dict, output: Path, docker: str, credentials: Pat
                       "adapter_tools": sorted(tools), "trajectory_usage": trajectory["usage"],
                       "runtime_files": runtime_digests()}
         else:
-            passed = bool(normal and verdict["passed"]) if verdict["passed"] is not None else None
+            passed, outcome_state = completion_state(trajectory, verdict)
             result = {"task_id": task["task_id"], "family": task["family"], "arm": arm,
-                      "split": task["split"], "passed": passed, "verifier": verdict,
+                      "split": task["split"], "passed": passed, "outcome_state": outcome_state, "verifier": verdict,
                       "termination": trajectory["termination"], "agent_completed": normal,
                       "usage": trajectory["usage"], "agent_turns": trajectory["agent_turns"],
                       "tool_calls": trajectory["tool_calls"], "failed_tool_calls": trajectory["failed_tool_calls"],

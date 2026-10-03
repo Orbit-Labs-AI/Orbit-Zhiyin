@@ -60,14 +60,25 @@ def feedback(c):
     return c.params["validation_feedback"]
 
 
+def validate_history_pack(pack):
+    history = (pack.get("content") or {}).get("trajectories") or {}
+    if history.get("unavailable") or any(item.get("unavailable") for item in pack.get("items", [])
+                                         if item.get("key") == "trajectories"):
+        return ["History is unavailable; finish import or migrate and rebuild the data projection"]
+    if len(history.get("sessions", [])) < 2:
+        return ["Learning needs at least two selected history sessions"]
+    return []
+
+
 def validate_pack(pack):
+    errors = validate_history_pack(pack)
+    if errors:
+        return errors
     content = pack.get("content") or {}
     if not (content.get("procedure_draft") or {}).get("editable_candidate_ids"):
         return ["No selected, in-scope library candidate is available for refinement"]
     if not content.get("validation_feedback"):
         return ["Validation feedback must remain enabled for refinement"]
-    if len((content.get("trajectories") or {}).get("sessions", [])) < 2:
-        return ["Refinement needs at least two selected history sessions"]
     return []
 
 
