@@ -28,6 +28,15 @@ test('A4: table, matrix, failures, retries and header equal /v1/uiview/tools', a
   await openLive(page, 'tools');
   await expect(page.locator('#main table.tt tbody tr').first()).toBeVisible();
   if (PASS) { await noPlain(page); expect(errors).toEqual([]); return; }
+  // F24: 「仅看失败」 is on the first time the page opens; the full table is one click away
+  await expect(page.locator('[data-act="failOnly"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-act="failOnly"]').click();
+  // F24: an MCP server shows its full name and opens onto the tools the gateway lists under it
+  const srv = TOOLS.mcp[0];
+  await expect(page.locator('[data-mcp="' + srv.server + '"] .tt-mcp-n')).toHaveText('mcp·' + srv.server);
+  await page.locator('[data-act="toggleMcp"][data-k="' + srv.server + '"]').click();
+  const mt = await page.locator('[data-lv="mcp-tools"] .tt-mcp-t').evaluateAll((rs) => rs.map((r) => [r.querySelector('.tt-mcp-tn').textContent, r.querySelector('.tt-mcp-tv').textContent]));
+  expect(mt).toEqual(srv.tools.map((t) => [t.name, t.n + ' 次 · 失败 ' + (t.err * 100).toFixed(1) + '%']));
   // table rows: server order by calls, names and counts
   const rows = await page.locator('#main table.tt tbody tr[data-t]').evaluateAll((trs) => trs.map((tr) => [tr.dataset.t, tr.querySelector('.tt-num').textContent]));
   expect(rows.map((r) => r[0])).toEqual(MERGED.map((w) => w[0]));

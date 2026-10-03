@@ -20,6 +20,20 @@ test('A4 tools: sorting, fail-only scope, expanded calls, matrix grid and failur
   only14();
   const errors = await openDemo(page);
   await go(page, 'tools');
+  // F24：「仅看失败」首次进入默认开启，切换后记住；调用链矩阵在明细表之前，明细表在页面最下方
+  await expect(page.locator('[data-act="failOnly"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('th button[data-k="n"]')).toContainText('失败次数');
+  const order = await page.locator('#main .stack > *').evaluateAll((ns) => ns.map((n) => n.className.split(' ')[0] + (n.querySelector('table.tt') ? ':table' : '')));
+  expect(order).toEqual(['tiles', 'tt-grid', 'card:table']);
+  await page.locator('[data-act="failOnly"]').click();
+  expect(await page.evaluate(() => store.get('toolsFailOnly', true))).toBe(false);
+  // MCP 服务：完整服务名，展开后列出其下工具；各工具次数之和 = 服务次数
+  await page.locator('[data-act="toggleMcp"][data-k="browser"]').click();
+  const mcpTools = page.locator('[data-lv="mcp-tools"] .tt-mcp-t');
+  await expect(mcpTools).toHaveCount(3);
+  const mcpSum = (await page.locator('[data-lv="mcp-tools"] .tt-mcp-tv').allTextContents()).reduce((a, t) => a + parseInt(t.replace(/,/g, ''), 10), 0);
+  expect(String(mcpSum)).toBe((await page.locator('[data-mcp="browser"] .tt-mcp-v').textContent()).match(/^([\d,]+) 次/)[1].replace(/,/g, ''));
+  await expect(page.locator('[data-mcp="browser"] .tt-mcp-n')).toHaveText('mcp·browser');
   await expect(page.locator('.vz-kpi')).toHaveCount(4);
   await expect(page.locator('.vz-kpi .vz-spark')).toHaveCount(4);
   await expect(page.locator('.vz-kpi .vz-kpi-d').first()).toContainText('上期');
