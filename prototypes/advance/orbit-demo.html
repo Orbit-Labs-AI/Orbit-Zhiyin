@@ -900,8 +900,9 @@ body.native .win.nosb .tbar{padding-left:20px}
 .fp2 .fp-code{font-weight:600;letter-spacing:.04em;pointer-events:none}
 .fp2 .fp-code.me{font-weight:800}
 /* 表盘被缩到码不足 8 px 时只留你的类型码：小表盘（.fp-sm，码 10.8）在 296 px 以下、大表盘（码 9.5）在 337 px 以下。
-   以 svg 自身为尺寸容器（它的宽度只由外部决定），刻度与徽章不变 */
-.fp2{container:fpd/inline-size}
+   以 svg 自身为尺寸容器（它的宽度只由外部决定），刻度与徽章不变。成为尺寸容器后 svg 不再按 width / height 属性的比例
+   自动算高（height:auto 会回到 400 / 300，表盘在框里上下留白，Genesis 窄布局里与 .g-over 叠层错开），所以显式保持正方形 */
+.fp2{container:fpd/inline-size;aspect-ratio:1}
 @container fpd (max-width:295.5px){.fp2.fp-sm .fp-code:not(.me){display:none}}
 @container fpd (max-width:336.5px){.fp2:not(.fp-sm) .fp-code:not(.me){display:none}}
 .fp2 .fpo{fill-opacity:var(--fp-bo)}
