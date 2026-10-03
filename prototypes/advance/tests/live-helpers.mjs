@@ -43,8 +43,9 @@ export async function stubGateway(page, dirs, extra, opts) {
     window.__TANDEM_ENDPOINT__ = o; window.__TANDEM_TOKEN__ = t;
     if (nat) {
       window.__ORBIT_NATIVE__ = nat;
-      window.__nativeMsgs = [];
-      window.webkit = { messageHandlers: { tandem: { postMessage: (m) => window.__nativeMsgs.push(JSON.parse(JSON.stringify(m))) } } };
+      window.__nativeMsgs = []; window.__dragRegions = [];
+      // dragRegions (23-native-drag.js) is a layout report, kept apart so the op / reply assertions see only bridge calls
+      window.webkit = { messageHandlers: { tandem: { postMessage: (m) => (m && m.type === 'dragRegions' ? window.__dragRegions : window.__nativeMsgs).push(JSON.parse(JSON.stringify(m))) } } };
     }
   }, [ORIGIN, token, opts.native || null]);
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
