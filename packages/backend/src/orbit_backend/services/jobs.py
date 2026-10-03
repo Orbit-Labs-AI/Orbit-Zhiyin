@@ -24,6 +24,8 @@ from typing import Protocol
 
 from orbit_data.contract import now_ms, uid
 
+from orbit_backend.platform.logs import log_event
+
 log = logging.getLogger(__name__)
 STATUSES = ("queued", "running", "completed", "partial", "cancelled", "failed", "interrupted")
 ACTIVE = frozenset({"queued", "running"})
@@ -273,6 +275,7 @@ class JobService:
         self.publish = publish
         self.progress_interval_s = progress_interval_s
         self.progress_sent: dict[str, tuple[tuple, float]] = {}
+        self.progress_counts: dict[str, dict[str, int]] = {}
 
     def _event(self, job: dict) -> None:
         self.publish("job", "job", {k: job.get(k) for k in (
@@ -320,6 +323,28 @@ class JobService:
         marker = (progress.get("stage"), phase, progress.get("step"), progress.get("batch"),
                   progress.get("attempt"))
         last = self.progress_sent.get(job_id)
+        # Persist meaningful file outcomes before SSE coalescing. Unchanged files only
+        # increment the final summary; routine syncs never log every unchanged path.
+        counts = self.progress_counts.setdefault(job_id, {
+            "captured": 0, "unchanged": 0, "failed": 0, "retries": 0})
+        status = progress.get("status")
+        if progress.get("stage") == "capture" and status in counts:
+            counts[status] += 1
+        retrying = progress.get("stage") == "capture_retry"
+        if retrying:
+            counts["retries"] += 1
+        keys = ("stage", "source_agent", "source_id", "step", "batch", "attempt",
+                "attempts", "completed", "total", "path", "status", "exception",
+                "source_status", "errno", "sqlite_errorname", "retryable")
+        fields = {key: value[:1024] if isinstance(value, str) else value
+                  for key in keys if isinstance(value := progress.get(key), (str, int, float, bool))}
+        if retrying or status in ("captured", "failed"):
+            log_event("import_file_retry" if retrying else "import_file",
+                      level=logging.WARNING if retrying or status == "failed" else logging.INFO,
+                      job_id=job_id, origin=job.get("origin"), **fields)
+        elif last is None or last[0] != marker:
+            log_event("import_stage", job_id=job_id, origin=job.get("origin"),
+                      **{key: value for key, value in fields.items() if key != "path"})
         now = time.monotonic()
         final = progress.get("total") is not None and progress.get("completed") == progress.get(
             "total")
@@ -343,6 +368,9 @@ class JobService:
 
     def finished(self, job_id: str, status: str, results: list, error: dict | None) -> None:
         self.progress_sent.pop(job_id, None)
+        counts = self.progress_counts.pop(job_id, None)
+        if counts is not None:
+            log_event("import_summary", job_id=job_id, **counts)
         job = self.state.job(job_id)
         if job["status"] not in ACTIVE:
             return
@@ -360,6 +388,9 @@ class JobService:
 
     def interrupted(self, job_id: str, code: str, message: str) -> None:
         self.progress_sent.pop(job_id, None)
+        counts = self.progress_counts.pop(job_id, None)
+        if counts is not None:
+            log_event("import_summary", job_id=job_id, **counts)
         job = self.state.job(job_id)
         if job["status"] not in ACTIVE:
             return
