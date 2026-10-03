@@ -505,3 +505,32 @@ def test_claude_mcp_coverage_has_no_gap_reason_when_user_config_is_scanned(tmp_p
         result = scan_inventory(store, InventoryRequest("claude_code", root, claude_config=config))
     assert result["coverage"]["mcp"]["reason"] is None
     assert result["coverage"]["mcp"]["rows"] == 1
+
+
+def test_claude_plugin_manifest_command_and_agent_paths_supplement_defaults(tmp_path):
+    """plugin.json "commands"/"agents" may name extra folders or single .md files; they add
+    to commands/ and agents/, and paths outside the plugin are reported, not followed."""
+    root = tmp_path / "claude"
+    write(root, "settings.json", {"enabledPlugins": {"tools@market": True}})
+    plugin = root / "plugins/cache/market/tools/1.0.0"
+    write(plugin, ".claude-plugin/plugin.json", {
+        "name": "tools",
+        "commands": ["./extra-commands", "./single/deploy.md", "./commands", "../escape"],
+        "agents": "./custom/reviewer.md",
+    })
+    write(plugin, "commands/ship.md", "Ship it")
+    write(plugin, "extra-commands/ops/rollback.md", "Roll back")
+    write(plugin, "single/deploy.md", "Deploy")
+    write(plugin, "custom/reviewer.md", "---\nname: code-reviewer\n---\nbody")
+    _, data, _ = run(tmp_path, "claude_code", root)
+    found = {
+        (item["type"], item["name"])
+        for item in data["items"]
+        if item["type"] in ("command", "agent")
+    }
+    assert found == {
+        ("command", "tools:ship"),
+        ("command", "tools:ops:rollback"),
+        ("command", "tools:deploy"),
+        ("agent", "tools:code-reviewer"),
+    }

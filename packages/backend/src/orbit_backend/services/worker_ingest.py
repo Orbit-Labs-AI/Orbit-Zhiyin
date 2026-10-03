@@ -256,7 +256,7 @@ class IngestWorker:
                             # already stale for other reasons (e.g. a reducer bump) wait for
                             # their own import or rebuild instead of turning a short
                             # inventory job into a full-library re-reduce.
-                            agents = {s["agent"] for s, r in zip(job["sources"], results)
+                            agents = {s["agent"] for s, r in zip(job["sources"], results, strict=True)
                                       if r.get("remap_files")}
                             remapped = {row[0] for row in store.db.execute(
                                 "SELECT source_id FROM source WHERE agent IN (%s)"

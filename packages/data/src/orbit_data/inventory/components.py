@@ -98,7 +98,22 @@ def plugin_components(
     if markdown:
         from .adapters import claude_markdown_components
 
-        claude_markdown_components(reader, folder, namespace=name.split("@", 1)[0])
+        extra = {}
+        for component, key in (("command", "commands"), ("agent", "agents")):
+            declared = manifest.get(key, [])
+            declared = [declared] if isinstance(declared, str) else declared
+            if not isinstance(declared, list):
+                reader.issue(manifest_path, (component,), "invalid_plugin_component")
+                continue
+            for value in declared:
+                if not isinstance(value, str):
+                    reader.issue(manifest_path, (component,), "invalid_plugin_component")
+                    continue
+                path = component_path(reader, folder, value, component)
+                # The default folder is always scanned; listing it again adds nothing.
+                if path is not None and path.resolve() != (folder / key).resolve():
+                    extra.setdefault(component, []).append(path)
+        claude_markdown_components(reader, folder, namespace=name.split("@", 1)[0], extra=extra)
     for inv_id in set(reader.items) - before:
         item = reader.items[inv_id]
         item["evidence"] = evidence

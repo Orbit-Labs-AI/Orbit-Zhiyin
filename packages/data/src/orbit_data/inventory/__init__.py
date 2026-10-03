@@ -13,7 +13,7 @@ from orbit_data.store import Store, insert, readonly_connection
 from .adapters import SUPPORTED, mcp, scan_layout
 from .reader import KINDS, ScanReader
 
-SCANNER_VERSION = "1.4.1"
+SCANNER_VERSION = "1.4.2"
 # Connectors that split ``<server>_<tool>`` tool names only with inventoried MCP server
 # names (connectors.base.split_mcp_name); their mapping depends on the inventory.
 MCP_NAME_MAPPED = frozenset({"opencode", "hermes"})
