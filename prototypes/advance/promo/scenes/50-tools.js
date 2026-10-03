@@ -27,17 +27,22 @@ scene('50-tools', () => {
 
   /* ---------- 5.1 merge (b55.0–56.4) and the merged dot's path to the b69.2 hand-off (v17.1 V1, T11–T13) ----------
      ONE merge key with live x / y / r (a second merge key would fan the dots out again). The dot is where the eye is:
-     (330, 540) (ds is already there, the column closes on it) → b56.8–57.4 under the playhead, then rides it (timeline
-     bottom + 40) → b61.4–62.65 onto 开始生成 (it is the pointer; pressed at the b62.8 click) → b63.0–63.6 56 px left of the
+     (330, 540) (ds is already there, the column closes on it) → b56.8–57.4 under the playhead, then rides it (card
+     bottom + 46) → b61.4–62.65 onto 开始生成 (it is the pointer; pressed at the b62.8 click) → b63.0–63.6 56 px left of the
      run card (the generator) → b68.1–69.2 screen centre (960, 540), where 60-close's spiral starts. All E.inOut. */
   const io = (b, b0, d) => E.inOut(clamp((b - b0) / d)), mix = (P, Q, e) => [lerp(P[0], Q[0], e), lerp(P[1], Q[1], e)];
   const MERGE = [330, 540], HOME = [960, 540];
   // under the playhead, card-fixed: the conveyor exit (b61.1, 1 beat, E.inOut, moves only ax / ay by −DIAG) is taken back out,
-  // so the dot keeps riding the playhead's creep instead of being dragged up-left and then turning back to the button
+  // so the dot keeps riding the playhead's creep instead of being dragged up-left and then turning back to the button.
+  // Right under the timeline the card's own status line (已发生 n / 143) and legend fill the space, so the dot rides 46 px
+  // below the card's bottom edge at the playhead's x: it covers none of the app's text (T11′: pill above, dot below)
   const rideXY = (b) => {
-    const p = elXY(0, TL + ' .vz-playhead', .5, 1), y = elXY(0, TL, .5, 1)[1] + 40, e = io(b, 61.1, 1.0);
+    const p = elXY(0, TL + ' .vz-playhead', .5, 1), y = elXY(0, '.tl-card', .5, 1)[1] + 46, e = io(b, 61.1, 1.0);
     return [p[0] + DIAG[0] * e, y + DIAG[1] * e];
   };
+  // b56.8–57.4 (330, 540) → under the playhead around the card's lower-left corner: y leads (56.8–57.2), x follows
+  // (56.95–57.4), so the dot drops past the card's left edge and turns along its bottom instead of cutting across its rows
+  const toRide = (b) => { const R = rideXY(b); return [lerp(MERGE[0], R[0], io(b, 56.95, .45)), lerp(MERGE[1], R[1], io(b, 56.8, .4))]; };
   // 开始生成's centre where placeBtn puts it (run card header, 18 px in, 16 px down) — still valid after b63.05, when the
   // button goes back to the task card (its size is kept from before)
   let BW = [150, 46];
@@ -47,14 +52,19 @@ scene('50-tools', () => {
     const c = rc.getBoundingClientRect(); return stageXY(1, c.right - 18 - BW[0] / 2, c.top + 16 + BW[1] / 2);
   };
   const genXY = () => { const p = runEdge(); return [p[0] - 56, p[1]]; };
+  // b68.1–69.2 the return to the centre starts from where the generator was at b68.1 (held, not live): the cards then shrink
+  // about the dot and travel with it, so a live genXY would already be at the centre by ≈ b68.8 and the dot would sit still
+  // there for almost a beat; held, it lands on (960, 540) exactly at the b69.2 hand-off (E.inOut, zero speed both ends)
+  let G0 = null;
+  const backXY = (b) => { if (!G0) G0 = genXY(); return mix(G0, HOME, io(b, 68.1, 1.1)); };
   let MB = -1, MP = MERGE;                                  // per-frame memo: the live params are read 5× a frame
   const mergeXY = (b) => {
-    if (b === MB) return MP; MB = b;
+    if (b === MB) return MP; MB = b; if (b < 68.1) G0 = null;
     return MP = b < 56.8 ? MERGE : b >= 69.2 ? HOME
-      : b < 61.4 ? mix(MERGE, rideXY(b), io(b, 56.8, .6))
+      : b < 61.4 ? toRide(b)
       : b < 62.95 ? mix(rideXY(b), btnXY(b), io(b, 61.4, 1.25))
       : b < 68.1 ? mix(btnXY(b), genXY(), io(b, 63.0, .6))
-      : mix(genXY(), HOME, io(b, 68.1, 1.1));
+      : backXY(b);
   };
   const mergeR = (b) => b < 63.0 ? lerp(44, 26, io(b, 56.8, .6)) : b < 68.1 ? lerp(26, 36, io(b, 63.0, .6)) : lerp(36, 40, io(b, 68.1, 1.1));
   AGD.key(55.0, 'merge', { x: (b) => mergeXY(b)[0], y: (b) => mergeXY(b)[1], r: mergeR, dur: 1.2, stag: .05 });
