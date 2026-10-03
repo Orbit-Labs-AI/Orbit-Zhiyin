@@ -45,7 +45,8 @@ def make_db(path, project_dirs=()):
         CREATE TABLE project (project_id TEXT, key_type TEXT, key TEXT, name TEXT, paths TEXT);
         INSERT INTO inventory_scan VALUES (1,'cc','claude_code'),(2,'cc','claude_code'),(3,'cx','codex');
         INSERT INTO inventory_item VALUES (1,'a','skill','old',1),(2,'b','skill','alpha',1),(2,'c','skill','beta',NULL),
-          (2,'d','mcp','gh',0),(2,'e','hook','fmt',1),(3,'f','rule','agents',1);
+          (2,'d','mcp','gh',0),(2,'e','hook','fmt',1),(3,'f','rule','agents',1),
+          (2,'g','command','ship',1),(2,'h','agent','helper',1);
     """)
     for i, p in enumerate(project_dirs):
         db.execute("INSERT INTO project VALUES (?, 'path', ?, ?, ?)", (f"p{i}", str(p), p.name, f'["{p}"]'))
@@ -125,10 +126,11 @@ def test_installed_counts_and_names(tmp_path):
     make_db(path)
     reads = Reads(path)
     assert installed_counts(reads, "claude_code") == {"skill": 2, "mcp": 0, "hook": 1, "plugin": 0, "rule": 0,
-                                                      "scheduled_task": 0}
+                                                      "scheduled_task": 0, "command": 1, "agent": 1}
     assert installed_counts(reads, "codex")["rule"] == 1
     assert inventory_names(reads, "claude_code", "skill") == {"alpha", "beta"}
-    assert inventory_names(reads) == {"alpha", "beta", "gh", "fmt", "agents"}
+    assert inventory_names(reads, "claude_code", "command") == {"ship"}
+    assert inventory_names(reads) == {"alpha", "beta", "gh", "fmt", "agents", "ship", "helper"}
 
 
 def test_projects_markers_and_counts(env, tmp_path):
@@ -224,7 +226,8 @@ def test_empty_inventory_falls_back_to_config_file_counts(env, tmp_path):
     result = environment(env, reads=reads)
     cc = agent(result, "claude_code")
     assert cc["counts_basis"] == "files"
-    assert cc["installed_counts"] == {"skill": 1, "mcp": 2, "hook": 3, "plugin": 1, "rule": 0, "scheduled_task": 0}
+    assert cc["installed_counts"] == {"skill": 1, "mcp": 2, "hook": 3, "plugin": 1, "rule": 0, "scheduled_task": 0,
+                                    "command": 0, "agent": 0}
     cx = agent(result, "codex")
     assert cx["counts_basis"] == "files" and cx["installed_counts"]["mcp"] == 1
     assert agent(result, "hermes")["counts_basis"] == "unknown"

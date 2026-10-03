@@ -40,9 +40,11 @@ COMPARE_MIN_N = 5
 SCATTER_NOTE = "相关不等于因果"
 WORKFLOW_MIN_SUPPORT = 3
 WORKFLOW_LENGTHS = (3, 4, 5)
-COVERAGE_TYPES = ("rule", "hook", "skill", "mcp", "subagent")
+COVERAGE_TYPES = ("rule", "hook", "skill", "mcp", "subagent", "command")
 CAPABILITY_OF = {"rule": "rules", "hook": "hooks", "skill": "skills", "mcp": "mcp",
-                 "subagent": "subagents"}
+                 "subagent": "subagents", "command": "commands"}
+# Inventory type per coverage row: subagent definitions are inventory type "agent" (schema 15).
+INVENTORY_TYPE = {"subagent": "agent"}
 METRICS = (
     ("avg_session_minutes", "平均会话分钟", "mean"),
     ("messages_per_session", "每会话消息", "mean"),
@@ -433,14 +435,16 @@ def coverage(items, pid, agents) -> list[dict]:
     for kind in COVERAGE_TYPES:
         cap = CAPABILITY_OF[kind]
         agents_read = sorted(a for a in agents if capabilities(a, None).get(cap))
-        if kind == "subagent" or items is None:
-            out.append({"type": kind, "configured": None, "detail": "未扫描",
-                        "agents_read": agents_read})
+        inv_type = INVENTORY_TYPE.get(kind, kind)
+        if items is None:
+            out.append({"type": kind, "inventory_type": inv_type, "configured": None,
+                        "detail": "未扫描", "agents_read": agents_read})
             continue
-        mine = [i for i in items if i.get("type") == kind]
+        # Disabled entries (e.g. Codex prompts it no longer loads) are not configuration.
+        mine = [i for i in items if i.get("type") == inv_type and i.get("enabled") != 0]
         local = sum(1 for i in mine if i.get("scope") == "project" and i.get("project_id") == pid)
         glob = sum(1 for i in mine if i.get("scope") != "project")
-        out.append({"type": kind, "configured": bool(local or glob),
+        out.append({"type": kind, "inventory_type": inv_type, "configured": bool(local or glob),
                     "detail": f"项目 {local} · 全局 {glob}", "project": local, "global": glob,
                     "agents_read": agents_read})
     return out

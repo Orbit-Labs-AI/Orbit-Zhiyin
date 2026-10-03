@@ -27,7 +27,9 @@ PROBE_TTL = 24 * 3600
 FAILED_PROBE_TTL = 600  # a timed-out probe is retried sooner than a good one
 MEMO_TTL = 2.0
 PROJECT_LIMIT = 30
-COUNT_KINDS = ("skill", "mcp", "hook", "plugin", "rule", "scheduled_task")
+# Inventory types (orbit_data migration 015 split slash commands and subagent definitions out
+# of "skill"), so installed counts list them separately instead of inflating skills.
+COUNT_KINDS = ("skill", "mcp", "hook", "plugin", "rule", "scheduled_task", "command", "agent")
 CAPABILITIES = ("skills", "hooks", "mcp", "plugins", "subagents", "commands", "rules", "permission_rules")
 
 # agent -> (display name, binary name, default root relative to home)
@@ -367,7 +369,7 @@ def _opencode(env: Env, root: Path) -> tuple[list, dict, list]:
     layers = [layer("opencode_json", cfg / "opencode.json", h), layer("opencode_jsonc", cfg / "opencode.jsonc", h),
               layer("agents_md", cfg / "AGENTS.md", h)]
     dirs = {"config": dir_info(cfg, h), "skills": dir_info(cfg / "skills", h, _skills),
-            "commands": dir_info(cfg / "commands", h)}
+            "commands": dir_info(cfg / "commands", h), "agents": dir_info(cfg / "agents", h)}
     return layers, dirs, []
 
 
@@ -431,7 +433,9 @@ def _size(value) -> int:
 
 def file_counts(agent: str, env: Env, root: Path, dirs: dict) -> dict:
     """Cheap counts from the agent's own config files when no inventory scan exists."""
-    counts = {**dict.fromkeys(COUNT_KINDS, 0), "skill": (dirs.get("skills") or {}).get("count", 0)}
+    counts = {**dict.fromkeys(COUNT_KINDS, 0), "skill": (dirs.get("skills") or {}).get("count", 0),
+              "command": (dirs.get("commands") or {}).get("count", 0),
+              "agent": (dirs.get("agents") or {}).get("count", 0)}
     if agent == "claude_code":
         hooks = _load(root / "settings.json").get("hooks")
         counts["hook"] = sum(_size(g.get("hooks")) for groups in (hooks.values() if isinstance(hooks, dict) else ())

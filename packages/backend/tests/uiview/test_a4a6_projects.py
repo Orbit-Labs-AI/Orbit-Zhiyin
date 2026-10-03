@@ -194,6 +194,8 @@ def test_coverage_and_rule_files(conn, db, home, tmp_path):
                   ("hook", "PreToolUse", str(proj / ".claude/settings.json"),
                    {"project_path": str(proj)}),
                   ("skill", "pdf", str(proj / ".claude/skills/pdf/SKILL.md"),
+                   {"project_path": str(proj)}),
+                  ("agent", "reviewer", str(proj / ".claude/agents/reviewer.md"),
                    {"project_path": str(proj)})], project="p1")
     db.inventory([("mcp", "playwright", str(home / "mcp.json"), {}),
                   ("rule", "CLAUDE.md", str(outside), {})], scope="global")
@@ -212,7 +214,10 @@ def test_coverage_and_rule_files(conn, db, home, tmp_path):
         c.close()
     cov = {x["type"]: x for x in detail["coverage"]}
     assert all(cov[k]["configured"] is True for k in ("rule", "hook", "skill", "mcp"))
-    assert cov["subagent"]["configured"] is None and cov["subagent"]["detail"] == "未扫描"
+    # Subagent definitions are inventory type "agent" (schema 15); no command was scanned here.
+    assert cov["subagent"]["configured"] is True and cov["subagent"]["project"] == 1
+    assert cov["subagent"]["inventory_type"] == "agent"
+    assert cov["command"]["configured"] is False and cov["command"]["detail"] == "项目 0 · 全局 0"
     assert "claude_code" in cov["subagent"]["agents_read"]
     assert "codex" not in cov["subagent"]["agents_read"] and "codex" in cov["mcp"]["agents_read"]
     files = detail["header"]["rule_files"]
