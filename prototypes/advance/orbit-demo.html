@@ -29,6 +29,7 @@
 --pri:#17181b;--pri-ink:#ffffff;--tip:#f8f7f4;--tip-ink:#17181b;--toast-act:#17181b;--scrim:rgba(17,19,24,.22);
 --a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;--a6:#0f8b8d;--a6t:#dcf4f4;--a7:#7a5cc7;--a7t:#ede6fb;--a8:#5f8a1e;--a8t:#eaf3d9;--a9:#8a6a4f;--a9t:#f3ebe3;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--petal2:#c0bdb5;
 --hud:rgba(22,23,26,.95);--hud-2:rgba(255,255,255,.08);--hud-line:rgba(255,255,255,.12);--hud-ink:#f1f1f3;--hud-ink-2:#c3c6cc;--hud-ink-3:#969aa3;
 --wg:#ffffff;--wg-edge:rgba(23,24,27,.08);
 --sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.18),0 0 0 .5px rgba(20,24,30,.12);--sh-win:0 0 0 .5px rgba(20,24,30,.18),0 22px 60px rgba(20,24,30,.24),0 1px 2px rgba(0,0,0,.05);
@@ -54,6 +55,7 @@
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;--a6:#2aa3a5;--a6t:#12302f;--a7:#9278dc;--a7t:#261f3b;--a8:#87a83a;--a8t:#232c12;--a9:#b08e70;--a9t:#2e241b;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
+--petal2:#5c5c63;
 --hud:rgba(40,40,45,.96);
 --wg:#28282d;--wg-edge:rgba(255,255,255,.12);
 --sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
@@ -69,6 +71,7 @@ color-scheme:dark}}
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;--a6:#2aa3a5;--a6t:#12302f;--a7:#9278dc;--a7t:#261f3b;--a8:#87a83a;--a8t:#232c12;--a9:#b08e70;--a9t:#2e241b;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
+--petal2:#5c5c63;
 --hud:rgba(40,40,45,.96);
 --wg:#28282d;--wg-edge:rgba(255,255,255,.12);
 --sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
@@ -192,7 +195,8 @@ h1.serif,h2.serif,h3.serif{font-weight:600}
 .sb-foot .me{display:flex;align-items:center;gap:8px;padding:0 2px 0 4px}
 .sb-foot .av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--ink-1);color:var(--bg);font:600 11px/1 var(--font-num)}
 .sb-foot .nm{font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-foot .pc{font-size:10px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-foot .pc{font-size:10px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:3px}
+.sb-foot .pc>svg{flex:none;margin:-1px 0 -1px -1px}.sb-foot .pc-t{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .sb-foot .ib{width:24px;height:24px;color:var(--ink-3)}
 /* content column with the page's toolbar on the same 52px line as the lights (600-weight sans title, tabular meta) */
 .main{grid-column:2;grid-row:1/-1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg);container:main/inline-size}
@@ -836,6 +840,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .ov-pers [data-vz="ov-axes"]{margin:auto 0}
 .ov-code{border:0;background:none;padding:0;text-align:left;display:flex;flex-direction:column;gap:4px;color:inherit;border-radius:8px}
 .ov-code:hover .ov-code-l{color:var(--ink-2)}
+.ov-code-r{display:flex;align-items:center;gap:12px}.ov-code-r>svg{flex:none}
 .ov-code-l{font-family:var(--font-type);font-size:40px;line-height:44px;font-weight:700;letter-spacing:.04em;transition:color .15s}
 /* bottom row: rhythm | tools, suggestions full width underneath (heat map needs ≥ 340px, tool bars need room) */
 .ov-three{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
@@ -4048,7 +4053,7 @@ function sideFoot() {
   const x = sideIdx(), me = personaNow();
   return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="sources" data-st="' + x.st + '" data-tip="打开设置 › 数据源">' +
     '<span class="pv-dot" aria-hidden="true"></span>' + (x.n == null ? '' : '<span class="pv-n">' + fmt(x.n) + ' 个会话</span><span class="pv-sep" aria-hidden="true">·</span>') + '<span class="pv-t">' + x.t + '</span></button>' +
-    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? '<span class="tcode">' + me.code + '</span> · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
+    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? glyphSVG(me, 14) + '<span class="pc-t"><span class="tcode">' + me.code + '</span> · ' + me.zh + '</span>' : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
 }
 function personaNow() { return persona(sel({ noExtra: true })); }
 /* page toolbar: lives on the window's 52px title row (title 15px semibold, meta, page items, global search → command palette) */
@@ -4396,7 +4401,7 @@ function bloomHeart(g, cx, cy, ink, bg, sw) {
   return g.ring ? '<circle cx="' + cx + '" cy="' + cy + '" r="' + g.hr.toFixed(1) + '" fill="' + bg + '" stroke="' + ink + '" stroke-width="' + sw + '"/><circle cx="' + cx + '" cy="' + cy + '" r="' + (sw * 1.3).toFixed(1) + '" fill="' + ink + '"/>'
     : '<circle cx="' + cx + '" cy="' + cy + '" r="' + (g.hr * 0.62).toFixed(1) + '" fill="' + ink + '"/>';
 }
-// 一朵花的图层：back 小瓣（浅灰）、front 主瓣（墨色；有领瓣、花蕊、圆点时一并画上）、heart 花心；ink / gray / lead / bg 是颜色，hw 是花心线宽
+// 一朵花的图层：back 小瓣（浅灰）、front 主瓣（墨色）、heart 花心；ink / gray / bg 是颜色，hw 是花心线宽。lead / st / dot 分支只为旧调用保留，bloom() 给的都是空串
 function bloomParts(g, cx, cy, c) {
   return { back: g.back ? '<path class="fp-bk" d="' + g.back + '" fill="' + c.gray + '"/>' : '',
     front: (g.lead ? '<path class="fp-lead" d="' + g.lead + '" fill="' + c.lead + '"/>' : '') + '<path class="fp-pet" d="' + g.major + '" fill="' + c.ink + '"/>' +
@@ -6213,7 +6218,7 @@ PAGES.overview = () => {
     '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>' +
     // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
     '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
-    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
+    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="ov-code-r"><span class="serif ov-code-l">' + pers.code + '</span>' + glyphSVG(pers, 40) + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
     (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
     '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
     '<div class="three ov-three">' +
@@ -6536,7 +6541,7 @@ function fp2SVG(L, p, size, opt) {
   // 内盘：协作人格的花。.fp-flower（Genesis 淡入）› .fp-bloom（--hd 旋转，Genesis 逐帧写）› .fp-bd（入场晃动、悬停轻颤）›
   // .fp-back 浅灰小瓣 / .fp-front 墨色主瓣（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
   const g = bloom(p, C, RR), un = !p.ok || (p.code || '').includes('?'), ink = un ? 'var(--ink-3)' : 'var(--ink-1)';
-  const lay = bloomParts(g, C, C, { ink, gray: 'var(--h2)', lead: un ? 'var(--ink-4)' : 'var(--orbit)', bg: 'var(--bg)', hw: 1.4 });
+  const lay = bloomParts(g, C, C, { ink, gray: 'var(--petal2)', lead: un ? 'var(--ink-4)' : 'var(--orbit)', bg: 'var(--bg)', hw: 1.4 });
   const flower = '<g class="fp-flower" data-code="' + (p.code || code) + '"><g class="fp-bloom" data-hd="' + hd + '" style="--hd:' + hd + 'deg"><title>你的类型 ' + code + ' ' + (TYPES[code] ? TYPES[code][0] : '') + '</title><g class="fp-bd">' +
     (lay.back ? '<g class="fp-pw fp-back">' + lay.back + '</g>' : '') + '<g class="fp-pw fp-front">' + lay.front + '</g></g></g><g class="fp-heart">' + lay.heart + '</g></g>';
   const tn = TYPES[code];
@@ -8505,7 +8510,8 @@ function shareModel(sp) {
     glyph: bloomGlyph(p), axes: AXES.map((ax, i) => { const v = axisView(p, i); return { L: v.letter, name: v.name, strong: v.strong + '%' }; }),
     stats: stats4, ring: sp.ring || { unit: 'day', cells: [] }, foot: (sp.disclaimer ? sp.disclaimer + ' · ' : '') + '全部分析在本机完成' };
 }
-const SHARE_C = { dark: { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' }, light: { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' } };
+// mj 主瓣与花心、mn 日历环的空格、pt 花的浅灰小瓣（深色卡比 mn 亮一档，深底上看得见）
+const SHARE_C = { dark: { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54', pt: '#686b73' }, light: { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5', pt: '#b3b0a8' } };
 function shareFonts() {
   const cs = getComputedStyle(document.documentElement); const v = (n) => cs.getPropertyValue(n).trim() || 'sans-serif';
   return { type: v('--font-type'), display: v('--font-display'), num: v('--font-num'), sans: v('--font-sans') };
@@ -8544,7 +8550,7 @@ function shareOps(m, dark, noNum) {
     const gap = n <= 12 ? 0.11 : Math.min(2 * Math.PI / n * 0.34, 0.05), seg = 2 * Math.PI / n;
     cells.forEach((v, i) => { const a0 = -Math.PI / 2 + i * seg + gap / 2, a1 = a0 + seg - gap; ops.push(v > 0 ? { t: 'arc', cx, cy, r: rr, a0, a1, sw: n <= 31 ? 1.1 : 0.85, color: C.ink, alpha: +(0.3 + 0.7 * v).toFixed(3) } : { t: 'arc', cx, cy, r: rr, a0, a1, sw: 0.4, color: C.mn, alpha: 1 }); });
   }
-  if (m.glyph) { const k = 11.8 / 36; ops.push({ t: 'flower', g: m.glyph, tx: cx - 40 * k, ty: cy - 40 * k, k, mj: C.mj, mn: C.mn }); }
+  if (m.glyph) { const k = 11.8 / 36; ops.push({ t: 'flower', g: m.glyph, tx: cx - 40 * k, ty: cy - 40 * k, k, mj: C.mj, mn: C.pt, bg: C.bg }); }
   // 四个字母（SF Pro Rounded）+ 极名 + 强度
   let x = L; const by = 59;
   m.axes.forEach((a) => {
@@ -8569,6 +8575,7 @@ function shareOps(m, dark, noNum) {
   T(m.foot || '', R, 119, { size: 2.1, family: 'sans', color: C.ink3, align: 'right' });
   return { ops, F };
 }
+const SHARE_HW = 1.6;   // 分享卡花心环的线宽（80 视框单位）
 const shareFam = { type: 'type', serif: 'serif', mono: 'mono', sans: 'sans' };
 function shareSVG(m, dark, noNum) {
   const { ops, F } = shareOps(m, dark, noNum); const a = (v) => esc(String(v));
@@ -8578,7 +8585,8 @@ function shareSVG(m, dark, noNum) {
     if (o.t === 'rrect') return '<rect x="' + o.x.toFixed(2) + '" y="' + o.y.toFixed(2) + '" width="' + o.w.toFixed(2) + '" height="' + o.h + '" rx="' + o.r + '" fill="none" stroke="' + o.stroke + '" stroke-width="' + o.sw + '"/>';
     if (o.t === 'arc') { const p0 = [o.cx + o.r * Math.cos(o.a0), o.cy + o.r * Math.sin(o.a0)], p1 = [o.cx + o.r * Math.cos(o.a1), o.cy + o.r * Math.sin(o.a1)]; return '<path d="M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + 'A' + o.r + ' ' + o.r + ' 0 ' + (o.a1 - o.a0 > Math.PI ? 1 : 0) + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + '" fill="none" stroke="' + o.color + '" stroke-opacity="' + o.alpha + '" stroke-width="' + o.sw + '" stroke-linecap="round"/>'; }
     if (o.t === 'wordmark') return '<g transform="translate(' + o.x.toFixed(2) + ' ' + o.y.toFixed(2) + ') scale(' + o.k.toFixed(5) + ') translate(' + (-ORBIT_WORDMARK.vb[0]) + ' ' + (-ORBIT_WORDMARK.vb[1]) + ')" fill="' + o.fill + '" role="img" aria-label="Orbit·知音" data-wordmark="1">' + ORBIT_WORDMARK.paths.map((d) => '<path d="' + d + '"/>').join('') + '</g>';
-    if (o.t === 'flower') return '<g transform="translate(' + o.tx.toFixed(2) + ' ' + o.ty.toFixed(2) + ') scale(' + o.k.toFixed(4) + ')"><path d="' + o.g.minor + '" fill="' + o.mn + '"/><path d="' + o.g.major + '" fill="' + o.mj + '"/><circle cx="40" cy="40" r="' + o.g.hr + '" fill="none" stroke="' + o.mj + '" stroke-width="1.6"/><circle cx="40" cy="40" r="1.6" fill="' + o.mj + '"/></g>';
+    // 花：浅灰小瓣 → 墨色主瓣 → 花心（求证 V 是环 + 中心点，信任 T 是实心点；与 App 里的 bloomHeart 同一画法）
+    if (o.t === 'flower') return '<g transform="translate(' + o.tx.toFixed(2) + ' ' + o.ty.toFixed(2) + ') scale(' + o.k.toFixed(4) + ')" data-heart="' + (o.g.ring ? 'ring' : 'dot') + '">' + (o.g.minor ? '<path d="' + o.g.minor + '" fill="' + o.mn + '"/>' : '') + '<path d="' + o.g.major + '" fill="' + o.mj + '"/>' + bloomHeart(o.g, 40, 40, o.mj, o.bg, SHARE_HW) + '</g>';
     if (o.t === 'text') return '<text x="' + o.x.toFixed(2) + '" y="' + o.y.toFixed(2) + '" text-anchor="' + ({ center: 'middle', right: 'end' }[o.align] || 'start') + '" fill="' + o.color + '" font-size="' + o.size + '" font-weight="' + (o.weight || 400) + '"' + (o.italic ? ' font-style="italic"' : '') + (o.ls ? ' letter-spacing="' + (o.ls * o.size).toFixed(3) + '"' : '') + ' style="font-family:' + a(F[o.family || 'sans']) + '"' + (o.family === 'type' ? ' class="tcode"' : '') + '>' + a(o.s) + '</text>';
     return '';
   }).join('');
@@ -8671,7 +8679,9 @@ async function sharePNG(m, dark, noNum) {
     else if (o.t === 'flower' && typeof Path2D === 'function') {
       x.translate(o.tx * u, o.ty * u); x.scale(o.k * u, o.k * u);
       x.fillStyle = o.mn; x.fill(new Path2D(o.g.minor)); x.fillStyle = o.mj; x.fill(new Path2D(o.g.major));
-      x.strokeStyle = o.mj; x.lineWidth = 1.6; x.beginPath(); x.arc(40, 40, o.g.hr, 0, Math.PI * 2); x.stroke(); x.beginPath(); x.arc(40, 40, 1.6, 0, Math.PI * 2); x.fill();
+      const disc = (r) => { x.beginPath(); x.arc(40, 40, r, 0, Math.PI * 2); };
+      if (o.g.ring) { disc(o.g.hr); x.fillStyle = o.bg; x.fill(); x.strokeStyle = o.mj; x.lineWidth = SHARE_HW; x.stroke(); disc(SHARE_HW * 1.3); x.fillStyle = o.mj; x.fill(); }
+      else { disc(o.g.hr * 0.62); x.fill(); }
     } else if (o.t === 'text') {
       x.font = (o.italic ? 'italic ' : '') + (o.weight || 400) + ' ' + o.size * u + 'px ' + F[o.family || 'sans']; x.fillStyle = o.color; x.textAlign = o.align || 'left';
       if ('letterSpacing' in x) x.letterSpacing = o.ls ? (o.ls * o.size * u).toFixed(1) + 'px' : '0px';

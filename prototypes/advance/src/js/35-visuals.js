@@ -90,7 +90,7 @@ function bloomHeart(g, cx, cy, ink, bg, sw) {
   return g.ring ? '<circle cx="' + cx + '" cy="' + cy + '" r="' + g.hr.toFixed(1) + '" fill="' + bg + '" stroke="' + ink + '" stroke-width="' + sw + '"/><circle cx="' + cx + '" cy="' + cy + '" r="' + (sw * 1.3).toFixed(1) + '" fill="' + ink + '"/>'
     : '<circle cx="' + cx + '" cy="' + cy + '" r="' + (g.hr * 0.62).toFixed(1) + '" fill="' + ink + '"/>';
 }
-// 一朵花的图层：back 小瓣（浅灰）、front 主瓣（墨色；有领瓣、花蕊、圆点时一并画上）、heart 花心；ink / gray / lead / bg 是颜色，hw 是花心线宽
+// 一朵花的图层：back 小瓣（浅灰）、front 主瓣（墨色）、heart 花心；ink / gray / bg 是颜色，hw 是花心线宽。lead / st / dot 分支只为旧调用保留，bloom() 给的都是空串
 function bloomParts(g, cx, cy, c) {
   return { back: g.back ? '<path class="fp-bk" d="' + g.back + '" fill="' + c.gray + '"/>' : '',
     front: (g.lead ? '<path class="fp-lead" d="' + g.lead + '" fill="' + c.lead + '"/>' : '') + '<path class="fp-pet" d="' + g.major + '" fill="' + c.ink + '"/>' +

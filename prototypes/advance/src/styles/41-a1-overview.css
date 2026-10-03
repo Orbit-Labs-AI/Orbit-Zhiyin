@@ -38,6 +38,7 @@
 .ov-pers [data-vz="ov-axes"]{margin:auto 0}
 .ov-code{border:0;background:none;padding:0;text-align:left;display:flex;flex-direction:column;gap:4px;color:inherit;border-radius:8px}
 .ov-code:hover .ov-code-l{color:var(--ink-2)}
+.ov-code-r{display:flex;align-items:center;gap:12px}.ov-code-r>svg{flex:none}
 .ov-code-l{font-family:var(--font-type);font-size:40px;line-height:44px;font-weight:700;letter-spacing:.04em;transition:color .15s}
 /* bottom row: rhythm | tools, suggestions full width underneath (heat map needs ≥ 340px, tool bars need room) */
 .ov-three{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
