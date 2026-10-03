@@ -334,6 +334,26 @@ def test_legacy_fields_are_not_upgraded_to_contract_fields(tmp_path):
         analyze_store(store, Scope(project_ids=["legacy"]), with_text=False)
 
 
+def test_legacy_store_can_skip_default_recommendations(tmp_path, monkeypatch):
+    """A custom recommendation run (CLI ``--recommendation-*``) replaces the default one, so
+    the legacy ``--db`` path must not compute the default recommendations first."""
+    from orbit_backend.analytics import service
+
+    store = legacy_store(tmp_path, "human")
+    calls = []
+    real = service.AnalysisSections.full
+
+    def spy(self, with_recommendations=True):
+        calls.append(with_recommendations)
+        return real(self, with_recommendations)
+
+    monkeypatch.setattr(service.AnalysisSections, "full", spy)
+    skipped = analyze_store(store, with_text=False, with_recommendations=False)
+    assert "bottleneck_recommendations" not in skipped and calls == [False]
+    full = analyze_store(store, with_text=False)
+    assert "bottleneck_recommendations" in full and calls[1] is True
+
+
 def test_api_all_surfaces_validation_scope_and_cli_json(tmp_path, capsys):
     store = legacy_store(tmp_path, "human")
     with TestClient(create_app(store.path)) as client:

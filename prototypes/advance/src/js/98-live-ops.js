@@ -135,9 +135,9 @@ if (LV.live) {
     Object.defineProperty(S.live, k, {
       configurable: true, enumerable: true, set: (x) => { v = x; },
       get: () => {
-        const p = TLO.d && TLO.d.primary; if (!p) return k === 't0' ? Date.now() : 0;
+        const p = TLO.d && TLO.d.primary; if (!p) return k === 't0' ? Date.now() : k === 'ctx' ? null : 0;
         if (k === 't0') return p.since || v;
-        if (k === 'ctx') { const c = H.rtCtxPct(p); return c == null ? 0 : c; }
+        if (k === 'ctx') return H.rtCtxPct(p); // null = unknown (ctxBar shows 「—」), never a made-up 0%
         return ((p.lanes && p.lanes.tool) || []).length;
       }
     });
@@ -177,12 +177,19 @@ if (LV.live) {
     return '<button type="button" class="sec row" data-act="tloSess" data-id="' + esc(s.session_uid) + '" data-tl="rt-other" style="width:100%;border:0;border-top:1px solid var(--hair);background:none;text-align:left;font-size:12px"><span class="dot" style="background:' + ag.c + '"></span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(ag.short + ' · ' + (s.project || '—') + ' · ' + (s.title || '（无标题）')) + '</span><span class="mono cap" style="font-size:11px">' + rtState(s) + '</span></button>'; };
   const recSec = (r) => '<div class="sec row" data-tl="pop-rec" style="gap:10px"><span style="width:28px;height:28px;flex:none;border-radius:7px;background:var(--sunken);display:grid;place-items:center">' + ic('spark', 15) + '</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(r.title || '—') + '</div><div class="cap" style="font-size:11px">本周最值得做' + (r.gain ? ' · ' + esc(r.gain) : '') + '</div></div><button type="button" class="btn sm" data-act="popRec" data-id="' + esc(r.candidate_id || '') + '">预览</button></div>';
   const tloPopBase = renderPop;
+  // 今日会话 for the panel and the widget alike: the popover's full-table count (shell main_where, the client's day) is the
+  // authority; realtime sessions_started only comes from the ≤200 most recent tails, so it may only raise a stale popover count
+  const todaySessions = (pv, d) => {
+    const a = pv && pv.today && pv.today.sessions != null ? pv.today.sessions : null;
+    const b = d && d.today && d.today.sessions_started != null ? d.today.sessions_started : null;
+    return a == null ? b : b == null ? a : Math.max(a, b);
+  };
   renderPop = function () {
     tloPopBase();
     const d = TLO.d; const pv = popData();
     const meta = $('#pop .mono.cap');
     if (meta && pv && pv.today && !S.paused && !S.attn.size) {
-      const t = pv.today; const n = Math.max(t.sessions || 0, d && d.today ? d.today.sessions_started || 0 : 0);
+      const t = pv.today; const n = todaySessions(pv, d);
       meta.textContent = popDate() + ' · ' + (n ? TLU.num(n) + ' 会话' + (t.duration_s ? ' · ' + dur(Math.round(t.duration_s / 60)) : '') : dataBusy() ? busyMeta() : '还没有会话');
     }
     // the top recommendation: the menubar slate (97-live-recs recTop('menubar')); without one, the popover's top_rec
@@ -207,9 +214,9 @@ if (LV.live) {
     const c = d && d.ctx[0]; const cs = secOf('[data-act="popIgnore"][data-k="ctx"]');
     if (cs && !c) cs.remove();
     else if (cs && c) {
-      const pct = H.rtCtxPct(c) || 0;
+      const pct = H.rtCtxPct(c);
       cs.setAttribute('data-tl', 'rt-ctx');
-      cs.innerHTML = '<div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:13px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">' + pct + '%</b></div><div class="cap" style="font-size:12px">' + esc(tloAg(c).name + ' · ' + (c.project || '—') + ' · ' + (c.title || '')) + '</div>' + tloCtxBar(pct, { th: H.rtCtxTh(c) }) + '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div>';
+      cs.innerHTML = '<div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:13px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">' + (pct == null ? '—' : pct + '%') + '</b></div><div class="cap" style="font-size:12px">' + esc(tloAg(c).name + ' · ' + (c.project || '—') + ' · ' + (c.title || '')) + '</div>' + tloCtxBar(pct, { th: H.rtCtxTh(c) }) + '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div>';
     }
     const done = $('#pop [data-act="popSess"][data-id="' + DONE_ID + '"]');
     if (done) { if (TLO.doneUid) { const s = d && d.finished[0]; done.dataset.act = 'tloSess'; done.dataset.id = TLO.doneUid; done.dataset.tip = s && s.title || '刚刚完成的会话'; } else done.remove(); }
@@ -231,7 +238,7 @@ if (LV.live) {
     if (d && st === 'stuck' && d.failing[0]) { const s = d.failing[0]; return ic('alert', 16, 'color:#ff7d74') + '<b>同一命令失败 ' + TLU.num((s.failure || {}).n) + ' 次</b><span style="color:var(--hud-ink-3);font-size:12px">' + esc(tloAg(s).short + ' · ' + (s.project || '—')) + '</span><button type="button" class="hb" data-act="hudGo" data-v="stuck">查看原因</button>'; }
     if (d && st === 'waiting' && d.waiting[0]) { const s = d.waiting[0]; return '<span style="width:10px;height:10px;border-radius:2px;background:#f3b843;flex:none"></span><b>' + esc(tloAg(s).short) + '</b><span style="color:var(--hud-ink-2)">请求执行 ' + esc(tloCmd(s)) + '</span><button type="button" class="hb" data-act="hudGo" data-v="waiting">去处理</button>'; }
     if (d && st === 'done' && d.finished[0]) { const s = d.finished[0]; return ic('okc', 16, 'color:#5dd08a') + '<b>完成</b><span style="color:var(--hud-ink-2)">' + esc(s.project || s.title || '') + '</span><button type="button" class="hb" data-act="hudTraj">查看</button>'; }
-    if (d && st === 'ctx' && d.ctx[0]) { const s = d.ctx[0]; return ic('gauge', 16, 'color:#f3b843') + '<b>上下文 ' + (H.rtCtxPct(s) || 0) + '%</b><span style="color:var(--hud-ink-2)">' + esc(s.project || '—') + ' 即将压缩</span><button type="button" class="hb" data-act="hudTip">复制提示语</button>'; }
+    if (d && st === 'ctx' && d.ctx[0]) { const s = d.ctx[0]; return ic('gauge', 16, 'color:#f3b843') + '<b>上下文 ' + (H.rtCtxPct(s) == null ? '—' : H.rtCtxPct(s) + '%') + '</b><span style="color:var(--hud-ink-2)">' + esc(s.project || '—') + ' 即将压缩</span><button type="button" class="hb" data-act="hudTip">复制提示语</button>'; }
     return d && d.primary ? tloPill().replace(/<span data-hudtool([^>]*)>[^<]*<\/span>/, (m, a) => '<span data-hudtool' + a + '>' + esc(HUD_TOOLS[0] || '—') + '</span>') : '';
   };
   const tloHud = renderHud;
@@ -268,7 +275,7 @@ if (LV.live) {
       const row = sq.closest('.wg-row');
       if (row && !$('#widgets [data-tl="rt-paused"]')) row.insertAdjacentHTML('beforebegin', '<button type="button" class="wg" data-act="setPause" data-tl="rt-paused" style="display:flex;align-items:center;gap:10px;text-align:left"><span class="col" style="gap:2px;flex:1;min-width:0"><span class="lbl">采集已暂停</span><span style="font-size:12px;color:var(--ink-2)">不会产生事件，也不会更新统计</span></span><span class="btn sm p">恢复采集</span></button>');
     }
-    const n = d && d.today ? d.today.sessions_started : pv && pv.today ? pv.today.sessions : null;
+    const n = todaySessions(pv, d);
     const big = sq.querySelector('.mono'); if (big && n != null) big.textContent = TLU.num(n);
     const sub = big && big.nextElementSibling; if (sub && d && d.today) sub.textContent = '会话 · 今天已结束 ' + TLU.num(d.today.sessions_finished);
   };

@@ -9,11 +9,12 @@
 const DONE_ID = FEAT_ID;
 S.simBase = S.simBase || 'running'; S.hudSim = S.hudSim || S.sim; S.attn = S.attn || new Set();
 S.wgSize = S.wgSize || store.get('wgSize', 'm');
+// pct null = occupancy unknown (no usage yet, model window not known, or usage above the known window): 「—」 and an empty track, never 0%
 function ctxBar(pct, opt) {
-  opt = opt || {}; const th = opt.th == null ? 80 : opt.th;
-  return '<div class="ctxbar' + (opt.cls ? ' ' + opt.cls : '') + '" role="img" aria-label="上下文已用 ' + pct + '%，' + th + '% 时压缩">' +
-    '<div class="ctxbar-h"><span>' + (opt.label || '上下文') + ' <b class="mono">' + pct + '%</b></span><span class="mono">' + th + '% 压缩</span></div>' +
-    '<div class="ctxbar-t"><span class="ctxbar-f' + (pct >= th - 5 ? ' warn' : '') + '" style="width:' + clamp(pct, 0, 100) + '%"></span><span class="ctxbar-th" style="left:' + th + '%"></span></div></div>';
+  opt = opt || {}; const th = opt.th == null ? 80 : opt.th; const known = pct != null;
+  return '<div class="ctxbar' + (opt.cls ? ' ' + opt.cls : '') + '" role="img" aria-label="' + (known ? '上下文已用 ' + pct + '%' : '上下文占用未知') + '，' + th + '% 时压缩">' +
+    '<div class="ctxbar-h"><span>' + (opt.label || '上下文') + ' <b class="mono">' + (known ? pct + '%' : '—') + '</b></span><span class="mono">' + th + '% 压缩</span></div>' +
+    '<div class="ctxbar-t"><span class="ctxbar-f' + (known && pct >= th - 5 ? ' warn' : '') + '" style="width:' + (known ? clamp(pct, 0, 100) : 0) + '%"></span><span class="ctxbar-th" style="left:' + th + '%"></span></div></div>';
 }
 /* day indices and the panel's dated / mock-only fragments, as hooks: mock returns the published text unchanged; live mode
    (98-live-ops.js) swaps in the real calendar, the gateway's opening line and the real other sessions.

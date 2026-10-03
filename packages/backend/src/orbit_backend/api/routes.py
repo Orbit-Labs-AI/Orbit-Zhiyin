@@ -139,8 +139,14 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             return context, analyze_context(context, False, with_recommendations=False)
         return context, analytics_sections(scope, ["sessions", "bottleneck_features"])
 
+    def insight_facets(session_uids):
+        """AI facet outcomes from the canonical home's app.db (a legacy ``--db`` has none)."""
+        from ..analytics.signals.facets import facet_outcomes
+        return facet_outcomes(canonical_home / "app.db", session_uids) if db is None else {}
+
     from .insights import build_router
-    app.include_router(build_router(insight_result, scope_dependency=analytics_scope))
+    app.include_router(build_router(insight_result, get_facets=insight_facets,
+                                    scope_dependency=analytics_scope))
 
     def without_recommendations():
         from ..analytics.service import SECTIONS

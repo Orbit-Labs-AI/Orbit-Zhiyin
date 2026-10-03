@@ -310,8 +310,12 @@ def _main(argv: list[str] | None = None) -> None:
                           agent_ids=[] if args.agent_id == [""] else args.agent_id)
             scope = window_scope(scope, args.window)
             progress({"stage": "analytics"})
-            result = analyze_store(store, scope, not (args.no_text or args.presentation))
-            if args.recommendation_catalog is not None or args.recommendation_family or args.recommendation_agent != "generic":
+            custom = (args.recommendation_catalog is not None or args.recommendation_family
+                      or args.recommendation_agent != "generic")
+            # A custom recommendation run replaces the default one: do not compute both.
+            result = analyze_store(store, scope, not (args.no_text or args.presentation),
+                                   with_recommendations=not custom)
+            if custom:
                 from ..recommend.service import recommend as recommend_resources
                 result["bottleneck_recommendations"] = recommend_resources(
                     result, context={"agent": args.recommendation_agent}, family=args.recommendation_family,

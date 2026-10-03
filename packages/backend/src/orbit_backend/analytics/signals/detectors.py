@@ -22,7 +22,6 @@ from ..context import AnalysisContext
 from ..interaction.rules import QUOTED, correction_kind, correction_terms
 from ..lexicon import emotion_cues
 from .dictionary import (
-    EDIT_KINDS,
     FIND_WRITE_ACTIONS,
     FRUSTRATION_STREAK_CHARS,
     GIT_BRANCH_LIST,
@@ -39,6 +38,7 @@ from .dictionary import (
     SQL_DROP,
     STATE_ONLY_COMMANDS,
     WRITE_REDIRECTS,
+    is_edit_call,
 )
 
 Record = dict[str, Any]
@@ -460,7 +460,7 @@ def detect_missing_verification(view: SessionView) -> list[Record] | None:
     """Last edit with no executed validation before the session ends."""
     if view.calls is None or view.validation_runs is None or view.legacy:
         return None
-    edits = [c for c in view.calls if c.get("kind") in EDIT_KINDS
+    edits = [c for c in view.calls if is_edit_call(c)
              and c.get("tool_result_status") != "rejected"]
     if not edits:
         return []
@@ -610,5 +610,5 @@ def opportunities(view: SessionView) -> dict[str, bool | None]:
         "human": None if view.events is None else bool(_human_messages(view)),
         "tools": None if calls is None else bool(calls),
         "shell": None if calls is None else any(c.get("kind") == "shell" for c in calls),
-        "edits": None if calls is None else any(c.get("kind") in EDIT_KINDS for c in calls),
+        "edits": None if calls is None else any(is_edit_call(c) for c in calls),
     }

@@ -186,7 +186,10 @@ def test_pushdown_rows_match_former_full_scans(home, scope):
     ]
     if scope.until_ts is None:
         # Without a cutoff the reader must not alter the stored rows (beyond the joined agent).
-        assert data["tool_calls"] == expected_tools
+        # (beyond the joined agent and the call's tool_call_file operations).
+        assert all(t["file_ops"] == [] for t in data["tool_calls"])
+        assert [{k: v for k, v in t.items() if k != "file_ops"}
+                for t in data["tool_calls"]] == expected_tools
         assert data["sessions"] == expected_sessions
     else:
         for tool, stored in zip(data["tool_calls"], expected_tools, strict=True):
@@ -263,3 +266,21 @@ def test_undated_title_survives_a_bounded_scope(tmp_path):
     ]
     assert unbounded["title"] == bounded["title"] == "会话 1"
     assert bounded["title_source"] == unbounded["title_source"]
+
+
+def test_tool_calls_carry_their_reported_file_operations(tmp_path):
+    """A shell call whose arguments carry a patch reports the files it writes."""
+    rows = session_rows(0, 1000)
+    call = next(r for r in rows if r["type"] == "tool/call")
+    call["data"]["arguments"] = canonical(
+        {"input": "*** Begin Patch\n*** Update File: src/a.py\n*** Add File: src/b.py\n+x\n"}
+    )
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("dsh", tmp_path / "source")
+        store.capture_stream(source, "s0.jsonl", [(canonical(r) + "\n").encode() for r in rows])
+        store.rebuild()
+        home = store.home
+    tools = {t["call_uid"]: t for t in read_analysis(home, AnalysisScope("UTC"))["tool_calls"]}
+    ops = [t["file_ops"] for t in tools.values() if t["file_ops"]]
+    assert ops == [[{"path": "src/a.py", "op": "update", "quality": "reported"},
+                    {"path": "src/b.py", "op": "add", "quality": "reported"}]]

@@ -162,6 +162,23 @@ def test_missing_verification_positive_negative_and_unknown():
     assert detected([candidate])["missing_verification"] is None
 
 
+def test_a_shell_call_that_writes_files_counts_as_an_edit():
+    """tool_call_file operations (analysis input ``file_ops``): a shell apply_patch that
+    reports written files is an edit; a path merely named (op unknown) is not."""
+    patched = Session("sh")
+    patched.user("请修改解析器")
+    patched.tool("apply_patch", status="success", files=["src/a.ts"],
+                 file_ops=[{"path": "src/a.ts", "op": "update", "quality": "reported"}])
+    patched.reply()
+    assert keys(detected([patched])["missing_verification"]) == [("missing_verification:ts", 1)]
+    named = Session("rd")
+    named.user("看看解析器")
+    named.tool("cat", status="success", files=["src/a.ts"],
+               file_ops=[{"path": "src/a.ts", "op": "unknown", "quality": "missing"}])
+    named.reply()
+    assert detected([named])["missing_verification"] == []
+
+
 # ---------------------------------------------------------------- would_prompt
 
 

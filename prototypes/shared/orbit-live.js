@@ -257,7 +257,8 @@ const OrbitLive = (function () {
           r.error = { status: e.status || 503, code: 'projection_pending', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null };
           r.state = r.data != null ? 'stale' : 'computing';
           r.fails = (r.fails || 0) + 1;
-          retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : Math.min(5000, 1000 * r.fails));
+          const wait = Math.max(e.retryAfter || 0, Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))));
+          r.error.retryAfter = wait; retryLater(r, wait);
           return;
         }
         if (isBusy(e) && importingNow() && ((r.busy = (r.busy || 0) + 1) <= BUSY_MAX || importAdvancing())) {

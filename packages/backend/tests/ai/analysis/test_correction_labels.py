@@ -190,7 +190,13 @@ def test_feedback_rule_reuses_is_correction_and_does_not_blanket_misunderstood()
     approach = feedback_rule({"signal_id": "s", "text": "不对，换个思路"})
     assert approach["is_correction"] and approach["friction_type"] == "other"
     # Result feedback is not a correction for the L0 rule either.
-    assert feedback_rule({"signal_id": "s", "text": "还是不行，同样的报错"})["is_correction"] is False
+    still = feedback_rule({"signal_id": "s", "text": "还是不行，同样的报错"})
+    assert still["is_correction"] is False
+    # ...but it is friction with the agent's output, not "none" (was dropped before).
+    assert still["friction_type"] == "buggy_output" and still["sentiment"] == "frustrated"
+    for text in RESULT_FEEDBACK:
+        rule = feedback_rule({"signal_id": "s", "text": text})
+        assert rule["friction_type"] == "buggy_output" and rule["sentiment"] != "neutral", text
     assert feedback_rule({"signal_id": "s", "text": "跑一下测试"})["friction_type"] == "none"
 
 

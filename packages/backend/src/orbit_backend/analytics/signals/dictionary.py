@@ -10,9 +10,20 @@ from ..common import MIN_STATUS_COVERAGE
 from ..interaction.rules import CORRECTION_CHARS as _CORRECTION_CHARS
 from ..lexicon import POSITIVE_CLAUSE_CHARS, POSITIVE_CLAUSE_WORDS
 
-RULES_VERSION = "signals-v1.2"
+RULES_VERSION = "signals-v1.3"  # 1.3: edits include calls whose file_ops write a file
 
 EDIT_KINDS = frozenset({"file.edit", "file.write", "file.change"})
+# ``tool_call_file.op`` values that change a file (``unknown`` = a path was only named).
+WRITE_OPS = frozenset({"add", "update", "delete", "move"})
+
+
+def is_edit_call(call: dict) -> bool:
+    """An edit tool, or any call (e.g. a shell ``apply_patch``) whose reported file
+    operations (``file_ops`` from ``tool_call_file``) write a file."""
+    if call.get("kind") in EDIT_KINDS:
+        return True
+    return any(isinstance(f, dict) and f.get("op") in WRITE_OPS
+               for f in call.get("file_ops") or ())
 
 # opportunity = which sessions form the AN-06 denominator for this kind.
 SIGNAL_KINDS: dict[str, dict] = {

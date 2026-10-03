@@ -35,7 +35,10 @@ def seed(t: Orbit) -> None:
                   agent="codex" if uid == "s5" else "claude_code")
     t.session("s6", project="p1", start=T0 + 4 * DAY, ended=False, agent="codex")
     t.human("s1", "帮我修一下 fastapi 后端接口", ts=T0)
+    # Corrections count only after the agent responded (rules.countable_messages).
+    t.event("s1", "message.assistant", ts=T0 + MIN // 2, actor="assistant", text="好的")
     t.human("s1", "不对，重新来", ts=T0 + MIN)
+    t.event("s2", "message.assistant", ts=T0 + 11 * MIN, actor="assistant", text="好的")
     t.human("s2", "别用子代理", ts=T0 + 11 * MIN)
     t.call("s1", head="git status", files=["/w/p1/a.py"], ts=T0 + 2 * MIN)
     t.call("s1", head="pytest -q", status="failed", files=["/w/p1/b.py"], ts=T0 + 3 * MIN)

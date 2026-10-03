@@ -13,7 +13,8 @@ import re
 
 from orbit_backend.evaluation.readability import SCENE_BUDGETS, evaluate_text
 
-from .pack import MISUNDERSTOOD, is_correction
+from ..analytics.interaction.rules import correction_kind
+from .pack import MISUNDERSTOOD
 from .redact import compact
 from .runner import default_run
 from .tasks_analysis import FEEDBACK, FRICTIONS, NARRATE_SCHEMA, S, numbers_ok
@@ -137,12 +138,20 @@ _POSITIVE = re.compile(r"谢谢|好的|不错|完美|great|thanks|lgtm", re.I)
 def feedback_rule(item: dict) -> dict:
     """L0 rule classification (``type_source = rule``)."""
     text = item.get("text") or ""
-    corr = is_correction(text)  # the single correction definition (pack.is_correction)
-    sentiment = ("frustrated" if _STRONG.search(text) else "negative") if corr else (
+    # The single correction verdict (gates included): ``correction`` redirects the agent,
+    # ``result_feedback`` only reports that its work still fails ("还是不行，同样的报错").
+    kind = correction_kind(text)
+    corr = kind == "correction"
+    negative = kind is not None
+    sentiment = ("frustrated" if _STRONG.search(text) else "negative") if negative else (
         "positive" if _POSITIVE.search(text) else "neutral")
     # A rule cannot tell a wrong approach from buggy output; only explicit "you misread me"
-    # wording maps to misunderstood_request, every other correction is "other".
-    friction = ("misunderstood_request" if MISUNDERSTOOD.search(text) else "other") if corr else "none"
+    # wording maps to misunderstood_request, every other correction is "other". Result
+    # feedback is friction with the output itself, not a redirect (is_correction stays False).
+    if corr:
+        friction = "misunderstood_request" if MISUNDERSTOOD.search(text) else "other"
+    else:
+        friction = "buggy_output" if kind == "result_feedback" else "none"
     return {"signal_id": item["signal_id"], "is_correction": corr, "feedback_kind": "correct" if corr else "other",
             "friction_type": friction, "sentiment": sentiment, "confidence": "low"}
 
