@@ -6,6 +6,9 @@ import pytest
 
 from orbit_backend.uiview import facts, persona
 
+from .l1_builder import *  # noqa: F403 - pytest fixtures
+from .l1_builder import MIN, T0
+
 
 @pytest.mark.parametrize("command", [
     "pytest -q tests/uiview", "uv run pytest -x", "uv run --no-sync ruff check src",
@@ -78,6 +81,18 @@ def test_rollback_commands_are_matched_on_the_git_subcommand():
     assert not is_rollback_command("echo git revert")
 
 
+def test_rollback_skips_unstage_and_global_git_options():
+    from orbit_backend.uiview.facts import is_rollback_command
+    assert not is_rollback_command("git restore --staged src/app.py")  # only unstages
+    assert not is_rollback_command("git restore -S src/app.py")
+    assert is_rollback_command("git restore --staged --worktree src/app.py")
+    assert is_rollback_command("git -C /w/repo revert HEAD")
+    assert is_rollback_command("git -C /w/repo reset --hard HEAD~1")
+    assert is_rollback_command("git -c core.pager=cat restore src/app.py")
+    assert not is_rollback_command("git -C /w/repo status")
+    assert not is_rollback_command("git -C /w/repo checkout main")
+
+
 def test_opening_halves_and_redo_words():
     from orbit_backend.uiview.facts import ACCEPT_RE, REDO_RE, SPEC_RE
     assert SPEC_RE.search("按 docs/plans/sync-plan.md 实现") and SPEC_RE.search("先读 PRD")
@@ -96,3 +111,35 @@ def test_subagent_peak_concurrency():
         {"session_uid": "c3", "root_uid": "m", "started_at": 20, "ended_at": 30}]}
     root_of = {"m": "m", "c1": "m", "c2": "m", "c3": "m"}
     assert _subagents(result, root_of) == {"m": 2}
+
+
+def _facts_over(l1, sessions):
+    from types import SimpleNamespace
+    result = {"sessions": [{"session_uid": uid, "kind": "main", "root_uid": uid, "agent": agent,
+                            "features": {"user_message_count": 1, "tool_call_count": 0,
+                                         "correction_signal_count": 0}}
+                           for uid, agent in sessions]}
+    return facts.build_facts(l1.db, result, SimpleNamespace(display_timezone="UTC"))
+
+
+def test_stop_signal_counts_only_user_stops(l1):
+    """``failed`` / ``error`` turns are tool or environment failures, not the user steering."""
+    l1.session("s1")
+    for i, status in enumerate(("interrupted", "failed", "error", "rejected", "completed")):
+        l1.turn("s1", i, status, l1.user("s1", T0 + i * MIN, f"第 {i} 步"))
+    wire = facts.aux_units(_facts_over(l1, [("s1", "claude_code")])["aux"]["s1"])
+    assert (wire["ik"], wire["kn"]) == (2, 5)
+
+
+def test_subagent_signal_is_unknown_for_agents_without_child_sessions(l1):
+    l1.session("cc1")
+    l1.session("gm1", agent="codex")
+    aux = _facts_over(l1, [("cc1", "claude_code"), ("gm1", "gemini")])["aux"]
+    assert aux["cc1"]["sub"] == 0          # records sub-agents, ran none
+    assert aux["gm1"]["sub"] is None       # cannot record them: the signal drops out
+
+
+def test_redo_words_only_count_in_short_messages():
+    assert facts.asks_redo(["把刚才的改动回滚"])
+    assert not facts.asks_redo(["log:\n" + "x" * 500 + "\nundo stack overflow"])
+    assert not facts.asks_redo([])

@@ -92,6 +92,16 @@ SPEC_RE = re.compile(r"规格|\bspec\b|\bPRD\b|\bRFC\b|计划文档|设计文档
 # Rollback / redo evidence for the persona's V axis: the agent ran a command that throws work
 # away, or the user asked for it in words. Matched per shell segment on the command head.
 ROLLBACK_GIT = {"revert", "reset", "restore", "checkout"}
+# git options that come before the subcommand and take a value (``git -C dir reset --hard``)
+GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+# Words in a pasted log or code block are not the user asking for a redo: only short messages count.
+REDO_MAX_CHARS = 400
+# Turn statuses that mean the user (or the user's approval policy) stopped the agent. ``failed`` /
+# ``error`` are tool, API or environment failures, not steering, so the D axis does not count them.
+USER_STOPPED = frozenset(("interrupted", "aborted", "cancelled", "rejected"))
+# Agents whose connectors record child sessions (sub-agents / workflow agents). For the others the
+# sub-agent signal is unknown (None), not "never ran in parallel", so it drops out of the M axis.
+SUBAGENT_AGENTS = frozenset(("claude_code", "codex", "kimi", "hermes"))
 REDO_RE = re.compile(r"回滚|撤销(?:改动|修改|这次)?|撤回|还原(?:改动|修改|到)|推倒重来|重做|重新做一遍"
                      r"|\brevert\b|\broll ?back\b|\bundo\b", re.I)
 TITLE_LEN = 60
@@ -211,12 +221,13 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
         root = root_of.get(uid, uid)
         if uid == root:
             # [steps, verify, user asked for verification, agent ran a validation command,
-            #  turn ended stopped (interrupted / failed / aborted …), turn status is known]
+            #  turn was stopped by the user (interrupted / aborted / cancelled / rejected),
+            #  turn status is known]
             known = status not in UNKNOWN_STATUS and status != "active"
             per_root[root].append([calls.get(turn, 0) + finals.get(turn, 0),
                                    int(turn in checked or turn in requested),
                                    int(turn in requested), int(turn in checked),
-                                   int(status in outcome.STOPPED), int(known)])
+                                   int(status in USER_STOPPED), int(known)])
             if root not in last or (idx or 0) >= last[root][0]:
                 last[root] = (idx or 0, status, finals.get(turn, 0) > 0)
     return per_root, {k: (v[1], v[2]) for k, v in last.items()}, rollback
@@ -415,19 +426,38 @@ def shell_text(head: str | None, command) -> str:
 
 def is_rollback_command(text: str | None) -> bool:
     """True when a segment discards work: ``git revert``, ``git reset --hard``,
-    ``git restore <path>``, ``git checkout -- <path>`` (``git checkout <branch>`` is not)."""
+    ``git restore <path>``, ``git checkout -- <path>`` (``git checkout <branch>`` is not;
+    ``git restore --staged <path>`` only unstages and is not either). Global options before the
+    subcommand (``git -C dir``, ``git -c k=v``) are skipped."""
     for segment in _SPLIT_RE.split(text or ""):
         words = [w.strip("'\"") for w in _command_words(segment)]
-        if len(words) < 2 or words[0].lower() != "git" or words[1] not in ROLLBACK_GIT:
+        if not words or words[0].lower() != "git":
             continue
-        rest = words[2:]
-        if words[1] == "revert" or words[1] == "restore":
+        i = 1
+        while i < len(words) and words[i].startswith("-"):
+            i += 2 if words[i] in GIT_VALUE_OPTS else 1
+        if i >= len(words) or words[i] not in ROLLBACK_GIT:
+            continue
+        sub, rest = words[i], words[i + 1:]
+        if sub == "revert":
             return True
-        if words[1] == "reset" and "--hard" in rest:
+        if sub == "restore":
+            flags = {w for w in rest if w.startswith("-")}
+            if "--staged" in flags or "-S" in flags:
+                if "--worktree" in flags or "-W" in flags:
+                    return True
+                continue
             return True
-        if words[1] == "checkout" and "--" in rest:
+        if sub == "reset" and "--hard" in rest:
+            return True
+        if sub == "checkout" and "--" in rest:
             return True
     return False
+
+
+def asks_redo(texts: list[str]) -> bool:
+    """A short human message asks to roll back / redo (long pasted logs and code are skipped)."""
+    return any(len(t) <= REDO_MAX_CHARS and REDO_RE.search(t) for t in texts)
 
 
 def is_validation_command(text: str | None) -> bool:
@@ -605,8 +635,8 @@ def _build_facts(conn, result: dict, scope) -> dict:
                     "oacc": None if first_text is None else
                     int(flagged or bool(ACCEPT_RE.search(first_text))),
                     "ospec": None if first_text is None else int(bool(SPEC_RE.search(first_text))),
-                    "sub": peaks.get(uid, 0),
-                    "rb": int(uid in rollback or any(REDO_RE.search(t) for t in texts.get(uid, []))),
+                    "sub": peaks.get(uid, 0) if s.get("agent") in SUBAGENT_AGENTS else None,
+                    "rb": int(uid in rollback or asks_redo(texts.get(uid, []))),
                     "tools": tool_map}
     rows.sort(key=lambda r: (r["d"] or "", r["h"] or 0, r["mi"] or 0, r["id"]))
     excluded = _excluded(conn, list(getattr(scope, "excluded_session_uids", None) or []), tz)
