@@ -25,8 +25,10 @@ scene('60-close', () => {
   const PC = [960, 540];
   // v17.6 片尾：画曲线（D0–D1）→ 转身倒成 45° 图标（D1–M1）→ 正中停留 → 转身向左展开成字标 → 标语 → 点一行 → 可读停留 → 淡出（场景拍）
   const D0 = 75.6, D1 = 78.6, M1 = 80.2;
-  const TURN0 = 81.0, LET0 = TURN0 + .75 * WORDMARK.T, TAG0 = TURN0 + 4.0, TAG_AG = TAG0 + 1.4, FADE0 = TURN0 + 11.2;
-  END = TURN0 + 13.0;
+  // v18.5：TURN0 81.0 → 80.4（标语多 .6 拍可读），END / FADE0 写死字面量，片长与淡出点不变；转身自 W0 = TURN0 − .3 起（M1 前 .1 拍，
+  // 倾倒已 99.9 % 到位），v 跨 T + .3 拍，成片 b118.3 起就看得出在转
+  const TURN0 = 80.4, W0 = TURN0 - .3, LET0 = TURN0 + .75 * WORDMARK.T, TAG0 = TURN0 + 4.0, TAG_AG = TAG0 + 1.4, FADE0 = 92.2;
+  END = 94.0;
   // 片尾慢推：字标转身起（TURN0）到 END 由 1 匀速推到 1.06，前 20 % 二次缓起
   const push = (b) => { const p = lp(b, TURN0, END - TURN0), a = .2; return 1 + .06 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
 
@@ -224,7 +226,8 @@ scene('60-close', () => {
   LTR.forEach((i, k) => AGD.pulse(i, 80.45 + .1 * k, 1.05, 1.3));
   // v17.4：标语出现时（TAG0）点收成标语下方的一小行，b86.9 落定
   // v17.7：标语下一行 r 13 → 16（logo ≈ 21 px），间距 50 → 56；v18.4 标语加大下移后 y 736 → 752
-  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 752, gap: 56, r: 16, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
+  // v18.5：gap 56 → 68——bullet 的 ✓ 画在点右侧 1.3–2.25 r（r 16 时到 +36 px），56 时离下一枚徽章左缘只剩 4 px，68 时留 16 px
+  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 752, gap: 68, r: 16, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
   // v17.7 7.1：字母「rbit·知音」从左到右升起（LET0 起，kit 110 ms 错开）时，点行跟着从左到右轻提 4 px，像一道波
   const lift = (i, b) => 4 * Math.sin(Math.PI * clamp((b - LET0 - .2 * ROW[i]) / .7));
   // 7.4：片尾不定格——字标、字、点一起以 (960, 540) 为中心慢推（push），点另有 2px 漂移；follow 到 END + 1 才淡出（混回不落在片内）
@@ -252,7 +255,7 @@ scene('60-close', () => {
   const NIGHT_WORD = [214, 199, 161];
   const inkAt = (v) => 'rgb(' + NIGHT_WORD.map((c) => Math.round(lerp(255, c, v))).join(',') + ')';
   const icon = (b) => pose(b);
-  markAt(D0, TURN0, (p, b) => {
+  markAt(D0, W0, (p, b) => {
     const t = strokeT(b);
     return Object.assign(pose(b), { t: Math.max(.002, t), a: E.out(lp(b, D0, .25)), head: E.out(lp(b, D0, .3)) * clamp((1 - t) / .04), color: '#ffffff' });
   });
@@ -261,10 +264,10 @@ scene('60-close', () => {
   // 摆放从那里移到读字位置（字标整体居中 (960, 470)、k .5 ≈ 1160 px 宽），之后随 push 慢推；FADE0–END 与标语、点一起淡出
   let P0 = null;
   const readAt = (b) => { const s = S(b); return { cx: 960, cy: 540 + (470 - 540) * s, k: .5 * s }; };
-  markAt(TURN0, END, (p, b) => {
-    if (!WORDMARK.F) return Object.assign(icon(TURN0), { a: 1 - E.inOut(lp(b, FADE0, 1.8)), color: '#ffffff' });   // frames missing: keep the icon
-    P0 = P0 || WORDMARK.place(icon(TURN0));
-    const v = E.inOut(lp(b, TURN0, WORDMARK.T)), r = readAt(b);
+  markAt(W0, END, (p, b) => {
+    if (!WORDMARK.F) return Object.assign(icon(W0), { a: 1 - E.inOut(lp(b, FADE0, 1.8)), color: '#ffffff' });   // frames missing: keep the icon
+    P0 = P0 || WORDMARK.place(icon(W0));
+    const v = E.inOut(lp(b, W0, WORDMARK.T + .3)), r = readAt(b);
     WORDMARK.add(WORDMARK.svg({ a: 1 - E.inOut(lp(b, FADE0, 1.8)), cx: lerp(P0.cx, r.cx, v), cy: lerp(P0.cy, r.cy, v), k: lerp(P0.k, r.k, v), v, b, on: LET0, color: inkAt(v) }));
     return null;
   });
