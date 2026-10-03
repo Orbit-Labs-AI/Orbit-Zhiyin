@@ -6,7 +6,7 @@
    matchFrame，只是画到自己的 SVG 层 #wordmark（紧贴 #orbit 之上、Agent 点 #agd 之下）。标志本身不重画：帧来自 logo kit，
    转身前后的 orbitSVG 姿态由 place() 精确对齐到第 0 帧。
    WORDMARK.place(pose)   orbitSVG 的 ICON 姿态 { R, cx, cy }（yaw 20 / pitch 45）→ 让第 0 帧与它重合的字标摆放 { cx, cy, k }
-   WORDMARK.svg(o)        o = { cx, cy, k（屏幕 px / 字标单位）, v（转身 0..1）, b, on, off（字母起落拍）, a, offRate（可选：收回加速倍数，默认 1 = kit） } → SVG 字符串
+   WORDMARK.svg(o)        o = { cx, cy, k（屏幕 px / 字标单位）, v（转身 0..1）, b, on, off（字母起落拍）, a, offRate（可选：收回加速倍数，默认 1 = kit）, color（可选：填色，默认 MARK_INK） } → SVG 字符串
    WORDMARK.add(h)        本帧画进 #wordmark（每帧由 orbitAt 清空）
    WORDMARK.T / .ms(ms)   转身拍数 / 毫秒换拍 */
 'use strict';
@@ -35,7 +35,7 @@ const WORDMARK = (() => {
   W.svg = (o) => {
     if (!W.F || o.a <= .001) return '';
     const [x, y, w, h] = W.vb, mx = x + w / 2, my = y + h / 2, F = W.F, N = F.length, v = clamp(o.v), rr = o.offRate || 1;
-    let g = '<g opacity="' + o.a.toFixed(3) + '" fill="' + MARK_INK + '" transform="translate(' + o.cx.toFixed(2) + ' ' + o.cy.toFixed(2) + ') scale(' + o.k.toFixed(5) + ') translate(' + (-mx) + ' ' + (-my) + ')">';
+    let g = '<g opacity="' + o.a.toFixed(3) + '" fill="' + (o.color || MARK_INK) + '" transform="translate(' + o.cx.toFixed(2) + ' ' + o.cy.toFixed(2) + ') scale(' + o.k.toFixed(5) + ') translate(' + (-mx) + ' ' + (-my) + ')">';
     g += '<path d="' + F[Math.round(v * (N - 1))] + '" transform="translate(' + (W.D * (1 - v)).toFixed(2) + ' 0)"/>';
     for (const l of W.L) {
       const pin = E.out(clamp((o.b - o.on - W.ms(l.i * 110)) / W.ms(420)));

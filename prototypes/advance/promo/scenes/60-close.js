@@ -4,16 +4,22 @@
    滑到它下方排成一行 → v17.4：标志按 logo kit 的 reveal（scenes/03-wordmark.js）继续绕轴转身成 O、向左展开成居中的「Orbit·知音」
    → 字标下方「An Assistant Redesign for everyone & every agent」、点收成标语下的一小行 → 可读停留 ≥ 2.5 s → 一起淡出到全黑。
    v17.4 时序（场景拍）：ICON 到位 b78.4、停留到 b81.0、转身 b81.0–84.3、字母 b83.475–85.85、标语 b85.0–86.4、淡出 b92.2–94（END 89 → 94）。
+   v17.6（用户：「先出现曲线再曲线动画成 orbit」）：圆环收回后不再从环尾长出俯视螺旋，而是先「画」曲线——orbitSVG 从内端 t 0 一笔画到
+   外端 t 1（kit 的近粗远细、两端渐细，头部一团柔光），5 个点从圆环飞到笔头、排成一串紧跟在笔头后面骑着这条线走，圆环在外圈画到时
+   淡掉；画完后整条曲线连同骑在上面的点一起转身、倾倒成正中的 45° App 图标（黑夜版白线），点落到下方一行，短暂停留，再按 kit reveal
+   展开成字标，转身时颜色由白线过渡到字标的香槟黄（brand.md：深色底字标 #d6c7a1，不用纯白）。
+   v17.6 时序（场景拍）：笔画 b75.6–78.6、转身倒成图标 b78.6–80.2、停留到 b81.8、转身 b81.8–85.1、标语 b85.8、淡出 b93.0–94.8（END 94 → 94.8）。
    本场景拥有：deck 2（b69.2 起）、标志 markAt M6–M7 与片尾字标层、AGD 的 b69.2 / 78.0 / 85.2 / 92.2 四个 key 与 b69.2–71.4 的螺旋 follow、片尾标语。
    v17.3 看清文字：罗盘展开后多停 1 拍（插在 b73.2，之后一切 +1，END 88 → 89）——展开提前到 b71.04（圆环合成整圈即开，不再空等 .16 拍），
    类型码 b72.64 全亮、b74.2 才开始收回，完整可读 1.56 拍（DIMV 加粗那一个约 1.9 拍）；停留时不定格：花继续慢慢开、慢转 ±10°，
    deck 2 慢推 1 → 1.025（收回圆环时同一段 E.inOut 退回 1，b75.4 圆环仍是 R 300，接 M6）。 */
 scene('60-close', () => {
-  END = 94;
   const PC = [960, 540];
-  // v17.4 片尾：45° 标志正中停留 → 转身向左展开成字标 → 标语 → 点一行 → 可读停留 → 淡出（场景拍）
-  const TURN0 = 81.0, LET0 = TURN0 + .75 * WORDMARK.T, TAG0 = 85.0, TAG_AG = TAG0 + 1.4, FADE0 = 92.2;
-  // 片尾慢推：字标转身起（b81.0）到 END 由 1 匀速推到 1.06，前 20 % 二次缓起
+  // v17.6 片尾：画曲线（D0–D1）→ 转身倒成 45° 图标（D1–M1）→ 正中停留 → 转身向左展开成字标 → 标语 → 点一行 → 可读停留 → 淡出（场景拍）
+  const D0 = 75.6, D1 = 78.6, M1 = 80.2;
+  const TURN0 = 81.8, LET0 = TURN0 + .75 * WORDMARK.T, TAG0 = TURN0 + 4.0, TAG_AG = TAG0 + 1.4, FADE0 = TURN0 + 11.2;
+  END = TURN0 + 13.0;
+  // 片尾慢推：字标转身起（TURN0）到 END 由 1 匀速推到 1.06，前 20 % 二次缓起
   const push = (b) => { const p = lp(b, TURN0, END - TURN0), a = .2; return 1 + .06 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
 
   /* ---------- T13 螺旋放出（b69.2–71.04） ----------
@@ -43,10 +49,10 @@ scene('60-close', () => {
   // 读类型码时慢推 1 → 1.025（b72.2–74.2，sine），收回圆环时同一段退回 1（b74.2–75.4，与 fold 同曲线），M6 起圆环仍是 R 300
   tween(2, 72.2, 2.0, { s: 1.025 }, E.sine);
   tween(2, 74.2, 1.2, { s: 1 }, E.inOut);
-  tween(2, 75.8, 1.0, { o: 0 }, E.inOut);                     // 6.4：螺旋长出时罗盘环淡出（drawCompass 继续到 b80）
+  tween(2, 75.8, 1.8, { o: 0 }, E.inOut);                     // v17.6：曲线画起来时圆环淡出，外圈画到时已看不见（drawCompass 继续到 b80.8）
   let degMe = null;
-  // drawCompass 每帧调用到 b80（AGD 的 compass 编队要读点位，直到 row 在 b80.16 落定）；一切都是 b 的纯函数
-  drive(2, HB, 80.0, (p, b) => {
+  // drawCompass 每帧调用到 b80.8（AGD 的 compass 编队要读点位，直到 row 在 b80.56 落定）；一切都是 b 的纯函数
+  drive(2, HB, 80.8, (p, b) => {
     if (degMe == null) { const D = compassData(); degMe = D.mineIdx >= 0 ? D.mineIdx * 22.5 + 11.25 : 11.25; }
     const open = E.inOut(lp(b, SP_END, 1.6)), fold = E.inOut(lp(b, 74.2, 1.2));
     const on = E.inOut(lp(b, 71.44, 1.2)) * (1 - fold);       // dial / core：b71.44–72.64 出现（与 open 同时到 1），b74.2–75.4 淡出
@@ -73,12 +79,31 @@ scene('60-close', () => {
     const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]), th = (dc - G * (1 - e)) * Math.PI / 180;
     return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r / decks[2].C.s, e) };
   }, { blend: .2 });
-  // H16 / 7.1：沿圆环两侧慢慢滑到底部、收成一行（cc 在右），b80.16 落定（标志在正中立成 45° 并停留时，点在它下方）。
-  // 一行从左到右按罗盘上的方位排（gm 288° · cp 221° · ds 118° · cx 62° · cc 43°，左半边的点往左、右半边的点往右），
-  // 沿圆环滑下时谁也不越过谁；sine 缓起、错开 .04 拍，cc 不会追上 cx（原 [4,3,2,1,0]、.08 拍：gm 穿过 cp、ds，cc 叠上 cx）
+  /* v17.6 画曲线 → 转身成图标 → 落成一行（H16 / 7.1）：
+     曲线 pose(b)：D0–D1 俯视附近（R 300 = 圆环、pitch 90 → 80、yaw −100 → −70 慢慢转），笔头 t = sine 从 0 画到 1；
+     D1–M1 整条线转身、倾倒到 ICON（yaw −70 → 20、pitch 80 → 45、R 300 → 230、cy 540 → 520，E.inOut）；之后正中停留、R 慢慢 × 1.03。
+     5 个点在 b75.3 起 1 拍内从圆环飞到笔头，排成一串跟在笔头后面骑着线走（第 k 位在 t − .045 − .05k，起笔时都挤在内端，像在给笔头
+     「喂墨」）；画完后停在外圈上随曲线一起转身，D1 + .5 起 1.3 拍落到图标下方的一行（row 键的位置，r 20）。
+     一行从左到右按罗盘上的方位排（gm 288° · cp 221° · ds 118° · cx 62° · cc 43°）；串里也按这个顺序（gm 领头）。 */
   const ROW = [4, 3, 0, 2, 1], LTR = [2, 4, 3, 1, 0];          // ROW[i] = 点 i 的位次；LTR[k] = 第 k 位（从左数）的点
-  AGD.key(78.0, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: ROW, dur: 2.0, ease: E.sine, stag: .04, polar: PC });
-  // v17.4：标语出现时（b85.0）点收成标语下方的一小行，b86.9 落定
+  const strokeT = (b) => E.sine(lp(b, D0, D1 - D0));
+  const pose = (b) => {
+    const d = lp(b, D0, D1 - D0), e = E.inOut(lp(b, D1, M1 - D1)), s = 1 + .03 * E.sine(lp(b, M1, TURN0 - M1));
+    return { cx: 960, cy: lerp(540, 520, e), R: lerp(300, 230, e) * s, yaw: lerp(lerp(-100, -70, E.sine(d)), 20, e), pitch: lerp(lerp(90, 80, d), 45, e) };
+  };
+  let PTS = null;                                              // orbitPts 按姿态缓存（同一帧 5 个点共用）
+  const curveAt = (P, t) => {
+    const key = P.yaw.toFixed(4) + '/' + P.pitch.toFixed(4);
+    if (!PTS || PTS.key !== key) PTS = { key, q: orbitPts(P.yaw, P.pitch) };
+    const q = PTS.q[Math.round(clamp(t) * ORB.N)];
+    return [P.cx + q[0] * P.R, P.cy + q[1] * P.R];
+  };
+  AGD.key(78.8, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: ROW, dur: 1.6, ease: E.sine, stag: .04, polar: PC });
+  AGD.follow(75.3, 81.2, (i, b, q) => {
+    const P = pose(b), [x, y] = curveAt(P, strokeT(b) - .045 - .05 * ROW[i]), e = E.inOut(lp(b, D1 + .5, 1.3));
+    return { x: lerp(x, q.x, e), y: lerp(y, q.y, e), r: lerp(10, q.r, e) };
+  }, { blend: 1.0 });
+  // v17.4：标语出现时（TAG0）点收成标语下方的一小行，b86.9 落定
   AGD.key(TAG0 + .2, 'row', { cx: 960, y: 736, gap: 50, r: 13, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
   // 7.4：片尾不定格——字标、字、点一起以 (960, 540) 为中心慢推（push），点另有 2px 漂移；follow 到 END + 1 才淡出（混回不落在片内）
   AGD.follow(TURN0 - .6, END + 1, (i, b, q) => {
@@ -90,37 +115,36 @@ scene('60-close', () => {
   // H17：原地缩小淡出
   AGD.key(FADE0, 'off', { dur: 1.6, stag: 0 });
 
-  /* ---------- 标志（K3 M6–M7）→ 45° 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
-  // M6 grow（b75.4–77.0）：俯视螺旋从圆环尾部（方位 199.6°，(859, 823)）顺时针往里长出，同 M1
-  markAt(75.4, 77.0, (p, b) => markRing({ cx: 960, cy: 540, R: 300, grow: E.inOut(lp(b, 75.4, 1.6)), a: E.out(lp(b, 75.4, .3)) }));
-  // M7 rise（b77.0–78.4）：TOP → ICON（R 300 → 230，cy 540 → 520，yaw 0 → 20、pitch 90 → 45），markRing 的 lift（两端为 0）；
-  // 之后在画面正中停留到 b81.0（约 1.2 s），停留时慢慢「呼吸」：R × 1 → 1.04（b78.0–81.0，sine），不定格
-  const icon = (b) => {
-    const e = E.inOut(lp(b, 77.0, 1.4)), s = 1 + .04 * E.sine(lp(b, 78.0, TURN0 - 78.0));
-    return markRing({ cx: 960, cy: lerp(540, 520, e), R: lerp(300, 230, e) * s, yaw: lerp(0, 20, e), pitch: lerp(90, 45, e), lift: 1 - e });
-  };
-  markAt(77.0, TURN0, (p, b) => icon(b));
-  // 字标段（b81.0–END）：kit 的帧原样——标志绕自身轴再转一圈成为字标的 O、向左滑到 O 的位置，「rbit·知音」在它右边逐字升起
-  // （kit 时序：转 T = 3.3 拍、字母自 .75T 起 110 ms 错开、各 420 ms）；第 0 帧由 WORDMARK.place 与 b81.0 的 ICON 姿态精确重合，
-  // 摆放从那里移到读字位置（字标整体居中 (960, 470)、k .5 ≈ 1160 px 宽），之后随 push 慢推；b92.2–94 与标语、点一起淡出
+  /* ---------- 标志：画曲线 → 45° 图标 → 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
+  // 白线 = App 图标黑夜版（#fff）；字标 = 深色底的香槟黄 #d6c7a1（brand.md），转身 v 0 → 1 时由白过渡到香槟黄
+  const NIGHT_WORD = [214, 199, 161];
+  const inkAt = (v) => 'rgb(' + NIGHT_WORD.map((c) => Math.round(lerp(255, c, v))).join(',') + ')';
+  const icon = (b) => pose(b);
+  markAt(D0, TURN0, (p, b) => {
+    const t = strokeT(b);
+    return Object.assign(pose(b), { t: Math.max(.002, t), a: E.out(lp(b, D0, .25)), head: E.out(lp(b, D0, .3)) * clamp((1 - t) / .04), color: '#ffffff' });
+  });
+  // 字标段（b81.8–END）：kit 的帧原样——标志绕自身轴再转一圈成为字标的 O、向左滑到 O 的位置，「rbit·知音」在它右边逐字升起
+  // （kit 时序：转 T = 3.3 拍、字母自 .75T 起 110 ms 错开、各 420 ms）；第 0 帧由 WORDMARK.place 与 b81.8 的 ICON 姿态精确重合，
+  // 摆放从那里移到读字位置（字标整体居中 (960, 470)、k .5 ≈ 1160 px 宽），之后随 push 慢推；FADE0–END 与标语、点一起淡出
   let P0 = null;
   const readAt = (b) => { const s = push(b); return { cx: 960, cy: 540 + (470 - 540) * s, k: .5 * s }; };
   markAt(TURN0, END, (p, b) => {
-    if (!WORDMARK.F) return Object.assign(icon(b), { a: 1 - E.inOut(lp(b, FADE0, 1.8)) });   // frames missing: keep the icon
+    if (!WORDMARK.F) return Object.assign(icon(TURN0), { a: 1 - E.inOut(lp(b, FADE0, 1.8)), color: '#ffffff' });   // frames missing: keep the icon
     P0 = P0 || WORDMARK.place(icon(TURN0));
     const v = E.inOut(lp(b, TURN0, WORDMARK.T)), r = readAt(b);
-    WORDMARK.add(WORDMARK.svg({ a: 1 - E.inOut(lp(b, FADE0, 1.8)), cx: lerp(P0.cx, r.cx, v), cy: lerp(P0.cy, r.cy, v), k: lerp(P0.k, r.k, v), v, b, on: LET0 }));
+    WORDMARK.add(WORDMARK.svg({ a: 1 - E.inOut(lp(b, FADE0, 1.8)), cx: lerp(P0.cx, r.cx, v), cy: lerp(P0.cy, r.cy, v), k: lerp(P0.k, r.k, v), v, b, on: LET0, color: inkAt(v) }));
     return null;
   });
 
-  /* ---------- 片尾标语（7.3，b92.2–94 与字标、点一起淡出） ---------- */
+  /* ---------- 片尾标语（7.3，FADE0–END 与字标、点一起淡出） ---------- */
   css(`
 .cl-tag{font-size:48px;font-weight:500;color:rgba(255,255,255,.88);letter-spacing:.01em}
 .cl-tag b{color:var(--acc);font-weight:600}
 `);
   // 字随片尾慢推一起放大：锚点 y 相对 540 外移 × push，字号 × push（tick 在 anim 之后覆盖 transform）
   const pushT = (y) => (el, tl, life, ts) => { const s = push(ts / BEAT); el.style.transform = 'translate(-50%,-50%) translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')'; };
-  // 标语在最后两个字升起时（b85.0）居中出现在字标下方，逐词间隔 .2 拍，「agent」b86.4；之后完整可读到 b92.2（5.8 拍 ≈ 2.6 s）
+  // 标语在最后两个字升起时（TAG0 b85.8）居中出现在字标下方，逐词间隔 .2 拍，「agent」b87.2；之后完整可读到 FADE0 b93.0（5.8 拍 ≈ 2.6 s）
   const W = ['An ', 'Assistant ', 'Redesign ', 'for ', 'everyone ', '&amp; ', '<b>every </b>', '<b>agent</b>'];
   txt(TAG0, END, [['cl-tag', W.map((w) => '<span class="w">' + w + '</span>').join('')]], { x: 960, y: 648, align: 'c' },
     { anim: K.words({ at: [0, .2, .4, .6, .8, 1.0, 1.2, 1.4], out: 1.8 }), tick: pushT(648) });
