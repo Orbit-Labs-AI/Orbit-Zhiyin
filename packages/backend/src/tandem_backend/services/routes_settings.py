@@ -86,6 +86,13 @@ def router(gw: Gateway) -> APIRouter:
             gw.jobs.cancel(active["id"])
         return wipe.mark(gw.home)
 
+    @api.post("/v1/storage/purge")
+    def legacy_purge():
+        # The legacy app's purge deletes tandem.db behind the gateway's back (open read
+        # pool, revisions, snapshot cache, running jobs). Shadow it: clearing goes through
+        # /v1/app/data/clear, which cancels jobs and wipes on restart.
+        raise ApiError(404, "not_found", "请改用 POST /v1/app/data/clear 清除数据")
+
     # -- descriptive -------------------------------------------------------------------
     @api.get("/v1/app/about")
     def app_about():
