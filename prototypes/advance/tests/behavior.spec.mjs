@@ -75,18 +75,22 @@ test('session details and comparison honor active filters', async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
-test('unclassified personas retain metrics and cannot be shared or revealed', async ({ page }) => {
+test('every non-empty scope gets a full four-letter persona; only an empty scope blocks share and reveal (bug 4)', async ({ page }) => {
   test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
   const errors = await openDemo(page);
+  // the scope that used to fall into the 45–55 band now leans to one pole on every axis
   await page.evaluate(() => { S.agents = new Set(['cc']); S.range = 30; go('persona'); });
   const p = await page.evaluate(() => sharePersona().p);
-  expect(p.n).toBeGreaterThanOrEqual(30);
-  expect(p.code).toContain('?');
+  expect(p.ok).toBe(true); expect(p.classified).toBe(true);
+  expect(p.code).toMatch(/^[DS][IP][MF][VT]$/);
   await expect(page.locator('#main .letters')).toBeVisible();
-  await page.evaluate(() => openShare());
-  await expect(page.locator('#modal')).toBeHidden();
-  await page.evaluate(() => openReveal());
-  await expect(page.locator('#overlay')).toBeHidden();
+  // a single session is enough
+  const one = await page.evaluate(() => { const p1 = persona(ALL.slice(-1)); return { ok: p1.ok, code: p1.code, hint: p1.hint, conf: p1.conf }; });
+  expect(one).toEqual(expect.objectContaining({ ok: true, hint: '基于 1 个会话，数据越多越准', conf: '低' }));
+  expect(one.code).toMatch(/^[DS][IP][MF][VT]$/);
+  // zero sessions: the only empty state
+  const none = await page.evaluate(() => persona([]));
+  expect(none.ok).toBe(false);
   expect(errors).toEqual([]);
 });
 

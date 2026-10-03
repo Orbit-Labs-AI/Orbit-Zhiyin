@@ -758,7 +758,7 @@ const TandemLive = (function () {
   }
   const REPORT_SECTIONS = { ov: ['overview', 'metrics'], persona: ['persona'], proj: ['projects'], fric: ['friction'], recs: ['recommendations'] };
   function reportSections(keys) { const out = []; Array.from(keys || []).forEach((k) => (REPORT_SECTIONS[k] || []).forEach((s) => { if (out.indexOf(s) < 0) out.push(s); })); return out; }
-  const BLOCKED = { insufficient_data: '样本不足（每个维度至少 30 个任务、10 个活跃天），暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
+  const BLOCKED = { insufficient_data: '所选范围还没有会话，暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
   const RESUME_OFF = { running: '会话还在运行，结束后再继续', unsupported_agent: '这个 Agent 暂不支持继续命令', no_cwd: '会话没有记录工作目录', unknown_session: '找不到这个会话' };
 
   function ops(C, ctx) {
@@ -849,7 +849,7 @@ const TandemLive = (function () {
     '.tl-kpi b{display:block;font-size:22px;font-weight:600;color:var(--ink-1,#17181b)}.tl-kpi span{font-size:12px;color:var(--ink-3,#62666f)}' +
     '.tl-table{width:100%;border-collapse:collapse;font-size:12.5px}.tl-table th,.tl-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--hair,#eeece7)}.tl-table td.n,.tl-table th.n{text-align:right;font-variant-numeric:tabular-nums}' +
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
-    '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
+    '.tl-ev{font:12px/1.5 var(--font-mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
   const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
   const ui = {

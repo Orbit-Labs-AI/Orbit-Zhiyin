@@ -87,6 +87,8 @@ async function gateway(page) {
       '/v1/sessions/excluded': () => FX('ops/excluded'),
       // slice 0 spine (90-live-core.js): every live page hydrates from facts; see live-core.spec.mjs
       '/v1/uiview/facts': () => FX('core/facts'),
+      // 1 个会话即可出画像（bug 4）：侧栏与 A1 的人格卡对少量会话也会请求 /v1/uiview/persona
+      '/v1/uiview/persona': () => FX('s1/persona-30'),
       '/v1/app/discovery': () => FX('core/discovery'),
       '/v1/install/environment': () => FX('core/install-environment')
     };

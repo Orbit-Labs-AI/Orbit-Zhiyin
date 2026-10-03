@@ -1,16 +1,15 @@
 /* Tokens, fonts, resets.
    Stage = a Mac desktop: fixed 24px menu bar, desktop widgets under the windows, a resizable main window, a settings panel,
    floating HUD, menu-bar panel and notifications. Visual language (unchanged from the published demo): warm paper — warm
-   grey desk, warm white window and sidebar material, white cards; serif for titles / persona code / AI prose; mono for
-   numbers, eyebrows, meta and code. Controls are monochrome: --accent / --pri are the ink (black in light, near-white in
+   grey desk, warm white window and sidebar material, white cards; one sans family — SF Pro (Latin, tabular digits) +
+   PingFang SC (Chinese); titles are larger 600-weight sans; SF Mono only for code, paths, commands, IDs and keycaps. Controls are monochrome: --accent / --pri are the ink (black in light, near-white in
    dark) and drive filled buttons, switches, badges, selected tokens, menu highlight and chart selection; colour only
    carries identity (agent hues) and status (good / warn / crit, AI purple). The focus ring (--focus) is the only blue.
    --orbit is the brand slate of the Orbit mark; it is used only by the mark, the north half of the compass needle and the
    00 reference triangle on the persona compass.
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
-   Fonts: UI = system-ui (SF Pro / PingFang in Chrome); the brand serif / mono come from Google Fonts when online and fall
-   back to Georgia + Songti SC / Menlo offline (ui-serif / ui-monospace are ignored by Chrome). */
+   Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono. */
 :root{
 --desk:#d9d5cc;--desk-2:#cbc6bb;--menubar:rgba(246,245,242,.88);
 --bg:#f5f4f0;--sb:rgba(236,235,229,.8);--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:rgba(251,250,248,.94);--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--sep:rgba(23,24,27,.1);
@@ -26,9 +25,13 @@
 --wg:#ffffff;--wg-edge:rgba(23,24,27,.08);
 --sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.18),0 0 0 .5px rgba(20,24,30,.12);--sh-win:0 0 0 .5px rgba(20,24,30,.18),0 22px 60px rgba(20,24,30,.24),0 1px 2px rgba(0,0,0,.05);
 --ease:cubic-bezier(.2,.8,.2,1);
---sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;
---serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC","Noto Serif SC",serif;
---mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace;
+/* Type (macOS 14+, offline): SF Pro for Latin and digits, PingFang SC for Chinese, SF Mono only for code /
+ paths / commands / IDs / shortcuts. Latin first so each script lands on its own face; -apple-system lets
+ the system switch SF Pro Text/Display by size. Numbers use the same sans with tabular-nums. */
+--font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+--font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+--font-num:var(--font-sans);
+--font-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace,"PingFang SC","Hiragino Sans GB";
 --side-w:240px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -64,7 +67,7 @@ color-scheme:dark}
 
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
+body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--font-sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable],pre,code,.code,.log,.ask-a,.tbl td,.sharecard{-webkit-user-select:text;user-select:text}
 button,input,textarea,select{font:inherit;color:inherit;margin:0;line-height:1.25}
 button{cursor:default}
@@ -74,6 +77,10 @@ h1,h2,h3{line-height:1.25}
 :focus:not(:focus-visible){outline:none}
 input[type="checkbox"],input[type="radio"],input[type="range"],progress{accent-color:var(--accent)}
 svg{display:block}
-.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.serif{font-family:var(--serif)}
+/* .mono = numbers / meta (sans, tabular figures); .serif = display headings (sans 600). Real code-like text uses
+   var(--font-mono) via .code-t and the selectors below. Class names are kept to avoid churn. */
+.mono{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--font-display);font-style:normal}
+h1.serif,h2.serif,h3.serif{font-weight:600}
+.code-t,code,pre,kbd,samp,.tt-cmd,.lb-id,.sb-path,#srcPath{font-family:var(--font-mono);font-variant-numeric:normal}
 .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

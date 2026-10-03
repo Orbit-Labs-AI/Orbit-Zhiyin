@@ -28,16 +28,25 @@ def test_axis_letters_and_gates():
     assert settled["letter"] == "D" and settled["state"] == "settled"
     assert settled["strong"] == 80
     assert persona.axis(SPEC["V"], 10, 100, 20)["letter"] == "T"
-    assert persona.axis(SPEC["I"], 50, 100, 20)["letter"] == "?"
-    assert persona.axis(SPEC["I"], 50, 100, 20)["state"] == "experimental"
-    assert persona.axis(SPEC["D"], 25, 29, 20)["state"] == "insufficient"
-    assert persona.axis(SPEC["D"], 80, 100, 9)["letter"] == "?"  # < 10 active days
+    # No undetermined band: exactly 50 takes the high letter, just below takes the low one.
+    assert persona.axis(SPEC["I"], 50, 100, 20)["letter"] == "I"
+    assert persona.axis(SPEC["I"], 49, 100, 20)["letter"] == "P"
+    assert persona.axis(SPEC["I"], 50, 100, 20)["state"] == "settled"
+    assert persona.axis(SPEC["D"], 3, 4, 1)["letter"] == "D"  # tiny samples still lean
+    empty = persona.axis(SPEC["M"], 0, 0, 1)
+    assert empty["letter"] == "M" and empty["state"] == "no_data" and empty["value"] is None
 
 
-def test_small_sample_is_not_ok():
-    rows = [{"id": f"s{i}", "d": "2026-09-01", "a": "codex"} for i in range(29)]
-    p = persona.persona(rows, {})
-    assert p["ok"] is False and p["n"] == 29 and p["code"] is None
+def test_one_session_gives_a_full_code():
+    rows = [{"id": "s0", "d": "2026-09-01", "a": "codex"}]
+    aux = {"s0": {"open": 1, "turns": [[7, 0], [2, 1]], "t0": 0, "t1": 10}}
+    p = persona.persona(rows, aux)
+    assert p["ok"] is True and p["n"] == 1 and p["classified"]
+    assert len(p["code"]) == 4 and "?" not in p["code"] and p["code"] in TYPES
+    assert p["hint"] == "基于 1 个会话，数据越多越准" and p["conf"] == "低"
+    assert persona.candidates(p)[0]["code"] == p["code"]
+    none = persona.persona([], {})
+    assert none["ok"] is False and none["code"] is None and none["hint"] is None
 
 
 def test_type_copy_matches_the_prototype_table():
@@ -60,10 +69,11 @@ def test_page_on_synthetic_store_is_deterministic():
     assert a["ok"] and a["n"] == 150 and len(a["axes"]) == 4
     for axis in a["axes"]:
         assert axis["lo"] <= axis["value"] <= axis["hi"]
-        assert axis["letter"] in ("D", "S", "P", "I", "M", "F", "V", "T", "?")
+        assert axis["letter"] in ("D", "S", "P", "I", "M", "F", "V", "T")
         assert axis["evidence"]["txt"]
     assert a["code"] == "".join(x["letter"] for x in a["axes"])
-    assert a["low"] == {"n": 150, "need": 30}
+    assert a["low"] == {"n": 150, "need": 1, "soft": 30}
+    assert a["classified"] and a["hint"] is None and a["conf"] == "高"
     assert sum(sum(h) for h in a["fp"]["byH"]) == 150
     assert {f["a"] for f in a["fit"]} == {"codex", "claude_code"}
     assert all(f["basis"] == "descriptive_estimate" for f in a["fit"])
@@ -81,7 +91,8 @@ def test_previous_month_matches_months_series():
 
 def test_filters_relax_and_low_sample():
     cc = page(agents=["claude_code"], period="7")
-    assert cc["n"] < 30 and cc["ok"] is False
+    assert 0 < cc["n"] < 30 and cc["ok"] is True and "?" not in cc["code"]
+    assert cc["hint"] == f"基于 {cc['n']} 个会话，数据越多越准"
     relax = {r["k"]: r["n"] for r in cc["relax"]}
     assert relax["agents"] > cc["n"] and relax["period"] >= cc["n"]
     with pytest.raises(ValueError):

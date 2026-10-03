@@ -117,7 +117,7 @@ function obLiveStep() {
     : '<div class="srcrow" style="opacity:.75"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">' + (L.state === 'error' ? '读取来源失败' : '没有找到 Agent 会话目录') + '</b><span class="cap" style="display:block;font-size:11px">' + (L.state === 'error' ? esc(L.loadErr || '本机服务没有响应') : '可以在下面手动添加文件夹') + '</span></span><span></span><span></span></div>';
   const opts = '<option value="auto">自动识别</option>' + Object.keys(LV.AGENTS).filter((k) => LV.AGENTS[k].key === k).map((k) => '<option value="' + k + '"' + (L.manual.agent === k ? ' selected' : '') + '>' + esc(LV.AGENTS[k].name) + '</option>').join('');
   const add = '<div class="srcrow ob-add"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('plus', 15) + '</span><span class="row" style="gap:6px;min-width:0"><select class="ob-agent" data-chg="obAgent" aria-label="来源的 Agent"' + (busy ? ' disabled' : '') + ' style="height:26px;max-width:132px">' + opts + '</select>' +
-    (host ? '<span class="cap" style="font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">选择一个会话日志目录</span>' : '<input class="mono ob-path" id="obPath" data-in="obPath" placeholder="~/.claude" value="' + esc(L.manual.path || '') + '" aria-label="文件夹路径"' + (busy ? ' disabled' : '') + ' style="height:26px;min-width:0;flex:1;font-size:11px">') + '</span><span></span>' +
+    (host ? '<span class="cap" style="font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">选择一个会话日志目录</span>' : '<input class="mono ob-path code-t" id="obPath" data-in="obPath" placeholder="~/.claude" value="' + esc(L.manual.path || '') + '" aria-label="文件夹路径"' + (busy ? ' disabled' : '') + ' style="height:26px;min-width:0;flex:1;font-size:11px">') + '</span><span></span>' +
     '<button type="button" class="btn sm" data-act="obAddFolder"' + (busy || L.adding ? ' disabled' : '') + '>' + (L.adding ? '添加中…' : host ? '添加文件夹…' : '添加') + '</button></div>';
   const chosen = rows.filter((x) => L.sel.has(x.id));
   const tot = chosen.reduce((a, x) => a + (x.est || 0), 0);
@@ -176,10 +176,10 @@ function genHTML(g) {
   let tk = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const q1 = pt(200, h % 6 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
   const RW = FPG.R0 + FPG.RH + 2, w0 = pt(200, RW, -0.45);
   const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
-  const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? (ch === '?' ? '未定型' : a.name) + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
+  const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? a.name + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
   const m = p.ok && p.classified ? g.cands.find((x) => x.c === p.code) : null;
-  const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '暂不匹配' : '样本不足') + '</span><span class="cap">' + (p.ok ? '有维度落在 45–55 之间，先不下结论' : '已选来源的会话少于 30 个') + '</span>';
-  const nm = '<div class="serif g-zh">' + (p.ok ? p.zh + ' <i>' + p.en + '</i>' : '样本不足') + '</div><p class="g-line">' + esc(p.ok ? p.line : '已选来源的会话少于 30 个，先用一段时间再来看。') + '</p>';
+  const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '置信度 ' + p.conf : '还没有会话') + '</span><span class="cap">' + (p.ok ? (p.hint || 'n=' + p.n) : '已选来源还没有会话') + '</span>';
+  const nm = '<div class="serif g-zh">' + (p.ok ? p.zh + ' <i>' + p.en + '</i>' : '还没有会话') + '</div><p class="g-line">' + esc(p.ok ? p.line : '已选来源还没有会话，先用一段时间再来看。') + '</p>';
   const facts = F.map((f, i) => '<div class="step g-fact" data-i="' + i + '"><span class="mk">' + (i + 1) + '</span><div class="g-ft"><b>' + f[0] + '</b><span class="g-sw"><span class="cap g-sub">' + esc(f[1]) + '</span><span class="g-fx"><span>' + esc(f[2]) + '</span></span></span></div><span></span></div>').join('');
   const top = '<div class="row g-top">' + (ob ? '<div class="ob-dots" aria-hidden="true">' + [0, 1, 2, 3].map((i) => '<i class="' + (i <= 2 ? 'on' : '') + '"></i>').join('') + '</div><span class="mono cap" data-g="n" style="font-size:11px">3 / 4</span>' : '') +
     '<span class="mono cap g-stage"' + (ob ? '' : ' id="revStage"') + ' data-g="stage"></span><span style="flex:1"></span><button type="button" class="btn sm gh" data-act="' + (ob ? 'genSkip' : 'revSkip') + '">跳过</button></div>';
@@ -553,8 +553,8 @@ function genLand() {
 function openReveal(opt) {
   closeModal(); closeDD(); closeOverlay();
   const per = PERIODS[S.persona.period]; const L = opt && opt.L ? opt.L : S.route === 'persona' ? sel({ win: [per[0], per[1]] }) : sel({ noExtra: true }); const p = opt && opt.p || persona(L);
-  if (!p.ok) { toast('样本不足（少于 30 个会话），暂时不能揭晓'); return; }
-  if (!p.classified) { toast('部分维度尚未定型，暂时不能揭晓'); return; }
+  if (!p.ok) { toast('当前范围还没有会话，暂时不能揭晓'); return; }
+  if (!p.classified) { toast('协作画像正在更新，稍后再揭晓'); return; }   // 旧版快照（带「?」）才会走到这里
   REV = { done: false, timers: [] }; OVL = 'reveal';
   const o = $('#overlay'); o.hidden = false; o.innerHTML = '';
   genOpen('rev', { L, p, cands: opt && opt.cands });
@@ -578,7 +578,7 @@ Object.assign(ACT, {
   obRecent: () => { OB.recent = !OB.recent; drawOB(); },
   obStart: () => { AG.forEach((a) => { if (OB.src.has(a.id)) S.srcOff.delete(a.id); else S.srcOff.add(a.id); }); OB.step = 2; OB.prog = -1; const from = obSources(); genOpen('ob', { L: obSel(), from }); },
   genSkip: () => genFinal('skip'),
-  obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源的会话不足 30 个，暂不判断类型。', a1: '查看', on1: () => { obScope(); go('persona'); }, force: true }); }, 2600); },
+  obBg: () => { const p = obPersona(); closeOverlay(); render(); setTimeout(() => { notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '已选来源还没有会话，暂时无法给出类型。', a1: '查看', on1: () => { obScope(); go('persona'); }, force: true }); }, 2600); },
   obDone: () => { obScope(); genLand(); },
   obShare: () => { closeOverlay(); render(); openShare(); },
   obReveal: () => { const L = obSel(); closeOverlay(); render(); openReveal({ L }); },

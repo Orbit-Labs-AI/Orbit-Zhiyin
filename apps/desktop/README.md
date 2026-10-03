@@ -1,6 +1,6 @@
 # Orbit Mac 宿主
 
-`Orbit.swift` 是原生宿主：主窗口、菜单栏弹出框（`/app?surface=panel`）、浮动 HUD 与桌面小组件、菜单命令、系统通知、系统面板与随包 `tandem-helper` 的生命周期；全部数据逻辑在 helper（`tandem_backend.services` gateway）中。`server_entry.py` 是冻结 helper 的入口，`build.py` 打包，`render_svg.swift` 只用于把现有 logo SVG 原样渲染成图标与菜单栏图标尺寸；`build.py` 还会把网页字体（`@fontsource-variable`，latin/latin-ext）内联进 `orbit.html`，离线显示一致。
+`Orbit.swift` 是原生宿主：主窗口、菜单栏弹出框（`/app?surface=panel`）、浮动 HUD 与桌面小组件、菜单命令、系统通知、系统面板与随包 `tandem-helper` 的生命周期；全部数据逻辑在 helper（`tandem_backend.services` gateway）中。`server_entry.py` 是冻结 helper 的入口，`build.py` 打包，`render_svg.swift` 只用于把现有 logo SVG 原样渲染成图标与菜单栏图标尺寸；UI 只用 macOS 系统字体，`orbit.html` 不含网页字体。
 
 ```sh
 bash scripts/bootstrap.sh                      # 首次：uv sync + pnpm install（含字体包）

@@ -122,14 +122,14 @@ test('A2: code, axes and evidence equal /v1/uiview/persona; months from LASTDAY 
   expect(errors).toEqual([]);
 });
 
-test('A2 reveal: unsettled code names the closest candidates; a settled one plays the compass + genesis reveal', async ({ page }) => {
+test('A2 reveal: a legacy unsettled snapshot waits for the update; a full code plays the compass + genesis reveal', async ({ page }) => {
   test.skip(!!PASS, 'stubbed answers (gw.set / 404s) only');
   const errors = collectErrors(page);
   const gw = await stubGateway(page, 's1', routes());
   await openLive(page, 'persona');
   await expect(page.locator('.persona-hero .letters')).toBeVisible();
   await page.locator('[data-act="reveal"]').first().click();
-  await expect(page.locator('#toast, .toast').first()).toContainText('最接近 SIMT');
+  await expect(page.locator('#toast, .toast').first()).toContainText('协作画像正在更新');
   expect(gw.count('/v1/uiview/persona/reveal')).toBe(1);
   // settle the M axis (synthetic edit) and replay with animations on
   gw.set('GET /v1/uiview/persona', fx('s1/persona-90-settled.json'));
@@ -201,7 +201,7 @@ test('empty spine and missing endpoints: owned routes render honest empty states
   await expect(page.locator('.ov-tools [data-lv="na"]')).toBeVisible();
   // R4-14: an unrevealed persona keeps the card's structure (placeholder code + progress + four empty axis tracks)
   await expect(page.locator('.ov-pers [data-lv="pers-empty"]')).toBeVisible();
-  await expect(page.locator('.ov-pers')).toContainText('再积累 30 个会话后揭晓');
+  await expect(page.locator('.ov-pers')).toContainText('有 1 个会话即可揭晓');
   await expect(page.locator('.ov-pers [aria-label="四个维度尚无数值"] > div')).toHaveCount(4);
   await page.evaluate(() => edSet('lite'));
   for (const r of ['l-home', 'l-persona', 'l-sessions', 'l-recs']) {

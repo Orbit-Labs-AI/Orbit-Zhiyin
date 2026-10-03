@@ -191,8 +191,8 @@ Flow per test:
 10. dark contrast    selected sidebar row vs sidebar ≥ 1.3; window / sidebar / card pairwise ≥ 1.15 in dark mode.
 11. overflow         no horizontal overflow (document, #main, #win inside the viewport) with the sidebar shown / hidden,
                      zoomed and in full screen, on three representative pages.
-12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26); the page title is serif, meta /
-                     counts / eyebrows are mono, nav and the system clock are the system font; resize handles are invisible
+12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26); every surface uses the system sans (SF Pro + PingFang SC, 600-weight
+                     title, tabular counts), keycaps SF Mono, no web fonts; resize handles are invisible
                      (no background, no pseudo content); notifications are 344px wide, 16px from the stage edge, and reveal
                      their actions on hover.
 13. motion           every effect of the published demo is still wired up (mac-14 only): keyframes blink / fadein / grow /
@@ -219,7 +219,7 @@ VZ 组件库测试。流程：
   7. 时间线原语：密度泳道的桶数 ≤ 像素桶数且无逐事件刻度、关键时刻在窄宽度合并成簇、now 标记、range 收窄后窗外事件不画、只有阶段也有有效范围；
   8. minimap：拖视窗平移（位移 = 鼠标位移）、拖手柄缩放（另一端不动）、Home 复位并报告 null、↑ 缩小视窗；
   9. 其他：bar 的 hatch 斜纹与 <pattern>、diverging 的 deadband、mood 色阶 6 档、KPI 环比文案（▲▼ + 变化量 + 上期）；
- 10. 视觉语言：刻度 / 数值 / KPI 环比用等宽字体（var(--mono)），名称与说明仍是 UI 无衬线；spec.head 输出 .eb / .ct / .cap 层级；
+ 10. 视觉语言：刻度 / 数值 / KPI 环比用 tabular 数字（var(--font-num)），与名称说明同为系统无衬线；spec.head 输出 .eb / .ct / .cap 层级；
  11. 动效：首次绘制 svg 带 vz-in（线描入、柱升起），重绘不再带；prefers-reduced-motion 下 computed animation-name 为 none；
  12. 回放：播放头可拖并吸附到事件、onPlayhead 回调；[ ] 逐事件；VZ.replay 走到末尾自动停且回放中未发生的事件隐藏；
      axisMode 'steps' 事件等距、刻度为整数步；⌘ / Ctrl + 滚轮以光标为锚缩放并通过 onView 同步 minimap 视窗，Home 复位。
