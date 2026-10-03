@@ -491,31 +491,32 @@ put(whoosh(0.8 * BEAT), 6.6, 0.12, -0.2)                                    # th
 groove(7.0, 9.0, clap_on=False, lvl=0.5)                                    # light four on the floor, building
 groove(9.0, 13.2, clap_on=False, lvl=0.66)
 HATS_OFF.append((7.2, 10.8))                                                # the keys are the hats while 1b is typed
-hits(11.35, 13.8, 14.3, 14.8, 15.3)
-put(puff(0.8), 7.0, 0.04, 0.0, to='verbsend')                               # the box grows out of the dots
-words((7.0, 7.35), 0.06)                                                    # 「从想法」「到交付」
+hits(11.35, 13.65, 14.3, 14.8, 15.3)
+put(puff(0.8), 7.35, 0.04, 0.0, to='verbsend')                              # v18.5 the box grows out of the pills as title + dots rise (b7.35–8.1)
+put(swell(0.75 * BEAT), 7.35, 0.1)
+words((6.95, 7.25), 0.06)                                                   # v18.5 「从想法」 match-cuts in on b6.95, 「到交付」 b7.25
 K1 = type_on(7.2, '做一个记账 App', 31)                                       # typed key by key (typeOn), b7.2–9.16
 S1 = K1[-1] + 0.22                                                          # sent b9.38
 K2 = type_on(S1 + 0.17, '写份路演稿', 32)                                    # b9.55–10.54
 S2 = K2[-1] + 0.22                                                          # sent b10.76
 keys(K1 + K2)
-put(lead(lq(79, 7.0), 2.3 * BEAT, 2400), 7.0, 0.04, 0.0, to='lead')        # v18.3 the line sits above the keys: G on 「从想法」 …
+put(lead(lq(79, 7.0), 2.35 * BEAT, 2400), 6.95, 0.04, 0.0, to='lead')        # v18.3 the line sits above the keys: G on 「从想法」 …
 put(lead(lq(81, 9.38), 2.0 * BEAT, 2400), 9.38, 0.04, 0.0, to='lead')      # … A on send 1, through the second prompt
 put(lead(lq(84, 11.35), 2.3 * BEAT, 2600), 11.35, 0.045, 0.0, to='lead')   # C as the icons burst, carried into 「We」
 for b_ in (S1, S2):                                                         # sends: a fuller press
     send_key(b_)
-pops((7.55, 7.85, 8.1, 8.8, S1 + 0.15, 10.1, 10.45, S2 + 0.15), 0.07)       # bubbles rise out of the dots (prompts and sends)
-pops((11.7, 11.95, 12.65, 12.8, 13.2), 0.035, 0.7)                          # and retract after the burst (softer, darker)
+pops((7.85, 7.9, 8.1, 8.8, S1 + 0.15, 10.1, 10.45, S2 + 0.15), 0.07)       # bubbles rise out of the dots (prompts and sends)
+pops((11.7, 11.95, 12.65, 12.8, 13.0), 0.035, 0.7)                          # and retract after the burst (softer, darker)
 put(swell(0.6 * BEAT), 10.75, 0.32)                                         # b11.35 the App icons burst out
 arp(11.35, 11.75, 0.0333, 0.07, base=72, span=6)                            # one quick upward chord run as they spray
 put(pad(CH['C'][0], 1.6 * BEAT, 2800, 0.1, 0.8), 11.35, 0.07, to='verbsend')
 shimmer(11.6, 1.0, 8, 0.025)                                                # the halo draws in (b11.6–12.6)
 put(whoosh(0.9 * BEAT), 12.95, 0.13, 0.3)                                    # v18.4 the dot slides left into the caret (b13.05–13.65), one long whoosh
 groove(13.2, 18.7, lvl=0.82)
-for k, b_ in enumerate((13.8, 14.3, 14.8, 15.3)):                           # We / Are / Redesigning / Everything
+for k, b_ in enumerate((13.65, 14.3, 14.8, 15.3)):                          # We (v18.5 b13.65) / Are / Redesigning / Everything
     put(stab(tuple(tone(b_, j, 60) for j in range(3)) + (q(M[0] + (0, 3, 5, 8)[k], b_),), 0.7 if k < 3 else 1.4), b_, 0.17 + 0.02 * k, -0.15 + 0.1 * k, to='verbsend')
     put(lead(q(M[0] + (0, 3, 5, 8)[k], b_), (0.5 if k < 3 else 1.6) * BEAT), b_, 0.05, 0.0, to='lead')   # top voice = the motif, one step up on C6
-    put(settle(), b_ + 0.03, 0.06, -0.15 + 0.1 * k)
+    put(settle(), b_ + 0.03 if k else 13.75, 0.06, -0.15 + 0.1 * k)        # v18.5 We: the caret forms + ripples on b13.75
 put(boom(1.6, 46, 30), 15.3, 0.12, to='verbsend')                           # 「Everything」 + the gloss land
 put(crash(2.0), 15.3, 0.14, 0.25)
 for b_ in (14.0, 14.5, 15.0, 15.5, 15.85, 16.35, 16.8, 17.25, 17.8, 18.3):  # the caret breathes at rest
@@ -537,7 +538,7 @@ padlvl(25.8, 0.18, 2200)
 groove(11.8, 16.0, style='half', lvl=0.74, bed=0.22)               # v18.3 a dip under 1d …
 groove(16.0, 19.85, style='half', lvl=0.86, bed=0.24)              # … lifting into 「So，」
 HATS_OFF.append((12.95 + SH, 17.95 + SH))                                   # the keys are the hats while 1d is typed
-hits(12.8, 15.9, 22.5, 22.9, 23.3)                                         # v18.2: the three cuts moved .6 later (CUT in 15-redesign)
+hits(12.85, 15.9, 22.5, 22.9, 23.3)                                         # v18.2: the three cuts moved .6 later (CUT in 15-redesign)
 motif(13.1, 0.042, notes=(81, 79, 76, 74), times=(0, 2, 4, 6), held=2.0, cutoff=2000)   # 1d answers: A G E D, one per 2 beats
 put(tick(0.9), 11.8, 0.03, 0.0)                                             # v18.3 the caret falls (.24 beat) …
 put(key_click(), 12.04, 0.08, 0.0)
@@ -546,12 +547,12 @@ put(puff(0.8), 12.5, 0.04, 0.0, to='verbsend')                              # th
 put(tick(1.0), 12.5, 0.06, -0.1)
 put(blip(tone(12.5, 0, 72), 0.4), 12.5, 0.07, -0.1, to='verbsend')
 put(swell(0.5 * BEAT), 12.35, 0.14)                                         # v18.5 「但，」 blurs in from film b19.25: a soft attack, no hit …
-put(bell(tone(12.35, 0, 69), 1.6), 12.35, 0.035, 0.0, to='verbsend')
-put(kick(0.35, 0.6), 12.8, 0.15, to='kick')                                 # … and settles alone, the dots flinch (softer)
-put(stab(tuple(tone(12.8, j, 57) for j in range(3)), 0.9), 12.8, 0.08, 0.0, to='verbsend')
-words((13.37,), 0.1)                                                        # 「人与 Agent 的」 (b13.4)
-put(tick(1.3), 13.4, 0.08, -0.1)                                            # v18.3 a clear onset ahead of the next key (b13.47)
-put(blip(tone(13.4, 1, 72), 0.4), 13.4, 0.1, 0.1, to='verbsend')
+put(bell(tone(12.35, 0, 69), 1.6), 12.31, 0.035, 0.0, to='verbsend')
+put(kick(0.35, 0.6), 12.85, 0.15, to='kick')                                 # … and settles alone, the dots flinch (softer)
+put(stab(tuple(tone(12.8, j, 57) for j in range(3)), 0.9), 12.85, 0.08, 0.0, to='verbsend')
+words((13.12,), 0.1)                                                        # 「人与 Agent 的」 (v18.5 b13.15)
+put(tick(1.3), 13.15, 0.08, -0.1)                                            # v18.3 a clear onset ahead of the next key (b13.47)
+put(blip(tone(13.4, 1, 72), 0.4), 13.15, 0.1, 0.1, to='verbsend')
 words((13.85,), 0.08)                                                       # 「交互本身，」
 keys(type_on(12.95, '请你修改', 41) + type_on(14.55, 'fix', 42)                # typed key by key (typeOn), as 15-redesign
      + type_on(15.8, '请你继续', 43) + type_on(17.15, '看清需求', 44))          # 看清需求 is never sent
@@ -653,6 +654,7 @@ motif(40.4, 0.06, notes=(84, 86), times=(0, 0.6), held=0.6)                 # �
 put(lead(lq(76, 28.1), 1.0 * BEAT), 28.1, 0.05, 0.0, to='lead')             # v18.3 E on the dial, into the augmented motif
 put(lead(lq(88, 41.60), 2.8 * BEAT), 41.60, 0.09, 0.0, to='lead')          # and the climb tops out on E6 at DIMV
 put(crash(2.0), 28.1, 0.12, -0.2)
+put(tick(0.9), 27.92, 0.04, 0.3)                                          # v18.5 the badges orbit out and land (b27.94)
 put(settle(0.8), 28.4, 0.05, 0.0)                                           # v18.2: the dial settles (b28.4)
 roll(28.6, 5, 0.06, 0.25, 64, 1.2)                                          # the bud slows and lands (b29.6)
 words((28.97,), 0.08)                                                       # 「读懂你的 Agent 协作人格」 masks in (b29.0)
@@ -718,8 +720,9 @@ for n, e in enumerate(EV):
     if n < 5:                                                              # a passing tone halfway, so the phrase keeps rising
         mp = ((AG + (74,))[n + 1] + 12 + m_) // 2
         put(lead(lq(mp, e + d_ * 0.55), d_ * 0.45 * BEAT + 0.05), e + d_ * 0.55, 0.05, 0.0, to='lead')
-    counter(e - 0.1, 1.2)
-put(tick(1.2), 47.4, 0.05, 0.45)                                            # the Token counter lights up (b47.4)
+    if n < 5:                                                              # v18.5 the share rolls from the ✓ (RL = EV + .4)
+        put(tick(1.2), e + 0.4, 0.05, 0.45)
+        counter(e + 0.4, 1.2)
 for k, (g0, g1) in enumerate(zip([45.1] + EV[1:], EV[1:] + [59.1], strict=True)):   # the groove grows one step per card
     groove(g0, g1, lvl=0.82 * 1.06 ** k, arp16=True)
 breath(59.1, 59.6)                                                          # v18.4 half a beat of air, then the payoff (film b82.0)
@@ -739,7 +742,7 @@ put(whoosh(1.1 * BEAT), 63.4, 0.12, 0.2)                                    # th
 put(stab(tuple(tone(63.4, j, 55) for j in range(4)), 1.4), 63.4, 0.1, 0.0, to='verbsend')   # V under the held A (the 9th), resolving to Am at film b86.8
 put(settle(0.9), 59.7, 0.07, 0.15)                                          # 提高效率 wipes in orange (PO + .1)
 put(puff(0.8), 63.2, 0.045, -0.5, to='verbsend')                            # and closes into a stack (b63.2)
-put(tick(1.2), 63.175, 0.06, -0.5)                                         # v18.4 sync: the stack closes as the orb morph starts (scene 63.15–63.2, film b86.05–86.1)
+put(tick(1.2), 63.175, 0.12, -0.5)                                         # v18.4 sync: the stack closes as the orb morph starts (scene 63.15–63.2, film b86.05–86.1)
 put(tick(1.3), 63.35, 0.08, 0.0)                                            # v18.4 sync: the five-badge orb face forms (film b86.25)
 put(tick(1.0), 63.8, 0.04, -0.5)                                            # the stack hands on to the merge (b63.8)
 
@@ -777,11 +780,13 @@ put(swell(1.2 * BEAT), 62.65, 0.08)                                         # �
 for j, g in enumerate((0.08, 0.05)):                                        # 验证 ✓ (b65.0): C-chord bell
     put(bell(tone(65.0, 2 * j + 1, 72), 1.8), 65.0, g, 0.3, to='verbsend')
 put(puff(), 65.0, 0.03, 0.3, to='verbsend')
+put(tick(1.0), 66.6, 0.05, 0.2)                                           # v18.5 the orb leaves the playhead (b66.6)
+put(whoosh(0.55 * BEAT), 66.6, 0.04, 0.2)
 put(whoosh(1.4 * BEAT), 67.0, 0.1, -0.3)                                    # trajectory out, studio in (b67.1 / 67.3)
 put(tick(1.0), 67.25, 0.05, -0.3)                                           # v18.3: the old accent leaves (b67.25)
 put(settle(1.0), 67.61, 0.08, 0.1)                                          # v18.4 one landing for 「04 · 生成工坊」 (b67.57), 开始生成 growing (67.6) and the card in the orb (67.65)
 put(puff(0.9), 67.75, 0.04, 0.3, to='verbsend')                             # the new accent comes in (b67.75)
-put(tick(1.3), 67.75, 0.15, 0.3)                                            # v18.4 sync: a click so the accent's entry has an attack
+put(tick(1.3), 67.76, 0.15, 0.3)                                           # v18.5 one click between the accent (67.75) and the button's full fill (67.8)
 put(whoosh(0.7 * BEAT), 68.2, 0.05, 0.1)                                   # the camera pushes in on 开始生成 (b68.2)
 arp(68.5, 68.8, 0.1, 0.05, base=72, span=3)                                 # the .3-beat hover: a rising up-beat into the press
 put(press(), 68.8, 0.22, 0.2)
@@ -801,8 +806,8 @@ for j, g in enumerate((0.1, 0.07, 0.045)):                                  # �
     put(bell(tone(73.75, 2 * j, 72), 2.0), 73.75, g, 0.1, to='verbsend')
 put(whoosh(1.1 * BEAT), 73.9, 0.06, 0.2)                                    # the cards shrink into the dot (b73.9)
 put(hp(swell(0.45 * BEAT), 1500), 73.9, 0.2, 0.0)                           # v18.5 SKILL.md is sucked into the orb (film b105.6–106.05): a short bright rise …
-put(lp(kick(0.3, 0.7), 500), 74.3, 0.2, to='kick')                          # … and lands hard (film b106.0)
-put(press(), 74.3, 0.12, 0.0)
+put(lp(kick(0.3, 0.7), 500), 74.35, 0.2, to='kick')                          # … and lands hard (film b106.0)
+put(press(), 74.35, 0.12, 0.0)
 
 # ================= 60-close: ring → compass → ring → the curve is drawn → 45° icon → wordmark → tagline → fade (b69.2–94.8)
 section('60-close')
@@ -934,7 +939,7 @@ def mcues(spec):
 section('10-intro')
 mcues([(0.2, 'low'), (0.35, 'air'), (1.46, 'pluck'), (1.91, 'pluck'), (2.45, 'click'), (6.75, 'bell'), (7.12, 'air'), (7.35, 'pluck'),
        (8.0, 'air'), (8.3, 'air'), (8.55, 'air'), (8.65, 'air'), (9.18, 'air'), (9.48, 'air'), (9.95, 'air'),
-       (10.3, 'air'), (10.56, 'air'), (11.15, 'spark'), (11.65, 'bell'), (13.2, 'air')])
+       (10.3, 'air'), (10.56, 'air'), (11.15, 'spark'), (11.65, 'bell'), (13.0, 'air')])
 section('15-redesign')
 mcues([(11.8, 'air'), (12.2, 'bell'), (13.72, 'pluck'), (14.4, 'air'), (15.9, 'click'), (19.85, 'bell'), (20.4, 'pluck'),
        (21.0, 'air'), (22.5, 'air'), (22.9, 'air'), (23.3, 'air'), (23.6, 'spark')])   # v18.2: circle from the beads b21.0, bead steps on CUT, glow CUT[2] + .3
@@ -950,7 +955,7 @@ mcues([(29.1, 'air'), (29.5, 'bell')]
 section('40-recs')
 mcues([(39.5, 'pluck'), (39.64, 'pluck'), (39.78, 'pluck'), (40.52, 'air'), (40.66, 'air'),
        (41.6, 'air'), (42.7, 'air'), (43.8, 'air')]
-      + [x for p in (44.6, 47.1, 50.1, 53.1, 56.1, 59.1) for x in ((p, 'pluck'), (p + 0.8, 'air'))]   # pill out, ✓ tick
+      + [x for e in EV for x in ((e - 0.4, 'pluck'), (e + 0.4, 'air'))]   # pill out, ✓ tick (v18.5 on the 2.6-beat EV grid)
       + [(62.8, 'air')])                                                     # v18.2: bullets → round badges (b62.8)
 section('50-tools')
 mcues([(55.3, 'low'), (56.2, 'air'), (56.9, 'low'), (57.1, 'pluck'), (57.65, 'click'), (59.85, 'click'), (62.15, 'click'),
