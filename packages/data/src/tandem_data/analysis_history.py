@@ -491,8 +491,11 @@ class AnalysisHistory:
                 (algo_version, json.dumps(sorted(items))),
             )
 
-    def sections(self, request_key: str, input_fp: str, names: list[str]) -> dict[str, Any]:
-        """Read cached sections individually; hits refresh their LRU timestamp."""
+    def sections(
+        self, request_key: str, input_fp: str, names: list[str], *, sizes: dict | None = None
+    ) -> dict[str, Any]:
+        """Read cached sections individually; hits refresh their LRU timestamp. ``sizes``
+        (optional) receives each found section's stored JSON bytes."""
         if not names:
             return {}
         with self.connect() as connection:
@@ -507,6 +510,8 @@ class AnalysisHistory:
                 )
                 for row in rows
             }
+            if sizes is not None:
+                sizes.update({row["section"]: row["json_bytes"] for row in rows})
             if found:
                 connection.execute(
                     "UPDATE analysis_section SET last_hit_at=?,hits=hits+1 WHERE request_key=?"
