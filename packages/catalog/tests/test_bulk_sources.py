@@ -84,7 +84,7 @@ def test_changed_file_cannot_resume_an_old_scan(tmp_path):
         BulkConnector(spec).fetch_page(first.checkpoint, {})
 
 
-@pytest.mark.parametrize("kind", ["command", "hook", "workflow", "mcp_server"])
+@pytest.mark.parametrize("kind", ["command", "hook", "workflow", "mcp_server", "plugin"])
 def test_non_skill_sources_keep_type_and_documented_license(tmp_path, kind):
     spec = source(tmp_path, [row()], resource_type=kind, content_license="CC0-1.0",
                   license_url="https://example.test/pinned/LICENSE", agents=["copilot"])
@@ -104,3 +104,43 @@ def test_body_license_requires_original_source_evidence(tmp_path):
 def test_invalid_records_fail_without_silent_skipping(tmp_path, bad):
     with pytest.raises(ValueError, match="bulk_missing_content|bulk_content_hash_mismatch"):
         BulkConnector(source(tmp_path, [bad])).fetch_page({}, {})
+
+
+def test_plugin_keeps_manifest_provenance_and_non_github_source_link(tmp_path):
+    item = row('{"name":"fixture-plugin","hooks":{"PreToolUse":[]}}')
+    item.update(canonical_url="https://plugins.example.test/fixture", upstream_id="fixture-id",
+                origin="https://example.test/source", artifact_kind="plugin_manifest",
+                manifest={"name": "fixture-plugin", "hooks": {"PreToolUse": []}},
+                provenance={"revision": "fixed", "license_reviewed": False}, agents=["claude_code"],
+                features=[{"feature": "integration", "value": "pytest", "origin": "curated", "weight": 10}])
+    resource = BulkConnector(source(tmp_path, [item], resource_type="plugin")).fetch_page({}, {}).records[0].resource
+    assert resource.url == item["canonical_url"]
+    assert resource.manifest == item["manifest"]
+    assert resource.metadata["upstream_id"] == "fixture-id"
+    assert resource.metadata["provenance"] == item["provenance"]
+    assert resource.agents == ["claude_code"]
+    assert resource.features[-1].origin == "declared" and resource.features[-1].weight == 1
+    assert resource.body_policy == "index_only" and resource.install == {} and resource.license is None
+
+
+def test_workflow_does_not_assume_skill_agent_compatibility(tmp_path):
+    resource = BulkConnector(source(tmp_path, [row()], resource_type="workflow")).fetch_page({}, {}).records[0].resource
+    assert resource.agents == []
+
+
+@pytest.mark.parametrize("url", ["javascript:alert(1)", "https://user:secret@example.test/p", "https://example.test/\npath"])
+def test_unsafe_canonical_link_falls_back_to_source_path(tmp_path, url):
+    item = {**row(), "canonical_url": url}
+    resource = BulkConnector(source(tmp_path, [item])).fetch_page({}, {}).records[0].resource
+    assert resource.url.startswith("https://github.com/test/fixture/")
+
+
+@pytest.mark.parametrize("field,value,error", [
+    ("manifest", [], "bulk_invalid_manifest"),
+    ("provenance", {"data": "a" * 65537}, "bulk_provenance_too_large"),
+    ("features", [{}] * 200, "bulk_invalid_features"),
+    ("agents", [False], "bulk_invalid_agents"),
+])
+def test_collected_metadata_has_explicit_bounds(tmp_path, field, value, error):
+    with pytest.raises(ValueError, match=error):
+        BulkConnector(source(tmp_path, [{**row(), field: value}])).fetch_page({}, {})

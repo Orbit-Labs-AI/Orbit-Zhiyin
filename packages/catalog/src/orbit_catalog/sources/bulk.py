@@ -1,4 +1,4 @@
-"""Resumable, local JSONL imports of public skill dataset snapshots.
+"""Resumable, local JSONL imports of public resource dataset snapshots.
 
 Download/Parquet conversion is an explicit preparation step. This adapter never
 executes content or mistakes a compilation license for individual file rights.
@@ -17,7 +17,47 @@ from .structured import SKILL_AGENTS
 MAX_LINE_BYTES = 32 * 1024 * 1024
 BODY_LIMIT = 250000
 MAX_BODY_LIMIT = 2000000
-BULK_TYPES = {"skill", "command", "hook", "workflow", "mcp_server"}
+BULK_TYPES = {"skill", "command", "hook", "workflow", "mcp_server", "plugin"}
+MAX_PROVENANCE_BYTES = 65536
+MAX_MANIFEST_BYTES = 262144
+
+
+def _public_url(value) -> str:
+    """Keep source links as data; reject credentials and non-HTTPS schemes."""
+    if not isinstance(value, str) or len(value) > 2000 or any(ord(c) < 33 for c in value):
+        return ""
+    try:
+        parsed = urlsplit(value)
+        if parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password:
+            return value
+    except ValueError:
+        pass
+    return ""
+
+
+def _object(row: dict, key: str, limit: int) -> dict:
+    value = row.get(key, {})
+    if not isinstance(value, dict):
+        raise ValueError(f"bulk_invalid_{key}")
+    encoded = json.dumps(value, ensure_ascii=False, allow_nan=False).encode()
+    if len(encoded) > limit:
+        raise ValueError(f"bulk_{key}_too_large")
+    return value
+
+
+def _features(row: dict) -> list[Feature]:
+    values = row.get("features", [])
+    if not isinstance(values, list) or len(values) > 199:
+        raise ValueError("bulk_invalid_features")
+    result = []
+    for value in values:
+        if not isinstance(value, dict):
+            raise ValueError("bulk_invalid_feature")
+        # A collected declaration is never promoted to a reviewed capability or
+        # given extra ranking weight by an upstream dataset's self-assessment.
+        feature = Feature.model_validate({**value, "origin": "declared", "weight": 1})
+        result.append(feature)
+    return result
 
 
 def prepare_parquet(source: Path, destination: Path) -> dict:
@@ -130,9 +170,7 @@ class BulkConnector:
                               or not content_hash.startswith(declared_hash.lower())):
             raise ValueError("bulk_content_hash_mismatch")
         repo, path = str(row.get("repo") or ""), str(row.get("path") or "")
-        supplied_url = str(row.get("html_url") or "")
-        parsed = urlsplit(supplied_url)
-        url = supplied_url if parsed.scheme == "https" and parsed.hostname == "github.com" else ""
+        url = _public_url(row.get("canonical_url")) or _public_url(row.get("html_url"))
         if not url and re.fullmatch(r"[\w.-]+/[\w.-]+", repo) and path:
             url = f"https://github.com/{repo}/blob/HEAD/{quote(path, safe='/')}"
         url = url or self.source.url
@@ -156,6 +194,16 @@ class BulkConnector:
             "author": repo.split("/", 1)[0] or None, "stars_scope": "repository_at_collection",
             "declared_license": header.get("license") if isinstance(header.get("license"), str) else None,
         }
+        metadata.update({
+            "canonical_url": url, "upstream_id": str(row.get("upstream_id") or row.get("native_id") or "")[:1000],
+            "origin": str(row.get("origin") or "")[:2000],
+            "artifact_kind": str(row.get("artifact_kind") or self.resource_type)[:100],
+            "provenance": _object(row, "provenance", MAX_PROVENANCE_BYTES),
+        })
+        manifest = _object(row, "manifest", MAX_MANIFEST_BYTES)
+        agents = row.get("agents", self.source.config.get("agents", list(SKILL_AGENTS) if self.resource_type == "skill" else []))
+        if not isinstance(agents, list) or any(not isinstance(agent, str) or not agent or len(agent) > 100 for agent in agents):
+            raise ValueError("bulk_invalid_agents")
         if header.get("parse_error"):
             metadata["frontmatter_error"] = header["parse_error"]
         if self.source.config.get("embedding_policy") == "all":
@@ -168,11 +216,14 @@ class BulkConnector:
             item_id=self.resource_type + ":sha256:" + content_hash, type=self.resource_type, name=(name or fallback)[:300],
             summary=summary, url=url[:2000], body=content[:self.body_limit],
             body_policy="licensed" if self.content_license else "index_only",
-            license=self.content_license, agents=self.source.config.get("agents", list(SKILL_AGENTS)), repo_path=path or None,
-            features=[Feature(feature="tool_kind", value=self.resource_type, origin="declared", evidence="dataset record")],
-            metadata=metadata, popularity=popularity, install={}, risk=[] if self.content_license else ["unverified_license"],
+            license=self.content_license, agents=agents, repo_path=path or None,
+            features=[Feature(feature="tool_kind", value=self.resource_type, origin="declared", evidence="dataset record"),
+                      *_features(row)],
+            manifest=manifest, metadata=metadata, popularity=popularity, install={},
+            risk=[] if self.content_license else ["unverified_license"],
         )
-        raw = {key: row.get(key) for key in ("content_hash", "repo", "path", "html_url", "source", "stars", "lines", "words")}
+        raw = {key: row.get(key) for key in ("content_hash", "repo", "path", "html_url", "canonical_url", "upstream_id", "native_id",
+                                                    "origin", "artifact_kind", "source", "stars", "lines", "words")}
         return Record(native_id=content_hash, resource=resource, raw=raw)
 
 
