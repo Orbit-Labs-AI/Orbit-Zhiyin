@@ -200,7 +200,7 @@ Object.assign(ACT, {
   },
   reindex: () => reindex(),
   report: () => openReport(),
-  ovMore: (el) => openDD(el, [{ t: '重新索引', k: '⌘R', v: () => reindex() }, { t: '导出工具明细 CSV…', v: () => openCSV() }, { t: '键盘快捷键', k: '?', v: () => openKeys() }], (v) => v())
+  ovMore: (el) => openDD(el, [{ t: '重新索引', k: '⌘R', v: () => reindex() }, { t: '键盘快捷键', k: '?', v: () => openKeys() }], (v) => v())
 });
 let OV_IDX = null;
 function reindex() {

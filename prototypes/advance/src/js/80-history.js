@@ -10,7 +10,6 @@ function mainAction() {
   else if (r === 'studio') ACT.studioStart();
   else if (r === 'sessions') ACT.resume();
   else if (r === 'persona') openShare();
-  else if (r === 'tools') openCSV();
   else if (r === 'projects') ACT.projRule();
   else if (r === 'sentiment') ACT.phrasesToRule();
   else if (r === 'library') { const x = LIB[0]; if (x) openInstall(x.rec, x); }

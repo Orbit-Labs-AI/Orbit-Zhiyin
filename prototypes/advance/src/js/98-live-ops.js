@@ -8,7 +8,7 @@
    - panel: /v1/shell/popover (date, today, opening line, top rec, attention); week bars and yesterday come from the spine.
    - A3: 在 X 中继续 → /resume, 更多 › 不计入分析 / 恢复 → /exclude, 在 Finder 中显示日志 / 在原始日志中打开 → /source_location
      → reveal; A4: an expanded tool row lists its real calls (/v1/analytics/tool_calls).
-   - export: report .md, tool-call .csv, share card .png → ORBIT.native.request('save'); a missing route → honest toast. */
+   - export: report .md, share card .png → ORBIT.native.request('save'); a missing route → honest toast. */
 const TLO = { started: false, off: false, d: null, doneUid: null, tc: {}, share: null };
 const TLO_REASON = { test: '测试会话', private: '隐私', duplicate: '重复', other: '其他' };
 const tloAg = (s) => agent(LV.agentOf(s && s.agent).id);
@@ -365,14 +365,14 @@ if (LV.live) {
   });
   TL.on('event', (ev) => { if (/^data\b/.test(ev.name)) TLO.tc = {}; });
 
-  /* ---------- export: report .md · tool-call .csv · share card .png ---------- */
+  /* ---------- export: report .md · share card .png ---------- */
   const unavailable = (what) => (e) => toast(TL.unavailable(e) ? '本地服务暂不支持导出' + what + '，请更新 Orbit 后再试' : '导出' + what + '失败：' + ((e && (e.message || e.code)) || ''));
-  const exportFoot = (act, label) => '<div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">由本机服务生成 · 只含统计，不含对话原文</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn" data-act="' + (act === 'repSave' ? 'repCopy' : 'copyCSV') + '">' + ic('copy', 13) + '复制</button><button type="button" class="btn p" data-act="' + act + '">' + ic('down', 13) + label + '</button></div>';
+  const exportFoot = (act, label) => '<div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">由本机服务生成 · 只含统计，不含对话原文</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn" data-act="repCopy">' + ic('copy', 13) + '复制</button><button type="button" class="btn p" data-act="' + act + '">' + ic('down', 13) + label + '</button></div>';
   // B18: every export carries the scope the screen shows — range, the enabled agents and the project filter
   // (S.project; '_none' = sessions without a project has no backend filter and is dropped)
   function tloExportScope() {
-    const sc = lvScope(); const ls = LV.scope(); const pj = S.project && S.project !== '_none' ? S.project : null;
-    return { report: Object.assign({}, sc, { projects: pj ? [pj] : null }), csv: { from_ts: lvtpFrom(S.range) == null ? undefined : lvtpFrom(S.range), agent: ls.agents || undefined, project_id: pj ? [pj] : undefined } };
+    const sc = lvScope(); const pj = S.project && S.project !== '_none' ? S.project : null;
+    return { report: Object.assign({}, sc, { projects: pj ? [pj] : null }) };
   }
   TLO.exportScope = tloExportScope;
   // H4: the sheet opens on the keystroke and fills when the gateway answers. /v1/export/report waits up to 3 s for sections
@@ -396,13 +396,6 @@ if (LV.live) {
   openReport = function () { tloReport(true).catch(unavailable('报告')); };
   wrap('repSec', (base, el) => { const k = el.dataset.k; if (el.checked) S.rep.add(k); else S.rep.delete(k); tloReport(false).catch(unavailable('报告')); });
   ACT.repSave = () => expSave('orbit-report-' + expStamp() + '.md', 'text/markdown', { text: CUR.report || '' });
-  openCSV = function () {
-    TL.ops.csv('tool_calls', Object.assign({ limit: 5000 }, tloExportScope().csv)).then((text) => {
-      CUR.csv = text; const n = Math.max(0, text.split('\n').filter(Boolean).length - 1);
-      openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · tool_calls · ' + n + ' 行 · 也可以复制后粘贴到表格软件') + '<div class="mb"><textarea readonly data-tl="csv" aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(text) + '</textarea></div>' + exportFoot('csvSave', '保存 .csv'), 'wide');
-    }, unavailable('CSV'));
-  };
-  ACT.csvSave = () => expSave('orbit-tool-calls-' + expStamp() + '.csv', 'text/csv', { text: CUR.csv || '' });
   // share card: one gateway card per time span (POST /v1/export/share_card, period = that span, same Agent / project
   // filters as the persona page). Each card shows what the gateway computed for its window — code, axis values (so the
   // flower's proportions), type copy, quote and stats; label / date / day ring come from the spine. A span the gateway
