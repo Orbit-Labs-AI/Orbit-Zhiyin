@@ -6,7 +6,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [品牌](brand.md) | 产品名 Orbit、代码标识的沿用规则、标志与 App 图标、备选与历史版本 |
+| [品牌](brand.md) | 产品名 Orbit、代码标识的沿用规则、标志与 App 图标、字体、备选与历史版本 |
 | [Demo 说明](demo.md) | 统一 App（Lite + Advance）怎么看、有哪些交互、怎么修改与发布 |
 | [画板与设计决定](boards.md) | Advance v1 画板索引、原始设计决定、v1 之后的现行决定、假设 |
 | [Lite 审查](lite-review.md) | `genius-FXC` 的 Lite 原稿：需求对应、交互说明与自查 |
