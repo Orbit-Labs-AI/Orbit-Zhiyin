@@ -47,7 +47,7 @@ function shareCard(sp) {
   const nAg = new Set(L.map((s) => s.a)).size;
   return '<div class="sharecard" style="background:' + C.bg + ';color:' + C.ink + '"><div style="position:relative;height:100%;padding:7cqw 7.5cqw 6.5cqw;display:flex;flex-direction:column">' +
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--font-num);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
-    '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.minor + '" fill="' + C.mn + '"/><path d="' + g.major + '" fill="' + C.mj + '"/><circle cx="40" cy="40" r="' + g.hr + '" fill="none" stroke="' + C.mj + '" stroke-width="1.6"/><circle cx="40" cy="40" r="1.6" fill="' + C.mj + '"/></svg>' +
+    '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.major + '" fill="' + C.mj + '"/>' + bloomHeart(g, 40, 40, C.mj, 'none', 1.6) + '</svg>' +
     '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:600 14cqw/.9 var(--font-display)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--font-num);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
     '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--font-display)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--font-display);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
     '<div style="margin-top:5cqw;font:500 4.6cqw/1.5 var(--font-display)">「' + esc(q[0]) + '<br>' + esc(q[1]) + '」</div>' +
@@ -111,8 +111,10 @@ async function sharePNG(m, dark, noNum) {
   text('我的 AI 协作人格 · ' + m.label, R, 7 * u + 2.6 * u, 2.5 * u + 'px ' + F.sans, C.ink3, 'right');
   if (m.glyph && typeof Path2D === 'function') {
     const k = 32 * u / 80; x.save(); x.translate(W - 5 * u - 32 * u, 12 * u); x.scale(k, k);
-    x.fillStyle = C.mn; x.fill(new Path2D(m.glyph.minor)); x.fillStyle = C.mj; x.fill(new Path2D(m.glyph.major));
-    x.strokeStyle = C.mj; x.lineWidth = 1.6; x.beginPath(); x.arc(40, 40, m.glyph.hr, 0, Math.PI * 2); x.stroke(); x.beginPath(); x.arc(40, 40, 1.6, 0, Math.PI * 2); x.fill(); x.restore();
+    x.fillStyle = C.mj; x.fill(new Path2D(m.glyph.major)); x.strokeStyle = C.mj; x.lineWidth = 1.6;
+    if (m.glyph.ring) { x.beginPath(); x.arc(40, 40, m.glyph.hr, 0, Math.PI * 2); x.stroke(); x.beginPath(); x.arc(40, 40, 2.1, 0, Math.PI * 2); x.fill(); }
+    else { x.beginPath(); x.arc(40, 40, m.glyph.hr * 0.62, 0, Math.PI * 2); x.fill(); }
+    x.restore();
   }
   let cx = L; const by = 7 * u + 2.6 * u + 9 * u + 12.6 * u;
   m.axes.forEach((a) => {

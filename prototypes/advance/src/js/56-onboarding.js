@@ -4,10 +4,11 @@
  *   01 导入  Orbit 母题：表盘先以倾斜轨道的视角出现（Orbit 标志的倾斜椭圆，CSS rotateX 64° + 转角 + 缩小），放大并翻正成罗盘外框；
  *            标志的内弧收拢成领瓣，合拢的花苞随后自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
  *            来源列表收拢淡出，计数器累加；粒子汇入时花苞逐渐减速，转满整圈停在 00 接上 02
- *   02 归位  花苞（领瓣在前）匀速扫一圈（身后拖一道淡扇形），粒子在领瓣扫过处按开始时间落到表盘对应角度（半径 = 时长），再汇入轨道环带；
- *            环带在扫过处长出（.fp-sweep 遮罩），Agent 行星随扫描依次出现、跟着领瓣公转，扫完走最短弧滑到各自的协作重心（fp2SVG 的几何，FPG）
+ *   02 归类  花苞（领瓣在前）匀速扫一圈（身后拖一道淡扇形），粒子在领瓣扫过处落到各自最接近的类型（扇区里按开始时间铺开，
+ *            半径 = 典型程度），再汇入轨道；
+ *            环带在扫过处长出（.fp-sweep 遮罩），Agent 行星随扫描依次出现、跟着领瓣公转，扫完走最短弧滑到各自多数会话所在的类型（fp2SVG 的几何，FPG）
  *   03 开花  花苞开成该类型的花（前排先开、身后一轮稍晚，带回弹）；字母位在两极之间翻牌时花左右寻向，
- *            最后一个字母锁定时领瓣摆向协作重心，阻尼振荡后停住
+ *            最后一个字母锁定时领瓣摆向你的类型，阻尼振荡后停住
  *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（花轻颤），其余淡出，胜出的一张飞入四字母（花定住），给出匹配度
  *   05 落地  「查看完整画像」：大人格码与指纹（含花）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
  * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），翻正、内弧、环带扫描与行星在 rAF 里逐帧写，其余是 CSS keyframes + WAAPI，节点只建一次。
@@ -174,11 +175,11 @@ function obSources() {
 function genHTML(g) {
   const ob = g.mode === 'ob', p = g.p, F = g.F;
   const pv = p.ok ? p : { v: { D: 50, I: 50, M: 50, V: 50 } };
-  const hr = S.persona.fpHour, cur = CUR.fp; S.persona.fpHour = null;
+  const hr = S.persona.fpType, cur = CUR.fp; S.persona.fpType = null;
   const fp = fp2SVG(g.L, pv, 300, { labels: p.ok });
-  S.persona.fpHour = hr; CUR.fp = cur;
-  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、24 个整点刻度、花身后的扫掠扇形（花本身是 fp2SVG 里的 .fp-bloom）、首次启动的 Orbit 内弧
-  let tk = ''; for (let h = 0; h < 24; h++) { const a = h / 24 * Math.PI * 2; const q1 = pt(200, h % 6 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
+  S.persona.fpType = hr; CUR.fp = cur;
+  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、16 型的中线刻度、花身后的扫掠扇形（花本身是 fp2SVG 里的 .fp-bloom）、首次启动的 Orbit 内弧
+  let tk = ''; for (let h = 0; h < 16; h++) { const a = h * 22.5 * Math.PI / 180; const q1 = pt(200, h % 4 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
   const RW = FPG.R0 + FPG.RH + 2, w0 = pt(200, RW, -0.45);
   const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
   const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? a.name + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
@@ -218,7 +219,7 @@ function genBloom(g, x) {
   set(g.front, k <= 0 ? 0 : genBack(k)); set(g.back, k <= 0.18 ? 0 : genBack((k - 0.18) / 0.82));
 }
 // 花（领瓣）的角度（度，顺时针，0 = 00:00）：01 三次 Hermite 从快转减速，转满整圈落在 00 并接上扫描的速度；02 匀速扫一圈；
-// 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向协作重心，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
+// 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向你的类型，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
 // 首次启动：Orbit 内弧先在 00 收拢成领瓣（G_HOLD 之前花苞停在 00），再从静止起转，快转两圈后减速落到 00
 const G_HOLD = 960;
 function genNeedle(g, t) {
@@ -311,15 +312,17 @@ function genOpen(mode, opt) {
 function genParticles(g, from) {
   const o = $('#overlay'), cs = getComputedStyle(g.box), T = g.T, ob = g.mode === 'ob', ow = o.getBoundingClientRect().width;
   const col = (c) => { const m = /^var\((--[\w-]+)\)$/.exec(c); return m ? cs.getPropertyValue(m[1]).trim() || '#888' : c; };
-  const L = g.L.slice().sort((a, b) => (a.h * 60 + a.mi) - (b.h * 60 + b.mi));
+  // 粒子按类型（扇区）排序，扇区里按开始时间铺开；落点半径 = 该会话偏离 50 的平均程度，汇入点 = 该型会话数对应的轨道高度
+  const cls = fpClassify(g.L), at = {}; cls.byT.forEach((xs) => xs.slice().sort((a, b) => a.d - b.d || (a.h * 60 + a.mi) - (b.h * 60 + b.mi)).forEach((s, i) => { at[s.id] = (cls.by[s.id].t - 0.5 + (i + 0.5) / xs.length) * 22.5; }));
+  const L = g.L.slice().sort((a, b) => (at[a.id] + 360) % 360 - (at[b.id] + 360) % 360);
   const N = Math.min(240, L.length), R = rng(hash('genesis' + L.length)), parts = [];
-  const byH = new Array(24).fill(0); g.L.forEach((s) => { byH[s.h]++; }); const mxH = Math.max(1, ...byH);
+  const mxT = Math.max(1, ...cls.byT.map((x) => x.length));
   g.sweep = (T.grow - T.place) * 0.8;
   for (let i = 0; i < N; i++) {
     const s = L[Math.floor(i * L.length / N)];
-    const a = (s.h + s.mi / 60) / 24 * Math.PI * 2;
+    const a = ((at[s.id] + 360) % 360) * Math.PI / 180, c = cls.by[s.id];
     const src = from && from[s.a];
-    const q = { c: col(agent(s.a).c), r: 2.3 + Math.min(s.msgs, 20) / 20 * 2, fin: pt(200, FPG.R0 + 4 + Math.min(s.dur, 126) / 126 * (FPG.RH - 6), a), pour: pt(200, FPG.R0 + byH[s.h] / mxH * FPG.RH * 0.55, a), ca: R() * Math.PI * 2, cr: 16 + R() * 70, bend: (R() < 0.5 ? -1 : 1) * (0.25 + R() * 0.55) };
+    const q = { c: col(agent(s.a).c), r: 2.3 + Math.min(s.msgs, 20) / 20 * 2, fin: pt(200, FPG.R0 + 4 + clamp(c.strong / 40, 0, 1) * (FPG.RH - 8), a), pour: pt(200, FPG.R0 + cls.byT[c.t].length / mxT * FPG.RH * 0.55, a), ca: R() * Math.PI * 2, cr: 16 + R() * 70, bend: (R() < 0.5 ? -1 : 1) * (0.25 + R() * 0.55) };
     if (ob) { q.e = R() * 1050; q.fl = 760 + R() * 300; q.turns = 0.55 + R() * 0.6; if (src) { q.sx = src[0] + (R() - 0.5) * src[2] * 0.6; q.sy = src[1] + (R() - 0.5) * src[2] * 0.6; } else { q.sx = R() * ow; q.sy = -12; } }
     else { q.e = R() * 260; q.fl = 380 + R() * 220; q.gs = pt(200, 250 + R() * 90, R() * Math.PI * 2); }
     q.dep = Math.max(T.place + a / (Math.PI * 2) * g.sweep, q.e + q.fl + 60); q.land = q.dep + 380; q.pourAt = q.land + 240;
@@ -376,7 +379,7 @@ function genTick(g) {
   if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genBloom(g, Math.min(u, 1)); if (u >= 1) g.roseDone = true; }
   if (g.nd) g.nd.style.transform = 'rotate(' + genNeedle(g, t).toFixed(2) + 'deg)';
   if (g.mode === 'ob' && !g.flat) { genTilt(g, t); if (t >= G_TILT + 200) g.flat = true; }
-  // 02：环带在指针扫过处长出（比指针晚 450 ms，等粒子落位）；行星依次出现、跟在指针后公转，扫完走最短弧滑到各自的协作重心
+  // 02：轨道在领瓣扫过处长出（比领瓣晚 450 ms，等粒子落位）；徽章依次出现、跟在领瓣后公转，扫完走最短弧滑到各自的类型
   const P = T.place, sw = g.sweep;
   if (g.sweepEl && !g.swept) { const v = clamp((t - P - 450) / sw, 0, 1); g.sweepEl.style.strokeDashoffset = (1 - v).toFixed(4); if (v >= 1) { g.sweepEl.style.strokeDashoffset = ''; g.swept = true; } }
   if (g.pls.length && !g.settled) {
@@ -443,7 +446,7 @@ function genPlay(g) {
   const at = (ms, fn) => g.timers.push(setTimeout(() => { if (GNS === g && !g.done) fn(); }, ms));
   const A = (el, kf, o) => genAnim(g, el, kf, o), fade = { opacity: [0, 1] };
   const gl = T.match - T.grow, ml = T.end - T.match, n = fmt(g.L.length), sw = g.sweep;
-  const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归位 · 花苞扫过 24 小时，会话按开始时间落位'], [T.grow, '03 / 开花 · 长成你的协作人格之花'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
+  const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归类 · 花苞扫过 16 型，每个会话落到它最接近的类型'], [T.grow, '03 / 开花 · 长成你的协作人格之花'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
   genStage(g, lab[0][1]); lab.slice(1).forEach((x) => at(x[0], () => genStage(g, x[1])));
   // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与花苞随即出现（花的角度在 genTick 里逐帧写）。
   // 首次启动时外框先是 Orbit 标志的倾斜椭圆（石板灰、留一道缺口），随翻正补全并换成外框的墨色
@@ -453,7 +456,7 @@ function genPlay(g) {
   qa('.g-fp .fp-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
   A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 700 : 80 });
   A(q('.g-fp .fp-flower'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 860 : 120, easing: G_SPRING });
-  // 02：扫掠扇形跟着花苞转一圈，会话点在领瓣扫过处落位；节律带与方位数字淡入（轨道环带与行星在 genTick 里跟着扫描写）
+  // 02：扫掠扇形跟着花苞转一圈，会话点在领瓣扫过处落到各自的类型；节律带与方位数字淡入（轨道环带与行星在 genTick 里跟着扫描写）
   A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
   qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
   A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
