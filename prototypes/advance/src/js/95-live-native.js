@@ -1,6 +1,7 @@
 /* ============ live: native shell + first run (slice 7) ============
    Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
-   (22-window.js nativeWin), host menu commands (tandem:command → settings / palette / about / route / toggleEdition / refresh).
+   (22-window.js nativeWin), host menu commands (tandem:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
+   toggleEdition / refresh).
    Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
    /v1/shell/onboarding (+ /v1/app/discovery) with estimates, 添加文件夹 = LVN.addSource() (native chooseFolder, browser: the
    path field) → POST /v1/app/sources; 开始分析 aligns the sources, PATCHes recent_days and POSTs an import job; job frames
@@ -25,6 +26,12 @@ LVN.command = function (d) {
   if (cmd === 'settings') { closeModal(); openSettings(d.tab || undefined); }
   else if (cmd === 'palette') { closeModal(); openPalette(); }
   else if (cmd === 'about') { closeModal(); openAbout(); }
+  else if (cmd === 'keys') { closeModal(); openKeys(); }
+  else if (cmd === 'onboarding') { closeModal(); openOnboarding(0); }
+  else if (cmd === 'reveal') { closeModal(); openReveal(); }
+  else if (cmd === 'report') { closeModal(); openReport(); }
+  else if (cmd === 'share') { closeModal(); openShare(); }
+  else if (cmd === 'csv') { closeModal(); openCSV(); }
   else if (cmd === 'toggleEdition') edToggle();
   else if (cmd === 'refresh') LVN.refresh();
   else if (cmd === 'route') {

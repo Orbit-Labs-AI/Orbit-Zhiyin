@@ -1,4 +1,4 @@
-# Orbit 品牌：名称与标志
+# Orbit 品牌：名称、标志与字体
 
 状态：现行 · 维护者 `yhyfhgs` · 2026-10-02 起生效 · 适用：Lite / Advance（同一个 App）
 
@@ -35,6 +35,21 @@
 ![Orbit App 图标](logo/orbit-icon.png)
 
 文件由 [`logo/generate.py`](logo/generate.py) 生成：`python3 docs/design/logo/generate.py`，纯 Python、无第三方依赖、结果可复现。圈数、起止半径、轴向抬升、视角、线宽和交叉留白都是脚本顶部的常量；断口是真正断开的，可直接放在任意底色上。PNG 由浏览器截图导出，改 SVG 后需同步更新。
+
+## 字体
+
+2026-10-03 起全站改为一套无衬线系统字体，取代此前「标题用衬线 Source Serif 4、数字与元信息用等宽 JetBrains Mono」的约定。App 只面向 macOS 14+ 且离线运行，因此只用系统自带字体，不打包、不内联网页字体；做法参照 [Apple HIG Typography](https://developer.apple.com/design/human-interface-guidelines/typography)。
+
+| 用途 | 字体 | token（`prototypes/advance/src/styles/00-base.css`） |
+| --- | --- | --- |
+| 正文、控件、眉题 | SF Pro（拉丁、数字）+ PingFang SC（中文） | `--font-sans` |
+| 页面标题、弹窗标题、人格字母 | 同上，用较大字号和 600 字重，不用衬线 | `--font-display` |
+| KPI、表格、日期范围、计数 | 同 `--font-sans`，加 `font-variant-numeric: tabular-nums` | `--font-num`（`.mono` 类） |
+| 代码、路径、命令、ID、快捷键、原始 CSV/报告文本 | SF Mono（`ui-monospace`），中文回退 PingFang SC | `--font-mono`（`.code-t` 类与 `code`/`kbd`/`.tt-cmd` 等） |
+
+- 字体栈拉丁在前、中文在后（`-apple-system` / SF Pro → PingFang SC → Hiragino Sans GB → sans-serif），中英文各自落到对应字体；`-apple-system` 由系统按字号切换 SF Pro Text / Display。
+- 眉题 `.eb` 为 11 px 600 大写 sans，字距 0.04em；不再用等宽字体的负词距修正。
+- 历史类名 `.mono`（数字/元信息）与 `.serif`（标题）保留以减少改动，含义以上表为准。分享卡 canvas 与 SVG 文字读取同一组 token。
 
 ## 备选与历史版本
 

@@ -10,7 +10,7 @@
 .rc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);min-height:20px}
 .rc-top .lvl{margin-right:1px}
 .rc-save{margin-left:auto;display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
-.rc-save b{font:600 15px/18px var(--mono);color:var(--ink-1);font-variant-numeric:tabular-nums}
+.rc-save b{font:600 15px/18px var(--font-num);color:var(--ink-1);font-variant-numeric:tabular-nums}
 .rc-save .u{font-size:11px;color:var(--ink-3)}
 .rc-title{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
 .rc-why{font-size:12px;line-height:17px;color:var(--ink-2)}
@@ -21,7 +21,7 @@
 .rc-ag .dot{width:7px;height:7px;box-shadow:0 0 0 1px var(--surface)}
 .rc-ag .dot+.dot{margin-left:-2px}
 .rc-ag>span:not(.dot){margin-left:4px;color:var(--ink-2)}
-.rc-tok{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);white-space:nowrap}
+.rc-tok{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-num);white-space:nowrap}
 .rc-tok.good{color:var(--good)}
 .rc-foot{display:flex;align-items:center;gap:8px;padding-top:4px}
 /* 原指标：放在操作行左侧（不再单独占一行），过长时省略，完整值在 tooltip */
@@ -32,8 +32,8 @@
 .rc-h{margin:4px 0 0;font-size:22px;line-height:28px;text-wrap:balance}
 .rc-kpis{display:flex;flex-wrap:wrap;gap:0 14px;margin:12px 0 0;border-top:1px solid var(--hair)}
 .rc-kpi{flex:1 1 120px;display:flex;flex-direction:column;gap:3px;padding:10px 0;min-width:0}
-.rc-kpi .v{font:600 18px/24px var(--mono);color:var(--ink-1);font-variant-numeric:tabular-nums;white-space:nowrap}
-.rc-kpi .v small{font:500 11px/1 var(--mono);color:var(--ink-3);margin-left:4px}
+.rc-kpi .v{font:600 18px/24px var(--font-num);color:var(--ink-1);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rc-kpi .v small{font:500 11px/1 var(--font-num);color:var(--ink-3);margin-left:4px}
 .rc-kpi .v.good{color:var(--good)}
 .rc-kpi .cap{font-size:11px;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rc-kpi .rc-ag{flex-wrap:wrap}
@@ -62,7 +62,7 @@
 .rc-days i{display:block;height:6px;border-radius:2px;background:var(--line)}
 .rc-days i.base{background:var(--h3)}
 .rc-days i.on{background:var(--accent)}
-.rc-days i.mark{height:auto;background:none;border-radius:0;font:10px/1 var(--mono);color:var(--ink-1);text-align:center}
+.rc-days i.mark{height:auto;background:none;border-radius:0;font:10px/1 var(--font-num);color:var(--ink-1);text-align:center}
 .rc-dlbl{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:14px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .rc-dlbl>span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 /* 时间轴标签兼作哑铃图图例：灰 = 安装前，accent = 安装后 */
