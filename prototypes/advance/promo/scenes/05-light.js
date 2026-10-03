@@ -81,8 +81,11 @@ scene('05-light', () => {
   };
   const env = (b) => E.sine(clamp((b - FADE_IN[0]) / (FADE_IN[1] - FADE_IN[0]))) * (1 - E.sine(clamp((b - FADE_OUT[0]) / (FADE_OUT[1] - FADE_OUT[0]))));
 
-  every(0, 90, (p, b) => {
-    const e = env(b);
+  // v17.3: the waypoints stay in the v17 88-beat grid; the whole path is stretched evenly to the film's length (closing
+  // scene END 89 + its SHIFT), so the fade-out still ends on the last frame
+  const LK = (89 + (SHIFT['60-close'] || 0)) / 88;
+  every(0, 90 * LK, (p, bf) => {
+    const b = bf / LK, e = env(b);
     B.forEach((o) => {
       const [x, y, w, st] = o.at(b), d = o.d, wt = weights(o, b);
       // slow drift and breathing (periods ≈ 26–37 beats, never in time with the music)
