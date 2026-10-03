@@ -318,7 +318,8 @@ def freeze(output: Path, docker: str = "docker") -> dict:
                  preflight_sha256=digest(output / "container-preflight.json"),
                  personalization_preflight_sha256=digest(output / "personalization-preflight.json"))
     study["input_preparation_audits"] = {name: digest(output / name) for name in (
-        "tasks/paper-overlap.json", "paper-downloads.json", "paper-image-hashes.json", "download-cache-change.json")
+        "tasks/split-overlap.json", "tasks/paper-overlap.json", "paper-downloads.json",
+        "paper-image-hashes.json", "download-cache-change.json")
         if (output / name).is_file()}
     save(output / "benchmark_manifest.json", study)
     (output / "benchmark_manifest.sha256").write_text(digest(output / "benchmark_manifest.json") + "\n")
@@ -332,6 +333,8 @@ def load_frozen(output: Path) -> dict:
     study = read(path)
     if not study["frozen"] or any(digest(MODULE / name) != value for name, value in study["adapter_files"].items()):
         raise ValueError("Runner changed after freeze; use a new study")
+    if any(digest(output / name) != value for name, value in study.get("input_preparation_audits", {}).items()):
+        raise ValueError("Input preparation audit changed after freeze")
     return study
 
 

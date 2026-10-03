@@ -4,7 +4,13 @@ import pytest
 from evals.artificial_benchmark.adaptation import add_spec, history_pack, packs
 from evals.artificial_benchmark.evaluate import aggregate, compare
 from evals.artificial_benchmark.runner import summarize_events
-from evals.artificial_benchmark.study import offline_verifier, strip_skills
+from evals.artificial_benchmark.study import (
+    digest,
+    load_frozen,
+    offline_verifier,
+    save,
+    strip_skills,
+)
 
 
 def assistant(usage=None, stop="stop"):
@@ -107,3 +113,15 @@ def test_history_only_generation_does_not_inspect_host_rules(monkeypatch, tmp_pa
     pack = history_pack(spec, reads=None, appdb=None, home=tmp_path)
     assert inspected == []
     assert pack["content"] == {"existing_rules": [], "inventory": []}
+
+
+def test_frozen_study_rejects_changed_input_overlap_audit(tmp_path):
+    audit = tmp_path / "overlap.json"
+    save(audit, {"shared": 80})
+    manifest = tmp_path / "benchmark_manifest.json"
+    save(manifest, {"frozen": True, "adapter_files": {}, "input_preparation_audits": {audit.name: digest(audit)}})
+    (tmp_path / "benchmark_manifest.sha256").write_text(digest(manifest))
+    assert load_frozen(tmp_path)["frozen"]
+    save(audit, {"shared": 0})
+    with pytest.raises(ValueError, match="Input preparation audit changed"):
+        load_frozen(tmp_path)
