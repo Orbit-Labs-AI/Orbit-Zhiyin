@@ -99,6 +99,11 @@ scene('30-persona', () => {
       dial, core: E.out(lp(b, 27.0, .8)) * out, needle: E.out(lp(b, 27.8, .5))
     });
     hlDraw(b, keep, dial);
+    // H9：右侧的点从轨道沿方位约 92° 径向收进罗盘，b27.0–27.3 正好穿过「委托」所在的 r 303，翻平的标志外圈也压在「即兴 / 委托 / 规划」上；
+    // 方位字等点穿过、标志淡到一半（b27.7）再淡入，b28.2 与标志淡完同时到齐
+    // （取 drawCompass 按刻度给出的透明度与此处的较小者），不压在徽章下
+    const poles = decks[2].svg && decks[2].svg.querySelector('.cp-poles');
+    if (poles) poles.style.opacity = Math.min(+poles.style.opacity || 0, E.out(lp(b, 27.7, .5))).toFixed(3);
   });
 
   /* ---------- 3.3 / 3.4 文字 ---------- */
