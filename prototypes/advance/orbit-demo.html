@@ -896,7 +896,6 @@ body.native .win.nosb .tbar{padding-left:20px}
 .fp2 .fp-pls{transition:opacity .2s}
 .fp2 .fpd:hover circle{fill:var(--field)}
 .fp2 .fpd{transform-box:fill-box;transform-origin:center;animation:grow .25s ease-out both}
-.pe-fp-legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:11px;color:var(--ink-2);margin-top:4px}
 .pe-evo{margin-top:12px}
 .pe-ev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hair)}
 .pe-evi{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -916,7 +915,6 @@ body.native .win.nosb .tbar{padding-left:20px}
 .fp2:hover .fp-bd{animation:fp-jit .9s ease-in-out infinite}
 @keyframes fp-jit{0%,100%{transform:rotate(0deg)}25%{transform:rotate(3deg)}50%{transform:rotate(-1.5deg)}75%{transform:rotate(-3deg)}}
 @media (prefers-reduced-motion:reduce){.fp2:hover .fp-bd{animation:none}}
-.pe-fp-legend .lnk{white-space:nowrap}
 /* hero polish: evolution months as one row of four, fingerprint + legend centred in the paper panel */
 .pe-evw{margin-top:24px}
 .pe-evrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:4px;align-items:center;max-width:520px}
@@ -924,9 +922,6 @@ body.native .win.nosb .tbar{padding-left:20px}
 .pe-evrow button>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .persona-hero .fp-wrap{justify-content:center;padding:40px 12px 24px}
 .pe-fpc{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
-.pe-fp-legend{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:6px;justify-content:center;margin-top:0;max-width:360px;line-height:16px}
-.pe-fp-legend>svg{flex:none}
-.pe-fp-legend>.row{align-items:center}
 /* fit card: title on one line, scale note beneath; meta as two fixed lines (sample · CI / friction · completion) */
 .pe-fit-h{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
 .pe-fit-h .cap{font-size:11px}
@@ -935,7 +930,6 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* pass 2: hero line in display sans + three tabular facts; one-line footnotes; strengths / blind spots as aligned rows; fit name at 13 */
 .pe-line{margin:12px 0 0;max-width:580px;font:500 15px/1.55 var(--font-display);color:var(--ink-1);text-wrap:balance}
 .pe-line .btn{vertical-align:1px;margin-left:2px;font-family:var(--font-sans)}
-.pe-line .aib{margin-right:6px;vertical-align:2px;font-family:var(--font-sans);font-weight:500}
 .pe-facts{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12px;line-height:16px;color:var(--ink-3)}
 .pe-facts b{color:var(--ink-1);font-weight:600}
 .pe-foot{margin-top:8px;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -6004,7 +5998,7 @@ PAGES['l-persona'] = () => {
   const hero = '<div class="card persona-hero l-phero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code" aria-label="' + p.code + ' ' + p.zh + '">' + p.code.split('').map((ch) => '<span class="L serif">' + ch + '</span>').join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;flex-wrap:wrap"><span class="serif l-zh">' + p.zh + '</span><span class="serif l-en">' + p.en + '</span></div>' +
-    '<p class="serif l-line">' + esc(p.line) + '</p><div class="row" style="flex-wrap:wrap;gap:6px"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + tags + '</div>' +
+    '<p class="serif l-line">' + esc(p.line) + '</p><div class="row" style="flex-wrap:wrap;gap:6px">' + tags + '</div>' +
     '<div class="row l-acts"><button type="button" class="btn p l-big" data-act="reveal">' + ic('play', 13) + '播放揭晓</button><button type="button" class="btn l-big" data-act="share">' + ic('share', 14) + '导出分享卡</button></div></div>' +
     '<div class="fp-wrap l-fp" data-hero="fp">' + fp2SVG(L, p, 300, { labels: true }) + '</div></div>';
   const axes = '<div class="card pad l-axes"><div class="hd"><div class="grow"><span class="ct">四个维度</span><span class="cap">点的位置 = 你偏向哪一极 · 中线 50</span></div></div>' + [0, 1, 2, 3].map((i) => {
@@ -6595,14 +6589,14 @@ PAGES.persona = () => {
     '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + peScopeTag(per) + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
-    '<p class="pe-line"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
+    '<p class="pe-line">' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
     '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px">' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>' +
     (note ? '<div class="cap" style="margin-top:8px;font-size:11px" title="人格只按时间、Agent 与项目计算，和侧栏、报告一致">' + esc(note) + '</div>' : '') +
     // 演变：月份码 + 四轴折线（评审 A2-V06）
     '<div class="pe-evw"><div class="eb" style="margin-bottom:8px" title="按月重算，点击月份切换统计周期">演变 · 按月</div><div class="evo pe-evrow">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="tcode" style="display:block;font-size:14px;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 12, 'color:var(--ink-4)') : '')).join('') + '</div>' +
     '<div class="vz pe-evo" data-vz="pe-evo"></div><div class="cap pe-foot" title="四个维度逐月的值；跨过中线 50 的月份，该位字母会变">中线 50 · ≥ 50 取高值一极</div></div></div>' +
     '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + '<div class="pe-fpc">' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
-    '<div class="pe-fp-legend">' + glyphSVG(p, 16) + '<span><b>' + (TYPES[p.code] ? p.zh + '之花' : '协作人格之花') + '</b> · 外圈是每个会话偏向的类型' + (S.persona.fpType != null ? ' · <button type="button" class="lnk" data-act="fpType" data-t="' + S.persona.fpType + '">收起 ' + FP_TYPES[S.persona.fpType] + '</button>' : '') + '</span></div></div></div></div>' +
+    '</div></div></div>' +
     '<div class="three pe-three" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)">' +
     '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button>' + (LV.live ? '' : '<button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button>') + '</div></div>' +
     '<div class="vz" data-vz="pe-axes"></div>' +
