@@ -356,7 +356,7 @@ function fpOrbitIn(svg) {
   svg.querySelectorAll('.fp-pl').forEach((el, i) => { if (el.animate) out.push(el.animate([{ transform: 'rotate(0deg)', opacity: 0 }, { opacity: 1, offset: 0.12 }, { transform: 'rotate(' + el.dataset.pa + 'deg)', opacity: 1 }], { duration: 1200, delay: i * 60, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' })); });
   return out;
 }
-RENDER_HOOKS.push((m, entered) => { if (entered && !OVL) { const svg = m.querySelector('svg.fp2'); fpWobble(svg); fpOrbitIn(svg); } });
+// 何时播放（进入页面、版本切换、数据到位、人格切换时的收起与绽开）由 38-bloom-motion.js 的渲染钩子决定
 
 // live reveal: GET /v1/uiview/persona/reveal for the shown scope first; a settled code plays the same dial / Genesis reveal
 // on the real rows (openReveal → persona(L) → personaLive); only an empty scope (0 sessions) has nothing to reveal
