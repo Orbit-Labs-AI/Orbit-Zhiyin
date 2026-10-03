@@ -255,9 +255,11 @@ def ablated(*, gates: tuple[str, ...] = (), terms: tuple[str, ...] = (),
 
 
 def replay_cases(cases: list[dict], build: Callable, k: int = K) -> dict:
-    """Static replay over ``{id, inputs, memory?, relevant}`` cases (EV-05.1 v0)."""
+    """Static replay over ``{id, inputs, memory?, relevant}`` cases (EV-05.1 v0).
+
+    Negative cases (``expect``, no relevant keys) are scored by evals.recommendation.replay, not here."""
     rows = []
-    for case in cases:
+    for case in (c for c in cases if "expect" not in c):
         top = top_k(build(case["inputs"], EMPTY_MEMORY | (case.get("memory") or {})), k)
         gain = gains(top, case["relevant"])
         rows.append({"user": case["id"], "t": None, "top": [c["rec_key"] for c in top], "hit": any(gain),
