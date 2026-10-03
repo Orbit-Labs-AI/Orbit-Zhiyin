@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..recommend.contracts import Family
 from .auth import ApiError
@@ -150,6 +150,120 @@ def check_target(target_agent: str) -> None:
 def now_ms() -> int:
     """Wall clock in epoch ms; one seam so tests can move the presentation day anchor."""
     return time.time_ns() // 1_000_000
+
+
+class _Params(BaseModel):
+    """GET query parameters of one section; unknown keys are an error, not ignored."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ProductParams(_Params):
+    bucket: Literal["day", "week", "month"] = "day"
+    with_text: bool = False
+    compare_previous: bool = False
+
+
+class PresentationParams(_Params):
+    window: str | None = None
+    target_agent: str = "generic"
+    family: Family | None = None
+
+
+class RecommendationParams(_Params):
+    target_agent: str = "generic"
+    kind: Literal["skill", "agent", "hook", "prompt"] | None = None
+    limit: int = Field(6, ge=1, le=20)
+    family: Family | None = None
+
+
+class PreferenceParams(_Params):
+    task_id: str | None = None
+
+
+class SessionParams(_Params):
+    session_id: str
+
+
+class CatalogRequestParams(_Params):
+    project_id: str | None = None
+    model: str | None = None
+    scene: str | None = None
+    limit: int = Field(10, ge=1, le=100)
+
+
+class AnalysisParams(_Params):
+    project_id: str | None = None
+    model: str | None = None
+    before: str | None = None
+    audience: str = "user"
+    scene: str = "auto"
+
+
+def _drop_none(**values) -> dict:
+    return {k: v for k, v in values.items() if v is not None}
+
+
+def product_params(p: ProductParams, scope) -> dict:
+    if p.compare_previous and (scope.from_ts is None or scope.until_ts is None):
+        raise ApiError(422, "invalid_request", "上期比较需要明确的 from_ts 和 until_ts")
+    return p.model_dump()
+
+
+def presentation_params(p: PresentationParams, scope, now: int) -> tuple[dict, dict | None]:
+    """Snapshot params + the resolved window; relative windows anchor on the local day."""
+    from ..analytics.presentation.metrics import window_scope
+
+    check_target(p.target_agent)
+    try:
+        selected = window_scope(scope, p.window, now_ts=now)
+    except ValueError as error:
+        raise ApiError(422, "invalid_request", str(error)) from error
+    params = {"window": p.window, "target_agent": p.target_agent, "family": p.family}
+    bounds = None
+    if p.window not in (None, "all"):
+        if scope.until_ts is None:
+            params["window_until"] = selected.until_ts
+        bounds = {"name": p.window, "from_ts": selected.from_ts, "until_ts": selected.until_ts,
+                  "requested_at": now}
+    return params, bounds
+
+
+def recommendation_params(p: RecommendationParams) -> dict:
+    check_target(p.target_agent)
+    return _drop_none(context={"agent": p.target_agent}, kind=p.kind, limit=p.limit,
+                      family=p.family)
+
+
+def section_params(name: str, scope, raw: dict, now: int) -> dict:
+    """The exact params a section's GET route would snapshot under, from its query params.
+
+    ``/v1/analytics/recompute`` uses this so a recompute refreshes the snapshot the UI reads
+    (same scope hash) and rejects bad values with 422 instead of failing in the worker.
+    """
+    try:
+        if name == "products":
+            return product_params(ProductParams(**raw), scope)
+        if name == "presentation":
+            return presentation_params(PresentationParams(**raw), scope, now)[0]
+        if name == "recommendations":
+            return recommendation_params(RecommendationParams(**raw))
+        if name == "preferences":
+            task = PreferenceParams(**raw).task_id
+            return {"task_id": task} if task is not None else {}
+        if name == "session":
+            return SessionParams(**raw).model_dump()
+        if name == "catalog_requests":
+            return _drop_none(**CatalogRequestParams(**raw).model_dump())
+        if name == "analysis":
+            return _drop_none(**AnalysisParams(**raw).model_dump())
+        if name == "comparison":
+            raise ApiError(422, "invalid_request", "comparison 请用 POST /v1/analytics/compare")
+        _Params(**raw)
+        return {}
+    except ValidationError as error:
+        raise ApiError(422, "invalid_request", f"Invalid params for {name}: "
+                       f"{error.errors(include_url=False)}") from error
 
 
 class RecomputeRequest(BaseModel):
@@ -339,16 +453,15 @@ def router(gw: Gateway) -> APIRouter:
                  offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
                  wait_ms: int = wait, if_none_match: str | None = Header(None)):
         """Worker-computed products; ``sessions`` is paged like /v1/analytics/sessions."""
-        if compare_previous and (scope.from_ts is None or scope.until_ts is None):
-            raise ApiError(422, "invalid_request", "上期比较需要明确的 from_ts 和 until_ts")
-        params = {"bucket": bucket, "with_text": with_text, "compare_previous": compare_previous}
+        params = product_params(ProductParams(bucket=bucket, with_text=with_text,
+                                              compare_previous=compare_previous), scope)
         return serve("products", scope, params, wait_ms, if_none_match, page=(offset, limit))
 
     def drop_none(**values) -> dict:
         return {k: v for k, v in values.items() if v is not None}
 
-    def product_params() -> dict:  # Same params as /v1/analytics/products defaults: one cache.
-        return {"bucket": "day", "with_text": False, "compare_previous": False}
+    def default_products() -> dict:  # Same params as /v1/analytics/products defaults: one cache.
+        return ProductParams().model_dump()
 
     @api.get("/v1/analytics/products/sessions")
     def product_sessions(scope=scope_dependency, query: str = "", offset: int = Query(0, ge=0),
@@ -363,7 +476,7 @@ def router(gw: Gateway) -> APIRouter:
                     **session_page(body, query=query, offset=offset, limit=limit)}
 
         tag = f"/sessions?{sha256(query.encode()).hexdigest()[:8]}:{offset}:{limit}"
-        return serve("products", scope, product_params(), wait_ms, if_none_match,
+        return serve("products", scope, default_products(), wait_ms, if_none_match,
                      view=(tag, view))
 
     @api.get("/v1/analytics/products/compare")
@@ -374,7 +487,7 @@ def router(gw: Gateway) -> APIRouter:
         from ..analytics.products.summaries import compare_sessions
 
         tag = f"/compare?{sha256(f'{first}|{second}'.encode()).hexdigest()[:12]}"
-        return serve("products", scope, product_params(), wait_ms, if_none_match,
+        return serve("products", scope, default_products(), wait_ms, if_none_match,
                      view=(tag, lambda body: compare_sessions(body, first, second)))
 
     @api.post("/v1/analytics/compare")
@@ -404,33 +517,28 @@ def router(gw: Gateway) -> APIRouter:
                     "batches": [service.match(MatchRequest.model_validate(r))
                                 for r in body.get("requests") or []]}
 
+        from tandem_catalog import get_service
+
+        import sqlite3
+
+        store = get_service(gw.home / "catalog.db").store
+        try:  # catalog changes must change the ETag (no stale 304)
+            with store.connect(True) as conn:
+                generation = store.generation(conn)
+        except sqlite3.Error:
+            generation = "unknown"
         params = drop_none(project_id=project_id, model=model, scene=scene, limit=limit)
         return serve("catalog_requests", Scope(), params, wait_ms, if_none_match,
-                     view=("/match", view))
+                     view=(f"/match@{generation}", view))
 
     @api.get("/v1/analytics/presentation")
     def presentation(scope=scope_dependency, window: str | None = None,
                      target_agent: str = "generic",
                      family: Family | None = None, wait_ms: int = wait,
                      if_none_match: str | None = Header(None)):
-        from ..analytics.presentation.metrics import window_scope
-
-        check_target(target_agent)
-
-        now = now_ms()
-        try:
-            # Reject invalid windows before queueing work; anchor relative windows on the
-            # local day so the snapshot key changes exactly when the day does.
-            selected = window_scope(scope, window, now_ts=now)
-        except ValueError as error:
-            raise ApiError(422, "invalid_request", str(error)) from error
-        params = {"window": window, "target_agent": target_agent, "family": family}
-        bounds = None
-        if window not in (None, "all"):
-            if scope.until_ts is None:
-                params["window_until"] = selected.until_ts
-            bounds = {"name": window, "from_ts": selected.from_ts,
-                      "until_ts": selected.until_ts, "requested_at": now}
+        params, bounds = presentation_params(
+            PresentationParams(window=window, target_agent=target_agent, family=family), scope,
+            now_ms())
         return serve("presentation", scope, params, wait_ms, if_none_match, window=bounds)
 
     @api.get("/v1/analytics/recommendations")
@@ -439,8 +547,8 @@ def router(gw: Gateway) -> APIRouter:
                         kind: Literal["skill", "agent", "hook", "prompt"] | None = None,
                         limit: int = Query(6, ge=1, le=20), family: Family | None = None,
                         wait_ms: int = wait, if_none_match: str | None = Header(None)):
-        check_target(target_agent)
-        params = drop_none(context={"agent": target_agent}, kind=kind, limit=limit, family=family)
+        params = recommendation_params(RecommendationParams(target_agent=target_agent, kind=kind,
+                                                            limit=limit, family=family))
         return serve("recommendations", scope, params, wait_ms, if_none_match)
 
     @api.post("/v1/analytics/recommendations")
@@ -486,6 +594,9 @@ def router(gw: Gateway) -> APIRouter:
             raise ApiError(422, "invalid_request", f"Unknown scope keys: "
                            f"{sorted(set(request.scope) - allowed)}")
         scope = analytics_scope(**request.scope)
+        now = now_ms()
+        prepared = {name: section_params(name, scope, request.params, now)
+                    for name in request.sections}  # all-or-nothing validation
         rev = gw.revisions.snapshot()
         if rev["data_rev"] is None:
             raise ApiError(409, "no_projection", "No published data to analyse", retryable=True)
@@ -493,9 +604,10 @@ def router(gw: Gateway) -> APIRouter:
         scope_dict = asdict(scope)
         jobs = []
         for name in request.sections:
-            h = scope_hash(scope_dict, request.params)
+            params = prepared[name]
+            h = scope_hash(scope_dict, params)
             gw.supervisor.analysis.clear_failures(name, h)  # Manual recompute resets the circuit.
-            task = gw.supervisor.analysis.submit(name, scope_dict, request.params, h,
+            task = gw.supervisor.analysis.submit(name, scope_dict, params, h,
                                                  "interactive",
                                                  (rev["data_rev"], rev["inventory_rev"]), rules)
             jobs.append({"section": name, "scope_hash": h, "job_id": task.id if task else None})
