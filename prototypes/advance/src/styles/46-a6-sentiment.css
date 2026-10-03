@@ -1,5 +1,5 @@
 /* A6 情绪与语义（js/45-a6-sentiment.js）。情绪发散色只用 --vz-mood-neg / --vz-mood-pos；纠偏与异常用 --vz-corr；AI 抽取的内容用紫色 .aib 标识。
-   度量条中性灰；前两类摩擦用墨色强调。 */
+   度量条中性灰；前两类摩擦用墨色强调；高频词只用墨阶。 */
 .sn-two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .sn-band{fill-opacity:.14}
 .vz-svg .sn-ev{stroke-width:2}
@@ -16,29 +16,6 @@
 .sn-fric-d{font-size:11px;text-align:right;color:var(--ink-2)}
 .sn-fric-d.vz-bad{color:var(--crit)}.sn-fric-d.vz-good{color:var(--good)}.sn-fric-d.flat,.sn-fric-d.na{color:var(--ink-4)}
 .sn-fric-m{font-size:11px;text-align:right}
-/* 语义主题卡 + 发散标尺 */
-.sn-topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:6px}
-.sn-topic{border-radius:9px;border:1px solid transparent;background:var(--bg);padding:10px 12px;display:flex;flex-direction:column;gap:4px;text-align:left;min-width:0}
-.sn-topic.top{background:var(--sunken)}
-.sn-topic.on{border-color:var(--ink-1);box-shadow:inset 0 0 0 .5px var(--ink-1)}
-.sn-topic{gap:8px}
-/* 两行：主题名 / 会话数 + 发散标尺 + 均值（原先会话数独占一行） */
-.sn-topic b{font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sn-topic .cap{font-size:11px;white-space:nowrap;flex:none}
-.sn-tn{min-width:52px}
-/* 发散标尺吃满卡宽，数值右对齐成一列；首卡底色是 sunken，标尺轨道改用墨色 6% 以免消失；奇数个时末卡横跨整行 */
-.sn-topic>.row{width:100%}
-.sn-topic .sn-div{flex:1;width:auto}
-.sn-topic>.row>.mono{min-width:30px;text-align:right}
-.sn-topic.top .sn-div{background:color-mix(in srgb,var(--ink-1) 7%,transparent)}
-.sn-topic:last-child:nth-child(odd){grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:30px;row-gap:4px;align-items:center}
-.sn-topic:last-child:nth-child(odd)>.row{grid-column:2;grid-row:1}
-.sn-div{position:relative;display:block;width:100px;max-width:100%;height:8px;flex:none;border-radius:2px;background:var(--sunken)}
-.sn-div .mid{position:absolute;left:50%;top:-3px;width:1px;height:14px;background:var(--line)}
-.sn-div .bar{position:absolute;top:1px;height:6px;border-radius:2px}
-.sn-div .ci{position:absolute;top:3.5px;height:1px;background:var(--ink-1);opacity:.8}
-.sn-div .ci::before,.sn-div .ci::after{content:"";position:absolute;top:-2px;width:1px;height:5px;background:var(--ink-1)}
-.sn-div .ci::before{left:0}.sn-div .ci::after{right:0}
 /* 高频反馈语：短语 | 微型条 | 次数 | 类别色点 */
 .sn-ph{display:grid;grid-template-columns:minmax(0,1fr) 48px 36px auto;gap:8px;align-items:center;border:0;background:none;padding:4px 6px;border-radius:7px;text-align:left;width:100%;font-size:12px}
 .sn-ph:hover{background:var(--bg)}
@@ -48,13 +25,27 @@
 .sn-ph-n{font-size:11px;text-align:right;color:var(--ink-2)}
 .sn-ph-c{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2);min-width:38px}
 .sn-ph-c i{width:7px;height:7px;border-radius:50%;display:inline-block}
-/* 情绪的前因：名称 | 发散条（±0.5）| 值 | n */
-.sn-drv{display:grid;grid-template-columns:minmax(0,1fr) 100px 44px 40px;gap:10px;align-items:center;font-size:12px}
-.sn-drv-n{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sn-drv-v{text-align:right;font-weight:600}
-.sn-drv-k{font-size:11px;text-align:right}
-.sn-drv-ax{margin-top:2px}
-@container main (max-width:639px){.sn-fric{grid-template-columns:minmax(80px,100px) minmax(0,1fr) 28px 44px}.sn-fric-m,.sn-fric-h .cap:last-child{display:none}.sn-drv{grid-template-columns:minmax(0,1fr) 80px 44px}.sn-drv-k{display:none}.sn-div{width:80px}}
+/* 高频词：词云（螺旋 + 矩形碰撞，js 定位）| Top 10。词只用墨阶：t1 墨色半粗、t2 次墨、t3 三级墨；悬停 / 聚焦落到 --sel 底 */
+.sn-words{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,260px);gap:20px;align-items:start}
+.sn-cloud{position:relative;height:240px;min-width:0;overflow:hidden}
+.sn-w{position:absolute;left:0;top:0;border:0;background:none;padding:0 3px;margin:0;border-radius:5px;line-height:1.15;white-space:nowrap;color:var(--ink-3);font-family:var(--font-display);font-weight:500;letter-spacing:-.01em;cursor:pointer;transition:background-color .15s,color .15s}
+.sn-w.t1{color:var(--ink-1);font-weight:600}
+.sn-w.t2{color:var(--ink-2)}
+.sn-w:hover,.sn-w:focus-visible{background:var(--sel);color:var(--ink-1)}
+.sn-w.off{visibility:hidden}
+.sn-top{display:flex;flex-direction:column;gap:1px;min-width:0}
+.sn-tw{display:grid;grid-template-columns:18px minmax(0,1fr) 40px 44px 34px;gap:8px;align-items:center;border:0;background:none;padding:4px 6px;border-radius:7px;text-align:left;width:100%;font-size:12px}
+.sn-tw:not(.sn-tw-h):hover{background:var(--bg)}
+.sn-tw-h{padding-top:0;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid var(--hair);border-radius:0;font-size:11px}
+.sn-tw-h span:nth-child(n+4){text-align:right}
+.sn-tw-r{font-size:11px;color:var(--ink-4);text-align:right}
+.sn-tw-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-1)}
+.sn-tw-bar{display:block;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
+.sn-tw-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-3)}
+.sn-tw-n,.sn-tw-d{font-size:11px;text-align:right;color:var(--ink-2);white-space:nowrap}
+.sn-tw-d{color:var(--ink-3)}
+.sn-wempty{padding:36px 12px;text-align:center;line-height:1.7}
+@container main (max-width:639px){.sn-fric{grid-template-columns:minmax(80px,100px) minmax(0,1fr) 28px 44px}.sn-fric-m,.sn-fric-h .cap:last-child{display:none}.sn-words{grid-template-columns:minmax(0,1fr)}}
 .sn-two .hd .cap,.sn-mood-cap{text-wrap:pretty}
 /* 卡片脚注 / 行动行 / 情绪图图例（紧贴图表上方，替代原先两行的说明文字） */
 .sn-foot{font-size:11px;line-height:15px;margin-top:8px}

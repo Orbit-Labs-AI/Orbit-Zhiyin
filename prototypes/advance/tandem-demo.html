@@ -76,6 +76,9 @@ color-scheme:dark}
 html,body{height:100%}
 body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--font-sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable],pre,code,.code,.log,.ask-a,.tbl td,.sharecard{-webkit-user-select:text;user-select:text}
+/* page text (titles, paths, numbers, notes) stays copyable; controls, charts and drag areas keep none */
+.content{-webkit-user-select:text;user-select:text}
+.content :is(button,[role=button],[role=tab],[role=switch],[role=option],[draggable=true],.btn,.chip,.seg,.sw,label,svg,canvas){-webkit-user-select:none;user-select:none}
 button,input,textarea,select{font:inherit;color:inherit;margin:0;line-height:1.25}
 button{cursor:default}
 a{color:inherit}
@@ -350,6 +353,9 @@ body.native .win.nosb .tbar{padding-left:20px}
 @keyframes slidein{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 .fade{animation:fadein .15s var(--ease)}
 .stale{opacity:.45;transition:opacity .15s}
+/* text links and sortable table headers: the hit area grows to ≥ 24px tall without changing how they look */
+.lnk,.tbl th button{position:relative}
+.lnk::after,.tbl th button::after{content:'';position:absolute;left:-2px;right:-2px;top:50%;height:max(100%,24px);transform:translateY(-50%)}
 
 /* VZ · shared visualization kit (see js/36-vizkit.js). Colors only via tokens; text sizes are fixed px so charts never scale type with width.
    Semantic chart colors (critique §4): one color = one meaning. They read the shell's --sem-* tokens when present and fall back to the theme. */
@@ -583,7 +589,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lite .vz-kpi-l{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .lite .vz-kpi .v{font-family:var(--font-num);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
 .lite .vz-kpi-u{font-size:15px}
-.lite .vz-kpi-d{font-size:12px;line-height:16px}
+.lite .vz-kpi-d{font-size:12px;line-height:16px;white-space:normal;overflow-wrap:anywhere}   /* narrow tiles: the delta wraps instead of running past the edge */
 .lite .vz-kpi.l-warn .v{color:var(--crit)}
 .lite .l-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
 
@@ -771,6 +777,14 @@ body.native .win.nosb .tbar{padding-left:20px}
 .step .mk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 10.5px/1 var(--font-num)}
 .log{flex:1;min-height:160px;border-radius:9px;background:var(--sunken);border:1px solid var(--line);padding:10px 12px;font:11px/17px var(--font-mono);overflow:auto;max-height:340px}
 .log div{white-space:pre-wrap;word-break:break-all}
+
+/* range widening (empty range, wider history has sessions) */
+.range-note{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;color:var(--ink-2);font-size:13px}
+.range-widen{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.range-note .range-widen{margin-top:0}
+/* sidebar agent with no sessions in the selected range */
+.nav .ag.idle{color:var(--ink-3)}
+.nav .ag.idle .dot{opacity:.55}
 
 /* A1 overview: AI-card micro evidence, KPI tiles, outcome share strip, trend controls, persona card, heat line, tool rows, recs (page styles live here, not in 40-pages.css) */
 /* AI card: every column = header row (label + mini viz / regen) → prose → bottom line (evidence link / provenance), so the four bottoms share a baseline */
@@ -1180,7 +1194,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .pj-rleg i{display:inline-block;width:2px;height:10px;border-radius:1px}
 
 /* A6 情绪与语义（js/45-a6-sentiment.js）。情绪发散色只用 --vz-mood-neg / --vz-mood-pos；纠偏与异常用 --vz-corr；AI 抽取的内容用紫色 .aib 标识。
-   度量条中性灰；前两类摩擦用墨色强调。 */
+   度量条中性灰；前两类摩擦用墨色强调；高频词只用墨阶。 */
 .sn-two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .sn-band{fill-opacity:.14}
 .vz-svg .sn-ev{stroke-width:2}
@@ -1197,29 +1211,6 @@ body.native .win.nosb .tbar{padding-left:20px}
 .sn-fric-d{font-size:11px;text-align:right;color:var(--ink-2)}
 .sn-fric-d.vz-bad{color:var(--crit)}.sn-fric-d.vz-good{color:var(--good)}.sn-fric-d.flat,.sn-fric-d.na{color:var(--ink-4)}
 .sn-fric-m{font-size:11px;text-align:right}
-/* 语义主题卡 + 发散标尺 */
-.sn-topics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:6px}
-.sn-topic{border-radius:9px;border:1px solid transparent;background:var(--bg);padding:10px 12px;display:flex;flex-direction:column;gap:4px;text-align:left;min-width:0}
-.sn-topic.top{background:var(--sunken)}
-.sn-topic.on{border-color:var(--ink-1);box-shadow:inset 0 0 0 .5px var(--ink-1)}
-.sn-topic{gap:8px}
-/* 两行：主题名 / 会话数 + 发散标尺 + 均值（原先会话数独占一行） */
-.sn-topic b{font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sn-topic .cap{font-size:11px;white-space:nowrap;flex:none}
-.sn-tn{min-width:52px}
-/* 发散标尺吃满卡宽，数值右对齐成一列；首卡底色是 sunken，标尺轨道改用墨色 6% 以免消失；奇数个时末卡横跨整行 */
-.sn-topic>.row{width:100%}
-.sn-topic .sn-div{flex:1;width:auto}
-.sn-topic>.row>.mono{min-width:30px;text-align:right}
-.sn-topic.top .sn-div{background:color-mix(in srgb,var(--ink-1) 7%,transparent)}
-.sn-topic:last-child:nth-child(odd){grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:30px;row-gap:4px;align-items:center}
-.sn-topic:last-child:nth-child(odd)>.row{grid-column:2;grid-row:1}
-.sn-div{position:relative;display:block;width:100px;max-width:100%;height:8px;flex:none;border-radius:2px;background:var(--sunken)}
-.sn-div .mid{position:absolute;left:50%;top:-3px;width:1px;height:14px;background:var(--line)}
-.sn-div .bar{position:absolute;top:1px;height:6px;border-radius:2px}
-.sn-div .ci{position:absolute;top:3.5px;height:1px;background:var(--ink-1);opacity:.8}
-.sn-div .ci::before,.sn-div .ci::after{content:"";position:absolute;top:-2px;width:1px;height:5px;background:var(--ink-1)}
-.sn-div .ci::before{left:0}.sn-div .ci::after{right:0}
 /* 高频反馈语：短语 | 微型条 | 次数 | 类别色点 */
 .sn-ph{display:grid;grid-template-columns:minmax(0,1fr) 48px 36px auto;gap:8px;align-items:center;border:0;background:none;padding:4px 6px;border-radius:7px;text-align:left;width:100%;font-size:12px}
 .sn-ph:hover{background:var(--bg)}
@@ -1229,13 +1220,27 @@ body.native .win.nosb .tbar{padding-left:20px}
 .sn-ph-n{font-size:11px;text-align:right;color:var(--ink-2)}
 .sn-ph-c{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2);min-width:38px}
 .sn-ph-c i{width:7px;height:7px;border-radius:50%;display:inline-block}
-/* 情绪的前因：名称 | 发散条（±0.5）| 值 | n */
-.sn-drv{display:grid;grid-template-columns:minmax(0,1fr) 100px 44px 40px;gap:10px;align-items:center;font-size:12px}
-.sn-drv-n{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sn-drv-v{text-align:right;font-weight:600}
-.sn-drv-k{font-size:11px;text-align:right}
-.sn-drv-ax{margin-top:2px}
-@container main (max-width:639px){.sn-fric{grid-template-columns:minmax(80px,100px) minmax(0,1fr) 28px 44px}.sn-fric-m,.sn-fric-h .cap:last-child{display:none}.sn-drv{grid-template-columns:minmax(0,1fr) 80px 44px}.sn-drv-k{display:none}.sn-div{width:80px}}
+/* 高频词：词云（螺旋 + 矩形碰撞，js 定位）| Top 10。词只用墨阶：t1 墨色半粗、t2 次墨、t3 三级墨；悬停 / 聚焦落到 --sel 底 */
+.sn-words{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,260px);gap:20px;align-items:start}
+.sn-cloud{position:relative;height:240px;min-width:0;overflow:hidden}
+.sn-w{position:absolute;left:0;top:0;border:0;background:none;padding:0 3px;margin:0;border-radius:5px;line-height:1.15;white-space:nowrap;color:var(--ink-3);font-family:var(--font-display);font-weight:500;letter-spacing:-.01em;cursor:pointer;transition:background-color .15s,color .15s}
+.sn-w.t1{color:var(--ink-1);font-weight:600}
+.sn-w.t2{color:var(--ink-2)}
+.sn-w:hover,.sn-w:focus-visible{background:var(--sel);color:var(--ink-1)}
+.sn-w.off{visibility:hidden}
+.sn-top{display:flex;flex-direction:column;gap:1px;min-width:0}
+.sn-tw{display:grid;grid-template-columns:18px minmax(0,1fr) 40px 44px 34px;gap:8px;align-items:center;border:0;background:none;padding:4px 6px;border-radius:7px;text-align:left;width:100%;font-size:12px}
+.sn-tw:not(.sn-tw-h):hover{background:var(--bg)}
+.sn-tw-h{padding-top:0;padding-bottom:6px;margin-bottom:2px;border-bottom:1px solid var(--hair);border-radius:0;font-size:11px}
+.sn-tw-h span:nth-child(n+4){text-align:right}
+.sn-tw-r{font-size:11px;color:var(--ink-4);text-align:right}
+.sn-tw-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-1)}
+.sn-tw-bar{display:block;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
+.sn-tw-bar i{display:block;height:100%;min-width:2px;border-radius:0 3px 3px 0;background:var(--ink-3)}
+.sn-tw-n,.sn-tw-d{font-size:11px;text-align:right;color:var(--ink-2);white-space:nowrap}
+.sn-tw-d{color:var(--ink-3)}
+.sn-wempty{padding:36px 12px;text-align:center;line-height:1.7}
+@container main (max-width:639px){.sn-fric{grid-template-columns:minmax(80px,100px) minmax(0,1fr) 28px 44px}.sn-fric-m,.sn-fric-h .cap:last-child{display:none}.sn-words{grid-template-columns:minmax(0,1fr)}}
 .sn-two .hd .cap,.sn-mood-cap{text-wrap:pretty}
 /* 卡片脚注 / 行动行 / 情绪图图例（紧贴图表上方，替代原先两行的说明文字） */
 .sn-foot{font-size:11px;line-height:15px;margin-top:8px}
@@ -1507,7 +1512,9 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
    (desktop layer, z below the window), notifications (344px, slide in from the right). */
 .pop{position:absolute;z-index:60;top:30px;right:120px;width:336px;max-height:calc(100% - 46px);overflow:auto;border-radius:12px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);color:var(--ink-1);animation:popin .12s var(--ease);transform-origin:top right}
 .pop .sec{padding:12px 14px;border-top:1px solid var(--hair)}
-.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:calc(100% - 40px);overflow:auto}
+.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:min(60vh,calc(100% - 40px));overflow:auto;overscroll-behavior:contain}
+.dd .dd-q{display:block;width:calc(100% - 4px);margin:2px 2px 5px;height:26px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-1);font:inherit;font-size:12px;position:sticky;top:0;z-index:1}
+.dd button[hidden],.dd hr[hidden]{display:none}
 .dd button{width:100%;display:flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 6px;border:0;border-radius:5px;background:transparent;text-align:left;font-size:13px;color:var(--ink-1);white-space:nowrap}
 .dd button:hover,.dd button.act{background:var(--accent);color:var(--accent-ink)}
 .dd button:hover .k,.dd button.act .k{color:inherit;opacity:.8}
@@ -2085,10 +2092,10 @@ const TYPES = {
   SIFT: ['搭档', 'The Partner', '像结对编程一样边聊边推进，彼此信任。']
 };
 const AXES = [
-  { k: 'D', L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', dim: '自主度', q: '你把多大块的事交出去？', sig: '每会话消息数 · 单轮自主步数 · 打断与中止率' },
-  { k: 'I', L: 'P', Ln: '规划', R: 'I', Rn: '即兴', dim: '结构度', q: '先想清楚再动手，还是边做边想？', sig: '首条消息长度与验收标准 · 规格文件引用 · 中途改向' },
-  { k: 'M', L: 'M', Ln: '多线', R: 'F', Rn: '专注', dim: '并发度', q: '你同时推进几件事？', sig: '每日会话数 · 同日使用的 Agent 数 · 子代理并行度' },
-  { k: 'V', L: 'V', Ln: '求证', R: 'T', Rn: '信任', dim: '求证度', q: '你怎么确认它做对了？', sig: '要求测试 / 编译 / 线上验证的比例 · 回滚与重做率' }
+  { k: 'D', L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', dim: '委托', q: '你把多大块的事交出去？', sig: '每会话消息数 · 单轮自主步数 · 打断与中止率' },
+  { k: 'I', L: 'P', Ln: '规划', R: 'I', Rn: '即兴', dim: '即兴', q: '先想清楚再动手，还是边做边想？', sig: '首条消息长度与验收标准 · 规格文件引用 · 中途改向' },
+  { k: 'M', L: 'M', Ln: '多线', R: 'F', Rn: '专注', dim: '多线', q: '你同时推进几件事？', sig: '每日会话数 · 同日使用的 Agent 数 · 子代理并行度' },
+  { k: 'V', L: 'V', Ln: '求证', R: 'T', Rn: '信任', dim: '求证', q: '你怎么确认它做对了？', sig: '要求测试 / 编译 / 线上验证的比例 · 回滚与重做率' }
 ];
 
 function pickW(r, w) { let tot = 0; for (const k in w) tot += w[k]; let x = r() * tot; for (const k in w) { x -= w[k]; if (x <= 0) return k; } return Object.keys(w)[0]; }
@@ -2268,6 +2275,8 @@ const LIB = [
 ];
 
 const PHRASES = [['用中文', 9, '偏好'], ['直接合并', 6, '纠偏'], ['先只读审查', 5, '规划'], ['部署后验证线上', 7, '验证'], ['简洁一点', 4, '风格'], ['别用子代理', 3, '纠偏'], ['不要改别的文件', 4, '纠偏'], ['用 Cloudflare 不是 Vercel', 2, '纠偏']];
+// A6 高频词 (demo): [词, 近 30 天次数, 出现天数] for the 186-session demo month; the page scales them with the filters
+const WORDS = [['合并', 64, 26], ['提交', 58, 27], ['测试', 55, 25], ['部署', 49, 21], ['继续', 47, 28], ['验证', 44, 22], ['review', 40, 18], ['页面', 37, 16], ['规则', 35, 19], ['修复', 33, 20], ['论文', 30, 11], ['中文', 29, 24], ['接口', 27, 13], ['数据', 26, 15], ['分支', 25, 17], ['推送', 24, 18], ['截图', 22, 12], ['配置', 21, 14], ['文档', 20, 13], ['子代理', 18, 10], ['cloudflare', 17, 8], ['简洁', 16, 12], ['只读', 15, 11], ['样式', 15, 9], ['动画', 14, 7], ['侧栏', 14, 6], ['日志', 13, 9], ['脚本', 12, 8], ['回滚', 12, 7], ['模型', 11, 8], ['latex', 11, 5], ['引用', 10, 5], ['审查', 10, 8], ['性能', 9, 6], ['权限', 9, 7], ['上下文', 9, 6], ['采集', 8, 5], ['回测', 8, 4], ['图表', 7, 5], ['缓存', 7, 5], ['依赖', 6, 5], ['字体', 6, 3], ['端口', 6, 4], ['代理规则', 5, 3], ['清单', 5, 4], ['发布', 5, 4], ['翻译', 5, 4], ['进度', 5, 5], ['重构', 4, 3], ['工作流', 4, 3], ['wrangler', 4, 2], ['快捷键', 4, 2], ['对比', 4, 3], ['导出', 3, 3], ['告警', 3, 2], ['周报', 3, 3], ['排期', 3, 2], ['词云', 3, 1], ['备份', 2, 2], ['水印', 2, 1]];
 const DRIVERS = [['会话超过 90 分钟', -0.31], ['同一命令连续失败 ≥ 2 次', -0.44], ['首条消息写明完成条件', 0.27], ['小步提交并推送', 0.19]];
 const QUOTES = { pos: ['「可以，这版很好，直接合并」', '「线上验证过了，谢谢」', '「对，就是这个意思」', '「这个思路好，继续」'], neg: ['「不要用 Vercel，用 Cloudflare」', '「别再跑 review 了，直接合并」', '「先停一下，你改太多了」', '「为什么又中断了」', '「不是这个意思」'], mid: ['「继续」', '「先看看现在的进度」', '「好的，下一步」'] };
 
@@ -3737,7 +3746,8 @@ new MutationObserver(() => overlayPlace()).observe($('#overlay'), { attributes: 
 })();
 
 /* ============ navigation & render ============ */
-const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sessions', '会话与轨迹'], ['tools', '工具调用'], ['projects', '项目习惯'], ['sentiment', '情绪与语义'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
+// order = the Advance「洞察」sidebar group; ⌥1…⌥9, the 窗口 menu and the palette's 页面 rows all follow it
+const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sentiment', '情绪与语义'], ['sessions', '会话与轨迹'], ['projects', '项目习惯'], ['tools', '工具调用'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
 const PAGES = {};
 // RENDER_HOOKS: fn(mainEl, entered) after every page render; entered = true only when go() changed the page (route enter
 // motion runs once per visit, not on every filter re-render). go() also translates a route to the current edition
@@ -3876,9 +3886,17 @@ const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act=
 let SIDE_EXTRA = null;
 const sideExtra = () => (SIDE_EXTRA ? SIDE_EXTRA() : '');
 const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '">' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
+// sidebar agents (B): 未接入 (never imported: source off and no sessions at all) vs 停用 (imported, then turned off in settings);
+// an agent with no sessions in the selected range fades (.idle) instead of looking like a filter choice
+function agentState(a) { return S.srcOff.has(a.id) ? (a.all ? 'off' : 'none') : 'on'; }
 function sideAgents() {
   const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
-  return AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
+  return AG.map((a) => {
+    const st = agentState(a), off = st !== 'on', n = off ? 0 : agCount(a.id);
+    const dim = !off && !S.agents.has(a.id), idle = !off && !dim && !n;
+    const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' : (idle ? rangeLabel() + '内没有会话 · ' : '') + '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选';
+    return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + tip + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>';
+  }).join('');
 }
 function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
 function renderSide() {
@@ -3887,7 +3905,7 @@ function renderSide() {
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
   $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools') + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('sentiment', '情绪与语义', 'sentiment')) +
+    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪与语义', 'sentiment') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
     group('agents', 'Agents', sideAgents(), '会话') +
     group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
@@ -3922,10 +3940,25 @@ function filterRow(right) {
     '<button type="button" class="chip' + (agN !== AG.length ? ' on' : '') + '" data-act="agentMenu">' + ic('bot', 14, agN === AG.length ? 'color:var(--ink-3)' : '') + agLbl + ic('chev', 11, agN === AG.length ? 'color:var(--ink-3)' : '') + '</button>' +
     '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 ' + PJ.length) + ic('chev', 11) + '</button>' +
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
-    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>';
+    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>' + rangeWidenNote();
 }
-function agentLegendItems() { return AG.map((a) => ({ t: a.name, v: a.id, on: S.agents.has(a.id) })); }
-function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + '</div>'; }
+function agentLegendItems() { return AG.map((a) => { const st = agentState(a); return { t: a.name, v: a.id, on: S.agents.has(a.id), k: st === 'none' ? '未接入' : st === 'off' ? '停用' : String(sel({ noExtra: true, agent: a.id }).length) }; }); }
+// range widening (A): the selected range has no sessions while a wider one has some (e.g. a first import of only older
+// sessions) → offer 扩大到 90 天 / 看全部历史. Advance pages get it under the filter row, Lite (no filter row) in empty().
+function rangeWider() {
+  if (S.range === 0 || !ALL.length || sel({ noExtra: true }).length) return [];
+  const w90 = S.range < 90 && sel({ range: 90, noExtra: true }).length > 0;
+  return sel({ range: 0, noExtra: true }).length ? (w90 ? [90, 0] : [0]) : [];
+}
+function rangeWidenBtns() {
+  const w = rangeWider(); if (!w.length) return '';
+  return '<div class="row range-widen">' + w.map((r, i) => '<button type="button" class="btn' + (i === 0 ? ' p' : '') + '" data-act="range" data-v="' + r + '">' + (r === 0 ? '看全部历史' : '扩大到 ' + r + ' 天') + '</button>').join('') + '</div>';
+}
+function rangeWidenNote() {
+  const b = rangeWidenBtns(); if (!b) return '';
+  return '<div class="card pad range-note" data-range-note><span>' + rangeLabel() + '内没有会话 · 全部历史共 ' + fmt(sel({ range: 0, noExtra: true }).length) + ' 个</span>' + b + '</div>';
+}
+function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
 
 /* ============ editions: Lite / Advance in one app ============ */
 // One window, two editions. Advance = the full desktop app (nine pages, filters, every tool). Lite = genius-FXC's focused
@@ -4050,7 +4083,7 @@ Object.assign(ACT, {
   range: (el) => { S.range = +el.dataset.v; render(); },
   agentToggle: (el, e) => {
     const id = el.dataset.a;
-    if (S.srcOff.has(id)) { toast(agent(id).name + ' 已在设置中停用，先到「设置 › 数据源」启用', { act: '打开设置', onAct: () => openSettings('sources') }); return; }
+    if (S.srcOff.has(id)) { toast(agent(id).name + (agent(id).all ? ' 已在设置中停用' : ' 还没有接入') + '，先到「设置 › 数据源」启用', { act: '打开设置', onAct: () => openSettings('sources') }); return; }
     if (e.altKey) { if (S.agents.has(id) && S.agents.size > 1) S.agents.delete(id); else S.agents.add(id); }
     else if (S.agents.size === 1 && S.agents.has(id)) AG.forEach((a) => S.agents.add(a.id));
     else { S.agents.clear(); S.agents.add(id); }
@@ -4061,7 +4094,30 @@ Object.assign(ACT, {
     else if (S.agents.has(v)) { S.agents.delete(v); if (!S.agents.size) AG.forEach((a) => S.agents.add(a.id)); } else S.agents.add(v);
     render();
   }, { keep: true, refresh: () => [{ h: '多选；全部取消时恢复全部' }].concat(agentLegendItems()).concat([{ sep: 1 }, { t: '全部 Agent', v: '*' }]) }),
-  projectMenu: (el) => openDD(el, [{ t: '全部项目', v: null, on: !S.project }, { sep: 1 }].concat(PJ.map((p) => ({ t: p.name, v: p.id, on: S.project === p.id, k: String(sel({ noExtra: true, project: p.id }).length) }))), (v) => { S.project = v; render(); }),
+  // project filter (C): projects with sessions in the range first; 0-session and scratch-* ones fold into 「其他」 (one click
+  // shows them all); a search box on top filters the rows in place; the menu is height-capped and scrolls inside
+  projectMenu: (el, more) => {
+    const all = more === true;   // the click dispatcher passes the event second
+    const rows = PJ.map((p) => ({ p, n: sel({ noExtra: true, project: p.id }).length }));
+    const fold = (r) => !r.n || /^scratch[-_]/i.test(r.p.name);
+    const main = all ? rows : rows.filter((r) => !fold(r) || r.p.id === S.project);
+    const rest = all ? 0 : rows.length - main.length;
+    const items = [{ t: '全部项目', v: null, on: !S.project }, { sep: 1 }].concat(main.map((r) => ({ t: r.p.name, v: r.p.id, on: S.project === r.p.id, k: String(r.n) })));
+    if (rest) items.push({ sep: 1 }, { t: '其他 ' + rest + ' 个项目（' + rangeLabel() + '无会话或临时目录）', v: '__more' });
+    openDD(el, items, (v) => { if (v === '__more') { setTimeout(() => ACT.projectMenu(el, true), 0); return; } S.project = v; render(); });
+    const dd = $('#dd');
+    if (rows.length > 8 && dd && !dd.hidden) {
+      dd.insertAdjacentHTML('afterbegin', '<input type="search" class="dd-q" placeholder="搜索项目" aria-label="搜索项目" autocomplete="off" spellcheck="false">');
+      const q = dd.querySelector('.dd-q');
+      q.addEventListener('input', () => {
+        const t = q.value.trim().toLowerCase();
+        dd.querySelectorAll('button[data-i]').forEach((b) => { const it = DD && DD.items[+b.dataset.i]; const hit = !t || (it && it.v !== '__more' && String(it.t).toLowerCase().indexOf(t) >= 0); b.hidden = !hit; b.disabled = !hit; });
+        dd.querySelectorAll('hr').forEach((h) => { h.hidden = !!t; });
+      });
+      q.addEventListener('click', (e) => e.stopPropagation());
+      setTimeout(() => { if (q.isConnected) q.focus({ preventScroll: true }); }, 0);
+    }
+  },
   addFilter: (el) => openDD(el, [{ h: '主题' }].concat(Object.keys(TOPICS).map((k) => ({ t: TOPICS[k], v: 't:' + k, on: S.topic === k }))).concat([{ sep: 1 }, { h: '结果' }, { t: '完成', v: 'o:ok', on: S.outcome === 'ok' }, { t: '部分完成', v: 'o:part', on: S.outcome === 'part' }, { t: '放弃', v: 'o:fail', on: S.outcome === 'fail' }]), (v) => {
     const k = v.slice(2); if (v[0] === 't') S.topic = S.topic === k ? null : k; else S.outcome = S.outcome === k ? null : k; render();
   }),
@@ -5536,7 +5592,7 @@ const GUIDE = {
   sessions: () => ['某一次会话里发生了什么、卡在了哪一刻', '先在左侧选会话，再看时间线上的失败与关键时刻'],
   tools: () => ['Agent 最常用哪些工具、哪里在失败或在等你审批', '先看「错误率」卡，再看表里失败多的工具'],
   projects: () => ['不同项目里你的协作方式有何不同、哪个项目最该加护栏', '先看散点图里高于回归线的项目'],
-  sentiment: () => ['你的情绪和纠偏集中在什么时候、因为什么', '先看「情绪分布与纠偏次数」'],
+  sentiment: () => ['你的情绪和纠偏集中在什么时候、因为什么，平时最常说哪些词', '先看「情绪分布与纠偏」，再看下方的「高频词」'],
   recs: () => ['下一步最值得改什么、改完能省多少', '先看列表第一条和右侧预览'],
   library: () => ['有哪些现成的 Skill、规则和配置适合你', '先看「为你推荐」'],
   studio: () => ['怎样把一条建议或工作流交给本地 Agent 做成可用的配置', '先确认目标与上下文，再点生成'],
@@ -5890,6 +5946,9 @@ PAGES.overview = () => {
     ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
     ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
+  // 0 sessions in range: no praise / friction verdict (the backend's 「这段时间还没有会话」 next to 「查看 3 条建议」 read as
+  // contradictory); the range note under the filter row offers the wider range instead
+  if (!st.n) { ai[0][3] = '—'; ai[0][4] = ''; ai[1][3] = '—'; ai[1][4] = ''; }
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
   const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
@@ -5910,7 +5969,7 @@ PAGES.overview = () => {
   const terr = (t) => t.err == null ? '<span class="mono e"' + (t.why ? ' data-tip="' + esc(t.why) + '"' : '') + '>—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
-  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
+  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有接入 Agent'),
     '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
@@ -6076,6 +6135,11 @@ function peRelax(w) {
   if (S.persona.period !== 'all') out.push({ k: 'period', t: '周期 · ' + PERIODS[S.persona.period][2], n: n({ w: [0, LASTDAY] }) });
   return out;
 }
+// the persona page keeps its own period (近 90 天 / a month / 全部), not the global time range: say so on the page (E)
+function peScopeTag(per) {
+  const same = (S.persona.period === '90' && S.range === 90) || (S.persona.period === 'all' && S.range === 0);
+  return '<span class="cap pe-scope" data-pe-scope title="协作人格按本页的统计周期计算；概览人格卡跟随全局范围">统计周期 · ' + per[2] + (same ? '' : '（本页单独设置，全局为' + rangeLabel() + '）') + '</span>';
+}
 const AXR = { D: 0, I: 90, M: 180, V: 270 };
 // 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、轨道环带 R0 → R0+RH、行星轨道 PR、节律带 98 → 118、内盘 92、
 // 玫瑰半径 RR、指针半长 NL（= 0.8 × RR，短于字母位，不压住分数）。Genesis（56-onboarding.js）的粒子落点、环带扫描与玫瑰生长共用这一组常量。
@@ -6206,13 +6270,14 @@ PAGES.persona = () => {
   if (p.pending) return tbar('协作人格', filt + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="stack">' + LV.pend(420) + LV.pend(260) + '</div></div>';
   if (!p.ok) {
     const frac = 0; const x = 56, y = 10;   // 1 个会话即可出结论：这里只剩没有会话 / 取不到 / 暂不计算三种空态，环不再表示进度
-    const relax = peRelax([per[0], per[1]]);
+    const relax = peRelax([per[0], per[1]]).filter((r) => r.n > L.length);   // only filters whose removal adds sessions (D)
+    const more = relax.some((r) => r.k !== 'period'), wider = relax.some((r) => r.k === 'period');
     return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--font-num)" fill="var(--ink-1)">' + L.length + '</text></svg><div class="col" style="flex:1;min-width:240px">' +
       (allOff ? '<h2 class="serif" style="margin:0;font-size:24px">所有数据源已停用</h2><p style="margin:0;color:var(--ink-2)">人格需要会话数据。到「设置 › 数据源」重新启用至少一个 Agent，分析会立即恢复。</p><div class="row"><button type="button" class="btn p" data-act="openSettings" data-tab="sources">打开设置 · 数据源</button></div>'
         : L.length ? '<h2 class="serif" style="margin:0;font-size:24px">' + (p.error ? '画像暂时取不到' : '当前筛选下暂不计算画像') + '</h2><p style="margin:0;color:var(--ink-2)">' + (p.error ? '稍后会自动重试，也可以换一个统计周期。' : '换一个统计周期，或清除 Agent / 项目筛选。') + '</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>'
-        : '<h2 class="serif" style="margin:0;font-size:24px">当前筛选下还没有会话</h2><p style="margin:0;color:var(--ink-2)">有 1 个会话就能给出协作人格。' + (relax.length ? '放宽下面任一筛选可以补到：' : '可以放宽筛选，或换一个统计周期。') + '</p>' +
+        : '<h2 class="serif" style="margin:0;font-size:24px">当前筛选下还没有会话</h2><p style="margin:0;color:var(--ink-2)">有 1 个会话就能给出协作人格。' + (relax.length ? '放宽下面任一筛选可以补到：' : '会话还不够，继续使用 Orbit 就会积累。') + '</p>' + peScopeTag(per) +
         (relax.length ? '<div class="pe-relax">' + relax.map((r) => '<button type="button" class="chip on" data-act="peRelax" data-k="' + r.k + '">' + esc(r.t) + ic('x', 12) + '<b class="mono" style="color:' + (r.n >= 1 ? 'var(--good)' : 'var(--ink-3)') + '">移除后 n≈' + r.n + '</b></button>').join('') + '</div>' : '') +
-        '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>') +
+        (more || wider ? '<div class="row" style="flex-wrap:wrap">' + (more ? '<button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button>' : '') + (wider ? '<button type="button" class="btn' + (more ? '' : ' p') + '" data-act="period" data-v="all">看全部历史</button>' : '') + '</div>' : '')) +
       '</div></div></div>';
   }
   CUR.persona = p;
@@ -6231,7 +6296,7 @@ PAGES.persona = () => {
   const metaFull = filt + '基于 ' + L.length + ' 个会话 · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + per[2] + (note ? ' · ' + note : '');
   return tbar('协作人格', '<span title="' + esc(metaFull) + '">' + filt + L.length + ' 个会话 · ' + per[2] + '</span>', right) +
     '<div class="content" id="content"><div class="stack">' +
-    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
+    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + peScopeTag(per) + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
     '<p class="pe-line"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
@@ -6264,7 +6329,7 @@ PAGES.persona.after = () => {
   VZ.mount('pe-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: peAxisRows(p, prev), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], format: peNum, refLabel: S.persona.vs === 'pop' ? '全体用户（示例）' : '上月', axis: false, rowH: 34, barH: 10, legend: false, animate: false, onSelect: () => ACT.axisJump() });
   const months = CUR.peMonths || [];
   VZ.mount('pe-evo', { type: 'line', title: '四个维度 · 逐月', height: 150, legend: 'top', animate: false, points: true, endLabels: false, x: { values: months.map((m) => m.lbl.slice(5) + ' 月') }, y: { min: 0, max: 100, format: 'int', ticks: 4 }, refs: [{ y: 50 }],
-    series: [['D', '自主 D', 'var(--ink-1)', false], ['I', '结构 I', 'var(--ink-2)', true], ['M', '并发 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
+    series: [['D', '委托 D', 'var(--ink-1)', false], ['I', '即兴 I', 'var(--ink-2)', true], ['M', '多线 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
 };
 TIPS.axis = (i) => { const p = CUR.persona; if (!p) return ''; const a = axisView(p, +i); return '<b>' + a.ax.dim + '：' + a.ax.L + ' ' + a.ax.Ln + ' ↔ ' + a.ax.R + ' ' + a.ax.Rn + '</b>\n' + a.ax.q + '\n<span style="opacity:.8">信号：' + a.ax.sig + '</span>'; };
 Object.assign(ACT, {
@@ -6978,8 +7043,10 @@ Object.assign(ACT, {
 /* ============ A6 sentiment ============
  * 情绪：VZ 派生类型 moodcorr —— 上图为每桶情绪分布带（P25–P75 阴影 + 中位线，y 域按数据且含 0），下图为纠偏柱（≥ 个人 P75 着琥珀），
  *       两图共用 x 轴与一条游标；标注规则改为事件型（情绪 < 0 的桶用情绪负色，纠偏 ≥ P90 的桶用琥珀），文字写事件而非引语（评审 A6-V01…V05）。
- * 摩擦分类 + Δ 上期 + 每类平均情绪，hover 列典型会话；语义主题标尺改发散条（BUG-72：主题筛选不再吞掉其他主题）；
- * 高频反馈语按次数降序 + 微型条 + 类别色点，出处按短语稳定取样（BUG-73）；情绪前因加 n 与 95% CI。AI 抽取的内容用紫色 .aib 标识。 */
+ * 摩擦分类 + Δ 上期 + 每类平均情绪，hover 列典型会话；高频反馈语按次数降序 + 微型条 + 类别色点，出处按短语稳定取样（BUG-73）。
+ * 高频词：你自己消息里的日常用词（live 取 /v1/uiview/sentiment 的 terms，demo 用 WORDS 按筛选缩放），自写的螺旋 + 矩形碰撞词云
+ * （字号按次数对数缩放、单色墨阶），旁边是 Top 10；点击词打开命令面板并搜索该词。原「语义主题」「情绪前因」两卡已删除。
+ * AI 抽取的内容用紫色 .aib 标识。 */
 S.sent = S.sent || {};
 // 某桶内按会话情绪得到的分布统计；会话 < 2 时没有带，只有中位数
 function moodDist(xs) { const st = VZ.stats(xs.map((s) => s.mood)); if (!st) return null; return { n: st.n, p25: st.n >= 2 ? st.p25 : null, p50: st.p50, p75: st.n >= 2 ? st.p75 : null }; }
@@ -7039,6 +7106,91 @@ function phraseSources(k, cat) {
   return out.sort((a, b) => (b.d - a.d) || (b.h - a.h));
 }
 const AIB = (t) => '<span class="aib" data-tip="由本地 Agent 从你的消息中抽取 · 原文不离开本机">' + ic('spark', 11) + (t || 'AI 抽取') + '</span>';
+/* ---- 高频词：数据、卡片、词云布局 ---- */
+// demo: WORDS is a 30-day month of the 186 demo sessions; counts follow the selected sessions, days the window length,
+// with a stable per-word jitter so another Agent / project filter reorders the tail instead of shrinking every word alike
+function demoWords(L) {
+  const w = win(S.range); const span = w[1] - w[0] + 1; const scale = L.length / 186;
+  const key = Array.from(S.agents).sort().join(',') + '|' + (S.project || '');
+  return WORDS.map((x) => { const r = rng(hash('w:' + key + ':' + x[0]))(); const n = Math.round(x[1] * scale * (0.82 + 0.36 * r)); return { t: x[0], n, d: Math.max(1, Math.min(span, n, Math.round(x[2] * span / 30))) }; })
+    .filter((x) => x.n >= 2).sort((a, b) => (b.n - a.n) || (b.d - a.d) || (a.t < b.t ? -1 : 1)).slice(0, 60);
+}
+const wordTip = (x) => esc(x.t) + ' · 出现 ' + fmt(x.n) + ' 次 · ' + x.d + ' 天';
+// size tiers by log count: t ≥ .8 ink-1 semibold, ≥ .5 ink-2, else ink-3 (single-colour, like the other measure bars)
+function wordScale(xs) {
+  const hi = Math.log(xs.length ? xs[0].n : 1), lo = Math.log(xs.length ? xs[xs.length - 1].n : 1);
+  return (n) => hi - lo < 1e-9 ? 1 : (Math.log(n) - lo) / (hi - lo);
+}
+function wordCard(xs, V) {
+  const badge = V ? lvSentBadge(V, 'terms') : '<span class="bdg" data-tip="按词频在本机统计，不调用模型">词频统计</span>';
+  const head = '<div class="hd"><div class="grow"><span class="ct">高频词</span>' + badge + '<span class="cap">你日常消息里最常用的词 · 已脱敏 · 点击词搜索</span></div></div>';
+  if (!xs.length) return '<div class="card pad sn-wcard" data-wc-empty="1">' + head + '<div class="sn-wempty cap">所选范围内的消息太少，还形成不了高频词<br>换一个时间范围或 Agent 再看看</div></div>';
+  const t = wordScale(xs); const max = xs[0].n;
+  const cloud = xs.map((x) => { const k = t(x.n); return '<button type="button" class="sn-w t' + (k >= 0.8 ? 1 : k >= 0.5 ? 2 : 3) + '" role="listitem" data-act="wordGo" data-k="' + esc(x.t) + '" data-n="' + x.n + '" data-tip="' + wordTip(x) + '" aria-label="' + wordTip(x) + '">' + esc(x.t) + '</button>'; }).join('');
+  const top = xs.slice(0, 10).map((x, i) => '<button type="button" class="sn-tw" data-act="wordGo" data-k="' + esc(x.t) + '" data-tip="' + wordTip(x) + '"><span class="mono sn-tw-r">' + (i + 1) + '</span><span class="sn-tw-t">' + esc(x.t) + '</span><span class="sn-tw-bar" aria-hidden="true"><i style="width:' + (x.n / max * 100).toFixed(0) + '%"></i></span><span class="mono sn-tw-n">' + fmt(x.n) + ' 次</span><span class="mono sn-tw-d">' + x.d + ' 天</span></button>').join('');
+  return '<div class="card pad sn-wcard">' + head + '<div class="sn-words"><div class="sn-cloud" data-wc role="list" aria-label="高频词云，共 ' + xs.length + ' 个词">' + cloud + '</div>' +
+    '<div class="sn-top"><div class="sn-tw sn-tw-h cap" aria-hidden="true"><span>#</span><span>Top 10</span><span></span><span>次数</span><span>天数</span></div>' + top + '</div></div>' +
+    '<div class="cap sn-foot">字号按出现次数取对数 · 只统计你发出的消息，不含 Agent 回复、工具输出与代码' + (xs.length >= 60 ? ' · 显示前 60 个' : '') + '</div></div>';
+}
+// spiral + rectangle collision: words in count order, each from the centre outwards along an elliptical Archimedean
+// spiral (start angle hashed per word, so the cloud is stable across re-renders) until its box overlaps nothing.
+// Words that find no room are hidden (aria-hidden) and stay in the Top 10 / tooltip data.
+const WC = { ro: null, w: 0 };
+function wordLayout(box, animate) {
+  const els = $$('.sn-w', box); if (!els.length) return;
+  const W = box.clientWidth; if (W < 40) return;
+  const H = Math.round(clamp(W * 0.5, 200, 300)); box.style.height = H + 'px'; WC.w = W;
+  const k = wordScale(els.map((el) => ({ n: +el.dataset.n || 1 })));
+  // fit: start from a width-based maximum size and shrink the scale until ≥ 90% of the words find room (at most 6 passes)
+  let maxF = clamp(W / 14, 20, 36), minF = 11, rects = null;
+  for (let pass = 0; pass < 6; pass++) {
+    els.forEach((el) => { el.style.fontSize = (minF + (maxF - minF) * k(+el.dataset.n || 1)).toFixed(1) + 'px'; });
+    rects = wordPlace(els, W, H);
+    if (rects.filter(Boolean).length >= els.length * 0.9 || maxF <= 15) break;
+    maxF = Math.max(15, maxF * 0.86); minF = Math.max(10, minF * 0.96);
+  }
+  els.forEach((el, i) => {
+    const at = rects[i]; el.classList.toggle('off', !at); el.tabIndex = at ? 0 : -1;
+    if (at) { el.removeAttribute('aria-hidden'); el.style.left = at[0].toFixed(1) + 'px'; el.style.top = at[1].toFixed(1) + 'px'; } else el.setAttribute('aria-hidden', 'true');
+  });
+  if (animate && !reduceMotion() && typeof els[0].animate === 'function') {
+    els.forEach((el, i) => { if (el.classList.contains('off')) return; el.animate([{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 120 + Math.min(i, 36) * 14, easing: EASE_OUT, fill: 'backwards' }); });
+  }
+}
+// one placement pass at the current font sizes → [left, top] per word (null = no room)
+function wordPlace(els, W, H) {
+  const sz = els.map((el) => [el.offsetWidth, el.offsetHeight]);   // one read pass after all writes
+  const placed = [], out = []; const cx = W / 2, cy = H / 2; const ax = Math.max(1, W / H) * 0.9; const gx = 4, gy = 1;
+  const hit = (r) => placed.some((q) => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]);
+  els.forEach((el, i) => {
+    const w = sz[i][0] + gx * 2, h = sz[i][1] + gy * 2; const a0 = rng(hash('wc:' + el.dataset.k))() * Math.PI * 2;
+    let at = null;
+    for (let s = 0; s < 3000; s++) {
+      const th = s * 0.16; const r = 1.6 * th; if (r * ax > W && r > H) break;
+      const x = cx + r * ax * Math.cos(th + a0), y = cy + r * Math.sin(th + a0);
+      const b = [x - w / 2, y - h / 2, x + w / 2, y + h / 2];
+      if (b[0] < 0 || b[1] < 0 || b[2] > W || b[3] > H) continue;
+      if (!hit(b)) { at = b; break; }
+    }
+    if (at) placed.push(at);
+    out.push(at ? [at[0] + gx, at[1] + gy] : null);
+  });
+  return out;
+}
+function wordMount(entered) {
+  if (WC.ro) { WC.ro.disconnect(); WC.ro = null; }
+  const box = $('#content .sn-cloud'); if (!box) return;
+  wordLayout(box, entered);
+  if (typeof ResizeObserver !== 'function') return;
+  let raf = 0;
+  WC.ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (box.isConnected && Math.abs(box.clientWidth - WC.w) > 1) wordLayout(box, false); }); });
+  WC.ro.observe(box);
+}
+// click a word: the command palette opens with that word as the query (live: sessions / messages / commands from /v1/search)
+function wordSearch(term) {
+  openPalette(); const q = $('#palQ'); if (!q || !PAL) return;
+  q.value = term; PAL.q = term; PAL.i = 0; drawPal();
+}
 PAGES.sentiment = () => {
   // live: the view model comes from /v1/uiview/sentiment (94-live-sentiment-search.js); mock: derived from the demo rows
   const V = LV.live ? (LVS.view = lvSentView(sel())) : null;
@@ -7053,25 +7205,19 @@ PAGES.sentiment = () => {
   // 摩擦行 {k, n, prev, mood}：live 取服务端类别（mood 为 null 时显示 —）
   const fr = V ? V.fr : Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).map((f) => { const xs = L.filter((s) => s.fric === f[0]); return { k: f[0], n: f[1], prev: frPrev ? (frPrev[f[0]] || 0) : null, mood: sum(xs, (s) => s.mood) / Math.max(1, xs.length) }; });
   const frMax = Math.max(1, ...fr.map((x) => x.n)); const frTot = Math.max(1, sum(fr, (x) => x.n));
-  // 主题：忽略主题筛选本身，只套用其它筛选（BUG-72）
-  const LT = V ? null : sel({ noExtra: true }).filter((s) => (!S.outcome || s.out === S.outcome) && (!S.fric || s.fric === S.fric) && (S.hour == null || s.h === S.hour));
-  const tp = V ? V.tp : Object.keys(TOPICS).map((k) => { const xs = LT.filter((s) => s.topic === k); return { k, label: TOPICS[k], n: xs.length, mood: xs.length ? sum(xs, (s) => s.mood) / xs.length : 0 }; }).filter((t) => t.n).sort((a, b) => b.n - a.n);
   const scale = L.length / 186;
   const phrases = V ? V.phrases : PHRASES.map((p) => [p[0], Math.max(1, Math.round(p[1] * scale)), p[2]]).sort((a, b) => b[1] - a[1]); const phMax = phrases.length ? phrases[0][1] : 1;
-  const dn = L.length;
-  const drivers = V ? V.drivers : DRIVERS.map((d, i) => { const n = Math.max(3, Math.round(dn * [0.18, 0.12, 0.41, 0.33][i])); return { name: d[0], v: d[1], n, ci: Math.min(0.3, 0.9 / Math.sqrt(n)) }; });
-  // span = 标尺半宽（前因 ±0.5；live 主题按 −1 … +1），超出标尺的值截在端点，不压到右侧数值（B13）
-  const divBar = (v, ci, span) => { const W = 100, mid = 50; const px = (x) => clamp(mid + x / (span || 0.5) * 50, 0, W); const a = clamp(px(v - (ci || 0)), 0, W), b = clamp(px(v + (ci || 0)), 0, W); return '<span class="sn-div" aria-hidden="true"><i class="mid"></i><i class="bar" style="left:' + Math.min(mid, px(v)) + '%;width:' + Math.abs(px(v) - mid) + '%;background:' + (v < 0 ? VZ.sem.neg : VZ.sem.pos) + '"></i>' + (ci ? '<i class="ci" style="left:' + a + '%;width:' + (b - a) + '%"></i>' : '') + '</span>'; };
+  const words = V ? V.words : demoWords(L);
   const noMood = !!(V && V.allNull);
   return head + '<div class="content" id="content">' + filterRow(shield) +
     '<div class="stack"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪分布与纠偏</span>' + (V ? lvSentBadge(V, 'mood', 'AI 打分') : AIB('AI 打分')) + '<span class="cap sn-mood-cap">' + (weeklyB ? '每周' : '每日') + '桶 · 会话情绪 −1 沮丧 … +1 满意</span></div><button type="button" class="btn sm gh" data-act="moodView" aria-pressed="' + (S.sent.view === 'table') + '">' + (S.sent.view === 'table' ? '看图表' : '看表格') + '</button></div>' +
       (S.sent.view === 'table' ? '' : '<div class="row sn-leg">' + (noMood ? '<span class="row cap" data-lv="mood-null">情绪尚未打分 · 分布暂不显示</span>' : '<span class="row"><i class="ln"></i>中位数</span><span class="row"><i class="bd"></i>P25–P75</span>') + '<span class="row"><i class="br" style="background:' + VZ.sem.corr + '"></i>纠偏 ≥ 你的 P75</span><span class="row" data-tip="情绪为负（情绪负色）或纠偏 ≥ 你的 P90（琥珀）的' + (weeklyB ? '周' : '日') + '"><i class="pt" style="background:' + VZ.sem.corr + '"></i>标注 = 异常' + (weeklyB ? '周' : '日') + '</span></div>') + '<div class="vz" data-vz="mood"></div></div>' +
     '<div class="two sn-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">摩擦分类</span>' + (V ? lvSentBadge(V, 'fric') : AIB()) + '<span class="cap" data-tip="Δ 为较上期 · 悬停看' + (V ? '典型表述' : '典型会话') + '">出现该摩擦的会话数 · 点击回看</span></div></div><div class="col" style="gap:2px">' + (fr.length ? '<div class="sn-fric sn-fric-h" aria-hidden="true"><span class="cap">类别</span><span></span><span class="cap">会话</span><span class="cap">Δ 上期</span><span class="cap">均值情绪</span></div>' + fr.map((f, i) => { const prev = f.prev; const dlt = prev == null ? '' : prev === f.n ? '± 0' : (f.n > prev ? '▲ ' : '▼ ') + Math.abs(f.n - prev); return '<button type="button" class="sn-fric" data-act="fricGo" data-k="' + esc(f.k) + '" data-tf="fricx|' + esc(f.k) + '"><span class="sn-fric-n">' + esc(f.k) + '</span><span class="sn-fric-bar"><i style="width:' + (f.n / frMax * 100) + '%;background:' + (i < 2 ? 'var(--ink-1)' : 'var(--ink-4)') + '"></i></span><span class="mono sn-fric-v">' + f.n + '</span><span class="mono sn-fric-d ' + (prev == null ? 'na' : f.n > prev ? 'vz-bad' : f.n < prev ? 'vz-good' : 'flat') + '">' + (prev == null ? '—' : dlt) + '</span><span class="mono sn-fric-m" style="color:' + (f.mood != null && f.mood < 0 ? VZ.sem.neg : 'var(--ink-3)') + '">' + (f.mood == null ? '—' : (f.mood > 0 ? '+' : '') + f1(f.mood)) + '</span></button>'; }).join('') : '<span class="cap">没有摩擦记录</span>') + '</div><div class="cap sn-foot">' + (fr.length >= 2 ? '前两类占全部摩擦的 ' + Math.round((fr[0].n + fr[1].n) / frTot * 100) + '%，都可以用规则前置' : fr.length ? '摩擦都来自「' + esc(fr[0].k) + '」，可以用规则前置' : '') + '</div></div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">语义主题</span>' + (V ? lvSentBadge(V, 'topic', 'AI 聚类') : AIB('AI 聚类')) + '<span class="cap" data-tip="按会话意图聚类 · 标尺为平均情绪 −1 … +1">点击设为全局筛选</span></div></div><div class="sn-topics">' + (tp.length ? tp.map((t, i) => '<button type="button" class="sn-topic' + (S.topic === t.k ? ' on' : '') + (i === 0 ? ' top' : '') + '" data-act="topicSet" data-k="' + esc(t.k) + '" aria-pressed="' + (S.topic === t.k) + '"><b title="' + esc(t.label) + '">' + esc(t.label) + '</b><span class="row" style="gap:8px"><span class="mono cap sn-tn">' + t.n + ' 个会话</span>' + divBar(t.mood == null ? 0 : t.mood, 0, V ? 1 : 0.5) + '<span class="mono" style="font-size:11px;color:' + (t.mood != null && t.mood < 0 ? VZ.sem.neg : 'var(--ink-2)') + '">' + (t.mood == null ? '—' : (t.mood > 0 ? '+' : '') + f1(t.mood)) + '</span></span></button>').join('') : '<span class="cap">所选范围内没有主题</span>') + '</div></div></div>' +
-    '<div class="two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">你的高频反馈语</span>' + (V ? lvSentBadge(V, 'phrase') : AIB()) + '<span class="cap">已脱敏 · 点击查看出处</span></div></div><div class="col" style="gap:4px">' + (phrases.length ? phrases.map((p) => '<button type="button" class="sn-ph" data-act="phrase" data-k="' + esc(p[0]) + '" data-c="' + esc(p[2]) + '"><span class="sn-ph-t">「' + esc(p[0]) + '」</span><span class="sn-ph-bar"><i style="width:' + (p[1] / phMax * 100).toFixed(0) + '%"></i></span><span class="mono sn-ph-n">×' + p[1] + '</span><span class="sn-ph-c"><i style="background:' + (p[2] === '纠偏' ? VZ.sem.corr : 'var(--ink-4)') + '"></i>' + esc(p[2]) + '</span></button>').join('') : '<span class="cap">还没有足够的反馈语</span>') + '</div><div class="row sn-act"><span class="sn-note" data-tip="让 Agent 先遵守，而不是等你提醒">' + phrases.filter((p) => p[2] === '纠偏').length + ' 条纠偏语可以直接写成规则</span><button type="button" class="btn sm" data-act="phrasesToRule">生成规则草稿</button></div></div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪的前因</span><span class="cap" data-tip="相关不等于因果">与会话特征的关联 · 须线 = 95% CI</span></div></div><div class="col" style="gap:12px">' + (drivers.length ? drivers.map((d) => '<div class="sn-drv"' + (d.v == null ? ' data-tip="样本不足：该特征 ' + d.n + ' 个会话 · 其余 ' + d.nb + ' 个会话有情绪表述"' : '') + '><span class="sn-drv-n">' + esc(d.name) + '</span>' + divBar(d.v == null ? 0 : d.v, d.ci) + '<span class="mono sn-drv-v" style="color:' + (d.v == null ? 'var(--ink-3)' : d.v < 0 ? VZ.sem.neg : VZ.sem.pos) + '">' + (d.v == null ? '—' : (d.v > 0 ? '+' : '−') + Math.abs(d.v).toFixed(2)) + '</span><span class="mono cap sn-drv-k">n=' + d.n + '</span></div>').join('') : '<span class="cap">样本不足，暂不计算</span>') + '</div><div class="sn-drv sn-drv-ax cap" aria-hidden="true"><span></span><span class="row mono" style="justify-content:space-between;font-size:11px"><span>−0.5</span><span>0</span><span>+0.5</span></span><span></span><span></span></div><div class="cap sn-foot" data-tip="' + esc(V ? V.note || '数值为该特征会话与其它会话的情绪均值差' : '数值为该特征会话与其它会话的情绪均值差（示例）') + '">左 = 情绪更差 · 右 = 更好</div></div></div></div></div>';
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">你的高频反馈语</span>' + (V ? lvSentBadge(V, 'phrase') : AIB()) + '<span class="cap">已脱敏 · 点击查看出处</span></div></div><div class="col" style="gap:4px">' + (phrases.length ? phrases.map((p) => '<button type="button" class="sn-ph" data-act="phrase" data-k="' + esc(p[0]) + '" data-c="' + esc(p[2]) + '"><span class="sn-ph-t">「' + esc(p[0]) + '」</span><span class="sn-ph-bar"><i style="width:' + (p[1] / phMax * 100).toFixed(0) + '%"></i></span><span class="mono sn-ph-n">×' + p[1] + '</span><span class="sn-ph-c"><i style="background:' + (p[2] === '纠偏' ? VZ.sem.corr : 'var(--ink-4)') + '"></i>' + esc(p[2]) + '</span></button>').join('') : '<span class="cap">还没有足够的反馈语</span>') + '</div><div class="row sn-act"><span class="sn-note" data-tip="让 Agent 先遵守，而不是等你提醒">' + phrases.filter((p) => p[2] === '纠偏').length + ' 条纠偏语可以直接写成规则</span><button type="button" class="btn sm" data-act="phrasesToRule">生成规则草稿</button></div></div></div>' +
+    wordCard(words, V) + '</div></div>';
 };
 PAGES.sentiment.after = () => {
+  wordMount(ROUTE_ENTER);
   const ms = CUR.mood; if (!ms || (!LV.live && S.engine === 'stats')) return;
   const weeklyB = (win(S.range)[1] - win(S.range)[0] + 1) > 31;
   const spec = { type: 'moodcorr', title: '情绪分布与纠偏次数', height: 236, buckets: ms, view: S.sent.view || 'chart', label: (b) => b.a === b.b ? mdz(b.a) + ' 周' + WD[wd(b.a)] : md(b.a) + ' – ' + md(b.b) + (weeklyB ? '（周）' : ''), empty: '所选范围内没有会话' };
@@ -7081,7 +7227,7 @@ PAGES.sentiment.after = () => {
 TIPS.fricx = (k) => { if (LV.live) return lvFricTip(k); const xs = sel().filter((s) => s.fric === k).sort((a, b) => (b.d - a.d) || (b.h - a.h)).slice(0, 3); if (!xs.length) return ''; return '<b>「' + esc(k) + '」典型会话</b>\n' + xs.map((s) => md(s.d) + ' · ' + esc(s.title) + ' · ' + s.corr + ' 次纠偏').join('\n') + '\n<span style="opacity:.7">点击筛选全部相关会话</span>'; };
 Object.assign(ACT, {
   fricGo: (el) => { if (LV.live && lvFricGo(el)) return; S.fric = el.dataset.k; go('sessions'); toast('已筛选出现「' + el.dataset.k + '」的会话'); },
-  topicSet: (el) => { if (LV.live && !ALL.some((s) => s.topic === el.dataset.k)) { toast('该主题来自语义分类，暂不能用作会话筛选'); return; } S.topic = S.topic === el.dataset.k ? null : el.dataset.k; render(); },
+  wordGo: (el) => wordSearch(el.dataset.k),
   moodView: () => { S.sent.view = S.sent.view === 'table' ? 'chart' : 'table'; render(); },
   phrase: (el) => { if (LV.live) { lvPhrase(el); return; } const xs = phraseSources(el.dataset.k, el.dataset.c); openDD(el, [{ h: '「' + el.dataset.k + '」的出处（' + xs.length + ' 次 · 已脱敏）' }].concat(xs.length ? xs.map((s) => ({ t: md(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + s.title, v: s.id })) : [{ t: '当前筛选下没有出处', v: null, dis: true }]), (v) => { if (!v) return; S.sess.sel = v; S.sess.mode = 'single'; go('sessions'); }); },
   phrasesToRule: () => { S.studio.type = '规则'; S.studio.goal = LV.live ? lvRuleGoal() : '把我的高频纠偏写成 AGENTS.md 规则：「直接合并」「别用子代理」「不要改别的文件」「用 Cloudflare 不是 Vercel」。'; S.studio.from = 'A6 高频反馈语'; S.studio.run = null; go('studio'); },
@@ -7821,7 +7967,7 @@ function askAnswer(ctx, i) {
   if (ctx === 'persona') {
     if (!p.ok) return '所选范围还没有会话，暂时不判断类型。';
     const ax = AXES.map((a, k) => axisView(p, k)).sort((a, b) => b.strong - a.strong);
-    if (i === 0) return '依据 ' + p.n + ' 个会话：\n\n' + AXES.map((a, k) => { const v = axisView(p, k); return '· ' + a.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '%（信号：' + a.sig + '）'; }).join('\n') + '\n\n最鲜明的是「' + ax[0].name + '」（' + ax[0].strong + '%），最接近中间的是「' + ax[3].name + '」（' + ax[3].strong + '%）。';
+    if (i === 0) return '依据 ' + p.n + ' 个会话：\n\n' + AXES.map((a, k) => { const v = axisView(p, k); return '· ' + a.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '（信号：' + a.sig + '）'; }).join('\n') + '\n\n最鲜明的是「' + ax[0].name + '」（' + ax[0].strong + '），最接近中间的是「' + ax[3].name + '」（' + ax[3].strong + '）。';
     if (i === 1) { const c = { D: '委托多：吞吐高，但方向一错代价也大', S: '掌舵多：方向稳，但你的时间被大量小指令占用', I: '即兴多：启动快，但更容易中途改向', P: '规划多：返工少，但前期投入大', M: '多线并行：产出多，但并行会话互相冲突的风险更高', F: '专注单线：质量稳，但等待 Agent 的时间更长', V: '验收严：结果可靠，但会花更多时间检查', T: '信任多：节奏快，但问题更晚才暴露' }; return '类型没有好坏，只有取舍。' + p.code + ' ' + p.zh + ' 的取舍是：\n\n' + p.code.split('').filter((x) => c[x]).map((x) => '· ' + c[x]).join('\n') + '\n\n不必换类型，把代价最高的环节前置成规则就行。可以从「' + (recs[0] ? recs[0].title : '—') + '」开始。'; }
     return '你的盲点主要在「' + (fr[0] ? fr[0][0] : '—') + '」' + (fr[1] ? '和「' + fr[1][0] + '」' : '') + '。\n\n建议：\n· ' + (fr[0] && FRIC_RULE[fr[0][0]] ? FRIC_RULE[fr[0][0]] : '在首条消息里写清完成条件') + '\n· ' + recs.slice(0, 2).map((r) => r.title).join('\n· ');
   }
@@ -7954,7 +8100,7 @@ function reportMD() {
   if (S.rep.has('ov')) out.push('## 概览', '', '| 指标 | 数值 |', '| --- | ---: |', '| 会话 | ' + fmt(st.n) + ' |', '| 协作时长 | ' + f1(st.hours) + ' 小时 |', '| 你的消息 | ' + fmt(st.msgs) + ' |', '| 自主比 | ' + f1(st.auto) + '× |', '| 摩擦率 | ' + f1(st.fric) + '% |', '| 完成率 | ' + Math.round(st.ok) + '% |', '');
   if (S.rep.has('persona')) {
     out.push('## 协作人格', '', p.ok ? '**' + p.code + ' · ' + p.zh + '**（' + p.en + '）：' + p.line + (fn ? '　—　' + (personaScopeNote() || '按上面的筛选计算') + '，' + p.n + ' 个会话' : '') : '所选范围还没有会话，暂不判断。', '');
-    if (p.ok) { AXES.forEach((ax, i) => { const v = axisView(p, i); out.push('- ' + ax.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '%'); }); out.push(''); }
+    if (p.ok) { AXES.forEach((ax, i) => { const v = axisView(p, i); out.push('- ' + ax.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong); }); out.push(''); }
   }
   if (S.rep.has('proj')) { out.push('## 项目', '', '| 项目 | 会话 | 时长 | 自主比 | 摩擦率 |', '| --- | ---: | ---: | ---: | ---: |'); projRows(L).filter((r) => r.st.n).sort((a, b) => b.st.hours - a.st.hours).slice(0, 6).forEach((r) => out.push('| ' + r.p.name + ' | ' + r.st.n + ' | ' + f1(r.st.hours) + 'h | ' + f1(r.st.auto) + '× | ' + f1(r.st.fric) + '% |')); out.push(''); }
   if (S.rep.has('fric')) { out.push('## 主要摩擦', ''); Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).slice(0, 4).forEach((f, i) => out.push((i + 1) + '. ' + f[0] + '：' + f[1] + ' 个会话')); out.push(''); }
@@ -9833,6 +9979,20 @@ LV.hydrate = function (spine) {
   if (S.proj.cmp && !PJI[S.proj.cmp]) S.proj.cmp = null;
 };
 
+// first landing (A): when the default range holds no sessions but older history does (a first import of only older
+// sessions), pick the narrowest range that has data (30 → 90 → all) once, instead of every page reading 「没有会话」
+LV.autoRanged = false;
+function lvAutoRange() {
+  if (LV.autoRanged || !ALL.length) return;
+  LV.autoRanged = true;
+  if (S.range === 0 || sel({ noExtra: true }).length) return;
+  const to = [90, 0].find((r) => (r === 0 || r > S.range) && sel({ range: r, noExtra: true }).length);
+  if (to == null) return;
+  const from = rangeLabel();
+  S.range = to;
+  if (typeof toast === 'function') toast(from + '内没有会话，已切换到' + rangeLabel());
+}
+
 let lvSpineAgain = false, lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
 const LV_SECTION = 'uiview_facts';
 LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
@@ -9899,6 +10059,7 @@ LV.loadSpine = function () {
     spine.environment = LV.env.filter((x) => x.installed);
     LV.hydrate(spine);
     LV.state = rows.length ? 'ready' : 'empty';
+    lvAutoRange();
   }, (e) => {
     // 422 analysis_scope_too_large: this window is too big for the machine → 30 days, then 7 (the strip says so)
     if (e && e.code === 'analysis_scope_too_large') {
@@ -10760,7 +10921,8 @@ function lvProjectsPage() {
      are folded into the page's own buckets(S.range); a multi-day (weekly) bucket keeps only the explicit-n weighted median,
      never a made-up P25–P75 band. mood is null until gap G2 lands: glyphs read "—" and, with every bucket null, the mood
      distribution is hidden (only the correction bars remain). Topic / outcome / friction / hour filters are not applied by
-     the server (G3), so the page says so. PHRASES / DRIVERS / QUOTES are rewritten in place for the other readers.
+     the server (G3), so the page says so. PHRASES / QUOTES are rewritten in place for the other readers. 高频词 reads
+     terms.items ({term, count, days}); the old topics / drivers sections are no longer sent or shown.
    - Palette: routes, projects and sessions come from the local spine at once; GET /v1/search adds sessions, messages,
      commands, files, projects, recommendations and library items (debounced, LRU per query) and each result opens its
      ref.page. Phrase sources on A6 use the same endpoint (kinds=message). Missing endpoints render an honest empty state. */
@@ -10773,10 +10935,9 @@ const lvsMood = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + f1(v));
 function lvSentApply(d) {
   LVS.sent = d || null;
   if (!d) return;
-  // in-place rewrites for other readers (vizkit gallery, A3 mock sayings): real phrases, ok drivers, typical quotes
+  // in-place rewrites for other readers (vizkit gallery, A3 mock sayings): real phrases, typical quotes
   const ph = (d.phrases || []).slice().sort((a, b) => b.n - a.n);
   PHRASES.length = 0; ph.slice(0, 8).forEach((p) => PHRASES.push([p.text, p.n, p.category || '其他']));
-  DRIVERS.length = 0; (d.drivers || []).filter((x) => x.status === 'ok' && x.diff != null).forEach((x) => DRIVERS.push([x.label, x.diff]));
   const q = (t) => '「' + t + '」';
   QUOTES.neg.length = 0; QUOTES.pos.length = 0; QUOTES.mid.length = 0;
   ph.filter((p) => p.category === '纠偏').forEach((p) => QUOTES.neg.push(q(p.text)));
@@ -10789,7 +10950,7 @@ if (LV.live) {
     days: [7, 30, 90].indexOf(sc.range) >= 0 ? sc.range : Math.min(730, LASTDAY + 1), agent: sc.agents,
     project_id: sc.project && sc.project !== '_none' ? sc.project : null, tz: sc.tz, bucket: 'day' }) }], (d) => lvSentApply(d.s));
 }
-// the page's view model: {state:'ready'|'pending'|'error', lang, ms, allNull, fr, tp, phrases, drivers, note, scope}
+// the page's view model: {state:'ready'|'pending'|'error', lang, ms, allNull, fr, phrases, words, scope}
 function lvSentView(L) {
   const d = LVS.sent;
   if (!d) { const st = LV.feedState('sentiment'); return { state: st === 'error' ? 'error' : 'pending' }; }
@@ -10807,22 +10968,20 @@ function lvSentView(L) {
   });
   const fr = (d.friction || []).filter((f) => f.sessions > 0).slice().sort((a, b) => b.sessions - a.sessions)
     .map((f) => ({ k: f.label || f.type, type: f.type, n: f.sessions, prev: f.prev != null ? f.prev : null, mood: f.avg_balance, typical: f.typical || [], uids: f.session_uids || [] }));
-  const tp = (d.topics || []).filter((t) => t.sessions > 0).slice().sort((a, b) => b.sessions - a.sessions)
-    .map((t) => ({ k: t.id, label: t.label || t.id, n: t.sessions, mood: t.avg_balance, uids: t.session_uids || [] }));
   const phrases = (d.phrases || []).slice().sort((a, b) => b.n - a.n).slice(0, 8).map((p) => [p.text, p.n, p.category || '其他']);
-  const drivers = (d.drivers || []).map((x) => ({ name: x.label, v: x.status === 'ok' ? x.diff : null, n: x.n_a, nb: x.n_b, ci: x.status === 'ok' && x.lo != null && x.hi != null ? Math.abs(x.hi - x.lo) / 2 : 0, status: x.status }));
+  const words = (((d.terms || {}).items) || []).filter((x) => x && x.term && x.count > 0).slice(0, 60).map((x) => ({ t: String(x.term), n: x.count, d: x.days || 0 }));
   const x = []; if (S.topic) x.push('主题'); if (S.outcome) x.push('结果'); if (S.fric) x.push('摩擦'); if (S.hour != null) x.push('时段');
-  // R4-13: the endpoint is deterministic (lexical rules over redacted messages); only AI facets (friction) and AI topic labels
-  // come from a model, and only when the analysis mode is not 「仅统计」. Badges and the shield say which one the page shows.
+  // R4-13: the endpoint is deterministic (lexical rules over redacted messages); only AI facets (friction) come from a model,
+  // and only when the analysis mode is not 「仅统计」. Badges and the shield say which one the page shows.
   const meta = d.meta || {}; const aiOn = !!meta.mode && meta.mode !== 'stats' && meta.mode !== 'off';
-  const prov = { mood: false, fric: aiOn, topic: aiOn && (d.topics || []).some((t) => t.label_source === 'ai'), phrase: false, ai: aiOn, note: meta.note || '' };
-  return { state: 'ready', meta, prov, lang, ms, allNull: !ms.some((b) => b.dist), fr, tp, phrases, drivers, note: d.drivers_note || '', scope: x.length ? x.join(' / ') + '筛选不计入情绪统计' : '' };
+  const prov = { mood: false, fric: aiOn, phrase: false, terms: false, ai: aiOn, note: meta.note || '' };
+  return { state: 'ready', meta, prov, lang, ms, allNull: !ms.some((b) => b.dist), fr, phrases, words, scope: x.length ? x.join(' / ') + '筛选不计入情绪统计' : '' };
 }
 // cards in their own layout while the endpoint is pending / missing (no table, no mock rows)
 function lvSentShell(V) {
   const body = (h) => (V.state === 'error' ? '<div class="col" style="gap:6px;padding:8px 0">' + LV.na('暂无数据') + '</div>' : LV.pend(h));
   const card = (t, h) => '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">' + t + '</span></div></div>' + body(h) + '</div>';
-  return '<div class="stack" data-lv-sent="' + V.state + '">' + card('情绪分布与纠偏', 236) + '<div class="two sn-two">' + card('摩擦分类', 160) + card('语义主题', 160) + '</div><div class="two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">' + card('你的高频反馈语', 160) + card('情绪的前因', 160) + '</div></div>';
+  return '<div class="stack" data-lv-sent="' + V.state + '">' + card('情绪分布与纠偏', 236) + '<div class="two sn-two">' + card('摩擦分类', 160) + card('你的高频反馈语', 160) + '</div>' + card('高频词', 220) + '</div>';
 }
 // 摩擦 click: the server taxonomy is not the spine's fric column, so filter only when the spine knows the label;
 // otherwise open the newest session of that friction type
@@ -10858,7 +11017,8 @@ const LVS_GROUP = { session: '会话', message: '消息', command: '命令', fil
 // badge for a live A6 card: AI only when the server says that card came from a model, otherwise a neutral rule badge
 function lvSentBadge(V, k, aiText) {
   if (V && V.prov && V.prov[k]) return AIB(aiText);
-  return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">' + (k === 'topic' ? '规则分类' : '词面规则') + '</span>';
+  if (k === 'terms') return '<span class="bdg" data-lv="rule-badge" data-tip="按词频在本机统计，不调用模型">词频统计</span>';
+  return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">词面规则</span>';
 }
 function lvSentShield(V) {
   if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，原文不离开本机';

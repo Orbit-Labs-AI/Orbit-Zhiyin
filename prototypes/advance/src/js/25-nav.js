@@ -1,5 +1,6 @@
 /* ============ navigation & render ============ */
-const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sessions', '会话与轨迹'], ['tools', '工具调用'], ['projects', '项目习惯'], ['sentiment', '情绪与语义'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
+// order = the Advance「洞察」sidebar group; ⌥1…⌥9, the 窗口 menu and the palette's 页面 rows all follow it
+const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sentiment', '情绪与语义'], ['sessions', '会话与轨迹'], ['projects', '项目习惯'], ['tools', '工具调用'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
 const PAGES = {};
 // RENDER_HOOKS: fn(mainEl, entered) after every page render; entered = true only when go() changed the page (route enter
 // motion runs once per visit, not on every filter re-render). go() also translates a route to the current edition
@@ -138,9 +139,17 @@ const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act=
 let SIDE_EXTRA = null;
 const sideExtra = () => (SIDE_EXTRA ? SIDE_EXTRA() : '');
 const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '">' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
+// sidebar agents (B): 未接入 (never imported: source off and no sessions at all) vs 停用 (imported, then turned off in settings);
+// an agent with no sessions in the selected range fades (.idle) instead of looking like a filter choice
+function agentState(a) { return S.srcOff.has(a.id) ? (a.all ? 'off' : 'none') : 'on'; }
 function sideAgents() {
   const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
-  return AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
+  return AG.map((a) => {
+    const st = agentState(a), off = st !== 'on', n = off ? 0 : agCount(a.id);
+    const dim = !off && !S.agents.has(a.id), idle = !off && !dim && !n;
+    const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' : (idle ? rangeLabel() + '内没有会话 · ' : '') + '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选';
+    return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + tip + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>';
+  }).join('');
 }
 function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
 function renderSide() {
@@ -149,7 +158,7 @@ function renderSide() {
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
   $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools') + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('sentiment', '情绪与语义', 'sentiment')) +
+    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪与语义', 'sentiment') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
     group('agents', 'Agents', sideAgents(), '会话') +
     group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
@@ -184,7 +193,22 @@ function filterRow(right) {
     '<button type="button" class="chip' + (agN !== AG.length ? ' on' : '') + '" data-act="agentMenu">' + ic('bot', 14, agN === AG.length ? 'color:var(--ink-3)' : '') + agLbl + ic('chev', 11, agN === AG.length ? 'color:var(--ink-3)' : '') + '</button>' +
     '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 ' + PJ.length) + ic('chev', 11) + '</button>' +
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
-    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>';
+    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>' + rangeWidenNote();
 }
-function agentLegendItems() { return AG.map((a) => ({ t: a.name, v: a.id, on: S.agents.has(a.id) })); }
-function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + '</div>'; }
+function agentLegendItems() { return AG.map((a) => { const st = agentState(a); return { t: a.name, v: a.id, on: S.agents.has(a.id), k: st === 'none' ? '未接入' : st === 'off' ? '停用' : String(sel({ noExtra: true, agent: a.id }).length) }; }); }
+// range widening (A): the selected range has no sessions while a wider one has some (e.g. a first import of only older
+// sessions) → offer 扩大到 90 天 / 看全部历史. Advance pages get it under the filter row, Lite (no filter row) in empty().
+function rangeWider() {
+  if (S.range === 0 || !ALL.length || sel({ noExtra: true }).length) return [];
+  const w90 = S.range < 90 && sel({ range: 90, noExtra: true }).length > 0;
+  return sel({ range: 0, noExtra: true }).length ? (w90 ? [90, 0] : [0]) : [];
+}
+function rangeWidenBtns() {
+  const w = rangeWider(); if (!w.length) return '';
+  return '<div class="row range-widen">' + w.map((r, i) => '<button type="button" class="btn' + (i === 0 ? ' p' : '') + '" data-act="range" data-v="' + r + '">' + (r === 0 ? '看全部历史' : '扩大到 ' + r + ' 天') + '</button>').join('') + '</div>';
+}
+function rangeWidenNote() {
+  const b = rangeWidenBtns(); if (!b) return '';
+  return '<div class="card pad range-note" data-range-note><span>' + rangeLabel() + '内没有会话 · 全部历史共 ' + fmt(sel({ range: 0, noExtra: true }).length) + ' 个</span>' + b + '</div>';
+}
+function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
