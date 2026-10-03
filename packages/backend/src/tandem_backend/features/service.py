@@ -189,7 +189,7 @@ class FeatureService:
     def linked_inventory(self, scope=None, **filters) -> dict:
         s = normalize(scope)
         revs = self.revs()
-        agent = (s.get("agent_ids") or [None])[0]
+        agent = list(s["agent_ids"]) if s.get("agent_ids") else None  # every listed agent
         with self.hub.read() as db:
             result = compute_linked(db, revs=revs, project_ids=s.get("project_ids"),
                                     agent=agent, write=self._write)

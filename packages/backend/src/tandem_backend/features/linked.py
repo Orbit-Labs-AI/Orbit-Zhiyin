@@ -20,6 +20,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 DAY_MS = 86_400_000
+# "unused" claims no call in the last 90 days, so it needs >= 90 days of history for that
+# agent; with less, zero calls is "insufficient_history" (no evidence of disuse yet).
+UNUSED_WINDOW_DAYS = 90
 MAX_TEXT = 256 * 1024
 CATALOG_TYPE = {"skill": "skill", "mcp": "mcp_server", "hook": "hook", "plugin": "plugin",
                 "rule": "rule"}
@@ -124,6 +127,13 @@ def _attached(conn: sqlite3.Connection, name: str) -> str | None:
     return None if row is None else (row[0] or "")
 
 
+def _agents_json(agent) -> str | None:
+    """``None`` = every agent; a str or a list of agent ids as a JSON array."""
+    if agent is None:
+        return None
+    return json.dumps(sorted({agent} if isinstance(agent, str) else set(agent)))
+
+
 def _inventory(conn, project_ids, agent) -> tuple[list[dict], list[dict]]:
     """Latest scan per source_key; same semantics as tandem_data.inventory, under ``t.``."""
     if not _has(conn, "t", "inventory_scan"):
@@ -132,8 +142,8 @@ def _inventory(conn, project_ids, agent) -> tuple[list[dict], list[dict]]:
     scans = [dict(row) for row in conn.execute(
         "SELECT * FROM t.inventory_scan WHERE scan_id IN (SELECT MAX(scan_id) FROM t.inventory_scan "
         "WHERE (:p IS NULL OR scope='global' OR project_id IN (SELECT value FROM json_each(:p))) "
-        "GROUP BY source_key) AND (:a IS NULL OR agent=:a) ORDER BY scan_id",
-        {"p": projects, "a": agent})]
+        "GROUP BY source_key) AND (:a IS NULL OR agent IN (SELECT value FROM json_each(:a))) "
+        "ORDER BY scan_id", {"p": projects, "a": _agents_json(agent)})]
     if not scans:
         return [], []
     paths = {}
@@ -344,14 +354,17 @@ def _usage_for(item, table) -> dict:
 
 
 def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None = None,
-                   project_ids=None, agent: str | None = None,
+                   project_ids=None, agent: str | list[str] | None = None,
                    write: Callable[[Callable[[sqlite3.Connection], None]], None] | None = None,
                    read_text: Callable[[str], str | None] | None = None) -> dict:
     now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
     projects = frozenset(project_ids) if project_ids is not None else None
     catalog_rev = str(revs.get("catalog"))
+    agents = _agents_json(agent)
+    # The day joins the key: calls_30d / calls_90d / unused_days move with the clock even
+    # when no revision changes.
     cache_key = (_attached(conn, "t"), _attached(conn, "c"), revs.get("data"),
-                 revs.get("inventory"), catalog_rev, projects, agent)
+                 revs.get("inventory"), catalog_rev, projects, agents, now_ms // DAY_MS)
     with _lock:
         if cache_key in _result_cache:
             _result_cache.move_to_end(cache_key)
@@ -408,7 +421,8 @@ def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None =
     if _has(conn, "t", "session"):
         first = conn.execute(
             "SELECT MIN(s.started_at) FROM t.session s JOIN t.source src ON src.source_id=s.source_id "
-            "WHERE :a IS NULL OR src.agent=:a", {"a": agent}).fetchone()[0]
+            "WHERE :a IS NULL OR src.agent IN (SELECT value FROM json_each(:a))",
+            {"a": agents}).fetchone()[0]
     span_days = (now_ms - first) / DAY_MS if first is not None else 0.0
 
     # Resident overhead, cached by content_hash in inv_size.
@@ -423,7 +437,8 @@ def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None =
                 f"({','.join('?' * len(chunk))})", chunk)})
     measured = []
 
-    out, summary = [], {"total": 0, "unused": 0, "unknown_usage": 0, "disabled": 0,
+    out, summary = [], {"total": 0, "unused": 0, "unknown_usage": 0,
+                        "insufficient_history": 0, "disabled": 0,
                         "tandem_installed": 0, "resident_tokens_est": 0, "by_type": {}}
     for item in items:
         found = matches.get(item["inv_id"])
@@ -452,7 +467,9 @@ def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None =
             status = "disabled"
         elif not used["attributable"]:
             status = "unknown_usage"
-        elif used["calls_90d"] == 0 and span_days >= 30:
+        elif used["calls_90d"] == 0 and span_days < UNUSED_WINDOW_DAYS:
+            status = "insufficient_history"
+        elif used["calls_90d"] == 0:
             status = "unused"
             since = used["last_used_at"] if used["last_used_at"] is not None else first
             unused_days = int((now_ms - since) // DAY_MS)
@@ -467,10 +484,11 @@ def compute_linked(conn: sqlite3.Connection, *, revs: dict, now_ms: int | None =
             "usage": used, "resident": {"tokens_est": tokens, "basis": basis},
             "status": status, "unused_days": unused_days})
         bucket = summary["by_type"].setdefault(item["type"], {"total": 0, "unused": 0,
-                                                              "unknown_usage": 0})
+                                                              "unknown_usage": 0,
+                                                              "insufficient_history": 0})
         bucket["total"] += 1
         summary["total"] += 1
-        if status in ("unused", "unknown_usage", "disabled"):
+        if status in ("unused", "unknown_usage", "insufficient_history", "disabled"):
             summary[status] += 1
             if status in bucket:
                 bucket[status] += 1
