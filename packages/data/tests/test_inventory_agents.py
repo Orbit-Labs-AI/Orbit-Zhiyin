@@ -534,3 +534,36 @@ def test_claude_plugin_manifest_command_and_agent_paths_supplement_defaults(tmp_
         ("command", "tools:deploy"),
         ("agent", "tools:code-reviewer"),
     }
+
+
+def test_opencode_commands_and_agents_use_upstream_path_names(tmp_path):
+    """config/command.ts + agent.ts: {command,commands}/**/*.md and {agent,agents}/**/*.md."""
+    root = tmp_path / "opencode"
+    write(root, "opencode.json", {})
+    write(root, "command/git/commit.md", "---\ndescription: c\n---\nSECRET-TEMPLATE")
+    write(root, "commands/review.md", "Review")
+    write(root, "agent/planner.md", "---\nname: renamed\n---\nSECRET-PROMPT")
+    write(root, "agents/nested/fixer.md", "Fix")
+    write(root, "command/notes.txt", "ignored")
+    result, data, dump = run(tmp_path, "opencode", root)
+    assert result["coverage"]["command"]["status"] == "available"
+    assert result["coverage"]["agent"]["status"] == "available"
+    names = {(i["type"], i["name"]) for i in data["items"] if i["type"] in ("command", "agent")}
+    assert names == {("command", "git/commit"), ("command", "review"),
+                     ("agent", "planner"), ("agent", "nested/fixer")}
+    assert "SECRET-TEMPLATE" not in dump and "SECRET-PROMPT" not in dump
+
+
+def test_codex_legacy_prompts_are_listed_but_not_enabled(tmp_path):
+    """Current Codex no longer loads ~/.codex/prompts: visible as commands, enabled=0."""
+    root = tmp_path / "codex"
+    write(root, "config.toml", "")
+    write(root, "prompts/ship.md", "PRIVATE-PROMPT")
+    write(root, "prompts/old/skip.md", "nested files were never read")
+    result, data, dump = run(tmp_path, "codex", root)
+    assert result["coverage"]["command"]["status"] == "available"
+    assert result["coverage"]["agent"]["status"] == "unavailable"
+    commands = [i for i in data["items"] if i["type"] == "command"]
+    assert [(c["name"], c["enabled"]) for c in commands] == [("prompts:ship", 0)]
+    assert commands[0]["config"]["loaded"] is False
+    assert "PRIVATE-PROMPT" not in dump

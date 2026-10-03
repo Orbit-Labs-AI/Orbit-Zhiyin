@@ -9,12 +9,12 @@ import yaml
 from .reader import BASE_KINDS, KINDS, ScanReader
 
 SUPPORTED = {
-    "codex": BASE_KINDS,
+    "codex": (*BASE_KINDS, "command"),
     "dsh": BASE_KINDS,
     "hermes": BASE_KINDS,
     "kimi": BASE_KINDS,
     "pi": ("skill", "mcp", "plugin", "rule"),
-    "opencode": ("skill", "mcp", "plugin", "rule"),
+    "opencode": ("skill", "mcp", "plugin", "rule", "command", "agent"),
     "claude_code": ("skill", "mcp", "hook", "plugin", "rule", "command", "agent"),
     "common": ("skill", "rule"),
     "project": KINDS,
@@ -219,6 +219,31 @@ def plugin_cache(reader, root, configured, *, markdown=False):
                 )
 
 
+def codex_prompts(reader, root):
+    """Legacy Codex custom prompts (``prompts/*.md``, invoked as ``/prompts:<name>``).
+
+    Current Codex no longer loads this folder (external-agent-migration turns commands into
+    skills and nothing reads a prompts dir), so the files are listed as commands with
+    ``enabled=False`` and ``config.loaded=False``: visible, never counted as installed.
+    """
+    for path in reader.children(root / "prompts", ("command",)):
+        if path.suffix != ".md" or not path.is_file():
+            continue
+        raw = reader.read(path, ("command",))
+        if raw is None:
+            continue
+        reader.add(
+            "command",
+            "prompts:" + path.stem,
+            path,
+            "prompts/" + path.stem,
+            enabled=False,
+            evidence="file",
+            raw=raw,
+            config={"component": "command", "loaded": False, "reason": "codex_prompts_not_loaded"},
+        )
+
+
 def codex(reader: ScanReader, root: Path):
     path = root / "config.toml"
     doc = reader.document(path, KINDS)
@@ -256,6 +281,7 @@ def codex(reader: ScanReader, root: Path):
                 else:
                     reader.issue(path, ("skill",), "missing_reference")
     rules(reader, root, ("AGENTS.md", "AGENTS.override.md"))
+    codex_prompts(reader, root)
     plugins = reader.mapping(doc, "plugins", path, ("plugin",))
     for name, value in plugins.items():
         if not isinstance(value, dict):
