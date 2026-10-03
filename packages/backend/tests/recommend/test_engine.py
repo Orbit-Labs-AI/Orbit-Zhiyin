@@ -55,7 +55,7 @@ def fake_recall(cands, problems=None):
 def test_slate_shape_and_ui_keys():
     gated = raw("kb:risky", risk={"level": "high"})
     slate = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([raw("kb:ro-allow"), gated]))
-    assert slate["engine_version"] == "rec-engine-v2.3" and slate["status"] == "ready"
+    assert slate["engine_version"] == "rec-engine-v2.4" and slate["status"] == "ready"
     assert slate["kb_version"] == "kb-1" and slate["catalog_generation"] == 7 and slate["routes"] == {"kb": 2}
     top, low = slate["candidates"]
     assert top["rank"] == 1 and top["gates"]["passed"] and set(top["ui"]) == UI_KEYS
@@ -312,17 +312,26 @@ def test_volume_metrics_are_not_occurrence_counts():
     assert save["share"] == {"time": 2., "token": 2.} and save["time_pct"] == 1.2  # 2 turns of 100, × .6
 
 
-def test_unmeasured_approvals_take_the_cap_of_the_call_pool_that_priced_them():
-    """No read-only wait was timed (e.g. Codex): approvals are priced by the average tool call, so
-    their cap is the tool-call pool's — not the empty read-only pool, which zeroed the total while
-    the card itself showed a real share."""
-    ops = {"call": {"n": 200, "tokens": 400_000, "ms": 18_000_000}, "readonly": {"n": 0, "tokens": 0, "ms": 0}}
+def test_unmeasured_approvals_are_not_estimated():
+    """R8: no read-only wait was recorded (e.g. Codex without request→decision events): the card
+    says so instead of pricing approvals with the call's run time or the average tool call."""
+    ops = {"call": {"n": 200, "tokens": 400_000, "ms": 18_000_000},
+           "readonly": {"n": 0, "tokens": 0, "ms": 0, "unmeasured": 12}}
     untimed = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "ops": ops}}}
     prob = problem(ptype="permission_friction", key="permission_friction", weekly_count=10)
     save = ui_of(raw("kb:ro-allow", prob=prob), untimed)["save"]
-    assert save["op"] == "readonly" and save["group"] == "call" and "按平均工具调用近似" in save["basis"]
-    assert save["share"]["time"] > 0 and save["cap"] == {"time": 50., "token": 40.}
-    assert narrate.total_saving([save]) == {"time": save["time_pct"], "token": 0.}
+    assert save["time_pct"] is None and save["token_pct"] is None and "approval_wait_ms" in save["basis"]
+    assert narrate.total_saving([save]) is None or narrate.total_saving([save]) == {"time": 0., "token": 0.}
+
+
+def test_partly_measured_approvals_use_the_measured_mean_and_say_so():
+    ops = {"call": {"n": 200, "tokens": 400_000, "ms": 18_000_000},
+           "readonly": {"n": 4, "tokens": 0, "ms": 40_000, "unmeasured": 6}}
+    timed = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "ops": ops}}}
+    prob = problem(ptype="permission_friction", key="permission_friction", weekly_count=2)
+    save = ui_of(raw("kb:ro-allow", prob=prob), timed)["save"]
+    assert save["op"] == "readonly" and save["group"] == "readonly"
+    assert "按 4 次实测审批等待的均值，另 6 次未记录等待" in save["basis"]
 
 
 def test_total_saving_matches_the_shared_cases():
@@ -336,3 +345,18 @@ def test_total_saving_matches_the_shared_cases():
     for case in cases:
         total = narrate.total_saving(case["saves"])
         assert total == pytest.approx(case["total"]), case["name"]
+
+
+def test_rework_turns_are_priced_by_their_own_measured_turns():
+    """R10: a correction cited on the cheap turn costs that turn, not all tokens ÷ all turns."""
+    turn_cost = {"by_session": {"a": [2, 1000, 20000], "b": [8, 9000, 180000]},
+                 "by_event": {"u1": [100, 2000], "u2": [900, 18000]}}
+    ledger = {**LEDGER, "turn_cost": turn_cost}
+    inp = {**LEDGER_INPUTS, "facts": {"trajectory": ledger}}
+    exact = problem(ptype="user_correction", key="user_correction", weekly_count=1)
+    exact["evidence"] = {"event_ids": ["u1"], "session_uids": ["a"]}
+    op, tokens, ms, note, _ = narrate._op_cost({"kind": "skill"}, {}, exact, ledger, 1.)
+    assert (op, tokens, ms) == ("turn", 100, 2000) and "证据里 1 轮" in note
+    by_session = {**exact, "evidence": {"event_ids": ["zz"], "session_uids": ["b"]}}
+    assert narrate._op_cost({"kind": "skill"}, {}, by_session, ledger, 2.)[1:3] == (2 * 9000 / 8, 2 * 180000 / 8)
+    assert "证据里 1 轮的实测成本" in ui_of(raw("kb:ro-allow", prob=exact), inp)["save"]["basis"]

@@ -22,17 +22,20 @@ def test_skill_format_adds_vendored_readers_and_marks_unvendored_unknown():
     for agent in ("codex", "opencode", "hermes", "dsh", "pi"):
         assert matrix[agent]["support"] == "native" and matrix[agent]["basis"] == "format:agent_skill"
         assert matrix[agent]["evidence"].startswith("third_party/")
-    for agent in ("kimi", "cursor", "gemini", "copilot"):
+    # Kimi CLI's skill reader was read upstream at a pinned commit (not vendored): cited, native.
+    assert matrix["kimi"]["support"] == "native" and matrix["kimi"]["evidence"].startswith("MoonshotAI/kimi-cli@")
+    for agent in ("cursor", "gemini", "copilot"):
         assert matrix[agent] == {"support": "unknown", "basis": "unverified", "evidence": "agent_skill reader not vendored"}
     # A source that declares kimi keeps it native: the declaration, not our table, is the evidence.
     assert support_matrix("skill", ["kimi"])["kimi"]["support"] == "native"
-    assert supported_agents("skill", ["claude_code"]) == ["claude_code", "codex", "dsh", "hermes", "opencode", "pi"]
+    assert supported_agents("skill", ["claude_code"]) == ["claude_code", "codex", "dsh", "hermes", "kimi", "opencode",
+                                                          "pi"]
 
 
 def test_rule_format_comes_from_the_file_name():
     agents_md = f"https://github.com/o/r/blob/{SHA}/docs/AGENTS.md"
     assert resource_format("rule", agents_md) == "agents_md"
-    assert supported_agents("rule", [], agents_md) == ["codex", "dsh", "hermes", "opencode", "pi"]
+    assert supported_agents("rule", [], agents_md) == ["codex", "dsh", "hermes", "kimi", "opencode", "pi"]
     cursor = f"https://github.com/o/r/blob/{SHA}/rules/python.mdc"
     assert resource_format("rule", cursor) is None
     assert support_matrix("rule", ["cursor"], cursor) == {
@@ -59,7 +62,8 @@ def test_install_targets_per_agent():
     assert targets["hermes"] == {"agent": "hermes", "mode": "copy_dir", "user_path": "~/.hermes/skills/pdf-tools/SKILL.md",
                                  "project_path": None}
     assert targets["pi"]["project_path"] == ".pi/skills/pdf-tools/SKILL.md"
-    assert "kimi" not in targets  # unknown support -> no guessed path
+    assert targets["kimi"]["user_path"] == "~/.kimi/skills/pdf-tools/SKILL.md"
+    assert "gemini" not in targets  # unknown support -> no guessed path
     rule = install_targets("rule", "x", support_matrix("rule", ["copilot"]))
     assert rule == [{"agent": "copilot", "mode": "append_section", "user_path": None,
                      "project_path": ".github/copilot-instructions.md"}]
@@ -89,7 +93,7 @@ def test_match_rows_carry_verification_and_support(tmp_path):
     assert rows["tree-only"]["verification"] == "tree_metadata_only"
     assert rows["bare"]["verification"] is None  # never defaulted to a verified value
     assert rows["read"]["support"]["hermes"] == "native"
-    assert rows["read"]["support"]["kimi"] == "unknown"
+    assert rows["read"]["support"]["gemini"] == "unknown"
     assert rows["read"]["support_basis"]["hermes"]["basis"] == "format:agent_skill"
     assert rows["read"]["admission"] == {"tier": "none", "review": None}  # no problem_type asked
     # A claude_code-declared skill is eligible for a Hermes user; a subagent is not.
@@ -159,8 +163,8 @@ def test_detail_install_paths_follow_the_support_matrix(tmp_path):
     paths = {p["agent"]: p for p in detail["install"]["paths"]}
     assert paths["hermes"]["user_path"] == "~/.hermes/skills/pdf-tools/SKILL.md"
     assert paths["claude_code"]["project_path"] == ".claude/skills/pdf-tools/SKILL.md"
-    assert set(paths) == {"claude_code", "codex", "opencode", "hermes", "dsh", "pi"}
-    assert detail["support"]["kimi"]["support"] == "unknown"
+    assert set(paths) == {"claude_code", "codex", "opencode", "hermes", "dsh", "pi", "kimi"}
+    assert detail["support"]["gemini"]["support"] == "unknown"
 
 
 def test_declared_levels_win_and_agent_support_omits_unknown(tmp_path):
@@ -172,4 +176,4 @@ def test_declared_levels_win_and_agent_support_omits_unknown(tmp_path):
                                     metadata={**READ, "agent_support": {"claude_code": "native", "codex": "manual"}})])
     row = search(store, MatchRequest(text="pdf"))["items"][0]
     assert row["agent_support"]["codex"] == "manual" and row["agent_support"]["hermes"] == "native"
-    assert "kimi" not in row["agent_support"] and row["support"]["kimi"] == "unknown"
+    assert "gemini" not in row["agent_support"] and row["support"]["gemini"] == "unknown"

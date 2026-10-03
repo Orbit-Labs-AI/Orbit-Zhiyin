@@ -21,7 +21,7 @@ Every factor is stored so the card can show why it ranked where it did.
 import math
 
 from ..units import CONTEXT_TOKENS_PER_UNIT
-from .gates import evidence_changed, top_agent
+from .gates import agent_support, evidence_changed, target_agents
 
 PRIOR_MEAN = {"permission_rule": .9, "removal": .9, "hook": .8, "builtin": .7, "skill": .6,
               "rule": .5, "subagent": .5, "mcp": .5, "plugin": .5,
@@ -132,9 +132,9 @@ def score(raw: dict, gates: dict, inputs: dict, memory: dict, *, max_fusion: flo
 
     fusion = raw.get("fusion") or 0
     top = max_fusion if max_fusion else fusion
-    agent = top_agent(inputs)
-    support = (raw.get("agents") or {}).get(agent, "unknown") if agent else "unknown"
-    fit = .5 * (min(1., fusion / top) if top else 0) + .3 * AGENT_FIT.get(support, .5) + .2 * _preference(raw, inputs)
+    targets = target_agents(raw, inputs)
+    agent_fit = max((AGENT_FIT.get(agent_support(raw, a), .5) for a in targets), default=AGENT_FIT.get("unknown", .5))
+    fit = .5 * (min(1., fusion / top) if top else 0) + .3 * agent_fit + .2 * _preference(raw, inputs)
 
     cost_in = raw.get("cost") or {}
     cost = (cost_in.get("setup_minutes") or 0) / 30 + (cost_in.get("context_tokens") or 0) / CONTEXT_TOKENS_PER_UNIT

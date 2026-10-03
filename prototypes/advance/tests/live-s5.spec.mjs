@@ -33,12 +33,15 @@ test('A7: fixture recs render as polished cards with real agents, live run time 
   // J16 / B08: one-line card text, no 0-session evidence links or 0 个会话出现 on profile matches
   for (const t of await page.locator('#content .rc-why').allInnerTexts()) expect(t.length).toBeLessThan(160);
   await expect(page.locator('#content .recs .stack')).not.toContainText(/0 个会话|TRIGGER/);
-  // real agents: Claude Code native, Codex native on claude-api; other targets are converted
+  // real agents: Claude Code native, Codex native on claude-api; the other targets carry no support level → 未核实, never 适用
   await cards.first().click();
   const detail = page.locator('#content .rc-kpis');
-  await expect(detail).toContainText('所有 Agent');   // claude-api targets every agent in the fixture
-  await expect(detail).toContainText('Kimi / Hermes / OpenCode 转为等价配置');
+  await expect(detail).not.toContainText('所有 Agent');
+  await expect(detail).not.toContainText('转为等价配置');
+  await expect(detail).toContainText('Kimi / Hermes / OpenCode 未核实');
   await expect(detail).not.toContainText('Claude / ');
+  const tip = await detail.locator('[data-tip^="适用"]').first().getAttribute('data-tip');
+  expect(tip.split('；')[0]).not.toMatch(/Kimi|Hermes|OpenCode|Pi/);
   await expect(page.locator('#content [data-tip^="适用"]').first()).not.toContainText(/Gemini|Copilot/);
   await page.locator('#content [data-act="recTab"][data-v="why"]').click();
   await expect(page.locator('#content .rc-dfoot-n')).toContainText('资源目录');
@@ -46,6 +49,26 @@ test('A7: fixture recs render as polished cards with real agents, live run time 
   const msgs = await page.evaluate(() => window.__nativeMsgs);
   expect(msgs.some((m) => m.type === 'openExternal' && /^https:\/\/github\.com\//.test(m.url))).toBe(true);
   await noPlainTables(page);
+  expect(errors).toEqual([]);
+});
+
+test('A7: an agent whose support is unknown (Kimi) is 未核实, never 适用 or 转为等价配置', async ({ page }) => {
+  const errors = collectErrors(page);
+  const recs = fx('s5/recs-full.json');
+  const it = recs.items.find((x) => x.title === 'claude-api');
+  it.agents = { claude_code: 'native', kimi: 'unknown', codex: 'adaptation_required' };
+  it.target = Object.assign({}, it.target, { agents: ['claude_code', 'kimi', 'codex'] });
+  await stubGateway(page, ['core', 's5'], { 'GET /v1/recommendations': recs }, { native: NATIVE });
+  await openLive(page, 'recs');
+  const card = page.locator('#content .rcard').filter({ hasText: 'claude-api' }).first();
+  await card.click();
+  const detail = page.locator('#content .rc-kpis');
+  await expect(detail).toContainText('Codex 转为等价配置');
+  await expect(detail).toContainText('Kimi 未核实');
+  await expect(detail).not.toContainText(/Kimi[^；]*转为等价配置/);
+  const tip = await detail.locator('[data-tip^="适用"]').first().getAttribute('data-tip');
+  expect(tip).toMatch(/^适用：Claude Code、Codex（Codex 为转换后的等价配置）；未核实：Kimi/);
+  await expect(card.locator('.rc-ag')).not.toContainText('Kimi');
   expect(errors).toEqual([]);
 });
 
