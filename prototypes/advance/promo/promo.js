@@ -239,81 +239,118 @@ function applyTags(t) {
 }
 
 /* ---------- the persona compass (deck 2) ----------
-   The app's Orbit dial (fp2SVG in 41-a2-persona.js, FPG geometry × 2 on an 800 frame), drawn from the app's own
-   functions so it follows the app: a bezel with 128 ticks and the 16 types in Gray-code order (neighbours differ by one
-   letter; right half 委托 D, left 掌舵 S, top 即兴 I, bottom 规划 P — only these four words), the orbit band where every
-   session sits at the bearing of its own four axes (fpClassify / fpOrbit, one muted layer per Agent, the Agent logos on
-   the crest), and in the core the persona flower (bloom) whose lead petal points at a type.
-   For the film the lead petal is the selector: as it turns, the flower becomes the type it points at (typeP), the
-   bezel pointer follows it, and sectors that the evidence rules out dim. Colours are the app's, re-mixed for black. */
-const CP = { C: 400, K: 2, R0: 200, RH: 116, RR: 160, CORE: 180, BUD: .34, SPIN: [9, 6.5, 4.5, 3, 1.8] };   // SPIN: deg / beat per Agent layer
+   The app's Orbit 0.0.4 dial (fp2SVG in 41-a2-persona.js) on an 800 frame (app units × 2, centre 400), drawn from the
+   app's own functions so it follows the app: a bezel ring with 128 ticks and, inside them, the 16 type codes (.tcode,
+   SF Pro Rounded, Gray-code order, fpCodeLbls; the current type emphasised, the --orbit triangle outside the bezel
+   pointing at it; no pole words); one independent curve per Agent (fpOrbit layers, all from one baseline, translucent
+   muted fill + a thin edge, free to overlap); the Agent badges on the orbit FPG.PR at each Agent's mean direction
+   (fpOrbit planets — the AGD dots ride exactly there, cpBadge); in the middle the persona flower (bloom / bloomParts:
+   symmetric 3–6 petals, no lead petal), turned so a petal faces the type. A change of type (st.wave) plays
+   38-bloom-motion.js: fold / unfold, curve morph, badge glide, triangle turn, emphasis hand-over. Colours: the app's
+   dark theme on pure black. */
+const CP = { C: 400, K: 2, R0: 210, RH: 108, RR: 160, PR: 344, PB: 18, BUD: .34, RING: 300 };   // FPG × 2 (R0 = FPG.R0 + 1, the curves' baseline)
 const cpt = (r, deg) => [CP.C + r * Math.sin(deg * Math.PI / 180), CP.C - r * Math.cos(deg * Math.PI / 180)];
 const f2 = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
 const CODES = Array.from({ length: 16 }, (_, i) => { const g = i ^ (i >> 1); return ['DS', 'IP', 'MF', 'VT'].map((p, k) => p[(g >> (3 - k)) & 1]).join(''); });   // = the app's FP_TYPES; CODES[0] = DIMV
 const AGC = ['var(--a1)', 'var(--a2)', 'var(--a3)', 'var(--a4)', 'var(--a5)'];
-const cpMute = (c, k) => 'color-mix(in oklab, ' + c + ' ' + k + '%, #5d6066)';          // the app's fpMute, against a dark grey
+// the app's dark theme: --ink-1…4, --fp-base (= --h2) / --fp-bo, --h4, --petal2
+const CPC = { ink1: [242, 242, 244], ink2: '#c9c9ce', ink3: [154, 154, 160], ink4: '#66666c', base: '#4a4a50', bo: .45, h4: '#a8a8ae', petal2: '#5c5c63' };
+const cpFill = (c) => 'color-mix(in oklab, ' + c + ' 42%, ' + CPC.base + ')';     // fpFill
+const cpLine = (c) => 'color-mix(in oklab, ' + c + ' 52%, ' + CPC.h4 + ')';       // fpLine
+const cpTypeDeg = (t) => (t + .5) * 22.5;
+const cpDelta = (a, b) => ((b - a) % 360 + 540) % 360 - 180;                     // bmDelta: shortest signed arc
+// CSS cubic-bezier easings of 38-bloom-motion (BM_IN / BM_OUT / BM_IO) and 'ease-out'
+function cpBez(x1, y1, x2, y2) {
+  const bx = (t) => 3 * x1 * t * (1 - t) * (1 - t) + 3 * x2 * t * t * (1 - t) + t * t * t, by = (t) => 3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t;
+  return (x) => { if (x <= 0) return 0; if (x >= 1) return 1; let lo = 0, hi = 1, t = x; for (let i = 0; i < 24; i++) { if (bx(t) < x) lo = t; else hi = t; t = (lo + hi) / 2; } return by(t); };
+}
+const BMI = cpBez(.55, .06, .8, .4), BMO = cpBez(.22, .7, .28, 1), BMIO = cpBez(.45, .05, .3, 1), BMEO = cpBez(0, 0, .58, 1);
+const cpWin = (ms, d0, dur) => clamp((ms - d0) / dur);
+// bmFold: turn, shrink to .06, fade in the last quarter (BM_IN). bmOpen: untwist from −turn at .06, ≈4 % overshoot at 62 %, settle (BM_OUT)
+const cpFold = (p, turn) => { const e = BMI(p); return { r: turn * e, s: 1 - .94 * e, o: e < .72 ? 1 : 1 - (e - .72) / .28 }; };
+const cpOpen = (p, turn, over) => {
+  const e = BMO(p), ov = over || 1.045;
+  if (e < .62) { const k = e / .62; return { r: -turn + turn * 1.08 * k, s: .06 + (ov - .06) * k, o: e < .16 ? e / .16 : 1 }; }
+  const k = (e - .62) / .38; return { r: turn * .08 * (1 - k), s: ov + (1 - ov) * k, o: 1 };
+};
+const cpTf = (r, s) => 'rotate(' + r.toFixed(2) + ' 400 400) translate(400 400) scale(' + Math.max(.001, s).toFixed(4) + ') translate(-400 -400)';
 let CPD = null;
+// one data set: classification, orbit (sm: the 10.8-unit codes of the compact dial, legible on film) and persona, by AGD index
+function cpOrb(L) {
+  const W = decks[0].W, cls = W.eval('fpClassify')(L), orb = W.eval('fpOrbit')(L, cls, true), p = W.eval('persona')(L), code = W.eval('bloomCode')(p);
+  const ly = AGID.map((id) => orb.layers.find((y) => y.a.id === id && y.n)), pl = AGID.map((id) => orb.planets.find((y) => y.a.id === id));
+  return { L, cls, orb, p, code, idx: CODES.indexOf(code), ly: ly.map((x) => (x ? x.outer : null)), pl: pl.map((x) => (x ? x.deg : null)) };
+}
 function compassData() {
   if (CPD) return CPD;
-  const W = decks[0].W, L = W.eval('sel({ noExtra: true })'), cls = W.eval('fpClassify')(L), orb = W.eval('fpOrbit')(L, cls);
-  const me = W.eval('persona(sel({ noExtra: true }))'), typeP = W.eval('typeP'), bloom = W.eval('bloom'), parts = W.eval('bloomParts'), agLogo = W.eval('agLogo');
-  const col = { ink: '#eef0f3', gray: 'rgba(238,240,243,.34)', lead: 'var(--orbit)', bg: '#0b0c0f', hw: 2.8 };
+  const W = decks[0].W, L = W.eval('sel({ noExtra: true })');
+  const me = W.eval('persona')(L), typeP = W.eval('typeP'), bloom = W.eval('bloom'), parts = W.eval('bloomParts');
+  const col = { ink: 'rgb(' + CPC.ink1 + ')', gray: CPC.petal2, lead: 'var(--orbit)', bg: '#000', hw: 2.8 };
   const flower = (p) => { const g = bloom(p, CP.C, CP.RR), q = parts(g, CP.C, CP.C, col); return { back: q.back, front: q.front, heart: q.heart }; };
-  CPD = { TYPES: W.eval('TYPES'), AXES: W.eval('AXES'), AG: W.eval('AG'), me, L, cls, orb, agLogo,
-    fl: CODES.map((c) => flower(typeP(c))), mine: flower(me), mineIdx: CODES.indexOf(W.eval('bloomCode')(me)) };
+  const base = cpOrb(L);
+  CPD = { TYPES: W.eval('TYPES'), AXES: W.eval('AXES'), AG: W.eval('AG'), me, L, cls: base.cls, orb: base.orb, agLogo: W.eval('agLogo'),
+    lbl: W.eval('fpCodeLbls')(true), sets: { base }, fl: CODES.map((c) => flower(typeP(c))), mine: flower(me), mineIdx: CODES.indexOf(W.eval('bloomCode')(me)) };
   return CPD;
+}
+// a data set by key: 'base' = sel({ noExtra: true }) (the default), or one of the app's PERIODS ('jun' SIFV, 'jul' DIFV,
+// 'aug' / 'sep' DIMV, '90', 'all' with the demo data) — st.data / st.wave.da / db
+function cpSet(key) {
+  const D = compassData(); if (!key || key === 'base') return D.sets.base;
+  if (!D.sets[key]) { const W = decks[0].W, P = W.eval('PERIODS')[key]; D.sets[key] = P ? cpOrb(W.eval('personaScope')([P[0], P[1]])) : D.sets.base; }
+  return D.sets[key];
+}
+// closed Catmull-Rom through N + 1 radii (first = last) at fixed bearings (fpCR × 2); rev: reversed; head 'M' | 'L'
+function cpCR(rad, rev, head) {
+  const N = rad.length - 1, P = []; for (let s = 0; s < N; s++) P.push(cpt(rad[s], s / N * 360));
+  if (rev) P.reverse();
+  const n = P.length, g = (i) => P[(i + n) % n];
+  let d = head + f2(P[0]);
+  for (let i = 0; i < n; i++) { const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2); d += 'C' + f2([p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6]) + ' ' + f2([p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6]) + ' ' + f2(p2); }
+  return d;
 }
 function buildCompass() {
   const k = decks[2]; if (k.svg) return k.svg;
-  const D = compassData(), Wt = 'rgba(255,255,255,';
-  const tk = ['', '', '']; for (let i = 0; i < 128; i++) { const w = i % 32 === 0 ? 2 : i % 8 === 0 ? 1 : 0; tk[w] += 'M' + f2(cpt(392, i * 2.8125)) + 'L' + f2(cpt([385, 378, 370][w], i * 2.8125)); }
-  const poles = [[0, '即兴'], [90, '委托'], [180, '规划'], [270, '掌舵']].map(([a, t]) => { const q = cpt(352, a); return '<text class="cp-pole" x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central">' + t + '</text>'; }).join('');
-  const lys = D.orb.layers.filter((ly) => ly.n);
-  const fl = (f, i) => '<g class="fl" data-i="' + i + '" opacity="0"><g class="rot">' + (f.back ? '<g class="bk">' + f.back + '</g>' : '') + '<g class="fr">' + f.front + '</g></g><g class="ht">' + f.heart + '</g></g>';
-  const h = '<defs><radialGradient id="cpFace"><stop offset="0" stop-color="' + Wt + '.06)"/><stop offset=".75" stop-color="' + Wt + '.025)"/><stop offset="1" stop-color="' + Wt + '0)"/></radialGradient>' +
-    '<radialGradient id="cpHead"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".35" stop-color="#cfe9ef" stop-opacity=".6"/><stop offset="1" stop-color="#a3adb0" stop-opacity="0"/></radialGradient></defs>' +
+  const D = compassData();
+  const tk = ['', '', '']; for (let i = 0; i < 128; i++) { const w = i % 32 === 0 ? 2 : i % 8 === 0 ? 1 : 0; tk[w] += 'M' + f2(cpt(392, i * 2.8125)) + 'L' + f2(cpt([385, 379, 370][w], i * 2.8125)); }
+  const codes = D.lbl.map((x) => '<text class="tcode cp-code" data-t="' + x.t + '" x="' + (x.p[0] * CP.K).toFixed(1) + '" y="' + (x.p[1] * CP.K).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (x.fs * CP.K).toFixed(1) + '" style="letter-spacing:.04em">' + x.code + '</text>').join('');
+  const fl = (f, i) => '<g class="fl" data-i="' + i + '" opacity="0"><g class="rot"><g class="bk">' + (f.back || '') + '</g><g class="fr">' + f.front + '</g></g><g class="ht">' + f.heart + '</g></g>';
+  const h = '<defs><radialGradient id="cpHead"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".35" stop-color="#cfe9ef" stop-opacity=".6"/><stop offset="1" stop-color="#a3adb0" stop-opacity="0"/></radialGradient></defs>' +
     '<clipPath id="cpTickClip"><path/></clipPath><clipPath id="cpBandClip"><path/></clipPath>' +
-    '<g class="cp-dial"><circle cx="400" cy="400" r="392" fill="url(#cpFace)" stroke="' + Wt + '.5)" stroke-width="1.8"/>' +
-    '<g class="cp-ticks"><path d="' + tk[0] + '" stroke="' + Wt + '.22)" stroke-width="1.4"/><path d="' + tk[1] + '" stroke="' + Wt + '.45)" stroke-width="2"/><path d="' + tk[2] + '" stroke="#fff" stroke-width="2.8"/></g>' +
-    '<g class="cp-poles">' + poles + '</g><path class="cp-ptr" d="M400 396L390 376L410 376Z" fill="var(--orbit)"/></g>' +
+    // ruled-out types: their band sectors fade through a mask (the dial has no face, so nothing is painted over the light behind)
+    '<mask id="cpDim" maskUnits="userSpaceOnUse" x="-200" y="-200" width="1200" height="1200"><rect x="-200" y="-200" width="1200" height="1200" fill="#fff"/>' + CODES.map((c, t) => '<path data-t="' + t + '" fill="#000" opacity="0" d="' + cpSector(CP.R0 - 2, CP.R0 + CP.RH + 12, t * 22.5, (t + 1) * 22.5) + '"/>').join('') + '</mask>' +
+    '<g class="cp-dial"><circle cx="400" cy="400" r="392" fill="none" stroke="' + CPC.ink4 + '" stroke-width="1.6"/>' +
+    '<g class="cp-ticks"><path d="' + tk[0] + '" stroke="' + CPC.ink4 + '" stroke-width="1"/><path d="' + tk[1] + '" stroke="' + CPC.ink4 + '" stroke-width="1.8"/><path d="' + tk[2] + '" stroke="' + CPC.ink2 + '" stroke-width="2.4"/></g>' +
+    '<path class="cp-ptr" d="M400 4L390 -16L410 -16Z" fill="var(--orbit)"/></g>' +
     '<g class="cp-trace" fill="none" stroke-linecap="round"></g>' +
-    '<g class="cp-band"><circle class="base" cx="400" cy="400" r="' + (CP.R0 + 2) + '" fill="none" stroke="' + Wt + '.16)" stroke-width="1.4"/>' +
-    '<path class="crest" fill="none" stroke="' + Wt + '.07)" stroke-width="18" stroke-linejoin="round"/>' +
-    lys.map((ly) => '<path class="ly" fill="' + cpMute(AGC[D.AG.indexOf(ly.a)], 58) + '" fill-opacity=".42"/>').join('') +
-    lys.map((ly) => '<path class="ed" fill="none" stroke="' + cpMute(AGC[D.AG.indexOf(ly.a)], 78) + '" stroke-width="2.3" stroke-linejoin="round"/>').join('') +
-    '<g class="dim">' + CODES.map((c, t) => '<path data-t="' + t + '" fill="#000" opacity="0" d="' + cpSector(CP.R0 - 2, CP.R0 + CP.RH + 10, t * 22.5, (t + 1) * 22.5) + '"/>').join('') + '</g></g>' +
-    '<g class="cp-pls">' + D.orb.planets.map((x) => { const c = AGC[D.AG.indexOf(x.a)]; return '<g class="pl"><circle r="27" fill="' + c + '" fill-opacity=".16"/>' + D.agLogo(x.a.id, 0, 0, 19, c, '#0e0f12') + '</g>'; }).join('') + '</g>' +
-    '<g class="cp-core"><circle cx="400" cy="400" r="' + CP.CORE + '" fill="#08090b" stroke="' + Wt + '.16)" stroke-width="1.6"/></g>' +
+    '<g class="cp-codes">' + codes + '</g>' +
+    '<g class="cp-band" mask="url(#cpDim)"><g class="body">' + AGID.map((id, i) => '<path data-a="' + id + '" fill="' + cpFill(AGC[i]) + '" fill-opacity="' + CPC.bo + '"/>').join('') + '</g>' +
+    '<g class="edges">' + AGID.map((id, i) => '<path data-a="' + id + '" fill="none" stroke="' + cpLine(AGC[i]) + '" stroke-width="1.8" stroke-linejoin="round"/>').join('') + '</g>' +
+    '<circle class="ring" cx="400" cy="400" r="' + CP.RING + '" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2.4" opacity="0"/>' +
+    '</g>' +
+    '<g class="cp-pls">' + AGID.map((id, i) => '<g class="pl" data-a="' + id + '"><circle r="' + (CP.PB + 1.6) + '" fill="#000"/>' + D.agLogo(id, 0, 0, CP.PB, cpLine(AGC[i]), '#000') + '</g>').join('') + '</g>' +
     '<g class="cp-flower">' + D.fl.map(fl).join('') + fl(D.mine, 'me') + '</g>';
   const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('viewBox', '0 0 800 800'); svg.setAttribute('width', '800'); svg.setAttribute('height', '800'); svg.setAttribute('class', 'compass');
   svg.style.overflow = 'visible'; svg.innerHTML = h; k.rig.appendChild(svg); k.svg = svg;
-  k.lys = lys; k.fls = [...svg.querySelectorAll('.cp-flower .fl')];
-  // every petal (and stamen, dot) becomes its own path, ranked clockwise from the lead petal, so a change of type can
-  // fold the petals in one by one and open the next flower's petals one by one right behind them
-  k.pet = k.fls.map((g) => {
-    const out = [];
-    g.querySelectorAll('.rot path').forEach((p) => {
-      const parts = (p.getAttribute('d') || '').split(/(?=M)/).filter((x) => x.trim());
-      parts.forEach((d) => { const q = p.cloneNode(false); q.setAttribute('d', d); p.parentNode.insertBefore(q, p); out.push(q); });
-      p.remove();
-    });
-    const ang = (q) => { const b = q.getBBox(), a = Math.atan2(b.x + b.width / 2 - 400, 400 - (b.y + b.height / 2)) * 180 / Math.PI; return (((a + 2) % 360) + 360) % 360; };   // 2°: a lead petal a hair left of north still ranks first
-    out.forEach((q) => { q._a = ang(q); });
-    return out.sort((a, b) => a._a - b._a);
-  });
-  k.ht = k.fls.map((g) => g.querySelector('.ht'));
-  // each Agent layer starts a fifth of the ring apart from the others (its badge evenly spread), then circles at its own speed
-  k.ph = lys.map((ly, i) => { const x = D.orb.planets.find((y) => y.a === ly.a || (y.a && ly.a && y.a.id === ly.a.id)); return i * 72 + 18 - (x ? x.deg : 0); });
+  k.fls = [...svg.querySelectorAll('.cp-flower .fl')].map((g) => ({ g, rot: g.querySelector('.rot'), fr: g.querySelector('.fr'), bk: g.querySelector('.bk'), ht: g.querySelector('.ht') }));
+  k.body = [...svg.querySelectorAll('.cp-band .body path')]; k.edges = [...svg.querySelectorAll('.cp-band .edges path')];
+  k.codes = [...svg.querySelectorAll('.cp-code')]; k.pls = [...svg.querySelectorAll('.cp-pls .pl')]; k.dims = [...svg.querySelectorAll('#cpDim path')];
   return svg;
 }
 function cpSector(r0, r1, a0, a1) { const p0 = cpt(r0, a0), p1 = cpt(r1, a0), p2 = cpt(r1, a1), p3 = cpt(r0, a1); return 'M' + f2(p0) + 'L' + f2(p1) + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + f2(p2) + 'L' + f2(p3) + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + f2(p0) + 'Z'; }
-/* st: { deg: bearing of the lead petal and the bezel pointer, mine: 0..1 from the type's flower to your own, grow: 0 bud
-   .. 1 open, fi (flower to show, a CODES index; default: the type under the petal), twist (extra turn of the flower,
-   deg), sweep (band reveal: a wedge from sweepFrom, clockwise), orbit (badge phase while they ride with the petal),
-   spin (beats: each Agent layer and its badge turn by spin × CP.SPIN[layer], from evenly spread starts), wave (a petal-by-
-   petal change of type: { a, b, u }), settle (unused since v13: the badges always ride their layers), keep: 16 × 0..1 (1 = sector still possible, 0 = ruled out and dimmed), dial,
-   core, needle (pointer), collapse (band → one ring at r 300), ticks (0..1: ticks revealed clockwise from north),
-   trace (0..1: a light running once around the ticks; traceA its strength) } */
+/* st: { deg: bearing of the flower (a petal faces it) and the --orbit triangle; the code nearest the triangle is
+   emphasised. mine: 0..1 from the type's flower to your own (same type, your proportions). grow: 0 bud .. 1 open.
+   fi: flower to show (a CODES index; default: the type under the triangle). twist: extra turn of the flower (deg).
+   data: data set of the curves and badges (cpSet key, default 'base').
+   wave: a change of type as 38-bloom-motion plays it: { a, b, u, da, db } — a / b = CODES indices of the old / new type
+     (a null: b only unfolds from its heart, turning 32°), u = 0..1 progress of the app's 860 ms (fold 0–35 %, unfold
+     30–100 %), da / db = data sets before / after (curves morph, badges glide; default st.data). While a wave runs the
+     flower, triangle and emphasis follow it (deg is ignored when a is set).
+   sweep (band reveal: a wedge from sweepFrom, clockwise), keep: 16 × 0..1 (1 = type still possible, 0 = ruled out:
+   its band sector and code dim), dial, core (flower), needle (triangle), codes (0..1 code opacity factor), collapse
+   (curves → one ring at r 300, badges onto it), ticks (0..1: ticks and codes revealed clockwise from north), trace
+   (0..1: a light running once around the ticks; traceA its strength), pl (opacity of the compass's own badges; the film
+   passes 0 and AGD draws them). spin / orbit / settle: kept for old call sites, no effect — since 0.0.4 every badge stays
+   at its Agent's mean direction and the curves stay on their types, as in the app. } */
 // a pie wedge (clip) from bearing a0, span degrees clockwise
 function cpWedge(a0, span) {
   if (span >= 359.9) return 'M-200 -200H1000V1000H-200Z';
@@ -322,9 +359,9 @@ function cpWedge(a0, span) {
   return 'M400 400L' + f2(p0) + 'A560 560 0 ' + (span > 180 ? 1 : 0) + ' 1 ' + f2(p1) + 'Z';
 }
 function cpArc(r, a0, a1) { const p0 = cpt(r, a0), p1 = cpt(r, a1); return 'M' + f2(p0) + 'A' + r + ' ' + r + ' 0 ' + (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + f2(p1); }
-// CPS: the last drawCompass state (st, plus pla = badge opacity factor and pl[i] = [px, py] of Agent i (AGD order) in
-// compass units). cpStage: compass point → stage px through deck 2's camera (perspective · Z · X · Y · Z, as the CSS).
-// cpBadge(i): where AGD's 'compass' formation puts Agent i this frame.
+// CPS: the last drawCompass state (st, plus pla = badge opacity factor, pl[i] = [px, py, r] of Agent i (AGD order) in
+// compass units and pa[i] = its presence 0..1 in the shown data). cpStage: compass point → stage px through deck 2's
+// camera (perspective · Z · X · Y · Z, as the CSS). cpBadge(i): where AGD's 'compass' formation puts Agent i this frame.
 let CPS = null;
 function cpStage(px, py) {
   const C = decks[2].C, R = Math.PI / 180;
@@ -336,36 +373,60 @@ function cpStage(px, py) {
   return [C.ax + X / w, C.ay + Y / w];
 }
 function cpBadge(i) {
-  const q = CPS ? CPS.pl[i] : cpt(330, i * 72 + 18), p = cpStage(q[0], q[1]);
-  return { x: p[0], y: p[1], r: 19 * decks[2].C.s, a: 1 };
+  let q = CPS && CPS.pl[i];
+  if (!q) { const d = CPD && CPD.sets.base.pl[i]; q = cpt(CP.PR, d ?? i * 72 + 18); }
+  const p = cpStage(q[0], q[1]);
+  return { x: p[0], y: p[1], r: CP.PB * decks[2].C.s, a: CPS ? CPS.pa[i] : 1 };
 }
 function drawCompass(st) {
-  const svg = buildCompass(), k = decks[2], D = CPD, col = clamp(st.collapse || 0), deg = st.deg;
-  // the band: each Agent layer between its inner and outer edge (app units × 2); collapsing pulls every edge to r 300
-  const N = D.orb.layers[0].outer.length - 1, rad = (e) => lerp(CP.R0 + 2 + e * CP.K, 300, col);
-  const edge = (e) => { let d = ''; for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f2(cpt(rad(e[s]), s / N * 360)); return d + 'Z'; };
-  const band = (ly) => { let d = ''; for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f2(cpt(rad(ly.outer[s]), s / N * 360)); for (let s = N; s >= 0; s--) d += 'L' + f2(cpt(rad(ly.inner[s]), s / N * 360)); return d + 'Z'; };
-  if (k.col !== col) {
-    k.col = col;
-    svg.querySelectorAll('.cp-band .ly').forEach((p, i) => p.setAttribute('d', band(k.lys[i])));
-    svg.querySelectorAll('.cp-band .ed').forEach((p, i) => p.setAttribute('d', edge(k.lys[i].outer)));
-    svg.querySelector('.cp-band .crest').setAttribute('d', edge(k.lys[k.lys.length - 1].outer));
-    svg.querySelectorAll('.cp-band .ly, .cp-band .crest').forEach((p) => { p.style.opacity = (1 - col).toFixed(3); });
+  const svg = buildCompass(), k = decks[2], D = CPD, col = clamp(st.collapse || 0), wv = st.wave, dial = st.dial ?? 1, core = st.core ?? 1;
+  const sw = clamp(st.sweep ?? 1), keep = st.keep;
+  // the switch clock (app ms): a type change runs 860 ms; a first bloom (a null) 680 ms
+  const fold = wv && wv.a != null && wv.a !== wv.b, ms = wv ? clamp(wv.u) * (fold ? 860 : 680) : 0;
+  const SA = cpSet(wv && wv.da != null ? wv.da : st.data), SB = cpSet(wv && wv.db != null ? wv.db : st.data);
+  // ---- curves: each Agent from the shared baseline; a data change blends every radius (560 ms, ease-in-out), new
+  // curves fade in (120–540 ms), gone curves fade out from their old shape (0–360 ms); collapse pulls all to r 300
+  const mo = SA === SB ? 1 : E.inOut(cpWin(ms, 0, 560)), rr = (e) => lerp(CP.R0 + e * CP.K, CP.RING, col);
+  const key = col.toFixed(4) + '|' + (wv && wv.da != null ? wv.da : st.data || 'base') + '>' + (wv && wv.db != null ? wv.db : st.data || 'base') + '|' + (SA === SB ? '' : ms.toFixed(1));
+  if (k.bandKey !== key) {
+    k.bandKey = key;
+    const N = (SB.ly.find(Boolean) || SA.ly.find(Boolean) || new Array(145).fill(0)).length - 1, inner = cpCR(new Array(N + 1).fill(rr(0)), true, 'L');
+    AGID.forEach((id, i) => {
+      const a = SA.ly[i], b = SB.ly[i], fb = k.body[i], fe = k.edges[i];
+      let o = 1, e = b || a;
+      if (a && b && SA !== SB) e = b.map((v, s) => lerp(a[s], v, mo));
+      else if (!a && b && SA !== SB) o = BMEO(cpWin(ms, 120, 420));
+      else if (a && !b) o = SA === SB ? 1 : 1 - E.in(cpWin(ms, 0, 360));
+      if (!e || o < .002) { fb.style.display = fe.style.display = 'none'; return; }
+      fb.style.display = fe.style.display = '';
+      const out = cpCR(e.map(rr), false, 'M');
+      fb.setAttribute('d', out + inner + 'Z'); fe.setAttribute('d', out + 'Z');
+      fb.style.opacity = (o * (1 - col)).toFixed(3); fe.style.opacity = (o * (1 - E.in(col))).toFixed(3);
+    });
+    svg.querySelector('.cp-band .ring').setAttribute('opacity', E.in(col).toFixed(3));
   }
-  // each Agent's layer (and its badge) keeps circling at its own even speed, inner layers faster, like orbits
-  const rot = k.lys.map((ly, i) => k.ph[i] + (st.spin || 0) * CP.SPIN[i % CP.SPIN.length]);
-  svg.querySelectorAll('.cp-band .ly').forEach((p, i) => p.setAttribute('transform', 'rotate(' + rot[i].toFixed(2) + ' 400 400)'));
-  svg.querySelectorAll('.cp-band .ed').forEach((p, i) => p.setAttribute('transform', 'rotate(' + rot[i].toFixed(2) + ' 400 400)'));
-  svg.querySelector('.cp-band .crest').setAttribute('transform', 'rotate(' + rot[rot.length - 1].toFixed(2) + ' 400 400)');
-  const sw = clamp(st.sweep ?? 1), bg = svg.querySelector('.cp-band');
+  const bg = svg.querySelector('.cp-band');
   if (sw < 1) { svg.querySelector('#cpBandClip path').setAttribute('d', cpWedge(st.sweepFrom || 0, sw * 360)); bg.setAttribute('clip-path', 'url(#cpBandClip)'); } else bg.removeAttribute('clip-path');
-  svg.querySelector('.cp-band .base').style.opacity = ((st.dial ?? 1) * (1 - col)).toFixed(3);
-  // ruled-out sectors dim
-  svg.querySelectorAll('.cp-band .dim path').forEach((p, t) => { p.setAttribute('opacity', ((1 - (st.keep ? st.keep[t] : 1)) * .72 * (1 - col)).toFixed(3)); });
-  // ticks drawn on clockwise from north, and a light that runs once around them
+  k.dims.forEach((p, t) => { p.setAttribute('opacity', ((1 - (keep ? keep[t] : 1)) * .72 * (1 - col)).toFixed(3)); });
+  // ---- badges on the orbit at each Agent's mean direction; a data change glides them along the shortest arc (640 ms,
+  // 40 ms apart, BM_IO), a new Agent fades in (260–580 ms), a gone one fades out. Positions go to CPS.pl for AGD
+  const pla = st.pl ?? 1, pos = [], pa = [];
+  let gi = 0;
+  AGID.forEach((id, i) => {
+    const a = SA.pl[i], b = SB.pl[i]; let d = b ?? a ?? i * 72 + 18, o = (b ?? a) != null ? 1 : 0;
+    if (SA !== SB) {
+      if (a != null && b != null) { const dd = cpDelta(a, b); if (Math.abs(dd) >= .3) d = a + dd * BMIO(cpWin(ms, 40 * gi++, 640)); }
+      else if (b != null) o = BMEO(cpWin(ms, 260, 320));
+      else if (a != null) o = 1 - BMEO(cpWin(ms, 0, 300));
+    }
+    const q = cpt(lerp(CP.PR, CP.RING, col), d); pos[i] = [q[0], q[1], CP.PB]; pa[i] = o;
+    const g = k.pls[i], v = o * clamp(sw * 2 - i * .2) * (1 - col) * dial * pla;
+    g.setAttribute('transform', 'translate(' + f2(q) + ')'); g.style.opacity = v.toFixed(3); g.style.display = v < .002 ? 'none' : '';
+  });
+  CPS = Object.assign({}, st, { pla, pl: pos, pa });
+  // ---- ticks drawn on clockwise from north (the codes come in with them), and a light that runs once around them
   const tkv = clamp(st.ticks ?? 1), tg = svg.querySelector('.cp-ticks');
   if (tkv < 1) { svg.querySelector('#cpTickClip path').setAttribute('d', cpWedge(0, tkv * 360)); tg.setAttribute('clip-path', 'url(#cpTickClip)'); } else tg.removeAttribute('clip-path');
-  svg.querySelector('.cp-poles').style.opacity = E.out(clamp(tkv * 1.4 - .4)).toFixed(3);
   const trg = svg.querySelector('.cp-trace'), tr = st.trace, ta = st.traceA ?? 1;
   if (tr != null && tr > 0 && ta > .001) {
     const head = tr * 360, n = 14, tail = 120; let h = '';
@@ -373,48 +434,55 @@ function drawCompass(st) {
     const hp = cpt(381, head); h += '<circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="18" fill="url(#cpHead)" opacity="' + ta.toFixed(3) + '"/><circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="5" fill="#fff" opacity="' + ta.toFixed(3) + '"/>';
     trg.innerHTML = h;
   } else if (trg.firstChild) trg.innerHTML = '';
-  // badges: each rides its own layer (same speed) on that layer's outer edge just outside the crest. st.pl scales their
-  // opacity (v17 passes 0: AGD draws the badges); their positions always go to CPS.pl (by AGD index) for AGD's 'compass'
-  const pla = st.pl ?? 1, pos = AGID.map((id, i) => [...cpt(lerp(330, 300, col), i * 72), 19]);
-  svg.querySelectorAll('.cp-pls .pl').forEach((g, i) => {
-    const x = D.orb.planets[i], li = k.lys.findIndex((ly) => ly.a === x.a || (ly.a && x.a && ly.a.id === x.a.id));
-    const a = x.deg + (li >= 0 ? rot[li] : 0), ly = k.lys[Math.max(0, li)], sIdx = Math.round((((x.deg % 360) + 360) % 360) / 360 * N) % (N + 1);
-    const r = lerp(CP.R0 + 2 + ly.outer[sIdx] * CP.K + 30, 300, col), q = cpt(r, a);
-    const ai = x.a ? AGID.indexOf(x.a.id) : -1; if (ai >= 0) pos[ai] = [q[0], q[1], 19];
-    const o = clamp(sw * 2 - i * .2) * (1 - col) * (st.dial ?? 1) * pla;
-    g.setAttribute('transform', 'translate(' + f2(q) + ')'); g.style.opacity = o.toFixed(3); g.style.display = o < .002 ? 'none' : '';
+  // ---- triangle, flower angles and the emphasised code
+  const deg = st.deg || 0, tw = st.twist || 0;
+  let tri = deg, em = null;
+  const hA = fold ? cpTypeDeg(wv.a) : deg, hB = fold ? cpTypeDeg(wv.b) : deg, dl = cpDelta(hA, hB), sg = dl < 0 ? -1 : 1;
+  if (fold) {
+    // the triangle turns along the shortest arc with a small settle (760 ms, BM_IO); the old code fades back to gray from
+    // 60 ms, the new one darkens from 420 ms as the triangle lands
+    const e = BMIO(cpWin(ms, 0, 760)); tri = e < .78 ? hA + dl * 1.04 * e / .78 : hB + dl * .04 * (1 - (e - .78) / .22);
+    em = new Array(16).fill(0); em[wv.a] = 1 - BMEO(cpWin(ms, 60, 380)); em[wv.b] = Math.max(em[wv.b], BMEO(cpWin(ms, 420, 420)));
+  }
+  if (!em) { em = CODES.map((c, t) => clamp((17.5 - Math.abs(cpDelta(tri, cpTypeDeg(t)))) / 12.5)); }   // the code under the triangle (soft at the sector edges)
+  const cf = (st.codes ?? 1) * dial;
+  k.codes.forEach((x, t) => {
+    const v = clamp(em[t]) * (st.needle ?? 1), rv = E.out(clamp((tkv * 360 - t * 22.5) / 30)), kp = keep ? keep[t] : 1;
+    const c = CPC.ink3.map((a, j) => Math.round(lerp(a, CPC.ink1[j], v)));
+    x.setAttribute('fill', 'rgb(' + c + ')'); x.style.fontWeight = v > .5 ? 800 : 600;
+    x.style.opacity = (cf * rv * lerp(.3, 1, kp) * (1 - col)).toFixed(3);
   });
-  CPS = Object.assign({}, st, { pla, pl: pos });
-  // the flower of the type under the petal; near a sector edge it cross-fades into the neighbour; `mine` hands over to
-  // your own flower (same type, your own proportions)
+  const ptr = svg.querySelector('.cp-ptr');
+  ptr.setAttribute('transform', 'rotate(' + tri.toFixed(2) + ' 400 400)'); ptr.style.opacity = ((st.needle ?? 1) * dial).toFixed(3);
+  svg.querySelector('.cp-dial').style.opacity = dial.toFixed(3);
+  // ---- flowers: the type under the triangle (cross-fading into the neighbour near a sector edge) or fi; `mine` hands
+  // over to your own flower; a wave folds a and unfolds b as 38-bloom-motion
   const u = ((deg % 360) + 360) % 360 / 22.5, i0 = Math.floor(u) % 16, fr = u - Math.floor(u), dd = Math.min(fr, 1 - fr), nb = (i0 + (fr < .5 ? 15 : 1)) % 16;
   const x = dd < .15 ? dd / .15 : 1, op = new Array(17).fill(0);
-  if (st.fi != null) op[st.fi] = 1; else { op[i0] = .5 + .5 * x; op[nb] += .5 - .5 * x; }   // fi: show this type's flower whatever the bearing
-  const mine = clamp(st.mine || 0); if (mine > 0) { for (let j = 0; j < 16; j++) op[j] *= 1 - mine; op[16] = mine; }
-  // wave: { a: the flower folding in, b: the flower opening, u: 0..1 } — petal by petal, clockwise from the lead petal,
-  // at an even cadence; each of b's petals starts opening just after the petal of a at the same rank has folded
-  const wv = st.wave;
-  if (wv) { op.fill(0); if (wv.a != null) op[wv.a] = 1; op[wv.b] = 1; }
-  const gr = clamp(st.grow ?? 1), sc = CP.BUD + (1 - CP.BUD) * gr, core = st.core ?? 1;
-  k.fls.forEach((g, j) => {
-    const o = op[j] * core; g.setAttribute('opacity', o.toFixed(3)); if (o < .002) return;
-    g.querySelector('.rot').setAttribute('transform', 'rotate(' + (deg + (st.twist || 0)).toFixed(2) + ' 400 400) translate(400 400) scale(' + sc.toFixed(4) + ') translate(-400 -400)');
-    const P = k.pet[j], n = P.length, side = wv ? (j === wv.a ? 'a' : j === wv.b ? 'b' : null) : null;
-    P.forEach((q, r) => {
-      let v = 1;
-      if (side === 'a') v = 1 - E.sine(clamp((wv.u - .5 * r / n) / .3));
-      else if (side === 'b') v = E.sine(clamp((wv.u - .2 - .5 * r / n) / .3));
-      if (v >= .999) { if (q._v !== 1) { q.removeAttribute('transform'); q.style.opacity = ''; q._v = 1; } return; }
-      q._v = v;
-      q.setAttribute('transform', 'rotate(' + ((1 - v) * (side === 'a' ? 40 : -40)).toFixed(2) + ' 400 400) translate(400 400) scale(' + Math.max(.001, v).toFixed(4) + ') translate(-400 -400)');
-      q.style.opacity = Math.min(1, v * 1.6).toFixed(3);
-    });
-    k.ht[j].style.opacity = side === 'a' ? (1 - E.sine(clamp((wv.u - .3) / .4))).toFixed(3) : side === 'b' ? E.sine(clamp((wv.u - .3) / .4)).toFixed(3) : '';
+  if (st.fi != null) op[st.fi] = 1; else { op[i0] = .5 + .5 * x; op[nb] += .5 - .5 * x; }
+  if (wv) { op.fill(0); if (fold) op[wv.a] = 1; op[wv.b] = 1; }
+  const mine = clamp(st.mine || 0);
+  if (mine > 0) { if (wv) { op[16] = op[wv.b] * mine; op[wv.b] *= 1 - mine; } else { for (let t = 0; t < 16; t++) op[t] *= 1 - mine; op[16] = mine; } }
+  const gr = clamp(st.grow ?? 1), sc = CP.BUD + (1 - CP.BUD) * gr, hearts = fold ? [D.fl[wv.a].heart, D.fl[wv.b].heart] : null, same = hearts && hearts[0] === hearts[1];
+  k.fls.forEach((f, j) => {
+    const o = op[j] * core; f.g.setAttribute('opacity', o.toFixed(3)); if (o < .002) return;
+    const side = !wv ? null : fold && j === wv.a ? 'a' : (j === wv.b || j === 16) ? 'b' : null;
+    let ang = deg + tw, F = null, B = null, H = null;
+    if (side === 'a') {
+      // the old flower turns 30 % of the way while it folds (300 ms, BM_IN); petals twist 28°, the gray ring 50 ms behind
+      ang = hA + dl * .3 * BMI(cpWin(ms, 0, 300)) + tw; F = cpFold(cpWin(ms, 0, 300), 28 * sg); B = cpFold(cpWin(ms, 50, 300), 28 * sg);
+      H = { s: 1, o: same ? 0 : 1 - cpWin(ms, 230, 110) };
+    } else if (side === 'b') {
+      if (fold) {
+        // the new flower turns the remaining 70 % while it unfolds (260–860 ms, BM_OUT); untwist 32°, the gray ring 80 ms behind
+        ang = hB - dl * .7 * (1 - BMO(cpWin(ms, 260, 600))) + tw; F = cpOpen(cpWin(ms, 260, 520), 32 * sg); B = cpOpen(cpWin(ms, 340, 520), 32 * sg);
+        if (!same) { const e = BMO(cpWin(ms, 230, 320)); H = e < .55 ? { s: .4 + .74 * e / .55, o: e / .55 } : { s: 1.14 - .14 * (e - .55) / .45, o: 1 }; }
+      } else { F = cpOpen(cpWin(ms, 0, 600), 32, 1.05); B = cpOpen(cpWin(ms, 80, 600), 32, 1.05); }
+    }
+    f.rot.setAttribute('transform', cpTf(ang, sc));
+    const set = (el, q) => { if (!q) { if (el._q) { el.removeAttribute('transform'); el.style.opacity = ''; el._q = 0; } return; } el._q = 1; el.setAttribute('transform', cpTf(q.r || 0, q.s)); el.style.opacity = clamp(q.o).toFixed(3); };
+    set(f.fr, F); set(f.bk, B); set(f.ht, H);
   });
-  svg.querySelector('.cp-ptr').setAttribute('transform', 'rotate(' + deg.toFixed(2) + ' 400 400)');
-  svg.querySelector('.cp-ptr').style.opacity = ((st.needle ?? 1) * (st.dial ?? 1)).toFixed(3);
-  svg.querySelector('.cp-dial').style.opacity = (st.dial ?? 1).toFixed(3);
-  svg.querySelector('.cp-core').style.opacity = core.toFixed(3);
 }
 /* ---------- the Orbit mark, live ----------
    The same conical spiral as docs/design/logo/generate.py, variant "spiral" (1.6 turns, radius 9 → 16, rise 14, phase
