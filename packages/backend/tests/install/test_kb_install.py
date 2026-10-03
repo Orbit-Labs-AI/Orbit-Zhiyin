@@ -1,4 +1,4 @@
-"""R2: KB remedies Tandem writes itself plan as ``ready`` from the card, not the catalog twin.
+"""R2: KB remedies Orbit writes itself plan as ``ready`` from the card, not the catalog twin.
 
 Cards are built by the real KB route (``from_rule``) and stored the way the engine stores them
 (internal fields dropped), then planned → previewed → applied → reverted in a fabricated home.
@@ -8,10 +8,10 @@ import json
 
 import pytest
 
-from tandem_backend.install.errors import PlanError
-from tandem_backend.recommend import kb
-from tandem_backend.recommend.engine import INTERNAL
-from tandem_backend.recommend.recall.kb_route import from_rule
+from orbit_backend.install.errors import PlanError
+from orbit_backend.recommend import kb
+from orbit_backend.recommend.engine import INTERNAL
+from orbit_backend.recommend.recall.kb_route import from_rule
 
 from .test_service import CATALOG, snapshot, svc  # noqa: F401
 
@@ -68,18 +68,18 @@ def test_readonly_allowlist_without_heads_uses_preview_lines(svc):  # noqa: F811
     assert plan["status"] == "ready"
 
 
-def test_kb_hook_uses_tandem_template_script(svc, fake_home):  # noqa: F811
+def test_kb_hook_uses_orbit_template_script(svc, fake_home):  # noqa: F811
     add(svc, "c-hook", card("retry-breaker"))
     plan, _, written = cycle(svc, "c-hook")
     assert plan["kind"] == "hook"
-    script = fake_home / ".claude/hooks/tandem/retry-breaker@1.py"
+    script = fake_home / ".claude/hooks/orbit/retry-breaker@2.py"
     assert str(script) in written and "HOOK_ID = \"retry-breaker\"" in written[str(script)]
-    config = json.loads(written[str(fake_home / ".claude/hooks/tandem/retry-breaker@1.config.json")])
+    config = json.loads(written[str(fake_home / ".claude/hooks/orbit/retry-breaker@2.config.json")])
     assert config["matcher"] == "Bash" and config["threshold"] == 3
     hooks = json.loads(written[str(fake_home / ".claude/settings.json")])["hooks"]
     assert set(hooks) == {"PreToolUse", "PostToolUse"}
     command = hooks["PostToolUse"][0]["hooks"][0]["command"]
-    assert command.startswith("python3 ") and str(script) in command and "{tandem.hooks}" not in command
+    assert command.startswith("python3 ") and str(script) in command and "{orbit.hooks}" not in command
 
 
 def test_kb_command_hook_from_preview(svc, fake_home):  # noqa: F811

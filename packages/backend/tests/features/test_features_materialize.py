@@ -1,4 +1,4 @@
-from tandem_backend.features import sessfeat
+from orbit_backend.features import sessfeat
 
 
 def rows(svc, uid):
@@ -50,7 +50,7 @@ def test_incremental_touches_only_changed(seeded, make_service, revs):
     assert sessfeat.stale(svc)
 
 
-def test_single_flight_and_no_tandem(home, make_service):
+def test_single_flight_and_no_orbit(home, make_service):
     svc = make_service()
     assert sessfeat.materialize(svc)["status"] == "no_data"
     svc.materialize_lock.acquire()

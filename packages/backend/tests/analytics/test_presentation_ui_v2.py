@@ -1,6 +1,6 @@
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.presentation import build_presentation
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.presentation import build_presentation
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def sample():

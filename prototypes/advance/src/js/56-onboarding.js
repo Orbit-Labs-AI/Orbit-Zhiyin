@@ -64,7 +64,7 @@ function drawOB() {
   const top = '<div class="row">' + dots + '<span class="mono cap" style="font-size:11px">' + (s + 1) + ' / 4</span><span style="flex:1"></span>' + (s < 3 ? '<button type="button" class="btn sm gh" data-act="obClose">跳过</button>' : '') + '</div>';
   let b = '';
   if (s === 0) {
-    b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div><div class="eb">Orbit</div><h2 class="serif" style="margin:4px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
+    b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div>' + wordmark(18) + '<h2 class="serif" style="margin:8px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
       [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', '不调用云端模型', '语义分析交给你自己的本地 Agent']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
   } else if (s === 1 && OB.live) {
@@ -99,9 +99,9 @@ const OB_TEXT = {
   // job frame progress → the note under 导入历史会话: the gateway's stage name and detail (which source / batch, whether it
   // rebuilds the affected sessions or the whole source, a retry after a source changed mid-import); older gateways only
   // send progress.stage, named by the shared adapter. count: 「N / M 个文件」; ratio: the whole job (never moves back).
-  stageNote: (pr) => TandemLive.ui.stageNote(pr),
-  count: (x) => (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) + (TandemLive.ui.unitName(x.unit) ? ' ' + TandemLive.ui.unitName(x.unit) : '') : x.status === 'skipped' ? OB_TEXT.skipped : ''),
-  ratio: (pr) => TandemLive.ui.stageRatio(pr),
+  stageNote: (pr) => OrbitLive.ui.stageNote(pr),
+  count: (x) => (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) + (OrbitLive.ui.unitName(x.unit) ? ' ' + OrbitLive.ui.unitName(x.unit) : '') : x.status === 'skipped' ? OB_TEXT.skipped : ''),
+  ratio: (pr) => OrbitLive.ui.stageRatio(pr),
   headRun: '正在导入你的会话', headDone: '导入已完成',
   bgHint: '可以关闭窗口，完成后通知你',
   side: { run: '导入中', analyze: '分析中', fail: '导入未完成', done: '重新打开引导', start: '开始导入', view: '查看', retry: '重试' }

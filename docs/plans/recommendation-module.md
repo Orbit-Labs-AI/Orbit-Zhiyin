@@ -2,9 +2,9 @@
 
 > 状态：方案（不等同当前能力） · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
-> 状态：2026-10-02 第 2 版（按评审意见修订）。依据：[`contract.md`](module-contract.md) 第 2 版 + 本轮评审统一结论（并入契约第 3 版的条目见 §16）；**main `6f31203`**：PR #26（`genius-FXC`，`tandem_backend.recommend` 推荐引擎：七类资源 `recommendation-item-v1`、七条瓶颈规则、硬过滤、四路召回 + RRF、加权评分、MMR）、PR #28（结构重构：`src/tandem_backend` → `packages/backend/src/tandem_backend`，Advance Demo → `prototypes/advance`，Lite Demo → `prototypes/lite`，`prototypes/advance/benchmark-review.md` → `docs/design/lite-review.md`）、PR #29（`packages/catalog`：`catalog.db`、FTS5、特征倒排、本地 E5 向量）、PR #30（`docs/plans/analysis-review.md`）；本地分支 `feat/local-inventory`（`yhyfhgs`，DT-09 安装清单扫描：`packages/data/src/tandem_data/inventory/`，基于 `f834616`，待 PR）。其他三份模块文档与契约第 2 版仍写重构前路径，对照表见 main `docs/development/structure-migration.md`。
+> 状态：2026-10-02 第 2 版（按评审意见修订）。依据：[`contract.md`](module-contract.md) 第 2 版 + 本轮评审统一结论（并入契约第 3 版的条目见 §16）；**main `6f31203`**：PR #26（`genius-FXC`，`orbit_backend.recommend` 推荐引擎：七类资源 `recommendation-item-v1`、七条瓶颈规则、硬过滤、四路召回 + RRF、加权评分、MMR）、PR #28（结构重构：`src/orbit_backend` → `packages/backend/src/orbit_backend`，Advance Demo → `prototypes/advance`，Lite Demo → `prototypes/lite`，`prototypes/advance/benchmark-review.md` → `docs/design/lite-review.md`）、PR #29（`packages/catalog`：`catalog.db`、FTS5、特征倒排、本地 E5 向量）、PR #30（`docs/plans/analysis-review.md`）；本地分支 `feat/local-inventory`（`yhyfhgs`，DT-09 安装清单扫描：`packages/data/src/orbit_data/inventory/`，基于 `f834616`，待 PR）。其他三份模块文档与契约第 2 版仍写重构前路径，对照表见 main `docs/development/structure-migration.md`。
 >
-> 版本名按 main `AGENTS.md` 与 `docs/design/README.md`：**Lite** = `genius-FXC` 设计（`prototypes/lite/tandem-benchmark-demo.html`，8 页，范围见 `docs/design/lite-review.md`）；**Advance** = `yhyfhgs` 设计（`prototypes/advance/src`，重构前 `prototypes/advance/src`；功能清单 [`feature-map.md`](feature-map.md) §5）。历史材料中的「Advanced」指 Advance。
+> 版本名按 main `AGENTS.md` 与 `docs/design/README.md`：**Lite** = `genius-FXC` 设计（`prototypes/lite/orbit-benchmark-demo.html`，8 页，范围见 `docs/design/lite-review.md`）；**Advance** = `yhyfhgs` 设计（`prototypes/advance/src`，重构前 `prototypes/advance/src`；功能清单 [`feature-map.md`](feature-map.md) §5）。历史材料中的「Advanced」指 Advance。
 >
 > MVP 判定规则（契约第 3 版 §2.1）：MVP = Lite 8 页需要的数据 + Advance 的三张安装闭环卡（只读放行、重复失败熔断、高频纠偏 → 规则）；只服务 Advance 独有界面（A9 工坊外壳、ASK、菜单栏 / HUD / 小组件、首次启动、SET-21 周报、A1-06 上期对比、A3 阶段带与情绪泳道）的 feature 一律 v1。
 >
@@ -17,7 +17,7 @@
 3. **机制由代码决策表选（RC-06），不让模型选**：MVP 只实现 5 行——高频纠偏 → 规则、必须每次成立 → hook、习惯问题 → 只给建议、规则过长 / 常驻过高 → 减法、只读审批 → 权限白名单；其余 9 行标 v1 并写明等待的 AN 检测器。
 4. **排序 MVP 不新造公式**：沿用 main `ranking/score.py` 的加权评分，只替换两个输入——`confidence` 用 `problem.wilson_lo`、`friction.setup_cost` 用 §2.3 的 L 级常数；`expected_effect.targets` 的默认值按 kind 取 §3.5 的先验均值常数且不更新。卡片主数字只用能机械计数的量（`problem.weekly_count`），`priority_score` 只用于次序。分钟当量换算、Beta 先验回写、风险罚分全部 v1。
 5. **卡片措辞只有四种**：已计数 / 估计 / 未测 / 数据不足（= main `effect_status = unmeasured`、`score_meaning` 的现有措辞）；不写「提速 X%」（[METR 随机对照](https://arxiv.org/abs/2507.09089)）。
-6. **main 现有代码全部保留**：`recommend/` 包（`contracts / catalog / families / recall / ranking / explain / service / state`）是 RC-02…RC-05、RC-09 的实现；`legacy.py` 五项硬条件保留为 `communication_gap` 路径的闸门 1–5；`analytics/recommendations/rules.py` 七条规则是 AN-05 → AN-06 的现有实现；`packages/catalog` 是 DT-11 / DT-12 / DT-13 / RC-09 的实现。本文新增的只有 `problem` 适配、三道新闸门、`tandem` 扩展字段、`install_plan.py`、`tracking.py`。
+6. **main 现有代码全部保留**：`recommend/` 包（`contracts / catalog / families / recall / ranking / explain / service / state`）是 RC-02…RC-05、RC-09 的实现；`legacy.py` 五项硬条件保留为 `communication_gap` 路径的闸门 1–5；`analytics/recommendations/rules.py` 七条规则是 AN-05 → AN-06 的现有实现；`packages/catalog` 是 DT-11 / DT-12 / DT-13 / RC-09 的实现。本文新增的只有 `problem` 适配、三道新闸门、`orbit` 扩展字段、`install_plan.py`、`tracking.py`。
 7. **个性化 MVP 只做一件事**：用户水平作闸门（`audience_ok`，沿用 Lite / Advance 现有筛选）。历史采纳 / 拒绝降权、项目级收缩 v1；人格不进推荐（Lite 资源库「同人格正在用」删除）。
 8. **检索优先于生成**：能匹配到审查过的条目或模板就用现成的；只有模板槽位无法由默认值填满时才请求 AI-06 填槽（MVP：规则、hook、SKILL.md、与专家 skill 的粘合规则，可关；关闭时用模板默认值并标「未个性化」）。依据：LLM 自写上下文文件成本 +20% 且不提升成功率（[ETH](https://arxiv.org/abs/2602.11988)）、模型自写 skill 低于不用 8.1–11.5pp（[SkillsBench](https://arxiv.org/abs/2602.12670)）。
 9. **高层次 workflow 建议 MVP 只有两条规则型模板（RC-16）**：验证阶梯、大杂烩会话拆分；并行 worktree、长任务进度文件、完成契约开场、计划模式等 AN 的 v1 检测器到位后再加。AI-10 `diagnose.workflow` MVP 单次调用只展示，v1 映射回 RC-06 机制入列。
@@ -62,13 +62,13 @@
 | 安装计划 | `install_plan(targets[], rendered_by, preview_digest)` | IN-02 预览、IN-03 写入 | 计划（两个 Demo 为示意文本；main 卡片只有 `setup_steps / preview` 文本） |
 | 追踪登记 | `tracking(metrics[], baseline_*, follow_days, scope_filter, min_sessions, confounders_watch)` | EV-07、FE-09 效果追踪 Tab | 计划（main `evaluation_plan.target_metrics` 是雏形） |
 | 资源库匹配 | `catalog_match(item_id, score, parts, matched_features)` | FE-10 A8 / Lite 资源库 | `packages/catalog` 检索（BM25 + 特征 + 向量，RRF / MMR）已实现；`friction` 标注计划 |
-| 知识库 | 七个 `data/recommend/*.json`（`recommendation-catalog-v1`）+ `tandem` 扩展字段；`kb_version = catalog_digest` | RC-02、EV-03 用例、AI-06 模板索引 | envelope 已有，条目计划 |
+| 知识库 | 七个 `data/recommend/*.json`（`recommendation-catalog-v1`）+ `orbit` 扩展字段；`kb_version = catalog_digest` | RC-02、EV-03 用例、AI-06 模板索引 | envelope 已有，条目计划 |
 
 ## 2. 推荐对象类型、Catalog 字段与机制选型
 
 ### 2.1 推荐对象类型（`remedy.kind`，契约 §3.4 枚举）与 main family 的对应
 
-main 的卡片 `kind` 来自 `KINDS[family]`（`prompt / skill / plugin / mcp / hook / model_config / workflow`）或 `legacy_kind`。本文的 12 种 `remedy.kind` 比它细（权限白名单、减法、内置功能、子代理），落法：条目的 `family` 取承载它的文件；`tandem.kind` 记真实 kind；卡片显示 `tandem.kind ?? KINDS[family]`（契约建议 C3）。
+main 的卡片 `kind` 来自 `KINDS[family]`（`prompt / skill / plugin / mcp / hook / model_config / workflow`）或 `legacy_kind`。本文的 12 种 `remedy.kind` 比它细（权限白名单、减法、内置功能、子代理），落法：条目的 `family` 取承载它的文件；`orbit.kind` 记真实 kind；卡片显示 `orbit.kind ?? KINDS[family]`（契约建议 C3）。
 
 | kind | 对象 | main `family` | 适用 Agent 与 MVP 落点 | 安装方式（IN-01 action） | 难度 | 常驻成本 | 示例 | A7 Tab / Lite Tab |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -76,37 +76,37 @@ main 的卡片 `kind` 来自 `KINDS[family]`（`prompt / skill / plugin / mcp / 
 | `prompt` | 开场模板、可复用命令 | `rules_prompts` | 全部 | `clipboard` / `create_file`（commands 目录） | L1 | 0 | `acceptance`（完成契约五要素）；旧种子 5 条原创 prompt | 同上 |
 | `skill` | `SKILL.md`（[Agent Skills 规范](https://agentskills.io/specification)） | `skills` | 正文放 `.agents/skills/<name>/`（codex、opencode、kimi、pi、dsh 读），Claude 侧再放 `.claude/skills/<name>`（软链是否被跟随待验证 V16） | `create_dir` | L2 | 描述常驻（Claude ≤ 1,536 字符 / 列表占上下文 1%；Codex 2% 或 8,000 字符） | `pr-wrapup`；旧种子 `humanizer-zh / humanizer / doc-coauthoring / systematic-debugging` | Skills / Skill |
 | `hook` | 事件处理器（stdin JSON、退出码 2 阻断） | `hooks`（`family_features.event / condition / action` 必填，否则 `needs_context`） | claude_code（`settings.json`）、codex（`hooks.json`，按哈希信任后才运行 → 「已安装、未信任」）；kimi / hermes / pi / opencode v1 | `merge_json` + 脚本 `create_file` | L2–L3 | 0 | `retry-breaker` | Hooks / Hooks |
-| `permission_rule` | allow / deny 前缀规则 | `rules_prompts`（`tandem.kind = permission_rule`） | claude_code `permissions.allow`；codex execpolicy `.rules`（语法待验证 V6）；opencode v1 | `merge_json` / `create_file` | L1 | 0 | `readonly-allowlist` | 规则与 Prompt（Demo 归 Hook，本文按真实落点） |
+| `permission_rule` | allow / deny 前缀规则 | `rules_prompts`（`orbit.kind = permission_rule`） | claude_code `permissions.allow`；codex execpolicy `.rules`（语法待验证 V6）；opencode v1 | `merge_json` / `create_file` | L1 | 0 | `readonly-allowlist` | 规则与 Prompt（Demo 归 Hook，本文按真实落点） |
 | `mcp` | MCP server | `mcp`（`permissions` 并入 `required_permissions`） | 全部；claude_code `~/.claude.json` 或项目 `.mcp.json`；codex `config.toml [mcp_servers]` | `merge_json` / `merge_toml` | L3 | 工具名常驻 | `browser-check`（Lite） | 插件 / MCP |
 | `plugin` | 插件（含 skills / hooks / mcp / agents） | `plugins`（`dependencies` 并入 `requirements.resources`） | claude_code 市场、codex、copilot、gemini | `run_command`（`claude plugin install …`） | L3 | 组成之和 | `cloudflare-deploy` | 插件 / MCP |
 | `subagent` | 子代理定义 | `workflows`（main 把旧 `agent` 映射到此，`roles` 字段） | claude_code `.claude/agents/*.md`；codex `.codex/agents/*.toml`（待验证 V6） | `create_file` | L2 | 0（派生时才付） | `citation-checker`、Lite `verifier` | 子代理 |
 | `model` | 模型与思考档位 | `model_configs`（`model / reasoning_effort / agent_harness` 必填） | claude_code `settings.json` 的 `model` / effort；codex `model_reasoning_effort` | `set_key` / 教程 | L1 | 0 | `think-medium` | 模型与思考 / 模型 |
 | `workflow` | 流程改造（教程 + 可复制命令） | `workflows` | 全部 | `tutorial`（不写文件） | L3–L4 | 0 | `worktree`、`session-handoff` | 工作流 / Workflow |
-| `removal` | 停用、移除、精简、合并已装项 | 目标项所属 family，`tandem.kind = removal` | 全部 | 反向：`remove_pointer` / `set_key(enabled=false)` / `trim_block` | L1 | 负 | 规则文件 > 200 行拆分 | 对应维度 + 「可以移除」分组（v1） |
-| `builtin` | 官方内置功能，零安装 | 被替代机制的 family，`tandem.kind = builtin`、`tandem.probe{command, min_version}` | 按版本探测：`claude --version`、`codex features list` | `run_command`（复制命令）或 `set_key` | L1 | 0 | Claude Code `/fewer-permission-prompts`（2.1.111+）、`/doctor`（2.1.205+）、`/skill-doctor`（2.1.261+）；Codex `tool_suggest`（[commands](https://code.claude.com/docs/en/commands)） | 对应维度 |
+| `removal` | 停用、移除、精简、合并已装项 | 目标项所属 family，`orbit.kind = removal` | 全部 | 反向：`remove_pointer` / `set_key(enabled=false)` / `trim_block` | L1 | 负 | 规则文件 > 200 行拆分 | 对应维度 + 「可以移除」分组（v1） |
+| `builtin` | 官方内置功能，零安装 | 被替代机制的 family，`orbit.kind = builtin`、`orbit.probe{command, min_version}` | 按版本探测：`claude --version`、`codex features list` | `run_command`（复制命令）或 `set_key` | L1 | 0 | Claude Code `/fewer-permission-prompts`（2.1.111+）、`/doctor`（2.1.205+）、`/skill-doctor`（2.1.261+）；Codex `tool_suggest`（[commands](https://code.claude.com/docs/en/commands)） | 对应维度 |
 
 ### 2.2 Catalog 字段：契约 `remedy_rule` ↔ main `recommendation-item-v1`
 
-契约 §3.4 的 `remedy_rule` YAML 不单独落地，字段映射到 main 的条目合同；main 没有的字段放新增的公共子对象 `tandem`（契约建议 C2；main `Contract` 是 `extra = forbid`，`family_features` 按 family 严格校验，所以不能塞进 `family_features`）。
+契约 §3.4 的 `remedy_rule` YAML 不单独落地，字段映射到 main 的条目合同；main 没有的字段放新增的公共子对象 `orbit`（契约建议 C2；main `Contract` 是 `extra = forbid`，`family_features` 按 family 严格校验，所以不能塞进 `family_features`）。
 
 | 契约 `remedy_rule` 字段 | main `recommendation-item-v1` 落点 | 说明 |
 | --- | --- | --- |
 | `id / version` | `identity.id / version` | — |
 | `problem.type / signal` | `trigger.rule_ids[]`（受控键：main 七条 + 本文新增 `would_prompt`、`missing_verification`、`resident_cost`、`installed_unused`，见 §3.1） | `rules` 路召回按它精确匹配 |
-| `problem.key / min_sessions / min_wilson_lo` | `tandem.problem_key`、`tandem.min_sessions`、`tandem.min_wilson_lo` | 闸门 9 读；缺省 3 / 0.05 |
-| `remedy.kind / dimension / level / scope` | `tandem.kind`（卡片 kind）、`tandem.dimension`（A7 Tab）、`tandem.level`（L1–L4）、`tandem.scope ∈ user/project` | `family` 按 §2.1 |
+| `problem.key / min_sessions / min_wilson_lo` | `orbit.problem_key`、`orbit.min_sessions`、`orbit.min_wilson_lo` | 闸门 9 读；缺省 3 / 0.05 |
+| `remedy.kind / dimension / level / scope` | `orbit.kind`（卡片 kind）、`orbit.dimension`（A7 Tab）、`orbit.level`（L1–L4）、`orbit.scope ∈ user/project` | `family` 按 §2.1 |
 | `remedy.agents` | `compatibility.agents{agent: native/manual/adaptation_required/unsupported/unknown}` | main 硬过滤已实现 |
-| `remedy.template` | `tandem.template_id@version` + `tandem.slots[{name, type, required, default, project_specific}]` | RC-12 渲染；AI-06 填槽 |
-| `remedy.alternatives[]` | `tandem.alternatives[{kind, ref}]` | 同问题其他机制，详情里切换 |
-| `benefit.unit / formula / basis` | `tandem.benefit{unit, metric, basis}` | 卡片主数字来源 |
-| `benefit.prior_effect{alpha, beta}` | `expected_effect.targets{rule_id: p}`（MVP 常数，= §3.5 先验均值）；`tandem.prior_effect` 留给 v1 回写 | `effect` 路召回与 `effect_match` 读 `targets` |
-| `cost.setup_minutes / context_tokens` | `friction.setup_cost`（L1 0.05、L2 0.2、L3 0.6、L4 1.0）、`friction.runtime_cost`（常驻 token ÷ 2,000，封顶 1）；原值存 `tandem.cost` | main `friction` 特征 = `0.7 × setup + 0.3 × runtime` |
-| `risk.level / flags` | `risk_permission.level`（low 0.1、medium 0.5、high 0.9）+ `required_permissions[]`；`tandem.risk_flags[]` | 闸门 10 读 `flags` |
-| `track{…}` | `tandem.track{triggered[], mechanical[], guardrail[], behavioral[], follow_days}` | RC-13 登记 |
+| `remedy.template` | `orbit.template_id@version` + `orbit.slots[{name, type, required, default, project_specific}]` | RC-12 渲染；AI-06 填槽 |
+| `remedy.alternatives[]` | `orbit.alternatives[{kind, ref}]` | 同问题其他机制，详情里切换 |
+| `benefit.unit / formula / basis` | `orbit.benefit{unit, metric, basis}` | 卡片主数字来源 |
+| `benefit.prior_effect{alpha, beta}` | `expected_effect.targets{rule_id: p}`（MVP 常数，= §3.5 先验均值）；`orbit.prior_effect` 留给 v1 回写 | `effect` 路召回与 `effect_match` 读 `targets` |
+| `cost.setup_minutes / context_tokens` | `friction.setup_cost`（L1 0.05、L2 0.2、L3 0.6、L4 1.0）、`friction.runtime_cost`（常驻 token ÷ 2,000，封顶 1）；原值存 `orbit.cost` | main `friction` 特征 = `0.7 × setup + 0.3 × runtime` |
+| `risk.level / flags` | `risk_permission.level`（low 0.1、medium 0.5、high 0.9）+ `required_permissions[]`；`orbit.risk_flags[]` | 闸门 10 读 `flags` |
+| `track{…}` | `orbit.track{triggered[], mechanical[], guardrail[], behavioral[], follow_days}` | RC-13 登记 |
 | `sources[]` | `source{origin, status, url, source_path, verified_sha, blob_sha, content_sha256, license}` | main `_verified_source()` = 闸门 5 + 11 |
 | `explain.limitation / trial` | `action.limitations[] / action.trial` | main 已要求非空（`missing_action` 过滤） |
-| `probe{command, min_version}`（builtin） | `tandem.probe` | 召回 ③ |
-| `generic` | `tandem.generic = true` | RC-11（v1） |
+| `probe{command, min_version}`（builtin） | `orbit.probe` | 召回 ③ |
+| `generic` | `orbit.generic = true` | RC-11（v1） |
 | `kb_version` | `catalog_digest`（`load_catalog()` 已算） | — |
 
 `packages/catalog` 侧补充约定（DT-12 / DT-13，与 DA §6.3 一致）：`item_feature(feature = friction, value = <problem.type>)` 只对 Orbit 模板库与官方 / 精选条目人工标注（`origin = curated`），是进 A7 的必要条件；无 `friction` 标注的条目只进 A8。`item_version.manifest.resident_tokens_est`（skill 取 description 长度 ÷ 4；MCP 取工具数 × 150，估计；插件取组成之和）进 `friction.runtime_cost`。
@@ -151,7 +151,7 @@ flowchart LR
   SIG[signal · metrics<br/>AN-05 / AN-01 / AN-11] --> PROB[problem<br/>AN-06]
   PROB --> KIND[解法类型<br/>RC-06 决策表]
   KIND --> R1[① 知识库匹配<br/>main recall/rules]
-  KIND --> R3[③ 官方内置<br/>tandem.probe]
+  KIND --> R3[③ 官方内置<br/>orbit.probe]
   KIND -.-> R4[④ 生成填槽请求<br/>AI-06 可关]
   INV[inventory_item] --> R5[减法 RC-07]
   R1 & R3 & R4 & R5 --> GATE[闸门 8 道<br/>main filter_item + 新增 3 道]
@@ -202,12 +202,12 @@ flowchart LR
 
 | 路 | 输入 | 匹配规则 | `match_basis` | 阶段 | main 落点 / 现状 |
 | --- | --- | --- | --- | --- | --- |
-| ① 知识库匹配 | `problem` × 七个 `data/recommend/*.json` | `trigger.rule_ids ∋ problem.type 对应键 ∧ (tandem.problem_key 为空 ∨ = problem.key) ∧ compatibility.agents[source.agent] ≠ unsupported`；一条带 `tandem.alternatives[]` | `problem_rule` | ● MVP | `recall/rules.py`（精确 `rule_id` 1.0、能力重合 ≤ 0.8）；`legacy.recommend()` = ① 在 `communication_gap` 与 `tool_env_failure` 上的特例（`dimensions × problem_types × scenes × language`） |
+| ① 知识库匹配 | `problem` × 七个 `data/recommend/*.json` | `trigger.rule_ids ∋ problem.type 对应键 ∧ (orbit.problem_key 为空 ∨ = problem.key) ∧ compatibility.agents[source.agent] ≠ unsupported`；一条带 `orbit.alternatives[]` | `problem_rule` | ● MVP | `recall/rules.py`（精确 `rule_id` 1.0、能力重合 ≤ 0.8）；`legacy.recommend()` = ① 在 `communication_gap` 与 `tool_env_failure` 上的特例（`dimensions × problem_types × scenes × language`） |
 | ② Catalog 内容匹配 | `problem` + `session_feature` + `item_feature` | 只有 `friction ∈ problem.type` 的条目进 A7；无 `friction` 标注的条目只进 A8 资源库 | `catalog_feature` | ● MVP（A8 接线）；v1（A7 候选） | `packages/catalog`（BM25 + 特征倒排 + E5 向量，RRF / MMR）已实现；`recommend/recall/sparse.py` BM25；`friction` 标注计划 |
-| ③ 官方内置功能 | `problem` + Agent 版本探测 | `tandem.kind = builtin` 条目带 `probe{command, min_version}`；`claude --version` / `codex features list` 不满足即不进 | `problem_rule` | ● MVP | 计划 |
-| ④ 生成填槽请求 | ① 命中但 `tandem.slots` 含 `required` 且默认值不可用 | 不调用模型，只产出 `generate_request(candidate_id, template_id@version, evidence_pack)` 交 AI-06 | `problem_rule` | ● MVP：`generate.rule`、`generate.hook`、`generate.skill`、粘合规则 `glue`（AI-06.1 / 06.3 / 06.4 / 06.7，可关；关闭时模板默认值并标「未个性化」）；v1：`generate.subagent / command / revise`（AI-06.5 / 06.6 / 06.8） | 计划（Advance Demo A9、Lite「Agent 定制草稿」为示意）；权限白名单是纯模板，不走 AI |
+| ③ 官方内置功能 | `problem` + Agent 版本探测 | `orbit.kind = builtin` 条目带 `probe{command, min_version}`；`claude --version` / `codex features list` 不满足即不进 | `problem_rule` | ● MVP | 计划 |
+| ④ 生成填槽请求 | ① 命中但 `orbit.slots` 含 `required` 且默认值不可用 | 不调用模型，只产出 `generate_request(candidate_id, template_id@version, evidence_pack)` 交 AI-06 | `problem_rule` | ● MVP：`generate.rule`、`generate.hook`、`generate.skill`、粘合规则 `glue`（AI-06.1 / 06.3 / 06.4 / 06.7，可关；关闭时模板默认值并标「未个性化」）；v1：`generate.subagent / command / revise`（AI-06.5 / 06.6 / 06.8） | 计划（Advance Demo A9、Lite「Agent 定制草稿」为示意）；权限白名单是纯模板，不走 AI |
 | ⑤ 减法（RC-07） | DT-09 `inventory_item` + 规则文件行数 + AN-11 | 根规则文件 > 200 行 → 拆分；常驻 ≥ 2,000 token → 标黄 + 建议；闲置 → 停用（v1）；功能重叠 → 合并（v1）；同一约束已在 hook → 删规则条（v1） | `inventory_fact` | ● MVP（行数、常驻）；v1（其余） | 计划（分支 `feat/local-inventory` 提供清单） |
-| ⑥ 冷启动（RC-11） | 主会话 < 10 个 | 通用起步包 3 条（`tandem.generic = true`） | `generic` | ○ v1 | main `reporting/narrative.explain()` 的「证据不足」分支 |
+| ⑥ 冷启动（RC-11） | 主会话 < 10 个 | 通用起步包 3 条（`orbit.generic = true`） | `generic` | ○ v1 | main `reporting/narrative.explain()` 的「证据不足」分支 |
 
 **MVP 知识库（RC-01，12–15 条）只收 MVP 能产出的问题类型**：`permission_friction`（只读放行模板、`/fewer-permission-prompts` builtin）、`tool_env_failure`（retry-breaker hook、旧种子 `systematic-debugging`）、`missing_verification`（验证清单规则、Stop hook）、`communication_gap`（旧种子 `humanizer-zh / humanizer / doc-coauthoring`，沿用 `legacy.py` 匹配）、`repeated_instruction`（规则模板 + `generate.rule` 槽位）、`resident_cost`（规则文件拆分、常驻标黄）+ 通用起步包 3 条（只读白名单、完成契约、验证清单；MVP 只在空状态作「通用建议」展示，RC-11 的会话数逻辑 v1）。每条附一个能触发它的构造用例（EV-03）。Demo 其余条目（`deploy-target`、`pr-wrapup`、`worktree`、`cloudflare-deploy`、`citation-checker`、`browser-check` …）随对应 AN 检测器在 v1 入库。条目必须 `evidence_quality.status = reviewed`、`source.status = verified`、`action.setup_steps / preview / trial` 非空，否则 main 过滤为 `draft`。
 
@@ -225,10 +225,10 @@ flowchart LR
 | 6 | `agent_supported` | `compatibility.agents[目标 Agent] ≠ unsupported`；`unknown` → `needs_context`；pi 不推 `mcp / subagent / 计划模式` | 全部 | 不展示 / `needs_context` | MVP | `filter_item`（`incompatible_agent`） |
 | 7 | `not_installed` | `inventory_item` 无同 `identity.id` / 同内容哈希 / 同前缀规则；规则类按「同 key 条目已存在」判定 | `installed_resources ≠ None` 时检查；未知 → `n/a` 并标「未扣除已装项」 | 转为「修改已有」或减法 | MVP（随 DT-09） | `filter_item`（`already_installed`）；内容哈希与前缀规则计划 |
 | 8 | `not_dismissed` | 无 `label ∈ {not_applicable, snooze 未过期}` 且规则级「不再提示」未开启 | 全部 | 不展示 | MVP | 计划（新增） |
-| 9 | `evidence_ok` | `problem.sessions ≥ tandem.min_sessions ∧ wilson_lo ≥ tandem.min_wilson_lo ∧ problem.status = active ∧ last_seen 在窗口内`；分母 < 5 → 不展示并写「再积累 N 个会话」；主信号类型在 `.local/evaluation/detector-summary.json` 中 `passed = false` → 可展示但标「候选（未校准）」且不进 Top N（EV-02） | 有 `problem` 的候选；减法 `n/a` | 不展示（占位卡 RC-11 v1） | MVP | 计划（新增；main `assessments` 的 `insufficient_evidence / below_threshold` 是雏形） |
-| 10 | `risk_ok` | `risk_permission.level ≥ 0.9` 或 IN-05 `dangerous` 不进；`caution` 或 `tandem.risk_flags` 含 `runs_command / network` 时不允许 L1 一键（降为 L3，预览逐行）；MCP / 插件凑齐私有数据 + 不可信内容 + 对外通信时警告（[lethal trifecta](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)） | 全部 | 不展示 / 降为 L3 | MVP（静态字段）；v1（IN-05 扫描） | `filter_item` 的权限检查（`permission_denied / permission_not_allowed`） |
+| 9 | `evidence_ok` | `problem.sessions ≥ orbit.min_sessions ∧ wilson_lo ≥ orbit.min_wilson_lo ∧ problem.status = active ∧ last_seen 在窗口内`；分母 < 5 → 不展示并写「再积累 N 个会话」；主信号类型在 `.local/evaluation/detector-summary.json` 中 `passed = false` → 可展示但标「候选（未校准）」且不进 Top N（EV-02） | 有 `problem` 的候选；减法 `n/a` | 不展示（占位卡 RC-11 v1） | MVP | 计划（新增；main `assessments` 的 `insufficient_evidence / below_threshold` 是雏形） |
+| 10 | `risk_ok` | `risk_permission.level ≥ 0.9` 或 IN-05 `dangerous` 不进；`caution` 或 `orbit.risk_flags` 含 `runs_command / network` 时不允许 L1 一键（降为 L3，预览逐行）；MCP / 插件凑齐私有数据 + 不可信内容 + 对外通信时警告（[lethal trifecta](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)） | 全部 | 不展示 / 降为 L3 | MVP（静态字段）；v1（IN-05 扫描） | `filter_item` 的权限检查（`permission_denied / permission_not_allowed`） |
 | 11 | `license_ok` | 无许可证的条目只给链接，不渲染 `install_plan` | GitHub 来源 | 降为「查看教程」 | MVP | `_verified_source()` 已要求许可 |
-| 12 | `audience_ok` | `tandem.audience_min ≤ 用户水平` | 全部 | 不展示（「按我的水平」切换后可见） | MVP | Advance `visibleRecs()`、Lite 适配筛选（前端） |
+| 12 | `audience_ok` | `orbit.audience_min ≤ 用户水平` | 全部 | 不展示（「按我的水平」切换后可见） | MVP | Advance `visibleRecs()`、Lite 适配筛选（前端） |
 | 13 | `conflict_ok` | 与 `permissions.deny` 同前缀冲突；同一约束已由 hook 强制；同事件已有 hook 改写同一工具输入 | 有已装清单时 | 不展示并写原因 | v1（随 DT-09；V17） | `filter_item` 的 `denied_permissions` 是雏形 |
 | 14 | `requirements_ok` | `requirements.tools / software / resources` 在环境中存在；未知 → `pending_requirements` | 条目声明了依赖 | `needs_context` | MVP | `filter_item`（`missing_tools / pending`） |
 
@@ -254,7 +254,7 @@ MVP 只替换两个输入、固定一组常数：
 | 项 | main 现值 | MVP 取值 | 说明 |
 | --- | --- | --- | --- |
 | `confidence` | `coverage × min(1, n / target_n)`（`rules.py`） | `problem.wilson_lo`（AN-06） | 一个数同时表达支持度与样本量 |
-| `friction.setup_cost / runtime_cost` | 条目自填 0–1 | §2.3 的 L 级常数；`runtime_cost = resident_tokens_est ÷ 2,000`（封顶 1） | 常数随 `tandem.level` 自动填 |
+| `friction.setup_cost / runtime_cost` | 条目自填 0–1 | §2.3 的 L 级常数；`runtime_cost = resident_tokens_est ÷ 2,000`（封顶 1） | 常数随 `orbit.level` 自动填 |
 | `expected_effect.targets[rule_id]` | 条目自填 0–1 | 按 kind 的先验均值常数（不更新）：`permission_rule / removal` 0.9、`hook` 0.8、`builtin` 0.7、`skill` 0.6、`rule / subagent / mcp / plugin` 0.5、`prompt / model / workflow` 0.4（估计，团队设定） | = 契约 §3.4 `prior_effect` 的 Beta 均值；v1 才回写 |
 | `evidence_quality.score` | 审核人填 | Orbit 模板库 1.0；官方 / 精选 0.8；社区固定版本 0.6 | 信任因子 |
 | `risk_permission.level` | 条目自填 | low 0.1 / medium 0.5 / high 0.9 | 闸门 10 另处理 `flags` |
@@ -289,7 +289,7 @@ MVP 只替换两个输入、固定一组常数：
 
 ### 3.8 预览、安装与效果追踪登记（RC-12 / RC-13）
 
-RC 产出 `install_plan` 与 `tracking`，不执行写入（§8）。**`tracking` 在用户确认安装时登记**（`POST /v1/install/apply` 成功后），`baseline` = 安装前 28 天（从历史日志回算；Demo 的 7 天太短，受回归均值影响，[Barnett 等](https://doi.org/10.1093/ije/dyh299)）；指标集合由 `tandem.track` 的版本固定，展示时不预登记。按 kind 的默认指标：
+RC 产出 `install_plan` 与 `tracking`，不执行写入（§8）。**`tracking` 在用户确认安装时登记**（`POST /v1/install/apply` 成功后），`baseline` = 安装前 28 天（从历史日志回算；Demo 的 7 天太短，受回归均值影响，[Barnett 等](https://doi.org/10.1093/ije/dyh299)）；指标集合由 `orbit.track` 的版本固定，展示时不预登记。按 kind 的默认指标：
 
 | kind | triggered | mechanical（主指标，方向） | behavioral（EV-07 DiD，v1） | guardrail |
 | --- | --- | --- | --- | --- |
@@ -326,7 +326,7 @@ RC 产出 `install_plan` 与 `tracking`，不执行写入（§8）。**`tracking
 | 用户水平 | 设置 `audience ∈ {0 新手, 1 进阶, 2 专家}`；行为推断只作提示（已装 hook / 自写 skill / 用 worktree → 建议切到「进阶 / 专家」） | 闸门 12；说明深度按水平换模板（新手多一句「这是什么」） | 可见集合与文案 | MVP（闸门）；v1（排序偏置 `× (1 − 0.2 × max(0, audience_min − audience))`、推断提示） | 不自动改设置 |
 | 历史采纳 / 拒绝 | `label`、`install_state`、`rec_outcome` | §3.9 的固定规则；按 `identity.id` 与 `kind` 两级聚合（某 kind 连续 3 次「不适用」→ 该 kind `× 0.7`） | 排序 | v1 | 不训练模型 |
 | 项目差异 | `problem.scope = project`、项目级 `session_feature`、项目已有规则文件 | 项目级候选先于全局候选（同 key）；项目级比率用全局先验做 Beta-Binomial 收缩（m = 10）再算 `wilson_lo`；`install_plan` 默认 `scope = project` | 召回与落点 | MVP（落点默认）；v1（收缩） | 不跨项目合并证据 |
-| 冷启动（RC-11） | 主会话数、每类问题分母 | < 10 个会话 → 通用起步包（`tandem.generic`）；某类分母 < 5 → 占位卡「再积累 N 个会话」；新 Agent / 新项目 → 用户级画像先验 | 列表 | v1（首次启动是 Advance 独有） | 不出个性化数字 |
+| 冷启动（RC-11） | 主会话数、每类问题分母 | < 10 个会话 → 通用起步包（`orbit.generic`）；某类分母 < 5 → 占位卡「再积累 N 个会话」；新 Agent / 新项目 → 用户级画像先验 | 列表 | v1（首次启动是 Advance 独有） | 不出个性化数字 |
 
 人格（AN-08 四轴）不进推荐：不进 `priority_score`、不按人格推荐资源、不改交互形式；Lite 资源库「同人格正在用」与 Advance「为 DIMV 精选」删除（契约 §0.10）。
 
@@ -334,7 +334,7 @@ RC 产出 `install_plan` 与 `tracking`，不执行写入（§8）。**`tracking
 
 | 情形 | 选择 | 判定（代码） | 例子 | token 成本 | 阶段 |
 | --- | --- | --- | --- | --- | --- |
-| 知识库条目带固定模板，槽位能由分析结果填满 | **检索（模板渲染）** | `tandem.slots.required ⊆ 可计算槽位`（命令族、文件扩展名、项目名、阈值） | 只读放行、规则文件拆分、60% 先总结规则、验证清单 | 0 | MVP |
+| 知识库条目带固定模板，槽位能由分析结果填满 | **检索（模板渲染）** | `orbit.slots.required ⊆ 可计算槽位`（命令族、文件扩展名、项目名、阈值） | 只读放行、规则文件拆分、60% 先总结规则、验证清单 | 0 | MVP |
 | Catalog 有审查过的现成条目（`friction` 匹配、`evidence_quality.score ≥ 0.8`） | **检索（现成专家 skill / plugin / subagent）** | ① 命中且闸门通过 | humanizer-zh、doc-coauthoring、systematic-debugging、官方插件 | 0 | MVP（旧种子 4 条）；v1（Catalog 条目） |
 | 现成条目需要接入用户环境 | **现成 + 生成粘合** | 条目 kind ∈ {skill, mcp, plugin} 且项目有特有约定（命令 / 路径） | 装 systematic-debugging + 生成「`wrangler` 未登录先停」规则；装 MCP + 生成 allow 规则 | AI-06.7 `glue`，≤ 12K 输入，约 $0.05–0.2 | MVP（可关） |
 | 项目特有流程、无现成条目 | **生成（AI-06 填槽）** | `repeated_workflow` 命中但 Catalog 无 `friction` 匹配；或槽位 `project_specific = true` | paper-audit skill、latex 页数 hook、citation-checker 子代理 | 每条约 $0.05–0.5；MVP 无 AI 时给「交给生成工坊」入口与模板骨架 | MVP（规则、hook、skill）；v1（子代理、command） |
@@ -385,11 +385,11 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 
 ## 7. 与 main 推荐引擎的关系
 
-路径以 main `6f31203` 为准（`packages/backend/src/tandem_backend/`）。
+路径以 main `6f31203` 为准（`packages/backend/src/orbit_backend/`）。
 
 | main 模块 | 对应本文 | 保留 | 扩展（本文新增） | 退役 |
 | --- | --- | --- | --- | --- |
-| `recommend/contracts.py`（`recommendation-item-v1`、`RecommendationContext`、`RankingPolicy`） | RC-01 条目格式、§2.2 | 全部 | 公共子对象 `tandem`（§2.2）；`trigger.rule_ids` 受控键加 `would_prompt / missing_verification / resident_cost / installed_unused`（契约建议 C2） | 无 |
+| `recommend/contracts.py`（`recommendation-item-v1`、`RecommendationContext`、`RankingPolicy`） | RC-01 条目格式、§2.2 | 全部 | 公共子对象 `orbit`（§2.2）；`trigger.rule_ids` 受控键加 `would_prompt / missing_verification / resident_cost / installed_unused`（契约建议 C2） | 无 |
 | `analytics/recommendations/rules.py`（七条规则）+ `policy.py`（阈值） | AN-05 → AN-06 的现有实现 | 全部 | AN-06 的 `problem` 作为第二种 `signals` 来源：`problem → signal{rule_id, evidence, confidence = wilson_lo, severity, recurrence}` 适配函数（`state.py`） | 无 |
 | `recommend/recall/{rules,sparse,effect,context,fusion}.py` | §3.2 ①②、RRF | 全部 | ③ builtin 的 `probe` 过滤 | 无 |
 | `recommend/ranking/filters.py` | 闸门 5、6、7、10、11、14 | 全部 | 新增 `gates.py`：`not_dismissed`、`evidence_ok`、`audience_ok`，与 `filter_item` 并列，结果合并进 `candidate.gates.checks`（含 `n/a`） | 无 |
@@ -399,12 +399,12 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 | `recommend/service.py`（`recommend()`，`recommendation-pipeline-v1`） | §3 链路 | 全部 | 返回体加 `batch_id / computed_at / kb_version = catalog_digest / gated[]`；`candidate` 持久化到 `analysis.db` | 无 |
 | `recommend/legacy.py`（五项硬条件、`trial_method()`）+ `legacy_catalog.py`（旧种子 12 条） | 闸门 1–5、`communication_gap` 路径 | 全部 | 输入从 `analysis["bottlenecks"]` 改为 `problem[]`（过渡期两者都接） | 旧种子在七个 JSON 落地后由 `sources/normalize.legacy_item` 适配，不再单独维护 |
 | `profiling/bottlenecks.diagnose()` 四类 | 过渡期映射 | 保留措辞「候选」 | `repeated_tool_failure → tool_env_failure`（key = `retry_loop:<command_head>`）；`explanation_revision / long_response / unexplained_terms → communication_gap`（key = `<type>:<dimension>`） | canonical 接入后由 `rules.py` 取代 |
-| `packages/catalog`（`catalog.db`、FTS5、特征倒排、E5 向量、`/v1/catalog/*`、`tandem-catalog` CLI） | RC-09、DT-11…DT-14 | 全部 | `item_feature(friction)` 人工标注；`resident_tokens_est` | 无 |
+| `packages/catalog`（`catalog.db`、FTS5、特征倒排、E5 向量、`/v1/catalog/*`、`orbit-catalog` CLI） | RC-09、DT-11…DT-14 | 全部 | `item_feature(friction)` 人工标注；`resident_tokens_est` | 无 |
 | `api/routes.py` `GET/POST /v1/analytics/recommendations`、`GET /v1/catalog`、`/v1/catalog/match-analysis` | §9 | 兼容保留 | 新增参数与路由（§9） | 无 |
 | `evals/recommendation/{demo,catalog}.py` | EV-03 | 全部 | 每条知识库条目一个触发用例；闸门消融 | 无 |
 | `evaluation/pipeline.py` `evidence_checks` | EV-03 | 三项消融 | 对适用闸门各一项 | 无 |
 
-**代码落点（MVP 不新建包）**：`recommend/contracts.py` 加 `tandem` 子对象；`recommend/state.py` 加 `problem` 适配；新文件 `recommend/gates.py`、`recommend/install_plan.py`、`recommend/tracking.py`；知识库写进 `data/recommend/*.json`；`data/recommend/templates/<template_id>@<version>/` 放渲染模板。评审建议的「在 `recommend.py` 内加函数、包拆分留到 v1」以 main 已有的 `recommend/` 包为准执行，不再适用。
+**代码落点（MVP 不新建包）**：`recommend/contracts.py` 加 `orbit` 子对象；`recommend/state.py` 加 `problem` 适配；新文件 `recommend/gates.py`、`recommend/install_plan.py`、`recommend/tracking.py`；知识库写进 `data/recommend/*.json`；`data/recommend/templates/<template_id>@<version>/` 放渲染模板。评审建议的「在 `recommend.py` 内加函数、包拆分留到 v1」以 main 已有的 `recommend/` 包为准执行，不再适用。
 
 ## 8. 安装侧契约（推荐侧需要的部分）
 
@@ -423,8 +423,8 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 | kind | claude_code | codex | 其他（v1） |
 | --- | --- | --- | --- |
 | `rule` | 项目：`AGENTS.md` 标记块 + 确保 `CLAUDE.md` 含 `@AGENTS.md`（Claude ≥ 2.1.277 有 CLAUDE.md 时不读 AGENTS.md）；用户：`~/.claude/CLAUDE.md` 块；子目录：`.claude/rules/<id>.md`（`paths`） | 项目：同一 `AGENTS.md` 块（拼接 ≤ 32 KiB，`AGENTS.override.md` 会遮蔽）；用户：`~/.codex/AGENTS.md`（V6） | kimi 不读 CLAUDE.md；pi / hermes 有 AGENTS.md 时不读 CLAUDE.md；dsh 两者都读 → 都走 AGENTS.md |
-| `permission_rule` | `~/.claude/settings.json` 或 `.claude/settings.local.json` 的 `/permissions/allow` `merge_json` | `~/.codex/rules/tandem-<id>.rules` `create_file`（V6） | opencode `permission` 以最后命中为准 |
-| `hook` | `settings.json` `/hooks/<Event>` `merge_json` + 脚本 `~/Library/Application Support/Tandem/hooks/<id>.sh` | `~/.codex/hooks.json` + 同一脚本；`requires_trust = true` → 「已安装、未信任」 | kimi `[[hooks]]` 4 字段；hermes `config.yaml hooks:`；pi / opencode 生成扩展 |
+| `permission_rule` | `~/.claude/settings.json` 或 `.claude/settings.local.json` 的 `/permissions/allow` `merge_json` | `~/.codex/rules/orbit-<id>.rules` `create_file`（V6） | opencode `permission` 以最后命中为准 |
+| `hook` | `settings.json` `/hooks/<Event>` `merge_json` + 脚本 `~/Library/Application Support/Orbit/hooks/<id>.sh` | `~/.codex/hooks.json` + 同一脚本；`requires_trust = true` → 「已安装、未信任」 | kimi `[[hooks]]` 4 字段；hermes `config.yaml hooks:`；pi / opencode 生成扩展 |
 | `skill` | `~/.claude/skills/<name>/`（用户）或 `.claude/skills/<name>/`（项目）；与 `.agents/skills` 同内容（软链 V16） | `~/.agents/skills/<name>/` 或 `.agents/skills/<name>/`；Codex 扩展写 `agents/openai.yaml` | opencode / kimi / pi / dsh 读 `.agents/skills`；hermes 需 `external_dirs` |
 | `mcp` | `~/.claude.json` 的 `mcpServers`（只抽该子树）或项目 `.mcp.json` | `config.toml [mcp_servers.<name>]` | pi `exposure`；hermes YAML |
 | `plugin` | `run_command: claude plugin install <name>@<marketplace>` | `run_command`（V6） | — |
@@ -437,7 +437,7 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 
 ### 8.3 `tracking`（契约 §3.4）
 
-字段 `metrics[{metric, layer ∈ triggered/mechanical/behavioral/guardrail, direction, must_be_zero}]`、`baseline_from / baseline_to`（安装前 28 天）、`follow_days 7`、`extend_days 28`、`scope_filter`、`min_sessions 5`、`confounders_watch`；默认取值见 §3.8。**登记时机 = 确认安装**（IN-03 写入成功后，由 RC-13 读 `tandem.track` 生成）。EV-07 读 `tracking` 算 `rec_outcome`，RC-13 读 `rec_outcome` 更新 `effect_status`（v1 再回写先验）。
+字段 `metrics[{metric, layer ∈ triggered/mechanical/behavioral/guardrail, direction, must_be_zero}]`、`baseline_from / baseline_to`（安装前 28 天）、`follow_days 7`、`extend_days 28`、`scope_filter`、`min_sessions 5`、`confounders_watch`；默认取值见 §3.8。**登记时机 = 确认安装**（IN-03 写入成功后，由 RC-13 读 `orbit.track` 生成）。EV-07 读 `tracking` 算 `rec_outcome`，RC-13 读 `rec_outcome` 更新 `effect_status`（v1 再回写先验）。
 
 ### 8.4 安装执行（引用）
 
@@ -461,7 +461,7 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 
 | 阶段 | 内容 | 验收 |
 | --- | --- | --- |
-| MVP 第 1 步 | 知识库 12–15 条写进七个 `data/recommend/*.json`（`reviewed / verified / action` 齐全）+ `tandem` 子对象；`problem` 适配进 `state.py`（过渡期接 `rules.py` 的 `signals[]` 与 `bottlenecks.diagnose()` 映射）；旧种子经 `legacy_item` 适配 | main 全量 pytest（约 1,068 项）不降；`evals/recommendation/{demo,catalog}` 通过；每条条目一个 EV-03 触发用例 |
+| MVP 第 1 步 | 知识库 12–15 条写进七个 `data/recommend/*.json`（`reviewed / verified / action` 齐全）+ `orbit` 子对象；`problem` 适配进 `state.py`（过渡期接 `rules.py` 的 `signals[]` 与 `bottlenecks.diagnose()` 映射）；旧种子经 `legacy_item` 适配 | main 全量 pytest（约 1,068 项）不降；`evals/recommendation/{demo,catalog}` 通过；每条条目一个 EV-03 触发用例 |
 | MVP 第 2 步 | 闸门 8 道（`filter_item` + `gates.py`，含 `n/a`）；去重（每个 problem 一条、其余 `alternatives`、`skill ≤ 2`）；沿用 `score_candidate` 与 `select_diverse`；`candidate` 持久化到 `analysis.db`，`first_shown_at / last_shown_at`；`label` 写入 | 对适用闸门各一项消融用例；**EV-03 注入集写 6 组成对候选的期望次序，结果 6 / 6 一致** |
 | MVP 第 3 步 | `install_plan` 渲染（claude_code、codex × 规则 / 权限 / hook / skill），接 AI-06.1 / 06.3 / 06.4 / 06.7 的槽位 JSON，把 AI-07 ①②③ 结果写入 `install_plan.ai_filled_slots / risk_scan`；确认安装时登记 `tracking`；`GET /v1/recommendations/{id}`、`POST …/feedback`、参数扩展 | 契约 §4.2 只读放行端到端：构造会话 → problem → 候选（闸门 1–4 `n/a`）→ plan → 预览 JSON；三张卡（只读放行、重复失败熔断、高频纠偏 → 规则）各走通一次 |
 | v1 | RC-05 频控与 `rec_top` 快照、RC-07 闲置 / 合并、RC-09 A7 候选（`friction` 标注）、RC-10 降权与 `rec_exposure`、RC-11 起步包、RC-16 其余四条、RC-17 偏置与项目收缩、AI-06.5 / 06.6 / 06.8、AI-10 映射入列、AI-12、RC-08、RC-14、§3.5 分钟当量公式与 Beta 回写、闸门 13、决策表其余行 | EV-05 采纳率按 `identity.id × surface`；EV-07 至少 2 条已装建议有 `rec_outcome` |
@@ -475,7 +475,7 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 
 | ID | 名称 | 说明 | 输入 | 输出 | 依赖 | 阶段 | 现状 | 负责人 | reviewer |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| RC-01 | 问题 → 解法知识库 | 七个 `data/recommend/*.json` 的 `recommendation-item-v1` 条目 + `tandem` 子对象；每条附触发用例与 `action.limitations` | 旧种子 12 条、Demo 条目、官方触发表、内置功能清单、减法规则 | 12–15 条（MVP）；`kb_version = catalog_digest` | DT-12 | MVP（12–15 条）；v1（其余 Demo / Lite 条目） | main:`data/recommend/*.json`（空 envelope）+ `legacy_catalog.py` 旧种子 12 条（4 条可触发） | yhyfhgs | genius-FXC |
+| RC-01 | 问题 → 解法知识库 | 七个 `data/recommend/*.json` 的 `recommendation-item-v1` 条目 + `orbit` 子对象；每条附触发用例与 `action.limitations` | 旧种子 12 条、Demo 条目、官方触发表、内置功能清单、减法规则 | 12–15 条（MVP）；`kb_version = catalog_digest` | DT-12 | MVP（12–15 条）；v1（其余 Demo / Lite 条目） | main:`data/recommend/*.json`（空 envelope）+ `legacy_catalog.py` 旧种子 12 条（4 条可触发） | yhyfhgs | genius-FXC |
 | RC-02 | 候选生成 | ① 知识库 ③ 内置 ④ 生成填槽请求；`problem` 适配；输出 `candidate(status = candidate)` | `problem`、`inventory_item`、条目、Agent 版本 | `candidate` | RC-01、AN-06、RC-06 | MVP（①③④ 规则 / hook / skill / 粘合，可关）；v1（④ 子代理 / command / revise） | main:`recommend/recall/*`、`state.py`、`service.py`（PR #26）；`legacy.recommend()`（① 对 `communication_gap / tool_env_failure` 的特例）；`problem` 适配与 ③ 计划 | genius-FXC | MistyHuang03 |
 | RC-03 | 闸门 | §3.3 的 8 道 MVP 闸门（含 `n/a`），失败候选保留并记原因 | `candidate`、`inventory_item`、`label`、条目静态字段、用户水平 | `candidate.gates` | DT-09、RC-10 | MVP（8 道）；v1（`conflict_ok`、IN-05 扫描） | main:`ranking/filters.py`（5、6、7、10、11、14）+ `legacy.py`（1–5）；`gates.py` 计划 | genius-FXC | MistyHuang03 |
 | RC-04 | 打分与排序 | 沿用 `score_candidate`，`confidence = wilson_lo`、L 级常数、kind 先验常数 | 过闸 `candidate`、`problem` | `candidate.score / rank` | AN-06、AN-10 | MVP（沿用）；v1（分钟当量、Beta 回写） | main:`ranking/score.py` | genius-FXC | MistyHuang03 |
@@ -487,7 +487,7 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 | RC-10 | 曝光与反馈日志 | `candidate.first_shown_at / last_shown_at` + `label` 写入（MVP）；降权规则与 `rec_exposure`（v1） | 展示事件、用户动作 | `label`、两列时间 | EV-10 | MVP（label + 两列）；v1（降权、`rec_exposure`） | 计划（Advance `S.recs.gone` 只在内存；Lite localStorage） | genius-FXC | MistyHuang03 |
 | RC-11 | 冷启动 | 通用起步包、占位卡「再积累 N 个会话」、新项目先验 | 会话数、问题分母 | `candidate(generic = 1)` | RC-01 | v1 | main:`narrative.explain()` 的「证据不足」分支 | MistyHuang03 | yhyfhgs |
 | RC-12 | install_plan 生成 | 确定性渲染器按 `template_id@version` 生成 `targets[]`，§8.2 落点表，不可映射项列出，`preview_digest`，接 AI-06 槽位与 AI-07 结果 | 展示候选、模板、`inventory_item` | `install_plan` | IN-01、AI-06（可选） | MVP（claude_code、codex 四类）；v1（其余 Agent） | 计划（Advance `51-install.js`、Lite `configCode()` 为示意） | yhyfhgs | genius-FXC |
-| RC-13 | 效果追踪登记与先验回写 | 确认安装时登记 `tracking`（§3.8 默认指标、28 天基线、护栏）；读 `rec_outcome` 更新 `effect_status`；v1 回写先验 | 安装动作、`tandem.track`、`rec_outcome` | `tracking`、`effect_status` | EV-07、IN-03 | MVP（登记 + `effect_status`）；v1（先验回写） | 计划（main `evaluation_plan` 是雏形） | MistyHuang03 | yhyfhgs |
+| RC-13 | 效果追踪登记与先验回写 | 确认安装时登记 `tracking`（§3.8 默认指标、28 天基线、护栏）；读 `rec_outcome` 更新 `effect_status`；v1 回写先验 | 安装动作、`orbit.track`、`rec_outcome` | `tracking`、`effect_status` | EV-07、IN-03 | MVP（登记 + `effect_status`）；v1（先验回写） | 计划（main `evaluation_plan` 是雏形） | MistyHuang03 | yhyfhgs |
 | RC-14 | 跨 Agent 额度与任务分配建议 | 「这类任务本周交给 X」，只建议 | DT-17 额度、AN-12 分层 | `candidate(kind = workflow)` | DT-17 | v1 | 计划 | MistyHuang03 | yhyfhgs |
 | RC-15 | 试用方法与推荐解释 | 模板句、`explain.mechanism`、显式 `session_uids` 证据、EV-09 检查；AI-12 版沿用形状 | 候选、`problem`、`signal.evidence` | `candidate.explain / evidence` | EV-09、AI-12（可选） | MVP | main:`recommend/explain.py`、`legacy.trial_method()`、`narrative.explain()`；`mechanism` 与显式证据集合计划 | genius-FXC | MistyHuang03 |
 | RC-16 | workflow 改造建议（规则型模板） | §6.2：验证阶梯、大杂烩拆分（MVP）；完成契约、并行 worktree、长任务进度文件、计划模式（v1） | main `acceptance_evidence_gap`、`task_contexts()` 任务数；v1 AN-03 / AN-05 / AN-12 | `candidate(kind = workflow)` | AN-05、RC-06 | MVP（2 条）；v1（4 条 + AI-10 入列） | 计划（Advance `worktree / headless`；Lite `worktree / session-handoff`） | MistyHuang03 | yhyfhgs |
@@ -499,7 +499,7 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 
 | 卡 | 阶段 | AN 第 2 段（analysis.md） | RC 第 3 段（本文） | AI 第 4 段（ai.md §9） | EV 第 5 段（evaluation.md） | IN 第 6 段 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 只读命令自动放行：「近 30 天约 212 次只读命令会弹审批（已计数）」 | MVP | AN-05 `would_prompt`（DT-13 词表，V12）→ AN-06 `permission_friction:readonly_shell` | RC-06 #13 → RC-02 ① `readonly-allowlist`（`rules_prompts`，`tandem.kind = permission_rule`）+ ③ `/fewer-permission-prompts`（`tandem.alternatives`）；闸门 1–4 `n/a`，6、7、9、10、14；`score`：`wilson_lo` × 先验 0.9 × L1；RC-12 两个 Agent 落点；确认安装时登记 `tracking` | 无（词表静态） | EV-03 两个构造用例；EV-06 dry-run 交集 = 0；EV-07 机械层 + 护栏 | IN-02 键级 diff → IN-03 `merge_json` → IN-04 按值撤销 |
+| 只读命令自动放行：「近 30 天约 212 次只读命令会弹审批（已计数）」 | MVP | AN-05 `would_prompt`（DT-13 词表，V12）→ AN-06 `permission_friction:readonly_shell` | RC-06 #13 → RC-02 ① `readonly-allowlist`（`rules_prompts`，`orbit.kind = permission_rule`）+ ③ `/fewer-permission-prompts`（`orbit.alternatives`）；闸门 1–4 `n/a`，6、7、9、10、14；`score`：`wilson_lo` × 先验 0.9 × L1；RC-12 两个 Agent 落点；确认安装时登记 `tracking` | 无（词表静态） | EV-03 两个构造用例；EV-06 dry-run 交集 = 0；EV-07 机械层 + 护栏 | IN-02 键级 diff → IN-03 `merge_json` → IN-04 按值撤销 |
 | 重复失败熔断：「23 段失败后原样重试，最长 4 次」 | MVP | main `identical_retries`（`respond.retry_links` 确认关系）→ AN-06 `tool_env_failure:retry_loop:<command_head>` | §3.1 优先序 `hook` → RC-02 ① `retry-breaker`（`hooks`，`event / condition / action` 必填）+ 并列旧种子 `systematic-debugging`（`alternatives`）；闸门 2、6、7、9、10、14；`score`：`wilson_lo` × 0.8 × L2；RC-12 `merge_json` + 脚本，Codex「已安装、未信任」 | AI-06.3 `generate.hook` 填命令族槽位（可关） | EV-06 历史 `tool_call` 回放 dry-run（误拦 = 0）；EV-07 `retry_runs` ↓、`false_block_count` | IN-03 `merge_json` + 脚本；IN-04 撤销 |
 | 高频纠偏 → 规则：「`language_zh` 在 6 个会话被重复要求」 | MVP | main `repeated_requirements` + AN-05 `correction` → AN-06 `repeated_instruction:<key>` | RC-06 #1（纠正 ≥ 2 次 ∧ 已升级）→ RC-02 ① 规则模板 + ④ `generate.rule` 填槽请求；闸门 1（有 dimension）、2、4、6、7、8、9；`score`：`wilson_lo` × 0.5 × L1；RC-12 `append_block` 到 AGENTS.md | AI-06.1 `generate.rule`（可关；关闭时模板默认值标「未个性化」）+ AI-07 ①②③ | EV-03 用例；EV-06 lint + 规则反事实 judge（v1）；EV-07 同 key 纠偏次数 ↓ | IN-03 `append_block` → IN-04 `trim_block` |
 | 装 systematic-debugging（Catalog）+ 生成「`wrangler` 未登录先停」粘合规则 | v1 | AN-05 `retry_loop:wrangler`（`software` 归一，DT-13） | RC-09 ② `friction = tool_env_failure` 的 Catalog 条目 + 闸门 5 / 10 / 11 / 14 → `alternatives` 中并列粘合规则 | AI-06.7 `glue`（`uses_catalog_items`） | EV-06 ② 扫描；EV-07 `skill_invocations` 与 `retry_loop_count` | IN-08 sha256 与许可 → IN-05 扫描 → IN-03 `create_dir` + `append_block` |
@@ -535,7 +535,7 @@ MVP 的「模型」Tab 直接读 AN-12 `GET /v1/analytics/metrics?group_by=model
 | 首次启动第 4 步「看看优化建议」 | OB-06 | RC-11 起步包 | 计数静态 | `generic` 批次 | v1 |
 | A9 安装产物、存入资源库 | A9-16、A9-18 | RC-12（`rendered_by` 含 AI 槽位）、RC-13 | 生成产物不进追踪 | 生成物走同一 `install_plan / tracking` | MVP（随 AI-06 规则 / hook / skill）；A9 外壳 v1 |
 
-### 13.2 Lite Demo（`prototypes/lite/tandem-benchmark-demo.html`，范围见 `docs/design/lite-review.md`）
+### 13.2 Lite Demo（`prototypes/lite/orbit-benchmark-demo.html`，范围见 `docs/design/lite-review.md`）
 
 | 页面 | 对应 RC feature | Demo 逻辑 | 差距 | 阶段 |
 | --- | --- | --- | --- | --- |
@@ -557,7 +557,7 @@ Lite 的 RC 子集 = RC-01…RC-05、RC-07（常驻）、RC-09（接线）、RC-
 | 13 条 / 8 条建议都带收益数字并「按预计收益排序」 | 主数字只用可计数事件；`priority_score` 只用于次序并标「启发式试用优先级」（main `score_meaning`）；效果「未测」直到 `rec_outcome` | 契约 §0.5 |
 | 「同类用户 −30%」「同为 DIMV 的用户安装后冲突减少 72%」 | 删除；无数据通路 | 契约 §0.10 |
 | 收益单位混用（次 / 月、%、tokens） | 卡片显示原单位与 `basis`；排序只看 `priority_score` | §3.5 |
-| 「Hook」Tab 含权限白名单与规则 | 按真实 `tandem.kind` 标注 | §2.1 |
+| 「Hook」Tab 含权限白名单与规则 | 按真实 `orbit.kind` 标注 | §2.1 |
 | 7 天前后对比恒「有效」 | 28 天基线、四态结论、护栏、混杂 | §3.8 |
 | 跨 Agent「转换给 Codex」自动完成 | 按 §8.2 落点表渲染，不可映射项列出，Codex hook 需信任 | 契约 IN-01 |
 | 匹配度 = 行为相似 × 0.5 + 痛点 × 0.3 + 社区效果 × 0.2 | `parts = {feature_overlap, friction, trust}`，无社区项 | §2.2 |
@@ -591,11 +591,11 @@ Lite 的 RC 子集 = RC-01…RC-05、RC-07（常驻）、RC-09（接线）、RC-
 | # | 位置 | 条目 | 状态 |
 | --- | --- | --- | --- |
 | C1 | §3.2 `problem.type` | 枚举增加 `communication_gap`（合并 main 三类：`explanation_revision`、`long_response`、`unexplained_terms`）、`repeated_instruction`、`repeated_workflow`、`missing_verification`；`buggy_output` 的 key 按领域细分 | 并入 |
-| C2 | §3.4 `remedy_rule` | 不单独落 YAML：字段映射到 main `recommendation-item-v1`（§2.2 表），新增公共子对象 `tandem{kind, dimension, level, scope, problem_key, min_sessions, min_wilson_lo, template_id, slots[], alternatives[], benefit, cost, risk_flags[], track, probe, generic, audience_min}`；`trigger.rule_ids` 受控键加 `would_prompt / missing_verification / resident_cost / installed_unused`；`kb_version = catalog_digest` | 并入 |
-| C3 | §3.4 `candidate` | 卡片 `kind = tandem.kind ?? KINDS[family]`；`explain` 增加 `mechanism`、`template_reason`、`pair_with`；`evidence.session_uids` 定义为显式集合并作 A3 过滤键；增加 `alternatives TEXT`、`first_shown_at / last_shown_at`、`rank_before_rerank`；`gates.checks` 取值 `true / false / "n/a"` | 并入 |
+| C2 | §3.4 `remedy_rule` | 不单独落 YAML：字段映射到 main `recommendation-item-v1`（§2.2 表），新增公共子对象 `orbit{kind, dimension, level, scope, problem_key, min_sessions, min_wilson_lo, template_id, slots[], alternatives[], benefit, cost, risk_flags[], track, probe, generic, audience_min}`；`trigger.rule_ids` 受控键加 `would_prompt / missing_verification / resident_cost / installed_unused`；`kb_version = catalog_digest` | 并入 |
+| C3 | §3.4 `candidate` | 卡片 `kind = orbit.kind ?? KINDS[family]`；`explain` 增加 `mechanism`、`template_reason`、`pair_with`；`evidence.session_uids` 定义为显式集合并作 A3 过滤键；增加 `alternatives TEXT`、`first_shown_at / last_shown_at`、`rank_before_rerank`；`gates.checks` 取值 `true / false / "n/a"` | 并入 |
 | C4 | §3.4 `tracking` | `metrics[]` 元素增加 `direction` 与 `must_be_zero`；`baseline` 默认 28 天；登记时机 = 确认安装 | 并入 |
 | C5 | §3.4 枚举 | `effect_status ∈ unmeasured | tracking | insufficient | positive | neutral | negative`；`rec_outcome.status ∈ ok | insufficient | guardrail_hit`；先验回写只按 RC §3.9 的 v1 规则，回滚率只作 EV-05 报告指标；`label.reason` 不适用原因统一 5 项 | 并入（与 evaluation.md 统一） |
-| C6 | §2.2 DT-11…DT-14 现状 | 改为 main `packages/catalog`（PR #29：`catalog.db`、FTS5、特征倒排、本地 E5 向量、`/v1/catalog/*`、`tandem-catalog` CLI）；`item_feature(feature = friction)` 取值 = `problem.type`，只对 `origin = curated` 标注；`resident_tokens_est` | 并入 |
+| C6 | §2.2 DT-11…DT-14 现状 | 改为 main `packages/catalog`（PR #29：`catalog.db`、FTS5、特征倒排、本地 E5 向量、`/v1/catalog/*`、`orbit-catalog` CLI）；`item_feature(feature = friction)` 取值 = `problem.type`，只对 `origin = curated` 标注；`resident_tokens_est` | 并入 |
 | C7 | §3.2b、§5.3 | `report_snapshot.kind` 加 `rec_top`（RC-05，v1），与 AN-14 的 `menubar` 分开；`GET /v1/analytics/recommendations` 为现有路由，新增参数 `include_gated / problem_id[] / session_uid / q / status[] / audience / dimension / level` 与返回 `counts{}`；新增 `GET /v1/recommendations/{id}`、`POST …/feedback`（`action` 含 `mute_rule`）、`POST …/recompute`、`GET /v1/inventory` | 并入 |
 | C8 | §2.4 现状列、§6 owner 表 | RC-02…RC-05、RC-09 现状改为 main `recommend/*`、`packages/catalog`（PR #26 / #29），owner = `genius-FXC`、reviewer = `MistyHuang03`；RC-12 owner = `yhyfhgs`（与 IN-01 同人）、reviewer = `genius-FXC`；RC-07 / RC-08 / RC-11 / RC-13 / RC-14 / RC-16 / RC-17 owner = `MistyHuang03`；规则：已合入实现的 feature，owner = 分支作者 | 并入（直接写定） |
 | C9 | §0.1、§2.2 DT-05 / DT-09 现状 | DT-05 改为「PR #9 26 种、PR #11 25 种」；PR #14 `user_version = 4`；DT-09 现状改为分支 `feat/local-inventory`（七类 Agent 扫描、版本化快照、`coverage.inventory` 透传）；全文路径按 PR #28 重构后目录（`docs/development/structure-migration.md`） | 并入 |

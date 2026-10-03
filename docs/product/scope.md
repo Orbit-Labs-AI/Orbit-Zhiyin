@@ -4,7 +4,7 @@
 
 Orbit 的目标是本地 macOS App。已实现的数据链路是：显式启用来源、不可变归档、统一事件和派生数据、画像与特征分析、报告和证据回看。CLI 与本机 API 是当前可运行入口。
 
-Lite 与 Advance 分别采用 `genius-FXC`、`yhyfhgs` 的设计，自 2026-10-02 起是同一个 App 的两种版本（侧栏顶部切换）。原型默认使用示例数据，共享适配层 `TandemLive`（[prototypes/shared](../../prototypes/shared/README.md)）负责接入本机 API；不能把原型中出现的按钮当成已交付功能。
+Lite 与 Advance 分别采用 `genius-FXC`、`yhyfhgs` 的设计，自 2026-10-02 起是同一个 App 的两种版本（侧栏顶部切换）。原型默认使用示例数据，共享适配层 `OrbitLive`（[prototypes/shared](../../prototypes/shared/README.md)）负责接入本机 API；不能把原型中出现的按钮当成已交付功能。
 
 正式桌面 target、系统集成、服务生命周期管理、安装包及 UI 到后端接线仍待实现。结构整理与改名没有新增功能承诺。
 

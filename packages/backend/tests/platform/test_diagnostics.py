@@ -5,8 +5,8 @@ import stat
 import zipfile
 from pathlib import Path
 
-from tandem_backend.platform import diagnostics, logs
-from tandem_backend.platform.diagnostics import redact_obj
+from orbit_backend.platform import diagnostics, logs
+from orbit_backend.platform.diagnostics import redact_obj
 
 SECRET = "sk-" + "A" * 24
 
@@ -38,7 +38,7 @@ def test_export_bundle(started):
         text = "\n".join(bundle.read(n).decode() for n in names)
         body = json.loads(bundle.read("diagnostics.json"))
     assert set(names) == {"README.txt", "diagnostics.json", "health.json", "metrics.csv",
-                          "logs/tandem.log"} == set(result["files"])
+                          "logs/orbit.log"} == set(result["files"])
     for leaked in ("abcdef0123456789", SECRET, "alice", "secret-project", "secret plan",
                    str(started.home)):
         assert leaked not in text, leaked

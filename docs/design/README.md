@@ -6,7 +6,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [品牌](brand.md) | 产品名 Orbit、代码标识的沿用规则、标志与 App 图标、字体、备选与历史版本 |
+| [品牌](brand.md) | 产品名 Orbit、代码标识与旧名兼容、标志、字标与 App 图标、字体、备选与历史版本 |
 | [路演组件素材](ppt-assets/README.md) | 从现行 UI 提取 PPT 可用的透明 PNG、SVG、页面与素材索引 |
 | [Demo 说明](demo.md) | 统一 App（Lite + Advance）怎么看、有哪些交互、怎么修改与发布 |
 | [画板与设计决定](boards.md) | Advance v1 画板索引、原始设计决定、v1 之后的现行决定、假设 |
@@ -18,11 +18,11 @@
 
 | App 版本 | 设计来源 | 设计入口 |
 | --- | --- | --- |
-| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | 原稿 [`prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html)；范围与审查见 [lite-review.md](lite-review.md) |
+| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | 原稿 [`prototypes/lite/orbit-benchmark-demo.html`](../../prototypes/lite/orbit-benchmark-demo.html)；范围与审查见 [lite-review.md](lite-review.md) |
 | **Advance** | `yhyfhgs` 的桌面 App 设计 | 源码 [`prototypes/advance/src/`](../../prototypes/advance/src/)、画板 [`visual-cases-v1/`](visual-cases-v1/) |
 
 - 版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。
-- 自 2026-10-02 起两版是**同一个 App**（[`prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html)），侧栏顶部一键切换，共用侧栏、卡片、栏目标题、KPI、控件、桌面小组件与动效；Lite 只在页面数量与尺度上做减法。`prototypes/lite/` 保留原稿作为 Lite 的设计来源。
+- 自 2026-10-02 起两版是**同一个 App**（[`prototypes/advance/orbit-demo.html`](../../prototypes/advance/orbit-demo.html)），侧栏顶部一键切换，共用侧栏、卡片、栏目标题、KPI、控件、桌面小组件与动效；Lite 只在页面数量与尺度上做减法。`prototypes/lite/` 保留原稿作为 Lite 的设计来源。
 - 引用设计或功能说明时注明适用版本。
 
 ## 存档记录
@@ -37,7 +37,8 @@
 | Lite + Advance | v1.4 | 2026-10-02 | 两版合为同一个 App：侧栏顶部一键切换；Lite 收敛为四页并复用 Advance 组件；共用换页编排、数字滚动、页面导读与微动效；首次启动改为连贯的 Genesis 序列 | `prototypes/advance/`（`26-edition.js`、`37-motion.js`、`39-lite-pages.js`、`56-onboarding.js`） |
 | Lite + Advance | v1.5 | 2026-10-02 | 产品改名 **Orbit**：菜单栏与 App 图标换成锥形螺旋标志、品牌色 `--orbit`；协作指纹改为罗盘表盘（玫瑰、协作重心指针、Agent 轨道环带与行星）；Genesis 统一为 Orbit 母题 | `prototypes/advance/`、[品牌](brand.md)、[`logo/`](logo/orbit-mark.svg) |
 | Advance | v1.6 | 2026-10-02 | 画板文字改为 Orbit，标志换成原型 `orbitMark` 的原样输出；在线画布与在线 Demo 重新发布 | 在线画布、`visual-cases-v1/`、在线 Demo |
-| Lite + Advance | v1.7 | 2026-10-03 | 罗盘内盘的玫瑰与指针换成协作人格之花（16 型 16 朵，领瓣指向协作重心；分享卡、菜单栏、小组件与算法说明同用）；外环改为宣传片式的平滑曲线轨道，按 Agent 分色表示占比，行星换成 Agent 标志徽章 | `prototypes/advance/`（`34-agent-logos.js`、`35-visuals.js`、`41-a2-persona.js`、`56-onboarding.js`）、[Demo 说明](demo.md) |
-| Lite + Advance | v1.8 | 2026-10-03 | 分享卡按时间长度各出一张（周卡 / 月卡 / 季卡 / 全时卡），内容取自该窗口的真实人格；页眉换成 Orbit·知音 字标，类型码 SF Pro Rounded、16 型新版名称与描述；版式放松留白，金句移入分享文案；各页面板改为各自滚动 | `prototypes/advance/`、`visual-cases-v1/ShareCard.dc.html` |
+| Lite + Advance | v1.7 | 2026-10-03 | 字标 Orbit·知音进入首次启动欢迎页、关于 Orbit 与设置 › 关于（`--orbit-word`：浅色板岩灰、深色香槟黄）；macOS App 图标改用素材包的 Dock 网格版，菜单栏用素材包模板图；代码标识统一改为 orbit，Demo 文件改名 `orbit-demo.html` | `prototypes/advance/`、`apps/desktop/`、[品牌](brand.md) |
+| Lite + Advance | v1.8 | 2026-10-03 | 罗盘内盘的玫瑰与指针换成协作人格之花（16 型 16 朵，领瓣指向协作重心；分享卡、菜单栏、小组件与算法说明同用）；外环改为宣传片式的平滑曲线轨道，按 Agent 分色表示占比，行星换成 Agent 标志徽章 | `prototypes/advance/`（`34-agent-logos.js`、`35-visuals.js`、`41-a2-persona.js`、`56-onboarding.js`）、[Demo 说明](demo.md) |
+| Lite + Advance | v1.9 | 2026-10-03 | 分享卡按时间长度各出一张（周卡 / 月卡 / 季卡 / 全时卡），内容取自该窗口的真实人格；页眉换成 Orbit·知音 字标，类型码 SF Pro Rounded、16 型新版名称与描述；版式放松留白，金句移入分享文案；各页面板改为各自滚动 | `prototypes/advance/`、`visual-cases-v1/ShareCard.dc.html` |
 
 画板与 Demo 的数值都是示例数据，不替代 MVP 范围；当前实现边界见[产品与交付边界](../product/scope.md)。

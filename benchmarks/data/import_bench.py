@@ -18,14 +18,14 @@ import sys
 import time
 from pathlib import Path
 
-from tandem_data.inventory import InventoryRequest, scan_inventory
-from tandem_data.query import current_projection, event_page, trajectory_page
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store, readonly_connection
+from orbit_data.inventory import InventoryRequest, scan_inventory
+from orbit_data.query import current_projection, event_page, trajectory_page
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store, readonly_connection
 
 from .synthetic import GENERATOR_VERSION, PRESETS, generate
 
-SCHEMA = "tandem-data-import-bench/1"
+SCHEMA = "orbit-data-import-bench/1"
 # Audit baseline (docs/audits/data-audit.md §3, full preset, Apple M-series, serial import).
 AUDIT_BASELINE = {
     "full": {
@@ -130,7 +130,7 @@ def table_sizes(db) -> dict:
 def ui_queries(home: Path, repeats: int) -> dict:
     """The 12 UI-critical reads from the audit (§3.6); best of ``repeats`` runs."""
     results = {}
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         count = db.execute("SELECT COUNT(*) FROM session").fetchone()[0]
         sid = db.execute(
             "SELECT session_uid FROM session ORDER BY started_at DESC LIMIT 1 OFFSET ?",
@@ -223,7 +223,7 @@ def run(args) -> dict:
     home = work / f"home-{args.preset}-{args.seed}"
     if home.exists():
         if any(
-            p.name not in ("tandem.db", "tandem.db-wal", "tandem.db-shm", "import.lock", "raw")
+            p.name not in ("orbit.db", "orbit.db-wal", "orbit.db-shm", "import.lock", "raw")
             for p in home.iterdir()
         ):
             raise SystemExit(f"Refusing to delete unexpected content in {home}")
@@ -277,7 +277,7 @@ def run(args) -> dict:
         }
         store.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         report["size"] = {
-            "db_megabytes": round((home / "tandem.db").stat().st_size / 1e6, 2),
+            "db_megabytes": round((home / "orbit.db").stat().st_size / 1e6, 2),
             "tables_megabytes": table_sizes(store.db),
             "event_column_megabytes": dict(
                 zip(
@@ -295,7 +295,7 @@ def run(args) -> dict:
         }
         report["ui_queries_ms"] = ui_queries(home, args.repeats)
         if args.check:
-            from tandem_data.validation.integrity import invariants, logical_digest
+            from orbit_data.validation.integrity import invariants, logical_digest
 
             started = time.perf_counter()
             digest = logical_digest(home)

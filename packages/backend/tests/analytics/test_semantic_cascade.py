@@ -7,28 +7,28 @@ from types import SimpleNamespace
 
 import pytest
 
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.instruction import (
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.instruction import (
     extract_instruction_constraints,
     resolve_instruction_scope,
 )
-from tandem_backend.analytics.interaction import analyze_interaction
-from tandem_backend.analytics.outcome_subjective import analyze_subjective_outcomes
-from tandem_backend.analytics.preference import (
+from orbit_backend.analytics.interaction import analyze_interaction
+from orbit_backend.analytics.outcome_subjective import analyze_subjective_outcomes
+from orbit_backend.analytics.preference import (
     instruction_to_preference_evidence,
     summarize_preference_evidence,
 )
-from tandem_backend.analytics.semantic_cascade import (
+from orbit_backend.analytics.semantic_cascade import (
     Budget,
     attach_cache,
     observation_for,
     run_cascade,
     select_candidates,
 )
-from tandem_backend.analytics.semantic_cascade import provider as provider_module
-from tandem_backend.analytics.semantic_cascade.provider import CodexProvider
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.semantic_cascade import provider as provider_module
+from orbit_backend.analytics.semantic_cascade.provider import CodexProvider
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def label(candidate, **changes):
@@ -436,7 +436,7 @@ def test_invalid_budget_fails_early(values):
 
 
 def test_cascade_context_includes_phaseless_assistant_delivery():
-    from tandem_backend.analytics.semantic_cascade.candidates import select_candidates
+    from orbit_backend.analytics.semantic_cascade.candidates import select_candidates
 
     def ev(seq, kind, text, actor, **attrs):
         return {"event_uid": f"e{seq}", "session_uid": "s", "seq": seq, "ts": seq, "kind": kind,

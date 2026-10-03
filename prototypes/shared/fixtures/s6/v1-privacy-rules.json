@@ -67,5 +67,5 @@
   }
  ],
  "custom": [],
- "scope_note": "outbound 规则作用于 AI 上下文包与 Tandem 渲染的导出；ingest 规则固定，修改规则不回洗已入库数据（回洗即重建，留到 v1）。"
+ "scope_note": "outbound 规则作用于 AI 上下文包与 Orbit 渲染的导出；ingest 规则固定，修改规则不回洗已入库数据（回洗即重建，留到 v1）。"
 }

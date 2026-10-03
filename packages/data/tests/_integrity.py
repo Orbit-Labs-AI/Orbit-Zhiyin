@@ -2,7 +2,7 @@
 
 The digest covers logical output only (L1 accounting, L2 events and links, L3 tables,
 issues), never capture timestamps. ``logical_digest`` delegates to
-``tandem_data.validation.integrity.logical_digest``; ``differing_tables`` still compares
+``orbit_data.validation.integrity.logical_digest``; ``differing_tables`` still compares
 per table to locate a difference.
 """
 
@@ -14,8 +14,8 @@ import random
 import sqlite3
 from pathlib import Path
 
-from tandem_data.contract import canonical
-from tandem_data.validation.integrity import logical_digest as validation_logical_digest
+from orbit_data.contract import canonical
+from orbit_data.validation.integrity import logical_digest as validation_logical_digest
 
 TIME_COLUMNS = {
     "captured_at",
@@ -52,7 +52,7 @@ def _rows(db, sql):
 
 
 def table_digests(home) -> dict[str, str]:
-    path = Path(home) / "tandem.db"
+    path = Path(home) / "orbit.db"
     db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     try:
         parts = {}
@@ -122,7 +122,7 @@ def assert_integrity(store) -> None:
     )
     # The search index must cover exactly the searchable events and keep its row triggers.
     store.db.execute("INSERT INTO event_search(event_search, rank) VALUES('integrity-check', 1)")
-    from tandem_data.parallel import EVENT_SEARCH_TRIGGERS, SEARCHED
+    from orbit_data.parallel import EVENT_SEARCH_TRIGGERS, SEARCHED
 
     indexed = {row[0] for row in store.db.execute("SELECT rowid FROM event_search")}
     expected = {
@@ -151,7 +151,7 @@ def copy_home(store, target: Path) -> Path:
     (target / "raw").mkdir()
     for blob in (store.home / "raw").iterdir():
         (target / "raw" / blob.name).write_bytes(blob.read_bytes())
-    destination = sqlite3.connect(target / "tandem.db")
+    destination = sqlite3.connect(target / "orbit.db")
     with destination:
         store.db.backup(destination)
     destination.close()

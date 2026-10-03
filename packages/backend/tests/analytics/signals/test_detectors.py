@@ -3,8 +3,8 @@
 import pytest
 from signal_fixtures import Session, analyze, bundle, detected, retry_session
 
-from tandem_backend.analytics.signals.dictionary import RULES_VERSION, SIGNAL_KINDS
-from tandem_backend.models import stable_id
+from orbit_backend.analytics.signals.dictionary import RULES_VERSION, SIGNAL_KINDS
+from orbit_backend.models import stable_id
 
 
 def keys(rows):
@@ -192,7 +192,7 @@ def test_would_prompt_uses_call_approval_without_permission_mode():
     ("env FOO=1 make", False), ("cat list | xargs rm", False), ("ls $(pwd)", False),
 ])
 def test_readonly_command_rejects_writing_forms(command, readonly):
-    from tandem_backend.analytics.signals.detectors import is_readonly_command
+    from orbit_backend.analytics.signals.detectors import is_readonly_command
     assert is_readonly_command(command) is readonly
 
 

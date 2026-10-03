@@ -17,7 +17,7 @@
       "session_uid": "fx-rt-run",
       "agent": "claude_code",
       "project_id": "fx-p1",
-      "project": "fx-tandem",
+      "project": "fx-orbit",
       "title": "合成会话：整理 HUD 绑定",
       "state": "running",
       "flags": [
@@ -178,7 +178,7 @@
       "session_uid": "fx-rt-done",
       "agent": "claude_code",
       "project_id": "fx-p1",
-      "project": "fx-tandem",
+      "project": "fx-orbit",
       "title": "合成会话：修好导出",
       "state": "just_finished",
       "flags": [],

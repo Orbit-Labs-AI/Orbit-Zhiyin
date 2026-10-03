@@ -8,14 +8,14 @@ import sys
 
 import pytest
 
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 
 def invoke(*args):
     return subprocess.run(
-        [sys.executable, "-m", "tandem_data.cli", *map(str, args)], text=True, capture_output=True
+        [sys.executable, "-m", "orbit_data.cli", *map(str, args)], text=True, capture_output=True
     )
 
 
@@ -59,7 +59,7 @@ def test_cli_discover_import_query_export_rebuild_and_readonly_sources(tmp_path)
 
 def test_offline_validation_command_generates_inspectable_six_agent_report(tmp_path):
     result = subprocess.run(
-        [sys.executable, "-m", "tandem_data.validation", "--output", str(tmp_path / "validation")],
+        [sys.executable, "-m", "orbit_data.validation", "--output", str(tmp_path / "validation")],
         text=True,
         capture_output=True,
     )
@@ -74,7 +74,7 @@ def test_offline_validation_command_generates_inspectable_six_agent_report(tmp_p
 
 
 def test_corrupt_row_isolated_and_unknown_type_has_evidence(tmp_path):
-    from tandem_data.contract import canonical
+    from orbit_data.contract import canonical
 
     root = tmp_path / "pi"
     file = root / "sessions/s.jsonl"
@@ -119,7 +119,7 @@ def test_second_writer_does_not_start_import(tmp_path):
 
 
 def test_app_cursor_and_export_refuse_obsolete_projection(tmp_path):
-    from tandem_data.service import event_page
+    from orbit_data.service import event_page
 
     roots = create_sources(tmp_path / "fixtures")
     home = tmp_path / "data"
@@ -138,7 +138,7 @@ def test_app_cursor_and_export_refuse_obsolete_projection(tmp_path):
 def test_csv_export_keeps_untrusted_formula_text_literal(tmp_path):
     import csv
 
-    from tandem_data.contract import canonical
+    from orbit_data.contract import canonical
 
     payloads = ["=1+1", "+1+1", "-1+1", "@SUM(1,2)", "\t=1+1", "  =1+1", "ordinary text"]
     root = tmp_path / "pi"

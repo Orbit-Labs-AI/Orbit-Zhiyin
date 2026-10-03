@@ -6,9 +6,9 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.instruction import extract_instruction_constraints
-from tandem_backend.analytics.preference import (
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.instruction import extract_instruction_constraints
+from orbit_backend.analytics.preference import (
     build_preference_evidence,
     explicit_to_preference_evidence,
     extract_explicit_preferences,
@@ -16,8 +16,8 @@ from tandem_backend.analytics.preference import (
     resolve_effective_preferences,
     summarize_preference_evidence,
 )
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.api import create_app
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.api import create_app
 
 
 def observations(events):
@@ -53,7 +53,7 @@ def test_adapter_uses_structured_values_even_without_parseable_text(fixtures):
 def test_explicit_extractor_does_not_parse_task_requirements(fixtures, monkeypatch):
     s, e, _ = fixtures
     parser = Mock(side_effect=AssertionError("ordinary task text reached preference vocabulary"))
-    monkeypatch.setattr("tandem_backend.analytics.preference.features.preference_values", parser)
+    monkeypatch.setattr("orbit_backend.analytics.preference.features.preference_values", parser)
     result = extract_explicit_preferences([e("这次直接执行，请用表格，并运行 pytest")], [s()])
     assert result["records"] == result["candidates"] == result["task_instructions"] == []
     parser.assert_not_called()
@@ -193,7 +193,7 @@ def test_service_extracts_instruction_once_and_does_not_apply_historical_evidenc
     events = [e("请修复代码", "a", 1, ts=10), e("直接执行", "b", 2, ts=20),
               e("无需确认", "c", 3, ts=30), e("以后所有项目用中文", "d", 4, ts=40)]
     spy = Mock(wraps=extract_instruction_constraints)
-    monkeypatch.setattr("tandem_backend.analytics.semantic.extract_instruction_constraints", spy)
+    monkeypatch.setattr("orbit_backend.analytics.semantic.extract_instruction_constraints", spy)
     result = analyze_bundle(b(events), with_text=False)
     spy.assert_called_once()
     prefs = result["preferences"]
@@ -212,7 +212,7 @@ def test_api_exposes_both_sources_with_existing_scope_filters(fixtures, monkeypa
     s, e, b = fixtures
     bundle = b([e("请修复代码", "a", 1, ts=10), e("先给方案", "b", 2, ts=20),
                 e("以后所有项目用中文", "c", 3, ts=30)])
-    monkeypatch.setattr("tandem_backend.analytics.service.analyze_store",
+    monkeypatch.setattr("orbit_backend.analytics.service.analyze_store",
                         lambda store, scope, with_text=True: analyze_bundle(bundle, scope, with_text))
     with TestClient(create_app(tmp_path / "test.sqlite")) as client:
         response = client.get("/v1/analytics/preferences")
@@ -230,7 +230,7 @@ def test_api_exposes_both_sources_with_existing_scope_filters(fixtures, monkeypa
 def test_service_reuses_optional_session_cluster_context(fixtures, monkeypatch, with_text):
     _, e, b = fixtures
     projection = Mock(return_value={"coordinates": [{"entity_id": "s", "cluster_id": 7}]})
-    monkeypatch.setattr("tandem_backend.analytics.service.representation", projection)
+    monkeypatch.setattr("orbit_backend.analytics.service.representation", projection)
     result = analyze_bundle(b([e("先给方案")]), with_text=with_text)
     item = result["preferences"]["evidence"][0]
     assert item["cluster_id"] == result["sessions"][0]["cluster_id"] == (7 if with_text else None)

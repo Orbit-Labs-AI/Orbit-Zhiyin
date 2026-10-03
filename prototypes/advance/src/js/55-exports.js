@@ -32,7 +32,7 @@ function openCSV() {
   CUR.csv = ['tool,calls,error_rate,failures,avg_duration,approval_rate'].concat(rows.map((r) => [r.name, r.n, (r.err * 100).toFixed(1) + '%', r.fails, r.avg, Math.round(r.ap * 100) + '%'].join(','))).join('\n');
   openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · ' + rows.length + ' 种工具 · 复制后可以粘贴到表格软件') + '<div class="mb"><textarea readonly aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.csv) + '</textarea></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyCSV">复制 CSV</button></div>', 'wide');
 }
-// 分享卡金句：16 型各一句（与 packages/backend/src/tandem_backend/exporting/type_copy.py 的 SHARE_QUOTES 逐字一致）
+// 分享卡金句：16 型各一句（与 packages/backend/src/orbit_backend/exporting/type_copy.py 的 SHARE_QUOTES 逐字一致）
 const SHAREQ = { DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], DPMT: ['把需求讲清楚，', '让产出并行流动。'], DPFV: ['一次只推一件事，', '每一件都严格验收。'], DPFT: ['把想法写成好任务，', '把精力留给关键判断。'],
   DIMV: ['把目标交出去，', '把验收留给自己。'], DIMT: ['同时开很多条线，', '顺着结果往前走。'], DIFV: ['让 Agent 带路，', '方向由我来核实。'], DIFT: ['放手让它发挥，', '享受意外的收获。'],
   SPMV: ['多条线同时起飞，', '每一条都稳稳落地。'], SPMT: ['计划周全，亲自操盘，', '几件事一起向前跑。'], SPFV: ['先想清楚，再动手，', '每一步都有依据。'], SPFT: ['把每一步讲清楚，', 'Agent 照着就能抵达。'],
@@ -211,7 +211,7 @@ Object.assign(ACT, {
   // 每个时间长度各存一张（依次保存，文件名带长度：orbit-persona-7d-DIMV-日期.png）
   shareSaveAll: async () => { const sps = shareSpans().map(shareSpanState).filter((st) => st.state === 'ok').map((st) => st.sp); for (const sp of sps) { const r = await shareSaveOne(sp); if (r && (r.cancelled || r.ok === false)) break; } }
 });
-/* ---- saving exports (live / native): ORBIT.native.request('save') → tandem:saved; the browser fallback downloads a Blob.
+/* ---- saving exports (live / native): ORBIT.native.request('save') → orbit:saved; the browser fallback downloads a Blob.
    A saved file gets a toast with「在 Finder 中显示」(reveal). Used by 98-live-ops.js; the mock demo keeps its copy buttons. */
 function expStamp() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function expSave(filename, mime, data) {

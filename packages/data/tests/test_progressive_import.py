@@ -6,10 +6,10 @@ import time
 
 from _integrity import assert_integrity, build_relation_tree, differing_tables, mutate
 
-from tandem_data.query import event_page
-from tandem_data.scheduler import collection_state, plan_batches, session_group
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store, readonly_connection
+from orbit_data.query import event_page
+from orbit_data.scheduler import collection_state, plan_batches, session_group
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store, readonly_connection
 
 
 def _age(roots):
@@ -43,7 +43,7 @@ def test_progressive_import_publishes_consistent_batches(tmp_path):
         published.wait(60)
         while not stop.is_set():
             try:
-                with readonly_connection(home / "tandem.db") as probe:
+                with readonly_connection(home / "orbit.db") as probe:
                     session = probe.execute(
                         "SELECT session_uid FROM session ORDER BY session_uid LIMIT 1"
                     ).fetchone()[0]

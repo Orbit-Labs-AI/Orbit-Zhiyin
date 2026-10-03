@@ -2,10 +2,10 @@
 
 from signal_fixtures import Session, analyze, bundle
 
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.signals import build_signal_layer
-from tandem_backend.analytics.signals.dictionary import MAX_MOMENTS
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.signals import build_signal_layer
+from orbit_backend.analytics.signals.dictionary import MAX_MOMENTS
 
 
 def layer_of(*sessions, **kw):
@@ -97,8 +97,8 @@ def phaseless(sid, *feedback, turns=True):
 
 
 def test_final_delivery_without_phase_is_last_assistant_of_turn():
-    from tandem_backend.analytics.common import final_assistant_uids
-    from tandem_backend.analytics.outcome_subjective.extraction import collect_deliveries
+    from orbit_backend.analytics.common import final_assistant_uids
+    from orbit_backend.analytics.outcome_subjective.extraction import collect_deliveries
 
     for turns in (True, False):
         s = phaseless("a", turns=turns)

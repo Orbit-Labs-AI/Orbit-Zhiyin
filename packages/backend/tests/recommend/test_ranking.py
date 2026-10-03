@@ -5,15 +5,15 @@ from copy import deepcopy
 
 import pytest
 
-from tandem_backend.recommend.contracts import (
+from orbit_backend.recommend.contracts import (
     Candidate,
     RankingPolicy,
     RecommendationContext,
     RecommendationItem,
     RecommendationState,
 )
-from tandem_backend.recommend.features import candidate_features
-from tandem_backend.recommend.ranking import filter_item, score_candidate, select_diverse
+from orbit_backend.recommend.features import candidate_features
+from orbit_backend.recommend.ranking import filter_item, score_candidate, select_diverse
 
 
 def resource(uid="test-resource", **changes):

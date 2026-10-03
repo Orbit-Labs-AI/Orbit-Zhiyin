@@ -9,40 +9,40 @@
 ```sh
 pnpm install --frozen-lockfile
 pnpm check
-pnpm tandem init
+pnpm orbit init
 
 # 仅发现来源，不导入
-pnpm tandem discover --codex-home "$HOME/.codex"
+pnpm orbit discover --codex-home "$HOME/.codex"
 
 # 明确启用该来源：首次回填，以后增量
-pnpm tandem ingest --codex-home "$HOME/.codex"
-pnpm tandem watch --codex-home "$HOME/.codex"
-pnpm tandem stats
+pnpm orbit ingest --codex-home "$HOME/.codex"
+pnpm orbit watch --codex-home "$HOME/.codex"
+pnpm orbit stats
 ```
 
-省略 `--codex-home` 时取 `CODEX_HOME`，再回退到 `~/.codex`。默认 staging 输出为 `~/Library/Application Support/Tandem/connectors/codex`，可以用 `--data-dir` 修改；它与统一库默认目录分开。来源根目录会规范化软链接；输出不得位于来源目录内。
+省略 `--codex-home` 时取 `CODEX_HOME`，再回退到 `~/.codex`。默认 staging 输出为 `~/Library/Application Support/Orbit/connectors/codex`，可以用 `--data-dir` 修改；它与统一库默认目录分开。来源根目录会规范化软链接；输出不得位于来源目录内。
 
 用构造样本跑演示，不需要读取真实会话：
 
 ```sh
 mkdir -p .local/codex/sessions
 cp tests/fixtures/paginated.jsonl .local/codex/sessions/rollout-demo.jsonl
-pnpm tandem ingest --codex-home .local/codex --data-dir .local/tandem
-pnpm tandem stats --data-dir .local/tandem
+pnpm orbit ingest --codex-home .local/codex --data-dir .local/orbit
+pnpm orbit stats --data-dir .local/orbit
 ```
 
 构建后可直接运行 `node dist/cli.js`。`--help` 列出全部命令。`ingest` 输出 JSON，包括文件变动、失败文件、导入记录数、派生会话数、各去向计数与诊断数量；存在读取失败或 `unparsed` 时退出码为 2。维护锁被持有时跳过该轮，不推进游标。未知类型会归档、生成 `unknown` 事件和告警，不导致整次导入失败。
 
 ## 接入分析或 Mac App
 
-前端与分析模块以只读方式打开 `tandem.db`，设置 `query_only`、`busy_timeout`，一次查询在一个读事务内完成。不要对 Orbit 以外的 Codex 数据库执行迁移或写入。
+前端与分析模块以只读方式打开 `orbit.db`，设置 `query_only`、`busy_timeout`，一次查询在一个读事务内完成。不要对 Orbit 以外的 Codex 数据库执行迁移或写入。
 
 库入口导出 `CodexConnector`、`ConnectorStore`、`discoverCodex`、`watchCodex`、`readRawRecord`、`readRedactedRecord`、`archivedBytes`、`validateEvent` 和事件类型：
 
 ```ts
-import { CodexConnector, ConnectorStore } from '@tandem/connectors';
+import { CodexConnector, ConnectorStore } from '@orbit/connectors';
 
-const store = new ConnectorStore('/absolute/path/to/tandem');
+const store = new ConnectorStore('/absolute/path/to/orbit');
 try {
   const connector = new CodexConnector(store, '/absolute/path/to/codex-home');
   const result = await connector.ingest();
@@ -92,27 +92,27 @@ SELECT * FROM tool_call WHERE is_wrapper = 0;
 导出标准事件与取回证据：
 
 ```sh
-pnpm tandem export --session '<session_uid>' --output .local/session.jsonl
-pnpm tandem raw --record '<record_uid>'
-pnpm tandem rebuild
+pnpm orbit export --session '<session_uid>' --output .local/session.jsonl
+pnpm orbit raw --record '<record_uid>'
+pnpm orbit rebuild
 ```
 
 `export` 输出脱敏 JSONL，拒绝覆盖已有文件或写入 Agent 来源目录。`raw` 明确读取原始字节，内容可能含未脱敏数据。分析需要完整工具输出时使用 `readRedactedRecord`，仍执行同一脱敏规则，解除 8 KB 预览预算。`rebuild` 从已保存 L1 重算，不重新读取 Agent 文件。
 
 ## 与统一数据库对接
 
-本包写入 Connector staging 库，`packages/data` 写入 canonical 库，物理 schema 和 ID 命名不同。两者必须使用不同的目录；本包会拒绝把其他数据库当成旧 staging 库迁移。不要让两个进程共写同一个 `tandem.db`。
+本包写入 Connector staging 库，`packages/data` 写入 canonical 库，物理 schema 和 ID 命名不同。两者必须使用不同的目录；本包会拒绝把其他数据库当成旧 staging 库迁移。不要让两个进程共写同一个 `orbit.db`。
 
 `packages/data` 的 `import-connector` 已能只读本包的 `source/source_file/archive_chunk/raw_record`，验证归档块与每条记录的 SHA，建立 `connector_record_link`，再由统一库重算。L0/L1 桥接不依赖 staging 的 L2/L3 表布局。
 
 当 `packages/data` 分支可用时，在仓库根目录运行：
 
 ```sh
-uv run --project packages/data tandem-data --home .local/canonical init
-uv run --project packages/data tandem-data --home .local/canonical import-connector \
-  --connector-home packages/connectors/.local/tandem
-uv run --project packages/data tandem-data --home .local/canonical rebuild
-uv run --project packages/data tandem-data --home .local/canonical verify
+uv run --project packages/data orbit-data --home .local/canonical init
+uv run --project packages/data orbit-data --home .local/canonical import-connector \
+  --connector-home packages/connectors/.local/orbit
+uv run --project packages/data orbit-data --home .local/canonical rebuild
+uv run --project packages/data orbit-data --home .local/canonical verify
 ```
 
 两个库的事件结构均可提供 `analysis-input-v1` 逻辑输入。本包导出的真实 L2 已通过统一库事件 Schema 校验。桥接后仍须核对 canonical 的解析去向和覆盖，不能因为归档及 crosswalk 正确就宣称重新派生已完整。
@@ -155,7 +155,7 @@ pnpm build
 已对有界真实 Codex rollout 实际执行导入、重算、查询、重复导入、事件 Schema 校验和原文 SHA 对账；真实日志和结果仅保留在 `.local/`。授权本机验证可以限定范围，避免默认扫描全量正文：
 
 ```sh
-pnpm tandem ingest --codex-home "$HOME/.codex" --data-dir .local/real-staging \
+pnpm orbit ingest --codex-home "$HOME/.codex" --data-dir .local/real-staging \
   --file 'archived_sessions/<真实 rollout 文件名>.jsonl' --no-index
 ```
 

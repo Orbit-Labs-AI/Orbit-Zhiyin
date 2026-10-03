@@ -18,14 +18,14 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 
 | 版本 | 设计来源 | 设计参考 |
 | --- | --- | --- |
-| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | [Lite Demo](../../prototypes/lite/tandem-benchmark-demo.html)、[范围与审查](../design/lite-review.md) |
-| **Advance** | `yhyfhgs` 的桌面 App 设计 | [Advance Demo](../../prototypes/advance/tandem-demo.html)、[视觉案例 v1](../design/visual-cases-v1/) |
+| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | [Lite Demo](../../prototypes/lite/orbit-benchmark-demo.html)、[范围与审查](../design/lite-review.md) |
+| **Advance** | `yhyfhgs` 的桌面 App 设计 | [Advance Demo](../../prototypes/advance/orbit-demo.html)、[视觉案例 v1](../design/visual-cases-v1/) |
 
-版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。两版已合为同一个 App（[`tandem-demo.html`](../../prototypes/advance/tandem-demo.html) 侧栏顶部切换），Lite 原稿保留为设计来源，具体说明见[设计资料](../design/README.md)。画板与 Demo 仍是使用示例数据的设计参考，MVP 功能范围由三位成员共同确认；现有界面与交互的调整由对应设计任务另行推进。
+版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。两版已合为同一个 App（[`orbit-demo.html`](../../prototypes/advance/orbit-demo.html) 侧栏顶部切换），Lite 原稿保留为设计来源，具体说明见[设计资料](../design/README.md)。画板与 Demo 仍是使用示例数据的设计参考，MVP 功能范围由三位成员共同确认；现有界面与交互的调整由对应设计任务另行推进。
 
 ## 先试后端
 
-Orbit 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](../../prototypes/lite/tandem-benchmark-demo.html) 与 [Advance Demo](../../prototypes/advance/tandem-demo.html) 仍是设计参考。
+Orbit 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](../../prototypes/lite/orbit-benchmark-demo.html) 与 [Advance Demo](../../prototypes/advance/orbit-demo.html) 仍是设计参考。
 
 分析入口遵循 [analysis-input-v1](../contracts/analysis-inputs.md)，目标契约与当前存储支持范围分开说明。
 
@@ -33,8 +33,8 @@ Orbit 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 
 
 ```sh
 uv sync --locked --all-packages --dev
-uv run tandem demo
-uv run tandem evaluate
+uv run orbit demo
+uv run orbit evaluate
 uv run pytest -q packages/backend/tests tests
 uv run pytest -q packages/data/tests
 ```
@@ -42,9 +42,9 @@ uv run pytest -q packages/data/tests
 demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”直接展示。结果目录同时保存 `profile.md / bottlenecks.md / process.md / report.md` 及对应 JSON。评价结果在 `.local/evaluation.json`。通过自动检查表示已排除部分明显错误，仍需要读者验收。
 
 ```sh
-.venv/bin/tandem demo --view profile
-.venv/bin/tandem demo --view bottlenecks
-.venv/bin/tandem demo --view process
+.venv/bin/orbit demo --view profile
+.venv/bin/orbit demo --view bottlenecks
+.venv/bin/orbit demo --view process
 ```
 
 不指定想要哪个 skill，也能先生成画像与瓶颈；资源目录只参与最后的匹配。推导过程见 [画像怎样产生](../modules/analytics/profiling.md)。这次展示使用 CLI，无需接入前端。
@@ -54,33 +54,33 @@ demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”�
 ## 导入本地数据
 
 ```sh
-uv run tandem discover
-uv run tandem ingest --agent codex --root "$HOME/.codex"
-uv run tandem ingest --agent claude_code --root "$HOME/.claude"
-uv run tandem verify
-uv run tandem report
-uv run tandem analytics --display-timezone Asia/Shanghai
-uv run tandem serve
+uv run orbit discover
+uv run orbit ingest --agent codex --root "$HOME/.codex"
+uv run orbit ingest --agent claude_code --root "$HOME/.claude"
+uv run orbit verify
+uv run orbit report
+uv run orbit analytics --display-timezone Asia/Shanghai
+uv run orbit serve
 ```
 
-`discover` 只列来源，`ingest` 才启用指定根目录。CLI、App 和 API 默认共用 `~/Library/Application Support/Tandem/`（`tandem.db` 与 `raw/`），可用 `TANDEM_HOME` 或 `--home` 指定；仓库开发可用 `--home .tandem`。报告在 `.local/report/`，API 文档在 <http://127.0.0.1:8765/docs>。真实数据只留在本地，API 默认只监听本机。
+`discover` 只列来源，`ingest` 才启用指定根目录。CLI、App 和 API 默认共用 `~/Library/Application Support/Orbit/`（`orbit.db` 与 `raw/`），可用 `ORBIT_HOME` 或 `--home` 指定；仓库开发可用 `--home .orbit`。报告在 `.local/report/`，API 文档在 <http://127.0.0.1:8765/docs>。真实数据只留在本地，API 默认只监听本机。
 
 统一数据层完整保留 L0，分析用 `analytics --from-ts / --until-ts`（UTC 毫秒、右端不包含）与 `--exclude-session`（canonical session UID）选择样本，范围与数据版本随结果返回。不要把评价中用户给出的标准重新当作历史偏好导入。旧命令 `import --codex-home` 默认也进入新数据层。
 
-已有 MVP 库需显式通过 `--db .local/tandem.sqlite` 使用兼容模式，原有持久采样策略保持原样。新入口不会改写旧库或静默忽略旧采样参数。迁移需显式从原始来源或 staging 重新导入；旧 JSON ledger 无法补出缺失的 L0/L1。
+已有 MVP 库需显式通过 `--db .local/orbit.sqlite` 使用兼容模式，原有持久采样策略保持原样。新入口不会改写旧库或静默忽略旧采样参数。迁移需显式从原始来源或 staging 重新导入；旧 JSON ledger 无法补出缺失的 L0/L1。
 
 ## 真实历史的进度、取消与大库分析
 
 首次全量导入会归档原文、逐条脱敏/校验并生成 L2/L3；文件数不等于会话数。终端在 stderr 显示 `capture → reset_projection → prepare → map → derive → validate_projection → published` 的阶段、文件/记录数量与耗时，stdout 仍是 JSON。`--no-progress` 可关闭进度。单个大文件和事务更新期间只显示当前阶段，不提供虚假的总完成百分比或剩余时间。同一项目的 Git 探测在单次重算内复用，下次重算重新探测。打开数据库时幂等补齐派生表的外键索引，避免延迟外键检查随数据量增长反复扫描子表；逻辑 schema 版本和字段契约不变。
 
-Ctrl+C 以退出码 130 结束；当前投影事务回滚，已提交的原始归档保留。重新运行原来的 `ingest` 会跳过未变化文件并重新执行未完成的标准化；已有归档可直接用 `uv run tandem --home .tandem rebuild` 重算。未完成标准化时不能运行分析，不能把 L1 默认的 `unparsed` 数量当成已确认的解析错误。
+Ctrl+C 以退出码 130 结束；当前投影事务回滚，已提交的原始归档保留。重新运行原来的 `ingest` 会跳过未变化文件并重新执行未完成的标准化；已有归档可直接用 `uv run orbit --home .orbit rebuild` 重算。未完成标准化时不能运行分析，不能把 L1 默认的 `unparsed` 数量当成已确认的解析错误。
 
 先试真实样本时使用独立目录，避免旧库的其他文件也参与重算：
 
 ```sh
-uv run tandem --home .local/real-sample ingest --agent codex --root "${CODEX_HOME:-$HOME/.codex}" --limit 3
-uv run tandem --home .local/real-sample analytics --display-timezone Asia/Shanghai --output .local/real-sample-report/analytics.json
-uv run tandem --home .local/real-sample report --output .local/real-sample-report
+uv run orbit --home .local/real-sample ingest --agent codex --root "${CODEX_HOME:-$HOME/.codex}" --limit 3
+uv run orbit --home .local/real-sample analytics --display-timezone Asia/Shanghai --output .local/real-sample-report/analytics.json
+uv run orbit --home .local/real-sample report --output .local/real-sample-report
 ```
 
 Codex 的子代理继承前缀按原生边界识别：能找到父记录时关联到父证据；父历史已不可用时，保留为带 `parent_evidence=unavailable` 的注入上下文和诊断，不制造父链接，也不重复计为子代理的人类输入、工具调用或用量。分析覆盖会标明 `inherited_parent_evidence_unavailable`。ImageView、clock.sleep、image_gen.generation、FunctionCallOutput、tool_search、compaction 和目标更新使用对应标准事件；未报告的工具状态继续为 unknown。
@@ -90,8 +90,8 @@ Codex 的子代理继承前缀按原生边界识别：能找到父记录时关�
 分析与报告默认不限制事件数量，也不截断正文。可显式设置 `--max-events` 预算（包含所选轮次的上下文），在解码正文前检查；超限会明确失败，不返回部分分析结果。可以用 `--project-id` 或 `--from-ts / --until-ts` 缩小范围，两种报告入口都支持 UTC 毫秒时间范围，左闭右开。需要控制资源占用时可以显式指定预算：
 
 ```sh
-uv run tandem --home .tandem --max-events 500000 analytics --no-text --display-timezone Asia/Shanghai --output .local/report/analytics.json
-uv run tandem --home .tandem --max-events 500000 report --output .local/report
+uv run orbit --home .orbit --max-events 500000 analytics --no-text --display-timezone Asia/Shanghai --output .local/report/analytics.json
+uv run orbit --home .orbit --max-events 500000 report --output .local/report
 ```
 
 读取轮次首尾事件改为单次遍历，不再为每一轮扫描整个事件集合。分析和报告只读取所需的标准字段，不批量解码 event.ext 中的重复原生副本；覆盖说明会标记 native_event_payload 为 excluded，完整已存证据仍可按事件/记录 ID 回看，原始归档不变。
@@ -118,7 +118,7 @@ uv run tandem --home .tandem --max-events 500000 report --output .local/report
 离线目录自带 10 个公开来源的固定版本。需要重新核对时运行：
 
 ```sh
-.venv/bin/tandem catalog-refresh
+.venv/bin/orbit catalog-refresh
 ```
 
 它从 GitHub 官方 API 读取仓库信息和 Markdown，核对版本与内容哈希，结果保存在 `.local/catalog.json`。`--latest` 才会更新到当前默认分支，`--resource-id humanizer-zh` 可以只核对一个来源。导入和分析不需要联网。
@@ -130,7 +130,7 @@ uv run tandem --home .tandem --max-events 500000 report --output .local/report
 - [Preference 与 Task 特征族：实现及五类验证](../modules/analytics/validation.md)
   — 新增 `/v1/analytics/preferences`、`/v1/analytics/tasks`；证据、范围、版本与未知状态可追溯。
 - [Feature Analytics MVP：真实数据案例、特征字典与输入缺口](../modules/analytics/feature-analytics.md)
-  — 运行 `.venv/bin/tandem --db .local/history.sqlite analytics --display-timezone Asia/Shanghai --output .local/feature-analytics/analytics.json`；新增 `/v1/analytics/*`，未知值不填零。
+  — 运行 `.venv/bin/orbit --db .local/history.sqlite analytics --display-timezone Asia/Shanghai --output .local/feature-analytics/analytics.json`；新增 `/v1/analytics/*`，未知值不填零。
 - [先验这条链路](../development/acceptance.md)
 - [今晚先跑通什么](../archive/backend-mvp-plan.md)
 - [当前版本：完整过滤凭据并核对交付证据](../releases/backend/v0.13.6.md)
@@ -150,10 +150,10 @@ uv run tandem --home .tandem --max-events 500000 report --output .local/report
 cd packages/connectors
 pnpm install --frozen-lockfile
 pnpm check
-pnpm tandem --help
+pnpm orbit --help
 ```
 
 初始化、增量导入、重算、监听、数据契约和真实来源验证范围见 [Connector README](../../packages/connectors/README.md)。
 
-已有 staging 用 `uv run tandem import-connector --connector-home .local/codex-staging` 接入，源文件已删除也可从归档处理。普通 `tandem ingest --agent codex` 可直接使用 Python canonical connector。两种采集方式最终使用同一份 Python L2/L3 规则，两个包不得共写同一份 SQLite。
+已有 staging 用 `uv run orbit import-connector --connector-home .local/codex-staging` 接入，源文件已删除也可从归档处理。普通 `orbit ingest --agent codex` 可直接使用 Python canonical connector。两种采集方式最终使用同一份 Python L2/L3 规则，两个包不得共写同一份 SQLite。
 - [多 Agent 数据导入模块与一键验收](../modules/data/agent-connectors.md)（统一 Python canonical 链路）

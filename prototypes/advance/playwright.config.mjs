@@ -13,7 +13,7 @@ export default defineConfig({
     headless: true,
     locale: 'zh-CN',
     timezoneId: 'Asia/Shanghai',
-    baseURL: 'file://' + new URL('./tandem-demo.html', import.meta.url).pathname,
+    baseURL: 'file://' + new URL('./orbit-demo.html', import.meta.url).pathname,
   },
   projects: [
     mac('mac-14', 1512, 982),

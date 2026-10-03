@@ -402,7 +402,7 @@ ID 用 `RS-` 前缀，表示来自本调研；各模块文档在自己的功能�
 | ID | 行动 | 输入 → 输出 | MVP / 后续 | 复杂度 · token | 建议负责人 |
 | --- | --- | --- | --- | --- | --- |
 | RS-29 | 跨 Agent 适配器 | 安装计划 → 各 Agent 的文件与配置改动（§2.3）+ 无法映射清单；Codex hook 显示「已安装、未信任」；pi 生成 TS extension，OpenCode 生成 JS 插件；权限规则按三家冲突语义渲染并模拟 | MVP：Claude Code 与 Codex 的规则、skill、hook、权限；后续：Kimi、pi、Hermes、OpenCode、dsh | L · 0 | yhyfhgs |
-| RS-30 | 预览、ledger 与撤销 | 安装计划 → 键级 diff 预览（绑定内容哈希）→ 写入（标记块形如 `<!-- tandem:rule id=… -->`）→ ledger（actor、action、证据、前后 sha256，内容按哈希存）→ 单条或整批回滚，回滚前快照；用户改过的文件不自动撤销 | MVP | M · 0 | yhyfhgs |
+| RS-30 | 预览、ledger 与撤销 | 安装计划 → 键级 diff 预览（绑定内容哈希）→ 写入（标记块形如 `<!-- orbit:rule id=… -->`）→ ledger（actor、action、证据、前后 sha256，内容按哈希存）→ 单条或整批回滚，回滚前快照；用户改过的文件不自动撤销 | MVP | M · 0 | yhyfhgs |
 | RS-31 | 风险闸门 | 第三方条目 → 静态扫描（脚本、联网、凭据路径、隐藏指令、过宽的 `allowed-tools`）→ safe / caution / dangerous，dangerous 不进一键安装；MCP 与插件标注 lethal trifecta 三项能力 | MVP：规则扫描；后续：沙箱试跑（[sandbox-runtime](https://github.com/anthropics/sandbox-runtime)） | M · 0 | yhyfhgs |
 | RS-32 | 采集类优化项 | 用户同意 → 调大 `cleanupPeriodDays`；安装 statusLine 包装（原样调用用户已有命令，同时记录 `rate_limits`；statusLine 只能配一个命令，不能替换）；安装只读的 `StopFailure` / `Notification` Hooks | 后续 | S · 0 | yhyfhgs |
 

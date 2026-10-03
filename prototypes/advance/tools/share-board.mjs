@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const b = await webkit.launch(); const page = await b.newPage({ viewport: { width: 1512, height: 982 } });
-await page.goto('file://' + path.join(here, '..', 'tandem-demo.html')); await page.waitForTimeout(1200);
+await page.goto('file://' + path.join(here, '..', 'orbit-demo.html')); await page.waitForTimeout(1200);
 const r = await page.evaluate(() => {
   const sp = sharePersona('30'); const m = shareModel(sp);
   return { dark: shareSVG(m, true, false), light: shareSVG(m, false, false), code: m.code, zh: m.zh };

@@ -4,8 +4,8 @@ import tomllib
 
 import pytest
 
-from tandem_backend.install import ops
-from tandem_backend.install.errors import OpConflict
+from orbit_backend.install import ops
+from orbit_backend.install.errors import OpConflict
 
 
 def mj(pointer, content, **kw):
@@ -13,7 +13,7 @@ def mj(pointer, content, **kw):
             "write_mode": kw.pop("write_mode", "add"), **kw}
 
 
-def blk(action, text, bid="tandem:demo"):
+def blk(action, text, bid="orbit:demo"):
     return {"idx": 0, "action": action, "content": text, "block_id": bid}
 
 
@@ -98,12 +98,12 @@ def test_guard_hash_scoped_to_pointer():
 
 
 def test_md_block_lifecycle():
-    t = blk("md_block", "## Tandem\n- use uv")
+    t = blk("md_block", "## Orbit\n- use uv")
     new = ops.render(t, None)
     assert new["status"] == "create" and new["applied"]["created_file"]
     cur = b"# Project\nnotes"
     r = ops.render(t, cur)
-    assert r["new"].decode().startswith("# Project\nnotes\n\n<!-- tandem:demo begin -->")
+    assert r["new"].decode().startswith("# Project\nnotes\n\n<!-- orbit:demo begin -->")
     assert ops.render(t, r["new"])["status"] == "noop"
     with pytest.raises(OpConflict) as e:
         ops.render(blk("md_block", "other"), r["new"])
@@ -124,7 +124,7 @@ def test_toml_block():
     r = ops.render(t, cur)
     parsed = tomllib.loads(r["new"].decode())
     assert parsed["mcp_servers"]["new"]["args"] == ["-y", "x"]
-    assert r["new"].startswith(cur) and b"# >>> tandem:demo >>>" in r["new"]
+    assert r["new"].startswith(cur) and b"# >>> orbit:demo >>>" in r["new"]
     assert ops.unrender(r["applied"], t, r["new"])["new"] == cur
     with pytest.raises(OpConflict) as e:
         ops.render(blk("toml_block", '[mcp_servers.old]\ncommand = "b"'), cur)

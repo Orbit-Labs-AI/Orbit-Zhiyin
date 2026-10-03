@@ -1,4 +1,4 @@
-// Native shell commands (apps/desktop/Orbit.swift → tandem:command): a fake host injects __ORBIT_NATIVE__ and records the
+// Native shell commands (apps/desktop/Orbit.swift → orbit:command): a fake host injects __ORBIT_NATIVE__ and records the
 // webkit messages; menu commands are dispatched the way the host's dispatch() does.
 import { pathToFileURL } from 'node:url';
 import { test, expect } from '@playwright/test';
@@ -15,13 +15,13 @@ async function launch(browser, prefs, o) {
     window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.2', platform: 'macos', features: ['window', 'prefs', 'commands'] };
     window.__ORBIT_PREFS__ = p;
     window.__nativeMsgs = [];
-    window.webkit = { messageHandlers: { tandem: { postMessage: (m) => window.__nativeMsgs.push(JSON.parse(JSON.stringify(m))) } } };
+    window.webkit = { messageHandlers: { orbit: { postMessage: (m) => window.__nativeMsgs.push(JSON.parse(JSON.stringify(m))) } } };
   }, [prefs || {}, o.query || '']);
   await page.goto(URL0 + (o.query || ''));
   await page.waitForFunction((surf) => typeof S !== 'undefined' && (surf || !!document.querySelector('#content')), !!o.query);
   return { ctx, page };
 }
-const cmd = (page, detail) => page.evaluate((d) => window.dispatchEvent(new CustomEvent('tandem:command', { detail: d })), detail);
+const cmd = (page, detail) => page.evaluate((d) => window.dispatchEvent(new CustomEvent('orbit:command', { detail: d })), detail);
 const at = (page) => page.evaluate(() => [S.ed, S.route]);
 
 test('route command across editions lands on the requested page (Advance → l-recs, Lite → persona)', async ({ browser }) => {

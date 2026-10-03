@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import pytest
 
-from tandem_backend.exporting import snapshots
-from tandem_backend.exporting.type_copy import TYPES, copy_for
-from tandem_backend.uiview import fetch
+from orbit_backend.exporting import snapshots
+from orbit_backend.exporting.type_copy import TYPES, copy_for
+from orbit_backend.uiview import fetch
 
 
 def page(code="DPMV", n=30, days=10, units=30, ok=True):
@@ -112,7 +112,7 @@ def test_snapshot_crud_and_prune(env):
 
 
 def test_every_type_has_its_own_quote():
-    from tandem_backend.exporting.type_copy import DEFAULT_QUOTE, SHARE_QUOTES
+    from orbit_backend.exporting.type_copy import DEFAULT_QUOTE, SHARE_QUOTES
 
     assert set(SHARE_QUOTES) == set(TYPES)
     assert DEFAULT_QUOTE not in SHARE_QUOTES.values()
@@ -124,7 +124,7 @@ def test_every_type_has_its_own_quote():
     ("90", "近 90 天", "季卡", "quarter"), ("all", "全部", "全时卡", "all"),
     ("2026-09", "2026-09", "9 月卡", "calendar"), ("14", "近 14 天", "14 天卡", "days")])
 def test_span_names_the_card(period, label, tag, kind):
-    from tandem_backend.exporting.sharecard import span
+    from orbit_backend.exporting.sharecard import span
 
     s = span(period, label)
     assert (s["tag"], s["kind"], s["label"]) == (tag, kind, label)
@@ -141,7 +141,7 @@ def test_share_quotes_match_the_prototype_table():
     import re
     from pathlib import Path
 
-    from tandem_backend.exporting.type_copy import DEFAULT_QUOTE, SHARE_QUOTES
+    from orbit_backend.exporting.type_copy import DEFAULT_QUOTE, SHARE_QUOTES
 
     js = (Path(__file__).resolve().parents[4] / "prototypes" / "advance" / "src" / "js"
           / "55-exports.js").read_text(encoding="utf-8")

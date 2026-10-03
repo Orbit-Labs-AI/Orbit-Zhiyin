@@ -9,14 +9,14 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const sum = (arr, fn) => arr.reduce((a, x) => a + fn(x), 0);
 function rng(seed) { let s = seed | 0; return () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h | 0; }
-// UI preferences. Browser: localStorage 'tandem-demo:*' only. Native shell with the "prefs" feature: the WKWebView store is
+// UI preferences. Browser: localStorage 'orbit-demo:*' only. Native shell with the "prefs" feature: the WKWebView store is
 // non-persistent (and the gateway port changes every launch), so the host keeps <data home>/ui-prefs.json, injects it as
 // window.__ORBIT_PREFS__ at document start, and store.get reads that; store.set still writes localStorage and also posts
 // {type:'prefs', set:{key: value|null}} (merged per key, debounced; null deletes). Surfaces share one file and only send the
-// keys they changed; 'tandem:prefs' carries other surfaces' changes into this page's copy.
+// keys they changed; 'orbit:prefs' carries other surfaces' changes into this page's copy.
 const store = (() => {
-  const LS = 'tandem-demo:';
-  const handler = () => { try { return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tandem; } catch (e) { return null; } };
+  const LS = 'orbit-demo:';
+  const handler = () => { try { return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.orbit; } catch (e) { return null; } };
   const nat = window.__ORBIT_NATIVE__;
   const p0 = window.__ORBIT_PREFS__;
   const native = !!(nat && typeof nat === 'object' && Array.isArray(nat.features) && nat.features.indexOf('prefs') >= 0 && handler());
@@ -29,7 +29,7 @@ const store = (() => {
     try { handler().postMessage({ type: 'prefs', set }); } catch (e) { /* host gone */ }
   }
   if (native) {
-    window.addEventListener('tandem:prefs', (e) => {
+    window.addEventListener('orbit:prefs', (e) => {
       const set = (e && e.detail && e.detail.set) || {};
       Object.keys(set).forEach((k) => { if (set[k] == null) delete cache[k]; else cache[k] = set[k]; });
     });

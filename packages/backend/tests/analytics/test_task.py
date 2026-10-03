@@ -2,13 +2,13 @@ import copy
 
 import pytest
 
-from tandem_backend.analytics.common import semantic_messages
-from tandem_backend.analytics.task import (
+from orbit_backend.analytics.common import semantic_messages
+from orbit_backend.analytics.task import (
     extract_task_features,
     segment_tasks,
     summarize_task_distribution,
 )
-from tandem_backend.analytics.task.features import request_clauses
+from orbit_backend.analytics.task.features import request_clauses
 
 
 def test_labels_goals_artifacts_and_evidence(fixtures):
@@ -94,7 +94,7 @@ def test_distribution_unknown_multilabel_and_no_input_mutation(fixtures):
 
 
 def test_cross_session_goal_order_uses_time_and_preserves_native_seq(fixtures):
-    from tandem_backend.analytics.common import chronological_messages
+    from orbit_backend.analytics.common import chronological_messages
     s, e, _ = fixtures
     initial = e("请编写报告", "first", 0, sid="z", ts=10, task_id="t", task_id_source="native")
     revision = e("目标改为编写脚本", "later", 0, sid="a", ts=20, task_id="t", task_id_source="native")
@@ -136,8 +136,8 @@ def test_analyzing_a_writing_request_does_not_become_a_writing_action(fixtures):
 
 
 def test_english_sentences_split_on_full_stop_without_breaking_files_or_versions():
-    from tandem_backend.analytics.common import clauses
-    from tandem_backend.analytics.task.features import request_clauses
+    from orbit_backend.analytics.common import clauses
+    from orbit_backend.analytics.task.features import request_clauses
 
     assert request_clauses("Don't touch the config. Please add tests for the parser") == [
         "Please add tests for the parser"]

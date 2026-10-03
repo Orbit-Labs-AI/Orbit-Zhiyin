@@ -9,11 +9,11 @@ import time
 import pytest
 from synthetic import write_codex_tree
 
-from tandem_backend.services.events import EventBus
-from tandem_backend.services.ingest_plan import plan_batches
-from tandem_backend.services.jobs import AppState, JobConflict
-from tandem_backend.services.snapshots import SnapshotKey, SnapshotStore, scope_hash
-from tandem_backend.services.worker_protocol import decode, encode
+from orbit_backend.services.events import EventBus
+from orbit_backend.services.ingest_plan import plan_batches
+from orbit_backend.services.jobs import AppState, JobConflict
+from orbit_backend.services.snapshots import SnapshotKey, SnapshotStore, scope_hash
+from orbit_backend.services.worker_protocol import decode, encode
 
 
 def test_plan_head_window_rest(tmp_path):

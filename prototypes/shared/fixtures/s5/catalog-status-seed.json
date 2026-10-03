@@ -33,14 +33,14 @@
    "workflow": 6
   },
   "by_source": {
-   "tandem-kb": {
+   "orbit-kb": {
     "kind": "kb",
     "items": 25,
     "last_ok_at": 1790958829217,
     "error": null,
     "enabled": true
    },
-   "tandem-seeds": {
+   "orbit-seeds": {
     "kind": "bundle",
     "items": 10,
     "last_ok_at": 1790958829254,

@@ -12,12 +12,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.recommend import inputs as rec_inputs
-from tandem_backend.recommend import runs, store
-from tandem_backend.services import routes_recommend
-from tandem_backend.services.gateway import install_error_handlers
-from tandem_backend.services.snapshots import Snapshot, SnapshotKey
+from orbit_backend.appdb import AppDB
+from orbit_backend.recommend import inputs as rec_inputs
+from orbit_backend.recommend import runs, store
+from orbit_backend.services import routes_recommend
+from orbit_backend.services.gateway import install_error_handlers
+from orbit_backend.services.snapshots import Snapshot, SnapshotKey
 
 
 def legacy_card(i, kind="skill"):
@@ -50,8 +50,8 @@ class FakeReads:
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    tandem = tmp_path / "tandem.db"
-    conn = sqlite3.connect(tandem)
+    orbit = tmp_path / "orbit.db"
+    conn = sqlite3.connect(orbit)
     conn.executescript("""
         CREATE TABLE session (session_uid TEXT PRIMARY KEY, title TEXT);
         CREATE TABLE tool_call (session_uid TEXT, name TEXT, command_head TEXT, files TEXT,
@@ -62,13 +62,13 @@ def env(tmp_path, monkeypatch):
                                      ('s1','Write',NULL,'[{"path":"b.py"}]',3);""")
     conn.commit()
     conn.close()
-    gw = SimpleNamespace(appdb=AppDB(tmp_path / "app.db"), reads=FakeReads(tandem))
+    gw = SimpleNamespace(appdb=AppDB(tmp_path / "app.db"), reads=FakeReads(orbit))
     state = {"inputs": dict(INPUTS), "freshness": "fresh"}
 
     def fetch(gw_, scope_dict, *, wait_ms=0):
         if state["inputs"] is None:
             return None, state["freshness"], "job1" if state["freshness"] == "computing" else None
-        from tandem_backend.services.snapshots import scope_hash
+        from orbit_backend.services.snapshots import scope_hash
         return ({**state["inputs"], "scope": scope_dict,
                  "scope_hash": scope_hash(scope_dict, {}), "data_rev": 1, "inventory_rev": 1},
                 state["freshness"], None)
@@ -343,8 +343,8 @@ class FakeTask:
 
 
 def test_inputs_fetch_states():
-    from tandem_backend.services.sections import rules_digest
-    from tandem_backend.services.snapshots import scope_hash
+    from orbit_backend.services.sections import rules_digest
+    from orbit_backend.services.snapshots import scope_hash
 
     h = scope_hash({}, {})
     key = SnapshotKey("recommend_inputs", h, 2, 1, rules_digest())
@@ -368,7 +368,7 @@ def test_inputs_fetch_states():
 
 
 def test_real_gateway_wiring(tmp_path):
-    from tandem_backend.services.gateway import Gateway
+    from orbit_backend.services.gateway import Gateway
 
     token = "synthetic-test-token-0123456789abcdef"
     gateway = Gateway(tmp_path / "home", discovery=lambda: [], prewarm_debounce_s=3600.0)
@@ -391,8 +391,8 @@ def _engine_slate(inputs, memory, *, catalog=None, **kw):
 
 
 def test_settings_from_platform_and_ai_rerank(env, monkeypatch):
-    from tandem_backend import ai
-    from tandem_backend.platform.settings import PlatformSettings
+    from orbit_backend import ai
+    from orbit_backend.platform.settings import PlatformSettings
 
     client, gw, _ = env
     gw.platform = SimpleNamespace(settings=PlatformSettings(gw.appdb))
@@ -458,7 +458,7 @@ def test_views_do_not_rerun_engine(env):
 
 
 def test_catalog_service_and_features_passed(env, monkeypatch, tmp_path):
-    from tandem_backend import features
+    from orbit_backend import features
 
     client, gw, _ = env
     gw.home = tmp_path / "home"
@@ -478,7 +478,7 @@ def test_catalog_service_and_features_passed(env, monkeypatch, tmp_path):
 
 
 def test_catalog_service_from_home_and_generation(env, tmp_path):
-    from tandem_catalog.service import CatalogService
+    from orbit_catalog.service import CatalogService
 
     _, gw, _ = env
     gw.home = tmp_path / "home2"
@@ -562,6 +562,6 @@ def test_top_surfaces_apply_dim_filter(env):
 def test_scope_whitelist_matches_analytics_scope():
     import inspect
 
-    from tandem_backend.services.routes_analytics import analytics_scope
+    from orbit_backend.services.routes_analytics import analytics_scope
 
     assert routes_recommend.SCOPE_KEYS == set(inspect.signature(analytics_scope).parameters)

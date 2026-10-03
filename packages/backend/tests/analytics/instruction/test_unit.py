@@ -2,16 +2,16 @@ import copy
 
 import pytest
 
-from tandem_backend.analytics.features import structure as legacy_structure
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.instruction import (
+from orbit_backend.analytics.features import structure as legacy_structure
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.instruction import (
     extract_instruction_constraints,
     instruction_text,
     resolve_instruction_scope,
     structure,
     summarize_control_patterns,
 )
-from tandem_backend.analytics.instruction.extraction import _clauses
+from orbit_backend.analytics.instruction.extraction import _clauses
 
 
 def message(text="先给方案", uid="u", seq=0, sid="s", ts=100, **attrs):

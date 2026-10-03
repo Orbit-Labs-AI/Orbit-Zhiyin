@@ -2,9 +2,9 @@
 
 import pytest
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 
 @pytest.fixture
@@ -105,7 +105,7 @@ def _touch(path):
 
 
 def test_discovery_finds_hermes_profiles_and_opencode_channel_databases(tmp_path):
-    from tandem_data.discovery import inputs
+    from orbit_data.discovery import inputs
 
     hermes = tmp_path / "hermes"
     expected = {

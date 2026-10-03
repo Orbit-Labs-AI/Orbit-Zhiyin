@@ -203,7 +203,7 @@ Flow per test:
                      hangs 52px under the window top; Return triggers the default button, Esc closes.
  8. shortcuts        ⌥2 → persona, ⌘K → palette, ⌥0 restores a closed window; menu labels match the bindings.
  9. page hook/event  PAGES[route].keys(e) returning true consumes the key, false lets globals run; toggling the sidebar
-                     dispatches window 'tandem:layout' with {win, side, main}.
+                     dispatches window 'orbit:layout' with {win, side, main}.
 10. dark contrast    selected sidebar row vs sidebar ≥ 1.3; window / sidebar / card pairwise ≥ 1.15 in dark mode.
 11. overflow         no horizontal overflow (document, #main, #win inside the viewport) with the sidebar shown / hidden,
                      zoomed and in full screen, on three representative pages.

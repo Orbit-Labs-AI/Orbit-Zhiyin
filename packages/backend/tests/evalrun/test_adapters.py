@@ -1,7 +1,7 @@
 import pytest
 
-from tandem_backend.evalrun import registry, runner
-from tandem_backend.evalrun.contract import SuiteResult
+from orbit_backend.evalrun import registry, runner
+from orbit_backend.evalrun.contract import SuiteResult
 
 ADAPTERS = ["pipeline", "probe", "readability", "recommend_replay"]
 

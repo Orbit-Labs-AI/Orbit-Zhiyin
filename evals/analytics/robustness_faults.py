@@ -6,17 +6,17 @@ import json
 import os
 from pathlib import Path
 
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.integrity import section_digests
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.integrity import section_digests
 
-from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import analyze_store
-from tandem_backend.cli import demo_home
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.diagnostics import diagnostics, terminal_text
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import analyze_store
+from orbit_backend.cli import demo_home
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 from .robustness import save
 from .robustness_invariants import validate_result

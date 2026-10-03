@@ -15,10 +15,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from notify_fake import clock, gw  # noqa: E402,F401
 
-from tandem_backend.platform.collection import Collection  # noqa: E402
-from tandem_backend.platform.notify import Notifier  # noqa: E402
-from tandem_backend.platform.routes_notify import router  # noqa: E402
-from tandem_backend.services.gateway import install_error_handlers  # noqa: E402
+from orbit_backend.platform.collection import Collection  # noqa: E402
+from orbit_backend.platform.notify import Notifier  # noqa: E402
+from orbit_backend.platform.routes_notify import router  # noqa: E402
+from orbit_backend.services.gateway import install_error_handlers  # noqa: E402
 
 
 @pytest.fixture
@@ -121,7 +121,7 @@ def test_missing_platform_returns_503(gw):
 
 def test_gateway_mounts_routes(tmp_path):
     """routes_platform includes the notify router over the Platform's notifier/collection."""
-    from tandem_backend.services.gateway import Gateway
+    from orbit_backend.services.gateway import Gateway
 
     token = "synthetic-test-token-0123456789abcdef"
     gateway = Gateway(tmp_path / "home", discovery=lambda: [])

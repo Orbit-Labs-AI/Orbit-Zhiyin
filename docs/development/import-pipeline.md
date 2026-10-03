@@ -1,6 +1,6 @@
 # 导入流程：根因、状态机、阶段说明与排障
 
-状态：现行 · 适用：`packages/backend/src/tandem_backend/services`（jobs、supervisor、worker_ingest、gateway、routes_data）、`packages/data/src/tandem_data`（service、scheduler、pipeline、indexing、query）、Advance UI 导入进度 · 维护者 `yhyfhgs` · 核对版本：Orbit v0.0.2 现场 + `fix/app-deep-debug`（2026-10-03）
+状态：现行 · 适用：`packages/backend/src/orbit_backend/services`（jobs、supervisor、worker_ingest、gateway、routes_data）、`packages/data/src/orbit_data`（service、scheduler、pipeline、indexing、query）、Advance UI 导入进度 · 维护者 `yhyfhgs` · 核对版本：Orbit v0.0.2 现场 + `fix/app-deep-debug`（2026-10-03）
 
 本文回答三件事：Orbit 一次导入从 onboarding 提交到页面可读经过哪些阶段、每个数字是什么意思；v0.0.2 上「反复 prepare / project / map」「projection_pending 不消失」「0 个会话」的根因；遇到导入问题时怎么查。
 
@@ -8,18 +8,18 @@
 
 ### 1.1 现场与取证方式
 
-用户正在运行已安装的 Orbit v0.0.2（gateway、ingest worker 及其 8 个映射子进程、analysis worker）。数据目录 `~/Library/Application Support/Tandem` 只读取证：读 `app-state.json`（任务日志）、`logs/*.log`、`maintenance.json`，用 `sqlite3 'file:…?mode=ro'` 做短查询，并以只读方式每秒轮询任务进度；未写入、未 checkpoint、未结束任何进程。
+用户正在运行已安装的 Orbit v0.0.2（gateway、ingest worker 及其 8 个映射子进程、analysis worker）。数据目录 `~/Library/Application Support/Orbit` 只读取证：读 `app-state.json`（任务日志）、`logs/*.log`、`maintenance.json`，用 `sqlite3 'file:…?mode=ro'` 做短查询，并以只读方式每秒轮询任务进度；未写入、未 checkpoint、未结束任何进程。
 
 | 现场 | 数值 |
 | --- | --- |
-| `tandem.db` / `tandem.db-wal` | 7.1 GB / 5.8 GB（10:46）；两小时后 7.2 GB / 9.3 GB（12:47），WAL 只增不减 |
+| `orbit.db` / `orbit.db-wal` | 7.1 GB / 5.8 GB（10:46）；两小时后 7.2 GB / 9.3 GB（12:47），WAL 只增不减 |
 | `analysis.sqlite` | 3.8 GB |
 | 遗留目录 | `import-1caqqqr8`（585 项、1.2 GB）；`import-w7d74_63` 是正在运行任务的溢出目录 |
 | 首次导入（origin=user，phase=auto） | 08:57:48 → 09:37:43，共 2395 s |
 | 之后的任务 | 09:57–10:09 连续 5 个 origin=sync、phase=full 的导入，各 137–156 s，首尾相接；10:10:55 ingest worker 被终止，任务记为 interrupted；10:23 重启后的 sync 任务 30 分钟后仍在运行 |
 | 概览页 | 「服务暂时不可用（projection_pending）· 显示上一屏数据，1 秒后重试」「数据投影尚未完成 · 重新计算」「0 个会话」 |
 
-用源码网关在临时 `TANDEM_HOME` 上复现（第 7 节的探针，合成数据 med 档 + 一个 Codex 根目录 + 模拟 Agent 持续写入），8 分钟内：1 个首次导入后接着 22 个 sync 任务（中位 15 s 一个，首尾相接）；每个 sync 任务 4 个来源却触发 9 次重建尝试；469 次 `/v1/sessions` 读取里 465 次只能拿到「上一屏」缓存（`X-Tandem-Freshness: stale`），而 `/v1/status` 同时一直报 `projection: ready`；任务全部以 `partial` 结束。
+用源码网关在临时 `ORBIT_HOME` 上复现（第 7 节的探针，合成数据 med 档 + 一个 Codex 根目录 + 模拟 Agent 持续写入），8 分钟内：1 个首次导入后接着 22 个 sync 任务（中位 15 s 一个，首尾相接）；每个 sync 任务 4 个来源却触发 9 次重建尝试；469 次 `/v1/sessions` 读取里 465 次只能拿到「上一屏」缓存（`X-Orbit-Freshness: stale`），而 `/v1/status` 同时一直报 `projection: ready`；任务全部以 `partial` 结束。
 
 ### 1.2 根因
 
@@ -29,7 +29,7 @@
 
 **RC-3 源文件在导入途中变化 → 保留旧事实 → 一直「待投影」→ 每个来源步骤都重建 Codex（活锁）。** 捕获只记录行摘要（source reference），投影时重读活文件逐行校验。Codex 的 `state_5.sqlite` 持续被 Codex 写入（SQLite 行快照没有可比的 stat，每次扫描都重读），投影读到的行与捕获时不同 → `SourceUnavailable(changed)` → 整个重建回滚，再带着「保留该文件旧事实」完整重来一遍；发布时这个文件不写 `projected_revision`。此后同一任务里每个来源的 `import_source` 都查询全库「是否有未投影文件」，又一次对 Codex 整源重建（Codex 不支持会话闭包），而这期间 `state_5.sqlite` 又变了，永远追不上；保留中的文件在下一次捕获时还会因为 `source_unavailable` 问题被视为「已变化」再生成新修订。现场：只读查询显示唯一未投影的文件是 Codex `state_5.sqlite`（revision 2、无 `projected_revision`、有 `source_unavailable(changed)`）；进度轨迹 10:54:38 prepare 0→975、10:55:12 reset_projection（回滚重来）、10:57:55 prepare 0→975、10:58:52 map，一轮 8–10 分钟。被保留文件的新行版本始终是 unparsed，任务因此全部记为 `partial`。继续只读观察：重启后的 sync 任务 a25c10af 从 10:23:27 跑到 11:18:59（55.5 分钟，结果 partial），期间至少 4 次 Codex 整源重建；下一个 sync 任务 1 秒后开始，又立刻重建 Codex；11:30 开始的任务在第一个来源上「prepare → reset_projection（回滚）→ prepare」用了 20 分钟，到第二个来源又从 prepare 976 个 Codex 文件开始，12:48 才以 `partial` 结束（78 分钟，至少 4 次回滚重来）；之后的 sync 任务仍然首尾相接，前后间隔约 1 秒（RC-1）。
 
-**RC-4 读侧把「L1 比已发布的 L2 新」当成错误。** 捕获按组提交，新 L1 修订立即可见；投影在之后另一个长事务里提交。`tandem_data.query.current_projection` 在 `source_revision` 行数 ≠ 最新 `projection_run.l1_revision_count` 时抛出 "Projection is pending"，网关所有读路由返回 503 `projection_pending`，analysis worker 也以 `projection_pending` 失败。实际上上一次发布的 L2/L3 是完整一致的快照，完全可以读。RC-1/RC-3 让「已捕获未发布」的窗口几乎覆盖全部时间，RC-3 的保留文件又让 `l1_revision_count` 永远追不上（现场 run 20：3137 vs 3139）。网关的 LastGood 只缓存同一个 URL 的上次响应，换筛选或 App 重启后就没有，UI 于是显示「0 个会话」、Agent 筛选只剩一项；onboarding 的 `_main_sessions` 遇到错误直接返回 0。与此同时 `/v1/status` 只看内存里的上次发布，一直报 `projection: ready`，状态与读取结果自相矛盾，用户也没有可执行的重试入口。
+**RC-4 读侧把「L1 比已发布的 L2 新」当成错误。** 捕获按组提交，新 L1 修订立即可见；投影在之后另一个长事务里提交。`orbit_data.query.current_projection` 在 `source_revision` 行数 ≠ 最新 `projection_run.l1_revision_count` 时抛出 "Projection is pending"，网关所有读路由返回 503 `projection_pending`，analysis worker 也以 `projection_pending` 失败。实际上上一次发布的 L2/L3 是完整一致的快照，完全可以读。RC-1/RC-3 让「已捕获未发布」的窗口几乎覆盖全部时间，RC-3 的保留文件又让 `l1_revision_count` 永远追不上（现场 run 20：3137 vs 3139）。网关的 LastGood 只缓存同一个 URL 的上次响应，换筛选或 App 重启后就没有，UI 于是显示「0 个会话」、Agent 筛选只剩一项；onboarding 的 `_main_sessions` 遇到错误直接返回 0。与此同时 `/v1/status` 只看内存里的上次发布，一直报 `projection: ready`，状态与读取结果自相矛盾，用户也没有可执行的重试入口。
 
 **RC-5 WAL 只增不减。** 一次整源重建在一个写事务里删除并重写数十万事件，单个事务就写出 GB 级 WAL；写连接没有设置 `journal_size_limit`，SQLite 在检查点重置 WAL 后不会截断文件。唯一的 `wal_checkpoint(TRUNCATE)` 在后台维护里、且只在 VACUUM 之后执行；实时同步下一个任务 2 s 内就到，新写入者每次都打断后台维护（`maintenance.json` 停在 09:23）。分析 worker 的长读事务还会让被动检查点停在半途。
 
@@ -48,11 +48,11 @@
 | RC-1 | `gateway.sync_wait`：上一次 sync 导入结束后至少再等它用掉的时间（导入最多占一半时间）；无变化时 2 s → 30 s 退避；失败、中断、取消后等 30 s；网关关闭途中不再提交 | `test_import_pipeline.py::test_sync_wait_never_runs_sync_imports_back_to_back`、`::test_sync_loop_waits_as_long_as_the_last_sync_import_took` |
 | RC-2 | `reduce.derive` 把 `unresolved_session_lineage` 挂在声明父会话的记录上；闭包重建会删除并重算它，结果与整源重建一致 | `test_incremental_projection.py::test_orphan_subagent_keeps_session_closures` |
 | RC-3 | 保留的修订记为 settled（`retained_revision`/`retained_versions`），在新捕获之前不算 stale、不算 pending；已知 settled 文件从第一次尝试就保留；活 SQLite 索引按捕获时的行投影（内存，≤64 MiB） | `test_import_freshness.py` 三项 |
-| RC-4 | `query.projection_state` 区分 ready / pending / 不可读；L2/L3 读者读已发布快照并标 `X-Tandem-Freshness: stale` + `X-Tandem-Projection: pending`；`/v1/status.projection` 反映真实新鲜度，`projection_info` 给出待发布文件数、`stuck` 与重试请求 | `test_import_pipeline.py::test_pending_capture_serves_the_published_snapshot`，`test_query_indexes.py`、`test_native_connectors.py`、`test_edges.py` 相应断言 |
+| RC-4 | `query.projection_state` 区分 ready / pending / 不可读；L2/L3 读者读已发布快照并标 `X-Orbit-Freshness: stale` + `X-Orbit-Projection: pending`；`/v1/status.projection` 反映真实新鲜度，`projection_info` 给出待发布文件数、`stuck` 与重试请求 | `test_import_pipeline.py::test_pending_capture_serves_the_published_snapshot`，`test_query_indexes.py`、`test_native_connectors.py`、`test_edges.py` 相应断言 |
 | RC-5 | 写连接 `journal_size_limit = 64 MiB`；每个任务结束时 `wal_checkpoint(TRUNCATE)`（读者占用时最多等 2 s） | `test_import_pipeline.py::test_import_progress_explains_itself_and_never_moves_backwards`（`wal`） |
 | RC-6 | 溢出目录名带属主 pid；ingest worker 启动时删除属主已退出的目录，持有导入锁时也删除 v0.0.2 旧名目录 | `test_import_pipeline.py::test_worker_start_removes_spill_directories_of_killed_imports` |
 | RC-7 | 不支持会话闭包的来源（Codex 等）首次导入保留 head、window，rest 合成一批 | `test_import_pipeline.py::test_import_progress_explains_itself_and_never_moves_backwards` |
-| RC-8 | 阶段目录 `tandem_data.progress.STAGES`；进度帧增加 `label`/`unit`/`detail`/`step`/`steps`/`batch`/`attempt`/`overall` 等；UI 按 `detail` 显示、进度条按 `overall` 走；`import` 不带 `source_ids` 时导入全部已启用来源 | 同上，及 `::test_import_without_sources_reindexes_every_enabled_source`、UI 测试 |
+| RC-8 | 阶段目录 `orbit_data.progress.STAGES`；进度帧增加 `label`/`unit`/`detail`/`step`/`steps`/`batch`/`attempt`/`overall` 等；UI 按 `detail` 显示、进度条按 `overall` 走；`import` 不带 `source_ids` 时导入全部已启用来源 | 同上，及 `::test_import_without_sources_reindexes_every_enabled_source`、UI 测试 |
 | RC-9 | `pipeline.ClosureSequences`：闭包重建里第一次给闭包外、已有事件的会话编号时扩大闭包重试（至多 4 次，之后整源） | `test_incremental_projection.py::test_new_file_of_a_session_outside_the_closure_escalates`（标题 sidecar、新 journal 两种） |
 | 卡住 | 导入 15 分钟没有任何进度帧即停止并记为 `interrupted(job_stalled)`，可重试 | `test_import_pipeline.py::test_stalled_import_is_stopped_with_a_retryable_error` |
 
@@ -87,7 +87,7 @@
 
 ## 3. 阶段与数字
 
-阶段目录在 `packages/data/src/tandem_data/progress.py`（`STAGES`），worker 把它补进每个进度帧。
+阶段目录在 `packages/data/src/orbit_data/progress.py`（`STAGES`），worker 把它补进每个进度帧。
 
 | 内部名 | 中文名 | 这一步做什么 | completed / total | 主要耗时因素 |
 | --- | --- | --- | --- | --- |
@@ -125,9 +125,9 @@ UI 读这些字段：引导页「导入历史会话」下的说明行是「中�
 
 | 状态 | 含义 | 读取 |
 | --- | --- | --- |
-| `absent` | 还没有任何发布（首次导入未完成） | 列表返回空结构（`X-Tandem-Freshness: none`）；首次发布前 503 `projection_pending` |
+| `absent` | 还没有任何发布（首次导入未完成） | 列表返回空结构（`X-Orbit-Freshness: none`）；首次发布前 503 `projection_pending` |
 | `ready` | 每个已捕获修订都已发布 | `fresh` |
-| `pending` | 有文件已捕获、尚未发布（导入在捕获与发布之间，或曾被中断） | 已发布快照照常读取：`X-Tandem-Freshness: stale`、`X-Tandem-Projection: pending`；分析照常计算（快照键用已发布的 `data_rev`） |
+| `pending` | 有文件已捕获、尚未发布（导入在捕获与发布之间，或曾被中断） | 已发布快照照常读取：`X-Orbit-Freshness: stale`、`X-Orbit-Projection: pending`；分析照常计算（快照键用已发布的 `data_rev`） |
 | retained（settled） | 文件在投影时又变了，保留其上次的事实，带 `source_unavailable` 问题 | 视为已计入；下一次捕获出新修订时重新投影 |
 | `invalid` | mapper / reducer / redaction 版本过期或结构不符 | 409 `rebuild_required`，下一次导入会重建 |
 
@@ -159,7 +159,7 @@ UI 读这些字段：引导页「导入历史会话」下的说明行是「中�
 3. **只读查询**（Orbit 运行时也安全，不要对库做写入或 checkpoint）：
 
    ```sh
-   DB="$HOME/Library/Application Support/Tandem/tandem.db"
+   DB="$HOME/Library/Application Support/Orbit/orbit.db"
    # 待发布与被保留的文件
    sqlite3 "file:$DB?mode=ro" "SELECT source_id, relative_path, json_extract(watermark,'\$.revision'), json_extract(watermark,'\$.projected_revision'), json_extract(watermark,'\$.retained_revision') FROM source_file WHERE COALESCE(json_extract(watermark,'\$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'\$.revision'),0)"
    # 会让会话闭包失效的来源级问题
@@ -170,7 +170,7 @@ UI 读这些字段：引导页「导入历史会话」下的说明行是「中�
 
 4. **WAL 很大**：Orbit 运行时不要删 `-wal` / `-shm`。任务结束的 checkpoint 或下一次 WAL 重置会把它截回 64 MiB 以内；长时间不缩小说明有读者一直持有旧快照（看 analysis worker 是否在跑长任务）。
 5. **`import-*` 目录**：下一次 ingest worker 启动时自动删除；Orbit 未运行时可手动删除。
-6. **复现**：`uv run python -m benchmarks.data.live_sync --preset med --minutes 8 --work <目录>` 在临时 `TANDEM_HOME` 上起源码网关，导入合成来源（Claude Code / pi / DSH、带 `state_5.sqlite` 的 Codex 目录、一个父会话缺失的子代理），开 `sync_mode=live`，一边持续追加 Claude 会话、更新 Codex `threads` 行，一边每秒读 `/v1/sessions` 与 `/v1/status`，输出每个任务的重建尝试次数、重建范围、耗时、读取结果、WAL 与遗留溢出目录。基准只用构造数据；要看真实来源，在 `.work/appfix-tmp/` 下 `mktemp -d`，只用 `cp -c` 复制允许导入的会话文件（不含 `auth.json`、`.credentials*` 等凭据），再按同样步骤手动启动网关。
+6. **复现**：`uv run python -m benchmarks.data.live_sync --preset med --minutes 8 --work <目录>` 在临时 `ORBIT_HOME` 上起源码网关，导入合成来源（Claude Code / pi / DSH、带 `state_5.sqlite` 的 Codex 目录、一个父会话缺失的子代理），开 `sync_mode=live`，一边持续追加 Claude 会话、更新 Codex `threads` 行，一边每秒读 `/v1/sessions` 与 `/v1/status`，输出每个任务的重建尝试次数、重建范围、耗时、读取结果、WAL 与遗留溢出目录。基准只用构造数据；要看真实来源，在 `.work/appfix-tmp/` 下 `mktemp -d`，只用 `cp -c` 复制允许导入的会话文件（不含 `auth.json`、`.credentials*` 等凭据），再按同样步骤手动启动网关。
 
 ## 8. 修复前后对比
 

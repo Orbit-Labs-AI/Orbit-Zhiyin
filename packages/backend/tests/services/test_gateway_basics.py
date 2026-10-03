@@ -14,8 +14,8 @@ import pytest
 from conftest import ALL_TIME, AUTH, BASE, PORT, TOKEN, wait_for
 from fastapi.testclient import TestClient
 
-from tandem_backend.services.auth import validate_token
-from tandem_backend.services.gateway import create_gateway
+from orbit_backend.services.auth import validate_token
+from orbit_backend.services.gateway import create_gateway
 
 # Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
 pytestmark = pytest.mark.serial
@@ -56,14 +56,14 @@ def test_short_token_is_rejected(tmp_path):
     with pytest.raises(ValueError):
         create_gateway(tmp_path, "x" * 31)
     result = subprocess.run(
-        [sys.executable, "-m", "tandem_backend.services", "gateway", "--home", str(tmp_path)],
-        env={**os.environ, "TANDEM_API_TOKEN": "too-short"}, capture_output=True, timeout=60)
+        [sys.executable, "-m", "orbit_backend.services", "gateway", "--home", str(tmp_path)],
+        env={**os.environ, "ORBIT_API_TOKEN": "too-short"}, capture_output=True, timeout=60)
     assert result.returncode == 2 and b"at least 32" in result.stderr
 
 
 def test_status_without_database_is_fast_and_onboarding(client_factory):
     client, gateway = client_factory()
-    assert not (gateway.home / "tandem.db").exists()
+    assert not (gateway.home / "orbit.db").exists()
     client.get("/health")  # Warm the route table once.
     durations = []
     for _ in range(25):
@@ -87,7 +87,7 @@ def test_reads_and_fallback_without_database(client_factory):
     client, _ = client_factory()
     response = client.get("/v1/sessions")  # Nothing imported yet: empty, not unavailable.
     assert response.status_code == 200 and response.json() == []
-    assert response.headers["x-tandem-freshness"] == "none"
+    assert response.headers["x-orbit-freshness"] == "none"
     assert response.headers["x-total-count"] == "0"
     legacy = client.get("/v1/analytics/runs")  # Not a gateway route: create_app().
     assert legacy.status_code == 503 and legacy.json()["error"]["code"] == "no_projection"
@@ -107,8 +107,8 @@ def test_reads_and_fallback_without_database(client_factory):
 
 def _start_helper(home, extra_env=None):
     process = subprocess.Popen(
-        [sys.executable, "-m", "tandem_backend.services", "gateway", "--home", str(home)],
-        env={**os.environ, "TANDEM_API_TOKEN": TOKEN, **(extra_env or {})},
+        [sys.executable, "-m", "orbit_backend.services", "gateway", "--home", str(home)],
+        env={**os.environ, "ORBIT_API_TOKEN": TOKEN, **(extra_env or {})},
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     line = process.stdout.readline()
     return process, json.loads(line)["port"]
@@ -128,7 +128,7 @@ def test_helper_prints_port_first_and_serves(tmp_path):
 
 def test_helper_exits_when_parent_disappears(tmp_path):
     parent = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
-    process, _ = _start_helper(tmp_path / "home", {"TANDEM_PARENT_PID": str(parent.pid)})
+    process, _ = _start_helper(tmp_path / "home", {"ORBIT_PARENT_PID": str(parent.pid)})
     try:
         time.sleep(1.5)
         assert process.poll() is None
@@ -162,7 +162,7 @@ def test_gateway_shadows_legacy_purge_and_reports_export(client_factory):
     marker = gateway.home / "keep.txt"
     marker.write_text("x")
     before = sorted(p.name for p in gateway.home.iterdir())
-    from tandem_data.maintenance import PURGE_CONFIRMATION
+    from orbit_data.maintenance import PURGE_CONFIRMATION
 
     response = client.post("/v1/storage/purge", json={"confirm": PURGE_CONFIRMATION})
     assert response.status_code == 404

@@ -1,11 +1,11 @@
-# TandemCatalogClient
+# OrbitCatalogClient
 
-供 macOS 13+ App 使用的 Swift Package。Python `tandem_catalog` 拥有数据库、网络连接器与本地模型；本包通过 loopback HTTP 提供异步调用，不在 UI 线程执行采集、推理或 SQLite 写入。
+供 macOS 13+ App 使用的 Swift Package。Python `orbit_catalog` 拥有数据库、网络连接器与本地模型；本包通过 loopback HTTP 提供异步调用，不在 UI 线程执行采集、推理或 SQLite 写入。
 
-在 App 的 Package Dependencies 中加入本目录，导入 `TandemCatalogClient`。宿主 App 负责启动或连接本地 Python worker，并将固定版本的模型目录传给 worker；本包不会自动安装 Python、下载模型或创建 launchd 任务。
+在 App 的 Package Dependencies 中加入本目录，导入 `OrbitCatalogClient`。宿主 App 负责启动或连接本地 Python worker，并将固定版本的模型目录传给 worker；本包不会自动安装 Python、下载模型或创建 launchd 任务。
 
 ```swift
-import TandemCatalogClient
+import OrbitCatalogClient
 
 let catalog = try CatalogClient()
 let job = try await catalog.sync(sourceIDs: ["anthropic-skills"])

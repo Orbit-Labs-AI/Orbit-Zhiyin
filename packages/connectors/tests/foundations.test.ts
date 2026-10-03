@@ -10,7 +10,7 @@ import { ConnectorStore } from '../src/store.ts';
 import { validateEvent } from '../src/contract.ts';
 
 test('streaming JSONL retries an incomplete tail and handles concatenated zstd frames', async () => {
-  const dir = await mkdtemp(join(tmpdir(),'tandem-lines-'));
+  const dir = await mkdtemp(join(tmpdir(),'orbit-lines-'));
   try {
     const file = join(dir,'rollout.jsonl');
     await writeFile(file,'{"a":1}\n{"b":');
@@ -51,12 +51,12 @@ test('credential variants are redacted without replacing native usage counters o
   assert.deepEqual(sanitize(opaque),opaque);
 });
 test('SQLite migration is repeatable, private and rejects invalid event attributes', async () => {
-  const dir = await mkdtemp(join(tmpdir(),'tandem-db-'));
+  const dir = await mkdtemp(join(tmpdir(),'orbit-db-'));
   try {
     let store = new ConnectorStore(dir);
     assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version,2);
     store.close(); store = new ConnectorStore(dir); store.close();
-    assert.equal((await stat(join(dir,'tandem.db'))).mode & 0o777,0o600);
+    assert.equal((await stat(join(dir,'orbit.db'))).mode & 0o777,0o600);
     assert.throws(() => validateEvent({event_uid:'e',session_uid:'s',seq:1,ts:1,kind:'message.user',actor:'human',
       turn_uid:null,parent_uid:null,call_id:null,text:'hi',text_truncated:0,attrs:{origin:'invented'},ext:{},record_uid:'r',native_id:null,
       native_key:['s','r'],event_path:'message.text',contract_version:1,mapper_version:'test'}));

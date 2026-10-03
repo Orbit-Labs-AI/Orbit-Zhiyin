@@ -8,16 +8,16 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.integrity import invariants, section_digests
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.integrity import invariants, section_digests
 
-from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import analyze_store
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.diagnostics import diagnostics, terminal_text
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import analyze_store
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 from .robustness_invariants import validate_result
 
@@ -46,7 +46,7 @@ def save(path, payload):
 
 
 def source_selection(home):
-    database = (Path(home) / "tandem.db").resolve()
+    database = (Path(home) / "orbit.db").resolve()
     with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as db:
         sources = db.execute(
             "SELECT source_id,root_path FROM source WHERE agent='codex' AND enabled=1 ORDER BY source_id"

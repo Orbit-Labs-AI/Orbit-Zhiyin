@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.analytics.inputs import Scope
+from orbit_backend.analytics.inputs import Scope
 
 _SPEC = importlib.util.spec_from_file_location(
     "preference_local", Path(__file__).resolve().parents[4] / "evals/analytics/preference_local.py")
@@ -22,7 +22,7 @@ def snapshot(tmp_path):
     with sqlite3.connect(database) as connection:
         connection.executescript("""
             CREATE TABLE schema_manifest(contract_id TEXT);
-            INSERT INTO schema_manifest VALUES ('tandem-session-v1');
+            INSERT INTO schema_manifest VALUES ('orbit-session-v1');
             CREATE TABLE session(session_uid TEXT, root_uid TEXT, kind TEXT,
                                  project_id TEXT, started_at INTEGER);
             INSERT INTO session VALUES ('s','s','main','p',0), ('other','other','main','q',0),

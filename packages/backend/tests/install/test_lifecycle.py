@@ -5,10 +5,10 @@ import sqlite3
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.install import lifecycle, store
-from tandem_backend.install.errors import InstallError
-from tandem_backend.install.service import InstallService
+from orbit_backend.appdb import AppDB
+from orbit_backend.install import lifecycle, store
+from orbit_backend.install.errors import InstallError
+from orbit_backend.install.service import InstallService
 
 PERM = {"kind": "permission_rule", "id": "ro-ls", "payload": {"allow": ["ls"]}}
 SKILL = {"kind": "skill", "id": "pdf-fill", "payload": {"name": "pdf-fill",
@@ -17,7 +17,7 @@ DAY = 86_400_000
 
 
 class ToolCalls:
-    """Minimal tandem.db read pool: only the tool_call columns lifecycle.record_usage reads."""
+    """Minimal orbit.db read pool: only the tool_call columns lifecycle.record_usage reads."""
 
     def __init__(self, path):
         self.path = path
@@ -45,8 +45,8 @@ def install(svc, spec):
 
 @pytest.fixture
 def installed(tmp_path, env):
-    db = AppDB(tmp_path / "tandem" / "app.db")
-    svc = InstallService(db, tmp_path / "tandem", env=env)
+    db = AppDB(tmp_path / "orbit" / "app.db")
+    svc = InstallService(db, tmp_path / "orbit", env=env)
     plan = svc.plan({"type": "spec", "spec": PERM}, agents=["claude_code"])
     result = svc.apply(plan["plan_id"], svc.preview(plan["plan_id"])["preview_digest"])
     yield svc, result["install_id"]
@@ -98,7 +98,7 @@ def test_record_usage_keeps_used_skill_alive(installed, tmp_path):
     svc, _ = installed
     iid = install(svc, SKILL)
     t0 = store.state_get(svc.appdb, iid)["installed_at"]
-    calls = ToolCalls(tmp_path / "tandem.db")
+    calls = ToolCalls(tmp_path / "orbit.db")
     calls.add("before", t0 - DAY, skill="pdf-fill")          # before install: not evidence of this install
     calls.add("other", t0 + 20 * DAY, skill="other-skill")
     assert lifecycle.record_usage(svc, calls) == 0
@@ -113,7 +113,7 @@ def test_record_usage_keeps_used_skill_alive(installed, tmp_path):
     assert lifecycle.sweep(svc, t0 + 51 * DAY) == {"idle": 1, "kept": 0}
 
 
-def test_record_usage_without_tandem_db(installed):
+def test_record_usage_without_orbit_db(installed):
     svc, _ = installed
     assert lifecycle.record_usage(svc, None) == 0  # service.reads is None in the fixture
 
@@ -130,7 +130,7 @@ def test_observing_window_expires_to_kept_or_idle(installed, tmp_path):
     t0 = store.state_get(svc.appdb, used)["installed_at"]
     for iid in (used, unused, perm):
         _observing(svc, iid, t0 + 7 * DAY)
-    calls = ToolCalls(tmp_path / "tandem.db")
+    calls = ToolCalls(tmp_path / "orbit.db")
     calls.add("c1", t0 + 2 * DAY, skill="pdf-fill")
     assert lifecycle.record_usage(svc, calls) == 1
     assert lifecycle.sweep(svc, t0 + 6 * DAY) == {"idle": 0, "kept": 0}  # window still open

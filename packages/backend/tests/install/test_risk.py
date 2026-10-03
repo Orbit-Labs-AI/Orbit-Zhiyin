@@ -1,6 +1,6 @@
 import pytest
 
-from tandem_backend.install.risk import scan
+from orbit_backend.install.risk import scan
 
 
 def hook(command, script=None):

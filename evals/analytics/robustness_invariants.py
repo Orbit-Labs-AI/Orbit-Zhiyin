@@ -5,8 +5,8 @@ import sqlite3
 from collections import Counter
 from pathlib import Path
 
-from tandem_backend.analytics.common import human
-from tandem_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.common import human
+from orbit_backend.analytics.context import AnalysisContext
 
 
 def validate_result(bundle, scope, analysis, recommendations, *, home=None, fixture_event_uids=()):
@@ -37,7 +37,7 @@ def validate_result(bundle, scope, analysis, recommendations, *, home=None, fixt
         check(scope.contains(event.get("ts")), "event_outside_window", event_uid=event["event_uid"])
     fixture_ids = set(fixture_event_uids)
     if home is not None:
-        db_path = (Path(home) / "tandem.db").resolve()
+        db_path = (Path(home) / "orbit.db").resolve()
         with sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True) as db:
             ids = sorted(allowed_ids - fixture_ids)
             native = set(

@@ -6,11 +6,11 @@ from importlib.resources import files
 
 import pytest
 
-from tandem_backend.analytics.common import semantic_messages
-from tandem_backend.analytics.task import extract_task_features, summarize_task_distribution
-from tandem_backend.analytics.task.taxonomy import DOMAIN_DETAILS, DOMAINS, TAXONOMY_VERSION
+from orbit_backend.analytics.common import semantic_messages
+from orbit_backend.analytics.task import extract_task_features, summarize_task_distribution
+from orbit_backend.analytics.task.taxonomy import DOMAIN_DETAILS, DOMAINS, TAXONOMY_VERSION
 
-CORPUS = json.loads(files("tandem_backend").joinpath("data/task-domain-corpus-v2.json").read_text(encoding="utf-8"))
+CORPUS = json.loads(files("orbit_backend").joinpath("data/task-domain-corpus-v2.json").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("case", CORPUS["development"], ids=lambda case: case["id"])

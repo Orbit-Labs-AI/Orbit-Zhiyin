@@ -1,6 +1,6 @@
 // Settings ↔ native capabilities (57-settings.js NATV, 97-live-studio-settings.js notify / statusBadge, 20-ui.js setTheme)
 // and the settings dialog semantics. The fake host below lists the features of the native-shell contract and answers the
-// request/reply messages the way apps/desktop/Orbit.swift does: 'tandem:<type>' (notify: 'tandem:notified') with the same id.
+// request/reply messages the way apps/desktop/Orbit.swift does: 'orbit:<type>' (notify: 'orbit:notified') with the same id.
 //  1. browser      no native rows (登录时启动 / 系统通知), the simulated menu bar keeps its 角标 column, no console errors
 //  2. native       loginItem get/set (+ rollback on failure), notificationStatus denied → 打开系统设置, appearance, no fake lights
 //  3. old shell    features missing → rows and the 菜单栏角标 column hidden
@@ -20,16 +20,16 @@ async function host(page, features, o) {
     window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.3', platform: 'macos', features };
     window.__nativeMsgs = []; window.__login = !!o.login; window.__loginFail = false; window.__notifAuth = o.auth || 'denied';
     const reply = (ev, m, d) => setTimeout(() => window.dispatchEvent(new CustomEvent(ev, { detail: Object.assign({ id: m.id }, d) })), 10);
-    window.webkit = { messageHandlers: { tandem: { postMessage(m0) {
+    window.webkit = { messageHandlers: { orbit: { postMessage(m0) {
       const m = JSON.parse(JSON.stringify(m0)); if (m.type === 'dragRegions') return;
       window.__nativeMsgs.push(m);
       if (m.type === 'loginItem') {
-        if (m.enabled === undefined) reply('tandem:loginItem', m, { enabled: window.__login, status: window.__login ? 'enabled' : 'notRegistered' });
-        else if (window.__loginFail) reply('tandem:loginItem', m, { enabled: window.__login, status: 'notRegistered', error: '系统拒绝了请求' });
-        else { window.__login = !!m.enabled; reply('tandem:loginItem', m, { enabled: window.__login, status: window.__login ? 'enabled' : 'notRegistered' }); }
+        if (m.enabled === undefined) reply('orbit:loginItem', m, { enabled: window.__login, status: window.__login ? 'enabled' : 'notRegistered' });
+        else if (window.__loginFail) reply('orbit:loginItem', m, { enabled: window.__login, status: 'notRegistered', error: '系统拒绝了请求' });
+        else { window.__login = !!m.enabled; reply('orbit:loginItem', m, { enabled: window.__login, status: window.__login ? 'enabled' : 'notRegistered' }); }
       }
-      if (m.type === 'notificationStatus') reply('tandem:notificationStatus', m, { status: window.__notifAuth });
-      if (m.type === 'notify' && m.force) reply('tandem:notified', m, window.__notifAuth === 'denied' ? { delivered: false, reason: 'denied' } : { delivered: true });
+      if (m.type === 'notificationStatus') reply('orbit:notificationStatus', m, { status: window.__notifAuth });
+      if (m.type === 'notify' && m.force) reply('orbit:notified', m, window.__notifAuth === 'denied' ? { delivered: false, reason: 'denied' } : { delivered: true });
     } } } };
   }, [features, o || {}]);
 }
@@ -112,7 +112,7 @@ test('4. keyboard: settings dialog takes and returns focus; sheets have names', 
   await openFile(page);
   const set = page.locator('#set');
   await page.locator('.tsearch').first().focus();
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('tandem:command', { detail: { cmd: 'settings' } })));
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('orbit:command', { detail: { cmd: 'settings' } })));
   await expect(set).toHaveAttribute('role', 'dialog');
   await expect(set).toHaveAttribute('aria-labelledby', 'setName setTitle');
   await expect(page.locator('#setName')).toHaveText('设置');
@@ -164,7 +164,7 @@ test('6. live sources: no detected agent under 未检测到; index count labelle
       { id: 's-cx', agent: 'codex', root: '/Users/demo/.codex', files: 3, status: 'available', enabled: true },
       { id: 's-ds', agent: 'deepseek', root: '/Users/demo/.dsh', files: 3, status: 'available', enabled: true }
     ],
-    'GET /v1/app/about': { app: { name: 'tandem', version: '0.0.3' }, components: { mappers: ['claude_code', 'codex', 'dsh', 'gemini'] } },
+    'GET /v1/app/about': { app: { name: 'orbit', version: '0.0.3' }, components: { mappers: ['claude_code', 'codex', 'dsh', 'gemini'] } },
     'GET /v1/app/state': { settings: {}, sources: [], jobs: [], storage: { projection: 'present', counts: { sessions: 99999 } } }
   });
   await openLive(page);

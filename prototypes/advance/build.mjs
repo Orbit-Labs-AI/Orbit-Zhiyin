@@ -1,9 +1,9 @@
 // Builds the single-file demo from src/: styles/*.css and js/*.js are concatenated in file-name order
-// into src/index.html. tandem-demo.html is generated output: edit src/ and rebuild. Usage:
-//   node build.mjs                      -> tandem-demo.html (standalone, open directly in a browser)
+// into src/index.html. orbit-demo.html is generated output: edit src/ and rebuild. Usage:
+//   node build.mjs                      -> orbit-demo.html (standalone, open directly in a browser)
 //   node build.mjs --out <file>         -> standalone build at <file> (for parallel test runs)
 //   node build.mjs --artifact <file>    -> artifact body (doctype/html/head/body lines stripped)
-//   node build.mjs --check              -> exit 1 if tandem-demo.html is not up to date
+//   node build.mjs --check              -> exit 1 if orbit-demo.html is not up to date
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,14 +52,14 @@ const STRIP = /^(<!doctype html>|<html[^>]*>|<\/?head>|<body>|<\/body>|<\/html>)
 const html = build();
 const kb = (s) => Math.round(Buffer.byteLength(s) / 1024) + ' KB';
 if (opts['--check']) {
-  const cur = fs.readFileSync(path.join(here, 'tandem-demo.html'), 'utf8');
-  if (cur !== html) fail('tandem-demo.html is stale: run node build.mjs');
-  console.log('tandem-demo.html is up to date');
+  const cur = fs.readFileSync(path.join(here, 'orbit-demo.html'), 'utf8');
+  if (cur !== html) fail('orbit-demo.html is stale: run node build.mjs');
+  console.log('orbit-demo.html is up to date');
 } else if (opts['--artifact']) {
   fs.writeFileSync(opts['--artifact'], html.split('\n').filter((l) => !STRIP.test(l.trim())).join('\n'));
   console.log('artifact ->', opts['--artifact']);
 } else {
-  const out = opts['--out'] || path.join(here, 'tandem-demo.html');
+  const out = opts['--out'] || path.join(here, 'orbit-demo.html');
   fs.writeFileSync(out, html);
   console.log('built ->', path.relative(process.cwd(), out) || out, '(' + kb(html) + ')');
 }

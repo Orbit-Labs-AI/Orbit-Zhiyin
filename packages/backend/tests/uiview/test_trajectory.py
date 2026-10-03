@@ -4,7 +4,7 @@ from datetime import UTC
 
 import pytest
 
-from tandem_backend.uiview import trajectory
+from orbit_backend.uiview import trajectory
 
 from .l1_builder import *  # noqa: F403 - pytest fixtures
 from .l1_builder import MIN, T0, codex_unknown, handwritten_cc
@@ -61,7 +61,7 @@ def test_header_stats_and_resume(l1):
     # 2 of 3 human messages are corrections: same "part" as the list row (uiview.outcome).
     assert head["out"] == "part" and head["out_basis"] == "estimate"
     assert head["resume"]["shell"] == "cd /w/p1 && claude --resume native-cc-fix"
-    # The data-layer template documents `claude --resume <id>` (tandem_data.resume).
+    # The data-layer template documents `claude --resume <id>` (orbit_data.resume).
     assert head["resume"]["verified"] is True
     assert stats["tools"] == 8 and stats["errors"] == 3 and stats["steps"] == 10
     assert stats["tok"] == 50_000 + 10_000 + 800 + 150_000 + 900
@@ -164,7 +164,7 @@ def test_stats_corr_matches_header_corr(l1):
 
 
 def test_active_time_is_one_implementation():
-    from tandem_backend.uiview import metrics, sessions
+    from orbit_backend.uiview import metrics, sessions
 
     assert trajectory._active_ms([0, 60_000, 60_000 + 10 * 60_000]) == 60_000 + 5 * 60_000
     assert metrics.active_ms([]) is None and metrics.active_ms([5]) == 0

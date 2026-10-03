@@ -166,7 +166,7 @@ def build_claude(root: Path, n: int = 60, now: float = NOW, seed: int = 11) -> N
 
 def build_home(tmp: Path, codex: int = 90, claude: int = 60) -> Path:
     """Write both trees, capture them into a canonical store and return its home."""
-    from tandem_data.store import Store as DataStore
+    from orbit_data.store import Store as DataStore
 
     roots = {"codex": tmp / "agents" / "codex", "claude_code": tmp / "agents" / "claude"}
     build_codex(roots["codex"], codex)
@@ -194,10 +194,10 @@ def analysed(display_timezone: str = "UTC"):
     import shutil
     import tempfile
 
-    from tandem_backend.analytics.inputs import Scope
-    from tandem_backend.analytics.service import analyze_store
-    from tandem_backend.data_access.store import CanonicalStore
-    from tandem_backend.uiview.facts import build_facts
+    from orbit_backend.analytics.inputs import Scope
+    from orbit_backend.analytics.service import analyze_store
+    from orbit_backend.data_access.store import CanonicalStore
+    from orbit_backend.uiview.facts import build_facts
 
     tmp = Path(tempfile.mkdtemp(prefix="uiview-synth-"))
     atexit.register(shutil.rmtree, tmp, True)

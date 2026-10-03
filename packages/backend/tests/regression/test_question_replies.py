@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from tandem_backend.analysis import analyze
-from tandem_backend.feedback import signals
-from tandem_backend.importers.codex import parse_rollout
-from tandem_backend.models import Event
-from tandem_backend.privacy import direct_user_text
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.feedback import signals
+from orbit_backend.importers.codex import parse_rollout
+from orbit_backend.models import Event
+from orbit_backend.privacy import direct_user_text
+from orbit_backend.store import Store, import_codex
 
 
 def callback(answer: str, question: str = "你希望回答简洁、说人话并注明来源吗？") -> str:

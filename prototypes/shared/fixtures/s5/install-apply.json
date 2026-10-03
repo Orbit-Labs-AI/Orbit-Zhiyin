@@ -9,7 +9,7 @@
       "path": "~/.claude/settings.json",
       "action": "merge_json",
       "status": "modify",
-      "backup_path": "~/Library/Application Support/Tandem/backups/fx/settings.json.1",
+      "backup_path": "~/Library/Application Support/Orbit/backups/fx/settings.json.1",
       "before_hash": "sha256:b",
       "after_hash": "sha256:a"
     }

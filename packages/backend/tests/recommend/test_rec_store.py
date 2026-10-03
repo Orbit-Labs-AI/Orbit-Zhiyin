@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.recommend import store
+from orbit_backend.appdb import AppDB
+from orbit_backend.recommend import store
 
 NOW = 1_800_000_000_000
 
@@ -182,7 +182,7 @@ def test_views_stay_out_of_memory_rev_and_decay_at_read(db):
 
 @pytest.mark.parametrize("status", ["negative", "guardrail_hit", "reverted"])
 def test_negative_tracking_lowers_p_effective(db, status):
-    from tandem_backend.recommend.ranking.rank import score
+    from orbit_backend.recommend.ranking.rank import score
 
     with db.write() as conn:
         store.insert_run(conn, run_row("r1", "d1", NOW), [cand("kb:a", kind="skill", dim="skill")])
@@ -200,7 +200,7 @@ def test_negative_tracking_lowers_p_effective(db, status):
 
 
 def test_store_weight_uses_rank_clamp():
-    from tandem_backend.recommend.ranking.rank import PERSONAL_MAX, PERSONAL_MIN
+    from orbit_backend.recommend.ranking.rank import PERSONAL_MAX, PERSONAL_MIN
 
     assert store._weight(1000, 0, 0) == PERSONAL_MAX  # 1 + .5·1000/1005 = 1.4975 → clamp
     assert store._weight(0, 0, 1000) == PERSONAL_MIN  # 1 − .5·1000/1005 = .5025 → clamp

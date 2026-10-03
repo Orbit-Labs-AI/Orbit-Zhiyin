@@ -3,10 +3,10 @@
 import sqlite3
 from contextlib import contextmanager
 
-import tandem_data.analysis_input as analysis_input
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+import orbit_data.analysis_input as analysis_input
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
 
 def transcript(name: str, cwd: str, commands: int) -> list[dict]:
@@ -81,7 +81,7 @@ def measured(store, monkeypatch) -> tuple[dict, int]:
             yield connection
 
     monkeypatch.setattr(analysis_input, "readonly_connection", counting)
-    db = sqlite3.connect(store.home / "tandem.db")
+    db = sqlite3.connect(store.home / "orbit.db")
     project = db.execute("SELECT project_id FROM session WHERE cwd='/fictional/small'").fetchone()[
         0
     ]
@@ -168,7 +168,7 @@ def test_analysis_read_shares_repeated_values_and_skips_native_keys(tmp_path):
 
 
 def test_external_text_false_leaves_blob_texts_unread(tmp_path):
-    from tandem_data import payload
+    from orbit_data import payload
 
     rows = transcript("long", "/fictional/long", 2)
     for row in rows:

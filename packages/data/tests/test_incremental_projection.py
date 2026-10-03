@@ -13,11 +13,11 @@ from _integrity import (
     mutate,
 )
 
-from tandem_data import parallel
-from tandem_data.pipeline import rebuild
-from tandem_data.scheduler import closure, stale_files
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
+from orbit_data import parallel
+from orbit_data.pipeline import rebuild
+from orbit_data.scheduler import closure, stale_files
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
 
 
 def _scan(service, roots):
@@ -107,12 +107,12 @@ def test_closure_follows_resume_copies_and_lineage(tmp_path):
             "SELECT source_id FROM source WHERE agent='claude_code'"
         ).fetchone()[0]
         service = ImportService(store, workers=1)
-        from tandem_data.parallel import WorkerPool, capture
+        from orbit_data.parallel import WorkerPool, capture
 
         counts = {"files": 0, "changed": 0, "capture_errors": 0, "cancelled": False}
         files = [
             item
-            for item in __import__("tandem_data.discovery").discovery.inputs(
+            for item in __import__("orbit_data.discovery").discovery.inputs(
                 "claude_code", roots["claude_code"].resolve()
             )
         ]

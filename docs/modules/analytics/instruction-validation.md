@@ -2,7 +2,7 @@
 
 **五类测试都已执行，Instruction 的 88 项测试和全库 486 项测试通过。** 真实日志已经从导入跑到 HTTP API，但可确认的真人消息只有 9 条，而且没有命中指令正例。因此，这次能确认流程可运行，还不能确认真实指令的识别效果。
 
-2026-10-02，`MistyHuang03` 发起，Codex 实施。范围仅为 Instruction，代码从当时最新的 `main c97c818` 创建分支 `feat/analytics-instruction`。[PR #16](https://github.com/ActionMesh-AI/Hackathon/pull/16) · [Issue #4](https://github.com/ActionMesh-AI/Hackathon/issues/4) · [特征与接口说明](../../../packages/backend/src/tandem_backend/analytics/instruction/README.md)。
+2026-10-02，`MistyHuang03` 发起，Codex 实施。范围仅为 Instruction，代码从当时最新的 `main c97c818` 创建分支 `feat/analytics-instruction`。[PR #16](https://github.com/ActionMesh-AI/Hackathon/pull/16) · [Issue #4](https://github.com/ActionMesh-AI/Hackathon/issues/4) · [特征与接口说明](../../../packages/backend/src/orbit_backend/analytics/instruction/README.md)。
 
 用户已确认本次 MVP 的三人范围确认和 `yhyfhgs` 对 PR #16 的合并授权均已满足。下列测试由 AI 编写和执行，独立人工质量评估尚未完成。
 
@@ -16,7 +16,7 @@
 | 性能 | 100／1,000／10,000 条合成消息，提取＋汇总＋结构＋解析，三次计时；单独测提取内存 | 最大批次中位数 3.3921 s，2,948 条/s，提取峰值 35.41 MiB | 本机 Python 3.12.3、macOS arm64；不是服务器 SLA |
 | 正确性／质量 | 48 个构造输入，逐例比较八字段与类别的完整预期；中英正反例 | 48/48 完全匹配 | 规则回归集，不是独立真实世界准确率 |
 
-Instruction 共 88 项 pytest 测试。完整仓库 `pytest -q`：486 passed，耗时 6.31 s；`ruff check src tests scripts` 通过。现有 Starlette/AnyIO 依赖弃用提示 1 条，未改变依赖。`tandem demo` 通过；`tandem evaluate` 的 readability 8/8、pipeline 34/34、probe 12/12。均未把结果写回用户历史。
+Instruction 共 88 项 pytest 测试。完整仓库 `pytest -q`：486 passed，耗时 6.31 s；`ruff check src tests scripts` 通过。现有 Starlette/AnyIO 依赖弃用提示 1 条，未改变依赖。`orbit demo` 通过；`orbit evaluate` 的 readability 8/8、pipeline 34/34、probe 12/12。均未把结果写回用户历史。
 
 Codex review 另指出后半句条件错误约束前半句计划，已拆分独立命令并增加 5 项中英文条件／文件名回归测试；例如“先给方案，等我确认后再改文件”中的计划要求保持无条件有效。
 
@@ -60,8 +60,8 @@ uv run python -m evals.analytics.instruction_real \
   --source-ledger /path/to/existing/frozen/history.sqlite \
   --codex-home /path/to/codex \
   --output .local/instruction-validation/fresh-real-run
-uv run python -m tandem_backend demo --output .local/instruction-validation/demo
-uv run python -m tandem_backend evaluate --output .local/instruction-validation/evaluation.json
+uv run python -m orbit_backend demo --output .local/instruction-validation/demo
+uv run python -m orbit_backend evaluate --output .local/instruction-validation/evaluation.json
 ```
 
 真实 E2E 是显式运行的本地测试，不进入需要私有历史的 CI；必须有匹配数据源的既存固定快照，并使用尚不存在数据库的新输出目录。CI 使用合成测试，不需要私有文件。HTTP 通过绑定本机临时端口启动真实 uvicorn 进程；没有使用 TestClient 替代此项。
@@ -76,4 +76,4 @@ uv run python -m tandem_backend evaluate --output .local/instruction-validation/
 
 ## 评审中暂缓的问题
 
-评审发现三项 P2：直接说“请检查代码／请构建项目”时可能漏识别；“无需确认直接执行”这类连写可能漏掉执行顺序；build、ruff、lint 等动作的允许与禁止可能漏报冲突。按用户指示，本轮暂缓修复，具体例子和原评论见 [特征族待办](../../../packages/backend/src/tandem_backend/analytics/instruction/README.md#评审中暂缓的三项-p2)。
+评审发现三项 P2：直接说“请检查代码／请构建项目”时可能漏识别；“无需确认直接执行”这类连写可能漏掉执行顺序；build、ruff、lint 等动作的允许与禁止可能漏报冲突。按用户指示，本轮暂缓修复，具体例子和原评论见 [特征族待办](../../../packages/backend/src/orbit_backend/analytics/instruction/README.md#评审中暂缓的三项-p2)。

@@ -4,7 +4,7 @@
 
 本设计由 `genius-FXC` 提供，对应 App 的 **Lite** 版本。`yhyfhgs` 的原版桌面设计对应 **Advance** 版本；统一的版本归属见[设计资料](README.md)。此处仅补充版本说明，以下范围与审查记录描述现有 Demo，不变更设计实现或 MVP 功能范围。
 
-打开 [Lite Demo：tandem-benchmark-demo.html](../../prototypes/lite/tandem-benchmark-demo.html) 即可使用，无需构建、依赖或联网。[Advance Demo：tandem-demo.html](../../prototypes/advance/tandem-demo.html) 并行保留。下文的「原版」均指 Advance 设计。
+打开 [Lite Demo：orbit-benchmark-demo.html](../../prototypes/lite/orbit-benchmark-demo.html) 即可使用，无需构建、依赖或联网。[Advance Demo：orbit-demo.html](../../prototypes/advance/orbit-demo.html) 并行保留。下文的「原版」均指 Advance 设计。
 
 ## 本次调整
 
@@ -34,7 +34,7 @@
 - 同步仅演示处理固定样本的状态变化；不扫描文件、不添加虚构新会话。
 - 安装先展示预览和目标 Agent，再确认模拟安装，仅在浏览器保存标记，可撤销。不会修改真实配置、执行命令或调用外部模型。Agent 定制是当前页面内可编辑的草稿，不会自动生成或发送内容。
 - 导出 Markdown / CSV、保存 SVG 分享卡是真实文件下载。分享文字与分享卡不含会话原文、项目路径或用户标识；不会上传或发布内容。
-- 外观与模拟安装标记使用独立的 `tandem-benchmark:` 本地存储前缀，与原版互不干扰。存储不可用时，页面仍可使用。
+- 外观与模拟安装标记使用独立的 `orbit-benchmark:` 本地存储前缀，与原版互不干扰。存储不可用时，页面仍可使用。
 
 ## 自行审查结果
 

@@ -1,7 +1,7 @@
 // Slice 7 (first run + native layout): live onboarding on /v1/app/state · /v1/shell/onboarding · /v1/app/discovery,
 // 添加文件夹 (browser path field and native chooseFolder) → POST /v1/app/sources, 开始分析 → POST /v1/app/jobs, job progress
 // drives the four stages, then the spine reloads and Genesis plays the server persona; settings onboarded:true + catalog sync.
-// Native: body.native hides the fake desktop, #win fills the viewport, window ops / tandem:command go through the bridge.
+// Native: body.native hides the fake desktop, #win fills the viewport, window ops / orbit:command go through the bridge.
 import { test, expect } from '@playwright/test';
 import { stubGateway, openLive, collectErrors, fx, PASS } from './live-helpers.mjs';
 
@@ -182,12 +182,12 @@ test('native: body.native hides the fake desktop, #win fills the viewport, windo
   expect(errors).toEqual([]);
 });
 
-test('native: tandem:command settings / palette / about / route / toggleEdition / refresh', async ({ page }) => {
+test('native: orbit:command settings / palette / about / route / toggleEdition / refresh', async ({ page }) => {
   await clock(page);
   const errors = collectErrors(page);
   const gw = await stubGateway(page, ['core', 's7'], { 'GET /v1/app/state': fx('s7/app-state-full.json') }, { native: NATIVE });
   await openLive(page, 'overview');
-  const cmd = (d) => page.evaluate((x) => window.dispatchEvent(new CustomEvent('tandem:command', { detail: x })), d);
+  const cmd = (d) => page.evaluate((x) => window.dispatchEvent(new CustomEvent('orbit:command', { detail: x })), d);
   await cmd({ cmd: 'about' });
   await expect(page.locator('#modal')).toBeVisible();
   // the product version is the App shell's (0.0.1), the service's own version (0.13.6) only on the 本机服务 row (J08 / B20)
@@ -195,7 +195,7 @@ test('native: tandem:command settings / palette / about / route / toggleEdition 
   await expect(page.locator('#modal')).toContainText('Orbit 0.0.1 · 本地的跨 Agent 会话分析');
   await expect(page.locator('#modal')).not.toContainText('Orbit 0.13.6');
   await expect(page.locator('#modal [data-about="rows"] .row').first()).toContainText('0.0.1');
-  await expect(page.locator('#modal [data-about="rows"]')).toContainText('Orbit · 0.13.6 · tandem-app-v1');
+  await expect(page.locator('#modal [data-about="rows"]')).toContainText('Orbit · 0.13.6 · orbit-app-v1');
   await expect(page.locator('#modal [data-about="rows"]')).toContainText('Kimi CLI');
   await cmd({ cmd: 'palette' });
   expect(await page.evaluate(() => MODAL_KEY)).toBe('palette');
@@ -223,7 +223,7 @@ test('native: help / file menu commands open their sheets; drag regions are repo
   const errors = collectErrors(page);
   await stubGateway(page, ['core', 's7'], { 'GET /v1/app/state': fx('s7/app-state-full.json') }, { native: NATIVE });
   await openLive(page, 'overview');
-  const cmd = (d) => page.evaluate((x) => window.dispatchEvent(new CustomEvent('tandem:command', { detail: x })), d);
+  const cmd = (d) => page.evaluate((x) => window.dispatchEvent(new CustomEvent('orbit:command', { detail: x })), d);
   await cmd({ cmd: 'keys' });
   await expect(page.locator('#modal')).toContainText('⌘1–9');
   await cmd({ cmd: 'report' });
@@ -259,7 +259,7 @@ test('native: 添加文件夹 asks the host (chooseFolder) and posts the picked 
   const msg = await page.evaluate(() => window.__nativeMsgs.find((m) => m.type === 'chooseFolder'));
   expect(msg).toMatchObject({ type: 'chooseFolder', purpose: 'source', agent: 'hermes' });
   expect(typeof msg.id).toBe('string');
-  await page.evaluate((id) => window.dispatchEvent(new CustomEvent('tandem:folder', { detail: { id, path: '/fx/picked/hermes-home', cancelled: false } })), msg.id);
+  await page.evaluate((id) => window.dispatchEvent(new CustomEvent('orbit:folder', { detail: { id, path: '/fx/picked/hermes-home', cancelled: false } })), msg.id);
   await expect.poll(() => posted.sources.length).toBe(1);
   expect(posted.sources[0]).toEqual({ agent: 'hermes', root: '/fx/picked/hermes-home', enabled: true });
   expect(errors).toEqual([]);
@@ -312,7 +312,7 @@ test('first run: Genesis 看看优化建议 counts the live recommendations (J10
   await page.locator('#overlay [data-act="obAddFolder"]').click();
   await expect.poll(() => page.evaluate(() => window.__nativeMsgs.filter((m) => m.type === 'chooseFolder').length)).toBe(1);
   const id = await page.evaluate(() => window.__nativeMsgs.find((m) => m.type === 'chooseFolder').id);
-  await page.evaluate((i) => window.dispatchEvent(new CustomEvent('tandem:folder', { detail: { id: i, path: '/Users/someone/fx-src/pi', cancelled: false } })), id);
+  await page.evaluate((i) => window.dispatchEvent(new CustomEvent('orbit:folder', { detail: { id: i, path: '/Users/someone/fx-src/pi', cancelled: false } })), id);
   await expect(page.locator('#overlay [data-ob="added"]')).toContainText('~/fx-src/pi');
   await expect(page.locator('#toast')).toBeHidden();
   const box = page.locator('#overlay .obox');

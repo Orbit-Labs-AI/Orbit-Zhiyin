@@ -1,8 +1,8 @@
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.evalrun import runner
-from tandem_backend.evalrun import store as eval_store
+from orbit_backend.appdb import AppDB
+from orbit_backend.evalrun import runner
+from orbit_backend.evalrun import store as eval_store
 
 
 def test_pass_skip_and_scores(fake_suites):

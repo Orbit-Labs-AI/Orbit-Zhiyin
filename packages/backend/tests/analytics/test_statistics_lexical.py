@@ -4,10 +4,10 @@ import math
 
 import pytest
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.products import build_products
-from tandem_backend.analytics.products.lexical import compare_vocabulary, sentences
-from tandem_backend.analytics.products.statistics import (
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.products import build_products
+from orbit_backend.analytics.products.lexical import compare_vocabulary, sentences
+from orbit_backend.analytics.products.statistics import (
     bootstrap_difference,
     rank_association,
     summarize,
@@ -154,8 +154,8 @@ LANGUAGE_CASES = {"swift": "Swift", "kt": "Kotlin", "rb": "Ruby", "cs": "C#", "s
 
 
 def test_language_table_covers_common_extensions_and_matches_versions():
-    from tandem_backend.analytics.features import LANG, LANGUAGE_TABLE_VERSION
-    from tandem_backend.analytics.products.contracts import RULE_VERSIONS
+    from orbit_backend.analytics.features import LANG, LANGUAGE_TABLE_VERSION
+    from orbit_backend.analytics.products.contracts import RULE_VERSIONS
 
     assert len(LANG) >= 60
     assert {ext: LANG[ext] for ext in LANGUAGE_CASES} == LANGUAGE_CASES
@@ -163,7 +163,7 @@ def test_language_table_covers_common_extensions_and_matches_versions():
 
 
 def test_observed_languages_counts_known_extensions_and_reports_unknown_calls():
-    from tandem_backend.analytics.products.summaries import observed_languages
+    from orbit_backend.analytics.products.summaries import observed_languages
 
     calls = [{"call_uid": f"c-{ext}", "files": [f"src/main.{ext}"]} for ext in LANGUAGE_CASES]
     calls += [{"call_uid": "c-unknown", "files": ["notes/readme.xyz", "Dockerfile"]},
@@ -180,7 +180,7 @@ def test_observed_languages_counts_known_extensions_and_reports_unknown_calls():
 
 
 def test_session_language_signals_read_new_extensions_from_human_text():
-    from tandem_backend.analytics.features import FILE_REFERENCE, session_features
+    from orbit_backend.analytics.features import FILE_REFERENCE, session_features
 
     text = "改 Sources/App.swift 和 main.kt 以及 a.rb b.cs c.sql d.toml e.php f.lua g.dart，忽略 x.qqq"
     assert [m.lower() for m in FILE_REFERENCE.findall(text)] == [
@@ -203,7 +203,7 @@ def test_non_chinese_scripts_produce_tokens(text, expected):
 
 
 def test_out_of_dictionary_chinese_words_are_kept():
-    from tandem_backend.analytics.products.lexical import tokenizer
+    from orbit_backend.analytics.products.lexical import tokenizer
 
     # "鉴权" and "竞态" are not words in jieba's bundled dictionary: dictionary-only cutting
     # splits them into single characters, which the length rule then discards.
@@ -226,7 +226,7 @@ def test_unsupported_scripts_are_counted_and_lower_coverage():
 
 
 def test_lexical_rule_version_matches_module_version():
-    from tandem_backend.analytics.products.contracts import RULE_VERSIONS
-    from tandem_backend.analytics.products.lexical import LEXICAL_VERSION
+    from orbit_backend.analytics.products.contracts import RULE_VERSIONS
+    from orbit_backend.analytics.products.lexical import LEXICAL_VERSION
 
     assert RULE_VERSIONS["lexical"] == LEXICAL_VERSION

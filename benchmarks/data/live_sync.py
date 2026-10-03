@@ -5,7 +5,7 @@
 Generates fictional Claude Code / pi / DSH sources (``synthetic.py``), a Codex root with a
 ``state_5.sqlite`` index, and one Claude subagent whose parent transcript is missing (the
 shape that disabled session closures in v0.0.2). Starts the source gateway on a temporary
-``TANDEM_HOME``, enables every source, turns on ``sync_mode=live`` and starts the
+``ORBIT_HOME``, enables every source, turns on ``sync_mode=live`` and starts the
 onboarding import; meanwhile one thread appends to a Claude transcript every 2 s and one
 updates a Codex ``threads`` row every second, and a reader polls ``/v1/sessions`` and
 ``/v1/status`` once per second. The JSON report counts, per job, how often each stage
@@ -72,11 +72,11 @@ def build_sources(out: Path, preset: str, codex_sessions: int) -> dict[str, Path
 class Gateway:
     def __init__(self, home: Path, log: Path):
         self.token = secrets.token_hex(24)
-        env = {**os.environ, "TANDEM_API_TOKEN": self.token}
-        env.pop("TANDEM_HOME", None)
+        env = {**os.environ, "ORBIT_API_TOKEN": self.token}
+        env.pop("ORBIT_HOME", None)
         self.log = log.open("ab")
         self.proc = subprocess.Popen(
-            [sys.executable, "-m", "tandem_backend.services", "gateway", "--home", str(home),
+            [sys.executable, "-m", "orbit_backend.services", "gateway", "--home", str(home),
              "--port", "0"], stdout=subprocess.PIPE, stderr=self.log, env=env)
         self.port = json.loads(self.proc.stdout.readline())["port"]
 
@@ -136,11 +136,11 @@ def poll_reads(gw: Gateway, home: Path, reads: list, stop: threading.Event) -> N
     while not stop.is_set():
         status, headers, body = gw.call("GET", "/v1/sessions?limit=1", timeout=30)
         _, _, state = gw.call("GET", "/v1/status", timeout=30)
-        wal = home / "tandem.db-wal"
+        wal = home / "orbit.db-wal"
         reads.append({
             "status": status,
             "code": (body or {}).get("error", {}).get("code") if isinstance(body, dict) else None,
-            "freshness": headers.get("x-tandem-freshness") or headers.get("X-Tandem-Freshness"),
+            "freshness": headers.get("x-orbit-freshness") or headers.get("X-Orbit-Freshness"),
             "projection": state.get("projection") if isinstance(state, dict) else None,
             "wal": wal.stat().st_size if wal.exists() else 0})
         stop.wait(1.0)
@@ -196,7 +196,7 @@ def summarize(frames: list, reads: list, jobs: list, home: Path) -> dict:
                        "scopes": dict(seen["scopes"]), "max_attempt": seen["attempts"]})
     sync = [j for j in report if j["origin"] == "sync" and j["seconds"] is not None]
     codes = collections.Counter(f"{r['status']}:{r['code'] or r['freshness']}" for r in reads)
-    wal = home / "tandem.db-wal"
+    wal = home / "orbit.db-wal"
     return {
         "jobs": report,
         "sync_jobs": len(sync),
@@ -220,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--work", type=Path, default=None, help="kept work directory")
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)
-    work = args.work or Path(tempfile.mkdtemp(prefix="tandem-live-sync-"))
+    work = args.work or Path(tempfile.mkdtemp(prefix="orbit-live-sync-"))
     try:
         roots = build_sources(work / "sources", args.preset, args.codex_sessions)
         home = work / "home"

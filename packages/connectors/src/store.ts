@@ -13,12 +13,12 @@ export class ConnectorStore {
     this.directory = resolve(directory);
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });
     chmodSync(this.directory,0o700);
-    const path = join(this.directory,'tandem.db');
+    const path = join(this.directory,'orbit.db');
     this.db = new DatabaseSync(path);
     const present=new Set(this.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row=>row.name));
     const initialVersion=this.db.prepare('PRAGMA user_version').get()?.user_version;
     if ((initialVersion===0&&present.size>0)||(initialVersion!==0&&!present.has('archive_chunk'))) {
-      this.db.close(); throw new Error('This is not a Codex Connector staging database; use a separate data directory and the tandem-data bridge');
+      this.db.close(); throw new Error('This is not a Codex Connector staging database; use a separate data directory and the orbit-data bridge');
     }
     chmodSync(path,0o600);
     this.db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;');
@@ -28,7 +28,7 @@ export class ConnectorStore {
         this.db.exec(readFileSync(new URL('../schema/001.sql',import.meta.url),'utf8'));
         this.db.exec('PRAGMA user_version=1');
       });
-    } else if (version !== 1 && version !== 2) { this.db.close(); throw new Error(`Unsupported tandem.db version: ${version}`); }
+    } else if (version !== 1 && version !== 2) { this.db.close(); throw new Error(`Unsupported orbit.db version: ${version}`); }
     const migrated=version===0||version===1;
     if (migrated) {
       this.transaction(()=>{

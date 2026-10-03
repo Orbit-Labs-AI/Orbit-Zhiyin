@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.cli import demo_home
-from tandem_backend.data_access.ingest import ingest
+from orbit_backend.cli import demo_home
+from orbit_backend.data_access.ingest import ingest
 
 RUNNER = Path(__file__).resolve().parents[2] / "evals/analytics/local_diagnostics.py"
 
@@ -18,7 +18,7 @@ def test_recorded_window_uses_latest_event_and_rejects_empty_or_missing_database
     runner = runpy.run_path(str(RUNNER))
     with pytest.raises(ValueError, match="existing canonical"):
         runner["snapshot_scope"](tmp_path)
-    database = tmp_path / "tandem.db"
+    database = tmp_path / "orbit.db"
     with sqlite3.connect(database) as connection:
         connection.execute("CREATE TABLE event (ts INTEGER)")
         with pytest.raises(ValueError, match="No timestamped"):

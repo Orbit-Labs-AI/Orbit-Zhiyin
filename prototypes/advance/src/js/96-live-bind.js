@@ -1,4 +1,4 @@
-/* ============ live binding: status strip + endpoint wiring (TandemLive, js/06-live-client.js; core in 90-live-core.js) ============
+/* ============ live binding: status strip + endpoint wiring (OrbitLive, js/06-live-client.js; core in 90-live-core.js) ============
    Mock mode (file://, opened on its own) changes nothing. Live mode keeps every polished page: 90-live-core hydrates the
    demo globals from /v1/uiview/facts and page feeds (LV.feed) overwrite page constants right before each render. This file
    only puts the status strip (import progress, service banner, connecting / computing / stale / failed badge) at the top of

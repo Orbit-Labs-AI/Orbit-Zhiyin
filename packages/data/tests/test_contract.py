@@ -4,8 +4,8 @@ import sqlite3
 import pytest
 from jsonschema import ValidationError
 
-from tandem_data.contract import EventDraft, normalize_usage, time_fields, uid, validate_event
-from tandem_data.store import Store
+from orbit_data.contract import EventDraft, normalize_usage, time_fields, uid, validate_event
+from orbit_data.store import Store
 
 
 def test_structured_ids_and_time_quality():
@@ -90,6 +90,6 @@ def test_sqlite_constraints_and_lossless_source(tmp_path):
 def test_snapshot_schema_is_valid_json():
     from importlib.resources import files
 
-    assert json.loads(files("tandem_data").joinpath("schemas/event-v1.schema.json").read_text())[
+    assert json.loads(files("orbit_data").joinpath("schemas/event-v1.schema.json").read_text())[
         "title"
     ]

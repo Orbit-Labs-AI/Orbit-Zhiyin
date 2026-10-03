@@ -1,12 +1,12 @@
 """Configuration observations survive the data-to-analytics boundary."""
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.inventory import InventoryRequest, scan_inventory
-from tandem_data.store import Store
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.inventory import InventoryRequest, scan_inventory
+from orbit_data.store import Store
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.products import build_products
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.products import build_products
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def test_inventory_reaches_analytics_and_changes_digest(tmp_path):
@@ -62,7 +62,7 @@ def test_inventory_cutoff_is_utc_and_not_filtered_by_session_model(tmp_path, mon
     path = root / 'AGENTS.md'
     path.write_text('old')
     clock = iter((1000, 2000))
-    monkeypatch.setattr('tandem_data.inventory.now_ms', lambda: next(clock))
+    monkeypatch.setattr('orbit_data.inventory.now_ms', lambda: next(clock))
     with Store(tmp_path / 'data') as store:
         store.rebuild()
         scan_inventory(store, InventoryRequest('codex', root))

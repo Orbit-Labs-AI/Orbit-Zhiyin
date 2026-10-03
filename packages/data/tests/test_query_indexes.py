@@ -6,14 +6,14 @@ import time
 import pytest
 from test_storage_dedup import import_home, write_sessions
 
-from tandem_data.query import (
+from orbit_data.query import (
     UNPROJECTED,
     current_projection,
     projection_state,
     source_status,
     trajectory_page,
 )
-from tandem_data.store import Store, readonly_connection
+from orbit_data.store import Store, readonly_connection
 
 
 def plan(db, sql, args=()):
@@ -91,7 +91,7 @@ def test_freshness_detects_every_incomplete_file(tmp_path):
     write_sessions(source)
     home = tmp_path / "home"
     import_home(home, source).db.close()
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         current_projection(db)
     # An unpublished file only makes the published snapshot stale (pending); facts of an
     # older mapper or redaction make it unreadable until a rebuild (obsolete).
@@ -107,7 +107,7 @@ def test_freshness_detects_every_incomplete_file(tmp_path):
             store.db.execute(
                 f"UPDATE source_file SET watermark={change} WHERE file_id=?", (original[0],)
             )
-        with readonly_connection(home / "tandem.db") as db:
+        with readonly_connection(home / "orbit.db") as db:
             try:
                 current_projection(db)
                 raise AssertionError(change)
@@ -135,7 +135,7 @@ def test_trajectory_page_matches_reference_query(tmp_path):
         "AND f.role IN ('transcript','subagent_transcript','legacy_transcript') AND f.file_id IN "
         "(SELECT file_id FROM raw_record WHERE session_uid IN (SELECT id FROM selected)))"
     )
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         sessions = [r[0] for r in db.execute("SELECT session_uid FROM session")]
         for session in sessions:
             expected = sorted(r[0] for r in db.execute(reference, (session, True)))

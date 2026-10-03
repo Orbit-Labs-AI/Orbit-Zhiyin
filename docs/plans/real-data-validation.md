@@ -24,14 +24,14 @@
 | 账本 | 770,803 条记录：unparsed 0；ignored 2.2%（都有已声明原因）；folded 25.8%（主要是 dsh 步骤）；unknown 事件 364 条，来自 3 种 Claude 原生类型；ingest_issue 7,090 条（0.92%） |
 | 文件覆盖 | Claude 848/848、Codex 974/974、dsh 79/79、pi 2/2 |
 | 导入耗时 | 捕获：Claude 约 154 s（13.6 MB/s）、Codex 100 s（39 MB/s）、dsh 70 s（1.3 MB/s）；rebuild 单线程 2,146 s（359 记录/s，占总耗时约 2,540 s 的 85%） |
-| 库大小 | tandem.db 10.18 GB，是原始体积的 1.7 倍（event 表 5.4 GB，FTS 1.6 GB）；analysis.sqlite 没有保留策略，验证期间从 28 KB 涨到 1–4 GB |
+| 库大小 | orbit.db 10.18 GB，是原始体积的 1.7 倍（event 表 5.4 GB，FTS 1.6 GB）；analysis.sqlite 没有保留策略，验证期间从 28 KB 涨到 1–4 GB |
 
-- **活日志不能直接导入**：第一轮直接对正在写入的日志运行 `tandem ingest`，每个根都在 prepare 之后因 `Indexed source changed` 中止，每次白白耗掉 40–300 s。第二轮先做 APFS 克隆快照，再一次性 rebuild，才成功。部分修复见 `wip/be-rd-live-append`：跳过的来源记为部分完成，不再整体中止。
+- **活日志不能直接导入**：第一轮直接对正在写入的日志运行 `orbit ingest`，每个根都在 prepare 之后因 `Indexed source changed` 中止，每次白白耗掉 40–300 s。第二轮先做 APFS 克隆快照，再一次性 rebuild，才成功。部分修复见 `wip/be-rd-live-append`：跳过的来源记为部分完成，不再整体中止。
 - **Codex 继承前缀**：6,619 条 issue 是 `inherited_parent_evidence_unavailable`，但 7 个父会话都在库里。也就是说约 69% 的继承前缀记录没关联上，原因是前缀匹配失败，而不是父会话缺失。
 
 ## 2. 分析各页还原度
 
-**判定方法**：用 SQL 对 tandem.db 求真值，再与两条路径的结果对比：一是网关 HTTP（真实产品路径，轻量预算 20 s、重量预算 120 s），二是进程内不限时直算。表中的判定针对直算数值；**网关可达**一列单独列出。
+**判定方法**：用 SQL 对 orbit.db 求真值，再与两条路径的结果对比：一是网关 HTTP（真实产品路径，轻量预算 20 s、重量预算 120 s），二是进程内不限时直算。表中的判定针对直算数值；**网关可达**一列单独列出。
 
 ### 2.1 计数
 
@@ -316,7 +316,7 @@
 
 - **推荐闸门**：Wilson 下界按范围内会话数缩放（超过 60 个会话时乘 √(60/n)，下限 0.01），不再写死 0.05。离线回放 30 天输入时，23/390 个会话出现的工具环境失败问题能过闸，`kb:retry-breaker` 与 `kb:systematic-debugging` 随之通过。
 - **安装的撤销**：
-  - 叠加安装按任意顺序撤销都能字节还原。撤销时从账本继承先前已撤销安装创建的文件，只剩 Tandem 容器时删除；用户加过自己的内容则保留。
+  - 叠加安装按任意顺序撤销都能字节还原。撤销时从账本继承先前已撤销安装创建的文件，只剩 Orbit 容器时删除；用户加过自己的内容则保留。
   - 用户改过我们装入的条目后撤销会拒绝（`modified`，带三方 diff），不再直接执行。行为变化：用户改了我们加的数组项，现在也是拒绝，而不是报 `already_reverted`。
   - 符号链接的规则文件和 skill：指向家目录内真实文件的，装入真实文件并保留链接；指向家目录外的仍是 unmappable，但所有 unmappable 都带中文 `reason_text`，不再露出 `path_policy:symlink_escape`。
   - 同名但内容不同的 MCP 报 `mcp_exists`；App 内置的 Codex CLI 能被发现；目录里不可安装的 hook / MCP / 插件返回 `link_only` 计划，不再是 422。

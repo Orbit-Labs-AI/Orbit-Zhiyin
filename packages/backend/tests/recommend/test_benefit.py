@@ -6,14 +6,14 @@ import pytest
 from pydantic import ValidationError
 from test_recommend_pipeline import correction_bundle, ready_item
 
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.recommend.benefit import estimate_benefit
-from tandem_backend.recommend.contracts import (
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.recommend.benefit import estimate_benefit
+from orbit_backend.recommend.contracts import (
     BenefitScenario,
     RecommendationContext,
     RecommendationItem,
 )
-from tandem_backend.recommend.service import recommend
+from orbit_backend.recommend.service import recommend
 
 
 def value(low, high=None):
@@ -152,7 +152,7 @@ def test_duplicate_scenarios_cannot_double_count_savings():
 
 
 def test_card_savings_uses_scenario_bounds():
-    from tandem_backend.recommend.benefit import beta_interval, card_savings
+    from orbit_backend.recommend.benefit import beta_interval, card_savings
 
     lo, hi = beta_interval(9, 1)
     # mean .9, sd = √(9·1 / (10²·11)) = .0904534 ; ±1.645·sd = .1487958 ; upper clipped at 1

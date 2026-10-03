@@ -2,7 +2,7 @@
 
 import pytest
 
-from tandem_backend.analytics.instruction import (
+from orbit_backend.analytics.instruction import (
     extract_instruction_constraints,
     resolve_instruction_scope,
 )

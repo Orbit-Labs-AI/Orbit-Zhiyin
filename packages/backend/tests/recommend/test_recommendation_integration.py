@@ -5,13 +5,13 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics import service
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.recommendations import recommend_bottlenecks
-from tandem_backend.api import create_app
-from tandem_backend.cli import main
-from tandem_backend.models import Event, ParsedSession, Session
-from tandem_backend.store import Store
+from orbit_backend.analytics import service
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.recommendations import recommend_bottlenecks
+from orbit_backend.api import create_app
+from orbit_backend.cli import main
+from orbit_backend.models import Event, ParsedSession, Session
+from orbit_backend.store import Store
 
 
 def synthetic_bundle():

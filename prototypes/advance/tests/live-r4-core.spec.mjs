@@ -40,7 +40,7 @@ test('R4-11: a session detail that failed on the network refetches by itself wit
   const st = { down: true, hits: 0 };
   const gw = await stubGateway(page, ['core', 's2'], { 'GET /v1/uiview/sessions': () => LIST });
   // registered last, so it runs first: while down, the detail request fails like net::ERR_ADDRESS_INVALID
-  await page.route(/^http:\/\/tandem\.test\/v1\/uiview\/sessions\/session_fx016(\?|$)/, (route) => { st.hits++; return st.down ? route.abort('addressunreachable') : route.fallback(); });
+  await page.route(/^http:\/\/orbit\.test\/v1\/uiview\/sessions\/session_fx016(\?|$)/, (route) => { st.hits++; return st.down ? route.abort('addressunreachable') : route.fallback(); });
   await openLive(page, 'sessions');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
   expect(await page.evaluate(() => S.sess.sel)).toBe(A);
@@ -58,7 +58,7 @@ test('R4-11: a service banner after a network failure offers 重试, and clears 
   const errors = collectErrors(page);
   const st = { down: false };
   await stubGateway(page, ['core', 's2'], { 'GET /v1/uiview/sessions': () => LIST });
-  await page.route(/^http:\/\/tandem\.test\/v1\/uiview\/sessions(\?|$)/, (route) => (st.down ? route.abort('addressunreachable') : route.fallback()));
+  await page.route(/^http:\/\/orbit\.test\/v1\/uiview\/sessions(\?|$)/, (route) => (st.down ? route.abort('addressunreachable') : route.fallback()));
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
   st.down = true;
