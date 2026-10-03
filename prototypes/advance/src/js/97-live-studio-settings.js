@@ -307,15 +307,23 @@ if (TL.mode === 'live') {
       box.innerHTML = xs.map((p, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(p.question) + '</button>').join('');
     }, () => { /* the generic questions stay; answers still go through POST /v1/ai/ask */ });
   };
-  const tlsAnswer = (d) => (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '');
-  function tlsThinking(q) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">本地 Agent 正在回答…</span>'; }
+  // 来源如实写在回答末尾：预置问题是规则模板在本机查询出的（没有调用模型）；自由提问由本地 Agent 作答；
+  // 模型失败时后端回 status=fallback 与说明文字，照样显示说明，不当成回答
+  const tlsAskSrc = (d) => d.source === 'ai' || d.source === 'cache' ? '本地 Agent 回答' + (d.source === 'cache' ? '（缓存）' : '') + ' · 只发送了脱敏后的查询结果'
+    : d.error_code ? '本地 Agent 没有答成（' + d.error_code + '），以上是说明，不是回答' : '规则模板 · 在本机查询你的数据生成，没有调用模型';
+  const tlsAnswer = (d) => (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '') + '\n\n— ' + tlsAskSrc(d);
+  function tlsThinking(q, preset) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">' + (preset ? '正在本机查询…' : '本地 Agent 正在回答…') + '</span>'; }
   function tlsAsk(body, q) {
-    clearInterval(ASKT); tlsThinking(q);
+    clearInterval(ASKT); tlsThinking(q, body.preset_index != null);
     TL.send('POST', '/v1/ai/ask', body).then((r) => {
       const d = r.data || {};
       if (d.answer != null) return d;
-      if (!d.job_id) return { answer: '' };
-      return TL.pollJob(d.job_id, null).then((job) => { if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error((job.error && (job.error.message || job.error.code)) || '回答失败'), { status: 500, code: 'job_' + job.status }); return job.result || {}; });
+      if (!d.job_id) throw Object.assign(new Error('没有返回作业'), { status: 500, code: 'no_job' });
+      return TL.pollJob(d.job_id, null).then((job) => {
+        if (job.status === 'fallback' && job.result && job.result.answer) return job.result;
+        if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error(job.status === 'cancelled' ? '已取消' : (job.error && (job.error.message || job.error.code || job.error)) || '回答失败'), { status: 500, code: 'job_' + job.status });
+        return job.result || {};
+      });
     }).then((d) => { if (ASK) askStream(q, tlsAnswer(d)); }, (e) => {
       if (TL.unavailable(e)) { if (ASK) askStream(q, '本地服务暂不提供问答接口，暂时无法回答。'); return; }
       if (ASK) askStream(q, '无法回答：' + (e.message || e.code) + (e.code === 'consent_required' ? '\n\n到 设置 › 分析 授权后再试。' : ''));

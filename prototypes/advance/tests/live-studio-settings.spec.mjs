@@ -10,6 +10,8 @@
 //  6. ask         presets from the gateway, preset answer, free question through an ask.question job
 //  7. regressions  no demo goal in live, readable pack preview, one row per agent with ~ paths, sheets closed on tab change
 //  8. R4-05/R4-16  the typed goal re-packs the context (manual goal, exact small token counts); 授权对象 shows the engine name
+//  9. overview    「AI 生成」 posts narrate.overview (card scope, fresh) and shows model text only once the backend reads it back
+//                 (AI errors carry missing / reason next to code, as routes_ai.AIApiError sends them)
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,7 +56,7 @@ async function gateway(page, opts = {}) {
     if (m === 'GET' && core[p]) return json(FX(core[p]));
     const K = m + ' ' + p;
     if (state.extra && state.extra[K] !== undefined) return json(typeof state.extra[K] === 'function' ? state.extra[K](body) : state.extra[K]);
-    if (K === 'POST /v1/ai/jobs') return state.job === 'consent' ? json({ error: { code: 'consent_required', message: '需要授权', detail: { missing: ['snippets'] } } }, 403) : json(SS('ai-job-created'), 202);
+    if (K === 'POST /v1/ai/jobs') return state.job === 'consent' ? json({ error: { code: 'consent_required', message: '需要授权', retryable: false, missing: ['snippets'], engine: 'claude_code' } }, 403) : json(SS('ai-job-created'), 202);
     if (K === 'GET /v1/ai/jobs/fx-job-1') { state.jobPolls++; return json(state.job === 'stuck' || state.jobPolls < 2 ? SS('ai-job-running') : SS('ai-job-done')); }
     if (K === 'GET /v1/ai/jobs/fx-ask-1') return json(SS('ask-job-done'));
     if (K === 'POST /v1/ai/ask') return json(body && body.question ? { job_id: 'fx-ask-1', status: 'queued', cached: false } : SS('ask-answer'));
@@ -233,10 +235,13 @@ test('ask live: presets from the gateway, a preset answer and a free question vi
   await expect(page.locator('#modal .mh')).not.toContainText('Demo 中为预置回答');
   await chips.nth(1).click();
   await expect(page.locator('#askA')).toContainText('FX 合成回答');
+  await expect(page.locator('#askA')).toContainText('规则模板 · 在本机查询你的数据生成，没有调用模型');   // source: template
   expect(sent(gw, 'POST', '/v1/ai/ask')[0].body).toEqual({ context: 'overview', preset_index: 1 });
   await page.locator('#askIn').fill('FX 自由问题');
   await page.locator('#modal [data-act="askSend"]').click();
   await expect(page.locator('#askA')).toContainText('FX 自由提问回答');
+  await expect(page.locator('#askA')).toContainText('本地 Agent 回答');                                       // source: ai
+  await expect(page.locator('#modal .mf')).not.toContainText('本机进程间');
   expect(sent(gw, 'POST', '/v1/ai/ask')[1].body).toEqual({ context: 'overview', question: 'FX 自由问题' });
   expect(errors).toEqual([]);
 });
@@ -317,5 +322,45 @@ test('R4-05 / R4-16: the typed goal is packed and sized honestly; 授权对象 u
   await expect(modal).not.toContainText('0.0k');
   // an empty goal stays an 'ask' preview (a manual one would be 422 goal_required)
   expect(sent(gw, 'POST', '/v1/ai/preview')[0].body.goal_source).toBe('ask');
+  expect(errors).toEqual([]);
+});
+
+test('overview live: 「AI 生成」 posts narrate.overview with the card scope and fresh, AI badge only on the model text', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page, (t) => /status of (404|403)/.test(t));
+  const OV = FX('s1/overview-30'); let written = false; let consent = false; const posts = [];
+  const ovBody = () => {
+    const o = JSON.parse(JSON.stringify(OV)); o.insight.ai_scope = { days: 30, project_id: null };
+    if (written) Object.assign(o.insight, { lede: 'FX 模型写的结论', when: 'AI 撰写 · 基于当前数据', basis: 'ai_narrative', caveats: ['FX 样本少'],
+      source: { task_id: 'narrate.overview', job_id: 'fx-ov-1', engine: 'claude_code', finished_at: Date.UTC(2026, 9, 3, 1, 5) } });
+    return o;
+  };
+  const gw = await gateway(page, { extra: {
+    'GET /v1/uiview/overview': () => ovBody(),
+    'GET /v1/ai/jobs/fx-ov-1': () => { written = true; return { job_id: 'fx-ov-1', task_id: 'narrate.overview', status: 'ok', stages: [], log: [], result: { summary: 'FX 模型写的结论', source: 'ai' } }; }
+  } });
+  await page.route(/^http:\/\/orbit\.test\/v1\/ai\/jobs$/, (route) => (posts.push(route.request().postDataJSON()), route.fulfill(consent
+    ? { status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'consent_required', message: '需要授权', retryable: false, missing: ['summary'], engine: 'claude_code' } }) }
+    : { status: 202, contentType: 'application/json', body: JSON.stringify({ job_id: 'fx-ov-1', status: 'queued', cached: false }) })));
+  await page.goto('http://orbit.test/app#token=fx-token');
+  await page.evaluate(() => { S.range = 30; go('overview'); });
+  const card = page.locator('#aiCard');
+  await expect(card.locator('#aiLead')).toContainText('四个维度里有的还落在');
+  await expect(card.locator('[data-lv="ins-basis"]')).toHaveText('规则解读');      // rule template: no purple AI badge
+  await expect(card.locator('.aib')).toHaveCount(0);
+  await expect(card.locator('[data-aigen]')).toHaveText('规则模板 · 本地生成');
+  consent = true;
+  await card.locator('[data-act="regen"]').click();
+  await expect(page.locator('#toast')).toContainText('需要先授权这些数据类：summary');   // details sit next to code
+  await expect(card.locator('.aib')).toHaveCount(0);
+  consent = false;
+  await card.locator('[data-act="regen"]').click();
+  await expect(card.locator('#aiLead')).toContainText('FX 模型写的结论');
+  await expect(card.locator('.aib')).toContainText('AI 解读');
+  await expect(card.locator('[data-aigen]')).toContainText('AI 撰写 · 基于当前数据 · Claude Code');
+  await expect(card.locator('[data-aigen]')).toHaveAttribute('data-tip', 'FX 样本少');
+  expect(posts.length).toBe(2);
+  expect(gw.seen.some((x) => x.path === '/v1/uiview/overview')).toBe(true);
+  expect(posts[1]).toEqual({ task_id: 'narrate.overview', scope: { days: 30 }, fresh: true });
   expect(errors).toEqual([]);
 });
