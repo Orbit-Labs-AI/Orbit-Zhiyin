@@ -170,6 +170,8 @@ function wordSearch(term) {
 // or its width change; the mood chart redraws only when its buckets change (snMountMood).
 RG.pages.add('sentiment');
 const SN_DEPS = ['facts', 'filters', 'feed:sentiment', 'live', 'S.engine'];
+// which layout the page shows (cheap: the same tests snCtx makes): 'off' engine, 'wait' for the feed, 'ready' cards
+const snMode = () => (!LV.live && S.engine === 'stats' ? 'off' : LV.live && !LVS.sent ? 'wait' : 'ready');
 const snCtx = () => RG.memo('a6', () => {
   // live: the view model comes from /v1/uiview/sentiment (94-live-sentiment-search.js); mock: derived from the demo rows
   const V = LV.live ? (LVS.view = lvSentView(sel())) : null;
@@ -226,9 +228,9 @@ PAGES.sentiment = () => region('a6:tbar', SN_DEPS, snTbar, { after: () => tbarFi
   region('a6:filters', SN_DEPS, snFilters, { wrap: true }) +
   region('a6:off', ['live', 'S.engine'], () => (snCtx().mode === 'off' ? empty('语义分析已关闭：分析引擎设为「仅统计」。<br><br><button type="button" class="btn p" data-act="openSettings" data-tab="analysis">去设置开启</button>') : '')) +
   region('a6:shell', SN_DEPS, () => (snCtx().mode === 'wait' ? lvSentShell(snCtx().V) : '')) +
-  // the cards exist once the data is there; the row region follows only what switches that (feed / connection / engine),
-  // so a filter or facts change refreshes the cards one by one
-  region('a6:body', ['feed:sentiment', 'live', 'S.engine'], () => (snCtx().mode !== 'ready' ? '' : '<div class="stack">' +
+  // the cards exist once the data is there; the row region follows only that switch (snMode), so a feed, filter or facts
+  // change refreshes the cards one by one
+  region('a6:body', [snMode], () => (snCtx().mode !== 'ready' ? '' : '<div class="stack">' +
     region('a6:mood', SN_DEPS.concat(['S.sent.view']), snMood, { after: (el) => snMountMood(el) }) +
     '<div class="two sn-two">' + region('a6:fric', SN_DEPS, snFric) + region('a6:phr', SN_DEPS, snPhr) + '</div>' +
     region('a6:words', SN_DEPS.concat([() => (LV.live ? 0 : WORDS.length)]), () => wordCard(snCtx().words, snCtx().V), { after: (el) => wordMountR(el) }) + '</div>')) +
