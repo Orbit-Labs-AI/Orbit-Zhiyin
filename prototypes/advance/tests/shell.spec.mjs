@@ -29,8 +29,8 @@
 // 10. dark contrast    selected sidebar row vs sidebar ≥ 1.3; window / sidebar / card pairwise ≥ 1.15 in dark mode.
 // 11. overflow         no horizontal overflow (document, #main, #win inside the viewport) with the sidebar shown / hidden,
 //                      zoomed and in full screen, on three representative pages.
-// 12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26); the page title is serif, meta /
-//                      counts / eyebrows are mono, nav and the system clock are the system font; resize handles are invisible
+// 12. type & chrome    shell text only uses the macOS type scale (10/11/12/13/15/17/22/26); every surface uses the system sans (SF Pro + PingFang SC, 600-weight
+//                      title, tabular counts), keycaps SF Mono, no web fonts; resize handles are invisible
 //                      (no background, no pseudo content); notifications are 344px wide, 16px from the stage edge, and reveal
 //                      their actions on hover.
 // 13. motion           every effect of the published demo is still wired up (mac-14 only): keyframes blink / fadein / grow /
@@ -360,12 +360,14 @@ test('shell text uses the macOS type scale and system font; resize handles are i
     }));
     const fam = (sel) => getComputedStyle(document.querySelector(sel)).fontFamily;
     const handles = Array.from(document.querySelectorAll('#win .rz')).map((h) => { const cs = getComputedStyle(h), ps = getComputedStyle(h, '::after'); return { bg: cs.backgroundColor, after: ps.content, w: h.offsetWidth, h: h.offsetHeight, radius: cs.borderRadius }; });
-    return { offScale: [...offScale], title: fam('#main .tbar h1'), nav: fam('.nav button'), clock: fam('.mbar .clock'), meta: fam('#main .tbar .meta'), eb: fam('#pop .eb'), ct: fam('.nav .ct'), handles };
+    return { offScale: [...offScale], title: fam('#main .tbar h1'), nav: fam('.nav button'), clock: fam('.mbar .clock'), meta: fam('#main .tbar .meta'), eb: fam('#pop .eb'), ct: fam('.nav .ct'), kbd: fam('.kbd'), titleW: getComputedStyle(document.querySelector('#main .tbar h1')).fontWeight, web: Array.from(document.styleSheets).some((ss) => { try { return Array.from(ss.cssRules).some((x) => /Source Serif|JetBrains|@font-face/.test(x.cssText)); } catch (_) { return true; } }), handles };
   });
   expect(r.offScale).toEqual([]);
-  expect(r.title.split(',')[0].trim()).toBe('"Source Serif 4"');
-  for (const f of [r.nav, r.clock]) expect(f.split(',')[0].trim()).toBe('system-ui');
-  expect(r.meta.split(',')[0].trim()).toBe('"JetBrains Mono"'); expect(r.eb.split(',')[0].trim()).toBe('"JetBrains Mono"'); expect(r.ct.split(',')[0].trim()).toBe('"JetBrains Mono"');
+  // one system sans everywhere (SF Pro + PingFang SC), 600-weight titles, SF Mono only for keycaps / code; no web fonts
+  for (const f of [r.title, r.nav, r.clock, r.meta, r.eb, r.ct]) { expect(f.split(',')[0].trim()).toBe('-apple-system'); expect(f).toContain('"PingFang SC"'); }
+  expect(r.titleW).toBe('600');
+  expect(r.kbd.split(',')[0].trim()).toBe('ui-monospace');
+  expect(r.web).toBe(false);
   expect(r.handles).toHaveLength(8);
   for (const h of r.handles) { expect(h.bg).toBe('rgba(0, 0, 0, 0)'); expect(h.after).toBe('none'); expect(Math.max(h.w, h.h) <= 10 || Math.min(h.w, h.h) <= 6).toBe(true); expect(h.radius).toBe('0px'); }
   expect(errors).toEqual([]);

@@ -6,7 +6,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [品牌](brand.md) | 产品名 Orbit、代码标识的沿用规则、标志与 App 图标、备选与历史版本 |
+| [品牌](brand.md) | 产品名 Orbit、代码标识的沿用规则、标志与 App 图标、字体、备选与历史版本 |
 | [路演组件素材](ppt-assets/README.md) | 从现行 UI 提取 PPT 可用的透明 PNG、SVG、页面与素材索引 |
 | [Demo 说明](demo.md) | 统一 App（Lite + Advance）怎么看、有哪些交互、怎么修改与发布 |
 | [画板与设计决定](boards.md) | Advance v1 画板索引、原始设计决定、v1 之后的现行决定、假设 |
