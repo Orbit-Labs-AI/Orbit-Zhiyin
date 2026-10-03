@@ -9,10 +9,48 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const sum = (arr, fn) => arr.reduce((a, x) => a + fn(x), 0);
 function rng(seed) { let s = seed | 0; return () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h | 0; }
-const store = {
-  get(k, d) { try { const v = localStorage.getItem('tandem-demo:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem('tandem-demo:' + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
-};
+// UI preferences. Browser: localStorage 'tandem-demo:*' only. Native shell with the "prefs" feature: the WKWebView store is
+// non-persistent (and the gateway port changes every launch), so the host keeps <data home>/ui-prefs.json, injects it as
+// window.__ORBIT_PREFS__ at document start, and store.get reads that; store.set still writes localStorage and also posts
+// {type:'prefs', set:{key: value|null}} (merged per key, debounced; null deletes). Surfaces share one file and only send the
+// keys they changed; 'tandem:prefs' carries other surfaces' changes into this page's copy.
+const store = (() => {
+  const LS = 'tandem-demo:';
+  const handler = () => { try { return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tandem; } catch (e) { return null; } };
+  const nat = window.__ORBIT_NATIVE__;
+  const p0 = window.__ORBIT_PREFS__;
+  const native = !!(nat && typeof nat === 'object' && Array.isArray(nat.features) && nat.features.indexOf('prefs') >= 0 && handler());
+  const cache = native ? Object.assign({}, p0 && typeof p0 === 'object' && !Array.isArray(p0) ? p0 : {}) : null;
+  let pending = null, timer = null;
+  function flush() {
+    clearTimeout(timer); timer = null;
+    if (!pending) return;
+    const set = pending; pending = null;
+    try { handler().postMessage({ type: 'prefs', set }); } catch (e) { /* host gone */ }
+  }
+  if (native) {
+    window.addEventListener('tandem:prefs', (e) => {
+      const set = (e && e.detail && e.detail.set) || {};
+      Object.keys(set).forEach((k) => { if (set[k] == null) delete cache[k]; else cache[k] = set[k]; });
+    });
+    window.addEventListener('pagehide', flush);
+  }
+  return {
+    native,
+    get(k, d) {
+      if (native) return Object.prototype.hasOwnProperty.call(cache, k) ? cache[k] : d;
+      try { const v = localStorage.getItem(LS + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ }
+      if (!native) return;
+      if (v == null) delete cache[k]; else cache[k] = JSON.parse(JSON.stringify(v));
+      (pending = pending || {})[k] = v == null ? null : cache[k];
+      clearTimeout(timer); timer = setTimeout(flush, 150);
+    },
+    flush
+  };
+})();
 const I = {
   overview: 'M4 4h6v8H4zM14 4h6v5h-6zM14 13h6v7h-6zM4 16h6v4H4z',
   persona: 'M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 15c1.5 1.3 4.5 1.3 6 0M9 10h.01M15 10h.01',

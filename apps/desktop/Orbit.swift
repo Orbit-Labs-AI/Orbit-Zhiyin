@@ -10,7 +10,7 @@ import WebKit
 let appVersion = "0.0.2"
 let bundleID = "ai.actionmesh.orbit"
 let nativeFeatures = ["window", "chooseFolder", "save", "openExternal", "reveal", "notify", "openMain",
-                      "resizeSurface", "onboarded", "commands", "surface:panel", "surface:hud", "surface:widgets"]
+                      "resizeSurface", "onboarded", "commands", "prefs", "surface:panel", "surface:hud", "surface:widgets"]
 
 func dataHome() -> URL {
     if let home = ProcessInfo.processInfo.environment["TANDEM_HOME"], !home.isEmpty {
@@ -39,6 +39,44 @@ func jsonLiteral(_ value: Any) -> String {
     guard let data = try? JSONSerialization.data(withJSONObject: value),
           let json = String(data: data, encoding: .utf8) else { return "null" }
     return json
+}
+
+/// UI preferences shared by every surface (the web views' own storage is non-persistent and the gateway port
+/// changes every launch): <data home>/ui-prefs.json, injected as window.__ORBIT_PREFS__ at document start.
+/// The page sends {type: "prefs", set: {key: value | null}}; keys merge (null deletes), the file is written
+/// atomically, a corrupt or oversized file starts empty, and a merge that would exceed maxBytes is dropped.
+final class UIPrefs {
+    static let maxBytes = 256 * 1024
+    let url: URL
+    private(set) var values: [String: Any] = [:]
+
+    init(home: URL) {
+        url = home.appendingPathComponent("ui-prefs.json")
+        if let data = try? Data(contentsOf: url), data.count <= UIPrefs.maxBytes,
+           let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] { values = object }
+    }
+
+    /// Returns the accepted changes, or nil when nothing changed or the result would be too large.
+    func merge(_ changes: [String: Any]) -> [String: Any]? {
+        var next = values
+        var accepted: [String: Any] = [:]
+        for (key, value) in changes where !key.isEmpty && key.count <= 128 {
+            if value is NSNull { next.removeValue(forKey: key) }
+            else if JSONSerialization.isValidJSONObject([value]) { next[key] = value }
+            else { continue }
+            accepted[key] = value
+        }
+        guard !accepted.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: next, options: [.sortedKeys]),
+              data.count <= UIPrefs.maxBytes else { return nil }
+        values = next
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+        if (try? data.write(to: url, options: .atomic)) != nil {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        }
+        return accepted
+    }
 }
 
 enum Surface: String { case main, panel, hud, widgets }
@@ -239,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func bootstrapScript(_ origin: URL) -> String {
         let native: [String: Any] = ["v": 1, "app": appVersion, "platform": "macos", "features": nativeFeatures]
         return "window.__TANDEM_TOKEN__ = \(jsString(token)); window.__TANDEM_ENDPOINT__ = \(jsString(endpoint(origin)));" +
-            " window.__ORBIT_NATIVE__ = \(jsonLiteral(native));"
+            " window.__ORBIT_NATIVE__ = \(jsonLiteral(native)); window.__ORBIT_PREFS__ = \(jsonLiteral(prefs.values));"
     }
 
     /// Installs the document-start bootstrap and loads the page, or (after a helper restart)
@@ -586,6 +624,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
     }
 
+    lazy var prefs = UIPrefs(home: home)
+
+    /// Saves a surface's changed preference keys, passes them to the other surfaces and refreshes every
+    /// document-start bootstrap so a reload sees the current values.
+    func savePrefs(_ body: [String: Any], from host: WebHost) {
+        guard let changes = body["set"] as? [String: Any], let accepted = prefs.merge(changes) else { return }
+        for other in hosts.values where other !== host { dispatch("tandem:prefs", ["set": accepted], to: other) }
+        guard let origin = origin else { return }
+        for each in hosts.values where each.loaded {
+            let controller = each.webView.configuration.userContentController
+            controller.removeAllUserScripts()
+            controller.addUserScript(WKUserScript(source: bootstrapScript(origin), injectionTime: .atDocumentStart,
+                                                  forMainFrameOnly: true))
+        }
+    }
+
     /// The one message handler for every web view: only the gateway's own pages may call it.
     func receive(_ message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let origin = origin, let host = host(of: message.webView),
@@ -605,6 +659,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             }
         case "notify": notify(body)
+        case "prefs": savePrefs(body, from: host)
         case "openMain": openMain(route: body["route"] as? String)
         case "onboarded":
             // Show the HUD once onboarding finishes, unless the user has already hidden it.

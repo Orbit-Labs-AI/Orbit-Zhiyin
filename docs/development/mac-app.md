@@ -14,7 +14,7 @@ uv run python apps/desktop/build.py --skip-helper  # 复用上次 PyInstaller �
 
 步骤：
 
-1. `node prototypes/advance/build.mjs --out Resources/orbit.html` 生成单文件 UI；随后去掉 Google Fonts `<link>`，把根 devDependencies `@fontsource-variable/source-serif-4`（opsz 正体/斜体）与 `@fontsource-variable/jetbrains-mono`（wght）的 latin、latin-ext 子集以 base64 woff2 内联为 `<style id="orbit-fonts">`（字体名沿用页面的 `Source Serif 4`、`JetBrains Mono`，约 0.7 MB）。中文仍回退系统 PingFang/宋体。需先 `pnpm install`。
+1. `node prototypes/advance/build.mjs --out Resources/orbit.html` 生成单文件 UI。页面只用 macOS 系统字体（SF Pro、PingFang SC、SF Mono，见 [品牌](../design/brand.md#字体)），不内联网页字体；产物若含远程字体链接则构建失败。
 2. PyInstaller 6.22.3（`uv run --with`，不新增锁文件）以 onedir 打包 `apps/desktop/server_entry.py` 为 `Resources/backend/tandem-helper`；`--collect-all` 工作区包（含 SQL/JSON/模板等包数据）与 jieba，`--copy-metadata` 读取发行元数据的包，并显式加入 uvicorn 与 worker 模块。
 3. `swiftc -O -target arm64-apple-macos14.0` 编译 `Orbit.swift`（AppKit、WebKit、Security、UserNotifications）。
 4. 图标 `Orbit.icns` 只用现有原稿：1024 px 直接取 `docs/design/logo/orbit-icon.png`，其他尺寸由 `render_svg.swift` 原样渲染 `orbit-icon.svg`；低于 128 px 按 `prototypes/advance/tools/brand-icon.mjs` 的规则换用 `orbit-mark-small.svg`（同一底板与变换）。菜单栏图标 `StatusIcon.png`/`@2x` 由 `render_svg.swift` 按原始宽高比原样渲染 `orbit-mark-small.svg`（16 pt 高），宿主作为模板图使用。不重绘、不调整线宽。
@@ -38,7 +38,7 @@ gateway (FastAPI + uvicorn, 127.0.0.1 动态端口)
   └─ 其余 /v1/* 需要 Bearer；worker ingest / analysis 由同一可执行文件以 `worker <role>` 再启动
 ```
 
-页面 CSP：`default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:`。gateway 返回页面时也会去掉指向外部的 `<link>`；随包 `orbit.html` 已内联网页字体，离线显示与在线一致。
+页面 CSP：`default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:`。gateway 返回页面时也会去掉指向外部的 `<link>`；页面只用系统字体，离线显示与在线一致。
 
 ### 消息桥
 

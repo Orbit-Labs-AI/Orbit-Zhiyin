@@ -39,7 +39,7 @@
 .tm-h{font-size:11px;color:var(--ink-3);text-align:center;padding:0 0 2px;white-space:nowrap}
 .tm-corner{text-align:right;font-size:10px;padding-right:6px;cursor:help}
 .tm-rh{font-size:11px;line-height:32px;color:var(--ink-2);padding-right:6px;white-space:nowrap;text-align:right}
-.tm-c{height:32px;min-width:36px;border:0;border-radius:4px;font:600 11px var(--mono);font-variant-numeric:tabular-nums;padding:0;display:grid;place-items:center;cursor:default;transition:box-shadow .12s,opacity .12s}
+.tm-c{height:32px;min-width:36px;border:0;border-radius:4px;font:600 11px var(--font-num);font-variant-numeric:tabular-nums;padding:0;display:grid;place-items:center;cursor:default;transition:box-shadow .12s,opacity .12s}
 .tm-c.diag{box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--ink-1) 35%,transparent)}
 .tm-c.peak{box-shadow:inset 0 0 0 2px var(--ink-1)}
 .tm-n{font-size:11px;line-height:32px;color:var(--ink-3);text-align:right;padding-left:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
