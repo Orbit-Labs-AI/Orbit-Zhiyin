@@ -24,7 +24,7 @@ BUILTIN: dict[str, tuple[str, str, str]] = {
     "SIFV": ("雕刻师", "The Sculptor", "小步试、即时看、反复改，一点点削出想要的形状。"),
     "SIFT": ("搭档", "The Partner", "像结对编程一样边聊边推进，彼此信任。"),
 }
-UNDETERMINED = ("尚未定型", "Undetermined", "有维度落在 45–55 之间，暂不下结论。")
+UNDETERMINED = ("暂无画像", "No persona yet", "所选范围还没有会话。")
 # k = value key; high value → L letter (prototype ``pairs``), low value → R letter.
 AXES = (
     {"k": "D", "hi": "D", "hi_n": "委托", "lo": "S", "lo_n": "掌舵", "dim": "自主度",
