@@ -301,6 +301,9 @@ body.native .win.nosb .tbar{padding-left:20px}
 .cap{font-size:12px;line-height:16px;color:var(--ink-3)}
 .eb{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+/* a card header is always one 24px control tall, so titles in sibling cards sit on the same line whether the header
+   carries a 24px .seg / .btn or only a text link */
+.card>.hd{min-height:24px}
 .hd .grow{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .btn{height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;font-weight:500;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}
 .btn:hover{background:color-mix(in srgb,var(--surface) 92%,var(--ink-1))}
@@ -524,6 +527,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-ct .cap{font-weight:400;font-size:11px}
 .vz-kpi{padding:11px 14px 10px;display:flex;flex-direction:column;gap:4px;text-align:left;border:1px solid var(--line);cursor:default;width:100%;container-type:inline-size}
 .vz-kpi-h{justify-content:space-between;width:100%}
+/* a tile without a trend line keeps the 24px head of its spark-carrying siblings, so labels and values line up */
+.tiles:has(.vz-spark) .vz-kpi-h{min-height:24px}
 .vz-kpi-l{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @container (max-width:150px){.vz-kpi .vz-spark{display:none}}
 .vz-kpi-v{align-items:baseline;gap:3px}
@@ -809,7 +814,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* KPI tiles: compact spark stays visible at 150px tiles (the period label refers to it); period label sits right, under the spark */
 #ovTiles .vz-kpi{padding:12px 12px 10px}
 #ovTiles .vz-kpi .vz-spark{display:block;flex:none}
-#ovTiles .vz-kpi-h{gap:6px}
+#ovTiles .vz-kpi-h{gap:6px;min-height:20px}
 #ovTiles .vz-kpi-p{margin-left:auto;font-size:10px;color:var(--ink-4)}
 #ovTiles .vz-kpi-d{letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis}
 @container (max-width:132px){#ovTiles .vz-kpi-d{font-size:10px}}
@@ -870,7 +875,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .ov-foot{margin-top:8px;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ov-out-t .ct{font-size:15px;font-weight:600}
 .ov-out-t .ct .mono{font-weight:600}
-.ov-recn{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:36px}
+.ov-recn{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:36px;text-wrap:balance}
 @container main (min-width:640px) and (max-width:799px){#ovTiles{grid-template-columns:repeat(6,minmax(0,1fr))}#ovTiles>:nth-child(-n+3){grid-column:span 2}#ovTiles>:nth-child(n+4){grid-column:span 3}}
 @container main (max-width:639px){#ovTiles>:last-child:nth-child(odd){grid-column:1/-1}}
 
