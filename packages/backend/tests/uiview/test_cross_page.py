@@ -1,0 +1,86 @@
+"""One definition per metric and filter across pages (A1 overview / A3 sessions / A4 tools / A6).
+
+- tool-call results: ``metrics.tool_state`` (interrupted = known, not failed) everywhere;
+- the prototype's "no project" id ``_none`` selects sessions whose project is NULL on every
+  page, not an empty set;
+- A6 ``days`` is N local calendar days like A1 / A3 ``range``, not N×24 h back from now.
+"""
+
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
+
+import pytest
+
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.uiview import a4a6_common as common
+from orbit_backend.uiview import a4a6_sentiment, derive, facts, metrics, sessions
+from orbit_backend.uiview import a4a6_tools as tools
+
+from .a4a6_fixture import T0, conn, home, orbit  # noqa: F401 - pytest fixtures
+
+
+@pytest.mark.parametrize(("status", "state"), [
+    ("completed", "ok"), ("success", "ok"), ("failed", "failed"), ("error", "failed"),
+    ("interrupted", "stopped"), ("rejected", "stopped"), ("unknown", "unknown"),
+    ("running", "unknown"), (None, "unknown"), ("", "unknown")])
+def test_tool_state(status, state):
+    assert metrics.tool_state(status) == state
+
+
+def test_interrupted_calls_count_alike_on_every_page(orbit, conn):  # noqa: F811
+    orbit.session("s1")
+    for status in ("completed", "failed", "interrupted", "unknown"):
+        orbit.call("s1", status=status)
+    kpi = tools.build_tools(conn, Scope(), {}, now_ms=T0 + 86_400_000)["kpis"]["error_rate"]
+    assert (kpi["failed"], kpi["known"], kpi["unknown"]) == (1, 3, 1)
+    statuses = ["completed", "failed", "interrupted", "unknown"]
+    assert sessions.errors_of(statuses) == 1
+    assert sessions.errors_of(["interrupted", "unknown"]) == 0  # interrupted is a known result
+    assert sessions.errors_of(["unknown", "running"]) is None
+    per_root = facts._tools(conn, '["s1"]', {})["s1"]
+    (_kind, n, failed, known), = per_root.values()
+    assert (n, failed, known) == (4, 1, 3)
+
+
+def test_no_project_id_matches_null_project():
+    assert derive.project_matches(None, derive.NO_PROJECT_ID)
+    assert not derive.project_matches("p1", derive.NO_PROJECT_ID)
+    assert derive.project_matches("p1", None) and derive.project_matches(None, None)
+    assert derive.passes({"p": None, "a": "codex"}, {"project": "_none"})
+    rows = [{"id": "a", "p": None, "a": "codex", "started_at": 1, "d": "2025-01-01",
+             "live": False, "excluded": False},
+            {"id": "b", "p": "p1", "a": "codex", "started_at": 1, "d": "2025-01-01",
+             "live": False, "excluded": False}]
+    body = sessions.list_sessions(rows, now_ms=2, tz=UTC, project="_none")
+    assert [r["id"] for r in body["rows"]] == ["a"]
+
+
+def test_no_project_id_in_sql_scopes(orbit, conn):  # noqa: F811
+    orbit.session("with", project="p1")
+    orbit.session("none", project=None)
+    orbit.call("with")
+    orbit.call("none")
+    where, params = common.scope_where({"project_ids": ["_none"]})
+    got = {r[0] for r in conn.execute(f"SELECT session_uid FROM session s WHERE {where}", params)}
+    assert got == {"none"}
+    where, params = common.scope_where({"project_ids": ["p1", "_none"]})
+    got = {r[0] for r in conn.execute(f"SELECT session_uid FROM session s WHERE {where}", params)}
+    assert got == {"with", "none"}
+    body = tools.build_tools(conn, Scope(project_ids=["_none"]), {}, now_ms=T0 + 86_400_000)
+    assert body["header"]["calls"] == 1
+    got = a4a6_sentiment.fetch_sessions(conn, {"project_ids": ["_none"]})
+    assert set(got) == {"none"}
+
+
+def test_sentiment_days_are_local_calendar_days():
+    zone = ZoneInfo("Asia/Shanghai")
+    now = int(datetime(2026, 10, 3, 15, 30, tzinfo=zone).timestamp() * 1000)
+    since, until = a4a6_sentiment._window({"days": 7}, now, zone)
+    assert until == now
+    assert datetime.fromtimestamp(since / 1000, zone) == datetime(2026, 9, 27, tzinfo=zone)
+    # The same 7 days A1 / A3 call range=7: today and the six days before it.
+    assert derive.win(7) == (-6, 0)
+    assert (date(2026, 10, 3) - datetime.fromtimestamp(since / 1000, zone).date()).days == 6
+    # An explicit since still wins; without a zone the old rolling window stays.
+    assert a4a6_sentiment._window({"since": 5, "days": 7}, now, zone)[0] == 5
+    assert a4a6_sentiment._window({"days": 1}, now)[0] == now - 86_400_000

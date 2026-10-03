@@ -49,6 +49,19 @@ def _in(column: str, values) -> tuple[str, list]:
     return f"{column} IN (SELECT value FROM json_each(?))", [json.dumps(list(values))]
 
 
+def project_clause(column: str, ids) -> tuple[str, list]:
+    """``column IN ids``; ``derive.NO_PROJECT_ID`` ('_none') also selects ``column IS NULL``,
+    the same rule as ``derive.project_matches`` on the fact rows (A1 / A2 / A3)."""
+    from .derive import NO_PROJECT_ID
+
+    ids = list(ids)
+    named = [i for i in ids if i != NO_PROJECT_ID]
+    sql, params = _in(column, named)
+    if len(named) < len(ids):
+        sql = f"({sql} OR {column} IS NULL)"
+    return sql, params
+
+
 def scope_where(scope, alias: str = "s", *, agents=None, time_col: str | None = None,
                 from_ts: int | None = None, until_ts: int | None = None,
                 use_scope_time: bool = False) -> tuple[str, list]:
@@ -67,7 +80,7 @@ def scope_where(scope, alias: str = "s", *, agents=None, time_col: str | None = 
         params.extend(sql_params[1])
 
     if s.get("project_ids") is not None:
-        add(_in(f"{alias}.project_id", s["project_ids"]))
+        add(project_clause(f"{alias}.project_id", s["project_ids"]))
     if s.get("source_ids") is not None:
         add(_in(f"{alias}.source_id", s["source_ids"]))
     wanted = [*(s.get("agent_ids") or []), *(agents or [])]

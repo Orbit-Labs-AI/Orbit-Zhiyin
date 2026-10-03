@@ -15,7 +15,8 @@ import sqlite3
 import time
 import unicodedata
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from datetime import time as dt_time
 from zoneinfo import ZoneInfo
 
 from ..analytics.common import quantile
@@ -23,6 +24,7 @@ from ..analytics.interaction.rules import correction_kind, correction_verdict
 from ..analytics.products.feedback import classify_emotion
 from ..features.vocab import command_info
 from ..privacy import direct_user_text, redact
+from . import metrics
 from .a4a6_common import ManyQuery
 from .a6_terms import build_terms
 
@@ -46,7 +48,7 @@ FRICTION_LABELS = {
     "quota_interrupt": "额度中断", "other": "其他",
 }
 READ_ONLY_KINDS = {"read", "search", "file.read", "list"}
-FAILED = ("failed", "error")
+FAILED = metrics.TOOL_FAILED  # same failure class as A1 / A3 / A4
 
 PHRASE_MAX = 40
 PHRASE_RULES = (  # priority: 纠偏 > 验证 > 规划 > 风格 > 偏好
@@ -114,9 +116,11 @@ def scope_sql(scope: dict | None, alias: str = "s") -> tuple[str, list]:
     scope = scope or {}
     sql, params = [f"{alias}.kind='main'"], []
     if scope.get("project_ids"):
-        ids = list(scope["project_ids"])
-        sql.append(f"{alias}.project_id IN ({','.join('?' * len(ids))})")
-        params += ids
+        from .a4a6_common import project_clause
+
+        clause, values = project_clause(f"{alias}.project_id", scope["project_ids"])
+        sql.append(clause)
+        params += values
     if scope.get("agent_ids"):
         ids = list(scope["agent_ids"])
         sql.append(f"{alias}.source_id IN (SELECT source_id FROM source WHERE agent IN "
@@ -404,16 +408,27 @@ def build_meta(appdb) -> dict:
             "privacy": "脱敏后的文本在启用 AI 引擎时会发往该引擎的服务商"}
 
 
-def _window(params, now_ms):
+def _window(params, now_ms, zone=None):
+    """``[since, until)``. Without ``since``, ``days`` = the last N local calendar days of
+    ``zone`` including today (A1 / A3 ``range`` windows), not N×24 h back from now: a rolling
+    window would start mid-day and give the first day bucket a partial count."""
     until = params.get("until") or now_ms
-    since = params.get("since") or until - int(params.get("days") or 30) * DAY_MS
+    since = params.get("since")
+    if not since:
+        days = int(params.get("days") or 30)
+        if zone is None:
+            since = until - days * DAY_MS
+        else:
+            end = datetime.fromtimestamp(until / 1000, zone)
+            start = datetime.combine(end.date() - timedelta(days=days - 1), dt_time(0), zone)
+            since = int(start.timestamp() * 1000)
     return int(since), int(until)
 
 
 def build_sentiment(conn, appdb, scope, params, *, now_ms: int) -> dict:
     params = params or {}
-    since, until = _window(params, now_ms)
     zone = ZoneInfo(params["tz"]) if params.get("tz") else datetime.now().astimezone().tzinfo
+    since, until = _window(params, now_ms, zone)
     base = {k: v for k, v in (scope or {}).items() if k not in ("from_ts", "until_ts")}
     sessions = fetch_sessions(conn, {**base, "from_ts": since, "until_ts": until})
     prev_sessions = fetch_sessions(conn, {**base, "from_ts": since - (until - since),
