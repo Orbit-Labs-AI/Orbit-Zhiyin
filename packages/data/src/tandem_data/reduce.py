@@ -11,6 +11,7 @@ import json
 import re
 import subprocess
 from collections import Counter, defaultdict
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -253,6 +254,19 @@ TOOL_KINDS = {
 }
 
 
+@lru_cache(maxsize=32768)
+def _cached_command_spec_json(command, cwd, project_id):
+    spec = command_spec(command, cwd=cwd, project_id=project_id)
+    return canonical(spec) if spec is not None else None
+
+
+def _command_spec_json(command, cwd, project_id):
+    """Every whole-source rebuild re-derives each call; parse each command once per process."""
+    if len(command) > 2048 or not (cwd is None or isinstance(cwd, str)):
+        return _cached_command_spec_json.__wrapped__(command, cwd, project_id)
+    return _cached_command_spec_json(command, cwd, project_id)
+
+
 def tool_metadata(name, attrs, *, cwd=None, project_id=None):
     kind = next((key for key, names in TOOL_KINDS.items() if name.lower() in names), "other")
     if attrs.get("category") in TOOL_KINDS:
@@ -275,9 +289,7 @@ def tool_metadata(name, attrs, *, cwd=None, project_id=None):
     # Effective program (cd/env/shell wrappers unwrapped); never a path or an assignment.
     head = command_head(command)
     spec = (
-        command_spec(
-            command, cwd=(args or {}).get("workdir", attrs.get("cwd", cwd)), project_id=project_id
-        )
+        _command_spec_json(command, (args or {}).get("workdir", attrs.get("cwd", cwd)), project_id)
         if kind == "shell" and isinstance(command, str)
         else None
     )
@@ -289,7 +301,7 @@ def tool_metadata(name, attrs, *, cwd=None, project_id=None):
         "mcp_tool": tool,
         "skill": skill,
         "command_head": head,
-        "command_spec": canonical(spec) if spec is not None else None,
+        "command_spec": spec,
         "files": canonical(files),
     }
 
@@ -486,12 +498,22 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
     # A partial import can first create a child-path project; later parent metadata
     # folds its sessions into the enclosing project. Keep explicit inventories and
     # overrides, but discard provisional rows with no remaining canonical evidence.
+    # One indexed probe per project and referencing table, instead of materializing
+    # every event_context/tool_call/model_call project_id on each (closure) derive.
     store.db.execute(
-        "DELETE FROM project WHERE project_id NOT IN (SELECT project_id FROM ("
-        "SELECT project_id FROM session UNION ALL SELECT project_id FROM event_context "
-        "UNION ALL SELECT project_id FROM turn UNION ALL SELECT project_id FROM tool_call "
-        "UNION ALL SELECT project_id FROM model_call UNION ALL SELECT project_id FROM project_override "
-        "UNION ALL SELECT project_id FROM inventory_scan) WHERE project_id IS NOT NULL)"
+        "DELETE FROM project WHERE "
+        + " AND ".join(
+            f"NOT EXISTS(SELECT 1 FROM {table} x WHERE x.project_id=project.project_id)"
+            for table in (
+                "session",
+                "event_context",
+                "turn",
+                "tool_call",
+                "model_call",
+                "project_override",
+                "inventory_scan",
+            )
+        )
     )
 
 
