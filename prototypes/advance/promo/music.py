@@ -10,6 +10,10 @@ Every pitched cue (badges, plucks, stabs, arps, bells, letters, entry notes) is 
 beat (`q()` / `tone()`), there are no glides, semitone rubs or chromatic slides, and rapid events (word settles, bubble
 pops, keystrokes, counter ticks, dial ticks, flap rolls) are soft unpitched textures under the groove, so they never form a
 melody. The petal-by-petal flower changes are gentle rolled chords; the closing stroke is a rising filtered swell.
+The v17.7 Agent-dot morphs get their own 'morph' bus: a light chord-tone bell / pluck for a single morph, an airy
+breath for rapid ones (tails, caret pulses, ticks, petal sweeps), a soft knock for the pointer press and pin stabs, a
+chord-tone shimmer for the spark and a low swell on the root for orb splits / merges; the run prints each cue's margin
+under the rest of the mix (≥ 10 dB).
 
 SHIFT-aware: every cue below is written in its scene file's own beats inside `section('<scene>')`; put(), the chord
 timeline, the groove spans and the pad-level points all add SHIFT[scene] (the same table as promo.js). Chords change
@@ -36,11 +40,13 @@ N = int((END * BEAT + TAIL) * SR)
 rng = np.random.default_rng(7)
 BUS = {}   # name -> (L, R), for sidechain and reverb sends
 SH = 0     # SHIFT of the section being written
+SCENE = ''
 
 
 def section(name):
-    global SH
+    global SH, SCENE
     SH = SHIFT[name]
+    SCENE = name
 
 
 def bus(name):
@@ -651,6 +657,87 @@ for i, m in enumerate(AG):                                                  # �
 FADE = (END - 1.8, END)                                                     # FADE0 = TURN0 + 11.2: everything decays to 0 by END
 
 
+# ================= v17.7 Agent-dot morphs: soft cues on the 'morph' bus (scene beats per section), ≥ 10 dB under the lead
+def m_air(d=0.14, lo=3500, hi=9000):
+    """Rapid morphs (ticks, caret pulses, tails, petal sweeps): an airy breath, unpitched, no attack."""
+    t = tt(d)
+    return bp(noise(d), lo, hi) * np.sin(np.pi * np.clip(t / d, 0, 1)) ** 2 * 0.5
+
+
+def m_click():
+    """The studio pointer press / a pin stab: a small soft knock."""
+    t = tt(0.08)
+    return bp(noise(0.08), 1200, 4200) * np.exp(-t * 260) * 0.45 + np.sin(2 * np.pi * 150 * t) * np.exp(-t * 70) * 0.35
+
+
+def m_low(m, d):
+    """Orb splits / merges: a low soft swell on the chord root, rising then dying away (sine + octave, no attack)."""
+    t = tt(d)
+    f = midi(m)
+    env = np.sin(np.pi * np.clip(t / d, 0, 1) ** 0.6) ** 2
+    return (np.sin(2 * np.pi * f * t) + 0.3 * np.sin(2 * np.pi * 2 * f * t)) * env
+
+
+def mcue(b, kind, i=0):
+    pan = (-0.5, 0.3, -0.2, 0.5, 0.0)[i % 5]
+    if kind == 'bell':                                       # a single morph: a light high bell on a chord tone
+        put(bell(tone(b, (i + 2) % 4, 84), 0.9), b, 0.022, pan, to='morph')
+    elif kind == 'pluck':                                    # a single morph, drier
+        put(blip(tone(b, (i + 1) % 4, 79), 0.3), b, 0.028, pan, to='morph')
+    elif kind == 'air':
+        put(m_air(), b - 0.1, 0.09, pan, to='morph')
+    elif kind == 'click':
+        put(m_click(), b, 0.08, pan, to='morph')
+    elif kind == 'spark':                                    # a gentle shimmer of chord tones
+        for k in range(5):
+            bk = b + 0.12 * k
+            put(blip(tone(bk, k % 4, 88), 0.15), bk, 0.011 * (1 - 0.12 * k), -0.4 + 0.2 * k, to='morph')
+    elif kind == 'low':                                      # orb split / merge
+        put(m_low(tone(b, 0, 36), 1.4 * BEAT), b - 0.3 if b + SH >= 0.3 else b, 0.05, 0.0, to='morph')
+
+
+MCUES = []   # (scene, [film beats]) for the level report
+
+
+def mcues(spec):
+    MCUES.append((SCENE, [b + SH for b, _ in spec]))
+    for i, (b, kind) in enumerate(spec):
+        mcue(b, kind, i)
+
+
+section('10-intro')
+mcues([(0.2, 'low'), (0.35, 'air'), (1.46, 'pluck'), (1.91, 'pluck'), (2.45, 'click'), (6.75, 'bell'), (7.12, 'air'),
+       (8.0, 'air'), (8.3, 'air'), (8.55, 'air'), (8.65, 'air'), (9.18, 'air'), (9.48, 'air'), (9.95, 'air'),
+       (10.3, 'air'), (10.56, 'air'), (11.15, 'spark'), (11.65, 'bell'), (13.2, 'air')])
+section('15-redesign')
+mcues([(11.8, 'air'), (12.2, 'bell'), (13.85, 'pluck'), (15.9, 'click'), (19.85, 'bell'), (20.4, 'pluck'),
+       (21.9, 'air'), (22.1, 'air'), (22.3, 'air'), (22.7, 'air'), (23.0, 'spark')])
+section('20-orbit')
+mcues([(21.6, 'air'), (23.3, 'bell'), (25.25, 'pluck'), (26.25, 'air'), (26.7, 'air'), (30.45, 'pluck'),
+       (32.1, 'bell'), (33.0, 'spark')])
+section('30-persona')
+mcues([(29.1, 'air'), (29.5, 'bell')]
+      + [(35.6 + 0.25 * k, 'air') for k in range(5)]                 # each petal sweep: one breath per dot as it turns
+      + [(37.7 + 0.25 * k, 'air') for k in range(5)]
+      + [(39.6, 'air'), (40.65, 'air'), (40.78, 'air')]
+      + [(41.42 + 0.1 * k, 'air') for k in range(5)])                # the reveal ring, inner to outer
+section('40-recs')
+mcues([(39.5, 'pluck'), (39.64, 'pluck'), (39.78, 'pluck'), (40.52, 'air'), (40.66, 'air'),
+       (41.6, 'air'), (42.7, 'air'), (43.8, 'air')]
+      + [x for p in (44.6, 47.1, 50.1, 53.1, 56.1, 59.1) for x in ((p, 'pluck'), (p + 0.8, 'air'))]   # pill out, ✓ tick
+      + [(62.3, 'bell')])
+section('50-tools')
+mcues([(56.2, 'air'), (56.9, 'low'), (57.1, 'pluck'), (57.65, 'click'), (59.85, 'click'), (62.15, 'click'),
+       (64.85, 'click'), (67.6, 'bell'), (68.8, 'click'), (68.95, 'spark'), (73.75, 'low')])
+section('60-close')
+mcues([(69.2, 'low')] + [(69.5 + 0.06 * k, 'air') for k in (0, 2, 4)]
+      + [(71.95, 'bell')] + [(72.64 + 0.12 * k, 'air') for k in range(5)]
+      + [(75.55, 'pluck'), (78.6, 'bell'), (79.1, 'air')]
+      + [(84.275 + 0.2 * k, 'air') for k in range(5)]
+      + [(87.2 + 0.16 * k, 'air') for k in range(5)]
+      + [(93.0, 'low')])
+
+
 # ---------------- render the grid layers: groove, pads ----------------
 def render_groove():
     spans = [list(g) for g in GROOVE]                   # definition order: a later span wins an overlap
@@ -744,15 +831,16 @@ ir = rng.standard_normal(len(ir_t)) * np.exp(-ir_t * 2.6)
 ir = lp(ir, 5500)
 ir /= np.sqrt(np.sum(ir ** 2))
 
-out_l = bus('dry')[0] + bus('keys')[0] + bus('kick')[0] + bus('verbsend')[0] + (bus('duck')[0] + bus('duckverb')[0]) * duck
-out_r = bus('dry')[1] + bus('keys')[1] + bus('kick')[1] + bus('verbsend')[1] + (bus('duck')[1] + bus('duckverb')[1]) * duck
-send_l = bus('verbsend')[0] + bus('duckverb')[0] * duck * 0.6
-send_r = bus('verbsend')[1] + bus('duckverb')[1] * duck * 0.6
+out_l = bus('dry')[0] + bus('keys')[0] + bus('morph')[0] + bus('kick')[0] + bus('verbsend')[0] + (bus('duck')[0] + bus('duckverb')[0]) * duck
+out_r = bus('dry')[1] + bus('keys')[1] + bus('morph')[1] + bus('kick')[1] + bus('verbsend')[1] + (bus('duck')[1] + bus('duckverb')[1]) * duck
+send_l = bus('verbsend')[0] + bus('duckverb')[0] * duck * 0.6 + bus('morph')[0] * 0.5
+send_r = bus('verbsend')[1] + bus('duckverb')[1] * duck * 0.6 + bus('morph')[1] * 0.5
 out_l += signal.fftconvolve(send_l, ir)[:N] * 0.3
 out_r += signal.fftconvolve(send_r, np.roll(ir, 211))[:N] * 0.3
 
 mix = np.stack([out_l, out_r])
 KEYS = np.stack(bus('keys'))   # for the level report below
+MORPH = np.stack(bus('morph'))
 for b0, b1, b2, b3, fc in LPF:                      # low-pass automation: zero-phase copy, crossfaded in and out
     w = np.interp(np.arange(N), [at(b0), at(b1), at(b2), at(b3)], [0, 1, 1, 0], left=0, right=0)
     sos = signal.butter(2, fc, 'low', fs=SR, output='sos')
@@ -785,3 +873,15 @@ for name, b0, b1 in (('1b typing', 7.2, 10.8), ('1d typing', 12.95 + 6.9, 17.95 
     kr = np.sqrt(np.mean((KEYS[:, i0:i1] * norm * 1.6 / np.tanh(1.6) * 0.85) ** 2))
     tr = np.sqrt(np.mean(mix[:, i0:i1] ** 2))
     print(f'  {name}: keys {20 * np.log10(kr):6.1f} dBFS, full mix {20 * np.log10(tr):6.1f} dBFS, keys under mix by {20 * np.log10(tr / kr):5.1f} dB')
+# the dot-morph cues: each one's level vs everything else in a ±.3-beat window (must stay ≥ 10 dB under)
+G = norm * 1.6 / np.tanh(1.6) * 0.85
+worst = []
+for name, cues in MCUES:
+    for fb in cues:
+        i0, i1 = at(max(0, fb - 0.3)), at(fb + 0.3)
+        mr = np.sqrt(np.mean((MORPH[:, i0:i1] * G) ** 2)) + 1e-12
+        tr = np.sqrt(np.mean(((mix[:, i0:i1]) - MORPH[:, i0:i1] * G) ** 2)) + 1e-12
+        worst.append((20 * np.log10(tr / mr), name, fb))
+worst.sort()
+print('  dot morphs: %d cues, quietest margin %.1f dB under the mix (%s film b%.2f), median %.1f dB' % (
+    len(worst), worst[0][0], worst[0][1], worst[0][2], worst[len(worst) // 2][0]))
