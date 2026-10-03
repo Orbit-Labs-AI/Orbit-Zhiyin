@@ -6772,12 +6772,12 @@
      }
     ]
    },
-   "sha256": "0fea1f4625836e04b2c924cc4252bf67b89545b2de8d2337338ef83aab4f0844",
+   "sha256": "b36e7903c69013ba93a6bbc7560be16e1c486245598230c5c42177ce3534575c",
    "summary": {
     "confidence_semantics": "evidence tiers; no calibrated correctness or utility probability",
     "edges": "list[4437]",
     "nodes": "list[4432]",
-    "schema_version": "work-graph-v1",
+    "schema_version": "work-graph-v2",
     "status": "available",
     "summary": "dict[10]",
     "task_trajectories": "list[200]"

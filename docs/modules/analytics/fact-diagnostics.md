@@ -10,6 +10,8 @@ Orbit 的诊断输出把八个特征族的输入数量、有效观察、未知�
 bash scripts/check-feature-diagnostics.sh
 ```
 
+实现是 `analytics/diagnostics.py`，入口只有这条开发者命令（`evals.analytics.local_diagnostics`）与 `evals/` 下的稳健性、基准脚本；网关不提供对应路由，App 的诊断卡来自 `presentation/diagnostics.py`（`/v1/analytics/presentation`）。两者面向不同读者：本命令核对模块覆盖，App 卡片给用户看排序后的问题。
+
 命令直接在终端输出，不依赖 `uv`，不调用模型，也不重新扫描或导入来源。默认优先读取 `.local/backend-nine-hour/current-data/tandem.db`，没有该目录时使用 `.local/backend-nine-hour/p0-data/tandem.db`；这些是本机验收快照的位置，其他机器需显式指定已经导入的 canonical 数据目录：
 
 ```sh

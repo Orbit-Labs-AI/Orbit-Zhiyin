@@ -21,13 +21,13 @@ TITLES = {"overview": "概览", "metrics": "核心指标", "persona": "协作画
           "projects": "项目", "friction": "摩擦", "recommendations": "推荐", "tools": "工具"}
 NEEDS = {"overview": ("overview",), "metrics": ("overview",), "tools": ("tools",),
          "projects": ("projects",), "friction": ("overview", "tools"),
-         "persona": sharecard.PERSONA_SECTIONS, "recommendations": ()}
+         "persona": (), "recommendations": ()}
 BASIS = {"overview": "analytics.overview 快照（与总览页同口径）",
          "metrics": "analytics.overview 快照 counts / usage",
          "tools": "analytics.tools 快照（已知状态的调用为分母）",
          "projects": "analytics.projects 快照",
          "friction": "analytics.tools totals + overview 纠偏信号",
-         "persona": "presentation.profile 四轴（每轴有效任务数），实验性",
+         "persona": "uiview.persona 四轴（与画像页、分享卡同一结果），实验性",
          "recommendations": "recommend 最新一次运行（标题与状态）"}
 MIN_SESSIONS = 5
 INSUFFICIENT = "样本不足"
@@ -90,6 +90,10 @@ def _overview(body):
     return (body or {}).get("overview") or {}
 
 
+def _active_days(body) -> int | None:
+    return (_overview(body).get("activity_rhythm") or {}).get("active_days")
+
+
 def _coverage(body) -> dict:
     coverage = (body or {}).get("coverage") or {}
     return {k: v.get("status") for k, v in coverage.items() if isinstance(v, dict)}
@@ -101,7 +105,7 @@ def _overview_data(bodies):
     return counts.get("main_sessions"), {
         "main_sessions": counts.get("main_sessions"), "sessions": counts.get("sessions"),
         "human_messages": counts.get("human_messages"), "turns": counts.get("turns"),
-        "active_days": sharecard.active_days(bodies["overview"]),
+        "active_days": _active_days(bodies["overview"]),
         "request_count": usage.get("request_count"), "total_tokens": usage.get("total_tokens"),
         "cost_usd": usage.get("cost_usd"),
         "top_tools": [{"name": t.get("name_raw"), "calls": t.get("call_count")}
@@ -118,7 +122,7 @@ METRICS = (("sessions", "会话", "个"), ("main_sessions", "主会话", "个"),
 def _metrics_data(bodies):
     view = _overview(bodies["overview"])
     values = {**(view.get("counts") or {}), **(view.get("usage") or {}),
-              "active_days": sharecard.active_days(bodies["overview"])}
+              "active_days": _active_days(bodies["overview"])}
     rows = [{"id": key, "label": label, "value": values.get(key), "unit": unit}
             for key, label, unit in METRICS]
     return (view.get("counts") or {}).get("main_sessions"), {"rows": rows}
@@ -164,21 +168,38 @@ def _friction_data(bodies):
         "correction_signal_rate": counts.get("correction_signal_rate")}
 
 
-def _persona_data(bodies):
-    profile = sharecard.persona_profile(bodies)
-    gate = sharecard.gate(profile, sharecard.active_days(bodies["overview"]))
-    n = min((a["n_units"] for a in gate["axes"]), default=None)
-    reason = sharecard.blocked_reason(profile, gate)
-    if reason is not None:  # Same gate as the share card: no persona below it.
+def _persona_data(page: dict | None):
+    """(n sessions, data | None, blocked reason) from a ``uiview.persona.page`` payload,
+    with the share card's gate (``sharecard.card_reason``)."""
+    gate = sharecard.card_gate(page)
+    reason = sharecard.card_reason(page, gate)
+    n = (page or {}).get("n")
+    if reason is not None:
         return n, None, reason
     from .type_copy import copy_for
 
-    code = sharecard.persona_code(profile)
-    return n, {"code": code, "type_name": copy_for(code)[0], "experimental": True,
-               "label": "实验性", "headline": profile.get("headline"),
-               "axes": [{"axis": k, "label": a.get("label"), "direction": a.get("direction"),
-                         "n_units": a.get("effective_task_n")}
-                        for k, a in profile["axes"].items()]}, None
+    code = page["code"]
+    return n, {"code": code, "type_name": copy_for(code)[0] or page.get("zh"),
+               "experimental": True, "label": "实验性", "headline": page.get("line"),
+               "hint": page.get("hint"), "days": page.get("days"),
+               "axes": [{"axis": a["k"], "label": f"{a['left']} / {a['right']}",
+                         "letter": a["letter"], "value": a["value"], "lo": a["lo"],
+                         "hi": a["hi"], "n_units": a["n_units"], "unit": a["unit"]}
+                        for a in page["axes"]]}, None
+
+
+def persona_page(gw, scope: dict, wait_ms: int) -> tuple[dict | None, str, list[str]]:
+    """(A2 persona payload | None, freshness, notes) for the report's analytics scope."""
+    from ..uiview import fetch, overview
+
+    facts_scope, params, notes = sharecard.persona_request(scope)
+    try:
+        page, freshness, _ = fetch.persona_page(
+            gw, facts_scope, params, overview.today_in(scope.get("display_timezone")),
+            wait_ms=wait_ms)
+    except Exception:  # noqa: BLE001 - a failed analysis reads as unavailable in the report.
+        return None, "failed", notes
+    return page, freshness, notes
 
 
 def recommendations(appdb, scope_hash: str) -> dict | None:
@@ -275,8 +296,10 @@ def section_markdown(section: dict) -> str:
                                       ["纠偏信号", data["correction_signals"]],
                                       ["纠偏率", fmt(data["correction_signal_rate"], "%")]])
     elif sid == "persona":
-        out += table(["轴", "方向", "有效任务"], [[a["label"], a["direction"] or "?", a["n_units"]]
-                                             for a in data["axes"]])
+        out += table(["轴", "字母", "值", "95% 区间", "单位数"],
+                     [[a["label"], a["letter"], fmt(a["value"]),
+                       "—" if a["value"] is None else f"{a['lo']}–{a['hi']}", a["n_units"]]
+                      for a in data["axes"]])
     elif sid == "recommendations" and data["items"]:
         out += table(["推荐", "类型", "状态", "效果"],
                      [[i["title"], i["kind"], i["status"], i["effect_status"]]
@@ -316,7 +339,8 @@ MIN_N = {"overview": MIN_SESSIONS, "metrics": MIN_SESSIONS, "tools": MIN_SESSION
          "friction": MIN_SESSIONS, "projects": 1}
 
 
-def build_section(sid: str, fetched: dict, recs: dict | None) -> dict:
+def build_section(sid: str, fetched: dict, recs: dict | None,
+                  persona: tuple | None = None) -> dict:
     needs = NEEDS[sid]
     bodies = {name: fetched[name][0] for name in needs}
     states = [fetched[name][1] for name in needs]
@@ -335,9 +359,16 @@ def build_section(sid: str, fetched: dict, recs: dict | None) -> dict:
                        freshness=next((s for s in states if s not in ("fresh", "stale")), "none"),
                        coverage=None)
     elif sid == "persona":
-        n, data, reason = _persona_data(bodies)
-        section.update(n=n, data=data, status="ok" if data else
-                       "unavailable" if reason == "persona_unavailable" else "insufficient")
+        page, freshness, notes = persona or (None, "none", [])
+        if page is None:
+            section.update(status="computing" if freshness == "computing" else "unavailable",
+                           freshness=freshness, coverage=None)
+        else:
+            n, data, reason = _persona_data(page)
+            section.update(n=n, data=data, freshness=freshness, coverage=None,
+                           basis=" · ".join([BASIS[sid], *notes]),
+                           status="ok" if data else "unavailable"
+                           if reason == "persona_unavailable" else "insufficient")
     else:
         n, data = BUILDERS[sid](bodies)
         if n is None or data is None:
@@ -353,7 +384,8 @@ def assemble(gw, section_ids, scope: dict, *, wait_ms: int = 3000) -> dict:
     needed = [name for sid in section_ids for name in NEEDS[sid]]
     fetched, h = fetch_sections(gw, needed, scope, wait_ms)
     recs = recommendations(gw.appdb, h) if "recommendations" in section_ids else None
-    sections = [build_section(sid, fetched, recs) for sid in section_ids]
+    persona = persona_page(gw, scope, wait_ms) if "persona" in section_ids else None
+    sections = [build_section(sid, fetched, recs, persona) for sid in section_ids]
     notes = ["数字取自与页面相同的分析快照；缺失值显示为“未知”，不按 0 处理。"]
     if "persona" in section_ids:
         notes.append("协作画像为实验性，未达分享卡同一样本门槛时不显示。")

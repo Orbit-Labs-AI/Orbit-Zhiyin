@@ -2,7 +2,7 @@
 
 这层把已经合入的八个特征族转换为前端可直接使用的指标、坐标和建议，不再读取原始日志或重新做语义提取。设计同时核对了原始 Lite / Advance UI 的实际渲染代码，逐项来源见[原始 UI 对照](original-ui-mapping.md)；四轴名称沿用《agent轨迹数据处理方向与分析工具.md》。本次不扩大暂缓特征的范围。
 
-入口为 `build_presentation(analysis)`，输入是同一筛选范围的 `analyze_bundle`／`analyze_store` 输出。结果版本为 `presentation-v2`；诊断规则为 `presentation-diagnostics-v1`；画像规则为 `collaboration-profile-v1`。纯代码计算，不调用模型或外部 API，也不修改输入。v2 将 `overview.collaboration_duration` 从不可用改为 UI 定义的累计会话观测跨度；人工工时始终在独立的 `human_work_duration` 中保持未知，消费者需按版本升级标签与说明。
+入口为 `build_presentation(analysis)`，输入是同一筛选范围的 `analyze_bundle`／`analyze_store` 输出。结果版本为 `presentation-v2`；诊断规则为 `presentation-diagnostics-v1`；画像规则为 `collaboration-profile-v2`。纯代码计算，不调用模型或外部 API，也不修改输入。v2 将 `overview.collaboration_duration` 从不可用改为 UI 定义的累计会话观测跨度；人工工时始终在独立的 `human_work_duration` 中保持未知，消费者需按版本升级标签与说明。
 
 ## 1. 分层与页面合同
 
@@ -52,14 +52,15 @@
 
 时间成员边界统一为 UTC 毫秒的 `[from_ts, until_ts)`。`display_timezone` 只决定日、小时、月的日历分桶，不修改事件时间。后补标签和返回结果的可见性仍由 Feature 层控制，展示层不另行补入范围外历史。
 
-`window=7d/30d/90d` 为滚动 `N × 24` 小时：
+`window=7d/30d/90d`（`metrics.window_scope`）：
 
 ```text
-until = 显式 until_ts，否则当前 UTC 毫秒
-from  = until - N × 86_400_000
+有显式 until_ts：from = until_ts - N × 86_400_000（固定 N×24 小时）
+否则：until = display_timezone 中“现在”之后的第一个本地零点（今天结束）
+      from  = until 所在本地日期往前 N 天的本地零点（今天 + 之前 N-1 个本地日）
 ```
 
-因此 `7d` 不等于本地自然周。`window` 与显式 `from_ts` 同时出现会报错；可以用 `until_ts` 回看历史窗口。`window=all` 不与 `from_ts/until_ts` 混用。需要“本周建议”时应明确给出本周边界；默认建议只对当前选择范围负责。
+同一本地日内的所有请求得到相同边界，快照与分析缓存可复用；日期变化时窗口才移动。网关在请求时按本地日锚定并把 `window_until` 写入快照参数，worker 与旧版 API 用同一锚点重算。例：上海 2026-03-10 15:30 请求 `7d`，得 `[03-04 00:00, 03-11 00:00)`。`7d` 不等于本地自然周。`window` 与显式 `from_ts` 同时出现会报错；可以用 `until_ts` 回看历史窗口。`window=all` 不与 `from_ts/until_ts` 混用。需要“本周建议”时应明确给出本周边界；默认建议只对当前选择范围负责。
 
 ### 零与未知分别编码
 
@@ -200,20 +201,22 @@ observed_axis = Σ x_task / 有效任务数
 
 | 轴 | 当前字段映射 | `score` 与类型输出 |
 | --- | --- | --- |
-| 控制 C／委托 D | `requested_autonomy.ask_first→0`，`scoped→0.5`，`explicit→1`；scoped 与明确端点共现采用端点，ask_first 与 explicit 冲突则弃权 | 可以输出观察子集上的连续 `score`；满足展示门槛才给暂定 C/D |
-| 探索 E／规划 P | 仅 `execution_order.plan_first` 记规划支持；discuss_first 不自动当规划，execute_first 不自动当探索 | `observed_score` 可描述命中的支持侧；`score=null`、`direction=null`，原因 `single_pole_extractor` |
-| 加速 A／验证 V | 仅 `verification_requirements.requested` 记核验支持 | 与 P 相同；没要求测试不表示偏好加速 |
+| 控制 C／委托 D | `requested_autonomy.ask_first→0`，`explicit→1`；ask_first 与 explicit 冲突则弃权；`scoped`（有限授权）两极都不是，单列 `scoped_task_n`，不进均值 | 满足展示门槛时输出 `score`；Wilson 区间完全越过阈值才给暂定 C/D |
+| 探索 E／规划 P | `execution_order.plan_first` 或 `discuss_first→1`，`execute_first→0`；规划类与 execute_first 同任务共现则弃权 | 两极都有提取规则，规则同 C/D |
+| 加速 A／验证 V | 仅 `verification_requirements.requested` 记核验支持 | 单极：`score=null`、`direction=null`，原因 `single_pole_extractor`；用 `signal_rate` 描述；没要求测试不表示偏好加速 |
 | 专精 S／编排 O | 当前没有明确用户编排选择的规范字段 | 分数和方向均为空；工具多、领域熵高、子代理多不代替该证据 |
 
 `signal_rate` 另外提供“明确规则命中任务数／有可读指令且该轴不冲突的任务数”。这个分母允许未命中任务，因此零值表示没有规则命中；它不表示相反人格。O 没有提取规则，连规则命中率也保持为空。
 
-D 方向的实际展示门槛：
+两极轴（C/D、E/P）的方向展示门槛：
 
-1. 至少 5 个本轴有效任务，证据来自至少 2 个会话；只计算本轴证据的会话，不借无关跟进消息凑数。
-2. 有效任务不能含候选任务边界；仅有候选边界时可以展示观察数值，但暂不给类型方向。
-3. 分数严格 `<0.4` 才给 C，严格 `>0.6` 才给 D；中间和边界均不选方向。
+1. 至少 5 个本轴有效任务（`MIN_TASKS`），证据来自至少 2 个会话（`MIN_SESSIONS`）；只计算本轴证据的会话，不借无关跟进消息凑数。不足时 `score` 为空，原因 `requires_five_tasks_and_two_sessions`。
+2. 有效任务不能含候选任务边界；仅有候选边界时可以展示观察数值，但暂不给方向。
+3. 每任务投票为 0/1，均值即比例，取其 Wilson 95% 区间（Wilson 1927；Brown, Cai & DasGupta 2001）：区间上界 `<0.4` 才给低端字母，下界 `>0.6` 才给高端字母，否则不选方向（`interval_crosses_direction_threshold`）。例如 4/5 的区间约 0.38–0.96，不给方向；20/25 约 0.61–0.91，给高端字母。
 
-这是版本化的产品启发规则，不是心理学阈值或校准置信度。只有四轴方向齐备才拼 `code`；按当前提取能力完整四字码通常为 `null`，不填造 MBTI。`headline` 由这些已知事实生成确定性短句，不声称是模型推断的心理结论。
+门槛与阈值是版本化的产品默认值，未经人群校准，不是心理学阈值或校准置信度。
+
+**本投影不产出四字母类型。** `profile` 没有 `code` 字段，而是给出 `typing = {produces_type_code: false, type_authority: "uiview-persona-v0", reason: "orchestration_not_extracted_and_verification_single_pole"}`：编排轴没有提取规则、验证轴只有一极，拼出的字母总会有一部分是推断。完整 16 型由 `uiview.persona`（`uiview-persona-v0`，见 [profiling.md](profiling.md)）按行为单位计算：1 个会话即出完整 4 字母，每轴按 50 分界，没有单位的轴按 50 计，只有四轴都无值（空选择）才不揭晓。两者字母体系不同（本节为 C/D、E/P、A/V、S/O 的明确请求观察），不能互相换算。`headline` 由已知事实生成确定性短句，不声称是模型推断的心理结论。
 
 算例：任务甲十次明确委托、任务乙一次先询问，两个任务的 D 观察均值是 `(1+0)/2=0.5`，不是 `10/11`。只有两个任务也不满足方向显示门槛。
 
@@ -273,7 +276,7 @@ priority = 100 × r × support × coverage
 | 项目完成度 vs Token | Token 可独立展示；`projects[*].completion` 不可用，保留声明的验收集合 | 完整项目任务／交付清单、版本、完成标准与可比权重；所有未完成和未知项的范围 |
 | AGENTS.md、hooks、skills、MCP、配置子代理覆盖 | `configuration_coverage` 不可用 | 带项目／Agent／版本／采集时间的配置盘点；明确已检查不存在与未采集的区别 |
 | 真人协作工时 | `collaboration_duration` 不可用 | 经用户认可的人工投入测量、暂停／并行／离开口径；不能用会话跨度代替 |
-| 完整十六类型 | 四轴缺口可见，`code` 为空 | 明确探索／加速／专精／编排选择的独立字段及语义验收；不从缺信号倒推 |
+| 明确请求四轴的完整类型 | 四轴缺口可见，`typing.produces_type_code=false`；App 展示的 16 型来自 `uiview.persona` | 明确加速／专精／编排选择的独立字段及语义验收；不从缺信号倒推 |
 | 为你推荐资源 | `resources.for_you` 和 `resource_recommendations` 原样保留同范围推荐引擎结果；另保留 `matching_signals` | 继续补齐七类可信资源及环境清单；缺资源／证据时保留引擎的空结果，不伪造推荐 |
 | 同人格正在用、热门 | `same_persona/popular` 不可用 | 有授权的群体使用数据、时间窗、去重身份、足够覆盖与适用范围 |
 | 预计节省时间／Token／费用、ROI | `expected_effect=null`；不新增费用估算 | 同类任务、相同验收约束的实际干预前后或对照数据，包含额外配置开销 |
@@ -291,7 +294,7 @@ GET /v1/analytics/presentation?window=7d&agent_ids=codex&display_timezone=Asia/S
 
 列表筛选沿用重复 query 参数方式，例如 `agent_ids=codex&agent_ids=claude_code`；值须匹配来源中的真实 Agent ID。支持共享筛选及上面的 `window` 规则。历史时间参数使用 UTC 毫秒，非法时区或冲突时间条件返回校验错误。
 
-`agent_ids` 筛选历史数据来源，`target_agent` 指资源适配目标（generic / codex / claude_code），两者独立；可用 `family` 选择推荐资源族。CLI 对应 `--recommendation-agent`、`--recommendation-family`、`--recommendation-catalog`；显式空目录仍为空，不回退种子。展示摘要还包含推荐目录、目标和策略的结果，资源条件改变会更新 `presentation_digest`。
+`agent_ids` 筛选历史数据来源，`target_agent` 指资源适配目标（`generic` 加数据层能力矩阵中的七种 agent：claude_code、codex、opencode、pi、hermes、dsh、kimi；网关与旧版 API 共用 `routes_analytics.check_target`，未知值 422），两者独立；可用 `family` 选择推荐资源族。CLI 对应 `--recommendation-agent`、`--recommendation-family`、`--recommendation-catalog`；显式空目录仍为空，不回退种子。展示摘要还包含推荐目录、目标和策略的结果，资源条件改变会更新 `presentation_digest`。
 
 导出：
 

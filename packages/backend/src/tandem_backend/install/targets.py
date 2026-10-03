@@ -46,9 +46,11 @@ class Row:
     requires_trust: bool = False
     note: str | None = None
     reason: str | None = None
+    chain: str | None = None  # md_block whose file is picked by ``context_file``
 
 
-C, X = "claude_code", "codex"
+C, X, D, P, H, OC = "claude_code", "codex", "dsh", "pi", "hermes", "opencode"
+SCOPES = ("user", "project")
 TABLE: dict[tuple[str, str, str], Row] = {
     ("permission_rule", C, "user"): Row("merge_json", "{root}/settings.json", "/permissions/allow"),
     ("permission_rule", C, "project"): Row("merge_json", "{proj}/.claude/settings.local.json", "/permissions/allow",
@@ -73,23 +75,144 @@ TABLE: dict[tuple[str, str, str], Row] = {
     ("plugin", C, "user"): Row("merge_json", "{root}/settings.json", "/enabledPlugins"),
     ("plugin", C, "project"): Row("merge_json", "{proj}/.claude/settings.local.json", "/enabledPlugins",
                                   scope="local"),
-    ("permission_rule", X, "user"): Row("create_file", "{root}/rules/tandem-{id}.rules", note="语法待验证 V6"),
-    ("permission_rule", X, "project"): Row(reason="codex_project_rules_unsupported_v1"),
-    ("rule", X, "user"): Row("md_block", "{root}/AGENTS.md"),
-    ("rule", X, "project"): Row("md_block", "{proj}/AGENTS.md", shared_layer=True),
-    ("skill", X, "user"): Row("create_file", "{skills}/{name}/{rel}", note="skills 目录待验证 V6"),
-    ("skill", X, "project"): Row(reason="codex_project_skills_unsupported_v1"),
-    ("command", X, "user"): Row("create_file", "{root}/prompts/{name}.md"),
-    ("command", X, "project"): Row(reason="codex_project_prompts_unsupported_v1"),
+    # ---- Codex (third_party/codex/codex-rs). Project layers (``<proj>/.codex``) load only for
+    # trusted projects (core/src/exec_policy.rs:662 "Disabled project layers already represent the
+    # trust decision"; hooks/src/engine/discovery.rs:146), hence ``requires_trust``.
+    # rules/*.rules + prefix_rule(pattern=[...], decision="allow"): core/src/exec_policy.rs:54-56,679,
+    # execpolicy/src/parser.rs prefix_rule.
+    ("permission_rule", X, "user"): Row("create_file", "{root}/rules/tandem-{id}.rules"),
+    ("permission_rule", X, "project"): Row("create_file", "{proj}/.codex/rules/tandem-{id}.rules",
+                                           requires_trust=True, shared_layer=True),
+    # AGENTS.override.md shadows AGENTS.md: codex-home/src/instructions/mod.rs:12-13,43 and
+    # core/src/agents_md.rs:271 candidate_filenames.
+    ("rule", X, "user"): Row("md_block", chain="codex_user"),
+    ("rule", X, "project"): Row("md_block", chain="codex_project", shared_layer=True),
+    # ~/.agents/skills (user) and <repo>/.agents/skills (repo): ext/skills/src/host_roots.rs:24-25,96-107,137-172.
+    ("skill", X, "user"): Row("create_file", "{skills}/{name}/{rel}"),
+    ("skill", X, "project"): Row("create_file", "{proj}/.agents/skills/{name}/{rel}", shared_layer=True),
+    ("command", X, "user"): Row(reason="codex_custom_prompts_removed"),
+    ("command", X, "project"): Row(reason="codex_custom_prompts_removed"),
+    # hooks.json beside config.toml, Claude-compatible schema: hooks/src/engine/discovery.rs:339-380.
     ("hook", X, "user"): Row("merge_json", "{root}/hooks.json", "/hooks/{event}", requires_trust=True),
-    ("hook", X, "project"): Row(reason="codex_project_hooks_unsupported_v1"),
+    ("hook", X, "project"): Row("merge_json", "{proj}/.codex/hooks.json", "/hooks/{event}", requires_trust=True,
+                                shared_layer=True),
+    # [mcp_servers.<name>] stdio / streamable_http only: config/src/mcp_types.rs:614 McpServerTransportConfig.
     ("mcp", X, "user"): Row("toml_block", "{root}/config.toml"),
-    ("mcp", X, "project"): Row(reason="codex_project_mcp_unsupported_v1"),
+    ("mcp", X, "project"): Row("toml_block", "{proj}/.codex/config.toml", requires_trust=True, shared_layer=True),
     **{(k, X, s): Row(reason=r) for k, r in (("subagent", "codex_has_no_subagent_files"),
                                              ("plugin", "codex_plugin_install_unsupported_v1"),
                                              ("setting", "codex_settings_unsupported_v1"))
-       for s in ("user", "project")},
+       for s in SCOPES},
+    # ---- dsh (third_party/deepseek-harness). Skills: packages/skill/skill-filesystem/README.md
+    # "Roots and priority" (<dshHome>/skills, <projectRoot>/.dsh/skills). Rules: $DSH_HOME/AGENTS.md
+    # plus every AGENTS.md/CLAUDE.md in the project chain, no shadowing
+    # (packages/context/agent-instructions/README.md:32,64,66). MCP and hooks are Cordis YAML
+    # plugin patches (docs/user/guide/mcp-memory.md, packages/hooks/README.md): not written in v1.
+    ("rule", D, "user"): Row("md_block", "{root}/AGENTS.md"),
+    ("rule", D, "project"): Row("md_block", "{proj}/AGENTS.md", shared_layer=True),
+    ("skill", D, "user"): Row("create_file", "{root}/skills/{name}/{rel}"),
+    ("skill", D, "project"): Row("create_file", "{proj}/.dsh/skills/{name}/{rel}", shared_layer=True),
+    **{(k, D, s): Row(reason="dsh_cordis_patch_unsupported_v1") for k in ("mcp", "hook") for s in SCOPES},
+    # ---- pi (third_party/pi/packages/coding-agent/src). Agent dir config.ts:563; skills/prompts
+    # under it and under <proj>/.pi, project ones only for trusted projects
+    # (core/package-manager.ts:2446-2520); mcp.json {mcpServers} (extensions/mcp/config.ts:1-25,117-118);
+    # context file = first of AGENTS.override.md/AGENTS.md/CLAUDE.md per dir (core/resource-loader.ts:184-245).
+    ("rule", P, "user"): Row("md_block", chain="pi_user"),
+    ("rule", P, "project"): Row("md_block", chain="pi_project", shared_layer=True),
+    ("skill", P, "user"): Row("create_file", "{root}/skills/{name}/{rel}"),
+    ("skill", P, "project"): Row("create_file", "{proj}/.pi/skills/{name}/{rel}", requires_trust=True,
+                                 shared_layer=True),
+    ("command", P, "user"): Row("create_file", "{root}/prompts/{name}.md"),
+    ("command", P, "project"): Row("create_file", "{proj}/.pi/prompts/{name}.md", requires_trust=True,
+                                   shared_layer=True),
+    ("mcp", P, "user"): Row("merge_json", "{root}/mcp.json", "/mcpServers/{name}", write_mode="set"),
+    ("mcp", P, "project"): Row("merge_json", "{proj}/.pi/mcp.json", "/mcpServers/{name}", write_mode="set",
+                               requires_trust=True, shared_layer=True),
+    **{("hook", P, s): Row(reason="pi_hooks_are_extensions") for s in SCOPES},
+    # ---- Hermes (third_party/hermes-agent). Skills under $HERMES_HOME/skills, walked recursively
+    # (tools/skill_manager_tool.py:70, agent/skill_utils.py:781); project <root>/.hermes/skills only
+    # for skills.trusted_project_dirs (agent/skill_utils.py:429-436). Project context priority
+    # .hermes.md > AGENTS.md > CLAUDE.md > .cursorrules, first non-empty type wins
+    # (agent/prompt_builder.py:1690-1760). The only user-level file is SOUL.md, the identity slot
+    # (prompt_builder.py:1627). MCP and hooks live in config.yaml (hermes_cli/config.py:1004,3200).
+    ("rule", H, "user"): Row(reason="hermes_soul_md_is_identity"),
+    ("rule", H, "project"): Row("md_block", chain="hermes_project", shared_layer=True),
+    ("skill", H, "user"): Row("create_file", "{root}/skills/{name}/{rel}"),
+    ("skill", H, "project"): Row("create_file", "{proj}/.hermes/skills/{name}/{rel}", requires_trust=True,
+                                 shared_layer=True),
+    **{(k, H, s): Row(reason="hermes_yaml_config_unsupported_v1") for k in ("mcp", "hook") for s in SCOPES},
+    # ---- OpenCode (third_party/opencode/packages). Config dir core/src/global.ts:13,64; opencode.json /
+    # opencode.jsonc (opencode/src/config/config.ts:272-274); skills {skill,skills}/**/SKILL.md
+    # (opencode/src/skill/index.ts:24,205); commands {command,commands}/**/*.md (config/command.ts:15);
+    # mcp local/remote (core/src/v1/config/mcp.ts); permission.bash pattern map, last match wins
+    # (core/src/v1/config/permission.ts, opencode/src/permission/index.ts:32, core/src/util/wildcard.ts).
+    # Global AGENTS.md shadows ~/.claude/CLAUDE.md; per project the first of AGENTS.md/CLAUDE.md wins
+    # (opencode/src/session/instruction.ts:60-131).
+    ("rule", OC, "user"): Row("md_block", chain="opencode_user"),
+    ("rule", OC, "project"): Row("md_block", chain="opencode_project", shared_layer=True),
+    ("skill", OC, "user"): Row("create_file", "{cfg}/skills/{name}/{rel}"),
+    ("skill", OC, "project"): Row("create_file", "{proj}/.opencode/skills/{name}/{rel}", shared_layer=True),
+    ("command", OC, "user"): Row("create_file", "{cfg}/commands/{name}.md"),
+    ("command", OC, "project"): Row("create_file", "{proj}/.opencode/commands/{name}.md", shared_layer=True),
+    ("mcp", OC, "user"): Row("merge_json", "{oc_user}", "/mcp/{name}", write_mode="set"),
+    ("mcp", OC, "project"): Row("merge_json", "{oc_proj}", "/mcp/{name}", write_mode="set", shared_layer=True),
+    ("permission_rule", OC, "user"): Row("merge_json", "{oc_user}", "/permission/bash"),
+    ("permission_rule", OC, "project"): Row("merge_json", "{oc_proj}", "/permission/bash", shared_layer=True),
+    # Claude-style ``tools: Read, Grep`` front matter fails OpenCode's agent schema (tools is a map),
+    # and a bad agent file aborts config loading (config/agent.ts:13).
+    **{("subagent", OC, s): Row(reason="opencode_subagent_format_differs") for s in SCOPES},
+    **{("hook", OC, s): Row(reason="opencode_hooks_are_plugins") for s in SCOPES},
 }
+# Everything not listed for the newer agents has no landing point upstream.
+for _agent in (D, P, H, OC):
+    for _kind in KINDS:
+        for _scope in SCOPES:
+            TABLE.setdefault((_kind, _agent, _scope), Row(reason="not_mappable"))
+
+# Context-file chains: ordered candidates (path template, ours?). The first existing one (non-empty
+# where the agent skips empty files) is the file the agent reads; writing a different one would be
+# ignored or would shadow it. A foreign file (another tool's CLAUDE.md, .cursorrules) is never
+# rewritten on this agent's behalf: the target is refused instead.
+CHAINS: dict[str, tuple[bool, tuple[tuple[str, bool], ...]]] = {
+    "codex_user": (True, (("{root}/AGENTS.override.md", True), ("{root}/AGENTS.md", True))),
+    "codex_project": (False, (("{proj}/AGENTS.override.md", True), ("{proj}/AGENTS.md", True))),
+    "pi_user": (False, (("{root}/AGENTS.override.md", True), ("{root}/AGENTS.md", True),
+                        ("{root}/CLAUDE.md", False))),
+    "pi_project": (False, (("{proj}/AGENTS.override.md", True), ("{proj}/AGENTS.md", True),
+                           ("{proj}/CLAUDE.md", False))),
+    "hermes_project": (True, (("{proj}/.hermes.md", True), ("{proj}/HERMES.md", True),
+                              ("{proj}/AGENTS.override.md", True), ("{proj}/AGENTS.md", True),
+                              ("{proj}/CLAUDE.md", False), ("{proj}/.cursorrules", False))),
+    "opencode_user": (False, (("{cfg}/AGENTS.md", True), ("{home}/.claude/CLAUDE.md", False))),
+    "opencode_project": (False, (("{proj}/AGENTS.md", True), ("{proj}/CLAUDE.md", False))),
+}
+CHAIN_DEFAULT = "AGENTS.md"
+
+
+def context_file(chain: str, values: dict) -> tuple[str | None, str | None]:
+    """(path, None) for the file the agent actually reads, or (None, reason) when it is foreign."""
+    skip_empty, candidates = CHAINS[chain]
+    for template, ours in candidates:
+        path = template.format(**values)
+        try:
+            if not os.path.isfile(path) or (skip_empty and not Path(path).read_text("utf-8", "replace").strip()):
+                continue
+        except OSError:
+            continue
+        return (path, None) if ours else (None, f"context_file_shadowed:{os.path.basename(path)}")
+    base = os.path.dirname(candidates[0][0].format(**values))
+    return os.path.join(base, CHAIN_DEFAULT), None
+
+
+def opencode_config_file(directory: str) -> str:
+    """The OpenCode JSON config to merge into: an existing opencode.json, else opencode.jsonc, else new json.
+
+    A .jsonc with comments is refused by the JSON merge (``parse_error``) rather than stripped.
+    """
+    for name in ("opencode.json", "opencode.jsonc"):
+        if os.path.isfile(os.path.join(directory, name)):
+            return os.path.join(directory, name)
+    return os.path.join(directory, "opencode.json")
 
 
 def lookup(kind: str, agent: str, scope: str) -> Row | None:
@@ -215,6 +338,49 @@ def _toml_table(name: str, values: dict) -> list[str]:
     return lines
 
 
+def render_pi_mcp(payload: dict) -> dict:
+    """pi ``mcpServers`` entry (pi core/mcp-servers.ts McpStdioServerConfig / McpHttpServerConfig)."""
+    _, transport = _mcp_fields(payload)
+    if transport == "stdio":
+        out = {"command": payload["command"], "args": [str(a) for a in payload.get("args") or []]}
+        if payload.get("env"):
+            out["env"] = dict(payload["env"])
+        return out
+    out = {"type": "http", "url": payload["url"]}
+    if payload.get("headers"):
+        out["headers"] = dict(payload["headers"])
+    return out
+
+
+def render_opencode_mcp(payload: dict) -> dict:
+    """OpenCode ``mcp`` entry (opencode core/src/v1/config/mcp.ts Local / Remote)."""
+    _, transport = _mcp_fields(payload)
+    if transport == "stdio":
+        out = {"type": "local", "command": [str(payload["command"]), *(str(a) for a in payload.get("args") or [])]}
+        if payload.get("env"):
+            out["environment"] = dict(payload["env"])
+        return out
+    out = {"type": "remote", "url": payload["url"]}
+    if payload.get("headers"):
+        out["headers"] = dict(payload["headers"])
+    return out
+
+
+def render_opencode_permissions(payload: dict) -> dict:
+    """``permission.bash`` patterns; ``"git status *"`` also matches bare ``git status`` (core/src/util/wildcard.ts)."""
+    out = {}
+    for p in _prefixes(payload):
+        if any(c in p for c in "*?"):
+            raise PlanError("invalid_payload", f"wildcards are not allowed in a command prefix: {p!r}")
+        out[f"{p} *"] = "allow"
+    return out
+
+
+# Transports an agent cannot speak: Codex has stdio + streamable HTTP only
+# (codex config/src/mcp_types.rs:614); pi has stdio + http only (pi core/mcp-servers.ts:45,96).
+MCP_SSE_UNSUPPORTED = {"codex", "pi"}
+
+
 def render_codex_mcp(payload: dict) -> str:
     name, transport = _mcp_fields(payload)
     table = f"mcp_servers.{_toml_key(name)}"
@@ -290,12 +456,17 @@ def follow_link(path: str | Path, home: Path) -> str | None:
 
 REASON_TEXT = {
     "agent_not_supported_v1": "这个 Agent 暂不支持自动安装。",
+    "kimi_unverified_no_source": "Kimi Code 的配置落点尚未核实，暂不自动写入。",
+    "codex_custom_prompts_removed": "Codex 已不再读取自定义 prompts 目录，命令请改装为 Skill。",
+    "mcp_transport_unsupported": "这个 Agent 不支持该 MCP 传输方式（SSE），未自动写入。",
+    "context_file_shadowed": "该目录已有其他工具的说明文件在生效，新建规则文件会覆盖它的作用，请手动添加。",
+    "dsh_cordis_patch_unsupported_v1": "dsh 的 MCP 与 Hook 需要写入 Cordis 配置补丁，暂不自动安装。",
+    "pi_hooks_are_extensions": "Pi 的 Hook 以 TypeScript 扩展实现，无法自动安装。",
+    "hermes_soul_md_is_identity": "Hermes 的用户级说明文件 SOUL.md 是人格设定，不自动写入规则，请改装到项目级。",
+    "hermes_yaml_config_unsupported_v1": "Hermes 的 MCP 与 Hook 位于 config.yaml，暂不自动改写。",
+    "opencode_subagent_format_differs": "OpenCode 子代理格式与 Claude 不兼容，未自动写入。",
+    "opencode_hooks_are_plugins": "OpenCode 的 Hook 以插件实现，无法自动安装。",
     "not_mappable": "这个 Agent 没有对应的落地位置。",
-    "codex_project_rules_unsupported_v1": "Codex 暂不支持项目级权限规则，请改装到用户级。",
-    "codex_project_skills_unsupported_v1": "Codex 暂不支持项目级 Skill，请改装到用户级。",
-    "codex_project_prompts_unsupported_v1": "Codex 暂不支持项目级命令，请改装到用户级。",
-    "codex_project_hooks_unsupported_v1": "Codex 暂不支持项目级 Hook，请改装到用户级。",
-    "codex_project_mcp_unsupported_v1": "Codex 暂不支持项目级 MCP，请改装到用户级。",
     "codex_has_no_subagent_files": "Codex 没有子代理文件，无法安装此类条目。",
     "codex_plugin_install_unsupported_v1": "Codex 暂不支持插件安装。",
     "codex_settings_unsupported_v1": "Codex 暂不支持写入此类设置。",
@@ -347,7 +518,7 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
     for agent in spec.get("agents") or []:
         info = infos.get(agent)
         if not info or info.get("install_support") != "full":
-            unmappable(agent, "agent_not_supported_v1")
+            unmappable(agent, (info or {}).get("unsupported_reason") or "agent_not_supported_v1")
             continue
         row = lookup(kind, agent, scope)
         if row is None or row.reason:
@@ -359,9 +530,13 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
             continue
         note = "agent_not_detected" if not info.get("installed") else row.note
         layers = {lay["id"]: lay["path"] for lay in info.get("layers", [])}
-        values = {"root": info["root_abs"], "proj": project or "", "id": spec["id"],
-                  "claude_json": layers.get("mcp_user", ""),
-                  "skills": ((info.get("dirs") or {}).get("skills") or {}).get("path", "")}
+        dirs = info.get("dirs") or {}
+        cfg = (dirs.get("config") or {}).get("path", "")
+        values = {"root": info["root_abs"], "proj": project or "", "id": spec["id"], "home": str(home),
+                  "claude_json": layers.get("mcp_user", ""), "cfg": cfg,
+                  "skills": (dirs.get("skills") or {}).get("path", ""),
+                  "oc_user": opencode_config_file(cfg) if agent == OC else "",
+                  "oc_proj": opencode_config_file(project) if agent == OC and project else ""}
 
         def target(path: str, content, *, action=None, pointer=None, row=row, agent=agent, note=note,
                    **extra) -> None:
@@ -386,10 +561,16 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
             t.update(extra)
             out.append(t)
 
-        path = row.path.format(**values, name="{name}", rel="{rel}")
+        if row.chain:
+            path, shadow = context_file(row.chain, values)
+            if shadow:
+                unmappable(agent, shadow)
+                continue
+        else:
+            path = row.path.format(**values, name="{name}", rel="{rel}")
         if kind == "permission_rule":
-            content = render_claude_permissions(payload) if agent == C else render_codex_rules(payload)
-            target(path, content, pointer=row.pointer)
+            renderer = {C: render_claude_permissions, OC: render_opencode_permissions}.get(agent, render_codex_rules)
+            target(path, renderer(payload), pointer=row.pointer)
         elif kind == "setting":
             settings = payload.get("settings")
             if not isinstance(settings, dict) or not settings:
@@ -426,7 +607,7 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
             if not isinstance(command, str) or not command.strip():
                 raise PlanError("invalid_payload", "hook.command is required")
             group = f"hook:{spec['id']}"
-            base = project + "/.claude" if (project and agent == C) else info["root_abs"]
+            base = project + {C: "/.claude", X: "/.codex"}[agent] if project else info["root_abs"]
             # AI hooks address their files as "{tandem.hooks}/<file>" inside a double-quoted command.
             hooks_dir = f"{base}/hooks/tandem" if HOOKS_DIR in command else None
             if hooks_dir and any(c in hooks_dir for c in '"$`\\'):
@@ -453,12 +634,16 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
                 target(path, render_hook_entry({**payload, "matcher": b.get("matcher")}, command),
                        pointer=row.pointer.format(event=pointer_token(b["event"])), group=group)
         elif kind == "mcp":
-            name, _ = _mcp_fields(payload)
-            if agent == C:
-                pointer = row.pointer.format(name=pointer_token(name), proj=pointer_token(project or ""))
-                target(path, render_claude_mcp(payload), pointer=pointer)
-            else:
+            name, transport = _mcp_fields(payload)
+            if transport == "sse" and agent in MCP_SSE_UNSUPPORTED:
+                unmappable(agent, "mcp_transport_unsupported")
+                continue
+            if agent == X:
                 target(path, render_codex_mcp(payload))
+            else:
+                render = {C: render_claude_mcp, P: render_pi_mcp, OC: render_opencode_mcp}[agent]
+                pointer = row.pointer.format(name=pointer_token(name), proj=pointer_token(project or ""))
+                target(path, render(payload), pointer=pointer)
         elif kind == "plugin":
             plugin, market = safe_name(payload.get("plugin")), safe_name(payload.get("marketplace"))
             group = f"plugin:{spec['id']}"

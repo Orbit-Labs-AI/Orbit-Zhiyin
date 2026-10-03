@@ -161,3 +161,14 @@ def test_card_savings_uses_scenario_bounds():
     # baseline 10 × 4 × 2 = 80 min; gross = 80 × [.25, .5] = [20, 40]; overhead unknown → partial
     assert out["status"] == "partial" and out["baseline"] == {"low": 80, "high": 80}
     assert out["gross_savings"] == {"low": 20, "high": 40} and out["net_savings"] is None
+
+
+@pytest.mark.parametrize("agent", ["generic", "claude_code", "codex", "opencode", "pi", "hermes", "dsh", "kimi"])
+def test_context_agent_accepts_the_analytics_targets(agent):
+    assert RecommendationContext(agent=agent).agent == agent
+
+
+@pytest.mark.parametrize("agent", ["claude", "Codex", "gemini", "unknown"])
+def test_context_agent_rejects_names_outside_the_targets(agent):
+    with pytest.raises(ValueError, match="Unknown agent"):
+        RecommendationContext(agent=agent)
