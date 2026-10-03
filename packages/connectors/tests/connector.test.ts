@@ -481,3 +481,20 @@ test('command_head comes from the zsh -lc payload and the full line stays out of
   assert.deepEqual(features,['git status','rg','uv run']);
   for (const value of features) assert.match(String(value),/^[A-Za-z0-9._+-]+(?: [a-z][a-z0-9:_-]*)?$/);
 }));
+test('one session failing validation is isolated: others rebuild, it stays dirty with a diagnostic, and the CLI exits 2',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture());
+  // exit_code 1.5 violates the contract's integer exit_code, so validateEvent throws for this session only.
+  await writeFile(join(s.home,'sessions','rollout-broken.jsonl'),jsonLine('session_meta',{id:'broken'},0)+
+    jsonLine('event_msg',{type:'item_completed',turn_id:'b1',item:{type:'CommandExecution',id:'bad',command:['pwd'],status:'completed',exit_code:1.5}},1));
+  const result=await s.connector.ingest();
+  const broken=sessionUid(s.connector.sourceId,'broken'),main=sessionUid(s.connector.sourceId,'main');
+  assert.equal(result.rebuild_failed,1);assert.equal(result.sessions_rebuilt,1);
+  assert.ok(Number(s.store.db.prepare('SELECT count(*) n FROM event WHERE session_uid=?').get(main)?.n)>0);
+  assert.equal(s.store.db.prepare('SELECT count(*) n FROM event WHERE session_uid=?').get(broken)?.n,0);
+  assert.equal(s.store.db.prepare('SELECT count(*) n FROM dirty_session WHERE session_uid=?').get(broken)?.n,1);
+  const message=String(s.store.db.prepare("SELECT message FROM diagnostic WHERE code='rebuild_failed'").get()?.message);
+  assert.ok(message.includes(broken));assert.match(message,/exit_code/);
+  const run=promisify(execFile),cli=fileURLToPath(new URL('../src/cli.ts',import.meta.url));
+  await assert.rejects(run(process.execPath,[cli,'ingest','--codex-home',s.home,'--data-dir',join(s.root,'cli-broken')]),(error:{code:number,stdout:string})=>{
+    assert.equal(error.code,2);assert.equal(JSON.parse(error.stdout).rebuild_failed,1);return true;});
+}));

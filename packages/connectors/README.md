@@ -31,7 +31,7 @@ pnpm tandem ingest --codex-home .local/codex --data-dir .local/tandem
 pnpm tandem stats --data-dir .local/tandem
 ```
 
-构建后可直接运行 `node dist/cli.js`。`--help` 列出全部命令。`ingest` 输出 JSON，包括文件变动、失败文件、导入记录数、派生会话数、各去向计数与诊断数量；存在读取失败或 `unparsed` 时退出码为 2。维护锁被持有时跳过该轮，不推进游标。未知类型会归档、生成 `unknown` 事件和告警，不导致整次导入失败。
+构建后可直接运行 `node dist/cli.js`。`--help` 列出全部命令。`ingest` 输出 JSON，包括文件变动、失败文件、导入记录数、派生会话数、各去向计数与诊断数量；存在读取失败、会话重建失败（`rebuild_failed`）或 `unparsed` 时退出码为 2。单个会话映射或校验出错只回滚该会话：其投影保持上次结果、保留待重建标记并写 `rebuild_failed` 诊断（含脱敏后的错误与 `session_uid`），其余会话照常重建。维护锁被持有时跳过该轮，不推进游标。未知类型会归档、生成 `unknown` 事件和告警，不导致整次导入失败。
 
 ## 接入分析或 Mac App
 

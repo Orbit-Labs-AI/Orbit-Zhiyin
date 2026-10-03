@@ -60,7 +60,7 @@ async function main():Promise<void> {
     try {
       if (command==='ingest') {
         const result=await connector.ingest(ingestOptions); console.log(JSON.stringify(result,null,2));
-        if (result.files_failed || result.accounting.unparsed) process.exitCode=2;
+        if (result.files_failed || result.rebuild_failed || result.accounting.unparsed) process.exitCode=2;
       } else {
         const controller=new AbortController();
         const stop=():void=>controller.abort(); process.once('SIGINT',stop); process.once('SIGTERM',stop);

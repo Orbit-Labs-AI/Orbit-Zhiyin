@@ -4,7 +4,8 @@ import { basename, join, resolve } from 'node:path';
 import { hash, uid, sessionUid, timestamp, stableJson } from './util.ts';
 import { object, string, number, array } from './types.ts';
 import type { Obj, Watermark, SourceFile, RawRecord, IngestResult } from './types.ts';
-import { sanitize } from './privacy.ts';
+import { sanitize, redact } from './privacy.ts';
+const reason = (error: unknown): string => redact(error instanceof Error ? error.message : String(error)).slice(0,500);
 import { linesFromStream } from './lines.ts';
 import { Readable } from 'node:stream';
 import { decompressFrames } from './zstd.ts';
@@ -35,7 +36,7 @@ export class CodexConnector {
   async ingest(options: IngestOptions = {}): Promise<IngestResult> {
     if (this.running) throw new Error('An ingest is already running for this connector');
     this.running = true;
-    const result: IngestResult = {source_id:this.sourceId,files_seen:0,files_changed:0,files_failed:0,records_added:0,sessions_rebuilt:0,
+    const result: IngestResult = {source_id:this.sourceId,files_seen:0,files_changed:0,files_failed:0,records_added:0,sessions_rebuilt:0,rebuild_failed:0,
       maintenance_skipped:false,accounting:{},diagnostics:0};
     try {
       const discovery = await discoverCodex(this.root);
@@ -61,7 +62,7 @@ export class CodexConnector {
               if (within(this.root,canonical)) discovery.files.push(canonical);
             }
           }
-        } catch { result.files_failed++; this.store.diagnostic(this.sourceId,'index_unavailable','State index could not be read consistently; transcripts remain usable'); }
+        } catch (error) { result.files_failed++; this.store.diagnostic(this.sourceId,'index_unavailable',`State index could not be read consistently; transcripts remain usable: ${reason(error)}`); }
       }
       const ledgerPath = join(this.root,'external_agent_session_imports.json');
       if (options.includeMetadata!==false && await exists(ledgerPath)) {
@@ -73,7 +74,7 @@ export class CodexConnector {
           const ledger = object(JSON.parse(bytes.toString('utf8')));
           const records = array(ledger.records).map(payload => ({type:'import_ledger',payload}) as Obj);
           const id = await this.snapshot(ledgerPath,'import_ledger',records,result,bytes); seen.add(id);
-        } catch { result.files_failed++; this.store.diagnostic(this.sourceId,'ledger_unavailable','External import ledger is invalid or unreadable'); }
+        } catch (error) { result.files_failed++; this.store.diagnostic(this.sourceId,'ledger_unavailable',`External import ledger is invalid or unreadable: ${reason(error)}`); }
       }
       const titleIndex = join(this.root,'session_index.jsonl');
       if (options.includeMetadata!==false && await exists(titleIndex)) {
@@ -98,7 +99,9 @@ export class CodexConnector {
         this.store.db.prepare('INSERT INTO source_boundary VALUES(?,?,?) ON CONFLICT(source_id) DO UPDATE SET last_ingest_scope=excluded.last_ingest_scope,observed_at=excluded.observed_at')
           .run(this.sourceId,JSON.stringify({root:this.root,selected_files:selection?[...selection].sort():null,metadata:options.includeMetadata===false?'excluded':'included',selection_only_affects_this_read:true}),Date.now());
       });
-      result.sessions_rebuilt = rebuildSource(this.store,this.sourceId);
+      const failed: string[] = [];
+      result.sessions_rebuilt = rebuildSource(this.store,this.sourceId,failed);
+      result.rebuild_failed = failed.length;
       result.accounting = this.store.accounting(this.sourceId);
       result.diagnostics = Number(this.store.db.prepare('SELECT count(*) AS n FROM diagnostic WHERE source_id=?').get(this.sourceId)?.n);
       return result;
@@ -163,10 +166,10 @@ export class CodexConnector {
         this.store.db.exec('COMMIT');
         result.records_added += added; result.files_changed++;
       } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
-    } catch {
+    } catch (error) {
       result.files_failed++;
       this.store.db.prepare("UPDATE source_file SET status='error' WHERE file_id=?").run(id);
-      this.store.diagnostic(this.sourceId,'file_retry','Source could not be read consistently; cursor retained for retry',id);
+      this.store.diagnostic(this.sourceId,'file_retry',`Source could not be read consistently; cursor retained for retry: ${reason(error)}`,id);
     }
   }
   private record(id: string, generation: number, line: Line, state: Watermark, role: string, sourceBody?: Obj): void {

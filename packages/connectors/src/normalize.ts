@@ -4,6 +4,7 @@ import { uid, hash, sessionUid, timestamp, durationMs, pathValue, stableJson } f
 import { validateEvent } from './contract.ts';
 import { projectFor } from './project.ts';
 import { commandHead } from './shell.ts';
+import { redact } from './privacy.ts';
 import type { ConnectorStore } from './store.ts';
 import { basename } from 'node:path';
 
@@ -579,10 +580,15 @@ function derive(store: ConnectorStore, ctx: Context, events: StandardEvent[]): v
     .run(events.find(event=>event.ts!==null)?.ts??null,events.findLast(event=>event.ts!==null)?.ts??null,String(status),ctx.session);
 }
 
-export function rebuildSource(store: ConnectorStore, source: string): number {
+/**
+ * Rebuild every dirty session of a source. A session whose mapping or validation throws is rolled back
+ * on its own: it keeps its dirty marker (retried next run), gets a rebuild_failed diagnostic, and the
+ * remaining sessions are still rebuilt. Failed session UIDs are appended to `failed` when given.
+ */
+export function rebuildSource(store: ConnectorStore, source: string, failed: string[] = []): number {
   const rows=store.db.prepare(`SELECT d.session_uid FROM dirty_session d WHERE EXISTS(SELECT 1 FROM current_record r
     JOIN source_file f USING(file_id) WHERE r.session_uid=d.session_uid AND f.source_id=?) OR EXISTS(SELECT 1 FROM session s WHERE s.session_uid=d.session_uid AND s.source_id=?)`).all(source,source);
-  const pending=new Set(rows.map(row=>String(row.session_uid))), visited=new Set<string>(), visiting=new Set<string>();
+  const pending=new Set(rows.map(row=>String(row.session_uid))), visited=new Set<string>(), visiting=new Set<string>(), broken=new Set<string>();
   let expanded=true;
   while (expanded) {
     expanded=false;
@@ -605,8 +611,14 @@ export function rebuildSource(store: ConnectorStore, source: string): number {
         if (parent) { const parentUid=sessionUid(source,parent); if (pending.has(parentUid)) rebuild(parentUid); }
       }
     }
-    store.transaction(()=>rebuildSession(store,source,session)); visited.add(session); visiting.delete(session);
+    try { store.transaction(()=>rebuildSession(store,source,session)); }
+    catch (error) {
+      broken.add(session); failed.push(session);
+      const message=redact(error instanceof Error?error.message:String(error)).slice(0,2000);
+      store.diagnostic(source,'rebuild_failed',`Session ${session} could not be rebuilt; its projection is unchanged and it stays dirty: ${message}`);
+    }
+    visited.add(session); visiting.delete(session);
   }
   for (const session of pending) rebuild(session);
-  return visited.size;
+  return visited.size-broken.size;
 }
