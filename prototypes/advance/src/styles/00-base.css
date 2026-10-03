@@ -5,9 +5,9 @@
    PingFang SC (Chinese); titles are larger 600-weight sans; SF Mono only for code, paths, commands, IDs and keycaps. Controls are monochrome: --accent / --pri are the ink (black in light, near-white in
    dark) and drive filled buttons, switches, badges, selected tokens, menu highlight and chart selection; colour only
    carries identity (agent hues) and status (good / warn / crit, AI purple). The focus ring (--focus) is the only blue.
-   --orbit is the brand slate of the Orbit mark; it is used only by the mark, the lead petal of the persona flower and the
-   00 reference triangle on the persona compass. --orbit-word colours the wordmark Orbit·知音: the same slate on light,
-   champagne #d6c7a1 on dark (docs/design/brand.md).
+   --orbit is the brand slate of the Orbit mark; it is used only by the mark (and its arc in the Genesis intro) and the
+   triangle on the persona dial that points at your type. --orbit-word colours the wordmark Orbit·知音: the same slate on
+   light, champagne #d6c7a1 on dark (docs/design/brand.md).
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
    Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono, plus --font-type (SF Pro Rounded) for persona type codes. */
@@ -22,6 +22,7 @@
 --pri:#17181b;--pri-ink:#ffffff;--tip:#f8f7f4;--tip-ink:#17181b;--toast-act:#17181b;--scrim:rgba(17,19,24,.22);
 --a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;--a6:#0f8b8d;--a6t:#dcf4f4;--a7:#7a5cc7;--a7t:#ede6fb;--a8:#5f8a1e;--a8t:#eaf3d9;--a9:#8a6a4f;--a9t:#f3ebe3;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
+--petal2:#c0bdb5;
 --hud:rgba(22,23,26,.95);--hud-2:rgba(255,255,255,.08);--hud-line:rgba(255,255,255,.12);--hud-ink:#f1f1f3;--hud-ink-2:#c3c6cc;--hud-ink-3:#969aa3;
 --wg:#ffffff;--wg-edge:rgba(23,24,27,.08);
 --sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.18),0 0 0 .5px rgba(20,24,30,.12);--sh-win:0 0 0 .5px rgba(20,24,30,.18),0 22px 60px rgba(20,24,30,.24),0 1px 2px rgba(0,0,0,.05);
@@ -47,6 +48,7 @@
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;--a6:#2aa3a5;--a6t:#12302f;--a7:#9278dc;--a7t:#261f3b;--a8:#87a83a;--a8t:#232c12;--a9:#b08e70;--a9t:#2e241b;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
+--petal2:#5c5c63;
 --hud:rgba(40,40,45,.96);
 --wg:#28282d;--wg-edge:rgba(255,255,255,.12);
 --sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);
@@ -62,6 +64,7 @@ color-scheme:dark}}
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;--a6:#2aa3a5;--a6t:#12302f;--a7:#9278dc;--a7t:#261f3b;--a8:#87a83a;--a8t:#232c12;--a9:#b08e70;--a9t:#2e241b;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#242429;--h1:#333338;--h2:#4a4a50;--h3:#727278;--h4:#a8a8ae;--h5:#f2f2f4;
+--petal2:#5c5c63;
 --hud:rgba(40,40,45,.96);
 --wg:#28282d;--wg-edge:rgba(255,255,255,.12);
 --sh-card:0 0 0 .5px rgba(255,255,255,.03);--sh-raise:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.1);--sh-pop:0 12px 40px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.14);--sh-win:0 0 0 .5px rgba(255,255,255,.14),0 24px 70px rgba(0,0,0,.65),0 2px 8px rgba(0,0,0,.4);

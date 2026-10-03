@@ -1,0 +1,18 @@
+/* ============ bloom motion (38-bloom-motion.js): persona switch fold / unfold, small-flower hover turn ============ */
+/* the ghost of the old dial flower (.bm-* = the .fp-* layers renamed) turns about the dial centre like the live one */
+.fp2 .bm-ghost{pointer-events:none}
+.fp2 .bm-bloom{transform:rotate(var(--hd,0deg));transform-origin:200px 200px;transform-box:view-box}
+.fp2 :is(.bm-bd,.bm-pw,.bm-heart,.fp-heart){transform-origin:200px 200px;transform-box:view-box}
+/* small flowers (glyphSVG, 80-unit box): petals and heart turn / scale about the centre */
+svg[data-bloom] :is(.fp-pet,.fp-bk,circle,.bm-pet,.bm-bk){transform-origin:40px 40px;transform-box:view-box}
+/* a plain-text type code split into letters for the change (same text, same line) */
+.bm-l{display:inline-block}
+/* hover: where the flower sits in something clickable (widget, share span row, method table cell), the ink petals turn a
+   little forward and the gray ring a little back, with the same spring as the press feedback in 37-motion.css */
+svg[data-bloom] :is(.fp-pet,.fp-bk){transition:transform .55s cubic-bezier(.34,1.45,.64,1)}
+:is(button,[data-act]):hover svg[data-bloom] .fp-pet{transform:rotate(14deg)}
+:is(button,[data-act]):hover svg[data-bloom] .fp-bk{transform:rotate(-9deg) scale(1.04)}
+@media (prefers-reduced-motion:reduce){
+  svg[data-bloom] :is(.fp-pet,.fp-bk){transition:none}
+  :is(button,[data-act]):hover svg[data-bloom] :is(.fp-pet,.fp-bk){transform:none}
+}

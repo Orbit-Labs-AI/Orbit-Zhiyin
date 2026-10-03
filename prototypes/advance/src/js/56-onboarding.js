@@ -1,17 +1,18 @@
 /* ============ onboarding & reveal (overlay) ============
  * 首次启动：0 欢迎 → 1 选择来源 → 2/3 Genesis；菜单「播放人格揭晓」与画像页「重播揭晓」复用 Genesis 的 2–5 段（openReveal）。
  * Genesis 是同一个盒子里的一段连贯序列，步骤之间不整体替换 innerHTML：
- *   01 导入  Orbit 母题：表盘先以倾斜轨道的视角出现（Orbit 标志的倾斜椭圆，CSS rotateX 64° + 转角 + 缩小），放大并翻正成罗盘外框；
- *            标志的内弧收拢成领瓣，合拢的花苞随后自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
- *            来源列表收拢淡出，计数器累加；粒子汇入时花苞逐渐减速，转满整圈停在 00 接上 02
- *   02 归类  花苞（领瓣在前）匀速扫一圈（身后拖一道淡扇形），粒子在领瓣扫过处落到各自最接近的类型（扇区里按开始时间铺开，
+ *   01 导入  Orbit 母题：表盘先以倾斜轨道的视角出现（Orbit 标志的倾斜椭圆，CSS rotateX 64° + 转角 + 缩小），放大并翻正成表盘外框（细线 + 刻度）；
+ *            标志的内弧收拢成 12 点方向那片主瓣的中线，合拢的花苞随后自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
+ *            来源列表收拢淡出，计数器累加；粒子汇入时花苞逐渐减速，转满整圈停在 12 点接上 02
+ *   02 归类  花苞匀速扫一圈（朝 12 点的那片主瓣在前，身后拖一道淡扇形），粒子在扫过处落到各自最接近的类型（扇区里按开始时间铺开，
  *            半径 = 典型程度），再汇入轨道；
- *            环带在扫过处长出（.fp-sweep 遮罩），Agent 行星随扫描依次出现、跟着领瓣公转，扫完走最短弧滑到各自多数会话所在的类型（fp2SVG 的几何，FPG）
+ *            按 Agent 分层的轨道色带在扫过处长出（.fp-sweep 遮罩），Agent 标志徽章随扫描依次出现、跟着扫描公转，扫完走最短弧滑到
+ *            各自会话的平均方向（fp2SVG 的几何，FPG）
  *   03 开花  花苞开成该类型的花（前排先开、身后一轮稍晚，带回弹）；字母位在两极之间翻牌时花左右寻向，
- *            最后一个字母锁定时领瓣摆向你的类型，阻尼振荡后停住
+ *            最后一个字母锁定时花摆到一片主瓣指向你的类型，阻尼振荡后停住；外框上指向你的类型的 --orbit 三角此时才出现
  *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（花轻颤），其余淡出，胜出的一张飞入四字母（花定住），给出匹配度
  *   05 落地  「查看完整画像」：大人格码与指纹（含花）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
- * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），翻正、内弧、环带扫描与行星在 rAF 里逐帧写，其余是 CSS keyframes + WAAPI，节点只建一次。
+ * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），翻正、内弧、色带扫描与 Agent 徽章在 rAF 里逐帧写，其余是 CSS keyframes + WAAPI，节点只建一次。
  * 跳过 / Esc / 在后台继续随时可用；closeOverlay() 取消全部计时器、动画帧与动画；prefers-reduced-motion 直接给最终态。 */
 let OB = null, REV = null, GNS = null;
 function closeOverlay() {
@@ -178,10 +179,11 @@ function genHTML(g) {
   const hr = S.persona.fpType, cur = CUR.fp; S.persona.fpType = null;
   const fp = fp2SVG(g.L, pv, 300, { labels: p.ok });
   S.persona.fpType = hr; CUR.fp = cur;
-  // 叠层：罗盘外框画线（与 fp2SVG 外框同半径）、16 型的中线刻度、花身后的扫掠扇形（花本身是 fp2SVG 里的 .fp-bloom）、首次启动的 Orbit 内弧
-  let tk = ''; for (let h = 0; h < 16; h++) { const a = h * 22.5 * Math.PI / 180; const q1 = pt(200, h % 4 ? 187.5 : 184, a), q2 = pt(200, 194.5, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
+  // 叠层：表盘外框画线（与 fp2SVG 外框同为 r = 196）、16 型的分界刻度（与 fp2SVG 的长刻度同长：分界 196 → 189.5，四个方位
+  // 196 → 185，画完与表盘自己的刻度重合）、花身后的扫掠扇形（花本身是 fp2SVG 里的 .fp-bloom）、首次启动的 Orbit 内弧
+  let tk = ''; for (let h = 0; h < 16; h++) { const a = h * 22.5 * Math.PI / 180; const q1 = pt(200, h % 4 ? 189.5 : 185, a), q2 = pt(200, 196, a); tk += 'M' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + 'L' + q2[0].toFixed(1) + ' ' + q2[1].toFixed(1); }
   const RW = FPG.R0 + FPG.RH + 2, w0 = pt(200, RW, -0.45);
-  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="198" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
+  const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="196" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
   const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? a.name + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
   const m = p.ok && p.classified ? g.cands.find((x) => x.c === p.code) : null;
   const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '置信度 ' + p.conf : '还没有会话') + '</span><span class="cap">' + (p.ok ? (p.hint || 'n=' + p.n) : '已选来源还没有会话') + '</span>';
@@ -200,8 +202,9 @@ function genHTML(g) {
     '<div class="g-tail">' + (ob ? '<div class="g-foot" data-g="run"><span class="cap">可以关闭窗口，完成后通知你</span><button type="button" class="btn" data-act="obBg">在后台继续</button></div>' : '') +
     '<div class="g-done" data-g="done">' + done.replace(/<button /g, '<button disabled ') + '</div></div>';
 }
-// 取 fp2SVG 的各层（罗盘外框 .fp-base / 方位数字 .fp-hours / 节律带 .fp-band / 内盘 .fp-core / 花 .fp-flower（旋转层 .fp-bloom、
-// 开花层 .fp-front / .fp-back）/ 轨道环带的扫描遮罩 .fp-sweep / 行星 .fp-pl）与翻正用的两层（.g-fp、.g-over）
+// 取 fp2SVG 的各层（表盘外框 .fp-base：细线、128 道刻度与 --orbit 三角 .fp-n0 / 16 个类型码 .fp-hours / 花 .fp-flower（旋转层
+// .fp-bloom、开花层 .fp-front / .fp-back）/ 轨道色带的扫描遮罩 .fp-sweep / Agent 标志徽章 .fp-pl）与翻正用的两层（.g-fp、.g-over）。
+// .fp-band、.fp-core 是 fp2SVG 留着的空组（旧版的节律带与内盘），这里照常淡入，不画任何东西
 function genMark(g) {
   const svg = g.box.querySelector('.g-fp svg'); g.svg = svg; g.pls = []; g.tiltEls = []; if (!svg) return;
   g.front = svg.querySelector('.fp-front'); g.back = svg.querySelector('.fp-back');
@@ -218,9 +221,9 @@ function genBloom(g, x) {
   const k = g.p.ok ? x : 0;
   set(g.front, k <= 0 ? 0 : genBack(k)); set(g.back, k <= 0.18 ? 0 : genBack((k - 0.18) / 0.82));
 }
-// 花（领瓣）的角度（度，顺时针，0 = 00:00）：01 三次 Hermite 从快转减速，转满整圈落在 00 并接上扫描的速度；02 匀速扫一圈；
+// 花的角度（度，顺时针，0 = 一片主瓣朝 12 点）：01 三次 Hermite 从快转减速，转满整圈落在 12 点并接上扫描的速度；02 匀速扫一圈；
 // 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向你的类型，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
-// 首次启动：Orbit 内弧先在 00 收拢成领瓣（G_HOLD 之前花苞停在 00），再从静止起转，快转两圈后减速落到 00
+// 首次启动：Orbit 内弧先收拢成 12 点方向那片主瓣的中线（G_HOLD 之前花苞停在 12 点），再从静止起转，快转两圈后减速落到 12 点
 const G_HOLD = 960;
 function genNeedle(g, t) {
   const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, ob = g.mode === 'ob', t0 = ob ? G_HOLD : 0, w0 = ob ? 0 : 1.25;
@@ -255,7 +258,7 @@ function genProj(q, k) {
 function genTilt(g, t) {
   const k = genTiltAt(t), done = t >= G_TILT;
   g.tiltEls.forEach((el) => { el.style.transform = done ? '' : 'rotate(' + k.z.toFixed(2) + 'deg) scale(' + k.s.toFixed(4) + ') rotateX(' + k.a.toFixed(2) + 'deg)'; });
-  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 00 方向的领瓣：每个采样点从弧上滑到指针上对应的位置
+  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 12 点方向那片主瓣的中线：每个采样点从弧上滑到中线上对应的位置
   if (g.arc) {
     const u = genIO((t - 420) / 540), n = 28, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
     for (let i = 0; i <= n; i++) { const A = pt(200, 112, (235 + i / n * 225) * Math.PI / 180), B = [200, 200 - FPG.NL * i / n]; d += (i ? 'L' : 'M') + f([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u]); }
@@ -379,7 +382,7 @@ function genTick(g) {
   if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genBloom(g, Math.min(u, 1)); if (u >= 1) g.roseDone = true; }
   if (g.nd) g.nd.style.transform = 'rotate(' + genNeedle(g, t).toFixed(2) + 'deg)';
   if (g.mode === 'ob' && !g.flat) { genTilt(g, t); if (t >= G_TILT + 200) g.flat = true; }
-  // 02：轨道在领瓣扫过处长出（比领瓣晚 450 ms，等粒子落位）；徽章依次出现、跟在领瓣后公转，扫完走最短弧滑到各自的类型
+  // 02：轨道在花苞扫过处长出（比扫描晚 450 ms，等粒子落位）；徽章依次出现、跟在扫描后公转，扫完走最短弧滑到各自的平均方向
   const P = T.place, sw = g.sweep;
   if (g.sweepEl && !g.swept) { const v = clamp((t - P - 450) / sw, 0, 1); g.sweepEl.style.strokeDashoffset = (1 - v).toFixed(4); if (v >= 1) { g.sweepEl.style.strokeDashoffset = ''; g.swept = true; } }
   if (g.pls.length && !g.settled) {
@@ -448,7 +451,7 @@ function genPlay(g) {
   const gl = T.match - T.grow, ml = T.end - T.match, n = fmt(g.L.length), sw = g.sweep;
   const lab = [[0, (ob ? '01 / 导入 · 读取 ' : '01 / 汇集 · 读取 ') + n + ' 个会话'], [T.place, '02 / 归类 · 花苞扫过 16 型，每个会话落到它最接近的类型'], [T.grow, '03 / 开花 · 长成你的协作人格之花'], [T.match, ob ? '04 / 匹配 · 16 种类型里找最接近的' : '04 / 定型 · ' + (g.p.ok ? g.p.code : '—')]];
   genStage(g, lab[0][1]); lab.slice(1).forEach((x) => at(x[0], () => genStage(g, x[1])));
-  // 01：罗盘外框画出 → 外框刻度淡入；中心的内盘与花苞随即出现（花的角度在 genTick 里逐帧写）。
+  // 01：表盘外框画出 → 外框刻度淡入；中心的花苞随即出现（花的角度在 genTick 里逐帧写）。
   // 首次启动时外框先是 Orbit 标志的倾斜椭圆（石板灰、留一道缺口），随翻正补全并换成外框的墨色
   if (ob) A(q('.g-ring0'), [{ strokeDashoffset: 0.17, stroke: 'var(--orbit)', strokeWidth: 4.5 }, { strokeDashoffset: 0.12, stroke: 'var(--orbit)', strokeWidth: 4.5, offset: 0.4 }, { strokeDashoffset: 0, stroke: 'var(--ink-2)', strokeWidth: 1.2 }], { duration: G_TILT, easing: 'ease-in-out' });
   else A(q('.g-ring0'), [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 600 });
@@ -456,11 +459,13 @@ function genPlay(g) {
   qa('.g-fp .fp-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
   A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 700 : 80 });
   A(q('.g-fp .fp-flower'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 860 : 120, easing: G_SPRING });
-  // 02：扫掠扇形跟着花苞转一圈，会话点在领瓣扫过处落到各自的类型；节律带与方位数字淡入（轨道环带与行星在 genTick 里跟着扫描写）
+  // 02：扫掠扇形跟着花苞转一圈，会话点在扫过处落到各自的类型；16 个类型码淡入（轨道色带与 Agent 徽章在 genTick 里跟着扫描写）
   A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
   qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
   A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
-  // 03：花苞在 rAF 里开成该类型的花；字母位翻牌（花寻向），按顺序锁定
+  // 03：花苞在 rAF 里开成该类型的花；字母位翻牌（花寻向），按顺序锁定；最后一个字母锁定、花转到一片主瓣指向你的类型时，外框上的
+  // --orbit 三角才淡入（之前就亮出来会提前剧透类型）
+  A(q('.g-fp .fp-n0'), [{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: g.lockAt });
   [0, 1, 2, 3].forEach((i) => at(T.grow + gl * 0.32 + i * gl * 0.15, () => genLock(g, i)));
   // 已经知道的：每完成一段给一条
   genFactRun(g, 0);

@@ -73,7 +73,8 @@ function shareModel(sp) {
     glyph: bloomGlyph(p), axes: AXES.map((ax, i) => { const v = axisView(p, i); return { L: v.letter, name: v.name, strong: v.strong + '%' }; }),
     stats: stats4, ring: sp.ring || { unit: 'day', cells: [] }, foot: (sp.disclaimer ? sp.disclaimer + ' · ' : '') + '全部分析在本机完成' };
 }
-const SHARE_C = { dark: { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' }, light: { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' } };
+// mj 主瓣与花心、mn 日历环的空格、pt 花的浅灰小瓣（深色卡比 mn 亮一档，深底上看得见）
+const SHARE_C = { dark: { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54', pt: '#686b73' }, light: { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5', pt: '#b3b0a8' } };
 function shareFonts() {
   const cs = getComputedStyle(document.documentElement); const v = (n) => cs.getPropertyValue(n).trim() || 'sans-serif';
   return { type: v('--font-type'), display: v('--font-display'), num: v('--font-num'), sans: v('--font-sans') };
@@ -112,7 +113,7 @@ function shareOps(m, dark, noNum) {
     const gap = n <= 12 ? 0.11 : Math.min(2 * Math.PI / n * 0.34, 0.05), seg = 2 * Math.PI / n;
     cells.forEach((v, i) => { const a0 = -Math.PI / 2 + i * seg + gap / 2, a1 = a0 + seg - gap; ops.push(v > 0 ? { t: 'arc', cx, cy, r: rr, a0, a1, sw: n <= 31 ? 1.1 : 0.85, color: C.ink, alpha: +(0.3 + 0.7 * v).toFixed(3) } : { t: 'arc', cx, cy, r: rr, a0, a1, sw: 0.4, color: C.mn, alpha: 1 }); });
   }
-  if (m.glyph) { const k = 11.8 / 36; ops.push({ t: 'flower', g: m.glyph, tx: cx - 40 * k, ty: cy - 40 * k, k, mj: C.mj, mn: C.mn }); }
+  if (m.glyph) { const k = 11.8 / 36; ops.push({ t: 'flower', g: m.glyph, tx: cx - 40 * k, ty: cy - 40 * k, k, mj: C.mj, mn: C.pt, bg: C.bg }); }
   // 四个字母（SF Pro Rounded）+ 极名 + 强度
   let x = L; const by = 59;
   m.axes.forEach((a) => {
@@ -137,6 +138,7 @@ function shareOps(m, dark, noNum) {
   T(m.foot || '', R, 119, { size: 2.1, family: 'sans', color: C.ink3, align: 'right' });
   return { ops, F };
 }
+const SHARE_HW = 1.6;   // 分享卡花心环的线宽（80 视框单位）
 const shareFam = { type: 'type', serif: 'serif', mono: 'mono', sans: 'sans' };
 function shareSVG(m, dark, noNum) {
   const { ops, F } = shareOps(m, dark, noNum); const a = (v) => esc(String(v));
@@ -146,7 +148,8 @@ function shareSVG(m, dark, noNum) {
     if (o.t === 'rrect') return '<rect x="' + o.x.toFixed(2) + '" y="' + o.y.toFixed(2) + '" width="' + o.w.toFixed(2) + '" height="' + o.h + '" rx="' + o.r + '" fill="none" stroke="' + o.stroke + '" stroke-width="' + o.sw + '"/>';
     if (o.t === 'arc') { const p0 = [o.cx + o.r * Math.cos(o.a0), o.cy + o.r * Math.sin(o.a0)], p1 = [o.cx + o.r * Math.cos(o.a1), o.cy + o.r * Math.sin(o.a1)]; return '<path d="M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + 'A' + o.r + ' ' + o.r + ' 0 ' + (o.a1 - o.a0 > Math.PI ? 1 : 0) + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + '" fill="none" stroke="' + o.color + '" stroke-opacity="' + o.alpha + '" stroke-width="' + o.sw + '" stroke-linecap="round"/>'; }
     if (o.t === 'wordmark') return '<g transform="translate(' + o.x.toFixed(2) + ' ' + o.y.toFixed(2) + ') scale(' + o.k.toFixed(5) + ') translate(' + (-ORBIT_WORDMARK.vb[0]) + ' ' + (-ORBIT_WORDMARK.vb[1]) + ')" fill="' + o.fill + '" role="img" aria-label="Orbit·知音" data-wordmark="1">' + ORBIT_WORDMARK.paths.map((d) => '<path d="' + d + '"/>').join('') + '</g>';
-    if (o.t === 'flower') return '<g transform="translate(' + o.tx.toFixed(2) + ' ' + o.ty.toFixed(2) + ') scale(' + o.k.toFixed(4) + ')"><path d="' + o.g.minor + '" fill="' + o.mn + '"/><path d="' + o.g.major + '" fill="' + o.mj + '"/><circle cx="40" cy="40" r="' + o.g.hr + '" fill="none" stroke="' + o.mj + '" stroke-width="1.6"/><circle cx="40" cy="40" r="1.6" fill="' + o.mj + '"/></g>';
+    // 花：浅灰小瓣 → 墨色主瓣 → 花心（求证 V 是环 + 中心点，信任 T 是实心点；与 App 里的 bloomHeart 同一画法）
+    if (o.t === 'flower') return '<g transform="translate(' + o.tx.toFixed(2) + ' ' + o.ty.toFixed(2) + ') scale(' + o.k.toFixed(4) + ')" data-heart="' + (o.g.ring ? 'ring' : 'dot') + '">' + (o.g.minor ? '<path d="' + o.g.minor + '" fill="' + o.mn + '"/>' : '') + '<path d="' + o.g.major + '" fill="' + o.mj + '"/>' + bloomHeart(o.g, 40, 40, o.mj, o.bg, SHARE_HW) + '</g>';
     if (o.t === 'text') return '<text x="' + o.x.toFixed(2) + '" y="' + o.y.toFixed(2) + '" text-anchor="' + ({ center: 'middle', right: 'end' }[o.align] || 'start') + '" fill="' + o.color + '" font-size="' + o.size + '" font-weight="' + (o.weight || 400) + '"' + (o.italic ? ' font-style="italic"' : '') + (o.ls ? ' letter-spacing="' + (o.ls * o.size).toFixed(3) + '"' : '') + ' style="font-family:' + a(F[o.family || 'sans']) + '"' + (o.family === 'type' ? ' class="tcode"' : '') + '>' + a(o.s) + '</text>';
     return '';
   }).join('');
@@ -239,7 +242,9 @@ async function sharePNG(m, dark, noNum) {
     else if (o.t === 'flower' && typeof Path2D === 'function') {
       x.translate(o.tx * u, o.ty * u); x.scale(o.k * u, o.k * u);
       x.fillStyle = o.mn; x.fill(new Path2D(o.g.minor)); x.fillStyle = o.mj; x.fill(new Path2D(o.g.major));
-      x.strokeStyle = o.mj; x.lineWidth = 1.6; x.beginPath(); x.arc(40, 40, o.g.hr, 0, Math.PI * 2); x.stroke(); x.beginPath(); x.arc(40, 40, 1.6, 0, Math.PI * 2); x.fill();
+      const disc = (r) => { x.beginPath(); x.arc(40, 40, r, 0, Math.PI * 2); };
+      if (o.g.ring) { disc(o.g.hr); x.fillStyle = o.bg; x.fill(); x.strokeStyle = o.mj; x.lineWidth = SHARE_HW; x.stroke(); disc(SHARE_HW * 1.3); x.fillStyle = o.mj; x.fill(); }
+      else { disc(o.g.hr * 0.62); x.fill(); }
     } else if (o.t === 'text') {
       x.font = (o.italic ? 'italic ' : '') + (o.weight || 400) + ' ' + o.size * u + 'px ' + F[o.family || 'sans']; x.fillStyle = o.color; x.textAlign = o.align || 'left';
       if ('letterSpacing' in x) x.letterSpacing = o.ls ? (o.ls * o.size * u).toFixed(1) + 'px' : '0px';

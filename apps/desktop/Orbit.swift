@@ -8,7 +8,7 @@ import WebKit
 // Orbit native host: owns process lifetime, windows, the menu-bar item, floating panels and
 // system dialogs; the bundled orbit-helper gateway owns all data logic and serves the
 // single-file UI at /app. Every surface is the same page: /app?surface=panel|hud|widgets.
-let appVersion = "0.0.3"
+let appVersion = "0.0.4"
 let bundleID = "ai.actionmesh.orbit"
 let nativeFeatures = ["window", "chooseFolder", "save", "openExternal", "reveal", "notify", "openMain",
                       "resizeSurface", "onboarded", "commands", "prefs", "surface:panel", "surface:hud", "surface:widgets",
