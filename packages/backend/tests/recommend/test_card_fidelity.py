@@ -84,24 +84,26 @@ def test_save_tok_n(slate):
     for cand in _shown(slate):
         if not cand.get("problem"):
             continue
-        ui = cand["ui"]
-        # The bundled KB carries no unit_minutes source yet: no card may show a minutes figure.
-        assert (ui["save"]["min_month"], ui["save"]["label"]) in ((None, "未估算"), (0, "—")), (cand["rec_key"], ui["save"])
-        assert ui["save"]["low"] in (None, 0) and ui["save"]["high"] in (None, 0)
+        ui, save = cand["ui"], cand["ui"]["save"]
+        # shares of the real trajectory (facts.trajectory), never an hours / minutes figure
+        assert "min_month" not in save and not re.search(r"\d\s*(h|min|小时|分钟)\b", save["label"]), save
+        for unit in ("time", "token"):
+            pct, rng = save[f"{unit}_pct"], save[f"{unit}_range"]
+            if pct is not None:
+                assert rng[0] <= pct <= rng[1] <= save["share"][unit] + 1e-9, (cand["rec_key"], save)
         assert ui["n"] == [cand["problem"]["denominator"], None] and isinstance(ui["tok"], int)
     removal = [c for c in _shown(slate) if c["kind"] == "removal"]
-    assert removal and all(c["ui"]["tok"] < 0 and c["ui"]["gain"].endswith("常驻 token") for c in removal)
+    assert removal and all(c["ui"]["tok"] < 0 and c["ui"]["tok_pct"] < 0 for c in removal)
+    assert all(c["ui"]["gain"].startswith("省 token ") and c["ui"]["save"]["time_pct"] is None for c in removal)
     assert all("时间代价未实测" in c["ui"]["save"]["basis"] for c in removal)
-    catalog = [c for c in slate["candidates"] if (c.get("source") or {}).get("origin") == "catalog" and c.get("ui")]
-    assert all(c["ui"]["save"]["min_month"] is None for c in catalog)
 
 
-def test_gain_is_monthly(slate):
+def test_gain_is_a_share(slate):
     for cand in _shown(slate):
         problem = cand.get("problem") or {}
-        if (problem.get("weekly_count") or 0) > 0 and cand["kind"] != "removal":
-            assert not cand["ui"]["gain"].endswith("个会话出现"), cand["ui"]["gain"]
-            assert cand["ui"]["gain"].startswith("−") and cand["ui"]["gain"].endswith("/ 月")
+        if (problem.get("weekly_count") or 0) > 0:
+            gain = cand["ui"]["gain"]
+            assert gain == cand["ui"]["save"]["label"] and "%" in gain and "/ 月" not in gain, (cand["rec_key"], gain)
 
 
 def test_track_has_three_rows_with_baseline(slate):

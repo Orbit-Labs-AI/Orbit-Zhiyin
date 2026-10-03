@@ -8,5 +8,4 @@ There is deliberately no token → minutes constant: the time cost of resident t
 been measured, so removal cards show tokens, never minutes.
 """
 
-WEEKS_PER_MONTH = 4.345  # 52.14 weeks / 12 months: converts weekly counts to a monthly figure
 CONTEXT_TOKENS_PER_UNIT = 2000
