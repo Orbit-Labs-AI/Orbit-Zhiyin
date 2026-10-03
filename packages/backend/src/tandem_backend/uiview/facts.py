@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from collections import Counter, defaultdict
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -70,10 +72,30 @@ def _tz(name: str | None):
         return UTC
 
 
-def _rows(conn, sql: str, *params):
+# Fields that fell back to null because the store lacks a table/column (meta.degraded).
+_DEGRADED: ContextVar[set[str] | None] = ContextVar("uiview_facts_degraded", default=None)
+SCHEMA_GAPS = ("no such column", "no such table")
+
+
+def is_schema_gap(error: BaseException) -> bool:
+    """An older store lacks a table/column: degrade. Anything else is a bug and raises."""
+    return isinstance(error, sqlite3.OperationalError) and any(
+        gap in str(error).lower() for gap in SCHEMA_GAPS)
+
+
+def degrade(*fields: str) -> None:
+    seen = _DEGRADED.get()
+    if seen is not None:
+        seen.update(fields)
+
+
+def _rows(conn, sql: str, *params, fields: tuple[str, ...] = ()):
     try:
         return conn.execute(sql, params).fetchall()
-    except Exception:  # noqa: BLE001 - older stores lack a column; the field stays null
+    except sqlite3.OperationalError as error:
+        if not is_schema_gap(error):
+            raise
+        degrade(*fields)
         return []
 
 
@@ -103,7 +125,7 @@ def _children_tools(result: dict, root_of: dict) -> dict[str, int]:
 def _active(conn, uids: str, root_of: dict) -> dict[str, float]:
     stamps: dict[str, list[int]] = defaultdict(list)
     for uid, ts in _rows(conn, f"SELECT session_uid, ts FROM event WHERE ts IS NOT NULL AND "
-                               f"session_uid IN {UIDS}", uids):
+                               f"session_uid IN {UIDS}", uids, fields=('dur',)):
         stamps[root_of.get(uid, uid)].append(ts)
     out = {}
     for root, values in stamps.items():
@@ -116,17 +138,19 @@ def _active(conn, uids: str, root_of: dict) -> dict[str, float]:
 def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
     """Human-triggered turns per root: [[steps, verify]] plus the last turn's status."""
     calls = dict(_rows(conn, f"SELECT turn_uid, count(*) FROM tool_call WHERE turn_uid IS NOT "
-                             f"NULL AND session_uid IN {UIDS} GROUP BY turn_uid", uids))
+                             f"NULL AND session_uid IN {UIDS} GROUP BY turn_uid", uids,
+                             fields=('steps',)))
     finals = dict(_rows(conn, f"SELECT turn_uid, count(*) FROM event WHERE kind = "
                               f"'message.assistant' AND turn_uid IS NOT NULL AND "
                               f"json_extract(attrs, '$.phase') IN ('final', 'final_answer') AND "
-                              f"session_uid IN {UIDS} GROUP BY turn_uid", uids))
+                              f"session_uid IN {UIDS} GROUP BY turn_uid", uids,
+                              fields=('steps', 'out')))
     checked: set[str] = set()
     for turn, head, command in _rows(
             conn, f"SELECT tc.turn_uid, tc.command_head, json_extract(e.attrs, '$.input.command')"
                   f" FROM tool_call tc LEFT JOIN event e ON e.event_uid = tc.call_event_uid "
                   f"WHERE tc.turn_uid IS NOT NULL AND tc.kind = 'shell' AND tc.session_uid IN "
-                  f"{UIDS}", uids):
+                  f"{UIDS}", uids, fields=('verify',)):
         text = head or ""
         if command:
             try:
@@ -140,13 +164,15 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
     requested: set[str] = set()
     if verify_events:
         for (turn,) in _rows(conn, f"SELECT turn_uid FROM event WHERE turn_uid IS NOT NULL AND "
-                                   f"event_uid IN {UIDS}", json.dumps(sorted(verify_events))):
+                                   f"event_uid IN {UIDS}", json.dumps(sorted(verify_events)),
+                                   fields=('verify',)):
             requested.add(turn)
     per_root: dict[str, list[list[int]]] = defaultdict(list)
     last: dict[str, tuple[int, str | None, bool]] = {}
     for turn, uid, idx, status in _rows(
             conn, f"SELECT turn_uid, session_uid, idx, status FROM turn WHERE trigger = 'human' "
-                  f"AND session_uid IN {UIDS} ORDER BY session_uid, idx", uids):
+                  f"AND session_uid IN {UIDS} ORDER BY session_uid, idx", uids,
+                  fields=('steps', 'verify', 'out')):
         root = root_of.get(uid, uid)
         if uid == root:
             per_root[root].append([calls.get(turn, 0) + finals.get(turn, 0),
@@ -161,7 +187,7 @@ def _tails(conn, uids: str, root_of: dict) -> dict[str, list[str | None]]:
     out: dict[str, list[str | None]] = defaultdict(list)
     for uid, status in _rows(conn, f"SELECT session_uid, status FROM tool_call WHERE "
                                    f"session_uid IN {UIDS} ORDER BY session_uid, started_at, "
-                                   f"call_uid", uids):
+                                   f"call_uid", uids, fields=('out',)):
         if root_of.get(uid, uid) == uid:
             tail = out[uid]
             tail.append(status)
@@ -173,7 +199,8 @@ def _tools(conn, uids: str, root_of: dict):
     per_root: dict[str, dict[str, list]] = defaultdict(dict)
     for uid, name, kind, status, n in _rows(
             conn, f"SELECT session_uid, COALESCE(name, name_raw), kind, status, count(*) FROM "
-                  f"tool_call WHERE session_uid IN {UIDS} GROUP BY 1, 2, 3, 4", uids):
+                  f"tool_call WHERE session_uid IN {UIDS} GROUP BY 1, 2, 3, 4", uids,
+                  fields=('errors',)):
         entry = per_root[root_of.get(uid, uid)].setdefault(name or "unknown", [kind, 0, 0, 0])
         entry[1] += n
         if status not in UNKNOWN_STATUS:
@@ -191,7 +218,7 @@ def _models(conn, uids: str, root_of: dict):
     for uid, model, effort, coverage, *parts in _rows(
             conn, f"SELECT session_uid, model_id, effort_raw, coverage, input_tokens, "
                   f"cache_read_tokens, cache_write_tokens, output_tokens FROM model_call WHERE "
-                  f"session_uid IN {UIDS}", uids):
+                  f"session_uid IN {UIDS}", uids, fields=('tok', 'model', 'effort')):
         root = root_of.get(uid, uid)
         if model:
             models[root][model] += 1
@@ -211,7 +238,7 @@ def _human(conn, mains: str):
     texts: dict[str, list[str]] = defaultdict(list)
     for uid, event_uid, text in _rows(
             conn, f"SELECT session_uid, event_uid, text FROM v_human_message WHERE session_uid "
-                  f"IN {UIDS} ORDER BY session_uid, seq", mains):
+                  f"IN {UIDS} ORDER BY session_uid, seq", mains, fields=('title', 'topic', 'fric')):
         if uid not in first:
             first[uid] = (event_uid, text or "")
         if text:
@@ -225,7 +252,10 @@ def _moods(conn, mains: list[str]) -> dict[str, float]:
 
     try:
         balances, _ = session_balances(fetch_humans(conn, mains))
-    except Exception:  # noqa: BLE001 - older stores lack the view; mood stays null
+    except sqlite3.OperationalError as error:  # older stores lack the view; mood stays null
+        if not is_schema_gap(error):
+            raise
+        degrade("mood")
         return {}
     return {uid: round(v, 3) for uid, v in balances.items()}
 
@@ -318,7 +348,7 @@ def _projects(conn, ids: set[str]) -> dict[str, dict]:
     out = {}
     for pid, name, key, paths in _rows(conn, f"SELECT project_id, name, key, paths FROM project "
                                              f"WHERE project_id IN {UIDS}",
-                                       json.dumps(sorted(ids))):
+                                       json.dumps(sorted(ids)), fields=('projects',)):
         try:
             parsed = json.loads(paths) if paths else []
         except ValueError:
@@ -337,7 +367,7 @@ def _excluded(conn, uids: list[str], tz) -> list[dict]:
             conn, f"SELECT s.session_uid, src.agent, s.project_id, s.title, s.title_source, "
                   f"s.started_at FROM session s LEFT JOIN source src ON src.source_id = "
                   f"s.source_id WHERE s.session_uid IN {UIDS} AND COALESCE(s.kind, 'main') = "
-                  f"'main'", json.dumps(sorted(uids))):
+                  f"'main'", json.dumps(sorted(uids)), fields=('excluded',)):
         d, h, mi = _clock(started, tz)
         row = {k: None for k in ROW_KEYS}
         row.update(id=uid, d=d, h=h, mi=mi, a=agent, p=pid, title=title,
@@ -354,6 +384,16 @@ ROW_KEYS = ("id", "d", "h", "mi", "a", "p", "title", "title_source", "dur", "spa
 
 def build_facts(conn, result: dict, scope) -> dict:
     """Rows + per-session auxiliaries (tool mix, turn units, opening, interval)."""
+    token = _DEGRADED.set(set())
+    try:
+        body = _build_facts(conn, result, scope)
+        body["meta"]["degraded"] = sorted(_DEGRADED.get() or ())
+        return body
+    finally:
+        _DEGRADED.reset(token)
+
+
+def _build_facts(conn, result: dict, scope) -> dict:
     tz_name = getattr(scope, "display_timezone", None) or "UTC"
     tz = _tz(tz_name)
     mains, root_of = _split(result)

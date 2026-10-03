@@ -180,3 +180,39 @@ def test_outcome_labels_never_claim_abandoned():
     names = {oid: name for oid, name, _ in derive.OUT_IDS}
     assert names == {k: outcome.LABELS[k] for k in ("ok", "part", "fail")}
     assert "放弃" not in "".join(names.values())
+
+
+def _bare_store():
+    """A store with only ``session``/``source``: every L1 detail table is missing."""
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(
+        "CREATE TABLE source(source_id TEXT, agent TEXT);"
+        "CREATE TABLE session(session_uid TEXT, source_id TEXT, kind TEXT, project_id TEXT,"
+        " title TEXT, title_source TEXT, started_at INTEGER);"
+        # tool_call exists but lacks turn_uid/status: 'no such column', not 'no such table'.
+        "CREATE TABLE tool_call(call_uid TEXT, session_uid TEXT);")
+    return conn
+
+
+def test_schema_gaps_degrade_to_null_and_are_reported():
+    """UT-08: a missing table/column leaves its fields null and lists them in meta.degraded."""
+    conn = _bare_store()
+    result = {"sessions": [{"session_uid": "s1", "kind": "main", "agent": "kimi",
+                            "features": {"user_message_count": 4, "tool_call_count": 0,
+                                         "correction_signal_count": 0}}]}
+    body = facts.build_facts(conn, result, SimpleNamespace(display_timezone="UTC"))
+    row = body["rows"][0]
+    assert (row["dur"], row["steps"], row["verify"], row["out"], row["tok"]) == (
+        None, None, None, None, None)
+    assert row["msgs"] == 4  # analysis features are unaffected
+    degraded = set(body["meta"]["degraded"])
+    assert {"dur", "steps", "verify", "out", "errors", "tok", "title", "mood"} <= degraded
+
+
+def test_real_sql_errors_raise():
+    conn = _bare_store()
+    with pytest.raises(sqlite3.OperationalError, match="syntax"):
+        facts._rows(conn, "SELEC session_uid FROM session")
+    assert facts._rows(conn, "SELECT turn_uid FROM tool_call", fields=("steps",)) == []
+    assert facts.is_schema_gap(sqlite3.OperationalError("no such column: turn_uid"))
+    assert not facts.is_schema_gap(sqlite3.OperationalError("database is locked"))

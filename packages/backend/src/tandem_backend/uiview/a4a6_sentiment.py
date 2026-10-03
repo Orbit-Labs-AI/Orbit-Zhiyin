@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 import time
 import unicodedata
 from collections import Counter, defaultdict
@@ -238,10 +239,14 @@ def fetch_event_kinds(conn, session_ids, kind) -> set[str]:
 def _appdb_rows(appdb, sql, params=()) -> list:
     if appdb is None:
         return []
+    from .facts import is_schema_gap
+
     try:
         with appdb.read() as db:
             return db.execute(sql, params).fetchall()
-    except Exception:  # noqa: BLE001 - missing table / app.db: degrade silently
+    except sqlite3.OperationalError as error:  # older app.db without the table/column only
+        if not is_schema_gap(error):
+            raise
         return []
 
 
