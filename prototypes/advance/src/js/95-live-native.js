@@ -38,7 +38,7 @@ LVN.command = function (d) {
     const r = String(d.route || '').replace(/^#/, '');
     if (r === 'settings' || /^settings[:/]/.test(r)) { openSettings(r.split(/[:/]/)[1] || undefined); return; }
     if (r === 'onboarding') { openOnboarding(0); return; }
-    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance'); go(r); }
+    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); S.pop = false; S.winGone = false; if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance', r); else go(r); }
   }
 };
 ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.error('tandem:command', e); } });

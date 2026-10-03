@@ -54,10 +54,13 @@ function renderSideLite() {
     sideGroup('action', '行动', nav(3, '', recN || '')) +
     sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
 }
-function edSet(ed) {
+// edSet(ed, route?): route = the page to land on in the new edition (a menu / notification route). The swap runs after the
+// thumb animation, so the target is passed in instead of calling go(route) next to edSet (that go would run first, while
+// S.ed is still the old edition, and be overwritten by the swap's own go).
+function edSet(ed, route) {
   if (ed !== 'lite' && ed !== 'advance') return;
-  if (ed === S.ed) return;
-  const target = edRoute(S.route, ed);
+  if (ed === S.ed) { if (route) go(route); return; }
+  const target = route ? edRoute(route, ed) : edRoute(S.route, ed);
   const win = $('#win');
   const swap = () => { S.ed = ed; store.set('edition', ed); win.dataset.ed = ed; closeDD(); go(target); };
   const reduce = !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
