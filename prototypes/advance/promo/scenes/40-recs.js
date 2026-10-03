@@ -36,6 +36,7 @@ scene('40-recs', () => {
 .ln.lt.r4-s{font-size:28px;color:rgba(255,255,255,.7)}
 .ln.r4-l{font-size:36px;font-weight:600;color:rgba(255,255,255,.86);letter-spacing:.04em}
 .ln.r4-h{font-size:88px;font-weight:700;letter-spacing:-.01em;line-height:1.08}
+.ln.r4-d{font-size:34px;font-weight:600;color:var(--a1);letter-spacing:.01em;font-variant-numeric:tabular-nums}
 .ln.r4-a{font-size:64px;font-weight:600;letter-spacing:.02em;color:var(--a1)}
 `);
   const IDS = ['retry-breaker', 'remove-figma', 'acceptance', 'pr-wrapup', 'headless', 'think-medium'];
@@ -125,21 +126,23 @@ scene('40-recs', () => {
   /* ---------- app data (read once; nothing hard-coded) ---------- */
   const W = decks[0].W;
   let PCT = IDS.map(() => null), AGS = IDS.map(() => [0]), TOT = { t: [], k: [] };
-  const FLD = PREF.slice();
+  // v18.5: every entry adds each share it has to its counter (both the 省时 and the token figure on its card), so the
+  // counters are true running totals (累计) of what the cards show — a card's 省时 4.3 % never sits beside a 3.1 % total
+  let FS = IDS.map((_, n) => [PREF[n]]);
   try {
     PCT = IDS.map((id) => W.eval('recPct(' + JSON.stringify(id) + ')'));
     // the counter each entry really adds to: its preferred one if the app measured that share, else the other; none when
     // the app has no share at all (think-medium: reasoning tokens are not logged apart, the card itself says 未估算)
-    PCT.forEach((p, n) => { const o = PREF[n] === 't' ? 'k' : 't'; FLD[n] = p && p[PREF[n]] != null ? PREF[n] : p && p[o] != null ? o : null; });
+    FS = PCT.map((p) => ['t', 'k'].filter((f) => p && p[f] != null));
     AGS = IDS.map((id) => W.eval('recAgents(RECI[' + JSON.stringify(id) + '])').map((a) => AGID.indexOf(a)).filter((i) => i >= 0));
     // each counter: recTotal of its own rows that have arrived (alternatives on one problem take the best, then add)
     for (const f of ['t', 'k']) {
-      const mine = IDS.filter((_, n) => FLD[n] === f);
+      const mine = IDS.filter((_, n) => FS[n].includes(f));
       TOT[f] = mine.map((_, j) => +W.eval('(recTotal(' + JSON.stringify(mine.slice(0, j + 1)) + '.map((id) => RECI[id])) || {}).' + f) || 0);
     }
   } catch (e) { console.error('promo 40-recs: app data', e); }
   // per entry: the rise of its counter when it arrives (none for an entry without a share)
-  const STEP = IDS.map((_, n) => { const f = FLD[n]; if (!f) return { f: null, d: 0 }; const j = IDS.slice(0, n).filter((__, m) => FLD[m] === f).length; return { f, d: (TOT[f][j] || 0) - (j ? TOT[f][j - 1] || 0 : 0) }; });
+  const STEP = IDS.flatMap((_, n) => FS[n].map((f) => { const j = IDS.slice(0, n).filter((__, m) => FS[m].includes(f)).length; return { n, f, d: (TOT[f][j] || 0) - (j ? TOT[f][j - 1] || 0 : 0) }; }));
 
   /* ---------- which dots each entry links to ---------- */
   // solid = the Agents the app says the rec applies to (more than 3: hash01 picks 3); a single one gets a dashed neighbour
@@ -167,6 +170,9 @@ scene('40-recs', () => {
   // emission beat (b45.0, 47.5, 50.5, 53.5, 56.5, 59.5): the first link reaches the card, the type word wipes in, the dots
   // pulse and the entry's share starts rolling into its counter
   const EV = IDS.map((_, n) => LIVE[n][0] + .4);
+  // v18.5: the share rolls into its counter when the entry's ✓ lands on its dots (EV + .4, the bullet+tick morph below),
+  // not at the emission — the card's figure is marked, the ✓ lands, and only then does the running total move
+  const RL = EV.map((e) => e + .4);
   const toCard = (id) => (b) => { const p = elXY(0, sel(id), 0, .5); return [p[0] - 4, p[1]]; };
   IDS.forEach((id, n) => {
     const [b0, b1] = LIVE[n], all = [...LINKS[n].solid.map((i) => [i, false]), ...LINKS[n].dash.map((i) => [i, true])];
@@ -284,15 +290,20 @@ scene('40-recs', () => {
       FOC[n] = { a, bl };
       el.style.opacity = a.toFixed(3);
       el.style.filter = bl > .05 ? 'blur(' + (bl / S0).toFixed(2) + 'px)' : 'none';
+      // v18.5: the footer's「对应操作占时间 … · token …」is truncated with「…」at this width; the film hides it (the share
+      // that matters is the card's 省时 / token figure). Restored after the scene (below): deck 0 is shared
+      const gn = el.querySelector('.rc-gain'); if (gn && gn.style.opacity !== '0') gn.style.opacity = '0';   // (solo CSS forces visibility)
       // the card's own 省时 / token figure is swept by a marker as its share lands in the counter
-      const f = FLD[n], fig = f ? el.querySelector('.rc-save b[data-ck="' + MK[f] + ':' + id + '"]') || el.querySelector('.rc-save b:' + (f === 't' ? 'first-of-type' : 'last-of-type')) : null;
-      if (fig) {
-        const w = E.inOut(lp(b, EV[n] - .1, .9)) * 100;
+      for (const f of FS[n]) {
+        const fig = el.querySelector('.rc-save b[data-ck="' + MK[f] + ':' + id + '"]') || el.querySelector('.rc-save b:' + (f === 't' ? 'first-of-type' : 'last-of-type'));
+        if (!fig) continue;
+        const w = E.inOut(lp(b, RL[n] - .3, .7)) * 100;
         fig.style.backgroundImage = w > .1 ? 'linear-gradient(rgba(226,96,43,.34),rgba(226,96,43,.34))' : '';
         fig.style.backgroundRepeat = 'no-repeat'; fig.style.backgroundPosition = '0 88%'; fig.style.backgroundSize = w.toFixed(1) + '% .5em';
       }
     });
   });
+  drive(0, OUT4, OUT4 + .6, (p, b, D) => { D.querySelectorAll('.rc-gain').forEach((g) => { if (g.style.opacity) g.style.opacity = ''; }); });
   // v18.3: one slow push over the card run (no beat accent), done at b61.5, well before the scene clears
   tween(0, 46.0, 15.5, () => ({ s: decks[0].C.s * 1.025 }), E.sine);
   tween(0, OUT4 - .02, 0, { o: 0 }, E.lin);
@@ -363,12 +374,12 @@ scene('40-recs', () => {
     });
   });
   const pct = (v) => v <= 0 ? '0.0%' : v < 10 ? v.toFixed(1) + '%' : Math.round(v) + '%';   // = fmtPct above .1 %; no「<0.1%」mid-roll
-  const val = (f, b) => STEP.reduce((v, s, n) => v + (s.f === f ? s.d * E.out(lp(b, EV[n] - .1, 1.2)) : 0), 0);   // 1.2-beat roll from the emission
+  const val = (f, b) => STEP.reduce((v, s) => v + (s.f === f ? s.d * E.out(lp(b, RL[s.n], 1.2)) : 0), 0);   // 1.2-beat roll from the ✓ (v18.5)
   // v17.7: each roll enters the way its links flow (left → right): the figure slides in from 4 px left out of a 2 px blur
   const num = (f) => (el, tl, life, t) => {
     const nd = el.querySelector('.r4-v'); if (!nd) return;
     const b = t / BEAT; nd.textContent = pct(val(f, b));
-    let g = 0; STEP.forEach((s, n) => { if (s.f === f && s.d > 0) { const u = lp(b, EV[n] - .1, .7); if (u > 0 && u < 1) g = Math.max(g, 1 - E.out(u)); } });
+    let g = 0; STEP.forEach((s) => { if (s.f === f && s.d > 0) { const u = lp(b, RL[s.n], .7); if (u > 0 && u < 1) g = Math.max(g, 1 - E.out(u)); } });
     nd.style.display = 'inline-block';
     nd.style.transform = g > .002 ? 'translateX(' + (-4 * g).toFixed(2) + 'px)' : '';
     nd.style.filter = g > .02 ? 'blur(' + (2 * g).toFixed(2) + 'px)' : '';
@@ -381,7 +392,7 @@ scene('40-recs', () => {
   // v18.2: each numeral gets a 36 px Chinese label under it (协作时间 / Token 用量) instead of the mono label above it
   // v18.3: one centred stack under the orange line (y 360): numerals y 500 (x 700 / 1220), labels y 615, caption y 705
   // v18.4: numerals 1.65× (158 px, caps ≈110 px), +24 px between orange line / numerals / labels; stack centred on y 540
-  const POS = { tl: [1740, 535, .9, 680, 663, 1], tv: [1740, 450, 1, 680, 519, 1.65], kl: [1740, 785, .9, 1240, 663, 1],
+  const POS = { tl: [1740, 535, .8, 680, 663, 1], tv: [1740, 450, 1, 680, 519, 1.65], kl: [1740, 785, .8, 1240, 663, 1],
     kv: [1740, 700, 1, 1240, 519, 1.65], cap: [1750, 880, .76, 960, 753, 1] };
   // the Token half lags .12 beat behind the time half, so the two numerals never pass over each other on the way in
   const place = (key, lag = 0) => { const m = mask(.18, 1, POX), [x0, y0, k0, x1, y1, k1] = POS[key]; return (el, tl, life, t) => {
@@ -391,10 +402,24 @@ scene('40-recs', () => {
     el.style.transform = 'translate(-50%,-50%) scale(' + lerp(k0, k1, pe).toFixed(4) + ')';
     PX(el, tl, life);
   }; };
-  const KN = STEP.findIndex((st) => st.f === 'k'), KB = KN >= 0 ? EV[KN] - .1 : 45.1;   // first token roll
-  txt(45.05, POUT, [['r4-l', '可节省的协作时间']], { x: 1740, y: 535, align: 'c' }, { anim: place('tl') });
+  const KS = STEP.find((st) => st.f === 'k'), KB = KS ? RL[KS.n] : 45.1;   // first token roll
+  txt(45.05, POUT, [['r4-l', '累计可节省的协作时间']], { x: 1740, y: 535, align: 'c' }, { anim: place('tl') });
   txt(44.9, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1740, y: 450, align: 'c' }, { anim: place('tv'), tick: num('t') });
-  txt(KB + .1, POUT, [['r4-l', '可节省的 Token']], { x: 1740, y: 785, align: 'c' }, { anim: place('kl', .12) });
+  txt(KB + .1, POUT, [['r4-l', '累计可节省的 Token']], { x: 1740, y: 785, align: 'c' }, { anim: place('kl', .12) });
   txt(KB, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1740, y: 700, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
+  // v18.5: each roll is announced by its own share — an orange「+x%」(the card's marked figure) rises in above the counter
+  // as the ✓ lands and fades as the roll settles, so card and running total read as part + sum, never as two different numbers
+  STEP.forEach((st) => {
+    if (!(st.d > 0)) return;
+    const r0 = RL[st.n], y0 = st.f === 't' ? 450 : 700;
+    txt(r0 - .05, r0 + 1.7, [['r4-d', '+' + pct(st.d)]], { x: 1740, y: y0 - 84, align: 'c' }, {
+      anim: (el, tl, life, t) => {
+        const b = t / BEAT, i = E.out(lp(b, r0, .35)), o = 1 - E.inOut(lp(b, r0 + 1.25, .4)), dy = -40 * lp(b, 44.85, 18.25);
+        el.style.left = '1740px'; el.style.top = (y0 - 74 - 10 * i + dy).toFixed(1) + 'px';
+        el.style.transform = 'translate(-50%,-50%)'; el.style.opacity = (i * o).toFixed(3);
+        el.style.filter = i < .98 ? 'blur(' + (2 * (1 - i)).toFixed(2) + 'px)' : 'none';
+      }
+    });
+  });
   txt(45.35, POUT, [['lt r4-s', '预计占比 · 按你的真实轨迹估算']], { x: 1750, y: 880, align: 'c' }, { anim: place('cap', .2) });
 });
