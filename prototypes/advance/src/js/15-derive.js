@@ -46,9 +46,12 @@ function stats(L) {
   const stepped = L.some((s) => s.steps != null), steps = stepped ? sum(L, (s) => s.steps || 0) : 0;
   return { n, hours: mins / 60, msgs, tools, errors, corr, tok: sum(L, (s) => s.tok), auto: msgs ? (stepped ? steps / msgs : tools * 1.54 / msgs) : 0, fric: msgs ? corr / msgs * 100 : 0, per: n ? msgs / n : 0, verify: n ? L.filter((s) => s.verify).length / n * 100 : 0, ok: n ? L.filter((s) => s.out === 'ok').length / n * 100 : 0, err: tools ? errors / tools * 100 : 0 };
 }
+// 1 个会话即可出结论（0 个才是空态）；每个维度以 50 为界取一极，恰好 50 归高值一极（D / I / M / V），始终给完整 4 字母
+const PERSONA_SOFT_N = 30;
+const personaHint = (n) => (n > 0 && n < PERSONA_SOFT_N ? '基于 ' + n + ' 个会话，数据越多越准' : null);
 function persona(L, minN) {
   const n = L.length;
-  if (n < (minN || 30) || !n) return { ok: false, classified: false, n };
+  if (!n) return { ok: false, classified: false, n };   // minN 只是「按项目」的标记（live 用它走项目画像），不再是门槛
   const st = stats(L);
   const mins = st.hours * 60 || 1;
   const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); });
@@ -62,16 +65,16 @@ function persona(L, minN) {
     V: clamp(sum(L, (s) => PJI[s.p].V * s.dur) / mins, 4, 96)
   };
   const pairs = [['D', 'S'], ['I', 'P'], ['M', 'F'], ['V', 'T']];
-  const code = ['D', 'I', 'M', 'V'].map((k, i) => v[k] >= 55 ? pairs[i][0] : v[k] <= 45 ? pairs[i][1] : '?').join('');
+  const code = ['D', 'I', 'M', 'V'].map((k, i) => v[k] >= 50 ? pairs[i][0] : pairs[i][1]).join('');
   const t = TYPES[code];
-  return { ok: true, classified: !!t, n, v, code, zh: t ? t[0] : '尚未定型', en: t ? t[1] : 'Undetermined', line: t ? t[2] : '有维度落在 45–55 之间，暂不下结论。', st, avgS, avgA, conf: n >= 100 ? '高' : n >= 30 ? '中' : '低' };
+  return { ok: true, classified: !!t, n, v, code, zh: t[0], en: t[1], line: t[2], st, avgS, avgA, conf: n >= 100 ? '高' : n >= PERSONA_SOFT_N ? '中' : '低', hint: personaHint(n) };
 }
 function axisView(p, i) {
   const ax = AXES[i]; const val = p.v[ax.k];
   const leftIsValue = ax.k !== 'I';
   const pos = leftIsValue ? 100 - val : val;
   const strong = Math.round(Math.max(val, 100 - val));
-  const leftWins = pos < 50;
+  const leftWins = leftIsValue ? val >= 50 : val < 50;   // 恰好 50 归高值一极，与 persona() 的字母一致
   return { ax, val, pos, strong, leftWins, letter: leftWins ? ax.L : ax.R, name: leftWins ? ax.Ln : ax.Rn };
 }
 function fitOf(L) { if (L.length < 5) return null; const st = stats(L); return Math.round(clamp(130 - st.fric * 4 - (100 - st.ok) * 1.0, 20, 98)); }

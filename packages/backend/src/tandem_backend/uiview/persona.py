@@ -10,9 +10,11 @@ Axes keep the prototype's value semantics (high value → first letter of the pa
 - V 求证 / T 信任 — unit = human-triggered turn; p = share asking for verification or running
   a validation command in the same turn.
 
-value = 100·p. A letter is given only when the whole Wilson interval sits on one side of the
-45–55 band and the axis has enough units (D/I/V ≥ 30, M ≥ 10 days) over ≥ 10 active days;
-otherwise ``?``. The persona as a whole needs ≥ 30 sessions (``ok``).
+value = 100·p. Every axis always gets a letter from the value alone: value ≥ 50 → the high
+letter (D / I / M / V), value < 50 → the low letter (S / P / F / T); an axis with no units
+counts as 50. One session is enough (``ok``); only an empty selection has no persona. The
+Wilson interval and unit counts stay in the payload as context, and ``hint`` gently notes a
+small sample (< ``SOFT_SESSIONS`` sessions) without withholding the type.
 """
 
 from __future__ import annotations
@@ -25,9 +27,11 @@ from . import derive, facts
 from .typecopy import AXES, SOURCE, TYPES, copy
 
 METHOD = "uiview-persona-v0"
-MIN_SESSIONS = 30
-MIN_DAYS = 10
-MIN_UNITS = {"D": 30, "I": 30, "M": 10, "V": 30}
+MIN_SESSIONS = 1
+MIN_DAYS = 1
+MIN_UNITS = {"D": 0, "I": 0, "M": 0, "V": 0}
+SOFT_SESSIONS = 30  # below this the payload carries a gentle "more data, more accurate" hint
+MIDPOINT = 50  # value ≥ MIDPOINT → high letter, < MIDPOINT → low letter
 STEP_THRESHOLD = facts.STEP_THRESHOLD
 UNITS = {"D": "turn", "I": "session_opening", "M": "active_day", "V": "turn"}
 LEFT_RIGHT = {"D": ("D 委托", "掌舵 S"), "I": ("P 规划", "即兴 I"), "M": ("M 多线", "专注 F"),
@@ -91,14 +95,10 @@ def axis(spec: dict, k: int, n: int, days: int) -> dict:
     value = 100 * k / n if n else None
     lo, hi = wilson(k, n)
     lo, hi = round(lo * 100, 1), round(hi * 100, 1)
-    if n < MIN_UNITS[key] or days < MIN_DAYS or value is None:
-        letter, state = "?", "insufficient"
-    elif lo >= 55:
-        letter, state = spec["hi"], "settled"
-    elif hi <= 45:
-        letter, state = spec["lo"], "settled"
-    else:
-        letter, state = "?", "experimental"
+    # No "undetermined" band: the letter follows the value's lean; no units counts as 50.
+    lean = MIDPOINT if value is None else value
+    letter = spec["hi"] if lean >= MIDPOINT else spec["lo"]
+    state = "no_data" if value is None else "settled"
     left, right = LEFT_RIGHT[key]
     return {"k": key, "value": None if value is None else round(value, 1), "lo": lo, "hi": hi,
             "n_units": n, "k_units": k, "unit": UNITS[key], "letter": letter, "state": state,
@@ -107,25 +107,31 @@ def axis(spec: dict, k: int, n: int, days: int) -> dict:
             "ref": REFS[key]}
 
 
+def hint(n: int) -> str | None:
+    """Gentle sample-size note; never blocks the type."""
+    return f"基于 {n} 个会话，数据越多越准" if 0 < n < SOFT_SESSIONS else None
+
+
 def persona(rows: list[dict], aux: dict, min_n: int = MIN_SESSIONS) -> dict:
     n = len(rows)
     days = len({r["d"] for r in rows})
-    if n < min_n or not n:
+    if n < max(1, min_n):
         return {"ok": False, "classified": False, "n": n, "days": days, "code": None,
                 "zh": None, "en": None, "line": None, "v": None, "axes": [],
-                "conf": "低"}
+                "conf": "低", "hint": None}
     counts = units(rows, aux)
     axes = [axis(spec, *counts[spec["k"]], days) for spec in AXES]
     code = "".join(a["letter"] for a in axes)
     zh, en, line = copy(code)
     return {"ok": True, "classified": code in TYPES, "n": n, "days": days, "code": code,
             "zh": zh, "en": en, "line": line, "v": {a["k"]: a["value"] for a in axes},
-            "axes": axes, "conf": "高" if n >= 100 else "中"}
+            "axes": axes, "conf": "高" if n >= 100 else "中" if n >= SOFT_SESSIONS else "低",
+            "hint": hint(n)}
 
 
 def mini(p: dict) -> dict:
     return {"ok": p["ok"], "code": p["code"], "zh": p["zh"], "en": p["en"], "conf": p["conf"],
-            "n": p["n"], "method": METHOD,
+            "n": p["n"], "hint": p["hint"], "method": METHOD,
             "axes": [{"k": a["k"], "value": a["value"], "strong": a["strong"],
                       "letter": a["letter"], "left": a["left"], "right": a["right"]}
                      for a in p["axes"]]}
@@ -227,10 +233,10 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
 
 
 def traits(p: dict) -> list[str]:
-    """Trait chips for settled axes only (an axis showing ``?`` gets no chip)."""
+    """Trait chips for every axis with data (an axis without units gets no chip)."""
     names = {"D": "高吞吐", "S": "亲自掌舵", "I": "边做边想", "P": "先规划", "M": "多线程",
              "F": "单线专注", "V": "验收严格", "T": "信任结果"}
-    return [names[a["letter"]] for a in p["axes"] if a["letter"] in names]
+    return [names[a["letter"]] for a in p["axes"] if a["state"] != "no_data"]
 
 
 def fingerprint(rows: list[dict], agents: list[str], cap: int = 200) -> dict:
@@ -270,21 +276,23 @@ def blind_spots(rows: list[dict]) -> list[dict]:
 
 
 def strengths(p: dict) -> list[dict]:
-    settled = [a for a in p["axes"] if a["letter"] != "?"]
+    settled = [a for a in p["axes"] if a["state"] != "no_data"]
     settled.sort(key=lambda a: -(a["strong"] or 0))
     return [{"k": a["k"], "letter": a["letter"], "text": STRENGTH[a["letter"]],
              "strong": a["strong"], "n_units": a["n_units"]} for a in settled[:3]]
 
 
 def candidates(p: dict, top: int = 6) -> list[dict]:
-    if not p["ok"] or not p["v"] or any(v is None for v in p["v"].values()):
+    if not p["ok"] or not p["v"]:
         return []
+    v = {k: MIDPOINT if x is None else x for k, x in p["v"].items()}
     scored = []
     for code, (zh, en, _) in TYPES.items():
-        parts = [(p["v"][spec["k"]] if code[i] == spec["hi"] else 100 - p["v"][spec["k"]])
+        parts = [(v[spec["k"]] if code[i] == spec["hi"] else 100 - v[spec["k"]])
                  for i, spec in enumerate(AXES)]
         scored.append((-round(sum(parts) / 4, 1), code, zh, en))
-    scored.sort()
+    # Ties (an axis exactly at 50) keep the persona's own code first.
+    scored.sort(key=lambda x: (x[0], x[1] != p["code"], x[1]))
     return [{"code": c, "zh": zh, "en": en, "match": -s, "basis": "axis_distance"}
             for s, c, zh, en in scored[:top]]
 
@@ -351,7 +359,8 @@ def page(body: dict, params: dict, today: date) -> dict:
         "fp": fingerprint(L, agent_ids), "fit": fit(L, agent_ids),
         "strengths": strengths(p), "blind_spots": blind_spots(L),
         "relax": relax(rows, window, f, period, label, first, agents_meta, projects),
-        "low": {"n": p["n"], "need": MIN_SESSIONS},
+        "low": {"n": p["n"], "need": MIN_SESSIONS, "soft": SOFT_SESSIONS},
+        "hint": p["hint"],
         "reveal": {"candidates": candidates(p)},
     }
     return payload
@@ -365,7 +374,7 @@ def reveal(body: dict, params: dict, today: date, cap: int = 400) -> dict:
     L = derive.sel(rows, window, _filters(params), no_extra=True)
     particles = [{"h": r.get("h"), "mi": r.get("mi"), "dur": r.get("dur"), "a": r.get("a")}
                  for r in L[-cap:]]
-    keep = ("meta", "ok", "classified", "n", "conf", "code", "zh", "en", "line", "low")
+    keep = ("meta", "ok", "classified", "n", "conf", "code", "zh", "en", "line", "low", "hint")
     return {**{k: full[k] for k in keep},
             "axes": [{k: a[k] for k in ("k", "value", "letter", "strong", "left", "right",
                                         "state")} for a in full["axes"]],

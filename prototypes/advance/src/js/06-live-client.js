@@ -373,6 +373,8 @@ const TandemLive = (function () {
       }
       emit('event', { name, data: p });
     }
+    // one parsed SSE frame, exactly as the stream delivers it (debug / tests: simulate job frames without a stream)
+    C.dispatch = dispatch;
     function frame(raw) {
       let id = null, name = 'message'; const data = [];
       raw.split('\n').forEach((line) => {
@@ -760,7 +762,7 @@ const TandemLive = (function () {
   }
   const REPORT_SECTIONS = { ov: ['overview', 'metrics'], persona: ['persona'], proj: ['projects'], fric: ['friction'], recs: ['recommendations'] };
   function reportSections(keys) { const out = []; Array.from(keys || []).forEach((k) => (REPORT_SECTIONS[k] || []).forEach((s) => { if (out.indexOf(s) < 0) out.push(s); })); return out; }
-  const BLOCKED = { insufficient_data: '样本不足（每个维度至少 30 个任务、10 个活跃天），暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
+  const BLOCKED = { insufficient_data: '所选范围还没有会话，暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
   const RESUME_OFF = { running: '会话还在运行，结束后再继续', unsupported_agent: '这个 Agent 暂不支持继续命令', no_cwd: '会话没有记录工作目录', unknown_session: '找不到这个会话' };
 
   function ops(C, ctx) {
