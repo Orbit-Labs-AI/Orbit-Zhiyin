@@ -26,6 +26,31 @@ RULE_VERSIONS = {
 }
 
 
+def rule_versions() -> dict[str, str]:
+    """Every rule version that shapes a cached analysis section or served snapshot.
+
+    ``RULE_VERSIONS`` holds the feature/product families declared here; the work graph,
+    presentation projection, presentation diagnostics and the recommendation pipeline own
+    their version constants in their own modules. They are read at call time (lazy imports,
+    no import cycle), so bumping any of them changes ``algo_version()``, ``rules_digest()``,
+    ``analysis_digest`` and ``meta.analysis_methods``.
+    """
+    from ...recommend import contracts as recommend_contracts
+    from .. import presentation
+    from ..presentation import diagnostics as presentation_diagnostics
+    from ..recommendations import policy
+    from ..work_graph import index as work_graph_index
+
+    return {
+        **RULE_VERSIONS,
+        "work_graph": work_graph_index.WORK_GRAPH_VERSION,
+        "presentation": presentation.PRESENTATION_VERSION,
+        "presentation_diagnostics": presentation_diagnostics.RULE_VERSION,
+        "bottleneck_recommendations": policy.ALGORITHM_VERSION,
+        "recommendation_pipeline": recommend_contracts.RESULT_VERSION,
+    }
+
+
 class Metric(TypedDict):
     value: int | float | None
     unit: str
