@@ -36,7 +36,6 @@ body{display:grid;place-items:center;font-family:var(--sans);-webkit-font-smooth
 .chip{display:inline-flex;align-items:center;gap:14px;font-family:var(--mono);font-size:30px;color:rgba(255,255,255,.86)}
 .chip i{width:14px;height:14px;border-radius:50%;display:inline-block}
 .mark{width:280px;height:auto;display:block}
-.wordmark{display:block;height:100px;width:auto}
 .letter{font-family:var(--display);font-weight:700;font-size:300px;line-height:1}
 .odo{display:inline-flex;font-size:150px;font-weight:700;line-height:1;letter-spacing:-.01em;transform-origin:50% 50%;will-change:transform}
 .odo .dg{display:inline-block;height:1em;overflow:hidden}

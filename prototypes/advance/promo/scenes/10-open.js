@@ -1,9 +1,9 @@
-/* 1 片头：两个问题（b0–7.9）+ 2 标志 + 下潜（b7.9–14.6）. STORYBOARD.md KF 1.1–2.4.
+/* 1 片头：两个问题（b0–7.9）+ 2 标志 → 字标 → 俯视螺旋下潜（b7.9–22.6；之后各场景整体后移 INTRO = 8 拍）. STORYBOARD.md KF 1.1–2.4.
    Words cut in on the beat and the line refits; the five Agent chips pop under it, then collapse into the five planets
    that orbitAt draws; two questions swap in the middle; the planets fall onto the mark's tail, the mark is traced,
    tips over and the camera dives into its hole (OPEN timings, drawn by orbitAt in promo.js). */
 scene('10-open', () => {
-  Object.assign(OPEN, { planets: 3.0, pull: 7.5, trace: 7.9, tilt: 11.4, dive: 12.8, end: 14.6 });
+  Object.assign(OPEN, { planets: 3.0, pull: 7.5, trace: 7.9, hold: 10.4, turn: 11.0, off: 17.4, tip: 18.6, dive: 20.8, end: 22.6 });
   css(`
 .op-line .sv-t{display:inline-block}
 .op-o{color:var(--a1)}
@@ -83,9 +83,9 @@ scene('10-open', () => {
     }
   });
 
-  // 2: the mark (orbitAt) — brand words under it, gone before it tips over into the top view
+  // 2: the mark (orbitAt): traced to the icon view, the kit's reveal turns it into the O of Orbit·知音 and the letters
+  // rise; the line under it; the letters leave, the O tips to the top view and the camera dives in (b7.9–22.6)
   glowAt(7.9, 1, 3);
-  txt(9.6, 12.2, [['', WORDMARK]], { x: 960, y: 690, align: 'c' }, { inB: 1.4, outB: .8 });
-  txt(10.6, 12.2, [['lt', '看见你与 Agent 的每一次协作']], { x: 960, y: 800, align: 'c' }, { inB: 1.2, outB: .8 });
-  glowAt(12.6, 0, 1.6);
+  txt(14.4, 17.9, [['lt', '看见你与 Agent 的每一次协作']], { x: 960, y: 700, align: 'c' }, { anim: K.blurIn({ spread: .4, out: .6 }) });
+  glowAt(20.4, 0, 1.6);
 });

@@ -5,7 +5,13 @@
    (preview) or frame by frame on Playwright's fake clock (render.mjs). Times are written in beats. */
 'use strict';
 const BPM = 124, BEAT = 60 / BPM;                         // beats; music.py uses the same grid
-let END = 118;                                            // length in beats; the closing scene sets it
+let END = 118;                                            // length in beats; the closing scene sets it (scene beats)
+/* Scene beats vs film beats: the opening (10-open) runs on film beats; every later scene was written on the v7 grid and
+   is played INTRO beats later, so the opening has room for the wordmark reveal. Each cue, tween, text, tag, drive and
+   click remembers the shift of the scene that registered it and sees the clock in its own scene beats. music.py
+   applies the same shift. */
+const INTRO = 8;
+let SH = 0;
 const RENDER = location.search.includes('render');
 const DEBUG = location.search.includes('debug');
 const $ = (s, r) => (r || document).querySelector(s);
@@ -53,7 +59,7 @@ function framing(d, sel, box, o = {}) {
   return { x: r.x + r.w * (o.px ?? .5), y: r.y + r.h * (o.py ?? .5), s, ax: cx, ay: cy, rx: 0, ry: 0, rz: o.rz || 0, z: 0, o: 1, bl: 0 };
 }
 // tween(d, b, dur, to, ease, from): to = object or () => object; from(T) gives the start state relative to the target
-function tween(d, b, dur, to, ease = E.inOut, from = null) { tweens.push({ d, b, dur, to, ease, from }); }
+function tween(d, b, dur, to, ease = E.inOut, from = null) { tweens.push({ d, b: b + SH, dur, to, ease, from }); }
 const IN = {
   rise: (T) => ({ ay: T.ay + 150, s: T.s * .97, o: 0, bl: 10 }),
   sink: (T) => ({ ay: T.ay - 150, s: T.s * .97, o: 0, bl: 10 }),
@@ -133,7 +139,7 @@ function txt(b0, b1, lines, pos, o = {}) {
   const html = lines.map(([c, h]) => (c === 'gap' ? '<div class="gap"></div>' : Array.isArray(h) ? '<div class="' + c + '">' + h.map((w) => '<span class="ln"><span>' + w + '</span></span>').join('') + '</div>' : '<span class="ln ' + c + '"><span>' + h + '</span></span>')).join('');
   const al = pos.align || 'l';
   const style = 'left:' + pos.x + 'px;top:' + pos.y + 'px;text-align:' + ({ l: 'left', c: 'center', r: 'right' })[al] + (o.style ? ';' + o.style : '');
-  fx.push({ b0, b1, html, style, base: 'translate(' + ({ l: '0', c: '-50%', r: '-100%' })[al] + ',-50%)', anim: o.anim || mask(o.st ?? .18, o.inB || 1, o.outB || .6, o.spread), tick: o.tick, tag: o.tag, el: null });
+  fx.push({ sh: SH, b0: b0 + SH, b1: b1 + SH, html, style, base: 'translate(' + ({ l: '0', c: '-50%', r: '-100%' })[al] + ',-50%)', anim: o.anim || mask(o.st ?? .18, o.inB || 1, o.outB || .6, o.spread), tick: o.tick, tag: o.tag, el: null });
 }
 function mask(st, inB, outB, spread) {
   return (el, tl, life) => {
@@ -154,16 +160,16 @@ function applyFx(t) {
     const t0 = f.b0 * BEAT, t1 = f.b1 * BEAT, live = t >= t0 && t < t1;
     if (live && !f.el) { f.el = document.createElement('div'); f.el.className = 'k'; f.el.innerHTML = f.html; f.el.setAttribute('style', f.style); f.el.style.transform = f.base; fxEl.appendChild(f.el); }
     if (!live && f.el) { f.el.remove(); f.el = null; }
-    if (f.el) { f.anim(f.el, t - t0, t1 - t0, t); if (f.tick) f.tick(f.el, t - t0, t1 - t0, t); }
+    if (f.el) { const ts = t - f.sh * BEAT; f.anim(f.el, t - t0, t1 - t0, ts); if (f.tick) f.tick(f.el, t - t0, t1 - t0, ts); }
   }
 }
 let glow = { b: null, from: 0, to: 0, v: 0, dur: 2 };
-function glowAt(b, v, dur = 2) { at(b, () => { glow = { b, from: glow.v, to: v, v: glow.v, dur }; }); }
+function glowAt(b, v, dur = 2) { const g = b + SH; at(b, () => { glow = { b: g, from: glow.v, to: v, v: glow.v, dur }; }); }
 function applyGlow(t) { if (glow.b == null) return; glow.v = lerp(glow.from, glow.to, E.inOut(clamp((t / BEAT - glow.b) / glow.dur))); glowEl.style.opacity = glow.v.toFixed(3); }
 
 /* ---------- app control ---------- */
 const cues = [];
-function at(b, fn) { cues.push({ b, fn, done: false }); }
+function at(b, fn) { cues.push({ b: b + SH, fn, done: false }); }
 function app(d) {
   const k = decks[d], W = k.W, D = k.D;
   return {
@@ -194,20 +200,18 @@ const PROMO_CSS = 'html,body,.desk{background:transparent!important}.desk .wall{
 /* ---------- drivers: per-frame changes to the app's own charts, as functions of the beat ---------- */
 // drive(d, b0, b1, fn): fn(p, b, D) runs every frame from b0 until it has run once with p = 1
 const drives = [];
-function drive(d, b0, b1, fn) { drives.push({ d, b0, b1, fn, fin: false }); }
+function drive(d, b0, b1, fn) { drives.push({ d, b0: b0 + SH, b1: b1 + SH, sh: SH, fn, fin: false }); }
 function applyDrives(t) {
   const b = t / BEAT;
   for (const x of drives) {
     if (x.fin || b < x.b0) continue;
     const D = decks[x.d].D; if (!D && !decks[x.d].virtual) continue;
     const p = clamp((b - x.b0) / (x.b1 - x.b0));
-    try { x.fn(p, b, D); } catch (e) { console.error('drive @' + x.b0, e); x.fin = true; }
+    try { x.fn(p, b - x.sh, D); } catch (e) { console.error('drive @' + x.b0, e); x.fin = true; }
     if (p >= 1) x.fin = true;
   }
 }
 const SVGNS = 'http://www.w3.org/2000/svg';
-// the Orbit·知音 wordmark, night colourway, used as is from the logo kit (served from the repo root, see render.mjs)
-const WORDMARK = '<img class="wordmark" src="../../../docs/design/logo/kit/wordmark/orbit-wordmark-night.svg" alt="Orbit·知音">';
 const lp = (b, b0, dur) => clamp((b - b0) / dur);          // local progress of a staggered item
 
 // odometer digits: every digit is a strip 0-9 ×3 that rolls up and settles on its value
@@ -256,7 +260,7 @@ function riseRects(svg, head, base) {
 const tags = [];
 function tag(d, b0, b1, sel, side, lines, o = {}) {
   const html = lines.map(([c, h]) => (c === 'gap' ? '<div class="gap"></div>' : '<span class="ln ' + c + '"><span>' + h + '</span></span>')).join('');
-  tags.push({ d, b0, b1, sel, side, html, o, el: null, anim: o.anim || mask(o.st ?? .14, o.inB || .9, o.outB || .5) });
+  tags.push({ d, sh: SH, b0: b0 + SH, b1: b1 + SH, sel, side, html, o, el: null, anim: o.anim || mask(o.st ?? .14, o.inB || .9, o.outB || .5) });
 }
 function applyTags(t) {
   for (const g of tags) {
@@ -274,8 +278,8 @@ function applyTags(t) {
     g.el.style.textAlign = g.side === 'left' ? 'right' : al >= .99 ? 'right' : al > .01 && al < .99 ? 'center' : 'left';
     g.el.style.transformOrigin = g.side === 'left' ? '100% 50%' : g.side === 'right' ? '0 50%' : (al * 100) + '% ' + (g.side === 'top' ? '100%' : '0');
     g.el.style.transform = 'scale(' + s.toFixed(4) + ') ' + tr;
-    g.anim(g.el, t - t0, t1 - t0, t);
-    if (g.o.tick) g.o.tick(g.el, t - t0, t1 - t0, t);
+    const ts = t - g.sh * BEAT; g.anim(g.el, t - t0, t1 - t0, ts);
+    if (g.o.tick) g.o.tick(g.el, t - t0, t1 - t0, ts);
   }
 }
 
@@ -469,28 +473,89 @@ function planetsSVG(o) {
     return '<circle cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="16" fill="' + c + '" opacity=".18"/><circle cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="7" fill="' + c + '"/>';
   }).join('') + '<ellipse cx="' + o.cx + '" cy="' + o.cy + '" rx="' + (o.rx * (1 - o.pull)).toFixed(1) + '" ry="' + (o.ry * (1 - o.pull)).toFixed(1) + '" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="2 7"/></g>';
 }
-// Timings (beats) of the two mark sequences. The open and close scenes overwrite them with Object.assign.
-// open: planets appear, are pulled onto the tail, the mark is traced, tips over and is dived into;
-// close: the ring grows its inner turn, rises into the icon and settles; sway = when the 3D sway starts; out = fade.
-const OPEN = { planets: 5.6, pull: 7.5, trace: 7.9, tilt: 11.4, dive: 12.8, end: 14.6 };
-const CLOSE = { ring: 105.8, rise: 107.6, settle: 110, sway: 104, out: 115.8, outDur: 1.8 };
-function orbitAt(b) {
-  let h = '';
-  if (b >= OPEN.planets && b < OPEN.trace + .7) {
+/* The brand reveal, used as is: docs/design/logo/kit/motion/orbit-reveal.html holds the precomputed frames of the
+   mark turning once about its own axis while it tips from pitch 45° to the wordmark's O (pitch 75°) and slides onto
+   the O, then the letters rbit·知音 rising one by one (the kit's 1500 ms turn, 110 ms letter stagger, 420 ms each,
+   letters from 75 % of the turn; in reverse, the last letter leaves first). Frames and letters are in the wordmark's
+   own coordinates (viewBox 38.9 40 2322.1 428.3). */
+const REVEAL = { url: '../../../docs/design/logo/kit/motion/orbit-reveal.html', vb: [38.9, 40, 2322.1, 428.3], F: null, L: null, D: 0 };
+const revealReady = fetch(REVEAL.url).then((r) => r.text()).then((h) => {
+  const doc = new DOMParser().parseFromString(h, 'text/html'), js = doc.querySelector('script').textContent;
+  REVEAL.F = JSON.parse(/const F=(\[.*?\]),N=/s.exec(js)[1]);
+  REVEAL.D = +/D=(-?[\d.]+)/.exec(js)[1];
+  REVEAL.T = +/T=(\d+)/.exec(js)[1] / 1000 / BEAT;                   // turn, beats
+  REVEAL.L = [...doc.querySelectorAll('path.l')].map((p) => ({ d: p.getAttribute('d'), i: +/--i:(\d+)/.exec(p.getAttribute('style'))[1], j: +/--j:(\d+)/.exec(p.getAttribute('style'))[1] }));
+}).catch((e) => console.error('promo: reveal frames', e));
+const MS = (ms) => ms / 1000 / BEAT;
+// the wordmark group on screen: centre (cx, cy), k screen px per wordmark unit; v = turn 0..1; on / off = letter beats
+function revealSVG(o) {
+  const [x, y, w, h] = REVEAL.vb, mx = x + w / 2, my = y + h / 2, F = REVEAL.F, N = F.length;
+  let g = '<g opacity="' + o.a.toFixed(3) + '" fill="' + MARK_INK + '" transform="translate(' + o.cx.toFixed(2) + ' ' + o.cy.toFixed(2) + ') scale(' + o.k.toFixed(5) + ') translate(' + (-mx) + ' ' + (-my) + ')">';
+  g += '<path d="' + F[Math.round(o.v * (N - 1))] + '" transform="translate(' + (REVEAL.D * (1 - o.v)).toFixed(2) + ' 0)"/>';
+  for (const l of REVEAL.L) {
+    const pin = E.out(clamp((o.b - o.on - MS(l.i * 110)) / MS(420))), pout = o.off == null ? 0 : E.out(clamp((o.b - o.off - MS(l.j * 110)) / MS(420))), p = pin * (1 - pout);
+    if (p > .001) g += '<path d="' + l.d + '" opacity="' + p.toFixed(3) + '" transform="translate(0 ' + (24 * (1 - p)).toFixed(2) + ')"/>';
+  }
+  return g + '</g>';
+}
+// bounding box of the mark drawn by orbitSVG at a pose with R = 1 around (0, 0), and of a reveal frame in wordmark units
+const MBOX = {};
+function boxOf(d) { const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); orbEl.appendChild(p); const r = p.getBBox(); p.remove(); return r; }
+function unitBox(yaw, pitch) {
+  const key = yaw + '/' + pitch; if (MBOX[key]) return MBOX[key];
+  const m = /d="([^"]+)"/.exec(orbitSVG({ t: 1, yaw, pitch, R: 1000, cx: 0, cy: 0, a: 1 }));
+  const r = boxOf(m[1]); return (MBOX[key] = { x: r.x / 1000, y: r.y / 1000, w: r.width / 1000, h: r.height / 1000 });
+}
+// the orbitSVG pose (R, cx, cy) that puts the mark exactly where a reveal frame sits on screen
+function matchFrame(fi, dx, o, yaw, pitch) {
+  const key = 'F' + fi, [x, y, w, h] = REVEAL.vb; MBOX[key] = MBOX[key] || boxOf(REVEAL.F[fi]);
+  const f = MBOX[key], u = unitBox(yaw, pitch), R = f.width * o.k / u.w;
+  const sx = o.cx + (f.x + dx - (x + w / 2)) * o.k, sy = o.cy + (f.y - (y + h / 2)) * o.k;
+  return { R, cx: sx - u.x * R, cy: sy - u.y * R };
+}
+const MARK_INK = '#fff';
+// Timings (film beats) of the two mark sequences; the open and close scenes overwrite them with Object.assign.
+// open: planets, pulled onto the tail, the mark traced to the icon view (by `hold`), the reveal turn (`turn`), letters
+// in (`on`) and out (`off`), the O tips to the top view (`tip`) and the camera dives into it (`dive` → `end`);
+// close (scene beats): the band's ring tips into an orbit (`orbit`), the spiral grows along it (`grow`), rises to the
+// icon view (`rise` → `settle`), fades (`out`).
+const OPEN = { planets: 3.0, pull: 7.5, trace: 7.9, hold: 10.4, turn: 11.0, off: 17.4, tip: 18.6, dive: 20.8, end: 22.6, cy: 500, k0: 1.0, k1: .6 };
+const CLOSE = { ring: 104.2, orbit: 104.2, grow: 105.0, rise: 106.6, settle: 108.4, out: 111.6, outDur: 1.4, tilt: 64 };
+function orbitAt(bf) {
+  let h = '', b = bf;
+  const O = OPEN, ready = !!REVEAL.F;
+  if (b >= O.planets && b < O.trace + .7) {
     const start = orbitPts(-25, 72)[0];
-    h += planetsSVG({ a: E.out(lp(b, OPEN.planets, .8)) * (1 - E.in(lp(b, OPEN.trace + .2, .5))), phase: (b - OPEN.planets) * 95, cx: 960, cy: 790, rx: 380, ry: 64, pull: E.inOut(lp(b, OPEN.pull, 1)), tx: 960 + start[0] * 215, ty: 410 + start[1] * 215 });
+    h += planetsSVG({ a: E.out(lp(b, O.planets, .8)) * (1 - E.in(lp(b, O.trace + .2, .5))), phase: (b - O.planets) * 95, cx: 960, cy: 790, rx: 380, ry: 64, pull: E.inOut(lp(b, O.pull, 1)), tx: 960 + start[0] * 215, ty: 410 + start[1] * 215 });
   }
-  if (b >= OPEN.trace && b < OPEN.end) {
-    const turn = E.out(lp(b, OPEN.trace, 3.4)), tilt = E.inOut(lp(b, OPEN.tilt, OPEN.dive - OPEN.tilt)), dive = lp(b, OPEN.dive, OPEN.end - OPEN.dive);
-    const yaw = lerp(lerp(-25, 20, turn), 0, tilt) - 620 * E.in(dive);                       // the dive spins the spiral
-    const Rn = lerp(215, 270, tilt) * Math.pow(18, E.in(dive));
-    $('#hole1').style.clipPath = b >= OPEN.dive ? 'circle(' + (Rn * ORB.r0 / ORB.r1 * .9).toFixed(1) + 'px at 960px ' + lerp(410, 540, tilt).toFixed(1) + 'px)' : 'circle(0px at 960px 540px)';
-    h += orbitSVG({ t: E.inOut(lp(b, OPEN.trace, 2.4)), yaw, pitch: lerp(lerp(72, 45, turn), 90, tilt), R: lerp(215, 270, tilt) * Math.pow(18, E.in(dive)), cx: 960, cy: lerp(410, 540, tilt), a: 1 - E.in(lp(b, OPEN.end - .6, .6)), head: 1 - lp(b, OPEN.trace + 2.2, .5) });
+  if (ready && b >= O.trace && b < O.end) {
+    const W0 = { cx: 960, cy: O.cy, k: O.k0 }, P0 = matchFrame(0, REVEAL.D, W0, 20, 45);
+    if (b < O.hold) {
+      // traced while it turns from a steep view to the icon view, landing exactly on the reveal's first frame
+      const turn = E.out(lp(b, O.trace, O.hold - O.trace));
+      h += orbitSVG({ t: E.inOut(lp(b, O.trace, 2.4)), yaw: lerp(-25, 20, turn), pitch: lerp(72, 45, turn), R: P0.R, cx: P0.cx, cy: P0.cy, a: 1, head: 1 - lp(b, O.trace + 2.2, .5), color: MARK_INK });
+    } else if (b < O.tip) {
+      const v = E.inOut(lp(b, O.turn, REVEAL.T)), k = lerp(O.k0, O.k1, E.inOut(lp(b, O.turn, REVEAL.T)));
+      h += revealSVG({ a: 1, cx: 960, cy: O.cy, k, v, b, on: O.turn + REVEAL.T * .75, off: O.off });
+    } else {
+      // the O (pitch 75°) tips to the top view, moves to the centre and grows; then the camera dives into its hole
+      const P1 = matchFrame(REVEAL.F.length - 1, 0, { cx: 960, cy: O.cy, k: O.k1 }, 20, 75);
+      const tilt = E.inOut(lp(b, O.tip, O.dive - O.tip)), dive = lp(b, O.dive, O.end - O.dive);
+      const R = lerp(P1.R, 270, tilt) * Math.pow(18, E.in(dive)), cx = lerp(P1.cx, 960, tilt), cy = lerp(P1.cy, 540, tilt);
+      $('#hole1').style.clipPath = b >= O.dive ? 'circle(' + (R * ORB.r0 / ORB.r1 * .9).toFixed(1) + 'px at ' + cx.toFixed(1) + 'px ' + cy.toFixed(1) + 'px)' : 'circle(0px at 960px 540px)';
+      h += orbitSVG({ t: 1, yaw: lerp(20, 0, tilt) - 620 * E.in(dive), pitch: lerp(75, 90, tilt), R, cx, cy, a: 1 - E.in(lp(b, O.end - .6, .6)), color: MARK_INK });
+    }
   }
-  if (b >= OPEN.end && b < OPEN.end + .2) $('#hole1').style.clipPath = 'none';
+  if (b >= O.end && b < O.end + .2) $('#hole1').style.clipPath = 'none';
+  b = bf - INTRO;                                                    // the close runs on scene beats
   if (b >= CLOSE.ring) {
-    const R0 = 300 * decks[2].C.s, grow = E.inOut(lp(b, CLOSE.ring, CLOSE.rise - CLOSE.ring)), rise = E.inOut(lp(b, CLOSE.rise, CLOSE.settle - CLOSE.rise));
-    h += orbitSVG({ t0: 1 - grow * .999, t: 1, yaw: lerp(0, 20, rise) + 12 * Math.sin((b - CLOSE.sway) * .35) * lp(b, CLOSE.sway, 3), pitch: lerp(90, 45, rise), R: lerp(R0, 215, rise), cx: 960, cy: lerp(540, 410, rise), a: E.out(lp(b, CLOSE.ring, .4)) * (1 - E.inOut(lp(b, CLOSE.out, CLOSE.outDur))), head: 0 });
+    const C = CLOSE, R0 = 300 * decks[2].C.s, tip = E.inOut(lp(b, C.orbit, 1.2)), grow = E.inOut(lp(b, C.grow, C.rise - C.grow)), rise = E.inOut(lp(b, C.rise, C.settle - C.rise));
+    const pitch = lerp(lerp(90, 90 - C.tilt, tip), 45, rise), a = E.out(lp(b, C.grow, .3)) * (1 - E.inOut(lp(b, C.out, C.outDur)));
+    // five Agent planets ride the orbit while the spiral grows out of it, as at the start of the film
+    if (b < C.rise + .6) h += planetsSVG({ a: E.out(lp(b, C.orbit + .3, .6)) * (1 - E.inOut(lp(b, C.rise - .2, .8))), phase: (b - C.orbit) * 70, cx: 960, cy: 540, rx: R0, ry: R0 * Math.sin(pitch * Math.PI / 180), pull: 0, tx: 960, ty: 540 });
+    // while it lies on the orbit, the tail (z = rise / 2) sits on the compass ring: undo its projected height
+    const R = lerp(R0, 215, rise), lift = (ORB.rise / 2 / ORB.r1) * R * Math.cos(pitch * Math.PI / 180) * (1 - rise);
+    h += orbitSVG({ t0: 1 - grow * .999, t: 1, yaw: lerp(0, 20, rise), pitch, R, cx: 960, cy: lerp(540, 410, rise) + lift, a, color: MARK_INK });
   }
   orbEl.innerHTML = '<defs><radialGradient id="orbGlow"><stop offset="0" stop-color="rgba(255,255,255,.9)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>' + h;
 }
@@ -501,7 +566,7 @@ const CURSOR_SVG = '<svg viewBox="0 0 28 28" width="28" height="28"><path d="M6 
 const clicks = [];
 // o.bloom: colour of a press bloom (a radial fill under the pointer, then a soft glow that spreads to about 3×, as in
 // the GWI reference); o.size: its diameter on screen in px; o.glide: beats the pointer takes to reach the control.
-function clickAt(d, b, sel, fn, o = {}) { clicks.push({ d, b, sel, fn, o }); at(b, () => { const el = find(d, sel); if (el) fn(app(d), el); else console.warn('promo: no click target', sel); }); }
+function clickAt(d, b, sel, fn, o = {}) { clicks.push({ d, b: b + SH, sel, fn, o }); at(b, () => { const el = find(d, sel); if (el) fn(app(d), el); else console.warn('promo: no click target', sel); }); }
 function cursorEl(d) {
   const k = decks[d]; if (k.cursor) return k.cursor;
   const c = document.createElement('div'); c.className = 'cursor'; c.innerHTML = CURSOR_SVG + '<i class="ripple"></i>'; k.rig.appendChild(c); k.cursor = c; return c;
@@ -553,7 +618,7 @@ const every = (b0, b1, fn) => drive(2, b0, b1, (p, b) => fn(p, b));
    must hand over to the next one; times are beats (124 BPM, 1 beat = 0.484 s). */
 const SCENES = [];
 function scene(name, fn) { SCENES.push({ name, fn }); }
-function script() { for (const s of SCENES) { try { s.fn(); } catch (e) { console.error('scene ' + s.name, e); } } }
+function script() { for (const s of SCENES) { SH = s.name === '10-open' ? 0 : INTRO; try { s.fn(); } catch (e) { console.error('scene ' + s.name, e); } } SH = 0; }
 // styles a scene needs for its own type or overlays
 function css(text) { const st = document.createElement('style'); st.textContent = text; document.head.appendChild(st); }
 const L = 160, R = 1760;
@@ -609,10 +674,13 @@ decks.filter((k) => k.frame).forEach((k) => k.frame.addEventListener('load', () 
   const S = k.W.eval('S'); S.widgets = false; S.hud.show = false; k.W.render();
   k.D.querySelectorAll('#notes .nt').forEach((n) => n.remove());
   if (++loaded < 2) return;
-  script(); PROMO.duration = END * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
+  revealReady.then(boot);
+}));
+function boot() {
+  script(); PROMO.duration = (END + INTRO) * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
   if (DEBUG) { const d = document.createElement('div'); d.className = 'dbg'; stage.appendChild(d); setInterval(() => { d.textContent = 'b' + (PROMO.t / BEAT).toFixed(2); }, 50); }
   PROMO.ready = true;
-}));
+}
 $('#play').addEventListener('click', async () => {
   $('#play').remove();
   const from = +(new URLSearchParams(location.search).get('t') || 0);
