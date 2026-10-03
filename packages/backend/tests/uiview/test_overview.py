@@ -160,14 +160,34 @@ def test_insight_uses_matching_ai_narrative_and_names_it():
 
 def test_insight_names_the_scope_regenerate_posts():
     """``ai_scope`` is the narrate.overview scope this card reads back (the page's 「重新生成」
-    posts it verbatim); 「全部」 and filtered views have none, so they stay rule-based."""
+    posts it verbatim). Agent subsets, the project and 「全部」 each get their own scope; only
+    filters the narrative cannot take (topic / outcome / friction / hour / brush) have none."""
     from orbit_backend.uiview import insight as card
 
-    card.set_ai_provider(lambda scope, data_rev: None)
+    seen = []
+    card.set_ai_provider(lambda scope, data_rev: seen.append(scope))
     base = {"range": 7, "agents": None, "project": None, "compare": False, "metric": "n",
             "edition": "advance"}
     assert overview.build(_with_rev(3), base, TODAY)["insight"]["ai_scope"] == \
         {"days": 7, "project_id": None}
-    assert overview.build(_with_rev(3), {**base, "range": 0}, TODAY)["insight"]["ai_scope"] is None
-    assert overview.build(_with_rev(3), {**base, "agents": ["codex"]}, TODAY)["insight"]["ai_scope"] \
+    everything = overview.build(_with_rev(3), {**base, "range": 0}, TODAY)
+    rows = derive.prepare(analysed()[4]["rows"], TODAY)
+    first = TODAY + timedelta(days=min(derive.first_index(rows), 0))
+    start = int(datetime(first.year, first.month, first.day, tzinfo=UTC).timestamp() * 1000)
+    assert everything["insight"]["ai_scope"] == {"start_ms": start, "project_id": None}
+    # Stable across rebuilds (the read-back must find the job it posted).
+    assert overview.build(_with_rev(3), {**base, "range": 0}, TODAY)["insight"]["ai_scope"] == \
+        everything["insight"]["ai_scope"]
+    assert overview.build(_with_rev(3), {**base, "agents": ["codex"]},
+                          TODAY)["insight"]["ai_scope"] == \
+        {"days": 7, "project_id": None, "agent_ids": ["codex"]}
+    # Every known Agent selected is the unfiltered view: same scope, no second paid narrative.
+    assert overview.build(_with_rev(3), {**base, "agents": ["codex", "claude_code"]},
+                          TODAY)["insight"]["ai_scope"] == {"days": 7, "project_id": None}
+    assert overview.build(_with_rev(3), {**base, "project": "p1"}, TODAY)["insight"]["ai_scope"] == \
+        {"days": 7, "project_id": "p1"}
+    assert overview.build(_with_rev(3), {**base, "agents": []}, TODAY)["insight"]["ai_scope"] is None
+    assert overview.build(_with_rev(3), {**base, "topic": "bugfix"}, TODAY)["insight"]["ai_scope"] \
         is None
+    assert {"days": 7, "project_id": None, "agent_ids": ["codex"]} in seen
+    card.set_ai_provider(None)

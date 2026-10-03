@@ -522,7 +522,7 @@ WEEKLY_TASK = _task(
 
 # ---------------------------------------------------------------- narrate.persona (AI-05.4)
 
-AXES = ["D", "P", "M", "V"]
+AXES = ["D", "I", "P", "M", "V"]  # AN-08 profiles say P, the A2 page (uiview persona) says I
 PERSONA_BANNED = ("性格", "人格测试")
 PERSONA_SCHEMA = {
     "$schema": S, "type": "object", "additionalProperties": False,
@@ -545,7 +545,7 @@ PERSONA_SCHEMA = {
 PERSONA_SYSTEM = (
     "你根据协作画像为用户写一段自述式解读。headline ≤30 字，包含类型名；任一轴 letter 为 ? 时必须写「暂定」。"
     "traits ≤5 条，每条 ≤8 字，metric 写输入里数值字段的路径（如 axes.D.value、rates.planning_rate），value_ref 原样"
-    "抄该值。tradeoffs 说明某一轴（D/P/M/V）的取舍；blind_spots 只能引用输入 problems 里的 problem_id。"
+    "抄该值。tradeoffs 说明输入 axes 中某一轴的取舍；blind_spots 只能引用输入 problems 里的 problem_id。"
     "不要出现「性格」「人格测试」。所有数字原样来自输入。")
 
 
@@ -575,6 +575,9 @@ def persona_validate(output: dict, pack: dict) -> list[str]:
             errors.append(f"指标不在输入中：{t['metric']}")
         elif abs(paths[t["metric"]] - t["value_ref"]) > 1e-6:
             errors.append(f"value_ref 与输入不符：{t['metric']}")
+    axes = src.get("axes")
+    if isinstance(axes, dict) and axes:
+        errors += [f"轴不在输入中：{t['axis']}" for t in output.get("tradeoffs") or [] if t["axis"] not in axes]
     problems = {p.get("problem_id") for p in src.get("problems") or []}
     errors += foreign_ids([b["problem_id"] for b in output.get("blind_spots") or []], problems)
     if _tentative(src) and "暂定" not in output.get("headline", ""):

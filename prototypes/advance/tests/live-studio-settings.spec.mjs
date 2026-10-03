@@ -407,3 +407,34 @@ test('overview live: the running state survives re-renders, 「停止」 cancels
   await expect(page.locator('#toast')).toContainText('暂不生成 AI 解读');
   expect(errors).toEqual([]);
 });
+
+
+// 10. 设置 › 分析「导入后自动生成 AI 概览」(96-live-ai.js): off by default, asks before turning on (persona / session AI in live-ai-narratives.spec.mjs)
+test('settings live: 导入后自动生成 AI 概览 is off by default and asks before turning on', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page, allow404);
+  let auto = false; const puts = [];
+  await gateway(page, { extra: {
+    'GET /v1/ai/consent': () => { const c = SS('ai-consent'); c.settings.auto_overview = auto; return c; },
+    'PUT /v1/ai/consent': (b) => { puts.push(b); if (b && b.settings && 'auto_overview' in b.settings) auto = b.settings.auto_overview; const c = SS('ai-consent'); c.settings.auto_overview = auto; return c; }
+  } });
+  await page.goto('http://orbit.test/app#token=fx-token');
+  await page.evaluate(() => openSettings('analysis'));
+  const row = page.locator('#set [data-tl="auto-ov"]');
+  await expect(row).toContainText('导入后自动生成 AI 概览');
+  await expect(row).toContainText('脱敏统计摘要交给你在上面选的本地 Agent');
+  const sw = row.locator('[data-act="tlsAutoOv"]');
+  await expect(sw).toHaveAttribute('aria-checked', 'false');
+  await sw.click();
+  await expect(page.locator('#modal')).toContainText('需要你的同意');
+  await page.locator('#modal .mf [data-act="closeModal"]').click();
+  expect(puts).toEqual([]);
+  await sw.click();
+  await page.locator('#modal [data-act="tlsAutoOvGo"]').click();
+  await expect(row.locator('[data-act="tlsAutoOv"]')).toHaveAttribute('aria-checked', 'true');
+  expect(puts).toEqual([{ settings: { auto_overview: true } }]);
+  await row.locator('[data-act="tlsAutoOv"]').click();   // turning off needs no confirmation
+  await expect(row.locator('[data-act="tlsAutoOv"]')).toHaveAttribute('aria-checked', 'false');
+  expect(puts[1]).toEqual({ settings: { auto_overview: false } });
+  expect(errors).toEqual([]);
+});

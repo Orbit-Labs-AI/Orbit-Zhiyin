@@ -11,10 +11,10 @@ from orbit_backend.ai.tasks_v1 import TASKS, metric_paths
 SCOPE = {"start_ms": NOW - 30 * DAY, "end_ms": NOW + DAY}
 
 
-def build(task_id, tdb=None, appdb=None, home=None, params=None, slots=None):
+def build(task_id, tdb=None, appdb=None, home=None, params=None, slots=None, scope=SCOPE):
     if tdb is not None:
         tdb.commit()
-    return P.build(TASKS[task_id], reads=tdb.reads if tdb else None, appdb=appdb, home=home, scope=SCOPE,
+    return P.build(TASKS[task_id], reads=tdb.reads if tdb else None, appdb=appdb, home=home, scope=scope,
                    params=params, slots=slots)
 
 
@@ -185,6 +185,19 @@ def test_session_review_pack_ai_and_handoff(tdb, appdb, orbit_home):
     assert lessons[0]["handoff"] == {"task_id": "generate.rule", "goal": "禁止改 package.json 写进规则",
                                      "goal_source": "ask", "refs": ["s1-h1"], "params": {"session_uids": ["s1"]}}
     assert "handoff" not in lessons[1]
+
+
+def test_session_review_reaches_sessions_older_than_default_window(tdb, appdb, orbit_home):
+    """The trajectory page opens sessions from the 90 天 / 全部 range; the review must still see them."""
+    tdb.session("old", minutes=12, start=NOW - 120 * DAY, humans=["修一下构建"], replies=["已修改"])
+    # the UI posts only params.session_uid (no scope), so the default 30-day window applies
+    pack = build("narrate.session_review", tdb, appdb, orbit_home, params={"session_uid": "old"}, scope=None)
+    src = pack["content"]["session_review"]
+    assert src["key"] == "old" and "row" in src
+    # an explicit window still wins: outside it the session stays hidden
+    scoped = build("narrate.session_review", tdb, appdb, orbit_home, params={"session_uid": "old"},
+                   scope={"days": 7})
+    assert "row" not in scoped["content"]["session_review"]
 
 
 def test_session_review_gate_and_fallback(tdb, appdb, orbit_home):

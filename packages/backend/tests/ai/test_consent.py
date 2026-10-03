@@ -21,7 +21,8 @@ def test_defaults_deny(ai_gw):
     svc = service(ai_gw)
     state = svc.consent()
     assert state["mode"] == "stats" and state["default_engine"] is None
-    assert state["settings"] == {"daily_usd_cap": 2.0, "auto_facet_new": False, "slots": {}}
+    assert state["settings"] == {"daily_usd_cap": 2.0, "auto_facet_new": False, "auto_overview": False,
+                                 "slots": {}}
     assert all(not v for grants in state["grants"].values() for v in grants.values())
     assert [c["id"] for c in state["data_classes"]] == ["summary", "snippets", "rules", "raw"]
     with pytest.raises(AIError) as error:

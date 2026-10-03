@@ -50,7 +50,8 @@ def _check_slots(slots) -> None:
                                           and MODEL_ID.match(model)):
                 raise AIError(422, "invalid_settings", f"slots.{engine}.{slot} 不是合法的模型 id")
 DEFAULTS = {"mode": "stats", "default_engine": None, "slots": {}, "daily_usd_cap": 2.0,
-            "auto_facet_new": False}
+            "auto_facet_new": False, "auto_overview": False}
+AUTO_KEYS = ("auto_facet_new", "auto_overview")
 
 
 def now_ms() -> int:
@@ -93,7 +94,7 @@ class Consent:
         return {"mode": settings["mode"], "default_engine": settings["default_engine"],
                 "grants": self.grants(engines), "data_classes": DATA_CLASSES,
                 "settings": {key: settings[key]
-                             for key in ("daily_usd_cap", "auto_facet_new", "slots")}}
+                             for key in ("daily_usd_cap", "auto_facet_new", "auto_overview", "slots")}}
 
     def update(self, patch: dict) -> list[tuple[str, str]]:
         """Apply a partial update; returns the (engine, class) pairs that were revoked."""
@@ -110,6 +111,9 @@ class Consent:
             _check_slots(settings["slots"])
         if settings.get("default_engine") is not None and settings["default_engine"] not in KNOWN_ENGINES:
             raise AIError(422, "invalid_settings", f"未知引擎：{settings['default_engine']}")
+        for key in AUTO_KEYS:
+            if key in settings and not isinstance(settings[key], bool):
+                raise AIError(400, "invalid_request", f"{key} 必须是 true / false")
         if "daily_usd_cap" in settings and not (
                 isinstance(settings["daily_usd_cap"], int | float)
                 and settings["daily_usd_cap"] >= 0):

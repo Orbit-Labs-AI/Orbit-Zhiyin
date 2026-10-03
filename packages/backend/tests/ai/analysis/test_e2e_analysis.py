@@ -166,3 +166,49 @@ def test_overview_narrative_is_matched_by_scope_and_data_rev(client):
     assert latest_overview(gw.appdb, {"days": 7}, rev) is None          # other window
     assert latest_overview(gw.appdb, {"days": 30}, rev + 1) is None     # data changed since
     assert latest_overview(gw.appdb, {"days": 30}, None) is None        # unknown data
+
+
+def test_overview_agent_subset_reaches_the_pack_and_prompt(client):
+    """An agent filter on the overview becomes a source filter in every pack query, and the
+    filter is in the prompt the engine receives."""
+    c, _, engine = client
+    every = c.post("/v1/ai/preview", json={"task_id": "narrate.overview", "engine": "fake",
+                                           "scope": {"start_ms": 0}}).json()
+    codex = c.post("/v1/ai/preview", json={"task_id": "narrate.overview", "engine": "fake",
+                                           "scope": {"start_ms": 0, "agent_ids": ["codex"]}}).json()
+    other = c.post("/v1/ai/preview", json={"task_id": "narrate.overview", "engine": "fake",
+                                           "scope": {"start_ms": 0, "agent_ids": ["claude_code"]}}).json()
+    assert every["payload"]["metrics"]["sessions"] > 0
+    assert codex["payload"]["metrics"]["sessions"] == every["payload"]["metrics"]["sessions"]
+    assert not other["payload"]["metrics"].get("sessions")
+    job = c.post("/v1/ai/jobs", json={"task_id": "narrate.overview", "engine": "fake",
+                                      "scope": {"start_ms": 0, "agent_ids": ["codex"]}}).json()
+    assert _wait(c, job["job_id"])["status"] == "ok"
+    assert '<scope>\n{"agent_ids":["codex"],"start_ms":0}\n</scope>' in engine.requests[-1].prompt
+    bad = c.post("/v1/ai/jobs", json={"task_id": "narrate.overview", "scope": {"agent_ids": "codex"}})
+    assert bad.status_code == 422
+
+
+def test_auto_overview_after_import_is_opt_in_and_bounded(client, monkeypatch):
+    """settings.auto_overview (default off) queues one narrate.overview for the default view;
+    the daily budget and the per-day automatic limit still apply."""
+    from orbit_backend.ai import auto
+
+    c, gw, engine = client
+    assert c.get("/v1/ai/consent").json()["settings"]["auto_overview"] is False
+    assert gw.auto_overview() == {"status": "skipped", "reason": "disabled"}
+    assert c.put("/v1/ai/consent", json={"settings": {"auto_overview": "yes"}}).status_code == 400
+    assert c.put("/v1/ai/consent", json={"settings": {"auto_overview": True}}).status_code == 200
+    first = gw.auto_overview()
+    assert first["status"] == "submitted", first
+    job = _wait(c, first["job_id"])
+    assert job["status"] == "ok"
+    with gw.appdb.read() as db:
+        req = json.loads(db.execute("SELECT request FROM ai_job WHERE job_id=?",
+                                    (first["job_id"],)).fetchone()[0])
+    assert req["scope"] == auto.OVERVIEW_SCOPE and req["params"] == {"auto": True}
+    monkeypatch.setattr(auto, "AUTO_OVERVIEW_PER_DAY", 1)
+    assert gw.auto_overview() == {"status": "skipped", "reason": "daily_limit"}
+    monkeypatch.setattr(auto, "AUTO_OVERVIEW_PER_DAY", 5)
+    assert c.put("/v1/ai/consent", json={"settings": {"daily_usd_cap": 0}}).status_code == 200
+    assert gw.auto_overview() == {"status": "skipped", "reason": "budget_exhausted"}

@@ -81,6 +81,8 @@ def narrative_input_fingerprint(task: dict, pack: dict, scope: dict | None) -> s
         "task": task["task_id"], "prompt_version": task["prompt_version"],
         "schema_version": task["schema_version"], "system": task["system"],
         "relative_day": day, "content": content,
+        # The filter is part of the identity: two views with equal numbers stay separate.
+        "scope": {k: v for k, v in scope.items() if k not in ("excluded_session_uids",)},
     }).encode()).hexdigest()
 
 
