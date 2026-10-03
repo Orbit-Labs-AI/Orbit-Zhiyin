@@ -155,7 +155,7 @@ if (LV.live) (function () {
   TIPS.trans = (i, j) => { const m = (LVTP.tools && LVTP.tools.matrix) || {}; const c = m.counts && m.counts[+i] ? m.counts[+i][+j] : null; return '<b>' + esc(TRANS_NAMES[+i] + ' → ' + TRANS_NAMES[+j]) + '</b>\n条件概率 ' + Math.round((TRANS[+i] ? TRANS[+i][+j] : 0) * 100) + '%' + (+i === +j ? '（同一工具连用）' : '') + (c != null ? '\n' + fmt(c) + ' 次转移' : ''); };
 
   /* ---------- A5 feed ---------- */
-  LV.feed('projects', (sc) => [{ name: 'p', path: LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range), group: S.proj.group === 'folder' ? 'folder' : null }) }], (d) => { LVTP.projects = d.p || {}; });
+  LV.feed('projects', (sc) => [{ name: 'p', path: LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range), tz: sc.tz, group: S.proj.group === 'folder' ? 'folder' : null }) }], (d) => { LVTP.projects = d.p || {}; });
   TIPS.split = (id) => { const r = lvtpRows().find((x) => x.p.id === id); if (!r) return ''; const tot = r.split.reduce((a, b) => a + b, 0) || 1; return '<b>' + esc(r.p.name) + ' · Agent 构成</b>\n' + r.split.map((v, j) => v ? '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + AG[j].c + ';margin-right:5px;vertical-align:-1px"></span>' + esc(AG[j].name) + ' <b class="mono">' + v + '</b> · ' + Math.round(v / tot * 100) + '%' : '').filter(Boolean).join('\n'); };
   const reveal = (path, what) => { if (!path || path === '—') { toast('没有记录' + what + '路径'); return; } ORBIT.native.request('reveal', { path }).then((r) => { if (r && r.ok === false) toast('无法在 Finder 中显示：' + path); }, () => toast('无法在 Finder 中显示：' + path)); };
   Object.assign(ACT, {
@@ -288,7 +288,7 @@ function lvtpRows() {
 }
 function lvtpDetail(id, cmp) {
   const sc = LV.scope();
-  const path = LV.withQuery('/v1/uiview/projects/' + encodeURIComponent(id), { agent: sc.agents, since: lvtpFrom(sc.range), compare: cmp || null });
+  const path = LV.withQuery('/v1/uiview/projects/' + encodeURIComponent(id), { agent: sc.agents, since: lvtpFrom(sc.range), tz: sc.tz, compare: cmp || null });
   return LV.detail(LVTP.det, path, path);
 }
 function lvtpLinked(id) { const path = LV.withQuery('/v1/features/linked', { project_id: id }); return LV.detail(LVTP.linked, path, path); }

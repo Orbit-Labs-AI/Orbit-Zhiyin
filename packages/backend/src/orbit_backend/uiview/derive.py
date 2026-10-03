@@ -50,13 +50,25 @@ def prev_win(range_: int, first: int = 0) -> tuple[int, int] | None:
     return None if start < first else (start, a - 1)
 
 
+# The prototype's id for "sessions without a project" (``r.p || '_none'`` in 90-live-core.js):
+# a filter on it selects rows whose project is ``None``, on every page alike.
+NO_PROJECT_ID = "_none"
+
+
+def project_matches(pid: str | None, wanted: str | None) -> bool:
+    """``wanted`` empty = no filter; ``NO_PROJECT_ID`` matches sessions without a project."""
+    if not wanted:
+        return True
+    return pid is None if wanted == NO_PROJECT_ID else pid == wanted
+
+
 def passes(row: dict, f: dict, no_extra: bool = False) -> bool:
     if row.get("live"):
         return False
     agents = f.get("agents")
     if agents is not None and row.get("a") not in agents:
         return False
-    if f.get("project") and row.get("p") != f["project"]:
+    if not project_matches(row.get("p"), f.get("project")):
         return False
     if f.get("agent") and row.get("a") != f["agent"]:
         return False

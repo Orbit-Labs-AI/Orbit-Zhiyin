@@ -32,7 +32,7 @@ function lvSentApply(d) {
 if (LV.live) {
   LV.feed('sentiment', (sc) => [{ name: 's', path: LV.withQuery('/v1/uiview/sentiment', {
     days: [7, 30, 90].indexOf(sc.range) >= 0 ? sc.range : Math.min(730, LASTDAY + 1), agent: sc.agents,
-    project_id: sc.project && sc.project !== '_none' ? sc.project : null, tz: sc.tz, bucket: 'day' }) }], (d) => lvSentApply(d.s));
+    project_id: sc.project || null, tz: sc.tz, bucket: 'day' }) }], (d) => lvSentApply(d.s));
 }
 // the page's view model: {state:'ready'|'pending'|'error', lang, ms, allNull, fr, phrases, words, scope}
 function lvSentView(L) {

@@ -20,8 +20,6 @@ from zoneinfo import ZoneInfo
 from . import CONTRACT, metrics, outcome
 
 UIDS = "(SELECT value FROM json_each(?))"
-FAILED = frozenset(("failed", "error", "failure"))
-UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
 FRIC = ("方向错误", "工具 / 环境失败", "改动过度", "误解需求", "并行会话冲突",
         "流程过重（子代理）", "额度 / 用量中断")
 TOPICS = ("git", "design", "paper", "data", "quant", "net", "other")
@@ -280,9 +278,10 @@ def _tools(conn, uids: str, root_of: dict):
                   fields=('errors',)):
         entry = per_root[root_of.get(uid, uid)].setdefault(name or "unknown", [kind, 0, 0, 0])
         entry[1] += n
-        if status not in UNKNOWN_STATUS:
+        state = metrics.tool_state(status)
+        if state != "unknown":
             entry[3] += n
-            if status in FAILED:
+            if state == "failed":
                 entry[2] += n
     return per_root
 

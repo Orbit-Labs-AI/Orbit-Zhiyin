@@ -121,16 +121,16 @@ def gw(tmp_path):
     gateway.close()
 
 
-def put_facts(gw, n: int = 6) -> None:
+def put_facts(gw, n: int = 6, tz: str | None = None) -> None:
     rev = gw.revisions.snapshot()
     assert rev["data_rev"] is not None
     rows = [fact_row(i) for i in range(n)]
     body = {"contract": facts.CONTRACT, "rows": rows,
             "aux": {r["id"]: {"t0": T0, "t1": T0 + 1, "turns": [[6, 1]], "open": 1, "tools": {}}
                     for r in rows},
-            "meta": {"display_timezone": "UTC"}, "agents": facts._agents(rows),
+            "meta": {"display_timezone": tz or "UTC"}, "agents": facts._agents(rows),
             "projects": [{"id": "p1", "name": "p1", "path": None, "n": 3}]}
-    key = SnapshotKey(fetch.SECTION, scope_hash(fetch.default_scope(), {}), rev["data_rev"],
+    key = SnapshotKey(fetch.SECTION, scope_hash(fetch.default_scope(tz), {}), rev["data_rev"],
                       rev["inventory_rev"], rules_digest())
     gw.snapshots.put(key, json.loads(json.dumps(body)))
 
@@ -215,6 +215,35 @@ def test_facets_and_agents_filter_a4a6_pages(gw):
                  ).json()["meta"]["n_sessions"] == 2
     assert c.get("/v1/uiview/sentiment", params={**window, "agents": "codex"}
                  ).json()["meta"]["n_sessions"] == 2
+
+
+def test_project_persona_reads_the_client_timezone_snapshot(gw):
+    """Facts are keyed by the client's display timezone (the overview request and the MRU
+    prewarm); a UTC-only lookup left every project persona pending for non-UTC users."""
+    put_facts(gw, tz="Asia/Shanghai")
+
+    def statuses(**params):
+        body = gw.client.get("/v1/uiview/projects", params=params).json()
+        return {p["project_id"]: p["persona"]["status"] for p in body["projects"]}
+
+    assert set(statuses().values()) == {"persona_pending"}  # no tz, empty MRU: UTC only
+    got = statuses(tz="Asia/Shanghai")
+    assert got and "persona_pending" not in got.values()
+    detail = gw.client.get("/v1/uiview/projects/p1", params={"tz": "Asia/Shanghai"}).json()
+    assert detail["header"]["persona"]["status"] != "persona_pending"
+    # Without a tz the lookup falls back to the MRU timezone, like gateway.prewarm.
+    gw.state.remember_scope({**fetch.default_scope("Asia/Shanghai")})
+    assert "persona_pending" not in statuses().values()
+
+
+def test_project_persona_not_built_from_a_narrower_snapshot(gw):
+    from orbit_backend.uiview import a4a6_projects
+
+    assert a4a6_projects.snapshot_covers(0, None) and not a4a6_projects.snapshot_covers(7, None)
+    now = 100 * 86_400_000
+    assert a4a6_projects.snapshot_covers(7, now - 6 * 86_400_000 - 3_600_000, now)
+    assert not a4a6_projects.snapshot_covers(7, now - 30 * 86_400_000, now)
+    assert a4a6_projects.facts_persona_lookup({"rows": [], "aux": {}}, basis_days=7) is None
 
 
 def test_facets_wait_for_facts(gw):
