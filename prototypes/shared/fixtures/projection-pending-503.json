@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "projection_pending",
+    "message": "The first import has not published yet",
+    "retryable": true
+  }
+}
