@@ -37,7 +37,8 @@ def test_fact_rows(l1):
                                                              8, 53)
     assert (cc["msgs"], cc["tools"], cc["errors"], cc["corr"]) == (3, 8, 3, 2)
     assert cc["dur"] == 12.0 and cc["dur_basis"] == "active_estimate"
-    assert cc["tok"] == 211_700 and cc["out"] == "ok" and cc["out_basis"] == "estimate"
+    # Completed, but 2 of 3 human messages are corrections (2/3 >= 1/3, >= 2): needs rework.
+    assert cc["tok"] == 211_700 and cc["out"] == "part" and cc["out_basis"] == "estimate"
     assert cx["errors"] is None and cx["tok"] is None and cx["out"] is None
     assert cx["title"] == "重构 data loader 模块" and cx["title_source"] == "first_message"
     assert cx["excluded"] is True and cc["excluded"] is False
@@ -57,9 +58,14 @@ def test_estimated_outcome_rules():
     est = sessions.estimate_outcome
     assert est(True, "completed", None, []) == "live"
     assert est(False, "completed", None, ["failed"] * 3) == "part"
-    assert est(False, "unknown", "interrupted", []) == "part"
+    assert est(False, "completed", None, ["failed", "failed", "success"]) == "ok"
+    assert est(False, "unknown", "interrupted", []) == "fail"  # shown as 疑似中断
     assert est(False, "unknown", "completed", ["success"]) == "ok"
     assert est(False, "unknown", None, []) is None
+    # Correction density, not a raw count: 3 corrections in 200 messages is routine steering.
+    assert est(False, "unknown", "completed", [], corr=3, msgs=200) == "ok"
+    assert est(False, "unknown", "completed", [], corr=2, msgs=6) == "part"  # 2/6 = 1/3
+    assert est(False, "unknown", "completed", [], corr=1, msgs=1) == "ok"  # one hit never decides
     assert sessions.errors_of([]) == 0
     assert sessions.errors_of(["unknown", "unknown"]) is None
     assert sessions.errors_of(["unknown", "failed"]) == 1
@@ -164,3 +170,82 @@ def test_list_build_is_fast(l1, n):
     rows = facts(l1)
     sessions.list_sessions(rows, now_ms=T0, tz=UTC)
     assert len(rows) == n and time.perf_counter() - started < 1.0
+
+
+def _facts_client(gateway, facts_rows):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from tandem_backend.services.gateway import install_error_handlers
+    from tandem_backend.uiview import routes_sessions
+
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(routes_sessions.router(gateway, facts_provider=lambda: facts_rows))
+    return TestClient(app)
+
+
+def test_live_row_keeps_live_outcome_over_facts_snapshot(gateway, l1):
+    """A facts snapshot taken earlier says 'ok'; the running session must stay 'live' (UT-02)."""
+    handwritten_cc(l1)
+
+    class Snap:
+        def latest(self):
+            return {"sessions": [{"session_uid": "cc-fix", "state": "running"}]}
+
+    gateway.realtime = Snap()
+    client = _facts_client(gateway, {"cc-fix": {"out": "ok", "corr": 5}})
+    row = client.get("/v1/uiview/sessions").json()["rows"][0]
+    assert (row["out"], row["out_basis"], row["live"]) == ("live", "realtime", True)
+    assert row["corr"] == 5  # other facts still win
+    assert client.get("/v1/uiview/sessions?outcome=live").json()["total"] == 1
+    assert client.get("/v1/uiview/sessions?outcome=ok").json()["total"] == 0
+    head = client.get("/v1/uiview/sessions/cc-fix").json()["header"]
+    assert (head["out"], head["out_basis"], head["live"]) == ("live", "realtime", True)
+
+
+def test_finished_row_ignores_live_out_from_stale_snapshot(gateway, l1):
+    """Snapshot built while running (out='live'); now finished: the L1 estimate stays."""
+    handwritten_cc(l1)
+    plain = _facts_client(gateway, {}).get("/v1/uiview/sessions").json()["rows"][0]
+    assert plain["live"] is False and plain["out"] != "live"
+    client = _facts_client(gateway, {"cc-fix": {"out": "live", "out_basis": "realtime"}})
+    row = client.get("/v1/uiview/sessions").json()["rows"][0]
+    assert (row["out"], row["out_basis"]) == (plain["out"], plain["out_basis"])
+    assert client.get("/v1/uiview/sessions?outcome=live").json()["total"] == 0
+    head = client.get("/v1/uiview/sessions/cc-fix").json()["header"]
+    assert head["out"] == plain["out"] and head["live"] is False
+
+
+def test_overlay_unit_rules():
+    rows = [{"id": "a", "out": "live", "out_basis": "realtime", "live": True},
+            {"id": "b", "out": "part", "out_basis": "estimate", "live": False},
+            {"id": "c", "out": "ok", "out_basis": "estimate", "live": False}]
+    got = {r["id"]: r for r in sessions.overlay(rows, {
+        "a": {"out": "fail"}, "b": {"out": "live"}, "c": {"out": None}})}
+    assert got["a"]["out"] == "live"
+    assert (got["b"]["out"], got["b"]["out_basis"]) == ("part", "estimate")
+    assert got["c"]["out"] is None  # facts explicitly unknown still win for finished rows
+
+
+def test_route_search_uses_full_session_cover(client, l1, monkeypatch):
+    """UT-03: the list filter takes every session the search sources hit, and passes the
+    cover's completeness through as meta.search_partial."""
+    from tandem_backend import features
+
+    populate(l1, 9)
+    calls = []
+
+    class Svc:
+        def search(self, q, kinds=None, limit=20, session_cover=False):
+            calls.append((limit, session_cover))
+            return {"results": [], "session_uids": [f"s{i:02d}" for i in range(1, 9)],
+                    "session_cover_complete": complete}
+
+    monkeypatch.setattr(features, "current", lambda: Svc())
+    complete = True
+    body = client.get("/v1/uiview/sessions?q=zzqx").json()
+    assert body["total"] == 8 and body["meta"]["search_partial"] is False
+    assert calls[-1][1] is True
+    complete = False
+    assert client.get("/v1/uiview/sessions?q=zzqy").json()["meta"]["search_partial"] is True

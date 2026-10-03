@@ -748,7 +748,9 @@
         "stop_reason",
         "ts",
         "request_identity_quality",
-        "boundary_quality"
+        "boundary_quality",
+        "cache_write_1h_tokens",
+        "service_tier"
       ],
       "properties": {
         "call_uid": {
@@ -920,6 +922,20 @@
           "type": "string",
           "x-sql-type": "TEXT",
           "x-sql-default": "'unknown'"
+        },
+        "cache_write_1h_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "service_tier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
         }
       },
       "x-foreign-keys": [
@@ -944,7 +960,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE model_call (\n  call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  turn_uid TEXT REFERENCES turn, project_id TEXT REFERENCES project,\n  usage_event_uid TEXT NOT NULL UNIQUE REFERENCES event, request_id TEXT,\n  provider TEXT, model_raw TEXT, model_id TEXT, model_resolution TEXT NOT NULL,\n  effort_raw TEXT, effort_rank INTEGER, purpose TEXT, coverage TEXT NOT NULL,\n  input_tokens INTEGER CHECK(input_tokens >= 0), cache_read_tokens INTEGER CHECK(cache_read_tokens >= 0),\n  cache_write_tokens INTEGER CHECK(cache_write_tokens >= 0), output_tokens INTEGER CHECK(output_tokens >= 0),\n  reasoning_tokens INTEGER CHECK(reasoning_tokens >= 0), cost_usd REAL CHECK(cost_usd >= 0), cost_source TEXT,\n  latency_ms INTEGER CHECK(latency_ms >= 0), ttft_ms INTEGER CHECK(ttft_ms >= 0), stop_reason TEXT, ts INTEGER\n, request_identity_quality TEXT NOT NULL DEFAULT 'unknown'\n  CHECK(request_identity_quality IN ('reported','derived','unknown')), boundary_quality TEXT NOT NULL DEFAULT 'unknown'\n  CHECK(boundary_quality IN ('reported','observed','unknown','conflict'))) STRICT"
+      "x-ddl": "CREATE TABLE model_call (\n  call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  turn_uid TEXT REFERENCES turn, project_id TEXT REFERENCES project,\n  usage_event_uid TEXT NOT NULL UNIQUE REFERENCES event, request_id TEXT,\n  provider TEXT, model_raw TEXT, model_id TEXT, model_resolution TEXT NOT NULL,\n  effort_raw TEXT, effort_rank INTEGER, purpose TEXT, coverage TEXT NOT NULL,\n  input_tokens INTEGER CHECK(input_tokens >= 0), cache_read_tokens INTEGER CHECK(cache_read_tokens >= 0),\n  cache_write_tokens INTEGER CHECK(cache_write_tokens >= 0), output_tokens INTEGER CHECK(output_tokens >= 0),\n  reasoning_tokens INTEGER CHECK(reasoning_tokens >= 0), cost_usd REAL CHECK(cost_usd >= 0), cost_source TEXT,\n  latency_ms INTEGER CHECK(latency_ms >= 0), ttft_ms INTEGER CHECK(ttft_ms >= 0), stop_reason TEXT, ts INTEGER\n, request_identity_quality TEXT NOT NULL DEFAULT 'unknown'\n  CHECK(request_identity_quality IN ('reported','derived','unknown')), boundary_quality TEXT NOT NULL DEFAULT 'unknown'\n  CHECK(boundary_quality IN ('reported','observed','unknown','conflict')), cache_write_1h_tokens INTEGER\n  CHECK(cache_write_1h_tokens >= 0), service_tier TEXT) STRICT"
     },
     "project": {
       "type": "object",
@@ -1882,7 +1898,8 @@
         "attribution",
         "command_spec",
         "wall_elapsed_ms",
-        "native_execution_ms"
+        "native_execution_ms",
+        "failure_kind"
       ],
       "properties": {
         "call_uid": {
@@ -2087,6 +2104,13 @@
             "null"
           ],
           "x-sql-type": "INTEGER"
+        },
+        "failure_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
         }
       },
       "x-foreign-keys": [
@@ -2121,7 +2145,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE tool_call (\n  call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  turn_uid TEXT REFERENCES turn, project_id TEXT REFERENCES project, native_call_id TEXT,\n  call_event_uid TEXT REFERENCES event, result_event_uid TEXT REFERENCES event,\n  name_raw TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,\n  mcp_server TEXT, mcp_tool TEXT, skill TEXT, subagent_session_uid TEXT REFERENCES session_identity,\n  command_head TEXT, files TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(files)),\n  status TEXT NOT NULL, pairing_quality TEXT NOT NULL, exit_code INTEGER, error_class TEXT,\n  is_wrapper INTEGER NOT NULL DEFAULT 0 CHECK(is_wrapper IN (0,1)),\n  argument_digest TEXT, status_scope TEXT NOT NULL DEFAULT 'unknown',\n  started_at INTEGER, ended_at INTEGER, duration_ms INTEGER CHECK(duration_ms >= 0),\n  duration_source TEXT NOT NULL CHECK(duration_source IN ('reported','native_bounds','event_difference','unknown')),\n  duration_quality TEXT NOT NULL CHECK(duration_quality IN ('reported','estimated','missing')),\n  approval TEXT, approval_wait_ms INTEGER CHECK(approval_wait_ms >= 0),\n  attribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(attribution)), command_spec TEXT CHECK(command_spec IS NULL OR\n  (json_valid(command_spec) AND json_type(command_spec)='object')), wall_elapsed_ms INTEGER CHECK(wall_elapsed_ms >= 0), native_execution_ms INTEGER CHECK(native_execution_ms >= 0),\n  CHECK((duration_ms IS NULL AND duration_quality = 'missing') OR\n    (duration_ms IS NOT NULL AND duration_quality IN ('reported','estimated')))\n) STRICT"
+      "x-ddl": "CREATE TABLE tool_call (\n  call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  turn_uid TEXT REFERENCES turn, project_id TEXT REFERENCES project, native_call_id TEXT,\n  call_event_uid TEXT REFERENCES event, result_event_uid TEXT REFERENCES event,\n  name_raw TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,\n  mcp_server TEXT, mcp_tool TEXT, skill TEXT, subagent_session_uid TEXT REFERENCES session_identity,\n  command_head TEXT, files TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(files)),\n  status TEXT NOT NULL, pairing_quality TEXT NOT NULL, exit_code INTEGER, error_class TEXT,\n  is_wrapper INTEGER NOT NULL DEFAULT 0 CHECK(is_wrapper IN (0,1)),\n  argument_digest TEXT, status_scope TEXT NOT NULL DEFAULT 'unknown',\n  started_at INTEGER, ended_at INTEGER, duration_ms INTEGER CHECK(duration_ms >= 0),\n  duration_source TEXT NOT NULL CHECK(duration_source IN ('reported','native_bounds','event_difference','unknown')),\n  duration_quality TEXT NOT NULL CHECK(duration_quality IN ('reported','estimated','missing')),\n  approval TEXT, approval_wait_ms INTEGER CHECK(approval_wait_ms >= 0),\n  attribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(attribution)), command_spec TEXT CHECK(command_spec IS NULL OR\n  (json_valid(command_spec) AND json_type(command_spec)='object')), wall_elapsed_ms INTEGER CHECK(wall_elapsed_ms >= 0), native_execution_ms INTEGER CHECK(native_execution_ms >= 0), failure_kind TEXT CHECK(failure_kind IS NULL OR failure_kind IN\n  ('permission_denied','interrupted','nonzero_exit','harness_error')),\n  CHECK((duration_ms IS NULL AND duration_quality = 'missing') OR\n    (duration_ms IS NOT NULL AND duration_quality IN ('reported','estimated')))\n) STRICT"
     },
     "tool_call_event": {
       "type": "object",
@@ -2158,6 +2182,52 @@
         }
       ],
       "x-ddl": "CREATE TABLE \"tool_call_event\" (\n  call_uid TEXT NOT NULL REFERENCES tool_call, event_uid TEXT NOT NULL REFERENCES event,\n  role TEXT NOT NULL, PRIMARY KEY(call_uid, event_uid)\n) STRICT, WITHOUT ROWID"
+    },
+    "tool_call_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_uid",
+        "session_uid",
+        "path",
+        "op",
+        "quality"
+      ],
+      "properties": {
+        "call_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "op": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "quality": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "session",
+          "from": "session_uid",
+          "to": null
+        },
+        {
+          "table": "tool_call",
+          "from": "call_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE tool_call_file (\n  call_uid TEXT NOT NULL REFERENCES tool_call, session_uid TEXT NOT NULL REFERENCES session,\n  path TEXT NOT NULL,\n  op TEXT NOT NULL CHECK(op IN ('add','update','delete','move','unknown')),\n  quality TEXT NOT NULL CHECK(quality IN ('reported','missing')),\n  PRIMARY KEY(call_uid, path),\n  CHECK((op = 'unknown') = (quality = 'missing'))\n) STRICT"
     },
     "turn": {
       "type": "object",

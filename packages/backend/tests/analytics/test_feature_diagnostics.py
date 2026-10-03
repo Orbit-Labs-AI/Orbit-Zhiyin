@@ -160,3 +160,27 @@ def test_unselected_skill_preserves_grounded_signal_and_pending_context():
     assert item["utility"]["observed_uplift"] is None
     assert item["utility"]["saved_tokens"] is None
     assert "three failures" in terminal_text(report)
+
+
+def test_unknown_model_calls_count_invalid_rows_and_conflicting_request_ids():
+    from pathlib import Path
+
+    from tandem_backend.analytics.inputs import AnalysisInputBundle
+
+    raw = json.loads((Path(__file__).parents[1] / "fixtures/bottleneck-features-v1.json")
+                     .read_text(encoding="utf-8"))
+    clean = analyze_bundle(AnalysisInputBundle.from_dict(copy.deepcopy(raw)), with_text=False)
+    assert clean["unknown_counts"]["model_calls"] == 0  # both fixture rows are valid deltas
+    good = raw["model_calls"][0]
+    raw["model_calls"] += [
+        {**good, "call_uid": None},                       # invalid: no request identity
+        {**good, "call_uid": "cum", "measurement": "cumulative"},  # invalid: not a delta
+        {**good, "call_uid": "dup"}, {**good, "call_uid": "dup", "output_tokens": 1},  # conflict
+        {**good, "call_uid": "same"}, {**good, "call_uid": "same"},  # exact duplicate: known
+    ]
+    noisy = analyze_bundle(AnalysisInputBundle.from_dict(raw), with_text=False)
+    assert noisy["unknown_counts"]["model_calls"] == 2 + 1
+    raw["model_calls"] = None
+    raw["coverage"]["model_calls"] = {"status": "unavailable"}
+    absent = analyze_bundle(AnalysisInputBundle.from_dict(raw), with_text=False)
+    assert absent["unknown_counts"]["model_calls"] is None

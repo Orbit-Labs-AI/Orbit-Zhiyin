@@ -2,7 +2,7 @@
    other control) and the cross-fade between editions. The thumb follows #win[data-ed], so it slides on the existing element
    before the sidebar re-renders; the content then swaps under a View Transition (ed-side / ed-main) or the .ed-in fallback. */
 .edsw{position:relative;flex:none;display:grid;grid-template-columns:1fr 1fr;height:30px;margin:0 10px 10px;padding:2px;border-radius:9px;background:var(--field)}
-.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
+.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--font-sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
 .edsw button[aria-checked="true"]{color:var(--ink-1)}
 .edsw button:hover{color:var(--ink-1)}
 .edsw-thumb{position:absolute;z-index:0;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:7px;background:var(--surface);box-shadow:var(--sh-raise);transition:transform .32s cubic-bezier(.3,1.35,.5,1)}
@@ -29,3 +29,13 @@
 @keyframes edFade{to{opacity:0}}
 @keyframes edSideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){.edsw-thumb{transition:none}.main.ed-in,.side.ed-in{animation:none}}
+/* sidebar import entry (live): sits under the edition switch in both editions — 导入中 42% · 查看 / 重新打开引导 / 重试 */
+.sb-imp{flex:none;display:flex;align-items:center;gap:7px;height:30px;margin:-4px 10px 8px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:var(--sh-raise);color:var(--ink-1);font:500 12px/1 var(--font-sans);text-align:left;transition:background .15s var(--ease)}
+.sb-imp:hover{background:var(--sel-off)}
+.sb-imp-ic{display:grid;place-items:center;flex:none;color:var(--ai)}
+.sb-imp[data-k="fail"] .sb-imp-ic{color:var(--crit)}
+.sb-imp[data-k="done"] .sb-imp-ic{color:var(--good)}
+.sb-imp-ic.spin-ic .ico{animation:spin 1.6s linear infinite}
+.sb-imp-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sb-imp-a{flex:none;color:var(--ink-3);font-size:11px}
+@media (prefers-reduced-motion: reduce){.sb-imp-ic.spin-ic .ico{animation:none}}

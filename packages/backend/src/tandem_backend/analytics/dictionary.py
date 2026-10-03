@@ -25,6 +25,9 @@ define("assistant_message_count", "message", "Count retained assistant messages 
 define("turn_count", "turn", "Count distinct non-null turn_uid; no inference from message count", "event.turn_uid")
 define("total_event_count", "event", "Count selected non-replayed standardized events, not raw lines", "event")
 define("first_observed_ts last_observed_ts", "UTC ms", "Min/max observed event timestamps", "event.ts")
+define("observed_event_dates", "local date", "Sorted distinct display_timezone dates of clocked events", "event.ts")
+define("observed_timestamp_n", "event", "Events with a valid timestamp convertible in display_timezone", "event.ts")
+define("time_unknown_event_count", "event", "Selected events without a usable timestamp; excluded from every time bucket", "event.ts")
 define("observed_session_span_ms", "ms", "last_observed_ts - first_observed_ts; never work duration", "event.ts")
 define("avg_user_message_chars median_user_message_chars avg_assistant_message_chars median_assistant_message_chars",
        "Unicode character", "Mean/median original_chars, else retained length with truncation lower bound", "message text + original_chars", "messages with measurable text")

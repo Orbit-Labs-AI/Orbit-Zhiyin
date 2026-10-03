@@ -1,6 +1,6 @@
 # 性能评测
 
-只使用构造数据，按规模输出耗时与内存；不属于每次 PR 的硬件无关正确性门禁。
+只使用构造数据，按规模输出耗时；`analytics/instruction.py` 与 `recommendation.py` 另报 `tracemalloc` 的 Python 堆峰值（单独一次追踪运行，不计入耗时；不含原生扩展与进程 RSS）。不属于每次 PR 的硬件无关正确性门禁。
 
 ```sh
 uv run python -m benchmarks.analytics.instruction --output .local/benchmarks/instruction.json
@@ -19,4 +19,4 @@ uv run python -m benchmarks.analytics.full_pipeline --sizes 500 1000 2500 --repe
 
 保留运行时、硬件、样本规模、重复次数和计时边界。性能与语义质量分开解释；质量评测见 [evals](../evals/README.md)。
 
-`recommendation.py` 提供推荐入口的耗时观察，由 `bash scripts/test-recommend.sh` 调用，分别测量 4 项和 1,000 项构造目录；计时不包含 analytics、网络抓取或 Skill 执行。记录中位数和最大值，不设置依赖本机速度的正确性门禁。
+`recommendation.py` 提供推荐入口的耗时观察，由 `bash scripts/test-recommend.sh` 调用，分别测量 4 项和 1,000 项构造目录；计时不包含 analytics、网络抓取或 Skill 执行。记录中位数、最大值与 `peak_traced_kib`，不设置依赖本机速度的正确性门禁。

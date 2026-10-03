@@ -2,6 +2,7 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
@@ -33,7 +34,7 @@ def test_all_eight_families_feed_serializable_immutable_sections():
     assert view["tools"]["call_count"] >= 1
     assert view["projects"][0]["completion"]["value"] is None
     assert view["projects"][0]["declared_acceptance_sets"]
-    assert view["profile"]["code"] is None
+    assert "code" not in view["profile"]  # profile no longer claims a four-letter code
     assert view["resources"]["popular"]["value"] is None
     assert view["overview"]["collaboration_duration"]["value"] == sum(
         s["features"]["observed_session_span_ms"] for s in analysis["sessions"])
@@ -197,3 +198,72 @@ def test_presentation_preserves_explicit_recommendation_catalog_and_agent(monkey
     generic = client.get("/v1/analytics/presentation").json()
     assert generic["source_analysis_digest"] == view["source_analysis_digest"]
     assert generic["presentation_digest"] != view["presentation_digest"]
+
+
+AGENTS = ("hermes", "kimi", "opencode", "dsh", "pi", "claude_code", "codex")
+
+
+def two_agent_bundle(agent):
+    """The fixture tree once under ``agent`` and once (ids suffixed) under another agent."""
+    raw = json.loads((Path(__file__).parents[1] / "fixtures/bottleneck-features-v1.json").read_text(encoding="utf-8"))
+    other = "claude_code" if agent == "codex" else "codex"
+    ids = set()
+
+    def collect(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if isinstance(item, str) and (key.endswith("_uid") or key in ("call_uid", "task_uid")):
+                    ids.add(item)
+                collect(item)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+
+    tree = {key: raw[key] for key in ("sessions", "events", "tool_calls", "model_calls", "turns")}
+    collect(tree)
+    copied = json.dumps(tree)
+    for uid in sorted(ids, key=len, reverse=True):
+        copied = copied.replace(json.dumps(uid), json.dumps(f"{uid}-x"))
+    copy_tree = json.loads(copied)
+    for session in raw["sessions"]:
+        session["agent"] = agent
+    for session in copy_tree["sessions"]:
+        session["agent"] = other
+    for key in tree:
+        raw[key] = raw[key] + copy_tree[key]
+    return AnalysisInputBundle.from_dict(raw), other
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_each_agent_flows_through_products_presentation_and_work_graph(agent):
+    from tandem_backend.analytics.products import build_products
+
+    bundle, other = two_agent_bundle(agent)
+    both = analyze_bundle(bundle, Scope(), with_text=False)
+    view = build_presentation(both)
+    # Two main sessions in one project, one per agent: 1/2 each, no unknown agents.
+    composition = view["projects"][0]["agent_composition"]
+    assert composition["total"] == 2 and composition["unknown_n"] == 0
+    assert {r["name"]: (r["count"], r["share"]) for r in composition["rows"]} == {
+        agent: (1, 0.5), other: (1, 0.5)}
+    assert {s["session_uid"]: s["agent"] for s in view["sessions"]} == {"root": agent, "root-x": other}
+    assert len(both["work_graph"]["task_trajectories"]) == 2
+
+    scope = Scope(agent_ids=[agent])
+    only = analyze_bundle(bundle, scope, with_text=False)
+    selected = build_presentation(only)
+    assert selected["scope"]["agent_ids"] == [agent]
+    assert [(s["session_uid"], s["agent"]) for s in selected["sessions"]] == [("root", agent)]
+    assert selected["projects"][0]["agent_composition"]["rows"] == [
+        {"name": agent, "count": 1, "share": 1.0}]
+    # The fixture tree has two exec_command calls (root + its subagent child), both success.
+    assert selected["tools"]["call_count"] == 2
+    tools = build_products(bundle, scope)["tools"]
+    assert tools["call_count"] == 2
+    assert [(r["name"], r["count"], r["share"]["value"]) for r in tools["by_name"]] == [
+        ("exec_command", 2, 1.0)]
+    assert sorted(tools["by_name"][0]["session_uids"]) == ["child", "root"]
+    trajectories = only["work_graph"]["task_trajectories"]
+    assert [t["task_uid"] for t in trajectories] == ["synthetic-task"]
+    assert len(trajectories[0]["members"]["ToolCall"]) == 2
+    assert trajectories[0]["task_success"] is True

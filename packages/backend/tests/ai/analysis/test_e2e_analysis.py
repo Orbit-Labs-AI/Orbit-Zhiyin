@@ -103,3 +103,9 @@ def test_auto_facet_new_respects_setting_and_skips_faceted(client, monkeypatch):
     with gw.appdb.read() as db:
         faceted = {r[0] for r in db.execute("SELECT session_uid FROM ai_facet")}
     assert len(faceted) == 3 and not faceted & set(auto.new_session_uids(gw, 50))
+    # A failed facet is retried; only status='ok' counts as done.
+    retry = sorted(faceted)[0]
+    with gw.appdb.write() as db:
+        db.execute("UPDATE ai_facet SET status='failed' WHERE session_uid=?", (retry,))
+    pending = set(auto.new_session_uids(gw, 50))
+    assert retry in pending and not (faceted - {retry}) & pending

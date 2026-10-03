@@ -16,11 +16,9 @@ RECS_REF = "/v1/recommendations?surface=A1"
 
 
 def lede(p: dict) -> str:
-    if p["ok"] and p["classified"]:
-        return f"你像一位{p['zh']}：{p['line']}"
     if p["ok"]:
-        return "四个维度里有的还落在 45–55 之间，协作画像暂不下结论。"
-    return f"样本不足：所选范围只有 {p['n']} 个会话，至少需要 30 个才给出协作画像。"
+        return f"你像一位{p['zh']}：{p['line']}" + (f"（{p['hint']}）" if p.get("hint") else "")
+    return "所选范围还没有会话，暂时无法给出协作画像。"
 
 
 def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:
@@ -28,7 +26,12 @@ def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:
     verified = sum(1 for r in rows if r.get("verify"))
     ok_n = sum(1 for r in rows if r.get("out") == "ok")
     if n:
-        good = (f"{round(st['verify'])}% 的会话要求或运行了验证，估计完成率 {round(st['ok'])}%。")
+        parts = []
+        if st["verify"] is not None:
+            parts.append(f"{round(st['verify'])}% 的会话要求或运行了验证")
+        if st["ok"] is not None:
+            parts.append(f"估计完成率 {round(st['ok'])}%")
+        good = ("，".join(parts) + "。") if parts else "这段时间的验证与完成情况未知。"
     else:
         good = "这段时间还没有会话。"
     fr = sorted(derive.count_by(rows, "fric").items(), key=lambda kv: (-kv[1], kv[0]))
@@ -54,6 +57,6 @@ def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:
              "evidence_n": None, "ref": RECS_REF}
     return {"lede": lede(p), "when": WHEN, "basis": "l0_template",
             "good": {"text": good, "evidence_n": ok_n, "verified_n": verified,
-                     "ok_est": round(st["ok"], 1) if n else None, "basis": "estimate",
+                     "ok_est": round(st["ok"], 1) if n and st["ok"] is not None else None, "basis": "estimate",
                      "ref": {"page": "sessions", "filter": {"outcome": "ok"}}},
             "stuck": stuck, "next": next_}

@@ -57,6 +57,9 @@ class Prior(_M):
 class Benefit(_M):
     unit: str
     unit_minutes: float = Field(ge=0)
+    # Where unit_minutes comes from (measurement or cited estimate). Without it the minutes only order
+    # candidates internally and the card shows「未估算」instead of a minutes figure.
+    unit_minutes_source: str | None = None
     prior: Prior = Prior()
 
 

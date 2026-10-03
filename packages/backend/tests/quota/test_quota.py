@@ -128,3 +128,59 @@ def test_advice_insufficient_without_data(tandem):
         out = quota.advise(quota.snapshot(db, NOW), quota.model_mix(db, NOW))
     assert out["status"] == "insufficient" and out["recommendation"] is None
     assert all(i["verdict"] == "insufficient" for i in out["items"])
+
+
+def _claude_advice(tandem):
+    with tandem.connect() as db:
+        snap = quota.snapshot(db, NOW)
+        out = quota.advise(snap, quota.model_mix(db, NOW))
+    windows = {w["window_kind"]: w for w in snap["quota_window"] if w["agent"] == "claude_code"}
+    return windows, next(i for i in out["items"] if i["agent"] == "claude_code")
+
+
+def test_claude_current_window_above_peak_is_clamped_and_not_avoid(tandem):
+    tandem.session("s1", agent="claude_code")
+    tandem.model_call("s1", ts=NOW - 20 * DAY, inp=500, out=300)   # peak window: 800 tokens
+    tandem.model_call("s1", ts=NOW - HOUR, inp=1_000, out=1_000)    # now: 2 000 = 250 % of peak
+    windows, item = _claude_advice(tandem)
+    five = windows["five_hour"]
+    assert five["active_tokens"] == 2_000 and five["peak_tokens"] == 800
+    assert five["used_percent"] == 100.0 and five["exceeds_peak"] is True and five["headroom"] == 0.0
+    # Real headroom 0 would be "avoid"; against a personal peak it is at most "conserve".
+    assert item["verdict"] == "conserve" and item["estimated"] is True and item["exceeds_peak"]
+    assert "超过你的历史峰值" in item["reason"] and "非真实额度" in item["reason"]
+
+
+def test_claude_tiny_peak_never_says_avoid(tandem):
+    tandem.session("s1", agent="claude_code")
+    tandem.model_call("s1", ts=NOW - 20 * DAY, inp=1, out=1)        # peak: 2 tokens
+    tandem.model_call("s1", ts=NOW - HOUR, inp=50_000, out=10_000)
+    windows, item = _claude_advice(tandem)
+    assert windows["five_hour"]["peak_tokens"] == 2 and windows["five_hour"]["used_percent"] == 100.0
+    assert item["verdict"] == "conserve"
+
+
+def test_claude_sparse_history(tandem):
+    tandem.session("s1", agent="claude_code")
+    # Two calls 2 days apart: the 5 h estimate needs 3 days of history -> insufficient.
+    tandem.model_call("s1", ts=NOW - 2 * DAY, inp=100, out=0)
+    tandem.model_call("s1", ts=NOW - HOUR, inp=100, out=0)
+    windows, item = _claude_advice(tandem)
+    assert windows["five_hour"]["basis"] == "insufficient" and windows["five_hour"]["exceeds_peak"] is None
+    assert item["verdict"] == "insufficient"
+    # One more call 4 days back: the 5 h window has a peak (100 tokens) from the older calls,
+    # current 100 / peak 100 = 100 % with no excess; weekly still lacks 14 days of history.
+    tandem.model_call("s1", ts=NOW - 4 * DAY, inp=100, out=0)
+    windows, item = _claude_advice(tandem)
+    five, week = windows["five_hour"], windows["weekly"]
+    assert five["basis"] == "estimated_peak" and five["peak_tokens"] == 100
+    assert five["used_percent"] == 100.0 and five["exceeds_peak"] is False and five["headroom"] == 0.0
+    assert week["basis"] == "insufficient"
+    assert item["verdict"] == "conserve" and item["binding_window"] == "five_hour"
+
+
+def test_observed_windows_still_avoid():
+    assert quota.advice.verdict(0.05, "observed") == "avoid"
+    assert quota.advice.verdict(0.05, "estimated_peak") == "conserve"
+    assert quota.advice.verdict(0.2, "estimated_peak") == "conserve"
+    assert quota.advice.verdict(0.5, "estimated_peak") == "available"

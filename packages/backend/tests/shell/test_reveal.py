@@ -30,10 +30,18 @@ def test_axis_mapping_and_bands():
     assert axes["I"]["value"] == 20.0 and axes["I"]["letter"] == "P" and axes["I"]["settled"]
     assert axes["I"]["lo"] <= 20.0 <= axes["I"]["hi"]
     assert axes["M"]["letter"] == "M" and axes["V"]["letter"] == "V"
+    # No undetermined band: exactly 50 takes the high letter.
     mid = {a["axis"]: a for a in reveal.ui_axes(profile(d=(0.5, 40, None)))}
-    assert mid["D"]["letter"] == "?" and not mid["D"]["settled"] and mid["D"]["strong"] == 50
+    assert mid["D"]["letter"] == "D" and mid["D"]["settled"] and mid["D"]["strong"] == 50
+    lean = {a["axis"]: a for a in reveal.ui_axes(profile(d=(0.49, 40, None)))}
+    assert lean["D"]["letter"] == "S"
     empty = {a["axis"]: a for a in reveal.ui_axes(profile(o=(None, 0, None)))}
     assert empty["M"]["value"] is None and empty["M"]["lo"] is None
+    assert empty["M"]["letter"] == "M" and not empty["M"]["settled"]
+    # Below the profile's own minimum: single-pole axes fall back to signal_rate.
+    small = profile(v=(None, 1, None))
+    small["axes"]["verification"].update(signal_rate=0.25, observable_task_n=4)
+    assert {a["axis"]: a for a in reveal.ui_axes(small)}["V"]["letter"] == "T"
 
 
 def test_matches_sorted_with_winner_first():
@@ -55,22 +63,20 @@ def test_reasons():
     none = reveal.compose(None, None, types=TYPES)
     assert none["ok"] is False and none["reason"] == "persona_unavailable"
     assert none["matches"] == [] and none["code"] is None
-    low = reveal.compose(profile(v=(0.9, 12, "V")), OVERVIEW, types=TYPES)
+    blank = {k: (None, 0, None) for k in ("d", "p", "o", "v")}
+    low = reveal.compose(profile(**blank), OVERVIEW, types=TYPES)
     assert low["reason"] == "insufficient_data" and not low["gate"]["passed"]
-    assert {"axis": "V", "n_units": 12} in low["gate"]["axes"]
-    few_days = reveal.compose(profile(), {"overview": {"activity_rhythm": {"active_days": 3}}},
-                              types=TYPES)
-    assert few_days["reason"] == "insufficient_data"
-    unsettled = reveal.compose(profile(p=(0.8, 40, None)), OVERVIEW, types=TYPES)
-    assert unsettled["reason"] == "unsettled_code" and unsettled["code"] == "D?MV"
-    assert unsettled["type"] is None and unsettled["share"] == {
-        "allowed": False, "blocked_reason": "unsettled_code"}
+    small = reveal.compose(profile(v=(0.9, 1, "V")),
+                           {"overview": {"activity_rhythm": {"active_days": 1}}}, types=TYPES)
+    assert small["ok"] and small["code"] == "DPMV" and small["share"]["allowed"]
+    no_direction = reveal.compose(profile(p=(0.8, 40, None)), OVERVIEW, types=TYPES)
+    assert no_direction["ok"] and no_direction["code"] == "DPMV"
     ok = reveal.compose(profile(), OVERVIEW, types=TYPES, meta={"scope_hash": "h"})
     assert ok["ok"] and ok["reason"] is None and ok["code"] == "DPMV"
     assert ok["type"] == {"code": "DPMV", "zh": "总设计师", "en": "The Architect",
                           "line": "先写清规格。"}
     assert ok["matches"][0]["code"] == "DPMV" and ok["share"]["allowed"]
-    assert ok["gate"] == {"min_units": 30, "min_active_days": 10, "active_days": 14,
+    assert ok["gate"] == {"min_units": 0, "min_active_days": 0, "active_days": 14,
                           "passed": True, "axes": [{"axis": k, "n_units": 40} for k in "DIMV"]}
 
 
@@ -91,7 +97,7 @@ def test_fingerprint_facts_and_method():
     assert facts["friction"]["value"] == "test_failure" and facts["verification"]["value"] == 0.25
     method = ok["method"]
     assert method["rules_version"] == "collaboration-profile-v1"
-    assert method["thresholds"] == {"min_units": 30, "min_active_days": 10, "mid_band": [45, 55]}
+    assert method["thresholds"] == {"min_units": 0, "min_active_days": 0, "midpoint": 50}
     assert [a["axis"] for a in method["axes"]] == list("DIMV")
     # Unknown facts stay None, never 0.
     blank = {f["stage"]: f for f in reveal.compose(None, None, types=TYPES)["facts"]}
@@ -104,8 +110,8 @@ def test_endpoint_without_data(gateway_factory):
     assert body["ok"] is False
     expected = "persona_unavailable" if reveal._export() is None else "insufficient_data"
     assert body["reason"] == expected
-    assert body["gate"]["min_units"] == 30 and body["matches"] == []
-    assert body["method"]["thresholds"]["mid_band"] == [45, 55]
+    assert body["gate"]["min_units"] == 0 and body["matches"] == []
+    assert body["method"]["thresholds"]["midpoint"] == 50
     assert body["meta"]["scope_hash"]
 
 

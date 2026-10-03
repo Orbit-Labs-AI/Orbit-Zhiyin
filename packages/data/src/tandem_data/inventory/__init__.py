@@ -13,7 +13,7 @@ from tandem_data.store import Store, insert, readonly_connection
 from .adapters import SUPPORTED, mcp, scan_layout
 from .reader import KINDS, ScanReader
 
-SCANNER_VERSION = "1.2.0"
+SCANNER_VERSION = "1.3.0"
 
 
 @dataclass(frozen=True)
@@ -97,6 +97,10 @@ def scan_inventory(store: Store, request: InventoryRequest) -> dict:
                 "rows": count if supported else None,
                 "reason": None if supported else "unsupported_by_layout",
             }
+        if request.agent == "claude_code" and not request.claude_config:
+            # User and local-scope MCP servers live in ~/.claude.json, which is only read
+            # when passed explicitly; the rows here cover settings files and plugins only.
+            coverage["mcp"]["reason"] = "user_scope_not_scanned"
         with store.transaction():
             cursor = store.db.execute(
                 "INSERT INTO inventory_scan(source_key,agent,root_path,scope,project_id,observed_at,scanner_version,coverage,diagnostics) VALUES(?,?,?,?,?,?,?,?,?)",

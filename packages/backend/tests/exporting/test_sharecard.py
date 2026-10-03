@@ -12,11 +12,10 @@ from tandem_backend.uiview import fetch
 
 def page(code="DPMV", n=30, days=10, units=30, ok=True):
     axes = [{"k": k, "value": 70.0, "letter": ch, "left": "l", "right": "r",
-             "n_units": units, "state": "insufficient" if units < 30 or days < 10 else
-             ("experimental" if ch == "?" else "settled")}
+             "n_units": units, "state": "settled" if units else "no_data"}
             for k, ch in zip("DIMV", code, strict=True)]
     return {"meta": {"period": "30", "method": "uiview-persona-v0", "scope_hash": "h" * 32},
-            "ok": ok and n >= 30, "n": n, "days": days, "code": code, "zh": "页面类型",
+            "ok": ok and n >= 1, "n": n, "days": days, "code": code, "zh": "页面类型",
             "axes": axes}
 
 
@@ -47,7 +46,7 @@ def test_eligible_card_with_copy_and_snapshot(env, canned):
     assert body["type_name"] == TYPES["DPMV"][0] == "总设计师"
     assert body["copy"]["headline"] == "先把规格写清楚，再让每个 Agent 各司其职。"
     assert body["disclaimer"] == "实验性画像，仅供参考" and body["theme"] == "dark"
-    assert body["gate"]["min_units"]["D"] == 30 and body["gate"]["active_days"] == 10
+    assert body["gate"]["min_sessions"] == 1 and body["gate"]["active_days"] == 10
     assert body["method"] == "uiview-persona-v0" and [a["k"] for a in body["axes"]] == list("DIMV")
     assert {s["label"]: s["value"] for s in body["stats"]} == {"会话": 30, "活跃天数": 10,
                                                               "对话轮次": 30}
@@ -58,9 +57,9 @@ def test_eligible_card_with_copy_and_snapshot(env, canned):
 
 
 @pytest.mark.parametrize(("code", "n", "days", "units", "reason"), [
-    ("DPMV", 29, 10, 30, "insufficient_data"), ("DPMV", 30, 9, 30, "insufficient_data"),
-    ("DPMV", 30, 10, 29, "insufficient_data"), ("DPMV", 30, 10, 30, None),
-    ("DP?V", 30, 10, 30, "unsettled_code"), ("DP?V", 30, 10, 29, "insufficient_data")])
+    ("DPMV", 0, 0, 0, "insufficient_data"), ("DPMV", 1, 1, 1, None),
+    ("DPMV", 1, 1, 0, None), ("DPMV", 30, 10, 30, None),
+    ("DP?V", 30, 10, 30, "unsettled_code")])
 def test_gate_boundaries(env, canned, code, n, days, units, reason):
     client, _, _ = env
     canned["page"] = page(code, n, days, units)

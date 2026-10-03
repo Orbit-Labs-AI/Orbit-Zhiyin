@@ -9,7 +9,9 @@ from tandem_backend.recommend import engine
 from tandem_backend.recommend.recall.catalog_route import from_item
 
 INPUTS = {"agents": {"codex": 30}, "sessions": {"main": 30, "weeks": 4},
-          "facts": {"failures_by_software": [{"software": "wrangler", "sessions": 3}]}, "profile": None}
+          "facts": {"failures_by_software": [{"software": "wrangler", "sessions": 3}]},
+          # 20 evidence sessions → profile confidence .5, so profile/catalog cards have positive net value
+          "profile": {"evidence_sessions": {"git": 20}}}
 MEMORY = {"now": 0, "state": {}, "labels": {}, "weights": {}, "posteriors": {}}
 PROBLEM = {"problem_id": "p1", "type": "missing_verification", "key": "k1", "sessions": 12,
            "denominator": 36, "wilson_lo": .2, "weekly_count": 3., "unit": "次", "status": "active",

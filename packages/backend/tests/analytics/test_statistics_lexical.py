@@ -146,3 +146,87 @@ def test_rank_association_handles_monotonic_and_constant_inputs():
     assert rank_association(first[:4], second[:4])["status"] == "insufficient_samples"
     constant = [{"session_uid": str(i), "value": 1} for i in range(6)]
     assert rank_association(first, constant)["status"] == "constant_input"
+
+
+LANGUAGE_CASES = {"swift": "Swift", "kt": "Kotlin", "rb": "Ruby", "cs": "C#", "sql": "SQL",
+                  "toml": "TOML", "php": "PHP", "lua": "Lua", "dart": "Dart", "tsx": "TypeScript",
+                  "py": "Python", "h": "C/C++"}
+
+
+def test_language_table_covers_common_extensions_and_matches_versions():
+    from tandem_backend.analytics.features import LANG, LANGUAGE_TABLE_VERSION
+    from tandem_backend.analytics.products.contracts import RULE_VERSIONS
+
+    assert len(LANG) >= 60
+    assert {ext: LANG[ext] for ext in LANGUAGE_CASES} == LANGUAGE_CASES
+    assert RULE_VERSIONS["languages"] == LANGUAGE_TABLE_VERSION
+
+
+def test_observed_languages_counts_known_extensions_and_reports_unknown_calls():
+    from tandem_backend.analytics.products.summaries import observed_languages
+
+    calls = [{"call_uid": f"c-{ext}", "files": [f"src/main.{ext}"]} for ext in LANGUAGE_CASES]
+    calls += [{"call_uid": "c-unknown", "files": ["notes/readme.xyz", "Dockerfile"]},
+              {"call_uid": "c-nofiles", "files": []},
+              {"call_uid": "c-mixed", "files": [{"path": "App/View.swift"}, "a.unknownext"]}]
+    result = observed_languages(calls)
+    counts = {row["language"]: row["file_operation_count"] for row in result["rows"]}
+    # One call per case; Swift gets a second file operation from c-mixed.
+    expected = {language: 1 for language in LANGUAGE_CASES.values()}
+    expected["Swift"] = 2
+    assert counts == expected
+    assert result["unknown_call_n"] == 2  # c-unknown and c-nofiles; c-mixed is measured
+    assert result["status"] == "partial"
+
+
+def test_session_language_signals_read_new_extensions_from_human_text():
+    from tandem_backend.analytics.features import FILE_REFERENCE, session_features
+
+    text = "改 Sources/App.swift 和 main.kt 以及 a.rb b.cs c.sql d.toml e.php f.lua g.dart，忽略 x.qqq"
+    assert [m.lower() for m in FILE_REFERENCE.findall(text)] == [
+        "swift", "kt", "rb", "cs", "sql", "toml", "php", "lua", "dart"]
+    event = {"event_uid": "u1", "session_uid": "s", "kind": "message.user", "seq": 1,
+             "ts": 1_790_000_000_000, "actor": "human", "text": text, "attrs": {"origin": "human"}}
+    result = session_features({"session_uid": "s"}, [event], [], {"s"})
+    signals = {row["extension"]: row["language"] for row in result["language_signals"]}
+    assert signals == {"swift": "Swift", "kt": "Kotlin", "rb": "Ruby", "cs": "C#", "sql": "SQL",
+                       "toml": "TOML", "php": "PHP", "lua": "Lua", "dart": "Dart"}
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("한국어 테스트를 실행해", ["한국어", "테스트를", "실행해"]),          # Hangul eojeol
+    ("Запусти тесты модуля", ["запусти", "тесты", "модуля"]),            # Cyrillic, casefolded
+    ("テスト", ["テス", "スト"]),                                         # kana bigrams
+])
+def test_non_chinese_scripts_produce_tokens(text, expected):
+    assert sentences(text) == [expected]
+
+
+def test_out_of_dictionary_chinese_words_are_kept():
+    from tandem_backend.analytics.products.lexical import tokenizer
+
+    # "鉴权" and "竞态" are not words in jieba's bundled dictionary: dictionary-only cutting
+    # splits them into single characters, which the length rule then discards.
+    assert "鉴权" not in tokenizer().cut("鉴权", HMM=False)
+    tokens = [t for clause in sentences("修复鉴权里的竞态问题") for t in clause if t]
+    assert "鉴权" in tokens and "竞态" in tokens
+
+
+def test_unsupported_scripts_are_counted_and_lower_coverage():
+    bundle = corpus()
+    bundle.events[1]["text"] = "สวัสดีครับ"  # Thai only: no tokens, counted as ignored
+    bundle.events[2]["text"] = "한국어 테스트"
+    lexical = build_products(bundle)["lexical"]
+    assert lexical["unsupported_script_n"] == lexical["coverage"]["unsupported_script_n"] == 1
+    assert lexical["status"] == lexical["coverage"]["status"] == "partial"
+    assert "unsupported_script_text_ignored" in lexical["coverage"]["reasons"]
+    documents = {row["event_uid"]: row for row in lexical["documents"]}
+    assert documents["u1"]["token_count"] == 0 and documents["u1"]["unsupported_script_chars"] == 10
+    assert documents["u2"]["token_count"] == 2
+
+
+def test_lexical_rule_version_matches_module_version():
+    from tandem_backend.analytics.products.contracts import RULE_VERSIONS
+    from tandem_backend.analytics.products.lexical import LEXICAL_VERSION
+
+    assert RULE_VERSIONS["lexical"] == LEXICAL_VERSION

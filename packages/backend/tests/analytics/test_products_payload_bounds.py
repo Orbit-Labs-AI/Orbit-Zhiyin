@@ -65,3 +65,45 @@ def test_identical_product_request_reuses_snapshot_instead_of_recomputing(tmp_pa
     assert runs["total"] == 2 and {r["status"] for r in runs["items"]} == {"completed"}
     assert len({r["snapshot_id"] for r in runs["items"]}) == 1
     assert runs["items"][0]["request"]["data_revision"] is not None
+
+
+def test_presentation_bounds_per_call_evidence_but_keeps_aggregates():
+    """20 000 calls: the raw projection carries ≈1 KB/call of refs; the served one is capped."""
+    import json
+    from pathlib import Path
+
+    from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
+    from tandem_backend.analytics.presentation import bounded_presentation, build_presentation
+    from tandem_backend.analytics.service import analyze_bundle
+
+    raw = json.loads((Path(__file__).parents[1] / "fixtures/bottleneck-features-v1.json")
+                     .read_text(encoding="utf-8"))
+    analysis = analyze_bundle(AnalysisInputBundle.from_dict(raw), Scope(), with_text=False)
+    n, failed = 20_000, 20_000 // 4  # every 4th call failed: 5 000 failed, 15 000 success
+    calls = [{"call_uid": f"c{i:05d}", "session_uid": "root", "seq": i,
+              "name_raw": ("read", "edit")[i % 2], "kind": ("read", "write")[i % 2],
+              "tool_result_status": "failed" if i % 4 == 0 else "success"} for i in range(n)]
+    respond = analysis["bottleneck_features"]["respond"]
+    respond.update(tool_sequence=calls, status="available")
+
+    full = build_presentation(analysis)
+    served = bounded_presentation(analysis)
+    tools, capped = full["diagnostics"]["tools"], served["diagnostics"]["tools"]
+    assert len(json.dumps(full["diagnostics"])) > 2_000_000  # the cap is what bounds it
+    assert len(json.dumps(served)) < 2_000_000
+
+    # Aggregates are untouched: 5 000 / 20 000 failed among known statuses.
+    assert capped["error_rate"]["numerator"] == failed and capped["error_rate"]["denominator"] == n
+    assert capped["error_rate"]["value"] == tools["error_rate"]["value"] == failed / n
+    matrix = capped["transition_matrix"]
+    assert sum(map(sum, matrix["counts"])) == n - 1 == sum(map(sum, tools["transition_matrix"]["counts"]))
+
+    # Evidence keeps ≤ 50 samples plus the exact length.
+    assert len(matrix["evidence_refs"]) == EVIDENCE_LIMIT and matrix["evidence_refs_total"] == n - 1
+    for rate in ("success_rate", "error_rate"):
+        assert len(capped[rate]["evidence_refs"]) == EVIDENCE_LIMIT
+        assert capped[rate]["evidence_refs_total"] == n
+    for finding in served["diagnostics"]["findings"]:
+        assert len(finding["evidence_refs"]) <= EVIDENCE_LIMIT
+    failure = next(f for f in served["diagnostics"]["findings"] if f["rule_id"] == "tool_failure")
+    assert failure["evidence_refs_total"] == failed

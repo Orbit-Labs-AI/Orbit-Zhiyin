@@ -33,6 +33,7 @@ L3 = {
     "turn",
     "tool_call",
     "tool_call_event",
+    "tool_call_file",
     "model_call",
     "usage_snapshot",
     "link",

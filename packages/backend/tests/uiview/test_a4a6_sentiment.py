@@ -1,4 +1,4 @@
-"""A6 情绪与语义 adapter: detectors, buckets, friction sources, topics, phrases, drivers."""
+"""A6 情绪与语义 adapter: detectors, buckets, friction sources, phrases, word cloud terms."""
 
 from __future__ import annotations
 
@@ -163,25 +163,6 @@ def test_friction_prefers_facets(world, appdb):
     assert rows["permission_friction"]["type_source"] == "rule"
 
 
-def test_topics_taxonomy_and_ai_override(world, appdb):
-    topics = {t["id"]: t for t in run(world, appdb)["topics"]}
-    assert topics["software.devops"]["label"] == "部署与运维"
-    assert topics["software.devops"]["label_source"] == "taxonomy"
-    assert topics["software.devops"]["avg_balance"] == -1.0
-    assert topics["software.backend_api"]["session_uids"] == ["r1"]
-    assert "other" in topics and topics["other"]["label"] == "其他"
-    with appdb.write() as w:
-        w.execute("INSERT INTO ai_job(job_id,task_id,engine,slot,request,status,result,created_at,"
-                  "finished_at) VALUES ('j1','name.topics','fake','cheap','{}','ok',?,1,2)",
-                  (json.dumps({"topics": [{"id": "software.devops", "label": "部署收尾"}]}),))
-    body = run(world, appdb)
-    topics = {t["id"]: t for t in body["topics"]}
-    assert topics["software.devops"]["label"] == "部署收尾"
-    assert topics["software.devops"]["label_source"] == "ai"
-    assert topics["software.backend_api"]["label_source"] == "taxonomy"
-    assert body["meta"]["last_job_at"] == 2
-
-
 def test_phrases_sessions_redaction_and_sources(world, appdb):
     body = run(world, appdb)
     phrases = {p["text"]: p for p in body["phrases"]}
@@ -205,13 +186,13 @@ def test_language_mix_and_meta(world, appdb):
     assert meta["bucket"] == "day"
 
 
-def test_drivers_insufficient_and_ok(world, appdb):
-    drivers = run(world, appdb)["drivers"]
-    assert [d["key"] for d in drivers] == [k for k, _ in S.DRIVERS]
-    assert all(d["status"] == "insufficient" and d["diff"] is None for d in drivers)
-    sessions = {f"s{i}": {"started_at": 0, "end": (120 if i < 10 else 10) * MIN}
-                for i in range(20)}
-    balances = {f"s{i}": (-1.0 if i < 10 else 1.0) for i in range(20)}
-    rows = {d["key"]: d for d in S.build_drivers(sessions, {}, [], balances, set())}
-    assert rows["long_session"]["status"] == "ok" and rows["long_session"]["diff"] == -2.0
-    assert rows["compaction"]["status"] == "insufficient"  # n_a = 0
+def test_topics_and_drivers_removed_terms_present(world, appdb):
+    body = run(world, appdb)
+    assert "topics" not in body and "drivers" not in body and "drivers_note" not in body
+    terms = body["terms"]
+    by = {t["term"]: t for t in terms["items"]}
+    assert (by["测试"]["count"], by["测试"]["days"]) == (4, 3)  # 跑一下测试 on days 3/4/4/5
+    assert "docker" in by and all(t["term"] != "sk" for t in terms["items"])
+    text = json.dumps(terms, ensure_ascii=False)
+    assert "abcdefghijklmnop" not in text and "密钥" not in text
+    assert terms["n_messages"] > 0 and terms["version"]

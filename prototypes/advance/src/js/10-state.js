@@ -1,6 +1,6 @@
 /* ============ state ============ */
 const S = {
-  route: 'overview', range: 30, agents: new Set(AG.map((a) => a.id)), srcOff: new Set(),
+  route: 'overview', range: 30, agents: new Set(AG.map((a) => a.id)), agentOff: new Set(), srcOff: new Set(),
   project: null, topic: null, outcome: null, fric: null, hour: null,
   compare: true, metric: 'n', view: 'chart', theme: store.get('theme', 'system'),
   // shell: sidebar shown (user intent) / sidebar as an overlay in a narrow window / collapsible groups / key window /

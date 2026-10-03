@@ -30,7 +30,13 @@ from tandem_backend.recommend.catalog import load_catalog
 from tandem_backend.recommend.service import recommend
 
 from .contracts import METHODS, NONE_ACTION, ExecutionRecord, TemporalSample
-from .metrics import forward_utility, recommendation_quality
+from .metrics import (
+    DEFAULT_ACTION_SWEEP_BUDGET,
+    DEFAULT_TOKEN_BUDGETS,
+    action_sweep_budget,
+    forward_utility,
+    recommendation_quality,
+)
 from .score import bind_measurements, catalog_body_digests, freeze_study, read_study
 from .temporal import DAY_MS, digest_id, episode_index, history_scope, make_sample, rolling_anchors
 
@@ -564,7 +570,8 @@ def run(
                     "hindsight_only": True,
                 },
                 "common_execution": {
-                    "token_budgets": [5000, 10000, 20000],
+                    "token_budgets": list(DEFAULT_TOKEN_BUDGETS),
+                    "action_sweep_budget": DEFAULT_ACTION_SWEEP_BUDGET,
                     "turn_budget": 20,
                     "tool_call_budget": 50,
                     "wall_budget_ms": 300000,
@@ -592,7 +599,9 @@ def run(
         primary_execution = [r for r in execution if r.sample_id in primary_ids]
         forward = forward_utility(primary_samples, primary_execution)
         quality = recommendation_quality(
-            primary_samples, primary_execution, rankings, [i.identity.id for i in loaded.items]
+            primary_samples, primary_execution, rankings, [i.identity.id for i in loaded.items],
+            token_budget=action_sweep_budget(plan["common_execution"]),
+            seed=plan["common_execution"]["seeds"][0],
         )
         if execution_issues:
             forward = {"status": "invalid", "issues": execution_issues, "rows": []}

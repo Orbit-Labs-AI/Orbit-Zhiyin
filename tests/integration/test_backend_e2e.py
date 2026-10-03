@@ -10,29 +10,22 @@ from __future__ import annotations
 
 import io
 import json
-import sys
 import tarfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
+from gateway_support import ok, wait_for
+from synthetic import write_codex_tree
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages/backend/tests/services"))
+from tandem_backend.ai.engines import FakeEngine
+from tandem_backend.ai.service import service as ai_service
 
-from synthetic import write_codex_tree  # noqa: E402
+# Real worker heartbeats (0.3 s) and a 3 s stale window: running next to the whole parallel
+# suite can starve a heartbeat, so these run in the serial pass of scripts/check.sh.
+pytestmark = pytest.mark.serial
 
-from tandem_backend import install  # noqa: E402
-from tandem_backend.ai import engines  # noqa: E402
-from tandem_backend.ai.engines import FakeEngine  # noqa: E402
-from tandem_backend.ai.service import service as ai_service  # noqa: E402
-from tandem_backend.install import env as envmod  # noqa: E402
-from tandem_backend.services.gateway import Gateway  # noqa: E402
-from tandem_backend.services.supervisor import SupervisorConfig  # noqa: E402
-
-TOKEN = "synthetic-test-token-0123456789abcdef"
-BASE = "http://127.0.0.1:8765"
 SKILL = {"name": "flaky-test-triage", "description": "测试反复失败时，先读错误输出再决定是否重跑。",
          "steps": ["读最近一次失败的完整输出", "定位第一条报错", "只修改相关文件后重跑"],
          "dont": ["不要盲目重试"], "verify": "pytest -q 通过", "allowed_tools": ["Read", "Grep", "Bash"]}
@@ -63,59 +56,13 @@ def write_failing_sessions(root: Path, count: int = 4) -> None:
         path.write_text("".join(json.dumps(row) + "\n" for row in rows))
 
 
-def wait_for(predicate, timeout=90.0, interval=0.05, what=""):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        value = predicate()
-        if value:
-            return value
-        time.sleep(interval)
-    raise AssertionError(f"timed out waiting for {what or predicate}")
-
-
-def ok(response, status=200):
-    assert response.status_code == status, response.text
-    return response.json()
-
-
 @pytest.fixture
-def e2e(tmp_path, monkeypatch):
-    user_home = tmp_path / "user-home"
-    (user_home / ".claude").mkdir(parents=True)
-    (user_home / ".codex").mkdir()
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
-    monkeypatch.setenv("HOME", str(user_home))
-    monkeypatch.setenv("TANDEM_INSTALL_HOME", str(user_home))
-    monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
-    # No network: the background catalog refresher still imports the bundled library seed,
-    # but never schedules the first network sync.
-    monkeypatch.setenv("TANDEM_CATALOG_AUTOSYNC", "0")
-    for name in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "ANTHROPIC_API_KEY", "XDG_DATA_HOME"):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr(engines, "FALLBACK_DIRS", ())
-    monkeypatch.setattr("tandem_catalog.network.HttpClient.get", _no_network)
-    envmod._memo.clear()
-
+def e2e(tmp_path, gateway_harness):
+    harness = gateway_harness(fetcher=FakeGithub())
     codex_root = tmp_path / "agents" / "codex"
     write_codex_tree(codex_root, 12)
     write_failing_sessions(codex_root)
-    config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0,
-                              backoff_s=(0.1, 0.2, 0.4, 0.8), tick_s=0.05,
-                              light_timeout_s=60.0, heavy_timeout_s=120.0)
-    gateway = Gateway(tmp_path / "tandem", config=config, discovery=lambda: [],
-                      prewarm_debounce_s=3600.0)
-    app = gateway.app(token=TOKEN, port=8765)
-    svc = install.get_default_service()
-    # Agent detection only looks at the temporary home and an empty bin dir; nothing is spawned.
-    svc.env = envmod.Env(home=user_home, environ={"PATH": str(bindir)}, search_dirs=[bindir],
-                         run=_no_spawn)
-    svc.fetcher = FakeGithub()
-    with TestClient(app, base_url=BASE, headers={"Authorization": f"Bearer {TOKEN}"}) as client:
-        yield client, gateway, codex_root, user_home
-    if getattr(gateway, "_ai", None) is not None:
-        gateway._ai.close()
-    install.set_default_service(None)
+    return harness.client, harness.gateway, codex_root, harness.home
 
 
 class FakeGithub:
@@ -138,14 +85,6 @@ class FakeGithub:
                 archive.addfile(info, io.BytesIO(body))
             return buffer.getvalue()
         raise AssertionError(f"unexpected fetch {url}")
-
-
-def _no_network(*args, **kwargs):
-    raise AssertionError("e2e tests must not reach the network")
-
-
-def _no_spawn(argv, **kwargs):
-    raise AssertionError(f"e2e tests must not spawn {argv}")
 
 
 def import_sessions(client, root: Path) -> None:

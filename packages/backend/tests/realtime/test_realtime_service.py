@@ -172,3 +172,33 @@ def test_tail_reads_reported_context_window(tandem):
     tandem.usage("cx", NOW - 20_000, 1000, model="gpt-5-codex")
     tail = next(t for t in load_tails(Reads(tandem.path), NOW) if t.session_uid == "cx")
     assert tail.usage["window_tokens"] == 258_400
+
+
+def test_failing_ticks_are_logged_once_per_distinct_error(tandem, monkeypatch):
+    from tandem_backend.realtime import service
+
+    rt, _, _ = make(tandem, Recorder())
+    errors = iter([RuntimeError("db locked"), RuntimeError("db locked"), ValueError("bad row"), None])
+
+    def refresh(now=None):
+        error = next(errors)
+        if error:
+            raise error
+
+    class Ticks:  # stop.wait stand-in: four ticks, then stop
+        def __init__(self):
+            self.left = 4
+
+        def wait(self, _):
+            self.left -= 1
+            return self.left < 0
+
+        def is_set(self):
+            return False
+
+    logged = []
+    monkeypatch.setattr(service.logs, "log_event", lambda ev, level, **f: logged.append(f["error"]))
+    rt.refresh, rt.stop, rt.clients = refresh, Ticks(), 1
+    rt._run()  # never raises out of the loop
+    assert logged == ["RuntimeError: db locked", "ValueError: bad row"]
+    assert rt.last_error is None  # the last tick succeeded
