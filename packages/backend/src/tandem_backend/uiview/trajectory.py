@@ -15,9 +15,9 @@ from datetime import UTC, datetime, tzinfo
 from ..analytics.products.journey import EXPLORE
 from ..realtime import context_windows
 from ..sessionops import resume
+from . import metrics
 from . import moments as rules
 from .sessions import (
-    ACTIVE_GAP_MS,
     HUMAN_WHERE,
     agent_name,
     errors_of,
@@ -92,10 +92,7 @@ def _mins(ts: int | None, t0: int) -> float | None:
 
 
 def _active_ms(stamps: list[int]) -> int | None:
-    if not stamps:
-        return None
-    stamps = sorted(stamps)
-    return sum(min(b - a, ACTIVE_GAP_MS) for a, b in zip(stamps, stamps[1:], strict=False))
+    return metrics.active_ms(stamps)
 
 
 def _phases(stream: list[tuple[float, str]], T: float) -> list[dict]:
@@ -308,7 +305,8 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
     peak = max((p[1] for p in ctx), default=None) if ctx else None
     stats7 = {"msgs": msgs, "steps": len(tool_events) + replies,
               "steps_basis": "tool_calls_plus_reply_spans", "tools": len(tree_statuses),
-              "errors": errors_of(tree_statuses), "corr": corr, "ctx_peak": peak,
+              # Same corr as the header (facts when present): one number per page.
+              "errors": errors_of(tree_statuses), "corr": header["corr"], "ctx_peak": peak,
               "ctx_basis": "estimate" if ctx else None, "tok": tok,
               "tok_basis": "l1_model_call" if tok is not None else None}
     trajectory = {

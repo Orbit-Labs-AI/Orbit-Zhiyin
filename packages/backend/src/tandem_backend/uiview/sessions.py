@@ -21,9 +21,9 @@ from tandem_data.privacy import redact
 
 from ..analytics.interaction import correction_terms
 from ..analytics.lexicon import CORRECTION_EXTRA_HINT
-from . import outcome
+from . import metrics, outcome
 
-ACTIVE_GAP_MS = 5 * 60_000
+ACTIVE_GAP_MS = metrics.IDLE_CAP_MS  # ACTIVE_SQL is metrics.active_ms in SQL
 TICKS_MAX = 90
 KNOWN_STATUS = {"success", "completed", "failed", "rejected", "interrupted"}
 FAILED = {"failed"}

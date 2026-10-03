@@ -94,8 +94,13 @@ def test_hours_union_scatter_and_no_regression(conn):
     rows = by_id(body)
     p1 = rows["p1"]
     assert p1["sessions"] == 6
-    assert p1["hours"] == {"value": round((40 + 3 * 60 + 20) / 60, 2),
-                           "basis": "observed_span_union_incl_idle"}
+    # Active time (5-min capped gaps between events, uiview.metrics): s1 events at 0/1/2/3 min
+    # = 3; s2 one event = 0; s3-s5 at 0/1/2/3/4/9 = 4 + 5 = 9 each; s6 at 0/20 = 5 (capped).
+    # Span union (idle included) is still reported separately: s1∪s2 40 + 3×60 + 20.
+    assert p1["hours"] == {"value": round((3 + 0 + 3 * 9 + 5) / 60, 2),
+                           "basis": "active_estimate",
+                           "span": round((40 + 3 * 60 + 20) / 60, 2),
+                           "span_basis": "observed_span_union_incl_idle"}
     assert p1["friction"]["corr"] == 2 and p1["friction"]["msgs"] == 10
     assert p1["friction"]["basis"] == "lexical_candidate"
     assert p1["friction"]["lo"] < p1["friction"]["value"] < p1["friction"]["hi"]
@@ -122,7 +127,8 @@ def test_group_folder_sums_to_project_sessions(conn):
         sums[f["belongs_to"]] = sums.get(f["belongs_to"], 0) + f["sessions"]
     assert sums == {p["project_id"]: p["sessions"] for p in body["projects"]}
     web = next(f for f in body["folders"] if f["cwd"] == "/w/p1/apps/web")
-    assert web["sessions"] == 2 and web["hours"] == round(40 / 60, 2)
+    # Active time of s1 (3 min) + s2 (single event, 0 min); the 40-min span is idle-inclusive.
+    assert web["sessions"] == 2 and web["hours"] == round(3 / 60, 2)
 
 
 def test_persona_lookup_is_optional(conn):

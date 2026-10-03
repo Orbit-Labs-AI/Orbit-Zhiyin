@@ -17,10 +17,9 @@ from contextvars import ContextVar
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from . import CONTRACT, outcome
+from . import CONTRACT, metrics, outcome
 
 UIDS = "(SELECT value FROM json_each(?))"
-IDLE_CAP_MS = 5 * 60_000
 FAILED = frozenset(("failed", "error", "failure"))
 UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
 FRIC = ("方向错误", "工具 / 环境失败", "改动过度", "误解需求", "并行会话冲突",
@@ -127,12 +126,7 @@ def _active(conn, uids: str, root_of: dict) -> dict[str, float]:
     for uid, ts in _rows(conn, f"SELECT session_uid, ts FROM event WHERE ts IS NOT NULL AND "
                                f"session_uid IN {UIDS}", uids, fields=('dur',)):
         stamps[root_of.get(uid, uid)].append(ts)
-    out = {}
-    for root, values in stamps.items():
-        values.sort()
-        gaps = (min(b - a, IDLE_CAP_MS) for a, b in zip(values, values[1:], strict=False))
-        out[root] = sum(gaps) / 60_000
-    return out
+    return {root: metrics.active_ms(values) / 60_000 for root, values in stamps.items()}
 
 
 def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
