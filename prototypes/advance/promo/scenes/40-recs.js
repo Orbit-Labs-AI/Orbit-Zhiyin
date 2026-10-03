@@ -23,12 +23,14 @@
    stretch into pills aimed at their intro line as their links start (b39.5 / 39.64 / 39.78) and land as bullets; the
    three waves are a pill breath (w 2 → 2.3); each linked dot is a pill aimed at its card from link start, then a bullet
    with a ✓ (thin for a dashed link) from emission + .4 (b45.4 / 47.9 / 50.9 / 53.9 / 56.9 / 59.9), held 1.4 beats; all
-   back to round badges b62.3–62.96 so the merge (b63.0, 50-tools) closes them into the orb. Counter rolls enter left → right. */
+   back to round badges b62.3–62.96 so the merge (b63.0, 50-tools) closes them into the orb. Counter rolls enter left → right.
+   v18.2: +.8 beat at the end (payoff held to b63.4, exit b63.4–64.0; round badges b62.8, close b63.2, merge b63.8). */
 scene('40-recs', () => {
   css(`
 .ln.xl.r4-w{font-size:128px;line-height:1}
 .ln.r4-n{font-size:96px;font-weight:700;line-height:1;color:var(--acc);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
-.ln.lt.r4-s{font-size:28px;color:rgba(255,255,255,.55)}
+.ln.lt.r4-s{font-size:30px;color:rgba(255,255,255,.7)}
+.ln.r4-l{font-size:36px;font-weight:600;color:rgba(255,255,255,.86);letter-spacing:.04em}
 .ln.r4-h{font-size:88px;font-weight:700;letter-spacing:-.01em;line-height:1.08}
 .ln.r4-a{font-size:64px;font-weight:600;letter-spacing:.02em;color:var(--a1)}
 `);
@@ -37,10 +39,11 @@ scene('40-recs', () => {
   const PREF = ['t', 'k', 't', 'k', 't', 'k'];                   // which counter each entry would add to (time / token alternating)
   const PIT = 3.0, ARR = IDS.map((_, n) => 46.0 + PIT * n);      // beat entry n reaches the centre line (46.0 … 61.0)
   const S4 = 44.5, MV = 1.1, OUT4 = 63.1;                        // intro → eyebrow slot move (b44.5–45.6); scene clear
-  // v18.1 payoff (b61.7–62.35, held to b63.05, out by b63.5 under 50-tools' card growing from the orb): the last card blurs
-  // out, the two counters glide to the centre at 1.5×, the small orange eyebrow line「提高效率」grows into their left side
-  // and the caption settles under them — one large centred % statement (shares only, never hours)
-  const PO = 61.7, POD = .65, POUT = 63.5, PE = (b) => E.inOut(lp(b, PO, POD));
+  // v18.1 payoff (b61.7–62.35): the last card blurs out, the two counters glide to the centre at 1.5×, the orange line
+  // 「提高效率」wipes in on their left and the caption settles under them — one large centred % statement (shares only, never
+  // hours). v18.2: held .8 beat longer (whole statement readable b62.35–63.4, exit b63.4–64.0, film b86.3–86.9, before
+  // 50-tools' trajectory card fades in at film b87.05); the dot merge and the hand-off move with it (+.8)
+  const PO = 61.7, POD = .65, POX = .6, POUT = 64.0, PE = (b) => E.inOut(lp(b, PO, POD));
   // v18.1: the column is framed ≈1.35× closer than v17.7 (card body 12 app px → ≈30 px on screen, footer 11 → ≈27 px): the
   // cards are 1000 px wide at x 520 (right edge 1520, the counters sit right of it at 1720), the entry pitch follows the
   // tallest entry (set at b40.0, ≥ 490), so the 3-beat cadence is unchanged and only the scroll speed in px grows
@@ -152,11 +155,11 @@ scene('40-recs', () => {
     });
     w.forEach(([g0, g1]) => AGD.glow(i, g0, g1, .9));
   });
-  // T11 (v18.1): the column leaves its bullets for round badges from b62.0 and, from b62.4 (as the last card blurs out and
-  // the counters settle in the centre), closes on its centre row at MERGE (330, 540) — a tight stack 22 px apart by b63.0,
+  // T11 (v18.1, +.8 in v18.2): the column leaves its bullets for round badges from b62.8 and, from b63.2 (just before the
+  // payoff exits), closes on its centre row at MERGE (330, 540) — a tight stack 22 px apart by b63.8,
   // where 50-tools' merge key takes the live positions into the orb. No static five-dot column on an empty frame
-  AGD.morph(62.0, ROWDOT, 'dot', { dur: .5, stag: .04 });
-  AGD.key(62.4, 'column', { x: 330, y0: 540 - 2 * 22, gap: 22, r: 30, a: 1, order: ORD, dur: .6, stag: 0 });
+  AGD.morph(62.8, ROWDOT, 'dot', { dur: .5, stag: .04 });
+  AGD.key(63.2, 'column', { x: 330, y0: 540 - 2 * 22, gap: 22, r: 30, a: 1, order: ORD, dur: .6, stag: 0 });
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
   // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
   // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b63.0, so the merge (T11)
@@ -180,7 +183,7 @@ scene('40-recs', () => {
     for (const [b0, b1] of WIN[i]) v = Math.max(v, Math.min(E.inOut(lp(b, b0, d)), 1 - E.inOut(lp(b, b1 - d, d))));
     return v;
   };
-  AGD.follow(40.9, 63.0, (i, b, q) => {
+  AGD.follow(40.9, 63.8, (i, b, q) => {
     const h = hash01(i, 11), px = 7 + 2.5 * hash01(i, 12), py = 7.5 + 2 * hash01(i, 13), ia = 1 - E.inOut(lp(b, S4, .8));
     return { a: .6 + .4 * Math.max(near(i, b, .3), .5 * ia), x: q.x + STEP_X * near(i, b, .4) + 4 * Math.sin(2 * Math.PI * (b / px + h)), y: q.y + 8 * Math.sin(2 * Math.PI * (b / py + h * 1.7)) };
   }, { blend: .4 });
@@ -289,17 +292,20 @@ scene('40-recs', () => {
     // v17.7: as its link starts the gliding dot stretches into a pill aimed at the line's start (the link leaves its tip,
     // the line wipes out of the link), then lands as a bullet .5 beat after the line starts writing
     AGD.morph(ROWIN[r] - .05, i, 'pill', { w: 2.6, aim: (b) => [530, ly(b)], dur: .3, hold: .55, back: .4, to: 'bullet' });
-    // v18.1 payoff: the orange line (row 2) leaves the eyebrow slot and grows into the left side of the centred counters
-    // (right edge ≈ 790, level with the numerals); the eyebrow and headline above it fade out as it goes
-    const fin = r === 2, m1 = fin ? mask(.18, .001, .45) : m0;
+    // v18.2: only the eyebrow (row 0) settles in the top-left slot (24 px mono); the headline and the orange line rise
+    // and slide with it but fade to 0 over the move (gone by S4 + .75) instead of resting there as 26 px small print.
+    // Payoff: the orange line (row 2) wipes in again left → right on the left of the centred counters (x 500, level with
+    // the numerals, 1.1×); the eyebrow fades out as the payoff starts
+    const fin = r === 2, m1 = fin ? mask(.18, .001, POX) : m0;
     txt(wb - .02, fin ? POUT : OUT4, [[cls, html]], { x: 540, y: y0 }, {
       anim: (el, tl, life, t) => {
         m1(el, tl, life);
-        const b = t / BEAT, mx = E.inOut(lp(b, S4 + .25, MV - .25)), w = E.inOut(lp(b, wb, wd)), pe = PE(b);
+        const b = t / BEAT, mx = E.inOut(lp(b, S4 + .25, MV - .25)), pe = PE(b), pay = fin && b >= PO;
+        const w = pay ? E.inOut(lp(b, PO + .1, .5)) : E.inOut(lp(b, wb, wd)), fo = r ? 1 - E.inOut(lp(b, S4, .75)) : 1;
         let k = lerp(1, k1, my(b)), x = lerp(540, 160, mx) - 28 * (1 - E.out(lp(b, wb, wd + .4))), y = ly(b);
-        // x leads (.4 beat) and y follows .15 beat later, so the line is right of the dot column (x ≥ 400) before it drops
-        // to the rows' height, never over a dot
-        if (fin) { x = lerp(x, 500, E.inOut(lp(b, PO, .4))); y = lerp(y, 530, E.inOut(lp(b, PO + .15, POD - .15))); k = lerp(k, 1.1, pe); } else if (pe > 0) el.style.opacity = (1 - pe).toFixed(3);
+        if (pay) { x = 440 - 24 * (1 - E.out(lp(b, PO + .1, .7))); y = 480; k = 1.1; }
+        el.style.opacity = (pay ? 1 : fin ? fo : fo * (1 - pe)).toFixed(3);
+        el.style.filter = !pay && fo < .999 ? 'blur(' + (6 * (1 - fo)).toFixed(2) + 'px)' : 'none';
         el.style.left = x.toFixed(1) + 'px'; el.style.top = y.toFixed(1) + 'px';
         el.style.transformOrigin = '0 50%'; el.style.transform = 'translate(0,-50%) scale(' + k.toFixed(4) + ')';
         const m = w >= 1 ? 'none' : 'linear-gradient(90deg,#000 ' + (115 * w - 15).toFixed(1) + '%,transparent ' + (115 * w).toFixed(1) + '%)';
@@ -323,19 +329,20 @@ scene('40-recs', () => {
   // the Token half stays dark until its first share starts rolling (b47.4 in the demo data: no「0.0 %」beside Hook's own
   // token 1.6 %), then masks in; at the payoff (PO) every piece glides to its place in the centred statement
   // [x0, y0, k0, x1, y1, k1]: right column → centre (numerals 1.5×, the caption grows from .8 to 1)
-  const POS = { tl: [1720, 390, 1, 980, 412, 1.2], tv: [1720, 470, 1, 980, 530, 1.5], kl: [1720, 650, 1, 1400, 412, 1.2],
-    kv: [1720, 730, 1, 1400, 530, 1.5], cap: [1720, 880, .8, 1190, 668, 1] };
+  // v18.2: each numeral gets a 36 px Chinese label under it (协作时间 / Token 用量) instead of the mono label above it
+  const POS = { tl: [1720, 535, 1, 940, 600, 1], tv: [1720, 450, 1, 940, 480, 1.5], kl: [1720, 785, 1, 1370, 600, 1],
+    kv: [1720, 700, 1, 1370, 480, 1.5], cap: [1720, 880, .75, 1155, 680, 1] };
   // the Token half lags .12 beat behind the time half, so the two numerals never pass over each other on the way in
-  const place = (key, lag = 0) => { const m = mask(.18, 1, .45), [x0, y0, k0, x1, y1, k1] = POS[key]; return (el, tl, life, t) => {
+  const place = (key, lag = 0) => { const m = mask(.18, 1, POX), [x0, y0, k0, x1, y1, k1] = POS[key]; return (el, tl, life, t) => {
     m(el, tl, life);
     const b = t / BEAT, pe = E.inOut(lp(b, PO + lag, POD)), dy = -40 * lp(b, 44.85, 18.25) * (1 - pe);
     el.style.left = lerp(x0, x1, pe).toFixed(1) + 'px'; el.style.top = (lerp(y0, y1, pe) + dy).toFixed(1) + 'px';
     el.style.transform = 'translate(-50%,-50%) scale(' + lerp(k0, k1, pe).toFixed(4) + ')';
   }; };
   const KN = STEP.findIndex((st) => st.f === 'k'), KB = KN >= 0 ? EV[KN] - .1 : 45.1;   // first token roll
-  txt(44.85, POUT, [['eb', '协作时间']], { x: 1720, y: 390, align: 'c' }, { anim: place('tl') });
-  txt(45.0, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1720, y: 470, align: 'c' }, { anim: place('tv'), tick: num('t') });
-  txt(KB - .05, POUT, [['eb', 'Token']], { x: 1720, y: 650, align: 'c' }, { anim: place('kl', .12) });
-  txt(KB, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1720, y: 730, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
-  txt(45.35, POUT, [['lt r4-s', '预计节省 · 按真实轨迹估算的占比']], { x: 1720, y: 880, align: 'c' }, { anim: place('cap') });
+  txt(45.05, POUT, [['r4-l', '协作时间']], { x: 1720, y: 535, align: 'c' }, { anim: place('tl') });
+  txt(44.9, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1720, y: 450, align: 'c' }, { anim: place('tv'), tick: num('t') });
+  txt(KB + .1, POUT, [['r4-l', 'Token 用量']], { x: 1720, y: 785, align: 'c' }, { anim: place('kl', .12) });
+  txt(KB, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1720, y: 700, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
+  txt(45.35, POUT, [['lt r4-s', '预计可节省的占比 · 按真实轨迹估算']], { x: 1720, y: 880, align: 'c' }, { anim: place('cap', .2) });
 });
