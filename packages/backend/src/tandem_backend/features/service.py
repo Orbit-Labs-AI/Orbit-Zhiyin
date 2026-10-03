@@ -82,10 +82,16 @@ class FeatureService:
                 self._rebuild_async(key, scope, signals)
         if body is None:
             body = self._build(key, scope, signals)
-        out = dict(body, scope_hash=digest, cache=state,
-                   revs=dict(zip(("data", "inventory", "catalog", "vocab"), key[1:], strict=True)))
+        current = dict(zip(("data", "inventory", "catalog", "vocab"), key[1:], strict=True))
+        out = dict(body, scope_hash=digest, cache=state, revs=current,
+                   stale=state == "stale", rebuilding=False)
         if state == "stale":
-            out["revs"] = body.get("revs", out["revs"])
+            # An older profile for this scope while the current one builds in the background:
+            # say so explicitly (revs = what the body was built from, current_revs = now) so
+            # the UI can label it instead of showing pre-import numbers as current.
+            out["revs"] = body.get("revs", current)
+            out["current_revs"] = current
+            out["rebuilding"] = self.rebuilding(key)
         if "evidence" in include:
             out["evidence"] = evidence(self, body)
         return out
@@ -167,6 +173,11 @@ class FeatureService:
             thread = threading.Thread(target=run, name="feat-profile", daemon=True)
             self.building[key] = thread
         thread.start()
+
+    def rebuilding(self, key: tuple) -> bool:
+        with self.lock:
+            thread = self.building.get(key)
+            return thread is not None and thread.is_alive()
 
     def wait_idle(self, timeout: float | None = None) -> None:
         with self.lock:
