@@ -1,0 +1,860 @@
+{
+  "generator": "docs/design/logo/export.mjs",
+  "spec": "docs/design/logo/orbit-spec.json",
+  "base": "docs/design/logo/kit/（file 相对此目录，source 相对 docs/design/logo/）",
+  "note": "每个位图都由 source 列出的母版 SVG 整体缩放渲染；SVG / PDF 由 generate.py 写出，同一条 path。",
+  "files": [
+    {
+      "file": "app-icon/png/orbit-app-icon-16.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-32.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-48.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-64.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-128.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-256.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 256,
+      "height": 256
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-512.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-1024.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-night-16.png",
+      "source": "kit/app-icon/orbit-app-icon-night.svg",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-night-32.png",
+      "source": "kit/app-icon/orbit-app-icon-night.svg",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-night-48.png",
+      "source": "kit/app-icon/orbit-app-icon-night.svg",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-night-64.png",
+      "source": "kit/app-icon/orbit-app-icon-night.svg",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-night-128.png",
+      "source": "kit/app-icon/orbit-app-icon-night.svg",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-night-256.png",
+      "source": "kit/app-icon/orbit-app-icon-night.svg",
+      "width": 256,
+      "height": 256
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-night-512.png",
+      "source": "kit/app-icon/orbit-app-icon-night.svg",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "file": "app-icon/png/orbit-app-icon-night-1024.png",
+      "source": "kit/app-icon/orbit-app-icon-night.svg",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "dock/Orbit-night.icns",
+      "source": "kit/dock/orbit-dock-night.svg",
+      "use": "macOS App 图标（Dock / Finder）"
+    },
+    {
+      "file": "dock/Orbit.icns",
+      "source": "kit/dock/orbit-dock.svg",
+      "use": "macOS App 图标（Dock / Finder）"
+    },
+    {
+      "file": "dock/png/orbit-dock-16.png",
+      "source": "kit/dock/orbit-dock.svg",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "file": "dock/png/orbit-dock-32.png",
+      "source": "kit/dock/orbit-dock.svg",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "dock/png/orbit-dock-64.png",
+      "source": "kit/dock/orbit-dock.svg",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "file": "dock/png/orbit-dock-128.png",
+      "source": "kit/dock/orbit-dock.svg",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "file": "dock/png/orbit-dock-256.png",
+      "source": "kit/dock/orbit-dock.svg",
+      "width": 256,
+      "height": 256
+    },
+    {
+      "file": "dock/png/orbit-dock-512.png",
+      "source": "kit/dock/orbit-dock.svg",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "file": "dock/png/orbit-dock-1024.png",
+      "source": "kit/dock/orbit-dock.svg",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "dock/png/orbit-dock-night-16.png",
+      "source": "kit/dock/orbit-dock-night.svg",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "file": "dock/png/orbit-dock-night-32.png",
+      "source": "kit/dock/orbit-dock-night.svg",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "dock/png/orbit-dock-night-64.png",
+      "source": "kit/dock/orbit-dock-night.svg",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "file": "dock/png/orbit-dock-night-128.png",
+      "source": "kit/dock/orbit-dock-night.svg",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "file": "dock/png/orbit-dock-night-256.png",
+      "source": "kit/dock/orbit-dock-night.svg",
+      "width": 256,
+      "height": 256
+    },
+    {
+      "file": "dock/png/orbit-dock-night-512.png",
+      "source": "kit/dock/orbit-dock-night.svg",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "file": "dock/png/orbit-dock-night-1024.png",
+      "source": "kit/dock/orbit-dock-night.svg",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "favicon/apple-touch-icon.png",
+      "source": "kit/favicon/orbit-icon-square.svg",
+      "width": 180,
+      "height": 180,
+      "use": "iOS 主屏（系统自动加圆角）"
+    },
+    {
+      "file": "favicon/favicon-16.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "file": "favicon/favicon-32.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "favicon/favicon-48.png",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "favicon/favicon.ico",
+      "source": "kit/app-icon/orbit-app-icon.svg",
+      "use": "浏览器 favicon（16/32/48）"
+    },
+    {
+      "file": "favicon/icon-192.png",
+      "source": "kit/favicon/orbit-icon-square.svg",
+      "width": 192,
+      "height": 192,
+      "use": "PWA manifest"
+    },
+    {
+      "file": "favicon/icon-512.png",
+      "source": "kit/favicon/orbit-icon-square.svg",
+      "width": 512,
+      "height": 512,
+      "use": "PWA manifest"
+    },
+    {
+      "file": "mark/png/orbit-mark-black-64.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 83,
+      "height": 64
+    },
+    {
+      "file": "mark/png/orbit-mark-black-128.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 165,
+      "height": 128
+    },
+    {
+      "file": "mark/png/orbit-mark-black-256.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 331,
+      "height": 256
+    },
+    {
+      "file": "mark/png/orbit-mark-black-512.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 662,
+      "height": 512
+    },
+    {
+      "file": "mark/png/orbit-mark-black-1024.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 1324,
+      "height": 1024
+    },
+    {
+      "file": "mark/png/orbit-mark-ink-64.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 83,
+      "height": 64
+    },
+    {
+      "file": "mark/png/orbit-mark-ink-128.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 165,
+      "height": 128
+    },
+    {
+      "file": "mark/png/orbit-mark-ink-256.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 331,
+      "height": 256
+    },
+    {
+      "file": "mark/png/orbit-mark-ink-512.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 662,
+      "height": 512
+    },
+    {
+      "file": "mark/png/orbit-mark-ink-1024.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 1324,
+      "height": 1024
+    },
+    {
+      "file": "mark/png/orbit-mark-paper-64.png",
+      "source": "kit/mark/orbit-mark-paper.svg",
+      "width": 83,
+      "height": 64
+    },
+    {
+      "file": "mark/png/orbit-mark-paper-128.png",
+      "source": "kit/mark/orbit-mark-paper.svg",
+      "width": 165,
+      "height": 128
+    },
+    {
+      "file": "mark/png/orbit-mark-paper-256.png",
+      "source": "kit/mark/orbit-mark-paper.svg",
+      "width": 331,
+      "height": 256
+    },
+    {
+      "file": "mark/png/orbit-mark-paper-512.png",
+      "source": "kit/mark/orbit-mark-paper.svg",
+      "width": 662,
+      "height": 512
+    },
+    {
+      "file": "mark/png/orbit-mark-paper-1024.png",
+      "source": "kit/mark/orbit-mark-paper.svg",
+      "width": 1324,
+      "height": 1024
+    },
+    {
+      "file": "mark/png/orbit-mark-white-64.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 83,
+      "height": 64
+    },
+    {
+      "file": "mark/png/orbit-mark-white-128.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 165,
+      "height": 128
+    },
+    {
+      "file": "mark/png/orbit-mark-white-256.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 331,
+      "height": 256
+    },
+    {
+      "file": "mark/png/orbit-mark-white-512.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 662,
+      "height": 512
+    },
+    {
+      "file": "mark/png/orbit-mark-white-1024.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 1324,
+      "height": 1024
+    },
+    {
+      "file": "nav/orbit-nav-ink-16.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 21,
+      "height": 16
+    },
+    {
+      "file": "nav/orbit-nav-ink-16@2x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 41,
+      "height": 32
+    },
+    {
+      "file": "nav/orbit-nav-ink-16@3x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 62,
+      "height": 48
+    },
+    {
+      "file": "nav/orbit-nav-ink-18.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 23,
+      "height": 18
+    },
+    {
+      "file": "nav/orbit-nav-ink-18@2x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 47,
+      "height": 36
+    },
+    {
+      "file": "nav/orbit-nav-ink-18@3x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 70,
+      "height": 54
+    },
+    {
+      "file": "nav/orbit-nav-ink-20.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 26,
+      "height": 20
+    },
+    {
+      "file": "nav/orbit-nav-ink-20@2x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 52,
+      "height": 40
+    },
+    {
+      "file": "nav/orbit-nav-ink-20@3x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 78,
+      "height": 60
+    },
+    {
+      "file": "nav/orbit-nav-ink-22.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 28,
+      "height": 22
+    },
+    {
+      "file": "nav/orbit-nav-ink-22@2x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 57,
+      "height": 44
+    },
+    {
+      "file": "nav/orbit-nav-ink-22@3x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 85,
+      "height": 66
+    },
+    {
+      "file": "nav/orbit-nav-ink-24.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 31,
+      "height": 24
+    },
+    {
+      "file": "nav/orbit-nav-ink-24@2x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 62,
+      "height": 48
+    },
+    {
+      "file": "nav/orbit-nav-ink-24@3x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 93,
+      "height": 72
+    },
+    {
+      "file": "nav/orbit-nav-ink-32.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 41,
+      "height": 32
+    },
+    {
+      "file": "nav/orbit-nav-ink-32@2x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 83,
+      "height": 64
+    },
+    {
+      "file": "nav/orbit-nav-ink-32@3x.png",
+      "source": "kit/mark/orbit-mark-ink.svg",
+      "width": 124,
+      "height": 96
+    },
+    {
+      "file": "nav/orbit-nav-template-16.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 21,
+      "height": 16,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-16@2x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 41,
+      "height": 32,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-16@3x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 62,
+      "height": 48,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-18.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 23,
+      "height": 18,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-18@2x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 47,
+      "height": 36,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-18@3x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 70,
+      "height": 54,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-20.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 26,
+      "height": 20,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-20@2x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 52,
+      "height": 40,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-20@3x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 78,
+      "height": 60,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-22.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 28,
+      "height": 22,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-22@2x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 57,
+      "height": 44,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-22@3x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 85,
+      "height": 66,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-24.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 31,
+      "height": 24,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-24@2x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 62,
+      "height": 48,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-24@3x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 93,
+      "height": 72,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-32.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 41,
+      "height": 32,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-32@2x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 83,
+      "height": 64,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-template-32@3x.png",
+      "source": "kit/mark/orbit-mark-black.svg",
+      "width": 124,
+      "height": 96,
+      "use": "macOS 菜单栏模板图（isTemplate）"
+    },
+    {
+      "file": "nav/orbit-nav-white-16.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 21,
+      "height": 16
+    },
+    {
+      "file": "nav/orbit-nav-white-16@2x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 41,
+      "height": 32
+    },
+    {
+      "file": "nav/orbit-nav-white-16@3x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 62,
+      "height": 48
+    },
+    {
+      "file": "nav/orbit-nav-white-18.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 23,
+      "height": 18
+    },
+    {
+      "file": "nav/orbit-nav-white-18@2x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 47,
+      "height": 36
+    },
+    {
+      "file": "nav/orbit-nav-white-18@3x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 70,
+      "height": 54
+    },
+    {
+      "file": "nav/orbit-nav-white-20.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 26,
+      "height": 20
+    },
+    {
+      "file": "nav/orbit-nav-white-20@2x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 52,
+      "height": 40
+    },
+    {
+      "file": "nav/orbit-nav-white-20@3x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 78,
+      "height": 60
+    },
+    {
+      "file": "nav/orbit-nav-white-22.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 28,
+      "height": 22
+    },
+    {
+      "file": "nav/orbit-nav-white-22@2x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 57,
+      "height": 44
+    },
+    {
+      "file": "nav/orbit-nav-white-22@3x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 85,
+      "height": 66
+    },
+    {
+      "file": "nav/orbit-nav-white-24.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 31,
+      "height": 24
+    },
+    {
+      "file": "nav/orbit-nav-white-24@2x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 62,
+      "height": 48
+    },
+    {
+      "file": "nav/orbit-nav-white-24@3x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 93,
+      "height": 72
+    },
+    {
+      "file": "nav/orbit-nav-white-32.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 41,
+      "height": 32
+    },
+    {
+      "file": "nav/orbit-nav-white-32@2x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 83,
+      "height": 64
+    },
+    {
+      "file": "nav/orbit-nav-white-32@3x.png",
+      "source": "kit/mark/orbit-mark-white.svg",
+      "width": 124,
+      "height": 96
+    },
+    {
+      "file": "social/orbit-social-night.png",
+      "source": "kit/social/orbit-social-night.svg",
+      "width": 1280,
+      "height": 640
+    },
+    {
+      "file": "social/orbit-social.png",
+      "source": "kit/social/orbit-social.svg",
+      "width": 1280,
+      "height": 640
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-black-32.png",
+      "source": "kit/wordmark/orbit-wordmark-black.svg",
+      "width": 98,
+      "height": 32
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-black-48.png",
+      "source": "kit/wordmark/orbit-wordmark-black.svg",
+      "width": 147,
+      "height": 48
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-black-64.png",
+      "source": "kit/wordmark/orbit-wordmark-black.svg",
+      "width": 196,
+      "height": 64
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-black-128.png",
+      "source": "kit/wordmark/orbit-wordmark-black.svg",
+      "width": 392,
+      "height": 128
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-black-256.png",
+      "source": "kit/wordmark/orbit-wordmark-black.svg",
+      "width": 784,
+      "height": 256
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-black-512.png",
+      "source": "kit/wordmark/orbit-wordmark-black.svg",
+      "width": 1569,
+      "height": 512
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-ink-32.png",
+      "source": "kit/wordmark/orbit-wordmark-ink.svg",
+      "width": 98,
+      "height": 32
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-ink-48.png",
+      "source": "kit/wordmark/orbit-wordmark-ink.svg",
+      "width": 147,
+      "height": 48
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-ink-64.png",
+      "source": "kit/wordmark/orbit-wordmark-ink.svg",
+      "width": 196,
+      "height": 64
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-ink-128.png",
+      "source": "kit/wordmark/orbit-wordmark-ink.svg",
+      "width": 392,
+      "height": 128
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-ink-256.png",
+      "source": "kit/wordmark/orbit-wordmark-ink.svg",
+      "width": 784,
+      "height": 256
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-ink-512.png",
+      "source": "kit/wordmark/orbit-wordmark-ink.svg",
+      "width": 1569,
+      "height": 512
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-paper-32.png",
+      "source": "kit/wordmark/orbit-wordmark-paper.svg",
+      "width": 98,
+      "height": 32
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-paper-48.png",
+      "source": "kit/wordmark/orbit-wordmark-paper.svg",
+      "width": 147,
+      "height": 48
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-paper-64.png",
+      "source": "kit/wordmark/orbit-wordmark-paper.svg",
+      "width": 196,
+      "height": 64
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-paper-128.png",
+      "source": "kit/wordmark/orbit-wordmark-paper.svg",
+      "width": 392,
+      "height": 128
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-paper-256.png",
+      "source": "kit/wordmark/orbit-wordmark-paper.svg",
+      "width": 784,
+      "height": 256
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-paper-512.png",
+      "source": "kit/wordmark/orbit-wordmark-paper.svg",
+      "width": 1569,
+      "height": 512
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-white-32.png",
+      "source": "kit/wordmark/orbit-wordmark-white.svg",
+      "width": 98,
+      "height": 32
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-white-48.png",
+      "source": "kit/wordmark/orbit-wordmark-white.svg",
+      "width": 147,
+      "height": 48
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-white-64.png",
+      "source": "kit/wordmark/orbit-wordmark-white.svg",
+      "width": 196,
+      "height": 64
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-white-128.png",
+      "source": "kit/wordmark/orbit-wordmark-white.svg",
+      "width": 392,
+      "height": 128
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-white-256.png",
+      "source": "kit/wordmark/orbit-wordmark-white.svg",
+      "width": 784,
+      "height": 256
+    },
+    {
+      "file": "wordmark/png/orbit-wordmark-white-512.png",
+      "source": "kit/wordmark/orbit-wordmark-white.svg",
+      "width": 1569,
+      "height": 512
+    }
+  ]
+}

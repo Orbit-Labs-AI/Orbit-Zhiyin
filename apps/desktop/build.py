@@ -88,27 +88,6 @@ def build_host(contents: Path) -> None:
         "-o", contents / f"MacOS/{NAME}")
 
 
-def _mark(file: str) -> tuple[str, str | None, str | None]:
-    svg = (LOGO / file).read_text(encoding="utf-8")
-    group = re.search(r'<g fill="[^"]*"(?: transform="([^"]*)")?>([\s\S]*?)</g>', svg)
-    tile = re.search(r"<rect[^>]*/>", svg)
-    if not group:
-        raise SystemExit(f"{file}: no <g> with the mark")
-    return group.group(2), group.group(1), tile.group(0) if tile else None
-
-
-def small_icon_svg() -> str:
-    """The icon tile with the logo's small rendition (heavier strokes), exactly as
-    prototypes/advance/tools/brand-icon.mjs composes appIcon(px < 128)."""
-    _, transform, tile = _mark("orbit-icon.svg")
-    small, _, _ = _mark("orbit-mark-small.svg")
-    if not transform or not tile:
-        raise SystemExit("orbit-icon.svg: missing tile or mark transform")
-    ink = re.search(r'<g fill="([^"]*)"', (LOGO / "orbit-icon.svg").read_text()).group(1)
-    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" '
-            f'height="1024">{tile}<g fill="{ink}" transform="{transform}">{small}</g></svg>')
-
-
 def build_icon(resources: Path) -> None:
     """Orbit.icns from the published artwork, rendered verbatim (never redrawn)."""
     work = OUTPUT / "icon"
@@ -117,8 +96,7 @@ def build_icon(resources: Path) -> None:
     iconset.mkdir(parents=True)
     renderer = work / "render_svg"
     run("xcrun", "swiftc", "-O", HERE / "render_svg.swift", "-o", renderer)
-    small = work / "orbit-icon-small.svg"
-    small.write_text(small_icon_svg(), encoding="utf-8")
+    # Every size is orbit-icon.svg scaled as a whole, so the mark stays proportional to the 1024 icon.
     for points in (16, 32, 128, 256, 512):
         for scale in (1, 2):
             px = points * scale
@@ -126,16 +104,16 @@ def build_icon(resources: Path) -> None:
             target = iconset / name
             if px == 1024:
                 shutil.copy2(LOGO / "orbit-icon.png", target)
-            else:  # < 128 px: the small rendition, as brand-icon.mjs does.
-                run(renderer, small if px < 128 else LOGO / "orbit-icon.svg", target, px)
+            else:
+                run(renderer, LOGO / "orbit-icon.svg", target, px)
     run("iconutil", "-c", "icns", iconset, "-o", resources / f"{NAME}.icns")
-    # Menu-bar status item: orbit-mark-small.svg rendered verbatim at its own aspect ratio
+    # Menu-bar status item: orbit-mark.svg rendered verbatim at its own aspect ratio
     # (used as a template image, so only its alpha matters). 16 pt tall, @1x and @2x.
     box = re.search(r'viewBox="[\d.]+ [\d.]+ ([\d.]+) ([\d.]+)"',
-                    (LOGO / "orbit-mark-small.svg").read_text()).groups()
+                    (LOGO / "orbit-mark.svg").read_text()).groups()
     width = round(16 * float(box[0]) / float(box[1]))
     for scale, suffix in ((1, ""), (2, "@2x")):
-        run(renderer, LOGO / "orbit-mark-small.svg", resources / f"StatusIcon{suffix}.png",
+        run(renderer, LOGO / "orbit-mark.svg", resources / f"StatusIcon{suffix}.png",
             width * scale, 16 * scale)
 
 

@@ -1,7 +1,10 @@
 """Verify checked-in documentation links and workspace ownership rules."""
 
+import json
 import re
+import struct
 import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -43,9 +46,24 @@ def check():
     for retired in ("src", "docs/backend", "docs/plan", "docs/design/demo"):
         if (ROOT / retired).exists() and any(p.is_file() for p in (ROOT / retired).rglob("*")):
             errors.append(f"retired directory contains files: {retired}")
+    errors += check_logo()
     if errors:
         raise SystemExit("\n".join(errors))
     print("Documentation links and workspace ownership checks passed")
+
+
+def check_logo():
+    """Logo vectors must match orbit-spec.json; every raster in the kit manifest must exist at its size."""
+    logo = ROOT / "docs/design/logo"
+    run = subprocess.run([sys.executable, logo / "generate.py", "--check"], cwd=ROOT, capture_output=True, text=True)
+    errors = [] if run.returncode == 0 else [f"logo: {(run.stderr or run.stdout).strip()}"]
+    for item in json.loads((logo / "kit/manifest.json").read_text())["files"]:
+        path = logo / "kit" / item["file"]
+        if not path.is_file():
+            errors.append(f"logo kit: missing {item['file']} (run node docs/design/logo/export.mjs)")
+        elif path.suffix == ".png" and struct.unpack(">II", path.read_bytes()[16:24]) != (item["width"], item["height"]):
+            errors.append(f"logo kit: {item['file']} is not {item['width']}x{item['height']}")
+    return errors
 
 
 if __name__ == "__main__":
