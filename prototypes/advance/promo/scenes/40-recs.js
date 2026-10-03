@@ -1,9 +1,11 @@
 /* 40-recs 4（b39.4–55.1） — STORYBOARD.md v17「4 优化建议」, hand-offs H11 (in) / H12 (out).
    Left: the five AGD dots in one column (x 220, cp 260 / cc 400 / ds 540 / cx 680 / gm 820). Middle: six real recommendation
-   cards of deck 0 (Advance, light) in one column that scrolls up evenly; entry n (big type word + card) reaches the centre
-   line at b42 + 2n, links to 2–3 Agent dots (solid = the app's recAgents, dashed = a filled-in neighbour) and adds its
-   share to one of the two counters on the right (recTotal of the rows that arrived, time / token alternating). The last
-   entry holds b52.4–54.0, then the column scrolls out. Numbers are read from recPct / recTotal at run time. */
+   cards of deck 0 (Advance, light) in one column that scrolls up at one slow constant speed (204 px/beat, no holds);
+   entry n (big type word + card) reaches the centre line at b41.6 + 2.4n, links to 2–3 Agent dots (solid = the app's
+   recAgents, dashed = a filled-in neighbour) and adds its share to one of the two counters on the right (recTotal of the
+   rows that arrived, time / token alternating). The last entry passes the centre at b53.6 and the column keeps rising,
+   easing faster from b54.0, out by b55.1. Dots and counters drift slowly so nothing sits frozen. Numbers are read from
+   recPct / recTotal at run time. */
 scene('40-recs', () => {
   css(`
 .ln.xl.r4-w{font-size:128px;line-height:1}
@@ -13,7 +15,7 @@ scene('40-recs', () => {
   const IDS = ['retry-breaker', 'remove-figma', 'acceptance', 'pr-wrapup', 'headless', 'think-medium'];
   const WORD = ['Hook', 'MCP', 'Prompt', 'Skill', 'Workflow', 'Thinking'];
   const FLD = ['t', 'k', 't', 'k', 't', 'k'];                    // which counter each entry adds to
-  const ARR = IDS.map((_, n) => 42 + 2 * n);                     // beat entry n reaches the centre line
+  const PIT = 2.4, ARR = IDS.map((_, n) => 41.6 + PIT * n);      // beat entry n reaches the centre line (41.6 … 53.6)
   const GAP = 490, CX = 540, CY = 540, CW = 820;                 // entry pitch (screen px), card left / centre line, card width
   const ORD = [1, 3, 4, 2, 0];                                   // dot i → row (= order 'y' from the compass, H11)
   const ROWDOT = [4, 0, 3, 1, 2];                                // row → dot
@@ -56,17 +58,18 @@ scene('40-recs', () => {
     prevSet = [...solid, ...dash].sort().join();
     LINKS.push({ solid, dash });
   });
-  const LIVE = IDS.map((_, n) => [ARR[n] - .15, n < 5 ? ARR[n] + 1.3 : 54.3]);   // link window (retracts 1 beat after it leaves)
+  const LIVE = IDS.map((_, n) => [ARR[n] - .3, n < 5 ? ARR[n] + 1.5 : 54.5]);    // link window (retracts as the entry leaves the sharp zone)
   const toCard = (id) => (b) => { const p = elXY(0, sel(id), 0, .5); return [p[0] - 4, p[1]]; };
   IDS.forEach((id, n) => {
     const [b0, b1] = LIVE[n], all = [...LINKS[n].solid.map((i) => [i, false]), ...LINKS[n].dash.map((i) => [i, true])];
     all.forEach(([i, dashed], k) => {
-      AGD.link(b0 + k * .06, b1, i, toCard(id), { bend: .45, draw: .35, out: .3, pulse: 2, dash: dashed ? '3 6' : undefined });
-      AGD.glow(i, ARR[n] - .1, b1 - .3, .9);
-      AGD.pulse(i, ARR[n] - .05, 1.08, .5);
+      AGD.link(b0 + k * .1, b1, i, toCard(id), { bend: .45, draw: .55, out: .45, pulse: 2, dash: dashed ? '3 6' : undefined });
+      AGD.glow(i, ARR[n] - .2, b1 - .3, .9);
+      AGD.pulse(i, ARR[n] - .05, 1.08, .6);
     });
   });
-  // the dots that are linked light up, the rest sit at a .6
+  // the dots that are linked light up, the rest sit at a .6; the column breathes (±4 / ±8 px, 7–9.5-beat periods) so no
+  // dot stands frozen; the follow blends out by b55.0, so the merge (H12) starts from the exact column
   const lit = (i, b) => {
     let v = 0;
     IDS.forEach((_, n) => {
@@ -76,7 +79,10 @@ scene('40-recs', () => {
     });
     return v;
   };
-  AGD.follow(41.4, 55.0, (i, b) => ({ a: .6 + .4 * lit(i, b) }), { blend: .6 });
+  AGD.follow(41.4, 55.0, (i, b, q) => {
+    const h = hash01(i, 11), px = 7 + 2.5 * hash01(i, 12), py = 7.5 + 2 * hash01(i, 13);
+    return { a: .6 + .4 * lit(i, b), x: q.x + 4 * Math.sin(2 * Math.PI * (b / px + h)), y: q.y + 8 * Math.sin(2 * Math.PI * (b / py + h * 1.7)) };
+  }, { blend: .6 });
 
   /* ---------- deck 0: six cards in one column (b40.0 set-up, b40.6–55.1 on screen: the first card rises while the dots still fly, H11) ---------- */
   const advLight = (d) => { const Wd = decks[d].W; if (Wd.eval('S.ed') !== 'advance') Wd.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); Wd.setTheme('light'); };
@@ -106,10 +112,10 @@ scene('40-recs', () => {
   });
   tween(0, 40.6, 0, () => CAM || { x: 400, y: 500, s: 2, ax: CX, ay: CY, o: 1 }, E.lin);
 
-  // scroll position u (entries): entry n's centre is at CY + GAP·(n − u). Even 245 px/beat; eases into the hold on the
-  // last entry (b51 → 52.4), holds to b54.0, then accelerates up and out (gone by b55.1: the trajectory card enters at b55.4, H12)
-  const herm = (s, p0, m0, p1) => { const s2 = s * s, s3 = s2 * s; return (2 * s3 - 3 * s2 + 1) * p0 + (s3 - 2 * s2 + s) * m0 + (3 * s2 - 2 * s3) * p1; };
-  const U = (b) => b < 51 ? (b - 42) / 2 : b < 52.4 ? herm((b - 51) / 1.4, 4.5, .7, 5) : b < 54.0 ? 5 : 5 + 2.2 * E.in(lp(b, 54.0, 1.3));
+  // scroll position u (entries): entry n's centre is at CY + GAP·(n − u). One constant 204 px/beat from b40.55 (no
+  // stop-and-go, no hold); from b54.0 an E.in term adds .6 entry so the column eases faster up and out while it fades
+  // (gone by b55.1: the trajectory card enters at b55.4, H12)
+  const U = (b) => (b - ARR[0]) / PIT + .6 * E.in(lp(b, 54.0, 1.1));
   const FOC = IDS.map(() => ({ a: 0, bl: 0 }));                  // per entry: opacity and blur, shared by its card and its word
   const MK = { t: 'rc', k: 'rk' };
   drive(0, 40.55, 55.1, (p, b, D) => {
@@ -122,14 +128,14 @@ scene('40-recs', () => {
       const appTop = Y0 + (top - CY) / S0, ad = Math.abs(dy), tx = X0 - B.x, ty = appTop - B.y;
       el.dataset.r4x = tx.toFixed(1); el.dataset.r4y = ty.toFixed(1);
       el.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px)';
-      const a = clamp(1 - .65 * ad / 400) * gIn * gOut, bl = 6 * ad / 400 + 6 * (1 - gOut);
+      const af = Math.max(0, ad - 140), a = clamp(1 - .65 * af / 360) * gIn * gOut, bl = 6 * af / 360 + 6 * (1 - gOut);   // sharp within ±140 px (≈1.4 beats)
       FOC[n] = { a, bl };
       el.style.opacity = a.toFixed(3);
       el.style.filter = bl > .05 ? 'blur(' + (bl / S0).toFixed(2) + 'px)' : 'none';
       // the card's own 省时 / token figure is swept by a marker as its share lands in the counter
       const f = FLD[n], fig = el.querySelector('.rc-save b[data-ck="' + MK[f] + ':' + id + '"]') || el.querySelector('.rc-save b:' + (f === 't' ? 'first-of-type' : 'last-of-type'));
       if (fig) {
-        const w = E.inOut(lp(b, ARR[n], .5)) * 100;
+        const w = E.inOut(lp(b, ARR[n] - .1, .9)) * 100;
         fig.style.backgroundImage = w > .1 ? 'linear-gradient(rgba(226,96,43,.34),rgba(226,96,43,.34))' : '';
         fig.style.backgroundRepeat = 'no-repeat'; fig.style.backgroundPosition = '0 88%'; fig.style.backgroundSize = w.toFixed(1) + '% .5em';
       }
@@ -139,7 +145,7 @@ scene('40-recs', () => {
 
   // the type word of each entry rides 24 px above its card's top-left corner, blurred and dimmed with it
   IDS.forEach((id, n) => {
-    const b0 = Math.max(40.55, ARR[n] - 3.4), b1 = Math.min(55.1, n < 5 ? ARR[n] + 3.4 : 55.1);
+    const b0 = Math.max(40.55, ARR[n] - 3.5), b1 = Math.min(55.1, n < 5 ? ARR[n] + 3.5 : 55.1);
     txt(b0, b1, [['xl sv r4-w', WORD[n]]], { x: CX, y: -400 }, {
       anim: (el) => {
         const F = FOC[n], p = elXY(0, sel(id), 0, 0);
@@ -154,11 +160,13 @@ scene('40-recs', () => {
   /* ---------- eyebrow and the two running totals ---------- */
   txt(40.2, 55.1, [['eb', '02 · 优化建议']], { x: 160, y: 100 }, { outB: .6 });
   const pct = (v) => v <= 0 ? '0.0%' : v < 10 ? v.toFixed(1) + '%' : Math.round(v) + '%';   // = fmtPct above .1 %; no「<0.1%」mid-roll
-  const val = (f, b) => STEP.reduce((v, s, n) => v + (s.f === f ? s.d * E.out(lp(b, ARR[n], .8)) : 0), 0);
+  const val = (f, b) => STEP.reduce((v, s, n) => v + (s.f === f ? s.d * E.out(lp(b, ARR[n] - .1, 1.2)) : 0), 0);   // 1.2-beat roll
   const num = (f) => (el, tl, life, t) => { const n = el.querySelector('.r4-v'); if (n) n.textContent = pct(val(f, t / BEAT)); };
-  txt(40.4, 55.1, [['eb', '协作时间']], { x: 1640, y: 390, align: 'c' }, { outB: .7 });
-  txt(40.55, 55.1, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 470, align: 'c' }, { outB: .7, tick: num('t') });
-  txt(40.7, 55.1, [['eb', 'Token']], { x: 1640, y: 650, align: 'c' }, { outB: .7 });
-  txt(40.85, 55.1, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 730, align: 'c' }, { outB: .7, tick: num('k') });
-  txt(41.0, 55.1, [['lt r4-s', '预计节省 · 按真实轨迹估算的占比']], { x: 1640, y: 880, align: 'c' }, { outB: .7 });
+  // the counter block drifts up 40 px over the scene (mask in / out unchanged), so it never stands frozen between rolls
+  const drift = (outB) => { const m = mask(.18, 1, outB); return (el, tl, life, t) => { m(el, tl, life); el.style.transform = 'translate(-50%,-50%) translateY(' + (-40 * lp(t / BEAT, 40.4, 14.7)).toFixed(2) + 'px)'; }; };
+  txt(40.4, 55.1, [['eb', '协作时间']], { x: 1640, y: 390, align: 'c' }, { anim: drift(.7) });
+  txt(40.55, 55.1, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 470, align: 'c' }, { anim: drift(.7), tick: num('t') });
+  txt(40.7, 55.1, [['eb', 'Token']], { x: 1640, y: 650, align: 'c' }, { anim: drift(.7) });
+  txt(40.85, 55.1, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 730, align: 'c' }, { anim: drift(.7), tick: num('k') });
+  txt(41.0, 55.1, [['lt r4-s', '预计节省 · 按真实轨迹估算的占比']], { x: 1640, y: 880, align: 'c' }, { anim: drift(.7) });
 });
