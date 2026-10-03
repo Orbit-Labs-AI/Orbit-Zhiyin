@@ -54,6 +54,35 @@ def lookup(agent: str | None, model: str | None, overrides: dict | None = None) 
     return {"window_tokens": window, "auto_compact_ratio": best[2], "basis": "table"}
 
 
+def resolve(agent: str | None, model: str | None, overrides: dict | None = None,
+            reported: int | None = None) -> dict | None:
+    """The one window choice for every surface: reported > override > table.
+
+    ``reported`` is the window the session itself announced (Codex ``turn.start``
+    ``ext.model_context_window``); it describes the actual run, so it beats both the user
+    override (a correction of the static table) and the table. None when nothing matches.
+    """
+    table = lookup(agent, model, overrides)
+    if reported and reported > 0:
+        return {"window_tokens": int(reported),
+                "auto_compact_ratio": table and table["auto_compact_ratio"], "basis": "reported"}
+    return table
+
+
+def usage_ratio(used: int | None, window: dict | None) -> tuple[float | None, str]:
+    """Share of the window a prompt of ``used`` tokens fills, with the shared basis rule.
+
+    Unknown usage or window -> (None, "unknown"); usage above the window means the window is
+    wrong for this model (e.g. a 1M variant missing from the table) -> (None,
+    "window_exceeded"), never capped to 100%. Otherwise (used / window, "last_call_input").
+    """
+    if used is None or window is None:
+        return None, "unknown"
+    if used > window["window_tokens"]:
+        return None, "window_exceeded"
+    return used / window["window_tokens"], "last_call_input"
+
+
 def load_overrides(appdb) -> dict:
     """Read the optional override dict; a missing table, key or bad JSON yields {}."""
     if appdb is None:

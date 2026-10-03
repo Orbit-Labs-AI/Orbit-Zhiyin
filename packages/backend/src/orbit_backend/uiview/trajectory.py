@@ -15,6 +15,7 @@ from datetime import UTC, datetime, tzinfo
 from ..analytics.interaction.rules import RESPONSE_KINDS
 from ..analytics.products.journey import EXPLORE
 from ..realtime import context_windows
+from ..realtime.tail import WINDOW_SQL
 from ..sessionops import resume
 from . import metrics
 from . import moments as rules
@@ -128,15 +129,22 @@ def _res(exit_code, error_class, status) -> str | None:
     return " · ".join(parts) or None
 
 
-def _ctx(model_rows, agent, overrides, t0, comps_at):
-    """Per-request prompt size / model window (estimate); None without a window table hit."""
+def _ctx(model_rows, agent, overrides, t0, comps_at, reported=None):
+    """Per-request prompt size / model window (estimate), same rule as the realtime HUD.
+
+    The window comes from ``context_windows.resolve`` (the session's reported window, then
+    the override, then the table) and a prompt above it is unknown, not 100%: the point is
+    left out, exactly like realtime's ``window_exceeded``. None without any usable point.
+    """
     points = []
     for model, _, inp, cread, cwrite, _, ts in model_rows:
-        window = context_windows.lookup(agent, model, overrides)
-        if window is None or inp is None or ts is None:
+        window = context_windows.resolve(agent, model, overrides, reported)
+        if inp is None or ts is None:
             continue
-        used = inp + (cread or 0) + (cwrite or 0)
-        points.append([_mins(ts, t0), round(min(used / window["window_tokens"] * 100, 100), 1)])
+        ratio, _ = context_windows.usage_ratio(inp + (cread or 0) + (cwrite or 0), window)
+        if ratio is None:
+            continue
+        points.append([_mins(ts, t0), round(ratio * 100, 1)])
     if not points:
         return None, []
     comps = set()
@@ -178,6 +186,7 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
     calls = conn.execute(CALLS_SQL, (uid,)).fetchall()
     children = conn.execute(CHILDREN_SQL, (uid, uid)).fetchall()
     model_rows = conn.execute(MODEL_SQL, (uid,)).fetchall()
+    reported_window = conn.execute(WINDOW_SQL, (uid,)).fetchone()
     ev_ts = {e[0]: e[2] for e in events}
     call_start = [c[9] if c[9] is not None else ev_ts.get(c[1]) for c in calls]
     stamps = [e[2] for e in events if e[2] is not None] + [t for t in call_start if t]
@@ -265,7 +274,8 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
     T = round(T, 3)
     phases = _phases(stream, T)
     found = rules.detect(users, tool_events, compactions)
-    ctx, comps = _ctx(model_rows, agent, overrides, t0, [c["t"] for c in compactions])
+    ctx, comps = _ctx(model_rows, agent, overrides, t0, [c["t"] for c in compactions],
+                       reported_window and reported_window[0])
     models = Counter(r[0] for r in model_rows if r[0])
     efforts = Counter(r[1] for r in model_rows if r[1])
     if not models and events:
