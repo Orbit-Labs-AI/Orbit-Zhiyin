@@ -9,13 +9,14 @@ FAMILY_VERSION = "bottleneck-features-v1"
 
 
 def analyze_bottleneck(sessions, events, calls, model_calls, main_ids, scope, coverage,
-                       context_events=(), supported_kinds=None):
+                       context_events=(), supported_kinds=None, respond_inputs=None):
+    """``respond_inputs`` optionally supplies per-scope call pairing (see ``analyze_respond``)."""
     execution_events = None if events is None else list({
         (e["session_uid"], e["event_uid"]): e for e in [*events, *context_events]}.values())
     event_status = coverage.get("events", {}).get("status", "partial")
     tool_status = coverage.get("tool_calls", {}).get("status", "partial")
     respond = analyze_respond(execution_events, calls, sessions, main_ids, tool_status, supported_kinds,
-                              event_status=event_status)
+                              event_status=event_status, prepared=respond_inputs)
     effective_calls = respond["tool_sequence"]
     return {"schema_version": FAMILY_VERSION,
             "included_session_uids": sorted(s["session_uid"] for s in sessions),

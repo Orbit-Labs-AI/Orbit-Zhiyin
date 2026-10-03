@@ -5,12 +5,12 @@ Existing callers keep their imports and v1 field meanings.
 """
 
 from collections import Counter
-from datetime import datetime, timezone
 from statistics import mean, median
 from zoneinfo import ZoneInfo
 
 from .common import human, quantile, ratio, timestamp
 from .cost_time import activity, token_total, usage
+from .cost_time.activity import local_parts
 from .instruction.structure import FILE, structure
 from .interaction import correction_terms
 from .outcome import legacy_objective_candidates
@@ -61,15 +61,14 @@ def session_features(session, events, calls, main_ids, supported_kinds=None, eve
     assistants = [e for e in events if e["kind"] == "message.assistant"]
     unknown_humans = sum(e["kind"] == "message.user" and e.get("attrs", {}).get("origin", "unknown") == "unknown" for e in events)
     times, dates = [], set()
-    zone = ZoneInfo(display_timezone)
+    ZoneInfo(display_timezone)  # an unknown zone still fails here, before any timestamp
     for e in events:
         ts = e.get("ts")
         if timestamp(ts):
-            try:
-                dates.add(datetime.fromtimestamp(ts / 1000, timezone.utc).astimezone(zone).date().isoformat())
+            parts = local_parts(ts, display_timezone)  # None when the conversion fails
+            if parts is not None:
+                dates.add(parts[0])
                 times.append(ts)
-            except (ValueError, OverflowError, OSError):
-                pass
     lengths_u, lengths_a = text_lengths(users), text_lengths(assistants)
     corrections = [{"event_uid": e["event_uid"], "terms": terms} for e in users
                    if (terms := correction_terms(e.get("text") or ""))]
