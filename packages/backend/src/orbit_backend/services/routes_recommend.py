@@ -84,6 +84,8 @@ class ValidationReceipt(BaseModel):
     candidate_passed: bool
     candidate_tokens: int | None = Field(ge=0)
     baseline_tokens_lower_bound: int | None = Field(ge=0)
+    actual_usage: Literal["confirmed", "not_observed", "unknown"]
+    usage_evidence_digest: str = Field(pattern="^[a-f0-9]{64}$")
 
 
 class LabelRequest(BaseModel):

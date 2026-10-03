@@ -89,10 +89,11 @@ def test_validation_is_content_bound_and_negative_receipts_remain():
                     config={"require_validation": False})["candidates"]
     receipt = {"candidate_id": candidate["candidate_id"], "content_hash": candidate["content_hash"],
                "candidate_passed": True, "baseline_passed": False,
-               "candidate_tokens": 100, "baseline_tokens_lower_bound": 50}
+               "candidate_tokens": 100, "baseline_tokens_lower_bound": 50, "actual_usage": "confirmed"}
     lib["checks"]["validation_receipts"] = [receipt]
     assert retrieve(lib, "edit structured document", **kwargs)["candidates"]
     assert validation_state(candidate, [{**receipt, "content_hash": "old"}]) == "unvalidated"
+    assert validation_state(candidate, [{**receipt, "actual_usage": "unknown"}]) == "usage_unconfirmed"
     lib["checks"]["validation_receipts"].append({**receipt, "candidate_passed": False})
     assert not retrieve(lib, "edit structured document", **kwargs)["candidates"]
 
@@ -117,10 +118,38 @@ def test_validation_receipt_rejects_test_and_unknown_outcomes_before_writing():
     receipt = {"candidate_id": candidate["candidate_id"], "content_hash": candidate["content_hash"],
                "split": "test", "task_id": "heldout", "run_digest": "a" * 64, "model": "model",
                "baseline_passed": True, "candidate_passed": True, "candidate_tokens": 10,
-               "baseline_tokens_lower_bound": 20}
+               "baseline_tokens_lower_bound": 20, "actual_usage": "confirmed", "usage_evidence_digest": "b" * 64}
     with pytest.raises(ValueError, match="validation"):
         record_validation(None, "library", receipt)
     changed = copy.deepcopy(receipt)
     changed.update(split="validation", candidate_passed=None)
     with pytest.raises(ValueError, match="Unknown"):
         record_validation(None, "library", changed)
+
+
+def test_receipts_persist_without_mutating_library_content(tmp_path):
+    from types import SimpleNamespace
+
+    from orbit_backend.ai.runner import Runner
+    from orbit_backend.recommend.learned import read_library
+
+    appdb = AppDB(tmp_path / "app.db")
+    runner = Runner(SimpleNamespace(appdb=appdb))
+    result = finalize({"candidates": [example()], "gaps": []}, evidence_pack(), "model")
+    with appdb.write() as db:
+        artifact_id = runner._save_artifact(db, {"job_id": "synthetic-job"}, result["artifact"], True)
+    before = read_library(appdb, artifact_id)
+    candidate = before["payload"]["candidates"][0]
+    receipt = {"candidate_id": candidate["candidate_id"], "content_hash": candidate["content_hash"],
+               "split": "validation", "task_id": "development", "run_digest": "a" * 64, "model": "model",
+               "baseline_passed": True, "candidate_passed": True, "candidate_tokens": 10,
+               "baseline_tokens_lower_bound": 20, "actual_usage": "confirmed", "usage_evidence_digest": "b" * 64}
+    record_validation(appdb, artifact_id, receipt)
+    record_validation(appdb, artifact_id, receipt)
+    after = read_library(appdb, artifact_id)
+    assert after["content_hash"] == before["content_hash"] and after["payload"] == before["payload"]
+    assert len(after["checks"]["validation_receipts"]) == 1
+    with pytest.raises(ValueError, match="immutable"):
+        record_validation(appdb, artifact_id, {**receipt, "content_hash": "old"})
+    assert retrieve(after, "edit structured document", capabilities=["read", "write"])["candidates"]
+    appdb.close()

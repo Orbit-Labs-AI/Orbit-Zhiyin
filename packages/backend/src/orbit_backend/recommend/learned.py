@@ -60,16 +60,20 @@ def validation_state(candidate, receipts):
         return "unvalidated"
     if any(r["candidate_passed"] is not True for r in selected):
         return "validation_failed"
+    if not any(r.get("actual_usage") == "confirmed" for r in selected):
+        return "usage_unconfirmed"
     improved = any(r["baseline_passed"] is False or (
         r.get("candidate_tokens") is not None and r.get("baseline_tokens_lower_bound") is not None
         and r["baseline_tokens_lower_bound"] > 0
-        and r["candidate_tokens"] <= .9 * r["baseline_tokens_lower_bound"]) for r in selected)
+        and r["candidate_tokens"] <= .9 * r["baseline_tokens_lower_bound"])
+        for r in selected if r.get("actual_usage") == "confirmed")
     return "validated" if improved else "no_measured_headroom"
 
 
 def record_validation(appdb, artifact_id, receipt):
     required = {"candidate_id", "content_hash", "split", "task_id", "run_digest", "model",
-                "baseline_passed", "candidate_passed", "candidate_tokens", "baseline_tokens_lower_bound"}
+                "baseline_passed", "candidate_passed", "candidate_tokens", "baseline_tokens_lower_bound",
+                "actual_usage", "usage_evidence_digest"}
     if not required <= receipt.keys() or receipt["split"] != "validation":
         raise ValueError("Only complete, explicitly labelled validation receipts are accepted")
     if not all(isinstance(receipt[k], bool) for k in ("baseline_passed", "candidate_passed")):
@@ -81,6 +85,9 @@ def record_validation(appdb, artifact_id, receipt):
             raise ValueError("Token counts must be finite nonnegative values or unknown")
     if not re.fullmatch(r"[a-f0-9]{64}", receipt["run_digest"]):
         raise ValueError("Validation must name a hashed external run receipt")
+    if receipt["actual_usage"] not in ("confirmed", "not_observed", "unknown") or not re.fullmatch(
+            r"[a-f0-9]{64}", receipt["usage_evidence_digest"]):
+        raise ValueError("Validation needs a hashed usage audit, separate from skill activation")
     library = read_library(appdb, artifact_id)
     candidate = next((c for c in library["payload"]["candidates"]
                       if c["candidate_id"] == receipt["candidate_id"]), None)

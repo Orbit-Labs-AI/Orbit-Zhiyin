@@ -47,4 +47,4 @@
 
 库作为现有 `ai_artifact` 的 workflow 草稿保存，无新数据库表。`POST /v1/recommendations/learned/retrieve` 接受 `artifact_id`、当前任务 `query`、实际 `capabilities` 和 `top_k`，使用确定性词项余弦分数检索，不再次调用模型。每一级记录数量、类型、score、证据与原因；兼容性按实际能力判断，去重仅合并完全相同的步骤与验证。描述性 hook/MCP/subagent 尚未编译为可运行组件，会被明确过滤。
 
-默认只选经 validation 验证的候选。`POST /v1/recommendations/learned/{artifact_id}/validation` 接受调用方提供的外部评估凭据，绑定 candidate ID、正文 hash、运行报告 hash、模型与任务，拒绝 test split 和未知结果。候选必须在所有已登记 validation 中通过，并至少有一次成功率提升或保守 token 下限比较下节省 10%。接口仅记录调用方声明，不宣称 Orbit 独立运行了评估器。`provisional=true` 只供显式开发诊断，返回值带 provisional 标记。未验证的学习库不会自动安装、注入或替换旧推荐卡片。
+默认只选经 validation 验证的候选。`POST /v1/recommendations/learned/{artifact_id}/validation` 接受调用方提供的外部评估凭据，绑定 candidate ID、正文 hash、运行报告 hash、实际使用审计 hash、模型与任务，拒绝 test split 和未知结果。候选必须在所有已登记 validation 中通过，并在至少一次确认实际使用的运行中提高成功率，或在保守 token 下限比较下节省 10%。接口仅记录调用方声明，不宣称 Orbit 独立运行了评估器。`provisional=true` 只供显式开发诊断，返回值带 provisional 标记。未验证的学习库不会自动安装、注入或替换旧推荐卡片。
