@@ -1,6 +1,7 @@
 // AI narratives in live mode (src/js/96-live-ai.js), against the stub gateway with synthetic fixtures — no real model:
 //  1. persona   「AI 解读」 posts narrate.persona with the profile the page shows; only model text carries the AI badge;
-//               a fallback (output failed the checks) is explained in place and the template is not shown
+//               a fallback (output failed the checks) is explained in place and the template is not shown;
+//               after data.published (a new import) the shown result is marked as based on the earlier data
 //  2. sessions  「让 Agent 复盘」 posts narrate.session_review for the selected session: stage + log line while running,
 //               停止 cancels, consent_required shows in place, the model review is labelled AI with its engine
 import { test, expect } from '@playwright/test';
@@ -42,6 +43,10 @@ test('persona: 「AI 解读」 posts narrate.persona with the shown profile; onl
   expect(posts[0].params.profile.rates.sessions).toBe(shown.n);
   expect(Object.keys(posts[0].params.profile.axes)).toEqual(['D', 'I', 'M', 'V']);
   expect(posts[0].fresh).toBe(false);
+  // a later import keeps the result but says it is based on the earlier data
+  await expect(box).not.toContainText('之后导入了新数据');
+  await page.evaluate(() => TL.dispatch('data.published', { data_rev: 99 }));
+  await expect(box).toContainText('之后导入了新数据，这份结果基于之前的数据，可重新生成');
   await box.locator('[data-act="perAi"]').click();
   await expect(box).toContainText('模型这次没有写出可用的AI 解读（数字不在输入中），未显示模板内容');
   await expect(box).not.toContainText('模板标题');

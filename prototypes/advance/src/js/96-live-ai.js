@@ -18,7 +18,8 @@ const LVAI_MECH = { rule: '写进规则', hook: '加 Hook', skill: '封装 Skill
 function lvaiEngine(id) { return id ? (typeof tlsEngName === 'function' ? tlsEngName(id) : id) : '本地 Agent'; }
 function lvaiWhen(d) {
   const t = d.at ? new Date(d.at) : null;
-  return lvaiEngine(d.engine) + ' 撰写' + (d.cached ? '（同一输入的已有结果）' : '') + (t ? ' · ' + (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '');
+  return lvaiEngine(d.engine) + ' 撰写' + (d.cached ? '（同一输入的已有结果）' : '') + (t ? ' · ' + (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '') +
+    (d.stale ? ' · 之后导入了新数据，这份结果基于之前的数据，可重新生成' : '');
 }
 function lvaiRedraw() { if (typeof render === 'function') render(); }
 // 进行中：阶段名 + 最近一行日志，原位刷新（不整页重绘）
@@ -131,6 +132,14 @@ if (LV.live) {
     lvaiStart(key, { task_id: 'narrate.session_review', fresh: !!LVAI.done[key], params: { session_uid: s.id } }, '复盘');
   };
 
+  // 导入新数据后（data.published），已显示的解读 / 复盘仍保留，但如实标出它基于之前的数据
+  TL.on('event', (ev) => {
+    if (ev.name !== 'data.published') return;
+    let hit = false;
+    Object.keys(LVAI.done).forEach((k) => { const d = LVAI.done[k]; if (d && !d.stale && !LVAI.runs[k]) { d.stale = true; hit = true; } });
+    if (hit) lvaiRedraw();
+  });
+
   /* ---- 自动概览：设置开关 + 完成后刷新 ---- */
   // 自动概览作业不发完成通知（params.auto）；ai.job 帧报告 narrate.overview 结束时让概览重新读取，卡片才换成 AI 文字
   TL.on('event', (ev) => {
@@ -139,7 +148,7 @@ if (LV.live) {
       TL.invalidate((x) => String(x.path).indexOf('/v1/uiview/overview') === 0);
     }
   });
-  const AUTO_TXT = '导入完成后，Orbit 会把概览（近 30 天、无筛选）的脱敏统计摘要交给你在上面选的本地 Agent，由它经自己的模型服务写一段 AI 解读。会计入今日 AI 花费，受每日上限约束，每天最多自动生成 3 次。';
+  const AUTO_TXT = '导入完成后，Orbit 会把概览（近 30 天、无筛选）的脱敏统计摘要交给你在上面选的本地 Agent，由它经自己的模型服务写一段 AI 解读。会计入今日 AI 花费，受每日上限约束，每天最多自动提交 3 次（失败或停止的也算一次）。';
   window.lvaiAutoRow = function (d) {
     if (!d || !d.settings) return '';
     const on = !!d.settings.auto_overview; const off = d.mode === 'stats';

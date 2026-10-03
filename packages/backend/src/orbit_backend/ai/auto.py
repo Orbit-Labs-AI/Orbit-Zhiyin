@@ -12,6 +12,10 @@ Agent): one ``narrate.overview`` job for the default overview view (近 30 天, 
 the A1 card reads back a model narrative for the new data. ``AIService.submit`` applies the
 usual gates (AI mode, engine, consent, daily budget); at most ``AUTO_OVERVIEW_PER_DAY`` automatic
 overviews run per local day, and none while another overview job is queued or running.
+Every automatic attempt counts toward that cap, including failed, fallback and cancelled ones:
+each may already have spent model budget, and counting only successes would let a failing
+engine retry after every import. The "day" is the Mac's local day: the gateway runs on the
+user's machine, and the display timezone is a per-request UI parameter, not a stored setting.
 """
 
 from __future__ import annotations
