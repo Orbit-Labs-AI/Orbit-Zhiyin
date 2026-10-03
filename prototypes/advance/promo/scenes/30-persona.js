@@ -148,6 +148,26 @@ scene('30-persona', () => {
   const xw = (b) => { const t = b - XS; return t <= 0 ? 0 : t >= XT ? 1 : t < XR ? XV * t * t / (2 * XR) : t > XT - XR ? 1 - XV * (XT - t) * (XT - t) / (2 * XR) : XV * (t - XR / 2); };
   const revAt = (b) => { const w = xw(b) * CH.length; return SPD.map((v, i) => baseRev(i, b) + EXT[i] * w); };
 
+  /* ---------- v17.7 Agent 点形态（STORYBOARD「v17.7」F3 (3)） ---------- */
+  // 花瓣形态一律 aim 表盘中心（cpStage(400, 400) 实时读相机，左移 / 收缩时仍指向花心；编队几何中心因方位不均会偏）
+  const HEART = () => cpStage(400, 400);
+  const bearing = (i, b) => { const d = D0.sets.base.pl[i]; return d == null ? null : ((d + revAt(b)[i]) % 360 + 360) % 360; };
+  // ① 花苞边转边落定（b28.4–29.6 长大）：五点同时朝花心收成花瓣（像五片外瓣合拢），花绽开时回圆徽章
+  AGD.morph(28.6, 'all', 'petal', { dur: .5, stag: 0, aim: HEART, hold: .2, back: .6 });
+  // ② 三次逐瓣换花：旧花的瓣从 12 点起顺时针在 u = .55·φ/360 收起、新瓣在 u ≈ .14 + .55·φ/360 打开（drawCompass relay）。
+  // 每个点在扫动到达它当时的方位（公转中，取不动点）前 .1 拍变花瓣，新瓣打开时回圆——与花瓣同向同速顺时针传过去
+  CH.forEach((c) => {
+    for (let i = 0; i < 5; i++) {
+      if (bearing(i, c.s) == null) continue;
+      let t = c.s;
+      for (let n = 0; n < 6; n++) t = c.s + c.L * .55 * bearing(i, t) / 360;
+      AGD.morph(t - .1, i, 'petal', { dur: .3, aim: HEART, hold: .25, back: .45 });
+    }
+  });
+  // ③ 揭晓（类型码 T6 − .8 显影）：描边加粗 + 柔光从内圈到外圈（按曲线平均半径）扫过一次，然后一直是圆徽章进入剥离
+  const INOUT = [0, 1, 2, 3, 4].filter((i) => lyM[i] >= 0).sort((p, q) => lyM[p] - lyM[q]);
+  INOUT.forEach((i, n) => AGD.morph(T6 - .8 + .1 * n, i, 'dot', { ring: 1.5, glow: .35, dur: .3, hold: .2, back: .5 }));
+
   /* ---------- v17.1 T9：引导线把视线从罗盘带到右列 ---------- */
   // 从罗盘上 x 最大的徽章（相机只平移缩放、rz 0，所以按方位 sin 最大取下标，左移全程不变）连到右列中心线左端
   // (1100, 540)：白 30%（连线自带 stroke-opacity .7，.43 × .7），1.5px，长出 .5 拍，pulse 1，收回 .4 拍。
@@ -284,6 +304,11 @@ scene('30-persona', () => {
           node.querySelector('.pR').style.color = 'rgba(255,255,255,' + lerp(.72, on === 'R' ? 1 : .3, q).toFixed(3) + ')';
           const tgt = FLAP.indexOf(ME.code[k]), u = clamp((tk - b) / 1.5), pos = (((tgt - 8 * u * u) % 8) + 8) % 8;
           node.querySelector('.pe-fs').style.transform = 'translateY(' + (-pos * 112).toFixed(1) + 'px)';
+          // v17.7：字母牌从左侧（罗盘方向）擦出——在它开始翻滚前（tk − 1.95，条目还在中心线下方的糊带里）.5 拍从左向右显出、左移 14px 归位，
+          // 「左边点 / 花在动、右边落字」读成因果；之前原地一直在
+          const fc = node.querySelector('.pe-fc'), w = E.inOut(lp(b, tk - 1.95, .5));
+          fc.style.clipPath = w >= 1 ? '' : 'inset(-2px ' + (100 * (1 - w)).toFixed(1) + '% -2px -2px round 14px)';
+          fc.style.transform = w >= 1 ? '' : 'translateX(' + (-14 * (1 - w)).toFixed(1) + 'px)';
         }
         if (it.code) codeIn(node.firstChild, (b - (T6 - .8)) * BEAT, 99, t);
         if (it.name) { const q = E.out(lp(b, T6 - .55, .65)), f = node.firstChild; f.style.display = 'inline-block'; f.style.opacity = Math.min(1, q * 1.4).toFixed(3); f.style.transform = 'translateY(' + ((1 - q) * 26).toFixed(1) + 'px)'; }
