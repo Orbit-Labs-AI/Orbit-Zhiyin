@@ -7009,12 +7009,12 @@ PAGES.overview = () => {
   const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? ovInsWhen(ins) : '本地 Claude Code 生成 · 9/30 23:10';
   const caveat = LV.live && ins && ins.basis === 'ai_narrative' && (ins.caveats || []).length ? ins.caveats.join('；') : '';
-  // live「重新生成」提交 narrate.overview：「全部」与带筛选的视图没有可用的 ai_scope，按钮如实不可用
+  // live「重新生成」提交 narrate.overview：Agent 子集、项目与「全部」都有各自的 ai_scope；主题 / 结果 / 摩擦 / 时段筛选与刷选没有，按钮如实不可用
   // 不可用时用 aria-disabled 而非 disabled：按钮仍可悬停 / 聚焦看到原因，点击由 ACT.regen 提示
   const regenOff = LV.live && !(ins && ins.ai_scope);
   // 生成中（LV.ovRegen，91-live-persona）：重绘后仍显示进度，按钮变为「停止」可取消作业
   const regenRun = LV.live && LV.ovRegen;
-  const regenTip = regenOff ? (ins ? '「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选' : '数据载入后可生成') : LV.live ? '交给本地 Agent 依据当前数据重写（会调用其模型服务，计入今日 AI 花费）' : '';
+  const regenTip = regenOff ? (ins ? '按主题、结果、摩擦、时段筛选或刷选时间段的视图暂不生成 AI 解读：清除这些筛选后再生成（Agent 与项目筛选可以保留）' : '数据载入后可生成') : LV.live ? '交给本地 Agent 依据当前数据重写（会调用其模型服务，计入今日 AI 花费）' : '';
   // 无会话且没有洞察 lede 时，那句话是固定说明而不是 AI 输出：不挂解读标记与生成来源（与 Lite 首页 said 同一规则）
   const said = (S.ov.lede && S.ov.lede.key === ledeKey) || (ins && ins.lede) || pers.ok || pendTxt || regenRun;
   const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
@@ -7451,7 +7451,7 @@ PAGES.persona = () => {
     '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · ' + fmt(p.n) + ' 个会话</span>' + peScopeTag(per) + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
-    '<p class="pe-line">' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + autoTxt(st) + '</b> 步自主 / 轮</span><span><b>' + pctKnown(st.verify, st.verKnown) + '</b> 要求验证</span></div>' +
+    '<p class="pe-line">' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p>' + (typeof perAiBlock === 'function' ? perAiBlock(p, st) : '') + '<div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + autoTxt(st) + '</b> 步自主 / 轮</span><span><b>' + pctKnown(st.verify, st.verKnown) + '</b> 要求验证</span></div>' +
     '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px">' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>' +
     (note ? '<div class="cap" style="margin-top:8px;font-size:11px" title="人格只按时间、Agent 与项目计算，和侧栏、报告一致">' + esc(note) + '</div>' : '') +
     // 演变：月份码 + 四轴折线（评审 A2-V06）
@@ -7576,6 +7576,7 @@ const A3H = {
   mood: (m) => '<span class="mono">' + sgn1(m) + '</span>' + (m < -0.2 ? ' · 偏负面' : m > 0.2 ? ' · 偏正面' : ' · 中性'),
   summary: (s, tr, def) => def,
   inspExtra: () => '',
+  review: null,    // live（96-live-ai）：(s) → 「Agent 复盘」卡（narrate.session_review）；null = 演示走问答面板
   insight: null,   // (s, corrN, errN) → { text, actions: [{ label, id, act? }] }；null = 演示文案
   phasePct: null   // (x, side) → [[label, pct]]；null = 按 traj 阶段计算
 };
@@ -7982,7 +7983,7 @@ PAGES.sessions = () => {
   if (!list.some((x) => x.id === S.sess.cmp) || S.sess.cmp === S.sess.sel) S.sess.cmp = null;
   // 从其他入口（命令面板、A2 指纹、菜单栏面板）切到另一个会话：播放头回到末尾、视窗复位、停止回放（评审 BUG-15 / 16）
   if (S.sess.sel !== S.sess.last) { stopPlay(); S.sess.last = S.sess.sel; if (s) { S.sess.ph = traj(s).T; S.sess.view = null; S.sess.zoom = 1; S.sess.ev = null; S.sess.evd = null; S.sess.brush = null; S.sess.hi = null; } }
-  const right = '<div class="seg" role="group" aria-label="视图模式"><button type="button" data-act="sessMode" data-v="single" class="' + (S.sess.mode === 'single' ? 'on' : '') + '">单个</button><button type="button" data-act="sessMode" data-v="cmp" class="' + (S.sess.mode === 'cmp' ? 'on' : '') + '">对比</button></div><button type="button" class="btn" data-act="playToggle">' + ic(S.sess.playing ? 'pause' : 'play', 13) + (S.sess.playing ? '暂停' : '回放') + '</button><button type="button" class="btn ai" data-act="ask" data-ctx="session">' + ic('spark', 14) + '让 Agent 复盘</button>';
+  const right = '<div class="seg" role="group" aria-label="视图模式"><button type="button" data-act="sessMode" data-v="single" class="' + (S.sess.mode === 'single' ? 'on' : '') + '">单个</button><button type="button" data-act="sessMode" data-v="cmp" class="' + (S.sess.mode === 'cmp' ? 'on' : '') + '">对比</button></div><button type="button" class="btn" data-act="playToggle">' + ic(S.sess.playing ? 'pause' : 'play', 13) + (S.sess.playing ? '暂停' : '回放') + '</button><button type="button" class="btn ai" data-act="' + (A3H.review ? 'sessReview' : 'ask') + '" data-ctx="session">' + ic('spark', 14) + '让 Agent 复盘</button>';
   const listCard = '<div class="card" style="overflow:hidden"><div class="sl-top"><label class="row sl-q">' + ic('search', 14) + '<span class="vh">搜索会话</span><input id="sessQ" type="search" data-in="sessQ" placeholder="搜索标题、项目、Agent…" value="' + esc(S.sess.q) + '" ></label><div class="row cap sl-hd"><span id="sessCount" title="' + esc(sessCount(list)) + '">' + sessCountShort(list) + '</span>' + (S.sess.mode === 'cmp' ? '<span title="依次点选 A、B">下一次点选作为 <b>' + (S.sess.turn === 'B' ? 'B' : 'A') + '</b></span>' : '<span>最新在前</span>') + '</div></div><div class="slist" id="slist">' + sessRows(list) + '</div></div>';
   const meta = sessCount(list);
   if (!s) return tbar('会话轨迹', '', right) + '<div class="content" id="content">' + filterRow() + empty('没有会话') + '</div>';
@@ -8009,7 +8010,7 @@ PAGES.sessions = () => {
     const sw = (st) => '<span class="tl-sw" style="' + st + '"></span>'; const li = (h) => '<span class="tl-li">' + h + '</span>';
     detail = '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row sb-meta"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--font-sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + A3H.model(s, ag) + '</span><span>·</span><span class="sb-path" title="' + esc(A3H.path(s)) + '">' + esc(A3H.path(s)) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif sb-title">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row sb-sub"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
       '<div class="stats7">' + statBtn('user', '你的消息', s.msgs) + statBtn('', 'Agent 步数', A3H.steps(s)) + statBtn('tools', '工具调用', s.tools) + statBtn('err', '错误', s.errors, s.errors ? 'var(--crit)' : '') + statBtn('corr', '纠偏', s.corr, s.corr ? 'var(--crit)' : '') + statBtn('', '上下文峰值', A3H.ctxPeak(s, tr)) + statBtn('', 'Tokens', A3H.tok(s)) + '</div></div>' +
-      sessDigestCard(s, tr) + '<div class="card pad tl-card"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">轨迹</span></div><div class="seg" role="group" aria-label="横轴"><button type="button" data-act="axis" data-v="time" class="' + (S.sess.axis === 'steps' ? '' : 'on') + '">时间</button><button type="button" data-act="axis" data-v="steps" class="' + (S.sess.axis === 'steps' ? 'on' : '') + '">步数</button></div><div class="seg" role="group" aria-label="缩放"><button type="button" data-act="zoom" data-v="-1" aria-label="缩小">−</button><button type="button" data-act="zoom" data-v="1" aria-label="放大">+</button><button type="button" data-act="zoom" data-v="0" class="' + (S.sess.view ? '' : 'on') + '">适应</button></div><span class="cap mono tl-zl" id="tlZoom">' + (S.sess.view ? f1(S.sess.zoom) + '×' : '全程') + '</span><button type="button" class="btn sm gh" data-act="tlTools" aria-pressed="false">' + ic('grid', 13) + '展开工具泳道</button></div>' +
+      sessDigestCard(s, tr) + (A3H.review ? A3H.review(s) : '') + '<div class="card pad tl-card"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">轨迹</span></div><div class="seg" role="group" aria-label="横轴"><button type="button" data-act="axis" data-v="time" class="' + (S.sess.axis === 'steps' ? '' : 'on') + '">时间</button><button type="button" data-act="axis" data-v="steps" class="' + (S.sess.axis === 'steps' ? 'on' : '') + '">步数</button></div><div class="seg" role="group" aria-label="缩放"><button type="button" data-act="zoom" data-v="-1" aria-label="缩小">−</button><button type="button" data-act="zoom" data-v="1" aria-label="放大">+</button><button type="button" data-act="zoom" data-v="0" class="' + (S.sess.view ? '' : 'on') + '">适应</button></div><span class="cap mono tl-zl" id="tlZoom">' + (S.sess.view ? f1(S.sess.zoom) + '×' : '全程') + '</span><button type="button" class="btn sm gh" data-act="tlTools" aria-pressed="false">' + ic('grid', 13) + '展开工具泳道</button></div>' +
       '<div class="cap tl-sum">' + summary + '</div><div class="tl-grid"><div class="tl-main"><div class="tl-ov" id="tlOv" aria-label="总览条"></div><div class="tl-box" id="tlBox"></div><div class="row tl-read" id="tlRead">' + readout(s) + '</div>' +
       '<div class="tl-legend">' + li('<span class="tl-sw2">' + sw('background:var(--vz-mood-pos)') + sw('background:var(--vz-mood-neg)') + '</span>你的消息（颜色是语气：正面 / 负面）') + li(sw('border-radius:50%;box-shadow:inset 0 0 0 2px var(--vz-corr)') + '你纠偏，让 Agent 改方向') + li(sw('background:var(--warn-m);width:14px;height:8px;border-radius:2px') + '等你批准') + li(sw('background:var(--ink-4);width:14px;height:7px;border-radius:2px') + 'Agent 回复；工具柱越高调用越密') + li(sw('background:var(--vz-err);width:3px;height:11px;border-radius:1px') + '调用失败') + li(sw('background:var(--ink-1);border-radius:50%') + '关键时刻（编号见下方列表）') + li(sw('background:color-mix(in srgb,var(--accent) 14%,transparent);border-top:1.5px solid var(--accent);width:14px;height:8px;border-radius:0') + '上下文占用（虚线 80%，满了会被压缩）') + li(sw('background:var(--sunken);border:1px dashed var(--line);width:14px;height:8px;border-radius:0') + (tr.phases.some((p) => (p.inferred != null ? p.inferred : !s.featured)) ? '阶段（按事件推断，悬停看统计）' : '阶段（悬停看统计）')) + '<span class="tl-hint" data-tip="拖总览条的视窗或 ⌘ 滚轮缩放 · 点击移动播放头 · 拖选统计选段 · Space 回放">' + ic('info', 12) + '<span class="tl-hint-t">⌘ 滚轮缩放 · 拖选统计 · Space 回放</span></span></div></div>' +
       '<aside class="tl-insp" id="tlInsp"></aside></div></div>' +
@@ -8582,14 +8583,21 @@ function recTotal(rows) {
 const recTok = (id) => { const t = recX(id).tokp; return t == null ? '—' : t > 0 ? '+' + fmtPct(t) : t < 0 ? '−' + fmtPct(-t) : '0'; };
 // Which agents a rec applies to, parsed from its compat string (identity colours only).
 function recAgents(r) {
-  if (r.live && r.agents) { const on = r.agents.filter((i) => AGI[i]); return on.length ? on : r.agents.length ? r.agents : AG.slice(0, 1).map((a) => a.id); }   // live: the rec's real target agents
+  if (r.live && r.agents) { const on = r.agents.filter((i) => AGI[i]); return on.length ? on : r.agents; }   // live: the rec's verified target agents only (未核实 never reads as 适用)
   if (/所有/.test(r.compat)) return AG.map((a) => a.id);
   const ids = []; if (/Claude/.test(r.compat)) ids.push('cc'); if (/Codex/.test(r.compat)) ids.push('cx'); if (/Gemini/.test(r.compat)) ids.push('gm'); if (/DeepSeek/.test(r.compat)) ids.push('ds'); if (/Copilot/.test(r.compat)) ids.push('cp');
   return ids.length ? ids : ['cc'];
 }
 // live: which target agents get a converted equivalent instead of the native format
-function recConvNote(r) { const conv = recAgents(r).filter((i) => (r.native || []).indexOf(i) < 0); return conv.length ? conv.map((i) => agent(i).short).join(' / ') + ' 转为等价配置' : '全部原生支持'; }
-function agentDots(r, names) { const ids = recAgents(r); return '<span class="rc-ag" data-tip="适用：' + esc(ids.map((i) => agent(i).name).join('、')) + (/转换/.test(r.compat) ? '（Codex 为转换后的等价配置）' : '') + '">' + ids.map((i) => '<span class="dot" style="background:' + agent(i).c + '"></span>').join('') + (names ? '<span>' + (ids.length === AG.length ? '所有 Agent' : ids.map((i) => agent(i).short).join(' · ')) + '</span>' : '') + '</span>'; }
+// (only adaptation_required converts; manual is said as such; unknown support is 未核实, never compatible)
+const recShorts = (ids) => ids.map((i) => agent(i).short).join(' / ');
+function recConvNote(r) {
+  const shown = recAgents(r); const pick = (a) => (a || []).filter((i) => shown.indexOf(i) >= 0);
+  const conv = r.conv ? pick(r.conv) : shown.filter((i) => (r.native || []).indexOf(i) < 0), man = pick(r.manual), unv = r.unverified || [];
+  const out = []; if (conv.length) out.push(recShorts(conv) + ' 转为等价配置'); if (man.length) out.push(recShorts(man) + ' 需手动配置'); if (unv.length) out.push(recShorts(unv) + ' 未核实');
+  return out.length ? out.join('；') : shown.length ? '全部原生支持' : '没有已核实的 Agent';
+}
+function agentDots(r, names) { const ids = recAgents(r); const unv = r.live ? r.unverified || [] : []; return '<span class="rc-ag" data-tip="适用：' + esc(ids.length ? ids.map((i) => agent(i).name).join('、') : '暂无已核实的 Agent') + (r.live ? (r.conv && r.conv.length ? '（' + recShorts(r.conv) + ' 为转换后的等价配置）' : '') + (unv.length ? '；未核实：' + unv.map((i) => agent(i).name).join('、') : '') : /转换/.test(r.compat) ? '（Codex 为转换后的等价配置）' : '') + '">' + ids.map((i) => '<span class="dot" style="background:' + agent(i).c + '"></span>').join('') + (names ? '<span>' + (ids.length === AG.length ? '所有 Agent' : ids.length ? ids.map((i) => agent(i).short).join(' · ') : 'Agent 未核实') + '</span>' : '') + '</span>'; }
 // Install scope (BUG-22): recs that write under ~/.claude can also be installed into one project; the path follows.
 const recScoped = (r) => /^~\/\.claude\/(skills|agents|settings)/.test(r.target);
 const scopeProj = () => S.project || S.proj.sel || 'confluo';
@@ -11849,7 +11857,7 @@ if (LV.live) {
   const ovRedraw = () => { if (S.route === 'overview' || S.route === 'l-home') render(); };
   ACT.regen = () => {
     const ins = LV.ov && LV.ov.insight;
-    if (!ins || !ins.ai_scope) { toast(ins ? '「全部」或带筛选的视图暂不生成 AI 解读：切到 7 / 30 / 90 天并清除筛选' : '数据载入后可生成'); return; }
+    if (!ins || !ins.ai_scope) { toast(ins ? '按主题、结果、摩擦、时段筛选或刷选时间段的视图暂不生成 AI 解读：清除这些筛选后再生成（Agent 与项目筛选可以保留）' : '数据载入后可生成'); return; }
     if (LV.ovRegen) { toast('AI 解读正在生成'); return; }
     const scope = {}; Object.keys(ins.ai_scope).forEach((k) => { if (ins.ai_scope[k] != null) scope[k] = ins.ai_scope[k]; });
     const run = LV.ovRegen = { key: JSON.stringify(scope), msg: '已提交给本地 Agent…', job: null, stop: false };
@@ -13113,6 +13121,180 @@ if (LV.live) {
   }, 0);
 }
 
+/* ==== live AI narratives ====
+   人格页 lede 下的「AI 解读 / 重新生成」→ narrate.persona；会话轨迹页「让 Agent 复盘」→ narrate.session_review。
+   都是 POST /v1/ai/jobs 真实提交给所选本地 Agent，轮询（ai.job 帧到达时立即刷新）显示阶段与日志，可「停止」（cancel）。
+   只有模型写成的结果（source 不是 template / empty）才显示并标紫色 AI；模型输出没通过校验（fallback）、未开启 AI、
+   未授权、引擎不可用、超出今日预算都在原位如实说明，不把规则模板当 AI 结果显示。Demo 模式不挂这些入口。
+   另：设置 › 分析「导入后自动生成 AI 概览」开关（settings.auto_overview，默认关，打开前先说明并征得同意），
+   以及自动概览作业完成后让概览重新读取。 */
+const LVAI = { runs: {}, done: {}, fail: {} };   // key → 进行中的作业 / 模型结果 / 失败说明（本次打开 App 内有效）
+const LVAI_STAGE = { pack: '整理脱敏材料', draft: '本地 Agent 撰写', check: '校验数字与引用' };
+const LVAI_ERR = {
+  ai_disabled: 'AI 未开启：在 设置 › 分析 选择执行者后再试',
+  engine_unavailable: '本地 Agent 不可用（未安装或未登录）',
+  budget_exhausted: '今日 AI 花费已达上限，明天再试或在 设置 › 分析 调整上限',
+  over_budget: '上下文超出预算，暂时无法生成',
+  invalid_scope: '当前范围无法生成'
+};
+const LVAI_MECH = { rule: '写进规则', hook: '加 Hook', skill: '封装 Skill', subagent: '交给子代理', workflow: '改做法' };
+function lvaiEngine(id) { return id ? (typeof tlsEngName === 'function' ? tlsEngName(id) : id) : '本地 Agent'; }
+function lvaiWhen(d) {
+  const t = d.at ? new Date(d.at) : null;
+  return lvaiEngine(d.engine) + ' 撰写' + (d.cached ? '（同一输入的已有结果）' : '') + (t ? ' · ' + (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '') +
+    (d.stale ? ' · 之后导入了新数据，这份结果基于之前的数据，可重新生成' : '');
+}
+function lvaiRedraw() { if (typeof render === 'function') render(); }
+// 进行中：阶段名 + 最近一行日志，原位刷新（不整页重绘）
+function lvaiProgress(run, job) {
+  const st = (job.stages || []).filter((x) => x.status === 'running').pop();
+  const line = (job.log || []).slice(-1)[0];
+  run.msg = run.stop ? '正在停止…' : (st ? LVAI_STAGE[st.id] || st.id : job.status === 'queued' ? '排队中' : '本地 Agent 处理中') + '…';
+  run.line = line ? String(line).slice(0, 120) : '';
+  const box = $('[data-aikey="' + CSS.escape(run.key) + '"]');
+  if (box) { const m = box.querySelector('[data-aimsg]'); if (m) m.textContent = run.msg; const l = box.querySelector('[data-ailine]'); if (l) l.textContent = run.line; }
+}
+function lvaiStart(key, body, what) {
+  if (LVAI.runs[key]) { toast(what + '正在生成'); return; }
+  const run = LVAI.runs[key] = { key, msg: '已提交给本地 Agent…', line: '', job: null, stop: false };
+  delete LVAI.fail[key];
+  lvaiRedraw();
+  const end = (fail) => { if (fail) LVAI.fail[key] = fail; if (LVAI.runs[key] === run) delete LVAI.runs[key]; lvaiRedraw(); };
+  TL.send('POST', '/v1/ai/jobs', body).then((r) => {
+    const d = r.data || {}; if (!d.job_id) throw Object.assign(new Error('没有返回作业'), { code: 'no_job' });
+    run.job = d.job_id;
+    if (run.stop) lvaiCancel(run);
+    return TL.pollJob(d.job_id, (job) => lvaiProgress(run, job));
+  }).then((job) => {
+    const res = job.result || {};
+    if (job.status === 'ok' && res.source && res.source !== 'template' && res.source !== 'empty') {
+      LVAI.done[key] = { result: res, engine: job.engine, at: job.finished_at || Date.now(), cached: res.source === 'cache' || !!job.cached };
+      toast(what + '已生成'); end(null); return;
+    }
+    if (job.status === 'ok' || job.status === 'fallback') {
+      const st = (job.stages || []).find((x) => x.status === 'failed');
+      end(res.source === 'empty' ? '没有可交给模型的数据，未生成' + what : '模型这次没有写出可用的' + what + (st && st.message ? '（' + st.message + '）' : '') + '，未显示模板内容');
+    } else if (job.status === 'cancelled') end('已停止，未生成' + what);
+    else end(what + '生成失败：' + (job.error || job.status));
+  }, (e) => {
+    let msg = LVAI_ERR[e.code] || (TL.unavailable(e) ? '本地服务暂不提供 AI 生成' : what + '生成失败：' + (e.message || e.code));
+    if (e.code === 'consent_required') msg = '需要先授权这些数据类：' + (((e.detail && e.detail.missing) || e.missing || []).join('、') || '—');
+    if (['consent_required', 'ai_disabled', 'budget_exhausted'].indexOf(e.code) >= 0) toast(msg, { act: '去设置', onAct: () => openSettings('analysis') });
+    end(msg);
+  });
+}
+function lvaiCancel(run) { return TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(run.job) + '/cancel', {}).catch((e) => toast('停止失败：' + (e.message || e.code))); }
+// 生成中 / 失败 两种状态的共用行（失败用中性色，不挂 AI 标记）
+function lvaiState(key) {
+  const run = LVAI.runs[key];
+  if (run) return '<div class="col" style="gap:2px;margin-top:8px" role="status" aria-live="polite"><div class="row" style="gap:8px;font-size:12px"><span class="spin" style="width:10px;height:10px"></span><span data-aimsg>' + esc(run.msg) + '</span><button type="button" class="btn sm gh" data-act="aiStop" data-k="' + esc(key) + '"' + (run.stop ? ' disabled' : '') + '>停止</button></div><div class="cap mono" data-ailine style="font-size:11px;min-height:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(run.line) + '</div></div>';
+  if (LVAI.fail[key]) return '<div class="row cap" style="gap:6px;margin-top:8px;font-size:12px">' + ic('info', 12) + '<span>' + esc(LVAI.fail[key]) + '</span></div>';
+  return '';
+}
+
+if (LV.live) {
+  ACT.aiStop = (el) => {
+    const run = LVAI.runs[el.dataset.k]; if (!run || run.stop) return;
+    run.stop = true; run.msg = '正在停止…'; lvaiRedraw();
+    if (run.job) lvaiCancel(run);
+  };
+
+  /* ---- 人格页：lede 下的 AI 解读（narrate.persona）----
+     交给模型的画像就是页面上显示的这一份（类型、四轴字母与强度、会话数、验证占比），所以解读不会说成另一个类型。 */
+  const perKey = (p) => ['persona', S.persona.period, Array.from(S.agents).sort().join(','), S.project || '', p.code, p.n].join('|');
+  const perProfile = (p, st) => {
+    const axes = {};
+    AXES.forEach((ax, i) => { const a = axisView(p, i); axes[ax.k] = { letter: p.code[i] === '?' ? '?' : a.letter, name: p.code[i] === '?' ? '未定型' : a.name, value: a.strong }; });
+    const rates = { sessions: p.n };
+    if (st && st.per != null) rates.messages_per_session = Math.round(st.per * 10) / 10;
+    if (st && st.verKnown && st.verify != null) rates.verify_pct = Math.round(st.verify);
+    return { code: p.code, type_name: p.zh, experimental: true, axes, rates };
+  };
+  window.perAiBlock = function (p, st) {
+    if (!p || !p.ok) return '';
+    CUR.perSt = st;
+    const key = perKey(p); const d = LVAI.done[key]; const run = LVAI.runs[key];
+    const btn = run ? '' : '<button type="button" class="btn sm gh" data-act="perAi" data-tip="把页面上的画像（类型、四轴强度、会话数）脱敏后交给所选本地 Agent 写一段解读；会调用其模型服务，计入今日 AI 花费">' + ic('spark', 12) + (d ? '重新生成' : 'AI 解读') + '</button>';
+    let body = '';
+    if (d && !run) {
+      const r = d.result;
+      body = '<div class="col" style="gap:6px;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)">' +
+        '<div class="row" style="gap:8px;flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI</span><b style="font-size:14px">' + esc(r.headline || '') + '</b></div>' +
+        ((r.traits || []).length ? '<div class="row" style="gap:6px;flex-wrap:wrap">' + r.traits.map((t) => '<span class="tag">' + esc(t.text) + '</span>').join('') + '</div>' : '') +
+        (r.tradeoffs || []).map((t) => '<div style="font-size:13px;color:var(--ink-2)"><b class="mono" style="color:var(--ink-1)">' + esc(t.axis) + '</b> ' + esc(t.text) + '</div>').join('') +
+        (r.blind_spots || []).map((b) => '<div style="font-size:13px;color:var(--ink-2)">盲点：' + esc(b.text) + '</div>').join('') +
+        '<div class="cap" style="font-size:11px">' + esc(lvaiWhen(d)) + ((r.caveats || []).length ? ' · ' + esc(r.caveats.join('；')) : '') + '</div></div>';
+    }
+    return '<div class="pe-ai" data-aikey="' + esc(key) + '"><div class="row" style="gap:8px">' + btn + '</div>' + lvaiState(key) + body + '</div>';
+  };
+  ACT.perAi = () => {
+    const p = CUR.persona; if (!p || !p.ok) { toast('画像还没算出来，暂时无法解读'); return; }
+    const key = perKey(p); const profile = perProfile(p, CUR.perSt || p.st || null);
+    lvaiStart(key, { task_id: 'narrate.persona', fresh: !!LVAI.done[key], params: { key, profile } }, 'AI 解读');
+  };
+
+  /* ---- 会话轨迹：让 Agent 复盘（narrate.session_review）---- */
+  const revKey = (s) => 'review|' + s.id;
+  A3H.review = function (s) {
+    if (!s) return '';
+    const key = revKey(s); const d = LVAI.done[key]; const run = LVAI.runs[key];
+    if (!d && !run && !LVAI.fail[key]) return '';
+    let body = '';
+    if (d && !run) {
+      const r = d.result;
+      body = '<p style="margin:6px 0 0;font-size:14px;font-weight:600">' + esc(r.summary || '') + '</p>' +
+        '<div class="col" style="gap:4px;margin-top:6px">' + (r.findings || []).map((f) => '<div style="font-size:13px"><b>' + esc(f.title || '') + '</b> <span style="color:var(--ink-2)">' + esc(f.text || '') + '</span></div>').join('') + '</div>' +
+        ((r.lessons || []).length ? '<div class="col" style="gap:4px;margin-top:8px"><span class="eb">下次可以这样</span>' + r.lessons.map((l) => '<div class="row" style="gap:6px;font-size:13px">' + (LVAI_MECH[l.mechanism] ? '<span class="tag">' + LVAI_MECH[l.mechanism] + '</span>' : '') + '<span>' + esc(l.text) + '</span></div>').join('') + '</div>' : '') +
+        '<div class="cap" style="font-size:11px;margin-top:8px">' + esc(lvaiWhen(d)) + ((r.caveats || []).length ? ' · ' + esc(r.caveats.join('；')) : '') + '</div>';
+    }
+    return '<div class="card pad" data-aikey="' + esc(key) + '"><div class="row"><span class="ct">Agent 复盘</span>' + (d && !run ? '<span class="aib">' + ic('spark', 11) + 'AI</span>' : '') + '<span class="grow"></span>' + (run ? '' : '<button type="button" class="btn sm gh" data-act="sessReview">' + (d ? '重新复盘' : '再试一次') + '</button>') + '</div>' + lvaiState(key) + body + '</div>';
+  };
+  ACT.sessReview = () => {
+    const s = BYID[S.sess.sel]; if (!s) return;
+    const key = revKey(s);
+    lvaiStart(key, { task_id: 'narrate.session_review', fresh: !!LVAI.done[key], params: { session_uid: s.id } }, '复盘');
+  };
+
+  // 导入新数据后（data.published），已显示的解读 / 复盘仍保留，但如实标出它基于之前的数据
+  TL.on('event', (ev) => {
+    if (ev.name !== 'data.published') return;
+    let hit = false;
+    Object.keys(LVAI.done).forEach((k) => { const d = LVAI.done[k]; if (d && !d.stale && !LVAI.runs[k]) { d.stale = true; hit = true; } });
+    if (hit) lvaiRedraw();
+  });
+
+  /* ---- 自动概览：设置开关 + 完成后刷新 ---- */
+  // 自动概览作业不发完成通知（params.auto）；ai.job 帧报告 narrate.overview 结束时让概览重新读取，卡片才换成 AI 文字
+  TL.on('event', (ev) => {
+    const d = ev.data || {};
+    if (ev.name === 'ai.job' && d.task_id === 'narrate.overview' && d.status === 'ok' && !LV.ovRegen) {
+      TL.invalidate((x) => String(x.path).indexOf('/v1/uiview/overview') === 0);
+    }
+  });
+  const AUTO_TXT = '导入完成后，Orbit 会把概览（近 30 天、无筛选）的脱敏统计摘要交给你在上面选的本地 Agent，由它经自己的模型服务写一段 AI 解读。会计入今日 AI 花费，受每日上限约束，每天最多自动提交 3 次（失败或停止的也算一次）。';
+  window.lvaiAutoRow = function (d) {
+    if (!d || !d.settings) return '';
+    const on = !!d.settings.auto_overview; const off = d.mode === 'stats';
+    return '<div class="col" data-tl="auto-ov" style="gap:4px;margin-top:10px"><div class="row" style="gap:10px">' + swBtn(on, 'tlsAutoOv', off && !on ? ' disabled' : '', '导入后自动生成 AI 概览') + '<span style="font-size:13px">导入后自动生成 AI 概览</span></div>' +
+      '<div class="cap" style="font-size:11px">' + (off ? 'AI 未开启：选择执行者后才能打开。' : '') + esc(AUTO_TXT) + '</div></div>';
+  };
+  const CON = '/v1/ai/consent';
+  const autoSet = (to) => {
+    const r = TL.resource(CON); if (!r.data) { toast('正在读取 AI 设置，请稍后再试'); return; }
+    const prev = r.data;
+    r.data = Object.assign({}, prev, { settings: Object.assign({}, prev.settings, { auto_overview: to }) }); renderSet();
+    TL.send('PUT', CON, { settings: { auto_overview: to } }).then(() => { toast(to ? '已开启：下次导入完成后自动生成 AI 概览' : '已关闭自动生成 AI 概览'); TL.invalidate((q) => q.path === CON); },
+      (e) => { r.data = prev; renderSet(); toast(TL.unavailable(e) ? '未保存：本地服务暂不可用' : '未保存：' + (e.message || e.code)); });
+  };
+  ACT.tlsAutoOv = () => {
+    const d = TL.resource(CON).data; if (!d || !d.settings) return;
+    if (d.settings.auto_overview) { autoSet(false); return; }
+    if (d.mode === 'stats') { toast('AI 未开启：先选择执行者'); return; }
+    openModal(modalHead('导入后自动生成 AI 概览', '默认关闭 · 需要你的同意') + '<div class="mb col"><p style="margin:0;font-size:13px;line-height:1.6">' + esc(AUTO_TXT) + '</p><p class="cap" style="margin:0">发送的只有脱敏后的统计与片段摘要，不含原始会话；Orbit 不自带云端模型、不经过 Orbit 服务器。随时可以在这里关闭。</p></div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="tlsAutoOvGo">同意并开启</button></div>');
+  };
+  ACT.tlsAutoOvGo = () => { closeModal(); autoSet(true); };
+}
+
 /* ============ live binding: status strip + endpoint wiring (OrbitLive, js/06-live-client.js; core in 90-live-core.js) ============
    Mock mode (file://, opened on its own) changes nothing. Live mode keeps every polished page: 90-live-core hydrates the
    demo globals from /v1/uiview/facts and page feeds (LV.feed) overwrite page constants right before each render. This file
@@ -13684,10 +13866,15 @@ function lvRecRow(c) {
   const r = OrbitLive.recs.row(c); const u = c.ui || {};
   r.expertAdvice = Array.isArray(c.expert_advice) ? c.expert_advice.slice(0, 3) : [];
   const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
-  const ids = [], parts = []; r.native = Object.keys(nat).filter((k) => nat[k] === 'native').map((b) => LV.agentOf(b).id);
-  bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
-  r.agents = ids; r.bagents = bids;
-  if (ids.length) r.compat = parts.join(' · ');
+  // Support level per agent: only native / manual / adaptation_required count as 适用; unknown (e.g. Kimi, no upstream
+  // source read) is listed apart as 未核实 and never under 适用 or 转为等价配置; unsupported is dropped.
+  const ids = [], parts = [], lvl = {}; r.native = []; r.conv = []; r.manual = []; r.unverified = [];
+  bids.forEach((b) => { const m = LV.agentOf(b); const lv = nat[b] || 'unknown'; if (lvl[m.id] || lv === 'unsupported') return; lvl[m.id] = lv;
+    if (lv === 'unknown') { r.unverified.push(m.id); parts.push(m.short + ' 未核实'); return; }
+    ids.push(m.id); (lv === 'native' ? r.native : lv === 'manual' ? r.manual : r.conv).push(m.id);
+    parts.push(lv === 'adaptation_required' ? '转换给 ' + m.short : m.name); });
+  r.agents = ids; r.agentLv = lvl; r.bagents = bids;
+  if (parts.length) r.compat = parts.join(' · ');
   // r.x.pct (shares of the real trajectory) and r.x.tokp come from ui.save / ui.tok_pct via OrbitLive.recs.row; tok in k
   const sv = u.save && typeof u.save === 'object' ? u.save : null;
   r.x.tok = typeof u.tok === 'number' ? Math.round(u.tok / 100) / 10 : null;
@@ -14446,6 +14633,7 @@ if (TL.mode === 'live') {
       const d = TL.resource(R.con).data, u = TL.resource(R.usage).data, rc = TL.resource(R.rec).data, rl = TL.resource(R.rules).data; const c = setCard('AI 通道');
       if (c && (d || u)) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">' +
         (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 近 30 天 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用' + (u.totals && u.totals.unknown_calls ? '（' + TLU.num(u.totals.unknown_calls) + ' 次没有价格，按保守单价计入预算）' : '') + ' · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
+      if (c && d && typeof lvaiAutoRow === 'function' && !c.querySelector('[data-tl="auto-ov"]')) c.lastElementChild.insertAdjacentHTML('beforeend', lvaiAutoRow(d));
       const e = setCard('分析引擎'); if (e && rc && rc.level) e.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-rec" style="font-size:11px;margin-top:8px">按本机配置建议：' + esc(rc.level) + (rc.ai_generate ? ' · 可以使用生成工坊' : '') + '</div>');
       const cnt = c && $$('.cap', c).find((x) => x.textContent.indexOf('当前启用') === 0); if (cnt && rl) cnt.textContent = '当前启用 ' + rl.active_count + ' 条脱敏规则';
     }

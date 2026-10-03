@@ -4,8 +4,10 @@ A source declares agents (``SourceSpec.config.agents``: anthropics/skills → cl
 resources are written in an open format that other agents read unchanged; for those the support is
 inferred from the format, and only when the reader is visible in vendored upstream source
 (``third_party/``, pinned in ``third_party/README.md``). An agent whose reader we could not read in
-source (Kimi CLI, Cursor, Gemini CLI, Copilot are not vendored) is reported as ``unknown`` with
-basis ``unverified``, never as supported.
+source (Cursor, Gemini CLI, Copilot are not vendored) is reported as ``unknown`` with basis
+``unverified``, never as supported. Kimi CLI is not vendored either; its skill, MCP and AGENTS.md
+readers were read in the upstream repository at a pinned commit (cited per entry). Its hooks and
+CLAUDE.md handling were not checked and stay unknown.
 
 Support values follow ``orbit_backend.recommend.contracts`` (native / manual /
 adaptation_required / unsupported / unknown). ``native`` = the agent loads the file as is.
@@ -23,7 +25,7 @@ SKILL_READERS = {  # Agent Skills open standard: <dir>/SKILL.md with name/descri
     "hermes": "third_party/hermes-agent/agent/skill_utils.py (SKILL.md under HERMES_HOME/skills)",
     "dsh": "third_party/deepseek-harness/packages/skill/skill-filesystem/src/index.ts (.dsh/skills, .agents/skills)",
     "pi": "third_party/pi/packages/coding-agent/src/core/skills.ts (~/.pi/agent/skills, .pi/skills)",
-    "kimi": None, "cursor": None, "gemini": None, "copilot": None,
+    "kimi": "MoonshotAI/kimi-cli@9ab1286b (not vendored, read upstream 2026-10-03) src/kimi_cli/skill/__init__.py (~/.kimi|~/.claude|~/.agents/skills, .agents/skills)", "cursor": None, "gemini": None, "copilot": None,
 }
 MCP_READERS = {  # Model Context Protocol clients (stdio / streamable HTTP servers).
     "claude_code": "claude-agent-sdk-python/src/claude_agent_sdk/types.py (McpServerConfig)",
@@ -32,7 +34,7 @@ MCP_READERS = {  # Model Context Protocol clients (stdio / streamable HTTP serve
     "hermes": "third_party/hermes-agent/hermes_cli/mcp_picker.py (config.yaml mcp_servers)",
     "dsh": "third_party/deepseek-harness/packages/mcp/mcp-client/src/connection.ts",
     "pi": "third_party/pi/packages/coding-agent/src/extensions/mcp/config.ts (mcp.json mcpServers)",
-    "kimi": None, "cursor": None, "gemini": None, "copilot": None,
+    "kimi": "MoonshotAI/kimi-cli@9ab1286b (not vendored, read upstream 2026-10-03) src/kimi_cli/soul/toolset.py, src/kimi_cli/cli/mcp.py (mcp.json mcpServers)", "cursor": None, "gemini": None, "copilot": None,
 }
 AGENTS_MD_READERS = {  # AGENTS.md project instructions.
     "codex": "third_party/codex/codex-rs/core/src/context/user_instructions.rs",
@@ -40,7 +42,7 @@ AGENTS_MD_READERS = {  # AGENTS.md project instructions.
     "hermes": "third_party/hermes-agent/agent/subdirectory_hints.py (_HINT_FILENAMES)",
     "dsh": "third_party/deepseek-harness/packages/context/agent-instructions/src/config.ts",
     "pi": "third_party/pi/packages/coding-agent/src/core/resource-loader.ts (AGENTS.md, CLAUDE.md candidates)",
-    "kimi": None, "cursor": None, "copilot": None, "gemini": None,
+    "kimi": "MoonshotAI/kimi-cli@9ab1286b (not vendored, read upstream 2026-10-03) src/kimi_cli/soul/agent.py (.kimi/AGENTS.md, AGENTS.md from project root to work_dir)", "cursor": None, "copilot": None, "gemini": None,
 }
 CLAUDE_MD_READERS = {  # CLAUDE.md is read by agents that also accept Claude Code's file name.
     "hermes": AGENTS_MD_READERS["hermes"],
@@ -127,6 +129,7 @@ SKILL_DIRS = {
     "hermes": ("~/.hermes/skills/{name}/SKILL.md", None),
     "dsh": ("~/.dsh/skills/{name}/SKILL.md", ".dsh/skills/{name}/SKILL.md"),
     "pi": ("~/.pi/agent/skills/{name}/SKILL.md", ".pi/skills/{name}/SKILL.md"),
+    "kimi": ("~/.kimi/skills/{name}/SKILL.md", ".kimi/skills/{name}/SKILL.md"),
 }
 RULE_FILES = {  # Project instructions file; rules are appended as a section, never overwrite it.
     "claude_code": ("~/.claude/CLAUDE.md", "CLAUDE.md"),
@@ -135,6 +138,7 @@ RULE_FILES = {  # Project instructions file; rules are appended as a section, ne
     "hermes": (None, "AGENTS.md"),
     "dsh": ("~/.dsh/AGENTS.md", "AGENTS.md"),
     "pi": ("~/.pi/agent/AGENTS.md", "AGENTS.md"),
+    "kimi": (None, "AGENTS.md"),  # soul/agent.py merges project AGENTS.md files only
     "copilot": (None, ".github/copilot-instructions.md"),
     "cursor": (None, ".cursor/rules/{name}.mdc"),
 }

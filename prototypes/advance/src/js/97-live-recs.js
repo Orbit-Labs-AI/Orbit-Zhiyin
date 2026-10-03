@@ -27,10 +27,15 @@ function lvRecRow(c) {
   const r = OrbitLive.recs.row(c); const u = c.ui || {};
   r.expertAdvice = Array.isArray(c.expert_advice) ? c.expert_advice.slice(0, 3) : [];
   const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
-  const ids = [], parts = []; r.native = Object.keys(nat).filter((k) => nat[k] === 'native').map((b) => LV.agentOf(b).id);
-  bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
-  r.agents = ids; r.bagents = bids;
-  if (ids.length) r.compat = parts.join(' · ');
+  // Support level per agent: only native / manual / adaptation_required count as 适用; unknown (e.g. Kimi, no upstream
+  // source read) is listed apart as 未核实 and never under 适用 or 转为等价配置; unsupported is dropped.
+  const ids = [], parts = [], lvl = {}; r.native = []; r.conv = []; r.manual = []; r.unverified = [];
+  bids.forEach((b) => { const m = LV.agentOf(b); const lv = nat[b] || 'unknown'; if (lvl[m.id] || lv === 'unsupported') return; lvl[m.id] = lv;
+    if (lv === 'unknown') { r.unverified.push(m.id); parts.push(m.short + ' 未核实'); return; }
+    ids.push(m.id); (lv === 'native' ? r.native : lv === 'manual' ? r.manual : r.conv).push(m.id);
+    parts.push(lv === 'adaptation_required' ? '转换给 ' + m.short : m.name); });
+  r.agents = ids; r.agentLv = lvl; r.bagents = bids;
+  if (parts.length) r.compat = parts.join(' · ');
   // r.x.pct (shares of the real trajectory) and r.x.tokp come from ui.save / ui.tok_pct via OrbitLive.recs.row; tok in k
   const sv = u.save && typeof u.save === 'object' ? u.save : null;
   r.x.tok = typeof u.tok === 'number' ? Math.round(u.tok / 100) / 10 : null;

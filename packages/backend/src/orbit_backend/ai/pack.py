@@ -355,6 +355,17 @@ def catalog_search(query: str, k: int = 3) -> list[dict]:
 
 # ---------------------------------------------------------------- build context
 
+def agent_sources(conn, agent_ids, source_ids=None) -> list[str]:
+    """Source ids of ``agent_ids`` (narrowed to ``source_ids`` when given): an agent filter
+    reaches every query as a source filter. No connection → [] (selects nothing)."""
+    if conn is None or not agent_ids:
+        return []
+    rows = conn.execute("SELECT source_id FROM source WHERE agent IN (SELECT value FROM json_each(?)) "
+                        "ORDER BY source_id", (json.dumps(sorted(agent_ids)),)).fetchall()
+    found = [r[0] for r in rows]
+    return found if source_ids is None else [s for s in found if s in set(source_ids)]
+
+
 class _Ctx:
     def __init__(self, conn, task, home, appdb, scope, goal, goal_source, params, slots):
         self.conn, self.task, self.home, self.appdb = conn, task, home, appdb
@@ -363,7 +374,19 @@ class _Ctx:
             uid = params["session_uid"]
             selected = self.scope.get("session_uids")
             self.scope["session_uids"] = [uid] if selected is None or uid in selected else []
+        if self.scope.get("agent_ids") is not None:
+            self.scope["source_ids"] = agent_sources(conn, self.scope["agent_ids"],
+                                                     self.scope.get("source_ids"))
         self.start, self.end, self.project_id = window(scope)
+        if (params or {}).get("session_uid") and conn is not None and not any(
+                (scope or {}).get(k) is not None for k in ("start_ms", "end_ms", "days")):
+            # A single-session task (session_review) names its session: the default 30-day
+            # window must not hide an older session the user opened from the 90 天 / 全部 view.
+            row = conn.execute("SELECT started_at FROM session WHERE session_uid=? LIMIT 1",
+                               (params["session_uid"],)).fetchone()
+            if row and row[0] is not None:
+                self.start = min(self.start, int(row[0]))
+                self.end = max(self.end, int(row[0]) + 1)
         self.goal, self.goal_source = goal or (params or {}).get("question") or "", goal_source or "manual"
         self.params, self.slots = params or {}, slots or {}
         self.memo: dict = {}

@@ -373,6 +373,7 @@ class Gateway:
         if self.stopping.is_set():
             return
         threading.Thread(target=self.auto_facet, daemon=True, name="ai-auto-facet").start()
+        threading.Thread(target=self.auto_overview, daemon=True, name="ai-auto-overview").start()
 
     def auto_facet(self) -> dict | None:
         from .. import ai
@@ -381,6 +382,16 @@ class Gateway:
             return ai.auto_facet_new(self)
         except Exception:  # noqa: BLE001 - optional background work; the import already succeeded
             log.warning("auto facet after import failed", exc_info=True)
+            return None
+
+    def auto_overview(self) -> dict | None:
+        """``settings.auto_overview`` on: queue the default AI overview for the new data."""
+        from .. import ai
+
+        try:
+            return ai.auto_overview(self)
+        except Exception:  # noqa: BLE001 - optional background work; the import already succeeded
+            log.warning("auto overview after import failed", exc_info=True)
             return None
 
     def schedule_prewarm(self, heavy: bool) -> None:

@@ -33,6 +33,10 @@ _FIELDS = {
 _FIELDS["scope"]["properties"]["excluded_session_uids"] = {
     "type": "array", "maxItems": 5000, "uniqueItems": True,
     "items": {"type": "string", "minLength": 1, "maxLength": 200}}
+# Agent subset of the overview (A1 filter): resolved to that agent's sources when a pack is built.
+_FIELDS["scope"]["properties"]["agent_ids"] = {
+    "type": "array", "maxItems": 20, "uniqueItems": True,
+    "items": {"type": "string", "minLength": 1, "maxLength": 64}}
 _FIELDS["scope"]["properties"]["session_uids"] = {
     "type": "array", "maxItems": 5000, "uniqueItems": True,
     "items": {"type": "string", "minLength": 1, "maxLength": 200}}
