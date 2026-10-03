@@ -166,9 +166,11 @@ def ui_queries(home: Path, repeats: int) -> dict:
             "human_message_count": lambda: db.execute(
                 "SELECT COUNT(*) FROM v_human_message"
             ).fetchone(),
+            # Storage v8 replaced event_fts with the contentless trigram index event_search
+            # (messages and titles only); trigram terms need at least three characters.
             "fts_match_join": lambda: db.execute(
-                "SELECT e.session_uid FROM event_fts f JOIN event e ON e.rowid=f.rowid "
-                "WHERE event_fts MATCH 'ok' LIMIT 20"
+                "SELECT e.session_uid FROM event_search f JOIN event e ON e.rowid=f.rowid "
+                "WHERE event_search MATCH '\"问题 7\"' LIMIT 20"
             ).fetchall(),
             "like_substring": lambda: db.execute(
                 "SELECT session_uid FROM event WHERE text LIKE '%问题 7%' LIMIT 20"
