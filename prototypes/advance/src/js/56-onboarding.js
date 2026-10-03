@@ -29,14 +29,16 @@ function obPersona() { return persona(obSel()); }
 function genFacts(L) {
   const st = stats(L);
   const hc = new Array(24).fill(0); L.forEach((s) => { hc[s.h] += s.msgs; });
+  // no message counts (e.g. logs without user turns): fall back to when sessions start, never the argmax of zeros (0:00)
+  const byMsg = hc.some((v) => v > 0); if (!byMsg) L.forEach((s) => { hc[s.h] += 1; });
   let bh = 0; hc.forEach((v, h) => { if (v > hc[bh]) bh = h; });
   const byA = AG.map((a) => [a, sum(L.filter((s) => s.a === a.id), (s) => s.dur)]).sort((x, y) => y[1] - x[1]);
   const fr = Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]);
   return [
-    ['统计', fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用', '最常在 ' + bh + ':00–' + (bh + 1) + ':00 协作'],
+    ['统计', fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用', L.length ? '最常在 ' + bh + ':00–' + (bh + 1) + ':00 ' + (byMsg ? '协作' : '开始会话') : '还没有会话'],
     ['轨迹', '还原每个会话的时间线', (byA[0] ? byA[0][0].name : '—') + ' 占协作时长 ' + Math.round((byA[0] ? byA[0][1] : 0) / Math.max(1, st.hours * 60) * 100) + '%'],
     ['语义', '本地 Agent 正在归类你的消息', fr[0] ? '摩擦最多的是「' + fr[0][0] + '」' : '还没有归类出摩擦'],
-    ['人格', '四个维度', Math.round(st.verify) + '% 的会话要求验证结果']
+    ['人格', '四个维度', st.verKnown ? Math.round(st.verify) + '% 的会话要求验证结果' : '会话里还没有验证信号']
   ];
 }
 function obFacts() { return genFacts(obSel()); }

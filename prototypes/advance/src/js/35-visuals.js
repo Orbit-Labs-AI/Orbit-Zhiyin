@@ -1,7 +1,9 @@
 /* ============ shared visuals ============ */
 const agent = (id) => AGI[id] || { id, name: id, short: id, c: 'var(--a0)', t: 'var(--a0t)' };   // live: an id the spine does not carry
 const CUR = {};
-const OUT = { ok: ['okc', 'var(--good)', '完成'], part: ['half', 'var(--warn)', '部分完成'], fail: ['xc', 'var(--crit)', '放弃'], live: ['clock', 'var(--a1)', '运行中'] };
+const OUT = { ok: ['okc', 'var(--good)', '完成'], part: ['half', 'var(--warn)', '部分完成'], fail: ['xc', 'var(--crit)', '放弃'], live: ['clock', 'var(--a1)', '运行中'], na: ['minus', 'var(--ink-3)', '结果未知'] };
+// a session's outcome badge: live rows without an outcome signal read 结果未知, never 完成
+const outOf = (s) => OUT[s.out] || (s.live ? OUT.live : OUT.na);
 function spark(arr, w, h) {
   w = w || 64; h = h || 22;
   const mn = Math.min(...arr), mx = Math.max(...arr);

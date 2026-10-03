@@ -501,6 +501,13 @@ const OrbitLive = (function () {
     /* ==== studio-settings: writes, AI job polling, notify / collection frames (A9 生成工坊 · 问答 · 设置 · 通知) ==== */
     // send(method, path, body, {query, signal}) → {status, data}; failures reject with {status, code, detail, retryable}
     // (status 0 / code 'network' when the gateway cannot be reached). Writes never touch the GET cache.
+    // /v1/ai errors carry their details next to code / message ({error: {code, message, missing, reason, daily_cap …}},
+    // routes_ai.AIApiError); other routes nest them under detail. Either way the caller reads e.detail.missing etc.
+    const errDetail = (info) => {
+      if (info.detail != null) return info.detail;
+      const x = {}; Object.keys(info).forEach((k) => { if (['code', 'message', 'retryable', 'detail'].indexOf(k) < 0) x[k] = info[k]; });
+      return Object.keys(x).length ? x : null;
+    };
     C.send = function (method, path, body, o) {
       o = o || {};
       if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('OrbitLive is in mock mode'), { code: 'mock_mode', status: 0 }));
@@ -512,7 +519,7 @@ const OrbitLive = (function () {
         if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
         if (res.status >= 200 && res.status < 300) return { status: res.status, data };
         const info = (data && data.error) || {};
-        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: info.detail || null, retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
+        throw Object.assign(new Error(info.message || ('HTTP ' + res.status)), { status: res.status, code: info.code || 'http_' + res.status, detail: errDetail(info), retryable: info.retryable != null ? !!info.retryable : res.status >= 500, retryAfter: retryAfterMs(res.headers.get('Retry-After')) });
       }, (e) => { if (isAbort(e)) throw e; throw Object.assign(new Error(e.message || 'network'), { status: 0, code: 'network', retryable: true }); });
     };
     // Failures the studio / settings bindings cover with the demo values: route not built yet (404 / 501), service down
@@ -820,7 +827,7 @@ const OrbitLive = (function () {
   }
   const REPORT_SECTIONS = { ov: ['overview', 'metrics'], persona: ['persona'], proj: ['projects'], fric: ['friction'], recs: ['recommendations'] };
   function reportSections(keys) { const out = []; Array.from(keys || []).forEach((k) => (REPORT_SECTIONS[k] || []).forEach((s) => { if (out.indexOf(s) < 0) out.push(s); })); return out; }
-  const BLOCKED = { insufficient_data: '所选范围还没有会话，暂时不能生成分享卡', unsettled_code: '部分维度尚未定型，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
+  const BLOCKED = { insufficient_data: '所选范围还没有会话，暂时不能生成分享卡', unsettled_code: '类型暂不可用，暂时不能生成分享卡', persona_unavailable: '协作画像还没有算好，暂时不能生成分享卡' };
   const RESUME_OFF = { running: '会话还在运行，结束后再继续', unsupported_agent: '这个 Agent 暂不支持继续命令', no_cwd: '会话没有记录工作目录', unknown_session: '找不到这个会话' };
 
   function ops(C, ctx) {
@@ -870,6 +877,7 @@ const OrbitLive = (function () {
       toolCalls: (f, o) => C.send('GET', '/v1/analytics/tool_calls', null, { query: toolCallsQuery(f), signal: o && o.signal }).then(body),
       /* export */
       tables: () => C.send('GET', '/v1/export/tables').then(body),
+      // No UI entry since F20 removed 「导出工具明细 CSV」; kept as the general export API (backend /v1/export/csv)
       // CSV is text, not JSON: read it with the bearer header and hand back the text (status / code on failure)
       csv(table, f) {
         if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('OrbitLive is in mock mode'), { code: 'mock_mode', status: 0 }));
