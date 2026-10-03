@@ -8,15 +8,24 @@ from .sequence import analyze_execution_sequence, workflow
 
 
 def analyze_respond(events, calls, sessions, main_ids, dataset_status="available", supported_kinds=None,
-                    event_status="available"):
+                    event_status="available", prepared=None):
+    """``prepared`` = (paired, normalized, effective) already computed for exactly this scope.
+
+    Pairing, normalization and sequence projection are keyed by session, so a caller may
+    assemble them from per-session pieces (see ``AnalysisContext.families``); the result
+    is then identical to computing them here.
+    """
     excluded = dataset_status == "excluded"
     events = None if event_status in ("excluded", "unavailable") else events
-    paired = pair_tool_calls([] if excluded else events or [])
-    normalized = normalize_tool_calls(None if excluded else calls)
-    effective = (None if excluded else normalized["calls"] if calls is not None
-                 else paired["calls"] if paired["calls"] else None)
-    if effective is not None:
-        effective = project_call_sequence(effective, events)
+    if prepared is not None and not excluded and events is not None:
+        paired, normalized, effective = prepared
+    else:
+        paired = pair_tool_calls([] if excluded else events or [])
+        normalized = normalize_tool_calls(None if excluded else calls)
+        effective = (None if excluded else normalized["calls"] if calls is not None
+                     else paired["calls"] if paired["calls"] else None)
+        if effective is not None:
+            effective = project_call_sequence(effective, events)
     session_lookup = {s["session_uid"]: s for s in sessions}
     for c in effective or []:
         s = session_lookup.get(c["session_uid"], {})

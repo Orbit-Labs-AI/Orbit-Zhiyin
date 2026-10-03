@@ -490,7 +490,9 @@ def select_canonical(bundle, scope):
         (c for c in selected_models if c["usage_event_uid"] in ids), key=lambda c: (c["session_uid"], c["call_uid"]))
     visible = {e["session_uid"] for e in members}
     roots = {s["root_uid"] for s in session_rows if s["session_uid"] in visible}
-    sessions = sorted((s for s in session_rows if s["session_uid"] in (visible | roots) & allowed_sessions),
+    # Build the member set once; the inline expression rebuilt it for every session.
+    selected_sessions = (visible | roots) & allowed_sessions
+    sessions = sorted((s for s in session_rows if s["session_uid"] in selected_sessions),
                       key=lambda s: (s.get("started_at") is None, s.get("started_at") or 0, s["session_uid"]))
     linked_results = {c.get("result_event_uid") for c in calls or []}
     diagnostics = {"excluded_sessions": {}, "replayed_events_excluded": 0,

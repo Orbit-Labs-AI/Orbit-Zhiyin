@@ -158,6 +158,43 @@ def insert_rows(connection, table: str, rows: Iterable[dict]) -> int:
     return len(rows)
 
 
+def insert_tuples(connection, table: str, columns, rows) -> int:
+    """``insert_rows`` for rows already laid out as tuples in ``columns`` order.
+
+    Same storage hook (only ``event.ext``/``text`` are packed, identically), without building
+    and re-flattening a dict per row on the single writer.
+    """
+    if not rows:
+        return 0
+    columns = list(columns)
+    if table == "event":
+        ext = columns.index("ext") if "ext" in columns else None
+        text = columns.index("text") if "text" in columns else None
+        kind = columns.index("kind") if "kind" in columns else None
+        packed = []
+        for row in rows:
+            changed = None
+            if ext is not None and isinstance(row[ext], str):
+                stored = payload.pack_json(connection, row[ext])
+                if stored is not row[ext]:
+                    changed = list(row)
+                    changed[ext] = stored
+            if text is not None and row[text] is not None:
+                stored = payload.pack_text(
+                    connection, None if kind is None else row[kind], row[text]
+                )
+                if stored is not row[text]:
+                    changed = changed or list(row)
+                    changed[text] = stored
+            packed.append(row if changed is None else tuple(changed))
+        rows = packed
+    connection.executemany(
+        f"INSERT INTO {table} ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})",
+        rows,
+    )
+    return len(rows)
+
+
 def _json_cell(value):
     return {"$binary": base64.b64encode(value).decode()} if isinstance(value, bytes) else value
 

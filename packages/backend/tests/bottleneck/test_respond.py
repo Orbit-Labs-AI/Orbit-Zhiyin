@@ -153,6 +153,17 @@ def test_failure_reason_is_not_inferred_from_plain_text(make_call):
     assert analyze_execution_sequence([c])["failure_reasons"][0]["failure_reason"] == "permission_denied"
 
 
+def test_workflow_unsupported_branch_abstains_even_with_observed_rewind(make_event):
+    from tandem_backend.analytics.respond.sequence import workflow
+
+    events = [make_event("rewind", 1, "branch", action="rewind")]
+    unsupported = workflow(events, [], {"s"}, supported_kinds=set())
+    assert unsupported["branch_count"] is None
+    assert unsupported["rollback_rewind_count"] is None
+    supported = workflow(events, [], {"s"}, supported_kinds={"branch"})
+    assert supported["branch_count"] == supported["rollback_rewind_count"] == 1
+
+
 def test_l2_only_input_can_pair_without_inventing_turns(make_event):
     c = make_event("c", 1, "tool.call", call_id="x")
     r = make_event("r", 2, "tool.result", call_id="x", status="success")
