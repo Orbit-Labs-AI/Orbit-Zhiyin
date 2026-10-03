@@ -1,7 +1,8 @@
-/* 50-tools 5（b55.0–70.0） — STORYBOARD.md v17「5 会话轨迹 + 生成工坊」.
-   5.1 竖列的 5 个点合并为一（AGD merge 220, 540）→ 5.2–5.3 会话轨迹卡（deck 0）播放头走过 5 个阶段，合并点细线连到卡 →
-   5.4 传送带换成生成工坊（deck 1）→ 5.5 光标点「开始生成」→ 5.6 SKILL.md 一行行写出，合并点（cc 在上）到运行卡的线变亮、
-   流动 → 5.7 工坊卡缩小轻转淡出。b68.9 起 60-close 从合并点展开（与工坊卡淡出重叠）。
+/* 50-tools 5（b55.0–69.2） — STORYBOARD.md v17「5 会话轨迹 + 生成工坊」，点位按 v17.1 V1 / T11–T13.
+   5.1 短列的 5 个点合并为一（AGD merge (330, 540)）→ 5.2–5.3 会话轨迹卡（deck 0），合并点细线连到卡后骑在播放头下方走过
+   5 个阶段 → 5.4 传送带换成生成工坊（deck 1），点滑到「开始生成」上 → 5.5 点就是光标，按下（只有 bloom，无指针）→
+   5.6 点退到运行卡左缘外 56 px 当生成源，连线与 pulse 流向运行卡，SKILL.md 一行行写出 → 5.7 工坊卡朝点缩小轻转淡出，
+   点回到画面中心 (960, 540)。b69.2 起 60-close 从中心螺旋放出成环。
    旧镜头（.mt-ph 胶囊、播放头、DIAG 传送带）来自 git show 78841089^:prototypes/advance/promo/scenes/50-montage.js。
    生成过程用 App 自己的 studioStep / refreshStudio，但按成片拍逐帧推进（App 自带的定时器约 8 秒跑完，这里压到 b62.95–67.75，SKILL.md 逐字写出）。 */
 scene('50-tools', () => {
@@ -24,12 +25,39 @@ scene('50-tools', () => {
   const advLight = (d) => { const W = decks[d].W; if (W.eval('S.ed') !== 'advance') W.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); W.setTheme('light'); };
   const WIRE = 'rgba(255,255,255,.43)';                     // AGD draws links at stroke-opacity .7 → white 30 %
 
-  /* ---------- 5.1 merge (b55.0–56.4) ---------- */
-  AGD.key(55.0, 'merge', { x: 220, y: 540, r: 44, dur: 1.2, stag: .05 });
-  // pacing pass: the merged dot never sits dead still — a slow arc (22 px down, 8 px sideways) that is back on (220, 540) by
-  // the b68.9 hand-off (60-close's compass key blends from the merge form; the follow's weight is 0 there as well)
-  const DRIFT = (b) => clamp((b - 56.0) / 12.9);
-  AGD.follow(56.0, 68.9, (i, b, q) => ({ x: q.x + 8 * Math.sin(2 * Math.PI * DRIFT(b)), y: q.y + 22 * Math.sin(Math.PI * DRIFT(b)) }), { blend: .8 });
+  /* ---------- 5.1 merge (b55.0–56.4) and the merged dot's path to the b69.2 hand-off (v17.1 V1, T11–T13) ----------
+     ONE merge key with live x / y / r (a second merge key would fan the dots out again). The dot is where the eye is:
+     (330, 540) (ds is already there, the column closes on it) → b56.8–57.4 under the playhead, then rides it (timeline
+     bottom + 40) → b61.4–62.65 onto 开始生成 (it is the pointer; pressed at the b62.8 click) → b63.0–63.6 56 px left of the
+     run card (the generator) → b68.1–69.2 screen centre (960, 540), where 60-close's spiral starts. All E.inOut. */
+  const io = (b, b0, d) => E.inOut(clamp((b - b0) / d)), mix = (P, Q, e) => [lerp(P[0], Q[0], e), lerp(P[1], Q[1], e)];
+  const MERGE = [330, 540], HOME = [960, 540];
+  // under the playhead, card-fixed: the conveyor exit (b61.1, 1 beat, E.inOut, moves only ax / ay by −DIAG) is taken back out,
+  // so the dot keeps riding the playhead's creep instead of being dragged up-left and then turning back to the button
+  const rideXY = (b) => {
+    const p = elXY(0, TL + ' .vz-playhead', .5, 1), y = elXY(0, TL, .5, 1)[1] + 40, e = io(b, 61.1, 1.0);
+    return [p[0] + DIAG[0] * e, y + DIAG[1] * e];
+  };
+  // 开始生成's centre where placeBtn puts it (run card header, 18 px in, 16 px down) — still valid after b63.05, when the
+  // button goes back to the task card (its size is kept from before)
+  let BW = [150, 46];
+  const btnXY = (b) => {
+    const D = decks[1].D, rc = D && runCard(D); if (!rc) return HOME;
+    const el = b < 63.05 && startBtn(D); if (el) { const r = el.getBoundingClientRect(); if (r.width) BW = [r.width, r.height]; }
+    const c = rc.getBoundingClientRect(); return stageXY(1, c.right - 18 - BW[0] / 2, c.top + 16 + BW[1] / 2);
+  };
+  const genXY = () => { const p = runEdge(); return [p[0] - 56, p[1]]; };
+  let MB = -1, MP = MERGE;                                  // per-frame memo: the live params are read 5× a frame
+  const mergeXY = (b) => {
+    if (b === MB) return MP; MB = b;
+    return MP = b < 56.8 ? MERGE : b >= 69.2 ? HOME
+      : b < 61.4 ? mix(MERGE, rideXY(b), io(b, 56.8, .6))
+      : b < 62.95 ? mix(rideXY(b), btnXY(b), io(b, 61.4, 1.25))
+      : b < 68.1 ? mix(btnXY(b), genXY(), io(b, 63.0, .6))
+      : mix(genXY(), HOME, io(b, 68.1, 1.1));
+  };
+  const mergeR = (b) => b < 63.0 ? lerp(44, 26, io(b, 56.8, .6)) : b < 68.1 ? lerp(26, 36, io(b, 63.0, .6)) : lerp(36, 40, io(b, 68.1, 1.1));
+  AGD.key(55.0, 'merge', { x: (b) => mergeXY(b)[0], y: (b) => mergeXY(b)[1], r: mergeR, dur: 1.2, stag: .05 });
 
   /* ---------- top copy: three lines, swapped in place at 5.4, out at b68.4 ---------- */
   const sw = (a, b) => '<span class="sw"><span>' + a + '</span><span>' + b + '</span></span>';
@@ -53,8 +81,11 @@ scene('50-tools', () => {
   const trajCam = () => { const T = framing(0, '.tl-card', [1100, 640, 1360, 560], { max: 1.6 }); PAN = rectOf(0, '.tl-card').w * .05; T.x -= PAN; T.mx = 0; return T; };
   tween(0, 55.4, 1.3, trajCam, E.quart, IN.fromR);
   tween(0, 56.6, 5.0, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.04 }), E.sine);
-  // the merged dot owns this session: a thin wire to the card's left edge
-  AGD.link(56.4, 61.75, 0, () => elXY(0, '.tl-card', 0, .5), { color: WIRE, width: 1.5, draw: .5, out: .4 });
+  // the merged dot owns this session: a thin wire to the card's left edge, drawn .5 beat and taken back by b57.3 as the dot
+  // leaves for the playhead (T11′)
+  AGD.link(56.4, 57.3, 0, () => elXY(0, '.tl-card', 0, .5), { color: WIRE, width: 1.5, draw: .5, out: .3 });
+  // the failing deploy (crit, playhead 24 → 36 min over b59.2–60.5): the riding dot glows once
+  AGD.glow(0, 59.45, 60.15, .8);
   // playhead through the five phases (0–6–9–24–36–42 min): one smooth monotone curve through the phase knots (no stop at
   // a knot), ~.9 beat per phase and 1.3 at the failing deploy; it is still creeping when the card leaves (b61.1)
   const KN = [[56.5, 0], [57.4, 6], [58.3, 9], [59.2, 24], [60.5, 36], [61.5, 42]];
@@ -124,8 +155,10 @@ scene('50-tools', () => {
   tween(1, 61.3, 1.2, studioCam, E.quart, (T) => ({ ax: T.ax + DIAG[0], ay: T.ay + DIAG[1], o: 0, bl: 8, mx: 24 }));
   // continuous push (+3 % over 5.8 beats, linear) so the cards never hold still; bottom edge stays ≤ 1076
   tween(1, 62.3, 5.8, () => ({ s: decks[1].C.s * 1.03 }), E.lin);
-  // 5.5 the pointer glides to 开始生成 (1 beat) and presses it (orange bloom); the app's own timers are cleared, the run is driven below
-  clickAt(1, 62.8, startBtn, (a, el) => { a.click(el); a.W.eval('clearTimeout(RUNT)'); remark1(); }, { bloom: 'var(--a1)', glide: 1.0 });
+  // 5.5 the merged dot is the pointer: it has slid onto 开始生成 (mergeXY, b61.4–62.65) and presses it — no pointer, only the
+  // orange bloom, and the dot dips (.88) with the press; the app's own timers are cleared, the run is driven below
+  clickAt(1, 62.8, startBtn, (a, el) => { a.click(el); a.W.eval('clearTimeout(RUNT)'); remark1(); }, { bloom: 'var(--a1)', cursor: false });
+  AGD.pulse(0, 62.8, .88, .3);
   // 5.6 the app's run (v1: pack · analyse · draft · self-check · replay + judge · review), on the film's beats: ≥ .45 beat per
   // step, SKILL.md typed character by character at an even rate over b64.05–66.75 (2.7 beats), new log lines fade/rise in
   const RUN = [[62.95, 0], [63.45, 1], [63.95, 2], [66.85, 3], [67.3, 4], [67.75, 5]], L0 = 64.05, L1 = 66.75;
@@ -159,13 +192,14 @@ scene('50-tools', () => {
     });
     remark1();                                              // refreshStudio replaced the solo cards this frame
   });
-  // the merged dot is the generator: its wire to the run card brightens and carries pulses while SKILL.md is written
+  // the merged dot is the generator: once it has backed off to 56 px left of the run card (b63.0–63.6), its wire grows from it
+  // and carries pulses into the card while SKILL.md is written (no separate guide line: the dot itself was on the button)
   const runEdge = () => elXY(1, runCard, 0, .5);
-  AGD.link(62.2, 63.25, 0, runEdge, { color: WIRE, width: 1.5, draw: .5, out: .3 });
-  AGD.link(62.95, 68.3, 0, runEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .45, out: .3 });
+  AGD.link(63.35, 68.3, 0, runEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .45, out: .3 });
   AGD.glow(0, 62.95, 67.75, 1);
-  AGD.pulse(0, 62.85, 1.06, .6);
-  // 5.7 out: shrink, slight turn, fade (deck 1 is clear by b69.1); the copy leaves at b68.4 (txt above)
-  // E.inOut: E.in left the cards at o .5 at b69.0 and cut them to 0 within .2 beat; now they are nearly clear by b68.9, when the dots start to fan out (H13)
-  tween(1, 68.1, 1.0, () => { const C = decks[1].C; return { s: C.s * .8, rz: C.rz - 8, o: 0, bl: 8 }; }, E.inOut);   // about the cards' middle: studioCam already anchors there
+  // 5.7 out: the cards shrink into the dot, turn slightly and fade (clear by b69.1) while the dot returns to the centre. The
+  // camera is first re-anchored on the dot (same picture: the frame point under the dot becomes the anchor), then the anchor
+  // travels with the dot to (960, 540); the copy leaves at b68.4 (txt above)
+  tween(1, 68.1, 0, () => { const C = decks[1].C, [px, py] = mergeXY(68.1); return { x: C.x + (px - C.ax) / C.s, y: C.y + (py - C.ay) / C.s, ax: px, ay: py }; });
+  tween(1, 68.1, 1.0, () => { const C = decks[1].C; return { s: C.s * .6, rz: C.rz - 8, ax: HOME[0], ay: HOME[1], o: 0, bl: 8 }; }, E.inOut);
 });
