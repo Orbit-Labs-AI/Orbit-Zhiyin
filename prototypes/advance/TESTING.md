@@ -84,7 +84,7 @@ A1 概览 + A2 协作人格（分支 ui/p-overview-persona）。每个用例从�
 
 窗格独立滚动（styles/88-panes.css + js/88-panes.js）：主从分栏并排时各窗格自己滚，页面不滚；堆叠时退回整页滚动。
 流程：
-  1. mac-14：会话与轨迹、优化建议、生成工坊、导出分享卡里，对每个窗格滚动滚轮 → 只有它动，其他窗格与 #content 不动；
+  1. mac-14：会话轨迹、优化建议、生成工坊、导出分享卡里，对每个窗格滚动滚轮 → 只有它动，其他窗格与 #content 不动；
      从别页进入会话页时，列表里靠后的选中行在列表窗格内可见，#content 不滚。
   2. 全部尺寸：内容列够宽（≥ 800px）时会话页进入窗格模式且 #content 不溢出，否则整页滚动。
 
@@ -122,7 +122,7 @@ Test flow (fresh page per test; interaction tests run once at mac-14, layout che
 
 ### p-sessions.spec.mjs（5 个用例）
 
-A3 会话与轨迹（src/js/42-a3-sessions.js + styles/43-a3-sessions.css）。只在 mac-14 跑一次。
+A3 会话轨迹（src/js/42-a3-sessions.js + styles/43-a3-sessions.css）。只在 mac-14 跑一次。
 流程：
   1. 列表口径：结果 = 放弃 时今天 / 运行中的会话也要满足筛选（BUG-02），页头不再写死「1 个运行中」（BUG-03）；
      「全部历史」只渲染 120 行时给出截断提示，「加载更多」追加（BUG-05）；运行中时长按真实分钟（BUG-68）；
@@ -162,7 +162,7 @@ Test flow:
 
 ### p-tools-projects-sentiment.spec.mjs（4 个用例）
 
-A4 工具调用 / A5 项目习惯 / A6 情绪与语义 页面测试（分支 ui/p-tools-projects-sentiment）。流程：
+A4 工具调用 / A5 项目习惯 / A6 情绪语义 页面测试（分支 ui/p-tools-projects-sentiment）。流程：
   A4：1. 打开 demo 进入 tools；KPI 四卡各带迷你线与环比；2. 点「工具」列头两次，行顺序按名称升 / 降变化（BUG-20）；
       3. 「仅看失败」后列头与 KPI 口径同步为「失败次数」；4. 展开 Bash 行，出现最近调用与「在轨迹中查看」，点击跳到会话页；
       5. 调用链矩阵为 HTML grid（36 个格子 + 6 个行 n），悬停一格高亮整行整列（.hl）；6. 展开一类失败原因，「相关会话」把 S.fric 设为工具失败并进入 sessions；

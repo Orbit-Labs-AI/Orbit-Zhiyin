@@ -1,4 +1,4 @@
-/* A6 情绪与语义（js/45-a6-sentiment.js）。情绪发散色只用 --vz-mood-neg / --vz-mood-pos；纠偏与异常用 --vz-corr；AI 抽取的内容用紫色 .aib 标识。
+/* A6 情绪语义（js/45-a6-sentiment.js）。情绪发散色只用 --vz-mood-neg / --vz-mood-pos；纠偏与异常用 --vz-corr；AI 抽取的内容用紫色 .aib 标识。
    度量条中性灰；前两类摩擦用墨色强调；高频词只用墨阶。 */
 .sn-two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .sn-band{fill-opacity:.14}
