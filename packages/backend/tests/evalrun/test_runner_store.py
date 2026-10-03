@@ -39,9 +39,22 @@ def test_fail_under_alone_can_fail():
     assert runner.summarize("r", 0, rows, 0.5)["passed"]
 
 
-def test_all_skipped_has_no_score_and_passes(fake_suites):
+def test_all_skipped_has_no_score_and_does_not_pass(fake_suites):
     report = runner.run(["skip"], fail_under=0.9)
-    assert report["score"] is None and report["passed"]
+    assert report["score"] is None and not report["passed"] and report["verdict"] == "no_data"
+    report = runner.run(["skip"])
+    assert not report["passed"] and report["verdict"] == "no_data"
+
+
+def test_zero_check_suite_is_skipped_with_reason(fake_suites):
+    report = runner.run(["empty"])
+    (suite,) = report["suites"]
+    assert suite["skipped"].startswith("no_checks") and suite["score"] is None
+    assert suite["metrics"] == {"pairs": 0}
+    assert not report["passed"] and report["verdict"] == "no_data"
+    # Next to a real passing suite the skipped one neither fails nor props up the run.
+    mixed = runner.run(["ok", "empty"])
+    assert mixed["passed"] and mixed["score"] == 1.0 and mixed["verdict"] == "pass"
 
 
 def test_all_and_unknown_and_params(fake_suites, tmp_path):

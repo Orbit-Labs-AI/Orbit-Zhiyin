@@ -23,19 +23,22 @@ def _inject(monkeypatch, result):
     monkeypatch.setitem(sys.modules, "tandem_backend.realtime.replay", replay)
 
 
-def test_missing_package_skips(tmp_path, monkeypatch):
-    monkeypatch.setitem(sys.modules, "tandem_backend.realtime.replay", None)
-    result = suite.run(EvalContext(tmp=tmp_path))
-    assert result.skipped == "realtime package not installed"
-
-
 def test_clean_replay(tmp_path, monkeypatch):
-    _inject(monkeypatch, GOOD)
+    _inject(monkeypatch, {**GOOD, "detect_latency_s": {"failing": 4.0, "just_finished": 60.0,
+                                                        "awaiting_approval": 12.0}})
     result = suite.run(EvalContext(tmp=tmp_path))
     ids = {c.id: c.passed for c in result.checks}
     assert ids == {"realtime.case.fail_streak": True, "realtime.case.approval_wait": True,
                    "realtime.false_alarms": True, "realtime.latency.failing": True,
-                   "realtime.latency.just_finished": True}
+                   "realtime.latency.just_finished": True, "realtime.latency.awaiting_approval": True}
+
+
+def test_undetected_state_is_a_failed_latency_check(tmp_path, monkeypatch):
+    _inject(monkeypatch, GOOD)  # awaiting_approval latency is None: never detected
+    result = suite.run(EvalContext(tmp=tmp_path))
+    check = next(c for c in result.checks if c.id == "realtime.latency.awaiting_approval")
+    assert not check.passed and check.value is None and check.detail == "not detected"
+    assert result.score == 5 / 6
 
 
 @pytest.mark.parametrize("patch,check", [
