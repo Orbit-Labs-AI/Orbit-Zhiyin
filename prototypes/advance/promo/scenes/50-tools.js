@@ -209,7 +209,9 @@ scene('50-tools', () => {
   AGD.glow(0, 62.95, 67.75, 1);
   // 5.7 out: the cards shrink into the dot, turn slightly and fade (clear by b69.1) while the dot returns to the centre. The
   // camera is first re-anchored on the dot (same picture: the frame point under the dot becomes the anchor), then the anchor
-  // travels with the dot to (960, 540); the copy leaves at b68.4 (txt above)
+  // travels with the dot to (960, 540) on the dot's own curve (1.1 beats, E.inOut: the dot stays on the anchor); the cards
+  // shrink to .4 about it so they visibly go into the dot rather than just fading in place; the copy leaves at b68.4
   tween(1, 68.1, 0, () => { const C = decks[1].C, [px, py] = mergeXY(68.1); return { x: C.x + (px - C.ax) / C.s, y: C.y + (py - C.ay) / C.s, ax: px, ay: py }; });
-  tween(1, 68.1, 1.0, () => { const C = decks[1].C; return { s: C.s * .6, rz: C.rz - 8, ax: HOME[0], ay: HOME[1], o: 0, bl: 8 }; }, E.inOut);
+  tween(1, 68.1, 1.1, { ax: HOME[0], ay: HOME[1] }, E.inOut);
+  tween(1, 68.1, 1.0, () => { const C = decks[1].C; return { s: C.s * .4, rz: C.rz - 8, o: 0, bl: 8 }; }, E.inOut);
 });

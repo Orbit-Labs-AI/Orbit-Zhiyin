@@ -10,12 +10,15 @@ scene('60-close', () => {
   const push = (b) => { const p = lp(b, 78.6, 9.4), a = .2; return 1 + .07 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
 
   /* ---------- T13 螺旋放出（b69.2–71.04） ----------
-     50-tools 的合并点 b69.2 停在 (960, 540)、r 40；从这里 5 个点各按 e_i = E.io((b − 69.2 − .06i) / 1.6) 向外放出（ρ = e_i·R，
-     R = 收拢罗盘上徽章到中心的距离 300），同时顺时针转到自己的徽章方位 d_i：θ_i = d_i − G_i·(1 − e_i)。0.0.4 的徽章停在各 Agent
+     50-tools 的合并点 b69.2 停在 (960, 540)、r 40；从这里 5 个点各按 e_i = E.io((b − 69.2 − .06i) / 1.6) 向外放出（ρ = 圆环当帧半径，
+     随中间那个点的 e 长到收拢罗盘上徽章到中心的距离 300，见 spRing），同时顺时针转到自己的徽章方位 d_i：θ_i = d_i − G_i·(1 − e_i)。0.0.4 的徽章停在各 Agent
      的平均方向（不均匀：cc 43 / cx 62 / ds 118 / cp 221 / gm 288°），所以 G_i 取 d_i 到逆时针方向上一个徽章的间隔（cc 115 / cx 19 /
      ds 56 / cp 103 / gm 67°，合计 360）而不是一律 72°：每个点起转于上一个点的终点方位，角度区间首尾相接、互不交叉，身后的圆弧
      [d_i − G_i, d_i − G_i + G_i·e_i] 头部始终在点的方位上，b71.04 五段正好合成整圈（无缺口、无重叠）。 */
   const HB = 69.2, spE = (i, b) => E.inOut(clamp((b - HB - .06 * i) / 1.6)), SP_END = HB + .06 * 4 + 1.6;
+  // 圆环跟着点一起放大：deck 2 的 s 从 .001 按中间那个点（i = 2）的 e 长到 1（b70.92），5 个点的半径就取圆环当帧的半径
+  // （300·s），只有转角按各自的 e_i 错开——身后的圆弧因此就在点所在的圆上、头部贴着点，而不是在 R 300 处凭空出现、点还在里面
+  const SP_S0 = .001, SP_RD = 1.6 + .12, spRing = (p) => E.inOut(clamp((p * SP_RD - .12) / 1.6));
   const spWrap = (d) => ((d % 360) + 360) % 360;
   let SPG = null;                                             // [d_i, G_i]：徽章方位与它到上一个徽章的顺时针间隔（数据决定，算一次）
   const spG = () => SPG || (SPG = (() => {
@@ -26,9 +29,10 @@ scene('60-close', () => {
   const s0 = (i) => S0[i] || (S0[i] = AGD.pos(i, HB - 1e-6));
 
   /* ---------- deck 2：收拢罗盘 = 圆环 → 罗盘 → 圆环（H13–H15） ---------- */
-  // b69.2 直接设定：罗盘中心 (400, 400) → 舞台 (960, 540)，s 1，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）；
-  // 这时圆环的裁剪全是空的（5 段长度都是 0），画面上只有中心的合并点
-  tween(2, HB, 0, { x: 400, y: 400, s: 1, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
+  // b69.2 直接设定：罗盘中心 (400, 400) → 舞台 (960, 540)，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）；s 从 .001
+  // 随点的半径长到 1（b70.92，罗盘 b71.2 展开前已是 1）；这时圆环的裁剪全是空的（5 段长度都是 0），画面上只有中心的合并点
+  tween(2, HB, 0, { x: 400, y: 400, s: SP_S0, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
+  tween(2, HB, SP_RD, { s: 1 }, spRing);
   tween(2, 74.8, 1.0, { o: 0 }, E.inOut);                     // 6.4：螺旋长出时罗盘环淡出（drawCompass 继续到 b79）
   let degMe = null;
   // drawCompass 每帧调用到 b79（AGD 的 compass 编队要读点位，直到 row 在 b78.84 落定）；一切都是 b 的纯函数
@@ -53,9 +57,10 @@ scene('60-close', () => {
   AGD.key(HB, 'compass', { dur: .4, stag: 0 });
   AGD.follow(69.0, 71.4, (i, b) => {
     if (b < HB) return null;
+    // R = 徽章到中心的实际距离 = 圆环当帧半径（deck 2 的 s 已随点放大，不再乘 e_i）；徽章大小按 s 1 的 19 取
     const e = spE(i, b), G = spG()[i][1], c = cpBadge(i), C = cpStage(400, 400), s = s0(i);
-    const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]) * e, th = (dc - G * (1 - e)) * Math.PI / 180;
-    return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r, e) };
+    const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]), th = (dc - G * (1 - e)) * Math.PI / 180;
+    return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r / decks[2].C.s, e) };
   }, { blend: .2 });
   // H16 / 7.1：沿圆环两侧慢慢滑到底部、收成一行（cc 在右），b79.32 落定（「Orbit」b79.0 起淡入时还在收尾）
   AGD.key(77.0, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: [4, 3, 2, 1, 0], dur: 2.0, stag: .08, polar: PC });
