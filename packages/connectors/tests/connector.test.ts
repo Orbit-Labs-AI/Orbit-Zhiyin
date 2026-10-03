@@ -569,3 +569,16 @@ test('tool categories are table-driven over real Codex names; unclassified names
     send_message_to_thread:'subagent',view_image:'image.view','clock.sleep':'sleep',mystery_tool:'other',exec:'wrapper'});
   assert.deepEqual(s.store.db.prepare("SELECT message FROM diagnostic WHERE code='unknown_tool_name'").all().map(row=>row.message),['Unclassified tool name: mystery_tool']);
 }));
+test('a repeated legacy running total is a re-emission and never becomes a model call',async()=>sandbox(async s=>{
+  const count=(input:number,output:number,lastInput:number,lastOutput:number)=>({type:'token_count',info:{
+    total_token_usage:{input_tokens:input,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:output},
+    last_token_usage:{input_tokens:lastInput,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:lastOutput},model_context_window:200000}});
+  await writeFile(s.file,jsonLine('session_meta',{id:'repeat'},0)+jsonLine('event_msg',{type:'task_started',turn_id:'t1'},1)+
+    jsonLine('response_item',{type:'message',id:'a1',role:'assistant',content:[{type:'output_text',text:'one'}]},2)+jsonLine('event_msg',count(100,10,100,10),3)+
+    jsonLine('response_item',{type:'message',id:'a2',role:'assistant',content:[{type:'output_text',text:'two'}]},4)+jsonLine('event_msg',count(100,10,100,10),5)+
+    jsonLine('response_item',{type:'message',id:'a3',role:'assistant',content:[{type:'output_text',text:'three'}]},6)+jsonLine('event_msg',count(250,30,150,20),7));
+  await s.connector.ingest();
+  // Two billed requests (totals 100 -> 250): 100 + 150 input, 10 + 20 output; the repeated total adds nothing.
+  assert.deepEqual({...s.store.db.prepare('SELECT count(*) n,sum(input_tokens) i,sum(output_tokens) o FROM model_call').get()},{n:2,i:250,o:30});
+  assert.equal(s.store.db.prepare('SELECT input_tokens FROM usage_snapshot ORDER BY observation_seq DESC LIMIT 1').get()?.input_tokens,250);
+}));

@@ -430,7 +430,8 @@ function rebuildSession(store: ConnectorStore, source: string, session: string):
       }
       const identity=latestResponse.get(row.file_id);
       const total=stableJson(object(object(p.info).total_token_usage));
-      if (identity && !usedLegacy.has(`${identity}:${total}`)) {ctx.legacyRequestByRecord.set(row.record_uid,identity);usedLegacy.add(`${identity}:${total}`);}
+      // A repeated running total is a re-emission (no new request was billed): it must not become a call.
+      if (identity && total!==lastSnapshot && !usedLegacy.has(`${identity}:${total}`)) {ctx.legacyRequestByRecord.set(row.record_uid,identity);usedLegacy.add(`${identity}:${total}`);}
       if (lastSnapshot!==total) {snapshotIdentity=`snapshot:${row.record_uid}`;lastSnapshot=total;}
       if (snapshotIdentity) ctx.snapshotByRecord.set(row.record_uid,snapshotIdentity);
     }
@@ -613,16 +614,18 @@ function derive(store: ConnectorStore, ctx: Context, events: StandardEvent[]): v
   }
   for (const [key,values] of tools) {
     const call=values.call,result=values.result,a=call?.attrs??{},r=result?.attrs??{};
+    // A result without its call (call outside the retained history) is still categorized by name.
+    const kind=string(a.category)??toolCategory(string(r.name)??'unknown');
     store.db.prepare(`INSERT INTO tool_call(call_uid,session_uid,turn_uid,call_event_uid,result_event_uid,name_raw,kind,mcp_server,mcp_tool,command_head,
       files,status,exit_code,started_at,ended_at,duration_ms,approval,is_wrapper,attribution) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       uid(ctx.session,key),ctx.session,call?.turn_uid??result?.turn_uid??null,call?.event_uid??null,result?.event_uid??null,
-      string(a.name)??string(r.name)??'unknown',string(a.category)??'other',string(a.mcp_server),string(a.mcp_tool),string(a.command_head),JSON.stringify(a.files??[]),
+      string(a.name)??string(r.name)??'unknown',kind,string(a.mcp_server),string(a.mcp_tool),string(a.command_head),JSON.stringify(a.files??[]),
       string(r.status)??'unknown',number(r.exit_code),object(call?.attrs.time).semantics==='started'?call?.ts??null:null,number(r.ended_at),number(r.duration_ms),r.status==='declined'?'denied':null,a.is_wrapper?1:0,JSON.stringify(a.attribution??{}));
     store.db.prepare('UPDATE tool_call SET duration_source=?,duration_quality=?,status_scope=?,argument_digest=? WHERE call_uid=?')
       .run(string(r.duration_source)??'unknown',string(r.duration_quality)??'missing',string(r.status_scope)??(a.is_wrapper?'outer_script':'unknown'),string(a.argument_digest),uid(ctx.session,key));
-    if (!a.is_wrapper && string(a.category)==='other') store.diagnostic(ctx.source,'unknown_tool_name',`Unclassified tool name: ${string(a.name)??'unknown'}`);
+    if (!a.is_wrapper && kind==='other') store.diagnostic(ctx.source,'unknown_tool_name',`Unclassified tool name: ${string(a.name)??string(r.name)??'unknown'}`);
     if (!a.is_wrapper) {
-      for (const [feature,value] of [['tool_kind',string(a.category)],['command',string(a.command_head)],['mcp_server',string(a.mcp_server)]] as const) {
+      for (const [feature,value] of [['tool_kind',kind],['command',string(a.command_head)],['mcp_server',string(a.mcp_server)]] as const) {
         if (value) store.db.prepare('INSERT INTO session_feature VALUES(?,?,?,1) ON CONFLICT(session_uid,feature,value) DO UPDATE SET n=n+1').run(ctx.session,feature,value);
       }
     }
