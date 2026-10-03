@@ -1,0 +1,8 @@
+{"available": true,
+ "sessions": {"rows": 120, "status_known_rows": 90, "status_known_share": 0.75},
+ "model_call": {"rows": 400, "unmapped_model_rows": 8, "unmapped_model_share": 0.02, "cost_usd": 36.0},
+ "excluded_sessions": {"status": "excluded", "rows": 7, "reasons": [], "reason_counts": {"excluded_kind_review": 5, "excluded_lineage_unresolved": 2},
+  "model_calls": 30, "tokens": {"input_tokens": 1200, "cache_read_tokens": null, "cache_write_tokens": null, "output_tokens": 300, "reasoning_tokens": null},
+  "cost_usd": 4.0, "cost_share": 0.1,
+  "reasons_labelled": [{"code": "excluded_kind_review", "label": "代码审查会话（如 Codex review）", "count": 5},
+                       {"code": "excluded_lineage_unresolved", "label": "找不到父会话的子会话", "count": 2}]}}

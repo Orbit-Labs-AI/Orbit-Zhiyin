@@ -5,7 +5,7 @@ from importlib.resources import files
 
 import jsonschema
 
-from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.analysis_input import AnalysisScope, coverage_summary, read_analysis
 from orbit_data.contract import canonical
 from orbit_data.store import Store
 
@@ -124,5 +124,32 @@ def test_excluded_disclosure_follows_scope_and_orphans(tmp_path):
             )
         ),
         "cost_usd": None,
+        "cost_share": None,
     }
     assert empty["sessions"]["status_known_share"] is None
+
+
+def test_coverage_summary_matches_the_analysis_disclosure(tmp_path):
+    """Settings reads the same three figures without loading the analysis bundle."""
+    from orbit_data.store import readonly_connection
+
+    with build(tmp_path) as store:
+        store.db.execute(
+            "UPDATE session SET kind='review' WHERE session_uid=?", (uid(store, "rev"),)
+        )
+        store.db.execute(
+            "UPDATE session SET status='completed' WHERE session_uid=?", (uid(store, "main1"),)
+        )
+        store.db.execute("UPDATE model_call SET cost_usd=0.3 WHERE session_uid=?",
+                         (uid(store, "main1"),))
+        store.db.execute("UPDATE model_call SET cost_usd=0.1 WHERE session_uid=?",
+                         (uid(store, "rev"),))
+    full = read_analysis(tmp_path / "data", AnalysisScope("UTC"))["coverage"]
+    with readonly_connection(tmp_path / "data" / "orbit.db") as connection:
+        summary = coverage_summary(connection)
+    assert summary["sessions"]["status_known_share"] == full["sessions"]["status_known_share"] == 0.5
+    assert summary["model_call"]["unmapped_model_share"] == 0.5
+    assert summary["excluded_sessions"]["reason_counts"] == {"excluded_kind_review": 1}
+    # 0.1 of 0.4 priced spend sits in the excluded review tree.
+    assert summary["excluded_sessions"]["cost_share"] == 0.25
+    assert full["excluded_sessions"]["cost_share"] == 0.25

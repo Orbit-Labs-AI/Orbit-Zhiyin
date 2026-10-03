@@ -68,7 +68,7 @@ async function gateway(page, opts = {}) {
       'GET /v1/notifications/policy': 'notify-policy', 'GET /v1/notifications/snooze': 'notify-snooze', 'POST /v1/notifications/snooze': 'notify-snooze-set', 'DELETE /v1/notifications/snooze': 'notify-snooze-set',
       'POST /v1/notifications/test': 'notify-test', 'GET /v1/notifications/attention': 'notify-attention', 'POST /v1/notifications/fx-n2/ack': 'notify-ack',
       'GET /v1/platform/collection': 'collection', 'POST /v1/platform/collection/pause': 'collection-pause', 'POST /v1/platform/collection/resume': 'collection-resume',
-      'GET /v1/platform/storage': 'storage', 'GET /v1/app/data': 'storage', 'GET /v1/platform/diagnostics': 'health', 'GET /v1/platform/telemetry': 'telemetry', 'PUT /v1/platform/telemetry': 'telemetry-off', 'GET /v1/platform/health': 'health', 'POST /v1/platform/diagnostics/export': 'diagnostics-export'
+      'GET /v1/platform/storage': 'storage', 'GET /v1/app/data': 'storage', 'GET /v1/app/coverage': 'app-coverage', 'GET /v1/platform/diagnostics': 'health', 'GET /v1/platform/telemetry': 'telemetry', 'PUT /v1/platform/telemetry': 'telemetry-off', 'GET /v1/platform/health': 'health', 'POST /v1/platform/diagnostics/export': 'diagnostics-export'
     };
     if (routes[K]) return json(SS(routes[K]));
     return nf();
@@ -158,6 +158,13 @@ test('settings live: storage, collection pause, notify policy / preset / snooze 
   await expect(page.locator('#set')).toContainText('~/.orbit-fixture');
   // 数据源 › 暂停采集
   await page.evaluate(() => { S.setTab = 'sources'; renderSet(); });
+  // 数据覆盖 (GET /v1/app/coverage): shares and labelled exclusions with their spend
+  const cov = page.locator('#set [data-tl="coverage"]');
+  await expect(cov).toContainText('会话结果已知75%');
+  await expect(cov).toContainText('模型名未识别2%');
+  await expect(cov).toContainText('$4.00，占已计价花费 10%');
+  await expect(cov).toContainText('代码审查会话（如 Codex review）5 个');
+  await expect(cov).toContainText('找不到父会话的子会话2 个');
   const pause = page.locator('#set [data-act="setPause"]');
   await expect(pause).toHaveAttribute('aria-checked', 'false');
   await pause.click();
