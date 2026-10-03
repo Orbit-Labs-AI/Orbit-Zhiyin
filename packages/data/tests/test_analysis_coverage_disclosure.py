@@ -86,9 +86,7 @@ def test_coverage_reports_excluded_trees_status_share_and_unmapped_models(tmp_pa
     # Two analysed calls (main1, main2); main2's model is unmapped.
     assert coverage["model_call"]["unmapped_model_rows"] == 1
     assert coverage["model_call"]["unmapped_model_share"] == 0.5
-    schema = json.loads(
-        files("orbit_data").joinpath("schemas/coverage-v1.schema.json").read_text()
-    )
+    schema = json.loads(files("orbit_data").joinpath("schemas/coverage-v1.schema.json").read_text())
     jsonschema.validate(excluded, schema)
 
 
