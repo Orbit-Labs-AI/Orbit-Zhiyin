@@ -50,9 +50,23 @@
 
 /* 2 persona: .persona-hero with the letters at display size */
 .lite .persona-hero{grid-template-columns:minmax(0,1fr) 320px;padding:28px 30px;align-items:center}
-.lite .letters{gap:clamp(6px,1.2cqi,16px);margin:18px 0 16px;align-items:flex-end}
+.lite .letters{gap:clamp(6px,1.2cqi,16px);margin:14px 0 14px;align-items:flex-end}
 .lite .letters .L{font:700 clamp(84px,15cqi,150px)/.86 var(--font-type);letter-spacing:-.01em}
-.l-line{margin:14px 0 14px;max-width:560px;font-size:17px;line-height:26px;color:var(--ink-2);text-wrap:pretty}
+.l-line{margin:8px 0 0;max-width:560px;font-size:17px;line-height:26px;color:var(--ink-2);text-wrap:pretty}
+/* the reveal's step 05 at Lite scale (F13): count line, axis score under each letter, match row, 已经知道的 four rows */
+.l-count{font-size:12px}
+.l-slot{display:flex;flex-direction:column;align-items:center;gap:8px}
+.l-sax{font-size:13px;color:var(--ink-2);white-space:nowrap}
+.l-sax b{color:var(--ink-1);font-weight:600}
+.l-match{gap:8px;flex-wrap:wrap;align-items:center}
+.l-facts{display:flex;flex-direction:column;margin-top:18px;max-width:560px}
+.l-facts .eb{margin-bottom:2px}
+.l-fact{padding:9px 0;align-items:center}
+.l-fact:last-child{border-bottom:0}
+.l-fact .mk{width:24px;height:24px;background:var(--ink-1);color:var(--surface)}
+.l-ft{display:flex;gap:12px;align-items:baseline;min-width:0;font-size:15px}
+.l-ft b{flex:none;font-weight:600}
+.l-ft span{min-width:0;color:var(--ink-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .l-acts{margin-top:20px;flex-wrap:wrap}
 .l-fp{padding:12px}
 .l-fp .fp2{width:100%;max-width:296px}
@@ -73,7 +87,13 @@
 .l-mc{font-size:26px;line-height:1.1;font-weight:600;letter-spacing:.04em}
 .l-mz{font-size:12px;color:var(--ink-2)}
 .lite .evo button:not(.on) .l-mc{color:var(--ink-3)}
-.l-low{display:flex;gap:28px;align-items:center;flex-wrap:wrap;padding:32px}
+.l-low{display:flex;gap:32px;align-items:center;flex-wrap:wrap;padding:36px 40px}
+/* no sessions (F21): a dashed flower outline + one sentence + where to get data; no giant placeholder code */
+.e-bloom{flex:none;display:block}
+.l-code-e{align-items:flex-start;gap:8px}
+.l-code-e .e-bloom{margin:4px 0 2px}
+.l-ez{font-size:20px;line-height:1.2;font-weight:600;color:var(--ink-2)}
+.e-acts{margin-top:4px}
 
 /* 3 sessions: .sess (list + detail), larger title / numbers / a step timeline */
 .lite .sess.l-sess{grid-template-columns:280px minmax(0,1fr)}

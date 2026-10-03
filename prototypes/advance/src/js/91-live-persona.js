@@ -159,7 +159,10 @@ function lvpFetch(period, path, store) {
 LV.personaFor = function (period, L) {
   const e = lvpFetch(period, '/v1/uiview/persona', LVP.full);
   if (e.data) return lvShape(e.data, L);
-  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: true };
+  // the error itself goes along: projection_pending (first import not published yet) reads 正在整理数据…, not 取不到 (F08);
+  // it is refetched when the publish moves LV.rev
+  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: e.error || true };
+  if (e.error && persPending(e.error)) return { ok: false, classified: false, n: L ? L.length : 0, error: e.error };
   return { ok: false, classified: false, n: L ? L.length : 0, pending: true };
 };
 LV.reveal = function (period) { return lvpFetch(period, '/v1/uiview/persona/reveal', LVP.full); };
@@ -185,7 +188,8 @@ function personaLive(L, minN) {
     if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
     return p;
   }
-  if (!L.length) return { ok: false, classified: false, n: 0 };
+  // no sessions yet while the first import is still being published (projection_pending) → 正在整理数据…, not 还没有会话 (F08)
+  if (!L.length) return TL.isPending && TL.isPending() ? { ok: false, classified: false, n: 0, error: { code: 'projection_pending' } } : { ok: false, classified: false, n: 0 };
   const period = lvpScopes().get(lvpSig(L));
   if (period) {
     const full = LVP.full.get(lvpKey(period) + '/v1/uiview/persona');

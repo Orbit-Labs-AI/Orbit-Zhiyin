@@ -151,11 +151,11 @@
 
 **data / connectors**
 - 用户侧词表：backend `features/vocab.from_session_feature` 与 `features/sessfeat` 从 `analytics.task` 分类结果、来源 agent 与命令头派生 domain/sw/agent 词表；`session_feature` 的 domain/sw/agent 特征本轮未做，因 data 包不能导入 backend（data-core）。
-- `reduce.tool_metadata` 在派生 L3 时按 inventory 再解析一次 MCP 归属，或在 inventory 扫描后触发 rebuild；现在先导入后扫描的库不会补上 `mcp_server`（data-ingest）。
+- **已修（fix/app-feedback-r4，audit-data）**：清单扫描发现新 MCP 服务器名时把 opencode/Hermes 的文件标为待重映射，inventory 任务随即重建发布。原条目：`reduce.tool_metadata` 在派生 L3 时按 inventory 再解析一次 MCP 归属，或在 inventory 扫描后触发 rebuild；现在先导入后扫描的库不会补上 `mcp_server`（data-ingest）。
 - `signals/detectors.py` 的 `would_prompt` 应以 `tool_call.approval` 为主证据；kimi、hermes、opencode 已有审批或拒绝事件，可以接上（data-ingest、analytics-core）。
-- Claude Code 拒绝时 `tool.result.status="declined"`，而 `reduce._failure_kind` 只认 failed/interrupted，这些调用 `failure_kind` 为 NULL；需 reduce 纳入 declined，或连接器改用 failed 加 `approval=denied`（data-ingest）。kimi 的 `interaction.resolved` 与 `permission.record_approval_result` 会产生两条一致的 decision，可在 reduce 去重。
+- **已修（audit-data）**：`_failure_kind` 把 declined 记为 `permission_denied`（REDUCER 1.9.1）；kimi 双 decision 未去重，消费者按调用去重不影响计数。原条目：Claude Code 拒绝时 `tool.result.status="declined"`，而 `reduce._failure_kind` 只认 failed/interrupted，这些调用 `failure_kind` 为 NULL；需 reduce 纳入 declined，或连接器改用 failed 加 `approval=denied`（data-ingest）。kimi 的 `interaction.resolved` 与 `permission.record_approval_result` 会产生两条一致的 decision，可在 reduce 去重。
 - Claude Code 的 `permissionMode` 写入（`would_prompt` 的生产者）仍在 reduce/analysis_input 汇总，未做；Claude Code 与 Kimi 失败工具结果的 `error_class` 上游没有分类字段，保持 NULL；opencode V2 权限拒绝消息格式无法由源码确定（data-ingest）。
-- 清单：Claude 插件目录内的 `commands/`、`agents/` 尚未扫描；Codex `~/.codex/prompts`、opencode 的 `command/`、`agent/`、pi prompt 模板可扫为 command/agent 以消除 `layout_incomplete`；`inventory/reader.py walk()` 的 `issue()` 把 `symlink_cycle`、`depth_limit`、`unsafe_path` 写死归到 skill；backend `install/env.py COUNT_KINDS`、`features/linked.py CATALOG_TYPE`、`a4a6_tools` 需处理新类型 `command`、`agent`（Claude 用户的已装 skill 数会因此下降）（data-core）。
+- 清单：Claude 插件目录内的 `commands/`、`agents/` 已扫描为 `<plugin>:<name>`，plugin.json 的 `commands`/`agents` 自定义路径（文件夹或单个 .md）作为补充一并扫描（audit-data，SCANNER 1.4.2）；`walk()` 用调用方的 kinds，写死 skill 的只有 `skill_documents`，无需改；Codex `~/.codex/prompts`、opencode 的 `command/`、`agent/`、pi prompt 模板可扫为 command/agent 以消除 `layout_incomplete`；backend `install/env.py COUNT_KINDS`、`features/linked.py CATALOG_TYPE`、`a4a6_tools` 需处理新类型 `command`、`agent`（Claude 用户的已装 skill 数会因此下降）（data-core）。
 - `analytics/coverage.py` 为 `excluded_sessions` 的各原因加中文标签（data-core）。
 
 **analytics**

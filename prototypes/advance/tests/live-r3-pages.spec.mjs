@@ -88,6 +88,7 @@ test('A4: null error rates render "—" with the coverage reason, never 0% or Na
   await stubGateway(page, ['core', 's3'], { 'GET /v1/uiview/tools': t });
   await openLive(page, 'tools');
   const main = page.locator('#main');
+  await page.evaluate(() => { S.tools.failOnly = false; render(); });   // the "—" row has no failures: show every tool
   await expect(main.locator('table.tt tbody tr.click').first()).toBeVisible();
   const name = await page.evaluate(() => (toolRows().find((r) => r.err == null) || {}).name);
   expect(name).toBeTruthy();

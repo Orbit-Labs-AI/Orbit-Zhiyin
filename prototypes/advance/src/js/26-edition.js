@@ -72,6 +72,7 @@ function edSet(ed, route) {
       let vt = null;
       try { vt = document.startViewTransition(swap); } catch (e) { swap(); }
       const done = () => win.classList.remove('ed-vt');
+      if (vt && vt.ready) vt.ready.catch(() => {});   // 被下一次切换打断时 ready 会拒绝（Transition was skipped），不算页面错误
       if (vt && vt.finished) vt.finished.then(done, done); else done();
     } else {
       swap();

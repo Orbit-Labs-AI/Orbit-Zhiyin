@@ -52,7 +52,7 @@ test('overlays, menus, simulated events and shortcuts work without errors', asyn
   const tabs = await page.evaluate(() => SET_TABS.map((t) => t[0]));
   const calls = [
     ['openPalette'], ['openAsk'], ['openKeys'], ['openAbout'], ['openMethod'],
-    ['openReport'], ['openCSV'], ['openShare'], ['openOnboarding', 0], ['openReveal'],
+    ['openReport'], ['openShare'], ['openOnboarding', 0], ['openReveal'],
     ['renderPop'], ['toggleHud'], ['toggleHud'], ['goBack'], ['mainAction'],
     ...tabs.map((t) => ['openSettings', t]),
     ...['running', 'waiting', 'done', 'stuck', 'ctx', 'weekly', 'newsrc', 'idle'].map((k) => ['simEvent', k]),

@@ -11,6 +11,31 @@ function toolDaily(L, share, range) {
   return raw.map((v, i) => { const a = Math.max(0, i - 6); let t = 0; for (let k = a; k <= i; k++) t += raw[k]; return Math.round(t / (i - a + 1) * 10) / 10; });
 }
 const TOOL_SHARE = {}; TOOLS.forEach((t) => { TOOL_SHARE[t[0]] = t[1] / 9860; });
+// F24: MCP 服务卡（Demo 与 live 共用）：服务名完整显示（可换行，不截断），有调用的服务可展开看其下每个工具的次数与失败率。
+// servers: [{ server, calls, err (null = 不计算), errWhy, extra, tag, tagHtml, removed, tools: [{ name, n, err, errWhy }], toolsNote（展开列表下的说明，Demo 标「示例」） }]
+function ttMcpList(servers) {
+  const T = S.tools; const pct = (v) => v == null ? '—' : f1(v * 100) + '%';
+  return servers.map((x) => {
+    const k = 'mcp·' + x.server; const can = !x.removed && x.calls > 0 && x.tools && x.tools.length; const open = can && T.mcpOpen === x.server;
+    const rate = x.calls ? ' · 失败 ' + (x.err == null ? '<span data-tip="' + esc(x.errWhy || '状态未知，不计算错误率') + '">—</span>' : pct(x.err)) : '';
+    const name = '<span class="mono tt-mcp-n' + (x.removed ? ' off' : '') + '">' + esc(k) + '</span>';
+    const stats = '<span class="tt-mcp-v">' + (x.removed ? '已移除 · 可在资源库重装' : fmt(x.calls || 0) + ' 次' + rate + (x.extra || '')) + '</span>';
+    const head = can ? '<button type="button" class="tt-mcp-h" data-act="toggleMcp" data-k="' + esc(x.server) + '" aria-expanded="' + open + '">' + ic(open ? 'chev' : 'chevr', 12, 'flex:none;color:var(--ink-3)') + name + stats + '</button>'
+      : '<div class="tt-mcp-h">' + '<span class="tt-mcp-sp" aria-hidden="true"></span>' + name + stats + '</div>';
+    let h = '<div class="tt-mcp-s" data-mcp="' + esc(x.server) + '">' + head + (x.tagHtml || (x.tag ? '<span class="tag">' + x.tag + '</span>' : '')) + '</div>';
+    if (open) {
+      const mx = Math.max(1, ...x.tools.map((t) => t.n || 0));
+      h += '<div class="tt-mcp-tools" data-lv="mcp-tools">' + x.tools.map((t) => '<div class="tt-mcp-t">' + (t.name ? '<span class="mono tt-mcp-tn">' + esc(t.name) + '</span>' : '<span class="tt-mcp-tn cap" data-tip="记录里没有工具名">(未命名)</span>') + '<span class="tt-fail-bar"><i style="width:' + ((t.n || 0) / mx * 100).toFixed(1) + '%"></i></span><span class="mono tt-mcp-tv">' + fmt(t.n || 0) + ' 次 · 失败 ' + (t.err == null ? '<span data-tip="' + esc(t.errWhy || '状态未知，不计算错误率') + '">—</span>' : pct(t.err)) + '</span></div>').join('') + (x.toolsNote ? '<div class="cap tt-mcp-tnote">' + esc(x.toolsNote) + '</div>' : '') + '</div>';
+    }
+    return h;
+  }).join('');
+}
+// Demo：mcp·browser 下各工具的份额与失败率（示例数据）；总数随筛选跟着明细表那一行走
+const MCP_DEMO_TOOLS = { browser: [['screenshot', 0.5, 0.06], ['navigate', 0.34, 0.09], ['click', 0.16, 0.1]] };
+function ttDemoMcpTools(server, n) {
+  const spec = MCP_DEMO_TOOLS[server] || []; let left = n;
+  return spec.map((t, i) => { const c = i === spec.length - 1 ? left : Math.round(n * t[1]); left -= c; const f = Math.round(c * t[2]); return { name: t[0], n: c, fails: f, err: c ? f / c : null }; }).filter((t) => t.n > 0);
+}
 PAGES.tools = () => {
   if (LV.live) return lvToolsPage();   // live: same cards from /v1/uiview/tools (93-live-tools-projects.js)
   const L = sel(); const st = stats(L);
@@ -49,13 +74,16 @@ PAGES.tools = () => {
   const pmx = Math.max(...TRANS.flat()); const lvl = (p) => clamp(Math.floor(p / pmx * 5.999), 0, 5);
   const matrix = '<div class="tm" id="tm" style="grid-template-columns:auto repeat(' + TRANS_NAMES.length + ',minmax(36px,44px)) auto" role="table" aria-label="工具调用转移概率矩阵：行是上一步，列是下一步"><span class="tm-h tm-corner" title="行 = 上一步 · 列 = 下一步">上一步 ↓</span>' + TRANS_NAMES.map((n, j) => '<span class="tm-h mono" data-c="' + j + '">' + n + '</span>').join('') + '<span class="tm-h mono" style="text-align:right">n</span>' +
     TRANS.map((row, i) => '<span class="tm-rh mono" data-r="' + i + '">' + TRANS_NAMES[i] + '</span>' + row.map((p, j) => { const l = lvl(p); return '<button type="button" class="tm-c mono' + (i === j ? ' diag' : '') + (i === 1 && j === 0 ? ' peak' : '') + '" data-r="' + i + '" data-c="' + j + '" data-tf="trans|' + i + '|' + j + '" style="background:' + VZ.rampFill(l, 'accent') + ';color:' + (l >= 4 ? 'var(--accent-ink)' : 'var(--ink-1)') + '">' + Math.round(p * 100) + '</button>'; }).join('') + '<span class="tm-n mono" data-r="' + i + '">' + VZ.fmt(rowN[i], 'k') + '</span>').join('') + '</div>' +
-    '<div class="vz-scale" aria-label="色阶：条件概率 0% 到 ' + Math.round(pmx * 100) + '%"><span class="cap">0%</span>' + [0, 1, 2, 3, 4, 5].map((l) => '<i style="background:' + VZ.rampFill(l, 'accent') + '"></i>').join('') + '<span class="cap">' + Math.round(pmx * 100) + '%</span><span class="cap vz-scale-note" title="对角线 = 同一工具连用 · 行尾 n = 该工具调用数">描边 = 同一工具连用</span></div>';
+    '<div class="vz-scale" aria-label="色阶：条件概率 0% 到 ' + Math.round(pmx * 100) + '%"><span class="cap">0%</span>' + [0, 1, 2, 3, 4, 5].map((l) => '<i style="background:' + VZ.rampFill(l, 'accent') + '"></i>').join('') + '<span class="cap">' + Math.round(pmx * 100) + '%</span><span class="cap vz-scale-note" title="对角线 = 同一工具连用 · 行尾数字 = 该工具的调用次数">描边 = 同一工具连用</span></div>';
   // 审批等待：对数分桶；累计到 50% 的桶给出「一半的审批在 X 内」
   const wTot = sum(WAITS, (w) => w[1]); let cum = 0, half = WAITS[WAITS.length - 1][0];
   for (const w of WAITS) { cum += w[1]; if (cum >= wTot / 2) { half = w[0]; break; } }
   const halfTxt = ({ '<5s': '5 s', '5–15s': '15 s', '15–30s': '30 s', '30–60s': '1 分钟', '1–2m': '2 分钟', '2–5m': '5 分钟', '>5m': '5 分钟以上' })[half] || half;
   const fails = FAILS.map((f) => [f[0], f[1], Math.round(st.errors * f[1] / 100), f[2]]); const fmx = Math.max(1, ...fails.map((f) => f[1]));
   const mcpN = S.installed.has('remove-figma') ? 1 : 2;
+  const br = all.find((r) => r.name === 'mcp·browser'); const brTools = br ? ttDemoMcpTools('browser', br.n) : []; const brFails = sum(brTools, (t) => t.fails);
+  const mcpDemo = [{ server: 'browser', calls: br ? br.n : 0, err: br && br.n ? brFails / br.n : null, tools: brTools, toolsNote: '各工具的份额与失败率为示例', tag: '在用' },
+    S.installed.has('remove-figma') ? { server: 'figma', removed: true } : { server: 'figma', calls: 0, extra: ' · 常驻 ≈ 2.1k tokens', tools: [], tagHtml: '<button type="button" class="btn sm" data-act="install" data-id="remove-figma">移除</button>' }];
   const retries = RETRIES.map((r) => [r[0], Math.max(1, Math.round(r[1] * st.errors / 614)), r[2]]);
   const kpis = [
     VZ.kpi({ label: T.failOnly ? '失败次数' : '工具调用', value: fmt(T.failOnly ? st.errors : st.tools), delta: { cur: T.failOnly ? st.errors : st.tools, prev: P ? (T.failOnly ? P.errors : P.tools) : null, goodDown: T.failOnly ? true : null, fmt: 'int' }, trend: weekly((x) => sum(x, (s) => T.failOnly ? s.errors : s.tools), endDay, 12), trendLabel: trendLbl, tip: '每会话 ' + Math.round(st.tools / Math.max(1, st.n)) + ' 次' }),
@@ -63,15 +91,15 @@ PAGES.tools = () => {
     VZ.kpi({ label: '需要你审批', value: fmt(approvals), delta: { cur: approvals, prev: approvalsPrev, goodDown: true, fmt: 'int' }, trend: weekly((x) => approvalsOf(toolRows(x)), endDay, 12), trendLabel: trendLbl, tip: '平均等待 38 s · 约 ' + Math.round(approvals * 38 / 3600) + ' 小时被打断（示例）' }),
     VZ.kpi({ label: '子代理派发', value: fmt(task ? task.n : 0), delta: { cur: task ? task.n : 0, prev: taskPrev ? taskPrev.n : null, fmt: 'int' }, trend: weekly((x) => { const t = toolRows(x).find((r) => r.name === 'Task'); return t ? t.n : 0; }, endDay, 12), trendLabel: trendLbl, tip: '平均 96 s · 最多并行 9（示例）' })
   ].join('');
-  return tbar('工具调用', fmt(st.tools) + ' 次调用 · ' + TOOLS.length + ' 种工具 · ' + mcpN + ' 个 MCP 服务', '<button type="button" class="btn" data-act="csv">' + ic('down', 14) + '导出 CSV</button><button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>') +
+  return tbar('工具调用', fmt(st.tools) + ' 次调用 · ' + TOOLS.length + ' 种工具 · ' + mcpN + ' 个 MCP 服务', '<button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>') +
     '<div class="content" id="content">' + filterRow('<button type="button" class="chip' + (T.failOnly ? ' on' : '') + '" data-act="failOnly" aria-pressed="' + T.failOnly + '">' + ic('alert', 13) + '仅看失败</button>') +
     '<div class="stack"><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))">' + kpis + '</div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具明细</span><span class="cap" title="点列头排序 · 点行展开最近调用 · 迷你线为' + rangeLabel() + '每日调用' + (rangeN > 7 ? '（7 天滑动平均）' : '') + '">点行展开最近调用 · 列头可排序</span></div></div><div class="scroll-x"><table class="tbl tt"><thead><tr>' + th('name', '工具') + th('n', T.failOnly ? '失败次数' : '调用次数') + th('err', '错误率', 'right') + th('avg', '耗时 p50 / p95', 'right') + th('ap', '需审批', 'right') + '<th title="每日调用' + (rangeN > 7 ? '，7 天滑动平均' : '') + '">' + rangeLabel() + '</th></tr></thead><tbody>' + (tbody || '<tr><td colspan="6" class="cap">没有失败的调用</td></tr>') + '</tbody></table></div></div>' +
     '<div class="tt-grid"><div class="card pad tt-matrix"><div class="hd"><div class="grow"><span class="ct">调用链 · 下一步是什么</span><span class="cap" title="P(下一步 | 上一步)：行 = 上一步，列 = 下一步；悬停看整行整列">格内 = 下一步的概率 %</span></div></div>' + matrix + '<div class="col tt-ins"><span><b style="color:var(--ink-1)">最常见三步链</b> Grep → Read → Edit（58% → 41%）</span><span><b style="color:var(--ink-1)">命令之后仍是命令 ' + Math.round(TRANS[3][3] * 100) + '%</b>，其中一半是失败后的原样重试 → <button type="button" class="lnk" data-act="openRec" data-id="retry-breaker">重复失败熔断</button></span></div>' +
     '<div class="hd tt-sub"><div class="grow"><span class="ct">失败后原样重试 · Top 5</span><span class="cap" title="同一命令失败后未改参数直接重跑 · 次数与最长连跑">未改参数直接重跑</span></div></div><div class="col" style="gap:4px">' + retries.map((r) => '<div class="tt-retry"><span class="mono tt-cmd" title="' + esc(r[0]) + '">' + esc(r[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (r[1] / retries[0][1] * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v" title="重试 ' + r[1] + ' 次 · 最长连跑 ' + r[2] + ' 次">×' + r[1] + ' · 连跑 ' + r[2] + '</span></div>').join('') + '</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">失败原因</span><span class="cap">' + fmt(st.errors) + ' 次失败 · 按输出聚类</span></div></div><div class="col" style="gap:5px">' + fails.map((f) => '<button type="button" class="tt-fail' + (T.openFail === f[0] ? ' on' : '') + '" data-act="openFail" data-k="' + esc(f[0]) + '" aria-expanded="' + (T.openFail === f[0]) + '"><span class="tt-fail-n">' + f[0] + '</span><span class="tt-fail-bar"><i style="width:' + (f[1] / fmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v">' + f[1] + '% · ' + fmt(f[2]) + ' 次</span></button>' + (T.openFail === f[0] ? '<div class="tt-fail-x"><span class="mono" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">典型：' + esc(f[3]) + '</span><button type="button" class="btn sm" data-act="failSessions">相关会话 →</button></div>' : '')).join('') + '</div></div>' +
     '<div class="card pad col" style="gap:0"><div class="hd" style="margin-bottom:4px"><div class="grow"><span class="ct">审批负担</span><span class="cap">等你点「允许」的时间 · 对数分桶</span></div></div><div class="vz" data-vz="waits"></div><div class="cap tt-wait-note">一半的审批在 <b style="color:var(--ink-1)">' + halfTxt + '</b> 内等到了你 · 共 ' + fmt(wTot) + ' 次（示例）</div><div class="row tt-cta"><span class="tt-cta-t"><b>212 次</b> 只读命令可自动放行</span>' + (S.installed.has('ro-allow') ? '<span class="tag">已安装</span>' : '<button type="button" class="btn sm p" data-act="install" data-id="ro-allow">生成白名单 Hook</button>') + '</div></div>' +
-    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个已连接</span></div></div><div class="row" style="font-size:12px"><span class="mono" style="width:92px">mcp·browser</span><span style="flex:1;color:var(--ink-2)">64 次 · 失败 7.8%</span><span class="tag">在用</span></div>' + (S.installed.has('remove-figma') ? '<div class="row" style="font-size:12px;color:var(--ink-3)"><span class="mono" style="width:92px;text-decoration:line-through">mcp·figma</span><span style="flex:1">已移除 · 可在资源库重装</span></div>' : '<div class="row" style="font-size:12px"><span class="mono" style="width:92px">mcp·figma</span><span style="flex:1;color:var(--ink-2)">0 次 · 常驻 ≈ 2.1k tokens</span><button type="button" class="btn sm" data-act="install" data-id="remove-figma">移除</button></div>') + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(task ? task.n : 0) + ' 次 · 最多并行 9 个</span></div></div><div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">40%</b> 被你中途停止</div></div></div></div></div></div>';
+    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个已连接</span></div></div>' + ttMcpList(mcpDemo) + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(task ? task.n : 0) + ' 次 · 最多并行 9 个</span></div></div><div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">40%</b> 被你中途停止</div></div></div></div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具明细</span><span class="cap" title="点列头排序 · 点行展开最近调用 · 迷你线为' + rangeLabel() + '每日调用' + (rangeN > 7 ? '（7 天滑动平均）' : '') + '">点行展开最近调用 · 列头可排序</span></div></div><div class="scroll-x"><table class="tbl tt"><thead><tr>' + th('name', '工具') + th('n', T.failOnly ? '失败次数' : '调用次数') + th('err', '错误率', 'right') + th('avg', '耗时 p50 / p95', 'right') + th('ap', '需审批', 'right') + '<th title="每日调用' + (rangeN > 7 ? '，7 天滑动平均' : '') + '">' + rangeLabel() + '</th></tr></thead><tbody>' + (tbody || '<tr><td colspan="6" class="cap">没有失败的调用</td></tr>') + '</tbody></table></div></div>' + '</div></div>';
 };
 // 失败后原样重试的命令（示例数据）：[命令, 次数（按 614 次失败的基准缩放）, 最长连跑]
 const RETRIES = [['wrangler deploy --env production', 37, 4], ['npm run build', 21, 3], ['pytest -q tests/', 14, 3], ['gh pr merge --merge', 9, 2], ['latexmk -pdf main.tex', 7, 2]];
@@ -91,8 +119,8 @@ TIPS.trans = (i, j) => '<b>' + TRANS_NAMES[+i] + ' → ' + TRANS_NAMES[+j] + '</
 Object.assign(ACT, {
   sortTools: (el) => { const k = el.dataset.k; if (S.tools.sort === k) S.tools.dir *= -1; else { S.tools.sort = k; S.tools.dir = k === 'name' ? 1 : -1; } render(); },
   toggleTool: (el) => { S.tools.open = S.tools.open === el.dataset.t ? null : el.dataset.t; render(); },
-  failOnly: () => { S.tools.failOnly = !S.tools.failOnly; render(); },
+  failOnly: () => { S.tools.failOnly = !S.tools.failOnly; store.set('toolsFailOnly', S.tools.failOnly); render(); },
+  toggleMcp: (el) => { S.tools.mcpOpen = S.tools.mcpOpen === el.dataset.k ? null : el.dataset.k; render(); },
   openFail: (el) => { S.tools.openFail = S.tools.openFail === el.dataset.k ? null : el.dataset.k; render(); },
-  failSessions: () => { S.fric = '工具 / 环境失败'; go('sessions'); toast('已筛选出现「工具 / 环境失败」的会话'); },
-  csv: () => openCSV()
+  failSessions: () => { S.fric = '工具 / 环境失败'; go('sessions'); toast('已筛选出现「工具 / 环境失败」的会话'); }
 });

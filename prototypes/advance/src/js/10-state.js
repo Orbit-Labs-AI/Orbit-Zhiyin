@@ -11,7 +11,7 @@ const S = {
   winGone: false, widgets: false,
   persona: { period: 'sep', vs: 'past' },
   sess: { sel: FEAT_ID, q: '', mode: 'single', cmp: null, zoom: 1, axis: 'time', ph: 30.8, playing: false, hi: null },
-  tools: { sort: 'n', dir: -1, failOnly: false, open: null, figma: true, openFail: null },
+  tools: { sort: 'n', dir: -1, failOnly: store.get('toolsFailOnly', true) !== false, open: null, figma: true, openFail: null, mcpOpen: null },   // F24：「仅看失败」默认开，切换后记住
   proj: { sel: 'latentskill', group: 'project', cmp: null },
   recs: { dim: 'all', lv: new Set([1, 2, 3]), aud: 1, sel: 'pr-wrapup', tab: 'preview', scope: 'global', gone: new Set() },
   lib: { tab: 'for', kind: '全部', q: '' },

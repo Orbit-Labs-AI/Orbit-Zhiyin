@@ -33,7 +33,7 @@ test('recs cards carry the unified metric, select by keyboard, and strike one ca
   expect(saves.slice(0, 2)).toEqual(['4.3%', '3.8%']);   // 省时 · token of the top card
   expect(saves.join(' ')).not.toMatch(/h|min/);
   // sorted by the main share (the first number) inside each group（高收益 · 低成本 / 值得投入 · 需要配置）
-  const groups = await page.evaluate(() => { const out = []; for (const el of document.querySelectorAll('#content .stack > *')) { if (el.classList.contains('eb')) out.push([]); else if (el.classList.contains('rcard')) { out[out.length - 1].push(parseFloat(el.querySelector('.rc-save b').textContent.replace(/[^\d.]/g, ''))); } } return out; });
+  const groups = await page.evaluate(() => { const out = []; for (const el of document.querySelectorAll('#content .stack > *')) { if (el.classList.contains('eb')) out.push([]); else if (el.classList.contains('rcard')) { const b = el.querySelector('.rc-save b'); out[out.length - 1].push(b ? parseFloat(b.textContent.replace(/[^\d.]/g, '')) : -1); } } return out; });   // 未估算 (model) → -1, sorts last
   expect(groups.length).toBe(2);
   for (const g of groups) for (let i = 1; i < g.length; i++) expect(g[i]).toBeLessThanOrEqual(g[i - 1] + 1e-9);
   await expect(page.locator('#content .rcard').first().locator('.rc-ag .dot')).toHaveCount(2);
@@ -80,6 +80,8 @@ test('install loop: scoped preview, guarded steps, written sheet with undo count
   await expect(modal).toContainText('已写入 SKILL.md');
   await expect(modal).toContainText('撤销倒计时');
   await expect(modal).toContainText('7 天效果追踪已开始');
+  await expect(modal).toContainText(await page.evaluate(() => '安装前 7 天作为基准（' + recX('pr-wrapup').n[0] + ' 个会话）'));   // F15
+  expect(await modal.innerText()).not.toMatch(/\bn\s*[=≈]/);
   const left0 = await modal.locator('#instLeft').textContent();
   await expect(modal.locator('#instLeft')).not.toHaveText(left0, { timeout: 2500 });
   expect(await page.evaluate(() => S.installed.get('pr-wrapup').scope)).toBe('proj');
@@ -120,12 +122,16 @@ test('7-day tracking shows the ▲ timeline, a dumbbell per metric with n and in
   await expect(page.locator('#content .rc-days')).toBeVisible();
   await expect(page.locator('#content .rc-days i.on')).toHaveCount(3);
   await expect(page.locator('#content')).toContainText('第 3 / 7 天');
+  await expect(page.locator('#content .rc-dlbl')).toContainText(/安装前 7 天 · \d+ 个会话/);
   await page.click('#content [data-act="ff7"]');
   await expect(page.locator('#content .rc-verdict')).toContainText('有效');
   await expect(page.locator('#content .rc-metric')).toHaveCount(3);
   await expect(page.locator('#content .rc-metric svg.vz-svg')).toHaveCount(3);
   await expect(page.locator('#content .rc-metric').first()).toContainText('95% CI');
-  await expect(page.locator('#content .rc-metric').first()).toContainText('n 12 / 11');
+  await expect(page.locator('#content .rc-metric').first()).toContainText('前后 12 / 11 个会话');
+  await expect(page.locator('#content .rc-dlbl')).toContainText('安装前 7 天 · 12 个会话');
+  await expect(page.locator('#content .rc-dlbl')).toContainText('7 天 · 11 个会话');
+  expect(await page.locator('#content').innerText()).not.toMatch(/\bn\s*[=≈]/);   // F15: no n= anywhere on the recs page
   await expect(page.locator('#content .rcard[data-id="pr-wrapup"]')).toContainText('已安装 · 有效');
   // 样本不足 when either window is thin
   await page.evaluate(() => { S.installed.set('latex-hook', { days: 7, scope: 'global', target: RECI['latex-hook'].target }); S.recs.sel = 'latex-hook'; S.recs.peek = 'latex-hook'; render(); });
