@@ -266,3 +266,13 @@ def test_new_agents_without_minimum_versions_report_version_unknown():
     caps = capabilities("opencode", "1.2.3")
     assert caps["skills"] is True and "skills" in caps["version_unknown"]
     assert capabilities("codex", "0.80.0")["version_unknown"] == []
+
+
+def test_plan_targets_carry_version_check(env, fake_run, tmp_path):
+    from orbit_backend.install.targets import resolve_targets
+
+    info = environment(env, cache_dir=tmp_path / "cache")
+    spec = {"kind": "skill", "id": "s", "agents": ["claude_code"],
+            "payload": {"name": "s", "files": [{"rel": "SKILL.md", "text": "x"}]}}
+    rows = [t for t in resolve_targets(spec, info, env=env) if t["mappable"]]
+    assert rows and {t["version_check"] for t in rows} == {"known"}

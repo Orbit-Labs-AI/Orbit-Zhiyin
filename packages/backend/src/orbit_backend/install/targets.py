@@ -539,8 +539,12 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
                   "oc_user": opencode_config_file(cfg) if agent == OC else "",
                   "oc_proj": opencode_config_file(project) if agent == OC and project else ""}
 
+        # "unknown": no checked minimum version for this agent, so it is not shown as compatible.
+        vcheck = ("unknown" if cap in (info.get("capabilities") or {}).get("version_unknown", ())
+                  else "known")
+
         def target(path: str, content, *, action=None, pointer=None, row=row, agent=agent, note=note,
-                   **extra) -> None:
+                   vcheck=vcheck, **extra) -> None:
             reason = check_path(path, env, env_info, project)
             shown = display(path, home)
             if reason == "symlink_escape" and (real := follow_link(path, home)):
@@ -557,9 +561,7 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
                  "write_mode": row.write_mode if act == "merge_json" else "set", "file_mode": None,
                  "block_id": f"orbit:{spec['id']}" if act in ("md_block", "toml_block") else None,
                  "requires_trust": row.requires_trust, "mappable": True, "reason": None, "note": note,
-                 # "unknown": no checked minimum version for this agent, so not shown as compatible.
-                 "version_check": "unknown" if cap in (info.get("capabilities") or {}).get(
-                     "version_unknown", ()) else "known",
+                 "version_check": vcheck,
                  "group": None, "shared_layer": row.shared_layer or (project is not None and _inside(path, project)
                                                                      and row.scope != "local"), "kind": kind}
             t.update(extra)
