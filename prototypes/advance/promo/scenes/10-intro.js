@@ -91,7 +91,8 @@ scene('10-intro', () => {
   AGD.key(0.2, 'ring', { ...AGD.P.cluster, ph: 0, dur: .3, stag: .12 });
   // 1a.2: 「用 AI Agent，」 (the subject, small) floats up out of the cluster from b0.4 — characters blur in while the line
   // rises 18 px onto y 430 (the cluster's top edge is y 466); the headline 「正在成为每个人的日常」 wipes in a word on
-  // b0.9 / 1.5 / 2.1 (.45 beat each, ≤ 1600) and 「日常」 (orange) stamps in on b2.7 and hits on b3.0. 1a.3: both lines leave
+  // b1.2 / 1.7 / 2.2 (.45 beat each, ≤ 1600; 「正在」 waits until the pen has left the type band, so the small line reads
+  // alone first) and 「日常」 (orange) stamps in on b2.7 and hits on b3.0. 1a.3: both lines leave
   // b3.6–4.2 — fade + blur, drifting up 60 px; until then both keep a slow push (+6 %)
   const up60 = (tl, life) => -60 * E.inOut(clamp((tl - (life - BB(.6))) / BB(.6)));
   txt(0.4, 4.2, [['lt in-s', '用 AI Agent，']], { x: 960, y: 430, align: 'c' }, {
@@ -99,7 +100,7 @@ scene('10-intro', () => {
     tick: (el, tl, life) => { el.style.transform = 'translate(-50%,-50%) translateY(' + (18 * (1 - E.out(clamp(tl / BB(.9)))) + up60(tl, life)).toFixed(1) + 'px) scale(' + (1 + .06 * tl / life).toFixed(4) + ')'; }
   });
   const HEAD = ['hv sv in-big', '<span class="w">正在</span><span class="w">成为</span><span class="w">每个人的</span><span class="w in-hot">日常</span>'];
-  const HB0 = .5, HB1 = 4.2, HAT = [.4, 1.0, 1.6, 2.2];
+  const HB0 = .5, HB1 = 4.2, HAT = [.7, 1.2, 1.7, 2.2];
   txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: HAT, stamp: 3, fit: 1600, push: .06, up: 60, out: .6 }) });
   // T0′ the pen (b0.8–3.6): a ∪ arc (gap 56, sag −14, r 28) 112 px under the headline, centred under the newest word. A
   // centred line re-centres as a word grows, so word k sits at 960 + (width of the words before it) / 2 for its whole
@@ -272,12 +273,12 @@ scene('10-intro', () => {
   // under half opacity by b12.1 instead of .77
   txt(10.3, 12.4, [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
     { anim: wipe({ at: [0], dur: .5, push: .03, out: .6, spread: true }) });
-  // the gloss (v17.2): 「人们正在用 Agent 重新设计一切」 fades in 0.3 beat after 「Everything」 is whole (b11.1; .45 beat, rising
-  // 14 px out of a light blur) at y 728 under it, and leaves a touch after the English (b12.15–12.75) so it can be read;
+  // the gloss (v17.2): 「人们正在用 Agent 重新设计一切」 fades in 0.3 beat after 「Everything」 is whole (b11.1; .35 beat, rising
+  // 14 px out of a light blur) at y 728 under it, and leaves a touch after the English (b12.25–12.75, gone before the box passes y 728) so it reads ≈ 1.1 beats;
   // 15-redesign's first type (b12.8) is not under it
   txt(11.1, 12.75, [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 728, align: 'c' }, {
     anim: (el, tl, life) => {
-      const p = E.out(clamp(tl / BB(.45))), q = E.inOut(clamp((tl - (life - BB(.6))) / BB(.6)));
+      const p = E.out(clamp(tl / BB(.35))), q = E.inOut(clamp((tl - (life - BB(.5))) / BB(.5)));
       el.style.transform = 'translate(-50%,-50%) translateY(' + (14 * (1 - p) - 20 * q).toFixed(1) + 'px)';
       leave(el, p * (1 - q));
       if (p < .999 && q < .001) el.style.filter = 'blur(' + ((1 - p) * 5).toFixed(1) + 'px)';
