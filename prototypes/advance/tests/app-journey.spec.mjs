@@ -18,6 +18,8 @@ const SHOTS = process.env.JOURNEY_SHOTS || path.resolve('test-results', 'journey
 const FAKE_HOME = process.env.JOURNEY_FAKE_HOME || '';
 const VIEW = { width: 1440, height: 900 };
 const FEATURES = ['chooseFolder', 'save', 'openExternal', 'reveal', 'window'];
+// the version the real host injects (apps/desktop/Orbit.swift appVersion): the about checks follow the App being shipped
+const APP_VERSION = fs.readFileSync(new URL('../../../apps/desktop/Orbit.swift', import.meta.url), 'utf8').match(/let appVersion = "([^"]+)"/)[1];
 const SOURCES = ['claude_code', 'codex', 'dsh', 'hermes', 'kimi', 'opencode', 'pi'];
 const pad = (n) => String(n).padStart(2, '0');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -26,10 +28,10 @@ test.use({ viewport: VIEW, deviceScaleFactor: 1, actionTimeout: 8000, navigation
 test.describe.configure({ mode: 'serial' });
 
 // ---- fake WKWebView host ----
-function hostInit([endpoint, token, features, native]) {
+function hostInit([endpoint, token, features, native, app]) {
   if (endpoint) { window.__ORBIT_ENDPOINT__ = endpoint; window.__ORBIT_TOKEN__ = token; }
   if (!native) return;
-  window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.1', platform: 'macos', features };
+  window.__ORBIT_NATIVE__ = { v: 1, app, platform: 'macos', features };
   window.__nativeMsgs = []; window.__folders = [];
   const fire = (name, detail) => setTimeout(() => window.dispatchEvent(new CustomEvent(name, { detail })), 30);
   window.webkit = { messageHandlers: { orbit: { postMessage(m) {
@@ -124,7 +126,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
   test.skip(!GW || !TOKEN, 'needs LIVE_GATEWAY + ORBIT_TOKEN (scripts/check-app-journey.sh)');
   test.setTimeout(20 * 60_000);
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await page.addInitScript(hostInit, [GW, TOKEN, FEATURES, true]);
+  await page.addInitScript(hostInit, [GW, TOKEN, FEATURES, true, APP_VERSION]);
   const R = recorder(page, 'live');
   const step = R.step;
   const index = [];
@@ -497,7 +499,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
       await ev(page, (t) => { openSettings(t); }, t); await sleep(1200);
       const txt = await ev(page, () => (document.querySelector('#set') || {}).innerText || '');
       s.notes.push(String(txt).replace(/\s+/g, ' ').slice(0, 240));
-      if (t === 'about' && !/0\.0\.1/.test(txt)) throw new Error('about tab does not show 0.0.1');
+      if (t === 'about' && !txt.includes(APP_VERSION)) throw new Error('about tab does not show ' + APP_VERSION);
     }));
     await step('settings-' + t + '-write', async (s) => {
       const n0 = R.failed.length;
@@ -575,7 +577,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
     await ev(page, () => openAbout()); await sleep(800);
     const t = await ev(page, () => (document.querySelector('#modal:not([hidden])') || document.querySelector('#set:not([hidden])') || {}).innerText || '');
     s.notes.push(String(t).replace(/\s+/g, ' ').slice(0, 200));
-    if (!/0\.0\.1/.test(t)) throw new Error('about does not show 0.0.1');
+    if (!t.includes(APP_VERSION)) throw new Error('about does not show ' + APP_VERSION);
   }));
   await step('about-close', async () => { await closeAll(page); }, { shot: false });
   await step('native-commands', async (s) => {
