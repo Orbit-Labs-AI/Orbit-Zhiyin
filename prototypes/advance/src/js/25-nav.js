@@ -15,7 +15,45 @@ function go(route, keepScroll) {
   render();
   if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
+/* Re-render keeps what the user was doing: every box scrolled inside the sidebar or the page (not only #content — the
+   sidebar list, tables and lists with their own scroll) and the focused field (caret and value) are put back on the
+   rebuilt DOM, found again by their child-index path (the live strip, re-inserted after each render, is not counted).
+   window.__renderCount counts full renders (?debug=render also logs them) so tests can tell a frame patch from a render. */
+const UI_SCROLLED = new Set();
+['#side', '#main'].forEach((sel) => { const r = $(sel); if (r) r.addEventListener('scroll', (e) => { if (e.target && e.target.nodeType === 1) UI_SCROLLED.add(e.target); }, true); });
+const uiKids = (el) => Array.from(el.children).filter((c) => !(c.dataset && c.dataset.tl === 'strip'));
+function uiPath(el, root) { const p = []; while (el && el !== root) { const up = el.parentElement; if (!up) return null; p.unshift(uiKids(up).indexOf(el)); el = up; } return el === root ? p : null; }
+function uiAt(root, p) { let el = root; for (const i of p) { el = el && uiKids(el)[i]; if (!el) return null; } return el; }
+function uiSnap() {
+  const roots = [$('#side'), $('#main')], out = { sc: [], f: null };
+  UI_SCROLLED.forEach((el) => {
+    if (!el.isConnected) { UI_SCROLLED.delete(el); return; }
+    if (!el.scrollTop && !el.scrollLeft) return;
+    const ri = roots.findIndex((r) => r && r.contains(el)); if (ri < 0) return;
+    const p = uiPath(el, roots[ri]); if (p) out.sc.push({ ri, p, tag: el.tagName, cls: el.className, t: el.scrollTop, l: el.scrollLeft });
+  });
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName)) {
+    const ri = roots.findIndex((r) => r && r.contains(a));
+    if (ri >= 0) { const p = uiPath(a, roots[ri]); let s0 = null, s1 = null; try { s0 = a.selectionStart; s1 = a.selectionEnd; } catch (e) { /* type without caret */ } if (p) out.f = { ri, p, tag: a.tagName, id: a.id, v: a.value, s0, s1 }; }
+  }
+  return out;
+}
+function uiRestore(snap) {
+  const roots = [$('#side'), $('#main')];
+  snap.sc.forEach((x) => { const el = roots[x.ri] && uiAt(roots[x.ri], x.p); if (el && el.tagName === x.tag && el.className === x.cls) { el.scrollTop = x.t; el.scrollLeft = x.l; UI_SCROLLED.add(el); } });
+  const f = snap.f; if (!f || (document.activeElement && document.activeElement !== document.body && document.activeElement.isConnected)) return;
+  const el = (f.id && document.getElementById(f.id)) || (roots[f.ri] && uiAt(roots[f.ri], f.p));
+  if (!el || el.tagName !== f.tag) return;
+  if (el.value !== f.v && !el.value) el.value = f.v;
+  el.focus({ preventScroll: true });
+  try { if (f.s0 != null) el.setSelectionRange(f.s0, f.s1); } catch (e) { /* type without caret */ }
+}
+const UI_DEBUG = (() => { try { return new URLSearchParams(location.search).get('debug') === 'render'; } catch (e) { return false; } })();
+window.__renderCount = 0;
 function render() {
+  window.__renderCount++; if (UI_DEBUG) console.debug('[render]', window.__renderCount, S.route);
+  const snap = uiSnap();
   applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
   if (!$('#set').hidden) renderSet();
@@ -23,6 +61,7 @@ function render() {
   // the window rect cannot change while the page renders (stageSize is cached, 22-window.js): re-place only the dependants
   // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
   placeDeps();
+  uiRestore(snap);
   if (window.__lvRendered) window.__lvRendered();
 }
 function renderMain() {
@@ -93,6 +132,9 @@ function renderWtop() {
    redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
 /* sidebar building blocks, shared by both editions (Advance shows every group, Lite the same groups with fewer pages) */
 const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
+// SIDE_EXTRA(): optional row under the edition switch, shared by both editions (live: import progress / reopen onboarding)
+let SIDE_EXTRA = null;
+const sideExtra = () => (SIDE_EXTRA ? SIDE_EXTRA() : '');
 const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '">' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
 function sideAgents() {
   const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
@@ -104,7 +146,7 @@ function renderSide() {
   const n = sel({ noExtra: true }).length;
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
-  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
+  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
     group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools') + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('sentiment', '情绪与语义', 'sentiment')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
     group('agents', 'Agents', sideAgents(), '会话') +

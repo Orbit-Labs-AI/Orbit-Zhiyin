@@ -88,6 +88,19 @@ function drawOB() {
   OB.drawn = s;
 }
 
+// Import stage names and notes in one place (the live first run, the sidebar entry and notifications read them from here),
+// so the wording can be replaced once the backend's import phases are settled. stages: [id, label] in display order;
+// a gateway-provided label (/v1/shell/onboarding progress.stages) still wins over these.
+const OB_TEXT = {
+  stages: [['backfill', '导入历史会话'], ['stats', '统计分析'], ['semantic', '语义分析'], ['persona', '协作画像']],
+  semanticOff: '仅统计模式：不调用模型',
+  preparing: '准备来源', queued: '排队中', failed: '导入失败', skipped: '跳过',
+  // raw progress.stage from the job frame → the note under 导入历史会话 (unchanged for now; mapping comes later)
+  stageNote: (raw) => (raw ? String(raw) : null),
+  headRun: '正在导入你的会话', headDone: '导入已完成',
+  bgHint: '可以关闭窗口，完成后通知你',
+  side: { run: '导入中', analyze: '分析中', fail: '导入未完成', done: '重新打开引导', start: '开始导入', view: '查看', retry: '重试' }
+};
 // Live step 1 (OB.live, filled by 95-live-native.js): the sources come from /v1/shell/onboarding (estimates) and
 // /v1/app/discovery, 添加文件夹 goes through LVN.addSource() (native chooseFolder, or the path field in a browser), and once
 // 开始分析 has posted the import job the button row becomes the four onboarding stages driven by job frames.
@@ -110,16 +123,16 @@ function obLiveStep() {
   const tot = chosen.reduce((a, x) => a + (x.est || 0), 0);
   const first = chosen.reduce((a, x) => (x.earliest && (!a || x.earliest < a) ? x.earliest : a), null);
   const day = (ms) => { try { return new Date(ms).toISOString().slice(0, 10); } catch (e) { return '—'; } };
-  const head = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">' + (L.job ? '正在导入你的会话' : rows.length ? '找到了这些 Agent 的会话' : '先告诉 Orbit 会话在哪里') + '</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div>';
+  const head = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">' + (L.done ? OB_TEXT.headDone : L.job ? OB_TEXT.headRun : rows.length ? '找到了这些 Agent 的会话' : '先告诉 Orbit 会话在哪里') + '</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div>';
   let foot;
   if (L.job || L.starting) {
     const st = L.stages || [];
     const pr = L.job && L.job.progress || {}; const ratio = pr.total ? clamp(pr.completed / pr.total, 0, 1) : null;
     foot = '<div class="st-steps ob-stages" data-ob="stages">' + st.map((x, i) => { const k = x.status === 'done' ? 'done' : x.status === 'running' ? 'run' : x.status === 'failed' ? 'stop' : 'todo';
-      return '<div class="step ' + k + '" data-stage="' + esc(x.id) + '" data-st="' + esc(x.status) + '"><span class="mk">' + (k === 'done' ? '✓' : k === 'stop' ? '!' : i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><span class="t">' + esc(x.label) + '</span>' + (x.note ? '<span class="s">' + esc(x.note) + '</span>' : '') + '</span><span class="mono cap" style="font-size:11px;text-align:right">' + (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? '跳过' : '') + '</span></div>'; }).join('') + '</div>' +
+      return '<div class="step ' + k + '" data-stage="' + esc(x.id) + '" data-st="' + esc(x.status) + '"><span class="mk">' + (k === 'done' ? '✓' : k === 'stop' ? '!' : i + 1) + '</span><span class="col" style="gap:1px;min-width:0"><span class="t">' + esc(x.label) + '</span>' + (x.note ? '<span class="s">' + esc(x.note) + '</span>' : '') + '</span><span class="mono cap" style="font-size:11px;text-align:right">' + (x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? OB_TEXT.skipped : '') + '</span></div>'; }).join('') + '</div>' +
       '<div class="g-bar"><i data-ob="bar" style="width:' + (ratio == null ? 4 : Math.round(ratio * 100)) + '%"></i></div>' +
       (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
-      '<div class="row" style="justify-content:space-between"><span class="cap">可以关闭窗口，完成后通知你</span>' + (L.err ? '<button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px">重试</button>' : '<button type="button" class="btn" data-act="obBgImport">在后台继续</button>') + '</div>';
+      '<div class="row" style="justify-content:space-between"><span class="cap">' + (L.done ? '协作画像已生成' : OB_TEXT.bgHint) + '</span>' + (L.err ? '<button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px">重试</button>' : L.done ? '<button type="button" class="btn p" data-act="obPlay" style="height:32px;padding:0 18px">查看揭晓</button>' : '<button type="button" class="btn" data-act="obBgImport">在后台继续</button>') + '</div>';
   } else {
     foot = (L.err ? '<div class="cap" data-ob="err" style="color:var(--crit)">' + esc(L.err) + '</div>' : '') +
       '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (chosen.length ? '' : ' disabled') + '>开始分析</button></div>';
