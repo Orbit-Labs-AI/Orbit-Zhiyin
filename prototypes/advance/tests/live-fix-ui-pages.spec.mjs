@@ -101,7 +101,7 @@ test('D/E: an empty persona says keep using Orbit, names its own period; axes us
   await stubGateway(page, 'core');
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
-  await page.evaluate(() => { LV.hydrate({ rows: [], projects: [], agents: [] }); S.range = 30; go('persona'); });
+  await page.evaluate(() => { LV.hydrate({ rows: [], projects: [], agents: [], discovered: [{ agent: 'claude_code', root: '~/.claude' }] }); S.srcOff = new Set(); S.range = 30; go('persona'); });
   const low = page.locator('.pe-low');
   await expect(low).toContainText('会话还不够，继续使用 Orbit 就会积累');
   await expect(low.locator('[data-act="peRelax"]')).toHaveCount(0);
