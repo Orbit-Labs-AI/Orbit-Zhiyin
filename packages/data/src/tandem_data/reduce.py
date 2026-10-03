@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from tandem_data import models as model_catalog
+from tandem_data import tool_kinds
 from tandem_data.command_spec import command_spec
 from tandem_data.contract import TOKENS, canonical, uid
 from tandem_data.shell import command_head
@@ -239,18 +240,18 @@ def _model(store, provider, raw):
     return known[0], "resolved"
 
 
+# kind -> every agent's lower-cased names for it (union of tool_kinds.AGENT_TOOL_KINDS).
+# The keys are also the category vocabulary a connector may set as ``attrs.category``;
+# the backend's tool_map endpoint lists this table. Classification itself is per agent.
 TOOL_KINDS = {
-    "shell": {"bash", "exec", "exec_command", "commandexecution", "shell", "pwsh", "terminal"},
-    "file.read": {"read", "read_file", "view_image"},
-    "file.edit": {"edit", "multiedit", "apply_patch", "filechange", "str_replace_editor"},
-    "file.write": {"write", "write_file"},
-    "search": {"grep", "glob", "find", "search"},
-    "web.search": {"web.search", "websearch", "web_search"},
-    "web.fetch": {"web.fetch", "webfetch", "web_fetch"},
-    "subagent": {"agent", "task", "spawn_agent", "subagent", "delegate_task"},
-    "skill": {"skill"},
-    "plan": {"todowrite", "update_plan", "todo_write", "todo/write"},
-    "ask_user": {"askuserquestion", "request_user_input", "ask_user_question"},
+    kind: {
+        name
+        for table in tool_kinds.AGENT_TOOL_KINDS.values()
+        for name, mapped in table.items()
+        if mapped == kind
+    }
+    for kind in tool_kinds.KINDS
+    if kind != "other"
 }
 
 
@@ -267,30 +268,34 @@ def _command_spec_json(command, cwd, project_id):
     return _cached_command_spec_json(command, cwd, project_id)
 
 
-def tool_metadata(name, attrs, *, cwd=None, project_id=None):
-    kind = next((key for key, names in TOOL_KINDS.items() if name.lower() in names), "other")
+def tool_metadata(name, attrs, *, cwd=None, project_id=None, agent=None):
+    """L3 tool columns. ``kind_known`` (not a column) is False for names no table lists."""
+    kind, known = tool_kinds.tool_kind(name, agent)
     if attrs.get("category") in TOOL_KINDS:
-        kind = attrs["category"]
+        kind, known = attrs["category"], True
     server, tool = attrs.get("mcp_server"), attrs.get("mcp_tool")
+    if server and tool:
+        kind, known = "mcp", True
     if name.startswith("mcp__"):
         parts = name.split("__", 2)
         if len(parts) == 3:
-            kind, server, tool = "mcp", parts[1], parts[2]
+            kind, known, server, tool = "mcp", True, parts[1], parts[2]
     args = attrs.get("input")
-    files = []
+    ops = tool_kinds.file_ops(args)
     command = None
-    skill = None
+    skill = attrs.get("skill")
     if isinstance(args, dict):
-        for key in ("path", "file_path", "filename"):
-            if isinstance(args.get(key), str):
-                files.append(args[key])
-        command = args.get("command", args.get("cmd"))
-        skill = args.get("skill") if kind == "skill" else attrs.get("skill")
+        command = tool_kinds.command_text(args.get("command", args.get("cmd")))
+        if kind == "skill":
+            skill = args.get("skill", args.get("name")) or skill
+    elif kind == "shell":
+        command = tool_kinds.command_text(args)
     # Effective program (cd/env/shell wrappers unwrapped); never a path or an assignment.
     head = command_head(command)
+    workdir = args.get("workdir", args.get("cwd")) if isinstance(args, dict) else None
     spec = (
-        _command_spec_json(command, (args or {}).get("workdir", attrs.get("cwd", cwd)), project_id)
-        if kind == "shell" and isinstance(command, str)
+        _command_spec_json(command, workdir or attrs.get("cwd", cwd), project_id)
+        if kind == "shell" and command
         else None
     )
     return {
@@ -299,10 +304,12 @@ def tool_metadata(name, attrs, *, cwd=None, project_id=None):
         "kind": kind,
         "mcp_server": server,
         "mcp_tool": tool,
-        "skill": skill,
+        "skill": skill if isinstance(skill, str) else None,
         "command_head": head,
         "command_spec": spec,
-        "files": canonical(files),
+        "files": canonical([path for path, _ in ops]),
+        "file_ops": ops,
+        "kind_known": known,
     }
 
 
@@ -479,6 +486,7 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
         progress({"stage": "derive_projects", "completed": index + 1, "total": len(metas)})
 
     progress({"stage": "derive_sessions", "completed": 0, "total": len(metas)})
+    agents = dict(store.db.execute("SELECT source_id, agent FROM source").fetchall())
     for index, (session_uid, meta) in enumerate(metas.items()):
         events = []
         # Only the columns _derive_session reads: text and ext can be large.
@@ -491,7 +499,13 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
             event["attrs"] = json.loads(event["attrs"])
             events.append(event)
         _derive_session(
-            store, session_uid, meta, events, recorded_roots.get(session_uid), project_cache
+            store,
+            session_uid,
+            meta,
+            events,
+            recorded_roots.get(session_uid),
+            project_cache,
+            agents.get(meta["source_id"]),
         )
         progress({"stage": "derive_sessions", "completed": index + 1, "total": len(metas)})
     _link_spawns(store, metas, spawn_ids)
@@ -561,7 +575,9 @@ def _insert_grouped(db, table, rows):
     insert_rows(db, table, run)
 
 
-def _derive_session(store, session_uid, meta, events, recorded_root=None, shared_projects=None):
+def _derive_session(
+    store, session_uid, meta, events, recorded_root=None, shared_projects=None, agent=None
+):
     current_turn = None
     turns = {}
     context = {"cwd": None, "provider": None, "model_raw": None, "effort_raw": None}
@@ -647,7 +663,9 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                 "native_call_id": event["call_id"],
                 "call_event_uid": event["event_uid"],
                 "result_event_uid": None,
-                **tool_metadata(attrs["name"], attrs, cwd=context["cwd"], project_id=project_id),
+                **tool_metadata(
+                    attrs["name"], attrs, cwd=context["cwd"], project_id=project_id, agent=agent
+                ),
                 "subagent_session_uid": attrs.get("subagent_session_uid"),
                 "status": attrs.get("status") or "unknown",
                 "pairing_quality": "missing_result",
@@ -717,6 +735,7 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                             attrs,
                             cwd=context["cwd"],
                             project_id=project_id,
+                            agent=agent,
                         ),
                         "status": "ambiguous" if matches else "orphan_result",
                         "pairing_quality": "ambiguous" if matches else "missing_call",
@@ -867,7 +886,12 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
     # Same rows in the same order as row-by-row inserts, written per table in batches
     # (foreign keys are deferred, so tool_call rows may precede their turn rows).
     call_events = []
+    unmapped = {}
     for values, call in tools.values():
+        values.pop("file_ops")
+        if not values.pop("kind_known") and call:
+            first, count = unmapped.get(values["name_raw"], (call["record_uid"], 0))
+            unmapped[values["name_raw"]] = (first, count + 1)
         for role, field in (("call", "call_event_uid"), ("result", "result_event_uid")):
             if values.get(field):
                 call_events.append((values["call_uid"], values[field], role))
@@ -883,6 +907,24 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
             for filename in json.loads(values["files"]):
                 if Path(filename).suffix:
                     features[("file_extension", Path(filename).suffix)] += 1
+    called = sum(1 for _, call in tools.values() if call)
+    for name, (record_uid, count) in unmapped.items():
+        # No tolerance threshold: every table lists the harness's registered names, so any
+        # unlisted name is a mapping gap. The share says how much of the session it skews.
+        store.issue(
+            meta["source_id"],
+            "unmapped_tool_name",
+            stage="l3",
+            record_uid=record_uid,
+            severity="info",
+            detail={
+                "agent": agent,
+                "name": name,
+                "calls": count,
+                "session_calls": called,
+                "share": round(count / called, 4),
+            },
+        )
     _insert_grouped(store.db, "tool_call", [values for values, _ in tools.values()])
     store.db.executemany("INSERT INTO tool_call_event VALUES(?,?,?)", call_events)
     store.db.executemany("INSERT OR IGNORE INTO tool_call_event VALUES(?,?,?)", permission_evidence)
