@@ -13,10 +13,13 @@ const AGLOGO = {
   km: ['0 0 24 24', 'M21.846 0a1.923 1.923 0 110 3.846H20.15a.226.226 0 01-.227-.226V1.923C19.923.861 20.784 0 21.846 0zM11.065 11.199l7.257-7.2c.137-.136.06-.41-.116-.41H14.3a.164.164 0 00-.117.051l-7.82 7.756c-.122.12-.302.013-.302-.179V3.82c0-.127-.083-.23-.185-.23H3.186c-.103 0-.186.103-.186.23V19.77c0 .128.083.23.186.23h2.69c.103 0 .186-.102.186-.23v-3.25c0-.069.025-.135.069-.178l2.424-2.406a.158.158 0 01.205-.023l6.484 4.772a7.677 7.677 0 003.453 1.283c.108.012.2-.095.2-.23v-3.06c0-.117-.07-.212-.164-.227a5.028 5.028 0 01-2.027-.807l-5.613-4.064c-.117-.078-.132-.279-.028-.381z', 1],
   oc: ['0 0 54 42', 'M18 12H6V30H18V12ZM24 36H0V6H24V36ZM54 12H36V30H54V36H30V6H54V12Z', 1]
 };
-// 一枚 Agent 徽章（中心 cx, cy、半径 r）：纸色圆底 + Agent 色细环 + 单色标志；没有标志时是首字母
-function agLogo(id, cx, cy, r, color) {
-  const lg = AGLOGO[id], s = r * 1.3, x = (cx - s / 2).toFixed(1), y = (cy - s / 2).toFixed(1);
-  const mark = lg ? '<svg x="' + x + '" y="' + y + '" width="' + s.toFixed(1) + '" height="' + s.toFixed(1) + '" viewBox="' + lg[0] + '" overflow="visible"><path d="' + lg[1] + '" fill="' + color + '"' + (lg[2] ? ' fill-rule="evenodd"' : '') + '/></svg>'
-    : '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central" font-size="' + (r * 1.05).toFixed(1) + '" font-weight="700" fill="' + color + '">' + esc((agent(id).short || id).slice(0, 1).toUpperCase()) + '</text>';
-  return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--surface)" stroke="' + color + '" stroke-width="1.3"/>' + mark;
+// 只有标志本身（中心 cx, cy、边长 s）：没有标志时是首字母。会话级的小标记用它
+function agGlyph(id, cx, cy, s, color) {
+  const lg = AGLOGO[id], x = (cx - s / 2).toFixed(1), y = (cy - s / 2).toFixed(1);
+  return lg ? '<svg x="' + x + '" y="' + y + '" width="' + s.toFixed(1) + '" height="' + s.toFixed(1) + '" viewBox="' + lg[0] + '" overflow="visible"><path d="' + lg[1] + '" fill="' + color + '"' + (lg[2] ? ' fill-rule="evenodd"' : '') + '/></svg>'
+    : '<text x="' + (+cx).toFixed(1) + '" y="' + (+cy).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (s * 0.95).toFixed(1) + '" font-weight="700" fill="' + color + '">' + esc((agent(id).short || id).slice(0, 1).toUpperCase()) + '</text>';
+}
+// 一枚 Agent 徽章（中心 cx, cy、半径 r）：圆底（默认 --surface，罗盘上用纸色 --bg）+ Agent 色细环 + 单色标志；没有标志时是首字母
+function agLogo(id, cx, cy, r, color, bg) {
+  return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + (bg || 'var(--surface)') + '" stroke="' + color + '" stroke-width="1.1"/>' + agGlyph(id, cx, cy, r * 1.3, color);
 }
