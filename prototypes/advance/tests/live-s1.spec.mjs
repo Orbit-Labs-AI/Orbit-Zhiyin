@@ -183,6 +183,38 @@ test('Lite: home, persona, sessions and recs run on the real agents; persona mon
   expect(errors).toEqual([]);
 });
 
+test('Lite persona: 匹配度 comes from /v1/uiview/persona/reveal for the same period when the code is classified', async ({ page }) => {
+  const errors = collectErrors(page);
+  const settled = fx('s1/persona-90-settled.json'), rv = fx('s1/reveal-settled.json');
+  const gw = await stubGateway(page, 's1', routes({ persona: () => settled, reveal: rv }));
+  await openLive(page, 'overview');
+  await page.evaluate(() => edSet('lite', 'l-persona'));
+  await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('lite|l-persona');
+  await expect(page.locator('.l-phero .letters')).toBeVisible();
+  const want = rv.candidates.find((c) => c.code === settled.code);
+  await expect(page.locator('.l-phero .l-match .bdg')).toHaveText('匹配度 ' + Math.round(want.match) + '%');
+  await expect(page.locator('.l-phero .l-match')).toContainText(settled.n + ' 个会话');
+  // the reveal is fetched for the Lite range, the same period as the persona it is matched against
+  const per = (x) => new URLSearchParams(x.query).get('period');
+  const pp = gw.seen.filter((x) => x.path === '/v1/uiview/persona').map(per), rp = gw.seen.filter((x) => x.path === '/v1/uiview/persona/reveal').map(per);
+  expect(rp.length).toBeGreaterThan(0);
+  expect(rp.every((x) => pp.includes(x))).toBe(true);
+  expect(await page.locator('#main').innerText()).not.toMatch(/\bn\s*[=≈]/);
+  // 播放揭晓 on the Lite page plays the same range: the reveal request carries the Lite period (30 days by default)
+  const range = await page.evaluate(() => ({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range]);
+  const before = gw.seen.length;
+  await page.locator('.l-phero [data-act="reveal"]').click();
+  await expect.poll(() => page.evaluate(() => OVL)).toBe('reveal');
+  const fired = gw.seen.slice(before).filter((x) => x.path === '/v1/uiview/persona/reveal').map(per);
+  expect(fired.length).toBeGreaterThan(0);
+  expect(fired.every((x) => x === range)).toBe(true);
+  // the overlay plays the page's code and 匹配度 (same candidates as .l-phero)
+  const g = await page.evaluate(() => ({ code: GNS && GNS.p.code, sim: GNS && (GNS.cands.find((c) => c.c === GNS.p.code) || {}).sim }));
+  expect(g.code).toBe(settled.code);
+  expect(g.sim).toBe(Math.round(want.match));
+  expect(errors).toEqual([]);
+});
+
 test('empty spine and missing endpoints: owned routes render honest empty states, zero page errors', async ({ page }) => {
   test.skip(!!PASS, 'stubbed answers (gw.set / 404s) only');
   const errors = collectErrors(page);

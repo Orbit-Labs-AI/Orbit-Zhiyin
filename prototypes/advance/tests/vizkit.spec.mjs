@@ -462,3 +462,20 @@ test('steps layout spaces events evenly and ⌘/Ctrl + wheel zooms around the cu
   for (let k = 0; k < 6; k++) { await page.keyboard.down('Control'); await page.mouse.wheel(0, 500); await page.keyboard.up('Control'); }
   await expect.poll(() => page.evaluate(() => window.__vzInst.spec.range.slice())).toEqual(before);
 });
+
+// F15: the sample count on a dist row is a plain integer with its unit, never the chart's value format ('{v}m' → '112m')
+test('dist rows and the scatter fit caption write the count with its unit, not n= and not the value format', async ({ page }) => {
+  await openGallery(page);
+  await mountOne(page, 'box', 720);
+  const want = await page.evaluate(() => VZ_DEMO.specs().box.rows.map((r) => r.values.length).filter((n) => n > 0).map((n) => n.toLocaleString('en-US') + ' 个会话'));
+  const box = page.locator('#vzLab .vz[data-lab="box"]');
+  const ax = await box.locator('svg text.vz-ax').allTextContents();
+  for (const w of want) expect(ax).toContain(w);
+  expect(ax.join('|')).not.toMatch(/m 个会话|\bn\s*[=≈]/);
+  await mountOne(page, 'box', 720, { format: 'pct' });
+  expect((await box.locator('svg text.vz-ax').allTextContents()).join('|')).not.toMatch(/% 个会话/);
+  await mountOne(page, 'scatter', 720);
+  const cap = await page.locator('#vzLab .vz[data-lab="scatter"] .vz-scale').innerText();
+  expect(cap).toMatch(/拟合 r = -?[\d.]+ · \d+ 个项目/);
+  expect(cap).not.toMatch(/\bn\s*[=≈]/);
+});

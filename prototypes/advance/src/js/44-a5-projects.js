@@ -96,7 +96,7 @@ PAGES.projects.after = () => {
   const pts = CUR.pjPts || []; if (!pts.length) return;
   const cmpRow = S.proj.cmp; const selId = S.proj.sel;
   const marks2 = (S.proj.cmpMode ? [{ id: selId, letter: 'A', r: 0 }] : []).concat(cmpRow ? [{ id: cmpRow, letter: 'B', r: 0, ring: true }] : []);
-  VZ.mount('pj-scatter', { type: 'pscatter', title: '各项目自主比与摩擦率', height: 260, points: pts, fit: true, labels: true, rMax: 18, rLabel: '时长', rFormat: (v) => f1(v) + ' h', selected: selId, marks2, x: { label: '自主比（工具调用 / 你的消息）→', format: (v) => v + '×' }, y: { label: '↑ 摩擦率', format: 'pct' }, legend: false, onSelect: (i, d) => { if (d && d.id) ACT.pickProject({ dataset: { p: d.id } }); } });
+  VZ.mount('pj-scatter', { type: 'pscatter', title: '各项目自主比与摩擦率', height: 260, points: pts, fit: true, nUnit: '个项目', labels: true, rMax: 18, rLabel: '时长', rFormat: (v) => f1(v) + ' h', selected: selId, marks2, x: { label: '自主比（工具调用 / 你的消息）→', format: (v) => v + '×' }, y: { label: '↑ 摩擦率', format: 'pct' }, legend: false, onSelect: (i, d) => { if (d && d.id) ACT.pickProject({ dataset: { p: d.id } }); } });
 };
 TIPS.split = (id) => { const r = projRows(sel({ project: null })).find((x) => x.p.id === id); if (!r) return ''; const tot = r.split.reduce((a, b) => a + b, 0) || 1; return '<b>' + esc(r.p.name) + ' · Agent 构成</b>\n' + r.split.map((v, j) => v ? '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + AG[j].c + ';margin-right:5px;vertical-align:-1px"></span>' + AG[j].name + ' <b class="mono">' + v + '</b> · ' + Math.round(v / tot * 100) + '%' : '').filter(Boolean).join('\n'); };
 Object.assign(ACT, {
