@@ -681,6 +681,7 @@ const OrbitLive = (function () {
   function liTargets(preview) {
     return ((preview && preview.targets) || []).map((t) => ({
       idx: t.idx, agent: t.agent, path: t.path || t.display, display: t.display || t.path, status: t.status, action: t.action,
+      versionCheck: t.version_check || 'unknown', versionUnknown: t.version_check !== 'known',
       disabled: t.status === 'disabled', mappable: t.mappable !== false, reason: t.reason || null, conflict: t.conflict || null,
       units: t.units || [], lines: ((t.diff && t.diff.lines) || []).map((l) => ({ n: l.n, op: l.op, text: l.text == null ? '' : String(l.text), gap: !!l.gap })),
       adds: t.diff ? t.diff.adds || 0 : 0, dels: t.diff ? t.diff.dels || 0 : 0, backup: t.backup_path || null

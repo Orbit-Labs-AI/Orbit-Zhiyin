@@ -31,7 +31,8 @@ test('projection_pending + Retry-After: 1 backs off instead of polling the open 
   const errors = collectErrors(page);
   await page.clock.install({ time: new Date('2026-10-03T12:00:00+08:00') });
   const gw = await stubGateway(page, ['core', 's2'], { 'GET /v1/uiview/sessions': PENDING }, { native: NATIVE });
-  await page.goto('http://orbit.test/app?live=1#sessions');
+  await openLive(page, 'sessions');
+  await page.evaluate(() => { edSet('advance', 'sessions'); S.range = 0; render(); });
   await expect(page.locator('#main')).not.toBeEmpty();
   await expect.poll(() => gw.count('/v1/uiview/sessions')).toBeGreaterThan(0);
   const n0 = gw.count('/v1/uiview/sessions');
@@ -63,6 +64,7 @@ test('3 000 sessions: Advance and Lite pages open without long tasks; the A3 lis
   });
   await stubGateway(page, ['core', 's1', 's3'], { 'GET /v1/uiview/facts': bigFacts(3000) }, { native: NATIVE });
   await openLive(page, 'overview');
+  await page.evaluate(() => { S.range = 0; render(); });
   expect(await page.evaluate(() => ALL.length)).toBe(3000);
   const routes = ['overview', 'persona', 'sessions', 'tools', 'projects', 'sentiment', 'recs', 'library', 'studio', 'l-home', 'l-persona', 'l-sessions', 'l-recs'];
   for (const r of routes) {

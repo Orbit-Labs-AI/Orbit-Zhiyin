@@ -36,8 +36,8 @@ test('projection_pending while publishing: a calm 正在整理数据… line, qu
   await page.waitForTimeout(1200);   // the first reads settle
   const n0 = await renders(page); const q0 = gw.count('/v1/uiview/sessions');
   await page.waitForTimeout(4000);
-  // Retry-After: 1 keeps reading (quietly) but nothing is rebuilt and the page stays where the user scrolled it
-  expect(gw.count('/v1/uiview/sessions') - q0).toBeGreaterThanOrEqual(2);
+  // Exponential backoff keeps reading quietly, but nothing is rebuilt and the page stays where the user scrolled it
+  expect(gw.count('/v1/uiview/sessions') - q0).toBeGreaterThanOrEqual(1);
   expect(await renders(page) - n0).toBe(0);
   expect(await page.evaluate(() => document.querySelector('#content').scrollTop)).toBe(500);
   // settings › 数据源: scrolled down, it stays there through the polling and through renders of any origin
@@ -66,6 +66,7 @@ test('projection_pending while publishing: a calm 正在整理数据… line, qu
   // a real failure still raises the error banner with 重试
   await page.evaluate(() => closeSettings && closeSettings());
   gw.set('GET /v1/uiview/sessions', { status: 500, body: { error: { code: 'internal', message: 'boom', retryable: true } } });
+  await page.evaluate(() => TL.invalidate()); // Explicit refresh bypasses the pending request's 30 s backoff.
   await expect(page.locator('#content [data-tl="unavailable"]')).toContainText('服务暂时不可用', { timeout: 6000 });
   await expect(page.locator('#content [data-tl="retry"]')).toBeVisible();
   expect(errors).toEqual([]);
@@ -116,7 +117,7 @@ test('import running + pending reads: scroll and an open dropdown survive pollin
 test('projection_pending on the overview and persona pages: the persona card reads 正在整理数据…, never 取不到', async ({ page }) => {
   ONLY('mac-14');
   const errors = collectErrors(page);
-  await stubGateway(page, ['core'], pendingAll());
+  await stubGateway(page, ['core'], { ...pendingAll(), 'GET /v1/uiview/facts': PENDING });
   for (const route of ['overview', 'persona']) {
     await openLive(page, route);
     await page.waitForTimeout(2500);   // several Retry-After rounds

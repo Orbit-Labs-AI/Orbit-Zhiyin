@@ -443,7 +443,7 @@ if (LV.live) {
         : !d.eligible ? { state: 'blocked', reason: H.BLOCKED[d.blocked_reason] || '暂时不能生成分享卡' } : { state: 'ok', d };
     }, (e) => {
       if (seq !== TLO.shareSeq) return;
-      TLO.shareBy[k] = TL.unavailable(e) ? (tloSpanState(k).state === 'ok' ? { state: 'local' } : { state: 'blocked', reason: '协作画像还没有算好，暂时不能生成分享卡' })
+      TLO.shareBy[k] = TL.unavailable(e) ? { state: 'blocked', reason: '本地服务暂不支持生成分享卡，暂时不能生成分享卡' }
         : { state: 'blocked', reason: '生成分享卡失败：' + (e.message || e.code) };
     });
   }
