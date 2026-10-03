@@ -23,7 +23,7 @@
 .g-hand{transform-origin:200px 200px;transform-box:view-box;opacity:0}
 .g-wedge{fill:var(--ink-1);opacity:.07}
 .gen:not(.run) .g-over{display:none}
-.gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-flower,.fps){opacity:0}
+.gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-flower,.fps,.fp-n0){opacity:0}
 /* 首次启动 01：.g-fp 与 .g-over 同步从倾斜轨道视角翻正（js 逐帧写 transform）；Orbit 内弧收拢成领瓣 */
 .g-fp,.g-over{transform-origin:50% 50%}
 .g-arc{fill:none;stroke:var(--orbit);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}

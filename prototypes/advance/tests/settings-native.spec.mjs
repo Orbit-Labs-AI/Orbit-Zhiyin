@@ -17,7 +17,7 @@ const FULL = ['window', 'notify', 'prefs', 'commands', 'loginItem', 'statusBadge
 
 async function host(page, features, o) {
   await page.addInitScript(([features, o]) => {
-    window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.3', platform: 'macos', features };
+    window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.4', platform: 'macos', features };
     window.__nativeMsgs = []; window.__login = !!o.login; window.__loginFail = false; window.__notifAuth = o.auth || 'denied';
     const reply = (ev, m, d) => setTimeout(() => window.dispatchEvent(new CustomEvent(ev, { detail: Object.assign({ id: m.id }, d) })), 10);
     window.webkit = { messageHandlers: { orbit: { postMessage(m0) {
@@ -164,7 +164,7 @@ test('6. live sources: no detected agent under 未检测到; index count labelle
       { id: 's-cx', agent: 'codex', root: '/Users/demo/.codex', files: 3, status: 'available', enabled: true },
       { id: 's-ds', agent: 'deepseek', root: '/Users/demo/.dsh', files: 3, status: 'available', enabled: true }
     ],
-    'GET /v1/app/about': { app: { name: 'orbit', version: '0.0.3' }, components: { mappers: ['claude_code', 'codex', 'dsh', 'gemini'] } },
+    'GET /v1/app/about': { app: { name: 'orbit', version: '0.0.4' }, components: { mappers: ['claude_code', 'codex', 'dsh', 'gemini'] } },
     'GET /v1/app/state': { settings: {}, sources: [], jobs: [], storage: { projection: 'present', counts: { sessions: 99999 } } }
   });
   await openLive(page);
