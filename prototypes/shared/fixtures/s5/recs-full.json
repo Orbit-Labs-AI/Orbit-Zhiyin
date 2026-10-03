@@ -181,17 +181,23 @@
      ]
     ],
     "save": {
-     "min_month": 0,
-     "label": "—",
-     "low": 0,
-     "high": 0,
-     "basis": "没有可折算的问题证据"
+     "time_pct": null,
+     "token_pct": null,
+     "time_range": null,
+     "token_range": null,
+     "share": null,
+     "effect": null,
+     "op": null,
+     "key": null,
+     "label": "未估算",
+     "basis": "没有对应的问题证据，轨迹里找不到可折算的操作"
     },
     "tok": 100,
     "n": [
      null,
      null
-    ]
+    ],
+    "tok_pct": 0.08
    },
    "candidate_id": "94f001b0d81b595c",
    "run_id": "2594b01c5d2c4a7f"
@@ -367,17 +373,23 @@
      ]
     ],
     "save": {
-     "min_month": 0,
-     "label": "—",
-     "low": 0,
-     "high": 0,
-     "basis": "没有可折算的问题证据"
+     "time_pct": null,
+     "token_pct": null,
+     "time_range": null,
+     "token_range": null,
+     "share": null,
+     "effect": null,
+     "op": null,
+     "key": null,
+     "label": "未估算",
+     "basis": "没有对应的问题证据，轨迹里找不到可折算的操作"
     },
     "tok": 100,
     "n": [
      null,
      null
-    ]
+    ],
+    "tok_pct": 0.08
    },
    "candidate_id": "9f1a3f76f31accbf",
    "run_id": "2594b01c5d2c4a7f"
@@ -562,17 +574,32 @@
      ]
     ],
     "save": {
-     "min_month": 132,
-     "label": "≈ 2.2 h",
-     "low": 90,
-     "high": 180,
-     "basis": "合成：按 4 个会话折算"
+     "time_pct": 2.6,
+     "token_pct": 1.8,
+     "time_range": [
+      1.5,
+      3.6
+     ],
+     "token_range": [
+      1.0,
+      2.5
+     ],
+     "share": {
+      "time": 4.2,
+      "token": 2.9
+     },
+     "effect": 0.62,
+     "op": "turn",
+     "key": "synthetic:claude-api",
+     "label": "省时 2.6% · 省 token 1.8%",
+     "basis": "合成：返工轮次：近 4.0 周 4 次（每次约一轮返工），在全部轨迹里占时间 4.2%、token 2.9% × 生效率 0.62"
     },
     "tok": 500,
     "n": [
      null,
      null
-    ]
+    ],
+    "tok_pct": 0.4
    },
    "candidate_id": "252667ab78141eda",
    "run_id": "2594b01c5d2c4a7f"
@@ -749,17 +776,23 @@
      ]
     ],
     "save": {
-     "min_month": 0,
-     "label": "—",
-     "low": 0,
-     "high": 0,
-     "basis": "没有可折算的问题证据"
+     "time_pct": null,
+     "token_pct": null,
+     "time_range": null,
+     "token_range": null,
+     "share": null,
+     "effect": null,
+     "op": null,
+     "key": null,
+     "label": "未估算",
+     "basis": "没有对应的问题证据，轨迹里找不到可折算的操作"
     },
     "tok": 100,
     "n": [
      null,
      null
-    ]
+    ],
+    "tok_pct": 0.08
    },
    "candidate_id": "22c44b797f01ee15",
    "run_id": "2594b01c5d2c4a7f"
@@ -937,17 +970,23 @@
      ]
     ],
     "save": {
-     "min_month": 0,
-     "label": "—",
-     "low": 0,
-     "high": 0,
-     "basis": "没有可折算的问题证据"
+     "time_pct": null,
+     "token_pct": null,
+     "time_range": null,
+     "token_range": null,
+     "share": null,
+     "effect": null,
+     "op": null,
+     "key": null,
+     "label": "未估算",
+     "basis": "没有对应的问题证据，轨迹里找不到可折算的操作"
     },
     "tok": 100,
     "n": [
      null,
      null
-    ]
+    ],
+    "tok_pct": 0.08
    },
    "candidate_id": "ae93b4d29de46859",
    "run_id": "2594b01c5d2c4a7f"
@@ -1123,17 +1162,23 @@
      ]
     ],
     "save": {
-     "min_month": 0,
-     "label": "—",
-     "low": 0,
-     "high": 0,
-     "basis": "没有可折算的问题证据"
+     "time_pct": null,
+     "token_pct": null,
+     "time_range": null,
+     "token_range": null,
+     "share": null,
+     "effect": null,
+     "op": null,
+     "key": null,
+     "label": "未估算",
+     "basis": "没有对应的问题证据，轨迹里找不到可折算的操作"
     },
     "tok": 100,
     "n": [
      null,
      null
-    ]
+    ],
+    "tok_pct": 0.08
    },
    "candidate_id": "417884a2f9fbc987",
    "run_id": "2594b01c5d2c4a7f"

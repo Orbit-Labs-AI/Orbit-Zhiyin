@@ -104,7 +104,7 @@ test('Lite: recs page shows the top three and reflects an install', async ({ pag
   const cards = page.locator('#content .l-rc');
   await expect(cards).toHaveCount(3);
   const ids = await cards.evaluateAll((els) => els.map((e) => e.dataset.id));
-  expect(ids).toEqual(await page.evaluate(() => visibleRecs().slice().sort((a, b) => recX(b.id).save - recX(a.id).save).slice(0, 3).map((r) => r.id)));
+  expect(ids).toEqual(await page.evaluate(() => visibleRecs().slice().sort((a, b) => recRank(b.id) - recRank(a.id)).slice(0, 3).map((r) => r.id)));
   // 第一条的主按钮走现有安装流程（预览 sheet）
   const first = await page.evaluate((x) => RECI[x].primary, ids[0]);
   if (!/教程|交给|复制/.test(first)) {

@@ -33,7 +33,7 @@
 3. **外壳的 full 只代表形状对得上。** 菜单栏、小组件和面板里的推荐质量，取决于下面第 3 节说的那些问题。
 
 **需要 `yhyfhgs` 决定的事：**
-- A7 的排序口径：UI 按 `save`（h / 月）排，后端按 priority 排。两种做法，一是前端按 `ui.save.min_month` 重排，二是把 UI 文案改成「按优先级」。
+- A7 的排序口径：UI 按 `save`（h / 月）排，后端按 priority 排。两种做法，一是前端按 `ui.save.min_month` 重排，二是把 UI 文案改成「按优先级」。（2026-10-03 起改为按轨迹占比：UI 按 `ui.save.time_pct` 排，时间未实测时按 `token_pct`，见 [推荐引擎](../modules/recommendation/engine.md)。）
 - 人格的权威定义：本轮新增的 `uiview-persona-v0` 用 UI 的四轴（D/S、P/I、M/F、V/T，Wilson 区间）；分析核心的 `collaboration-profile-v1` 用 C/D、E/P、A/V、S/O；第 3 轮的分享卡读的是后者。需要统一成一套。
 - 是否从 UI 删除示例元素：全体用户对照、「同类型用户在用」、热门安装量、0–100 契合度分、−1~+1 情绪曲线。feature-map 已经决定删除一部分，其余见第 4 节。
 
@@ -88,8 +88,8 @@
 | UI 字段 | 后端字段 | 现状 | 差距 |
 | --- | --- | --- | --- |
 | 类型、图标、难度 L1–L4 | `ui.dim`、`ui.type`、`ui.lvl` | 由安装动作推出；教程类卡为 L4 | — |
-| 主数字（h / 月） | `ui.save{min_month,label,low,high,basis}` | 有区间，并写明「（估计）」 | 无证据的卡显示「—」；排序仍按 priority |
-| 收益 | `ui.gain` | 月度数值，如「−34 次审批 / 月」 | 无证据的卡显示「0 个会话出现」 |
+| 主数字（h / 月） | `ui.save{min_month,label,low,high,basis}` | 有区间，并写明「（估计）」 | 无证据的卡显示「—」；排序仍按 priority（2026-10-03 起改为 `ui.save{time_pct,token_pct,share,effect,key,basis}`，按真实轨迹的占比） |
+| 收益 | `ui.gain` | 月度数值，如「−34 次审批 / 月」 | 无证据的卡显示「0 个会话出现」（2026-10-03 起为百分比标题，如「省时 1.5% · 省 token 0%」） |
 | 标题、原因 | `title`、`ui.why` | 中文自然 | **`{software}`、`{build_command}` 仍会漏出** |
 | 依据 N 个会话（跳到 A3） | `ui.evq.session_uids` | 可以精确解析 | — |
 | 兼容、落点 | `ui.compat`、`ui.target` | 按实际在用的 Agent 和项目名给出 | — |

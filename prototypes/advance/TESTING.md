@@ -101,8 +101,8 @@ A1 概览 + A2 协作人格（分支 ui/p-overview-persona）。每个用例从�
 A7 优化建议 + A8 资源库 + 安装闭环（branch ui/p-recs-library）。
 
 Test flow (fresh page per test; interaction tests run once at mac-14, layout checks at every project):
- 1 recs list      cards are sorted by the unified metric「每月节省时间」, each shows the ≈ h / 月 figure, the agent dots
-                  and the resident-token line; the detail head has the three KPI cells; cards are keyboard-selectable
+ 1 recs list      cards are sorted by the saving share (省时 %, the token % where time is not measured), each shows the
+                  time / token percentages of the whole trajectory, the agent dots and the resident-token share; the detail head has the three KPI cells; cards are keyboard-selectable
                   (Enter on a focused card, BUG-61) and a double click on「不适用」strikes one card only (BUG-65)
  2 install loop   预览 (scope「仅项目」→ the target path moves into the project, BUG-22) → 下一步 (a double click does not
                   skip the confirmation, BUG-64) → 确认写入 → the sheet stays on「已写入」with a counting-down undo →

@@ -25,18 +25,22 @@ const liteCount = (html, v, dec) => html.replace('<span class="v">', '<span clas
 function liteRecBtn(r) {
   return recPrimaryBtn(r).replace(/data-act="(tutorial|recToStudio|openRec)"/, 'data-act="liteRecAdv"').replace('class="btn', 'class="btn l-big');
 }
-const liteOrder = () => visibleRecs().slice().sort((a, b) => liteSaveH(b.id) - liteSaveH(a.id));
-const liteSaveH = (id) => recX(id).save || 0;   // live recs without an estimate (save: null) sort last and say「待估算」
-const liteHasSave = (id) => recX(id).save != null;
-// value + unit of the gain line; a live rec without an estimate says so in muted ink instead of a big green dash
-const liteSaveSpan = (id, unit) => !liteHasSave(id) ? '<span class="u" style="color:var(--ink-3)">节省时间待估算</span>' : '<span class="v mono" data-count="' + liteSaveH(id).toFixed(1) + '" data-dec="1">' + f1(liteSaveH(id)) + '</span><span class="u">' + unit + '</span>';
+const liteOrder = () => visibleRecs().slice().sort((a, b) => recRank(b.id) - recRank(a.id));   // recs without a share sort last
+// the saving line of a card: the expected share of all collaboration time (else of all tokens) as the big number, the other
+// share beside it; a rec without a share says so in muted ink instead of a big green dash
+function liteSaveSpan(id, note) {
+  const p = recPct(id);
+  if (!p) return '<span class="u" style="color:var(--ink-3)">节省比例待估算</span>';
+  const time = p.t != null; const v = time ? p.t : p.k;
+  return '<span class="v mono"' + pctCount(v) + '>' + fmtPct(v) + '</span><span class="u">' + (time ? '协作时间' + (p.k != null ? ' · token ' + fmtPct(p.k) : '') : 'token') + (note || '') + '</span>';
+}
 
 // 「本周最值得做的一件事」(also appended to the live Lite home by 97-live-recs.js)
 function liteOneCard(open) {
   const r = open[0];
   return r ? '<div class="card rcard l-one"><div class="rc-top"><span class="eb" style="color:var(--ink-1)">本周最值得做的一件事</span><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span></div>' +
     '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
-    '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, 'h / 月 · 估计节省') + '<span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' +
+    '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, ' · 预计节省') + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' +
     (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
     : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
 }
@@ -149,16 +153,18 @@ PAGES['l-sessions'] = () => {
     '<div class="stack">' + head + '<div class="tiles l-tiles l-snums">' + nums + '</div>' + tl + '</div></div></div></div>';
 };
 
-/* ---------- 4 优化建议：一句总收益 → 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
+/* ---------- 4 优化建议：一句总收益（占协作时间 / token 的比例）→ 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
 PAGES['l-recs'] = () => {
   const all = recOrder('lite'); const top = all.slice(0, 3);
   const open = top.filter((r) => !S.installed.has(r.id));
-  const save = sum(open, (r) => liteSaveH(r.id));
-  // live: recs may carry no estimate (save: null) — never print a made-up「0.0 小时」total for them
-  const est = open.some((r) => liteHasSave(r.id));
-  const hero = '<div class="card pad l-rhero"><span class="eb">优化建议 · 按每月节省时间排序</span>' +
-    (open.length && est ? '<p class="serif l-say">做完这 ' + open.length + ' 件事，每月大约省下</p><div class="row l-big-n"><span class="v mono" data-count="' + save.toFixed(1) + '" data-dec="1">' + f1(save) + '</span><span class="u">小时</span></div>'
-      : open.length ? '<p class="serif l-say">这 ' + open.length + ' 件事还没有节省时间的估计。应用后 7 天，在效果追踪里看实际变化。</p>'
+  // the total: shares of the real trajectory; alternatives on one problem count once (recTotal), and recs without a
+  // share never add a made-up 0 %
+  const tot = recTotal(open);
+  const big = tot && (tot.t != null ? tot.t : tot.k);
+  const hero = '<div class="card pad l-rhero"><span class="eb">优化建议 · 按节省比例排序</span>' +
+    (open.length && tot ? '<p class="serif l-say">做完这 ' + open.length + ' 件事，预计省下</p><div class="row l-big-n"><span class="v mono"' + pctCount(big) + '>' + fmtPct(big) + '</span><span class="u">' + (tot.t != null ? '的协作时间' : '的 token') + '</span></div>' +
+        (tot.t != null && tot.k != null ? '<span class="cap mono l-tot2">token 预计省下 ' + fmtPct(tot.k) + ' · 按近期真实轨迹的占比计算</span>' : '<span class="cap mono l-tot2">按近期真实轨迹的占比计算</span>')
+      : open.length ? '<p class="serif l-say">这 ' + open.length + ' 件事还没有节省比例的估计。应用后 7 天，在效果追踪里看实际变化。</p>'
       : top.length ? '<p class="serif l-say">前三条都已应用。7 天后看效果追踪，或在 Advance 里挑下一条。</p>'
       : '<p class="serif l-say">还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。</p>') + '</div>';
   const card = (r, i) => {
@@ -166,7 +172,7 @@ PAGES['l-recs'] = () => {
     const state = inst ? '<span class="tag">' + ic('okc', 12, 'color:var(--good)') + (inst.days >= 7 ? '已应用 · ' + VERDICT[trackStats(r).verdict][0] : '已应用 · 追踪中 ' + inst.days + ' / 7 天') + '</span><button type="button" class="btn gh l-big" data-act="liteRecAdv" data-id="' + r.id + '">查看追踪</button><button type="button" class="btn l-big" data-act="uninstall" data-id="' + r.id + '">' + ic('undo', 13) + '撤销</button>' : liteRecBtn(r);
     return '<div class="card rcard l-rc' + (inst ? ' inst' : '') + '" data-id="' + r.id + '"><span class="l-rn mono" aria-hidden="true">0' + (i + 1) + '</span><div class="col l-rb"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + agentDots(r, true) + '</div>' +
       '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
-      '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, 'h / 月') + '<span class="mono l-g2">' + esc(r.gain) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
+      '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
   };
   return liteBar('优化建议', all.length + ' 条 · 这里只看最值得做的 3 条') +
     '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : empty('没有可见的建议')) + '</div>' +

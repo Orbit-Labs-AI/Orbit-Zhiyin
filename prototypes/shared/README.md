@@ -39,7 +39,7 @@ pnpm --filter @orbit/prototype-lite check    # benchmark 检查 + sync --check +
 
 ## 优化建议（recs 段）
 
-- 适配层 `orbit-live.js` 的 recs 段：`OrbitLive.recs.row(cand)` 把 `/v1/recommendations` 的 `Cand.ui` 映射为原型 `RECS` 行（节省时间由 `score.benefit` 折算，缺失为 `null` →「—」）；`C.recs` 提供 `desc / resource(surface)`、`detail`、`relations`、`exposure`、`viewed`（按 surface 去重的批量 view）、`label / unlabel`、`recompute`、`invalidate`。
+- 适配层 `orbit-live.js` 的 recs 段：`OrbitLive.recs.row(cand)` 把 `/v1/recommendations` 的 `Cand.ui` 映射为原型 `RECS` 行（节省比例取 `ui.save` 的时间 / token 百分比与对应操作占比，`ui.tok_pct` 为常驻 token 占比；没有估算时为 `null` →「未估算」）；`C.recs` 提供 `desc / resource(surface)`、`detail`、`relations`、`exposure`、`viewed`（按 surface 去重的批量 view）、`label / unlabel`、`recompute`、`invalidate`。
 - Advance：`src/js/97-live-recs.js` 在 live 下替换 `RECS / RECI / REC_X`，沿用 A7、A1「本周建议」、Lite 首页与 l-recs、菜单栏的原渲染器；`recOrder / recTop(surface)` 把后端 A1 / lite / menubar 稳定置顶排在前面。不适用（含原因）/ 稍后 / 不再推荐同类写 label，8 秒内可撤销。
 - Lite 单文件：`@orbit-live recs block` 绑定「优化建议」页。
 - 降级：从未取得 live 数据且端点 404 / 501 / 503 / 离线时保留演示数据并标「示例数据」；取得过 live 数据后失败只保留上一屏。

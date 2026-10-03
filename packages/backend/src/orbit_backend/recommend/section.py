@@ -278,7 +278,10 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
     software_roots: dict[str, set] = defaultdict(set)
     edit_roots: set[str] = set()
     any_approval = False
-    for head, error_class, status, approval, name, uid, command in _call_rows(conn, uids):
+    # call_uid -> (failed, approved read-only) for the ledger; plain calls stay out
+    flags: dict[str, tuple[bool, bool]] = {}
+    waits: list[tuple[str, int]] = []
+    for head, error_class, status, approval, name, uid, command, call_uid in _call_rows(conn, uids):
         root = root_of.get(uid, uid)
         head = real_head(head, command)
         if name in EDIT_TOOLS:
@@ -299,9 +302,13 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
             per_root[root]["tool_failures"] += 1
             if error_class in FAILURE_CLASSES and head:
                 _add_failure(failures, software_of(head), error_class, root)
+        failed = status in FAILED
+        allowed = bool(matched) and is_approved(approval) and status not in DECLINED
+        if call_uid is not None and (failed or allowed):
+            flags[call_uid] = (failed, allowed)
     if not any_approval:
         _guard("permission_event", diagnostics, _permission_prompts, conn, uids, root_of, readonly,
-               per_root, denied)
+               per_root, denied, waits)
     for matched, count in denied.items():
         if matched in readonly:
             readonly[matched]["denied"] = count
@@ -360,6 +367,7 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
         **_sequence_facts(sequences),
         "compactions": _guard("compactions", diagnostics, _compactions, conn, uids, root_of)
         or _empty_compactions(),
+        "trajectory": _guard("trajectory", diagnostics, _ledger, conn, uids, root_of, flags, waits),
     }
     return facts, dict(agents)
 
@@ -371,12 +379,118 @@ def _call_rows(conn, uids: str):
     try:
         return conn.execute(
             f"SELECT t.command_head, t.error_class, t.status, t.approval, t.name, t.session_uid, "
-            f"{_INPUT.format(wrappers=wrappers)} FROM tool_call t WHERE t.session_uid IN {UIDS}",
+            f"{_INPUT.format(wrappers=wrappers)}, t.call_uid FROM tool_call t WHERE t.session_uid IN {UIDS}",
             (*WRAPPER_HEADS, uids)).fetchall()
     except Exception:  # noqa: BLE001 - schema drift: no unwrapping
-        return [(*row, None) for row in conn.execute(
-            f"SELECT command_head, error_class, status, approval, name, session_uid FROM "
+        return [(*row[:6], None, row[6]) for row in conn.execute(
+            f"SELECT command_head, error_class, status, approval, name, session_uid, call_uid FROM "
             f"tool_call WHERE session_uid IN {UIDS}", (uids,))]
+
+
+# --- Trajectory ledger: what the scope's operations cost in tokens and active time, so a card can
+# say which share of the whole trajectory its problem occupies (narrate._save). The totals use the
+# App's own definitions: tokens as uiview.sessions.TOKENS_SQL (input + cache read / write + output),
+# active time as uiview.metrics.active_ms (event gaps of a session tree, each capped at 5 min).
+OP_CLASSES = ("call", "failed", "readonly")
+LEDGER_TOKENS = ("input_tokens", "cache_read_tokens", "cache_write_tokens", "output_tokens")
+
+
+def _columns(conn, table: str) -> set[str]:
+    return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _select(cols: set[str], alias: str, names) -> list[str]:
+    """``alias.name`` for the columns a store has, ``NULL`` for the ones an older store lacks."""
+    return [f"{alias}.{name}" if name in cols else "NULL" for name in names]
+
+
+def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
+    """Scope totals (tokens, active ms, human turns, requests) and the measured cost of each
+    operation class (every tool call, failed calls, approved read-only prompts). Each session tree's timeline (tool call start / end, request) is walked once:
+    a capped gap goes to the calls running or waiting for the model at its start, and a request's
+    tokens to the calls whose results it answered, both split evenly. A failed call therefore
+    carries its run, the model's reaction and the request that read its error; whatever no call
+    holds (user turns, answers) stays only in the totals. Approved read-only prompts carry just
+    their approval wait (the call itself still runs after an allow-list), no tokens."""
+    from ..uiview.metrics import IDLE_CAP_MS
+    from ..uiview.sessions import HUMAN_WHERE
+
+    active: dict[str, int] = defaultdict(int)
+    for root, ms in conn.execute(
+            "SELECT root, SUM(MIN(COALESCE(gap, 0), ?)) FROM (SELECT s.root_uid AS root, e.ts - LAG(e.ts) "
+            "OVER (PARTITION BY s.root_uid ORDER BY e.ts) AS gap FROM event e JOIN session s ON "
+            f"s.session_uid = e.session_uid WHERE e.ts IS NOT NULL AND e.session_uid IN {UIDS}) GROUP BY root",
+            (IDLE_CAP_MS, uids)):
+        active[root_of.get(root, root)] += int(ms or 0)
+    turns = sum(n for (n,) in conn.execute(
+        f"SELECT count(*) FROM event e WHERE e.session_uid IN {UIDS} AND {HUMAN_WHERE}", (uids,)))
+    model_cols = _columns(conn, "model_call")
+    tokens_sql = " + ".join(f"COALESCE({col}, 0)" for col in _select(model_cols, "m", LEDGER_TOKENS))
+    requests: dict[str, list] = defaultdict(list)
+    by_agent: dict[str, int] = defaultdict(int)
+    total = 0
+    for uid, ts, tokens, agent in conn.execute(
+            f"SELECT m.session_uid, {_select(model_cols, 'm', ('ts',))[0]}, {tokens_sql}, src.agent "
+            f"FROM model_call m LEFT JOIN session s ON s.session_uid = m.session_uid "
+            f"LEFT JOIN source src ON src.source_id = s.source_id WHERE m.session_uid IN {UIDS}", (uids,)):
+        total += int(tokens or 0)
+        by_agent[agent or "unknown"] += 1
+        requests[root_of.get(uid, uid)].append((ts, int(tokens or 0)))
+    call_cols = _columns(conn, "tool_call")
+    calls: dict[str, list] = defaultdict(list)
+    for call_uid, uid, start, end, wait in conn.execute(
+            f"SELECT t.call_uid, t.session_uid, "
+            f"{', '.join(_select(call_cols, 't', ('started_at', 'ended_at', 'approval_wait_ms')))} "
+            f"FROM tool_call t WHERE t.session_uid IN {UIDS}", (uids,)):
+        calls[root_of.get(uid, uid)].append((start, end, wait, flags.get(call_uid, (False, False))))
+    ops = {name: [0, 0., 0.] for name in OP_CLASSES}  # n, tokens, ms
+    for root in set(calls) | set(requests):
+        _attribute(calls.get(root, []), requests.get(root, []), IDLE_CAP_MS, ops)
+    for _root, wait in waits:
+        ops["readonly"][0] += 1
+        ops["readonly"][2] += min(max(0, wait), IDLE_CAP_MS)
+    return {"tokens": total, "active_ms": sum(active.values()), "turns": turns,
+            "requests": sum(by_agent.values()), "requests_by_agent": dict(sorted(by_agent.items())),
+            "ops": {name: {"n": n, "tokens": round(tok), "ms": round(ms)} for name, (n, tok, ms) in ops.items()}}
+
+
+def _attribute(calls: list, requests: list, cap: int, ops: dict) -> None:
+    """Add one session tree's per-call tokens and active milliseconds to ``ops`` (see _ledger)."""
+    cost = [[0., 0.] for _ in calls]
+    points = []
+    for i, (start, end, _wait, _flags) in enumerate(calls):
+        if start is not None:
+            points += [(start, 0, i), (max(start, end if end is not None else start), 1, i)]
+    points += [(ts, 2, tokens) for ts, tokens in requests if ts is not None]
+    points.sort(key=lambda p: (p[0], p[1]))
+    running, waiting, prev = set(), set(), None
+    for t, kind, ref in points:
+        holders = running | waiting
+        if prev is not None and holders and t > prev:
+            share = min(t - prev, cap) / len(holders)
+            for i in holders:
+                cost[i][1] += share
+        prev = t
+        if kind == 0:
+            running.add(ref)
+        elif kind == 1:
+            running.discard(ref)
+            waiting.add(ref)
+        elif waiting:
+            share = ref / len(waiting)
+            for i in waiting:
+                cost[i][0] += share
+            waiting.clear()
+    for (start, end, wait, (failed, readonly)), (tokens, ms) in zip(calls, cost, strict=True):
+        for name in ("call", "failed") if failed else ("call",):
+            ops[name][0] += 1
+            ops[name][1] += tokens
+            ops[name][2] += ms
+        if readonly:
+            span = wait if wait is not None else (end - start if start is not None and end is not None else None)
+            if span is not None:
+                ops["readonly"][0] += 1
+                ops["readonly"][2] += min(max(0, span), cap)
 
 
 def _tally(values) -> dict:
@@ -449,20 +563,21 @@ def _command_text(value) -> str | None:
     return str(value)
 
 
-def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None) -> None:
-    """Codex keeps approvals as permission.request/decision events, not tool_call.approval."""
+def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None, waits=None) -> None:
+    """Codex keeps approvals as permission.request/decision events, not tool_call.approval.
+    ``waits`` collects (root, request → decision ms) of the allowed read-only prompts."""
     requests, decisions = [], {}
-    for uid, kind, call_id, command, decision in conn.execute(
+    for uid, kind, call_id, command, decision, ts in conn.execute(
             f"SELECT session_uid, kind, COALESCE(json_extract(ext,'$.call_id'), call_id), "
-            f"json_extract(ext,'$.command'), json_extract(ext,'$.decision') FROM event "
+            f"json_extract(ext,'$.command'), json_extract(ext,'$.decision'), ts FROM event "
             f"WHERE kind IN ('permission.request','permission.decision') AND session_uid IN {UIDS} "
             f"ORDER BY session_uid, seq", (uids,)):
         if kind == "permission.request":
-            requests.append((uid, call_id, _command_text(command)))
+            requests.append((uid, call_id, _command_text(command), ts))
         elif call_id is not None:
-            decisions[(uid, call_id)] = decision
-    for uid, call_id, command in requests:
-        decision = decisions.get((uid, call_id))
+            decisions[(uid, call_id)] = (decision, ts)
+    for uid, call_id, command, asked in requests:
+        decision, answered = decisions.get((uid, call_id), (None, None))
         matched = readonly_head(real_head(None, command) or command)
         if not matched:
             continue
@@ -476,6 +591,8 @@ def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None) ->
         entry["count"] += 1
         entry["sessions"].add(root)
         per_root[root]["readonly_prompts"] += 1
+        if waits is not None and asked is not None and answered is not None:
+            waits.append((root, answered - asked))
 
 
 def _classify_failures(conn, uids, root_of, failures) -> None:

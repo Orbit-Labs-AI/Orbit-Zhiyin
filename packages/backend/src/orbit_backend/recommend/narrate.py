@@ -3,15 +3,15 @@
 `explain()` fills the KB sentences with problem facts; a sentence that cannot be
 filled, or that fails the readability checker, falls back to a plain count.
 `ui()` returns the fields `46-a7-recs.js` binds (RECS in 05-data.js) plus the REC_X
-numbers (`save` / `tok` / `n`), so every surface reads cards straight from the backend.
+numbers (`save` / `tok` / `tok_pct` / `n`), so every surface reads cards straight from the backend.
+Savings are shares of the scope's real trajectory (tokens and active time), never hours.
 """
 
 import re
 import string
 
-from .benefit import beta_interval, card_savings
+from .benefit import beta_interval
 from .problems import observed_weeks
-from .units import WEEKS_PER_MONTH
 
 TYPE_ZH = {
     "permission_friction": "只读命令反复弹审批", "tool_env_failure": "工具 / 环境失败",
@@ -164,12 +164,6 @@ def _compat(agents: dict, inputs: dict | None = None) -> str:
     return " · ".join(parts)
 
 
-def _p(raw: dict) -> float:
-    prior = raw.get("prior") or {}
-    alpha, beta = float(prior.get("alpha") or 1), float(prior.get("beta") or 1)
-    return alpha / (alpha + beta)
-
-
 def _tokens(cand: dict, raw: dict) -> int:
     """Resident tokens a removal frees (rules files without a count: ~15 tokens per line)."""
     v = {**((raw.get("explain_hints") or {}).get("vars") or {}), **((cand.get("problem") or {}).get("vars") or {})}
@@ -177,14 +171,126 @@ def _tokens(cand: dict, raw: dict) -> int:
     return tokens or int((raw.get("cost") or {}).get("context_tokens") or 0)
 
 
-def _num(x: float) -> float:
-    return round(x) if x >= 10 else round(x, 1)
+# Problem type → the trajectory operation class one occurrence stands for (section._ledger):
+# approvals only wait, failures (tool, test or build) are failed calls, polling and repeated
+# workflows are tool calls; every other problem (correction, repeated instruction, compaction,
+# review round …) costs about one user turn of rework. Removals free resident context instead.
+OP_OF = {"permission_friction": "readonly", "tool_env_failure": "failed", "buggy_output": "failed",
+         "late_build_failure": "failed", "polling": "call", "repeated_workflow": "call"}
+OP_ZH = {"readonly": "只读审批等待", "failed": "失败的工具调用", "call": "工具调用", "turn": "返工轮次",
+         "resident": "常驻上下文"}
+REMOVAL_TYPES = {"resident_cost", "installed_unused"}
 
 
-def _label(minutes: float) -> str:
-    if minutes >= 60:
-        return f"≈ {minutes / 60:.1f} h"
-    return f"≈ {max(1, round(minutes)) if minutes > 0 else 0} min"
+def pct_text(value: float | None) -> str:
+    """0.04 →「<0.1%」, 3.21 →「3.2%」, 12.6 →「13%」."""
+    if value is None:
+        return "—"
+    if value <= 0:
+        return "0%"
+    if value < .1:
+        return "<0.1%"
+    return f"{value:.1f}%" if value < 10 else f"{round(value)}%"
+
+
+def save_label(time_pct: float | None, token_pct: float | None) -> str:
+    parts = [f"省时 {pct_text(time_pct)}" if time_pct is not None else None,
+             f"省 token {pct_text(token_pct)}" if token_pct is not None else None]
+    return " · ".join(p for p in parts if p) or UNESTIMATED
+
+
+def _unestimated(basis: str) -> dict:
+    return {"time_pct": None, "token_pct": None, "time_range": None, "token_range": None,
+            "share": None, "effect": None, "op": None, "key": None, "label": UNESTIMATED, "basis": basis}
+
+
+def _requests(ledger: dict, agents) -> int:
+    """Requests of the agents a card targets (resident context is re-sent with each), else all."""
+    by_agent = ledger.get("requests_by_agent") or {}
+    picked = sum(int(by_agent.get(a) or 0) for a in agents or ())
+    return picked or int(ledger.get("requests") or 0)
+
+
+def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -> tuple | None:
+    """(op class, tokens, ms, note) the problem's ``total`` occurrences cost in this scope's
+    trajectory; ms None = not measured. Per-occurrence cost is the measured mean of the class,
+    capped at what the whole class (or the whole scope) cost."""
+    if cand.get("kind") == "removal" or problem.get("type") in REMOVAL_TYPES:
+        values = {**((raw.get("explain_hints") or {}).get("vars") or {}), **(problem.get("vars") or {})}
+        resident = _tokens(cand, raw)
+        requests = _requests(ledger, [values["agent"]] if values.get("agent") else ())
+        if resident <= 0 or requests <= 0:
+            return None
+        guess = "（估计）" if values.get("tokens_basis") == "estimate" else ""
+        return "resident", min(resident * requests, ledger.get("tokens") or 0), None, \
+            f"每次请求常驻约 {resident} tokens{guess} × {requests} 次请求"
+    if total <= 0:
+        return None
+    name = OP_OF.get(problem.get("type"), "turn")
+    steps = max(1, int((problem.get("vars") or {}).get("n_steps") or 1)) if problem.get("type") == "repeated_workflow" else 1
+    if name == "turn":
+        n, tokens, ms = int(ledger.get("turns") or 0), ledger.get("tokens") or 0, ledger.get("active_ms") or 0
+        note = "每次约一轮返工"
+    else:
+        cls = (ledger.get("ops") or {}).get(name) or {}
+        note = "逐次实测"
+        if not cls.get("n"):  # nothing of this class was timed: an average tool call stands in
+            cls, note = (ledger.get("ops") or {}).get("call") or {}, "按平均工具调用近似"
+        n, tokens, ms = int(cls.get("n") or 0), cls.get("tokens") or 0, cls.get("ms") or 0
+    if n <= 0:
+        return None
+    count = total * steps
+    op_tokens = 0 if name == "readonly" else min(count * tokens / n, tokens)
+    return name, op_tokens, min(count * ms / n, ms), note
+
+
+def _save(cand: dict, raw: dict, inputs: dict) -> dict:
+    """Expected saving as shares of this scope's real trajectory, never extrapolated hours.
+
+    The problem's operations cost op_tokens / op_ms (``_op_cost`` over ``facts.trajectory``);
+    their share of all tokens / all active time is the 对应操作占比, and the expected saving is that
+    share × the remedy's effectiveness (Beta prior mean; the range uses its ~90 % interval, a
+    scenario bound, not a confidence interval). Alternatives on one problem share ``key`` and are
+    not additive."""
+    problem = cand.get("problem") or {}
+    ledger = (inputs.get("facts") or {}).get("trajectory") or {}
+    if cand.get("kind") == "model":
+        return _unestimated("降低思考档位只影响推理 token，轨迹里没有可靠地分开记录推理 token，暂不折算")
+    if not problem:
+        return _unestimated("没有对应的问题证据，轨迹里找不到可折算的操作")
+    if not ledger.get("tokens") and not ledger.get("active_ms"):
+        return _unestimated("还没有轨迹账本（token 与协作时长），重新计算后按轨迹折算")
+    sessions = inputs.get("sessions") or {}
+    weeks = observed_weeks(sessions) if (sessions.get("weeks") or sessions.get("first_ts")) else 1.
+    total = float(problem.get("weekly_count") or 0) * weeks
+    cost = _op_cost(cand, raw, problem, ledger, total)
+    if cost is None:
+        return _unestimated("轨迹里没有可计量的对应操作")
+    op, op_tokens, op_ms, note = cost
+    tokens, active = ledger.get("tokens") or 0, ledger.get("active_ms") or 0
+    share_k = 100 * op_tokens / tokens if tokens > 0 else None
+    share_t = 100 * op_ms / active if op_ms is not None and active > 0 else None
+    prior = raw.get("prior") or {}
+    alpha, beta = float(prior.get("alpha") or 1), float(prior.get("beta") or 1)
+    p, (lo, hi) = alpha / (alpha + beta), beta_interval(alpha, beta)
+
+    def scaled(share, f):  # four decimals: a tiny positive share stays「<0.1%」, never rounds to「0%」
+        return None if share is None else round(share * f, 4)
+
+    time_pct, token_pct = scaled(share_t, p), scaled(share_k, p)
+    span = f"近 {weeks:.1f} 周 {round(total)} {_unit_text(raw, problem)}（{note}）" if op != "resident" else note
+    shares = "、".join(x for x in (f"时间 {pct_text(share_t)}" if share_t is not None else None,
+                                  f"token {pct_text(share_k)}" if share_k is not None else None) if x)
+    basis = (f"{OP_ZH[op]}：{span}，在全部轨迹里占{' ' if shares[:1].isascii() else ''}{shares}"
+             f" × 生效率 {round(p, 2):g}（先验，区间 {lo:.2f}–{hi:.2f}）")
+    if share_t is None:
+        basis += "；常驻上下文的时间代价未实测，只按 token 计"
+    return {"time_pct": time_pct, "token_pct": token_pct,
+            "time_range": None if share_t is None else [scaled(share_t, lo), scaled(share_t, hi)],
+            "token_range": None if share_k is None else [scaled(share_k, lo), scaled(share_k, hi)],
+            "share": {"time": scaled(share_t, 1), "token": scaled(share_k, 1)}, "effect": round(p, 3),
+            "op": op, "key": problem.get("key") or problem.get("problem_id"),
+            "label": save_label(time_pct, token_pct), "basis": basis}
 
 
 def _unit_text(raw: dict, problem: dict) -> str:
@@ -194,68 +300,29 @@ def _unit_text(raw: dict, problem: dict) -> str:
     return unit
 
 
-def _unestimated(basis: str) -> dict:
-    return {"min_month": None, "label": UNESTIMATED, "low": None, "high": None, "basis": basis}
-
-
-def _save(cand: dict, raw: dict, inputs: dict) -> dict:
-    """Minutes saved per month — only when the per-event minutes have a stated source.
-
-    Same口径 as ``benefit.estimate_benefit``: observed weekly events × WEEKS_PER_MONTH × sourced
-    minutes per event × improvement fraction, where low/high are scenario bounds from the ~90 %
-    interval of the Beta(prior) effectiveness, not a confidence interval. No setup/extra cost is
-    known per card, so this is the gross range. Removal cards free tokens; their time value is
-    unmeasured, so they never show minutes.
-    """
-    problem = cand.get("problem") or {}
-    sessions = inputs.get("sessions") or {}
-    weeks = observed_weeks(sessions) if (sessions.get("weeks") or sessions.get("first_ts")) else None
-    if cand.get("kind") == "removal":
-        return _unestimated(f"每个会话常驻约 {_tokens(cand, raw)} tokens；常驻 token 的时间代价未实测，只按 token 计")
-    weekly = float(problem.get("weekly_count") or 0)
-    if weekly <= 0:
-        return {"min_month": 0, "label": "—", "low": 0, "high": 0, "basis": "没有可折算的问题证据"}
-    unit_minutes, source = raw.get("unit_minutes"), raw.get("unit_minutes_source")
-    if unit_minutes is None or not source:
-        return _unestimated("单次耗时没有实测值或有出处的估计，不折算分钟")
-    prior = raw.get("prior") or {}
-    alpha, beta = float(prior.get("alpha") or 1), float(prior.get("beta") or 1)
-    p = alpha / (alpha + beta)
-    rng = card_savings(weekly, WEEKS_PER_MONTH, float(unit_minutes), beta_interval(alpha, beta))["gross_savings"]
-    minutes = weekly * WEEKS_PER_MONTH * float(unit_minutes) * p
-    span = f"近 {weeks:.1f} 周共 {round(weekly * weeks)}" if weeks else f"每周约 {weekly:g}"
-    return {"min_month": _num(minutes), "label": _label(minutes), "low": _num(rng["low"]), "high": _num(rng["high"]),
-            "basis": f"{span} {_unit_text(raw, problem)} × 每次 {float(unit_minutes):g} 分钟（{source}）× "
-                     f"生效率 {round(p, 2):g}（先验，区间 {rng['low']:.0f}–{rng['high']:.0f} 分钟/月为情景边界）"}
-
-
-def _estimated(cand: dict, raw: dict) -> bool:
-    v = {**((raw.get("explain_hints") or {}).get("vars") or {}), **((cand.get("problem") or {}).get("vars") or {})}
-    return v.get("tokens_basis") == "estimate"
-
-
-def _gain(cand: dict, raw: dict, save: dict | None = None) -> str:
-    """Headline number; never「0 个会话出现」or「−0 常驻 token」— no evidence, no number."""
-    problem = cand.get("problem") or {}
-    if cand.get("kind") == "removal":
-        tokens = _tokens(cand, raw)
-        if tokens <= 0:
-            return ""
-        return f"≈ −{tokens} 常驻 token（估计）" if _estimated(cand, raw) else f"−{tokens} 常驻 token"
-    weekly = float(problem.get("weekly_count") or 0)
-    if weekly <= 0:
-        sessions = _sessions(cand)
-        if sessions > 0:
-            return f"{sessions} 个会话出现"
-        return (save or {}).get("label") if (save or {}).get("min_month") else ""
-    unit = ((raw.get("kb") or {}).get("benefit") or {}).get("unit") or problem.get("unit") or "次"
-    return f"−{max(1, round(weekly * WEEKS_PER_MONTH * _p(raw)))} {unit} / 月"
+def _gain(cand: dict, save: dict) -> str:
+    """Headline: the saving shares; without them the evidence count (never「0 个会话出现」), and
+    nothing for a removal, whose「sessions」are every session that loads the item."""
+    if save.get("time_pct") is not None or save.get("token_pct") is not None:
+        return save["label"]
+    sessions = _sessions(cand)
+    return f"{sessions} 个会话出现" if sessions > 0 and cand.get("kind") != "removal" else ""
 
 
 def _tok(cand: dict, raw: dict) -> int:
     if cand.get("kind") == "removal":
         return -_tokens(cand, raw)
     return int((raw.get("cost") or {}).get("context_tokens") or 0)
+
+
+def _tok_pct(tok: int, cand: dict, inputs: dict) -> float | None:
+    """The card's resident tokens as a share of all trajectory tokens (re-sent with each request)."""
+    ledger = (inputs.get("facts") or {}).get("trajectory") or {}
+    total = ledger.get("tokens") or 0
+    if not tok or total <= 0:
+        return 0. if tok == 0 and total > 0 else None
+    requests = _requests(ledger, (cand.get("target") or {}).get("agents"))
+    return round(100 * tok * requests / total, 4) if requests else None
 
 
 def _primary(cand: dict, raw: dict) -> tuple[str, int]:
@@ -389,6 +456,7 @@ def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
     sessions = _sessions(cand)
     uids = (cand.get("evidence") or {}).get("session_uids") or (problem.get("evidence") or {}).get("session_uids") or []
     save = _save(cand, raw, inputs)
+    tok = _tok(cand, raw)
     trial = cand.get("trial")
     dim = cand.get("dim")
     primary, level = _primary(cand, raw)
@@ -397,7 +465,7 @@ def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
     return {
         "dim": dim, "type": TYPE_LABEL.get(cand.get("kind"), cand.get("kind")),
         "icon": ICON.get(dim, "rule"), "lvl": level, "aud": cand.get("audience_min") or 0,
-        "title": clean(cand.get("title")), "gain": _gain(cand, raw, save),
+        "title": clean(cand.get("title")), "gain": _gain(cand, save),
         "why": clean((cand.get("explain") or {}).get("reason")), "ev": _ev(cand, sessions, uids),
         # evq filters A3 to exactly these sessions; {} (no jump) when there is nothing to resolve
         "evq": {"session_uids": list(uids)} if uids else {},
@@ -407,6 +475,6 @@ def ui(cand: dict, inputs: dict, raw: dict | None = None) -> dict:
         "steps": [clean(s) for s in steps],
         "commands": _commands(steps, trial, raw),
         "track": _track(cand, raw, inputs),
-        "save": save, "tok": _tok(cand, raw),
+        "save": save, "tok": tok, "tok_pct": _tok_pct(tok, cand, inputs),
         "n": [problem.get("denominator") if problem else None, None],
     }
