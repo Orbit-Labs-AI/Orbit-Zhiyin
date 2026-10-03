@@ -9,6 +9,9 @@
 .cap{font-size:12px;line-height:16px;color:var(--ink-3)}
 .eb{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+/* a card header is always one 24px control tall, so titles in sibling cards sit on the same line whether the header
+   carries a 24px .seg / .btn or only a text link */
+.card>.hd{min-height:24px}
 .hd .grow{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .btn{height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;font-weight:500;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}
 .btn:hover{background:color-mix(in srgb,var(--surface) 92%,var(--ink-1))}
