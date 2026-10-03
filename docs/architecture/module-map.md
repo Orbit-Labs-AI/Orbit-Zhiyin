@@ -37,7 +37,7 @@ flowchart TD
 | analytics / profiling | canonical 事实、文本及受验证语义观察；八族特征、统计、比较、任务图 | overview / sessions / projects / tools / statistics / lexical / work-graph / products | 缺失值、未知状态与分母需保留；AI 观察不代替已记录事实 |
 | features | 分析与安装清单；标准特征 ID、scope、问题诊断 | 特征字典、画像、problem/evidence，供检索与推荐使用 | 显式空集合表示不选任何样本；与 AI 时间窗口做键名适配 |
 | uiview | 上述事实与特征按页面组合 | `/v1/uiview/*` → 概览、人格、会话轨迹、工具、项目、情绪 | 已接 Lite/Advance；展示计算应在后端定义分母，UI 只呈现 |
-| recommend | 本地画像、问题证据、资源库、安装状态、反馈历史 | `/v1/recommendations*`、卡片、排序理由、曝光与反馈 | 多路召回、RRF、资格门控和排序；可选 AI 重排/查询扩展/专家建议有界降级 |
+| recommend | 本地画像、问题证据、资源库、安装状态、反馈历史 | `/v1/recommendations*`、卡片、排序理由、曝光与反馈 | 多路召回、RRF、资格门控和排序；可选 AI 重排/查询扩展/专家建议有界降级；显式 `recommend.learn` 生成可追溯历史技能草稿，独立检索默认要求 validation 凭据，见[学习边界](../plans/history-skill-learning.md#通用技能学习第一版) |
 | catalog | 官方及固定版本资源元数据/可许可正文；预处理、FTS、特征和可选 E5 | `/v1/catalog/*`、资源库与推荐候选 | 元数据完备分与效果/安全结论不同；有文本索引不代表已生成向量 |
 | ai | scope 内事实、所选证据、任务定义、引擎授权；上下文预算、schema/证据门控与缓存 | `/v1/ai/*`、分类/解读、问答、四套专业分析模板、生成工坊 | 复用本地 CLI runner；本地 Agent 仍可能使用其已配置的远端模型；效果需独立真实标签评测 |
 | install / sessionops | 资源/草稿、目标 agent、配置、预览摘要；冲突检测、备份、应用/撤销；会话排除/恢复 | 安装弹窗、资源库已安装状态、继续会话/定位日志、排除列表 | 已实现真实操作；生成建议不自动安装；状态追踪只使用可观察证据 |

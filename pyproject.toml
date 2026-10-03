@@ -24,7 +24,7 @@ dev = ["pytest==8.4.1", "pytest-xdist==3.8.0", "httpx==0.28.1", "ruff==0.12.2"]
 
 [tool.pytest.ini_options]
 markers = ["serial: wall-clock or fixed-port tests; scripts/check.sh runs them after the parallel pass"]
-testpaths = ["packages/backend/tests", "packages/data/tests", "packages/catalog/tests", "tests/integration", "tests/e2e", "tests/regression"]
+testpaths = ["packages/backend/tests", "packages/data/tests", "packages/catalog/tests", "tests/integration", "tests/e2e", "tests/regression", "evals/skill_learning/tests"]
 
 [tool.ruff]
 src = ["packages/backend/src", "packages/catalog/src"]
