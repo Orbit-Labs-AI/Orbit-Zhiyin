@@ -94,7 +94,7 @@ PAGES['l-persona'] = () => {
   const cm = peCurMonth();
   const months = peMonthKeys().map((k) => ({ k, m: LV.live ? +k.slice(5) : ({ jun: 6, jul: 7, aug: 8, sep: 9 })[k], p: persona(personaScope([PERIODS[k][0], PERIODS[k][1]])) }));
   const evo = '<div class="card pad l-evo"><div class="hd"><div class="grow"><span class="ct">演变</span><span class="cap">按月重算 · 点击在 Advance 中查看那个月</span></div>' + liteAdv('persona') + '</div><div class="evo">' +
-    months.map((m, i) => '<button type="button" data-act="litePeriod" data-v="' + m.k + '" class="' + (m.k === cm ? 'on' : '') + '"' + (m.k === cm ? ' aria-current="true"' : '') + '><span class="mono l-mm">' + m.m + ' 月' + (m.k === cm ? ' · 本月' : '') + '</span><span class="serif l-mc">' + (m.p.ok ? m.p.code : '—') + '</span><span class="l-mz">' + (m.p.ok ? m.p.zh : '暂无会话') + '</span></button>' + (i < 3 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div></div>';
+    months.map((m, i) => '<button type="button" data-act="litePeriod" data-v="' + m.k + '" class="' + (m.k === cm ? 'on' : '') + '"' + (m.k === cm ? ' aria-current="true"' : '') + '><span class="mono l-mm">' + m.m + ' 月' + (m.k === cm ? ' · 本月' : '') + '</span><span class="tcode l-mc">' + (m.p.ok ? m.p.code : '—') + '</span><span class="l-mz">' + (m.p.ok ? m.p.zh : '暂无会话') + '</span></button>' + (i < 3 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div></div>';
   return liteBar('协作画像', 'n=' + p.n + ' · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + rangeLabel()) +
     '<div class="content" id="content"><div class="lite l-persona">' + hero + axes + evo + '</div></div>';
 };
