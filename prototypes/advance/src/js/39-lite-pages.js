@@ -63,10 +63,10 @@ PAGES['l-home'] = () => {
   // live: the L0 insight lede of /v1/uiview/overview (same scope) when it is there; the persona line otherwise
   const ins = LV.live && LV.ready('l-home') && LV.ov ? LV.ov.insight : null;
   const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。';
-  const ev = st.n ? Math.round(st.verify) + '% 的会话要求验证 · ' + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + Math.round(st.ok) + '%' : '这段时间没有会话';
+  const ev = st.n ? (st.verKnown ? Math.round(st.verify) + '% 的会话要求验证 · ' : '') + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + pctKnown(st.ok, st.okKnown) : '这段时间没有会话';
   // 没有会话时那句话是固定说明，不是 AI 写的：不挂「AI 解读」标记（F21）
   const said = (ins && ins.lede) || pers.ok;
-  const hero = '<div class="card pad l-hero"><div class="col l-lede">' + (said ? '<div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap">' + (LV.live ? esc(ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' : '') +
+  const hero = '<div class="card pad l-hero"><div class="col l-lede">' + (said ? '<div class="row" style="flex-wrap:wrap">' + insBadge(insIsAI(ins), 'AI 解读') + '<span class="cap">' + (LV.live ? esc(ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' : '') +
     '<p class="serif l-say">' + esc(lede) + '</p><span class="cap mono l-ev">' + ev + '</span></div>' +
     (pers.ok ? '<button type="button" class="ov-code l-code" data-act="go" data-r="l-persona" aria-label="查看协作画像：' + pers.code + ' ' + pers.zh + '"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="serif ov-code-l" data-hero="code">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap;gap:8px"><span class="serif l-zh">' + pers.zh + '</span><span class="serif l-en">' + pers.en + '</span></span><span class="cap">查看协作画像 →</span></button>'
       : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false) + '</div>') + '</div>';
@@ -75,7 +75,7 @@ PAGES['l-home'] = () => {
     liteCount(VZ.kpi({ label: '会话', value: fmt(st.n), delta: d(st.n, P && P.n, { unit: 'pct', goodDown: false, fmt: 'int' }), act: 'go', attrs: ' data-r="l-sessions"' }), st.n),
     liteCount(VZ.kpi({ label: '协作时长', value: st.hours >= 100 ? fmt(st.hours) : f1(st.hours), unit: 'h', delta: d(st.hours, P && P.hours, { unit: 'pct', goodDown: false, fmt: (v) => f1(v) + 'h' }) }), st.hours, st.hours >= 100 ? 0 : 1),
     liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: d(st.fric, P && P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) }), st.fric, 1),
-    liteCount(VZ.kpi({ label: '完成率', value: String(Math.round(st.ok)), unit: '%', delta: d(st.ok, P && P.ok, { unit: 'pt', goodDown: false, fmt: (v) => Math.round(v) + '%' }) }), st.ok)
+    (st.okKnown ? liteCount(VZ.kpi({ label: '完成率', value: String(Math.round(st.ok)), unit: '%', delta: d(st.ok, P && P.okKnown ? P.ok : null, { unit: 'pt', goodDown: false, fmt: (v) => Math.round(v) + '%' }) }), st.ok) : VZ.kpi({ label: '完成率', value: '—', sub: st.n ? '这些会话没有完成信号' : '' }))
   ].join('');
   // 活跃条带：至少 30 天，当前范围内的日子用实色，范围外的用浅色
   const w = win(S.range); const span = Math.max(30, w[1] - w[0] + 1); const a0 = w[1] - span + 1;
@@ -152,15 +152,20 @@ function liteInsight(s, tr) {
   if (s.out === 'ok' && s.verify) return '一次到位：目标清楚、过程中' + (s.corr ? '只纠偏 1 次' : '没有返工') + '，最后做了验证。可以把这次的开场白存成模板。';
   if (s.out === 'ok') return '顺利完成，但没有要求验证——加一步测试或线上检查，结果会更稳。';
   if (s.out === 'fail') return '这次放弃了。' + (s.errors ? '出现 ' + s.errors + ' 次工具错误，' : '') + '换个更小的切入点，或先让 Agent 只读调查。';
-  return '部分完成：' + (s.errors ? s.errors + ' 次工具错误拖慢了进度，' : '') + '建议把剩余部分拆成单独的会话。';
+  if (s.out === 'part') return '部分完成：' + (s.errors ? s.errors + ' 次工具错误拖慢了进度，' : '') + '建议把剩余部分拆成单独的会话。';
+  // no outcome signal: say only what the events show
+  return (s.errors || s.corr ? '出现 ' + [s.errors ? s.errors + ' 次工具错误' : '', s.corr ? s.corr + ' 次纠偏' : ''].filter(Boolean).join('、') + '。' : '没有工具错误，也没有纠偏。') + '这个会话没有完成信号，结果未知。';
 }
 PAGES['l-sessions'] = () => {
   const list = liteSessList();
   let s = BYID[S.sess.sel];
   if (!s || !list.includes(s)) s = list[0];
   if (!s) return liteBar('会话轨迹', rangeLabel()) + '<div class="content" id="content"><div class="lite l-sessions">' + empty('没有匹配的会话。试试放宽时间范围' + (liteFiltered() ? '，或清除 Advance 筛选' : '') + '。') + '</div></div>';
-  const tr = traj(s); const T = tr.T; const o = OUT[s.out] || OUT.ok;
-  const rows = list.map((x) => { const ox = OUT[x.out] || OUT.ok; return '<button type="button" class="srow' + (x === s ? ' sel' : '') + '" data-act="liteSess" data-id="' + x.id + '" aria-pressed="' + (x === s) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + ic(ox[0], 14, 'color:' + ox[1]) + '</span><span class="m">' + (x.d === liteToday() ? '今天' : md(x.d)) + ' ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + '</span></button>'; }).join('');
+  const tr = traj(s); const T = tr.T; const o = outOf(s);
+  // live: the gateway's session insight (A3H.insight, AI only when its basis names a model); otherwise the local rule template
+  const lx = LV.live && A3H.insight ? A3H.insight(s) : null;
+  const liteIns = lx && lx.text && tr.insight ? { text: lx.text, ai: !!lx.ai } : { text: liteInsight(s, tr), ai: false };
+  const rows = list.map((x) => { const ox = outOf(x); return '<button type="button" class="srow' + (x === s ? ' sel' : '') + '" data-act="liteSess" data-id="' + x.id + '" aria-pressed="' + (x === s) + '"><span class="row" style="width:100%"><span class="dot' + (x.live ? ' live' : '') + '" style="background:' + agent(x.a).c + '"></span><span class="t">' + esc(x.title) + '</span>' + ic(ox[0], 14, 'color:' + ox[1]) + '</span><span class="m">' + (x.d === liteToday() ? '今天' : md(x.d)) + ' ' + hm(x.h, x.mi) + ' · ' + (x.live ? '运行中 ' + liveMin() + 'm' : dur(x.dur)) + '</span></button>'; }).join('');
   const nums = [
     liteCount(VZ.kpi({ label: '你的消息', value: String(s.msgs), unit: '轮' }), s.msgs),
     liteCount(VZ.kpi({ label: '工具调用', value: String(s.tools), unit: '次' }), s.tools),
@@ -176,7 +181,7 @@ PAGES['l-sessions'] = () => {
   const nodes = tr.moments.map((m, i) => '<span class="l-node' + (m[3] ? ' bad' : '') + '" style="left:' + xs[i].toFixed(2) + '%" data-tip="' + esc(relT(Math.round(m[0] * 10) / 10) + ' · ' + m[1]) + '">' + (i + 1) + '</span>').join('');
   const steps = tr.moments.map((m, i) => '<li class="' + (m[3] ? 'bad' : '') + '"><span class="l-sn mono">' + (i + 1) + '</span><span class="mono l-st">' + relT(Math.round(m[0] * 10) / 10) + '</span><b>' + esc(m[1]) + '</b><span class="l-sd">' + esc(m[2]) + '</span></li>').join('');
   const head = '<div class="card pad l-shead"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="dot" style="background:' + agent(s.a).c + '"></span><span class="eb">' + agent(s.a).name + ' · ' + PJI[s.p].name + ' · ' + (s.d === liteToday() ? '今天' : mdz(s.d)) + ' ' + hm(s.h, s.mi) + '</span><span class="row" style="gap:4px;margin-left:auto;font-size:12px;color:var(--ink-2)">' + ic(o[0], 14, 'color:' + o[1]) + o[2] + '</span></div>' +
-    '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins"><span class="aib">' + ic('spark', 11) + 'AI 洞察</span><p class="serif">' + esc(liteInsight(s, tr)) + '</p></div></div>';
+    '<h2 class="serif l-stitle">' + esc(s.title) + '</h2><div class="row l-ins">' + insBadge(liteIns.ai, 'AI 洞察') + '<p class="serif">' + esc(liteIns.text) + '</p></div></div>';
   const tl = '<div class="card pad l-tlc"><div class="hd"><div class="grow"><span class="ct">关键步骤</span><span class="cap">' + tr.moments.length + ' 个关键时刻 · 全程 ' + (s.live ? liveMin() + 'm' : dur(T)) + '</span></div>' + liteAdv('sessions', '在 Advance 中回放') + '</div>' +
     (tr.moments.length ? '<div class="l-tl" role="img" aria-label="会话时间线：' + esc(tr.moments.map((m) => m[1]).join('、')) + '"><span class="l-rail"></span>' + nodes + '<div class="l-phs">' + phases + '</div></div><ol class="l-steps">' + steps + '</ol>' : (tr.state === 'pending' ? '<p class="cap" data-lv="pending" aria-busy="true" style="margin:12px 0 4px">正在读取关键时刻…</p>' : tr.state === 'error' ? '<p class="cap" data-lv="error" style="margin:12px 0 4px">关键时刻暂时取不到</p>' : '<p class="cap" data-lv="no-moments" style="margin:12px 0 4px">这个会话没有关键时刻</p>')) + '</div>';
   return liteBar('会话轨迹', rangeLabel() + ' · 最近 ' + list.length + ' 个会话') +

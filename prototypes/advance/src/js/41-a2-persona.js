@@ -28,7 +28,7 @@ function peEvidence(L, st, p, i) {
   if (i === 0) return { txt: '每会话 ' + f1(st.per) + ' 条消息 · 每轮 ' + f1(st.auto) + ' 步', vals: hist(L.map((s) => s.msgs), 10, 20), lbl: '消息数 0 → 20+ 的会话数' };
   if (i === 1) return { txt: '规划型项目占 ' + Math.round(sum(L.filter((s) => PJI[s.p].I < 50), (s) => s.dur) / (st.hours * 60 || 1) * 100) + '% 时长', vals: byProj('I'), lbl: '项目时长 · 规划型 → 即兴型' };
   if (i === 2) { const by = {}; L.forEach((s) => { by[s.d] = (by[s.d] || 0) + 1; }); return { txt: '日均 ' + f1(p.avgS) + ' 会话 · 同日 ' + f1(p.avgA) + ' Agent', vals: hist(Object.values(by), 8, 8), lbl: '每日会话数 1 → 8+ 的天数' }; }
-  return { txt: Math.round(st.verify) + '% 要求验证 · 完成 ' + Math.round(st.ok) + '%', vals: byProj('V'), lbl: '项目时长 · 信任型 → 求证型' };
+  return { txt: pctKnown(st.verify, st.verKnown) + ' 要求验证 · 完成 ' + pctKnown(st.ok, st.okKnown), vals: byProj('V'), lbl: '项目时长 · 信任型 → 求证型' };
 }
 // 样本不足时：放宽哪个筛选能补到多少（只看人格口径里的三个条件：Agent、项目、周期）
 function peRelax(w) {
