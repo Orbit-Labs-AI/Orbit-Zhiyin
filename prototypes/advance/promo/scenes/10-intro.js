@@ -140,7 +140,11 @@ scene('10-intro', () => {
   // cluster b0.35–.8 while the orb melts back into cc's badge: 一 → 五 from the first beat (the close ends on the orb again)
   AGD.key(0.2, 'pts', { pts: [[960, 560], [960, 560], [960, 560], [960, 560], [960, 560]], drift: 0, r: 30, a: (b, i) => (i ? .001 : 1), dur: .3 });
   AGD.morph(0, 0, 'orb', { dur: .01 });
-  AGD.key(0.35, 'ring', { ...AGD.P.cluster, ph: 0, dur: .4, stag: .02 });
+  // v18.1 (b): the split lays the five out as a point-down pentagon whose left → right order is the pen's (dot i →
+  // pen slot i), so at b0.8–1.1 every dot drops to its own slot without crossing another — the bottom vertex (gm)
+  // falls straight to the middle slot, the side ones (cc / cp) to the ends. ph(b, i) puts dot i at RING_A[i] degrees
+  const RING_A = [252, 324, 180, 36, 108];
+  AGD.key(0.35, 'ring', { ...AGD.P.cluster, ph: (b, i) => RING_A[i] - 72 * i, dur: .4, stag: .02 });
   AGD.morph(0.3, 0, 'dot', { dur: .25 });            // melted by b0.55, before dots 1–4 are half out (no orb + badges double image)
   // 1a.2: 「用 AI Agent，」 (the subject, small) floats up out of the cluster from b0.4 — characters blur in while the line
   // rises 18 px onto y 430 (the cluster's top edge is y 466); the headline 「正在成为每个人的日常」 wipes in a word on
@@ -149,9 +153,10 @@ scene('10-intro', () => {
   // b4.8–5.4 — fade + blur, drifting up 60 px; until then both keep a slow push (+6 %). Whole headline readable
   // b2.66–4.8 (2.14 beats), the small line b1.5–4.8
   const up60 = (tl, life) => -60 * E.inOut(clamp((tl - (life - BB(.6))) / BB(.6)));
-  // v17.5: 「用」 then 「AI Agent，」 step in (b0.4 / 0.72, each landing with the settle), whole by b0.96
-  txt(0.4, T(5.4), [['lt in-s', '<span class="w">用 </span><span class="w">AI Agent，</span>']], { x: 960, y: 430, align: 'c' }, {
-    anim: wipe({ at: [0, .32], push: .06, up: 60, out: .6 }),
+  // v18.1: the small line is the subject alone, 「AI Agent，」 (「用 AI Agent，正在成为…」 used a verb phrase as the
+  // subject); it steps in on b0.5 as the orb splits (landing with the settle), whole by b0.9
+  txt(0.4, T(5.4), [['lt in-s', '<span class="w">AI Agent，</span>']], { x: 960, y: 430, align: 'c' }, {
+    anim: wipe({ at: [.1], push: .06, up: 60, out: .6 }),
     // v17.7: it floats up out of the splitting cluster — from 40 px lower (the top dot's crown) over 1 beat
     tick: (el, tl) => { el.style.transform += ' translateY(' + (40 * (1 - E.out(clamp(tl / BB(1.0))))).toFixed(1) + 'px)'; }
   });
@@ -173,7 +178,10 @@ scene('10-intro', () => {
   // front-loaded (smoothstep into a cubic ease-out, zero speed at both ends) so the cluster clears the type band
   // (y 480–600) while 「每天」 is still wiping in: at b1.0 the dots are ≈ 75 % of the way down
   const PEN_E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
-  AGD.key(0.8, 'arc', { cx: penX, cy: penY, gap: 56, sag: -14, r: 28, dur: .5, stag: .025, ease: PEN_E });   // v17.5: tighter stagger — the last dot is below the type band before the quick 「正在」 is half in
+  // v18.1 (b): no stagger — with one shared ease the pentagon → ∪ blend keeps every pair's left → right order, so the top
+  // pair (cx / ds) comes down beside the side pair (cc / cp) instead of sliding over it (v17.5's .025 per index made ds
+  // pass in front of cp at b0.95)
+  AGD.key(0.8, 'arc', { cx: penX, cy: penY, gap: 56, sag: -14, r: 28, dur: .5, stag: 0, ease: PEN_E });
   // every dot breathes (1.06, .5 beats) as each word lands; under 「日常」 the pen gives a firmer press (1.1) on the hit,
   // b2.66; while the whole line is read it keeps breathing softly (1.04) about every .65 beat (new grid) until the exit
   for (const k of [0, 1, 2]) for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[k] + .2 + .03 * i, 1.06, .5);   // v17.5: on each landing
@@ -247,8 +255,14 @@ scene('10-intro', () => {
   /* v17.7 F3 1b — the dots' shapes lead every element of the shot */
   // the box is pulled out of the dots: .25 beat before it grows (b7.0) all five stretch into pills aimed at its centre,
   // and round back (.4) once it is half grown
-  AGD.morph(T(5.2) - .25, 'all', 'pill', { w: 2.8, aim: [960, 760], dur: .25, stag: .02 });
-  AGD.morph(T(5.2) + .12, [1, 2, 3, 4], 'dot', { dur: .4, stag: .02 });
+  AGD.morph(T(5.2) - .25, [0, 2, 3, 4], 'pill', { w: 2.8, aim: [960, 760], dur: .25, stag: .02 });
+  AGD.morph(T(5.2) + .12, [2, 3, 4], 'dot', { dur: .4, stag: .02 });
+  // v18.1 1a → 1b: the eye is led from the old line to the new one — while the headline lifts and blurs (b6.6–7.2) dot 1
+  // (cx, the arc's second from the left, right under it) stretches into a pill aimed up at 「从」 (the first character of
+  // 「从想法」 as it lands, centred alone), full on b7.0 as the word wipes in, and lets go (.3) as 「到交付」 starts (b7.35)
+  const t1W = wordsOf('hv sv in-t1', '<span class="w">从想法</span><span class="w">到交付</span>');
+  AGD.morph(T(5.2) - .25, 1, 'pill', { w: 4.0, aim: () => [960 - t1W()[0] / 2 + 66, 250], dur: .25 });
+  AGD.morph(T(5.2) + .35, 1, 'dot', { dur: .3 });
   // typing: the dot that will take the prompt stands on the arc as a caret (38 px, the box caret's height) that bobs on
   // every key — the pulse reads typeOn's character beats, the same grid as the key sounds — while the box caret takes its
   // colour; .2 beat before the send the caret swells into a bubble tail aimed at its slot, the bubble pops from the tail
@@ -406,14 +420,17 @@ scene('10-intro', () => {
   // the gloss (v17.2): 「人们正在用 Agent 重新设计一切」 fades in with 「Everything」 (v17.4: from b12.3, not 12.5; .3 beat, rising
   // 14 px out of a light blur, whole by b12.6) at y 728 under it, and leaves a touch after the English (b15.35–15.75, .4 beat,
   // gone before 15-redesign's box passes y 728) so it reads 3.65 beats; 15-redesign's first type (b15.8) is not under it
-  txt(T(12.3), T(15.75), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 728, align: 'c' }, {
+  // v18.1: it no longer outlives the type — it leaves with the headline's exit (E.inOut from b18.7) .1 beat behind,
+  // blurring to 6 px, gone by b19.3 together with 「Everything」
+  txt(T(12.3), T(15.4), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 728, align: 'c' }, {
     anim: (el, tl, life) => {
-      const p = E.out(clamp((tl - BB(.1)) / BB(.2))), q = E.inOut(clamp((tl - (life - BB(.4))) / BB(.4)));   // v17.5: .1 after Everything, whole by +.3 as before
+      const p = E.out(clamp((tl - BB(.1)) / BB(.2))), q = E.inOut(clamp((tl - (life - BB(.5))) / BB(.5)));   // v17.5: .1 after Everything, whole by +.3 as before
       // v17.7: wiped right → left out of the caret's foot (it stands just right of the line's end), not risen
       el.style.transform = 'translate(-50%,-50%) translateY(' + (-20 * q).toFixed(1) + 'px)';
       el.style.clipPath = p < .999 ? 'inset(-30% 0 -30% ' + (100 * (1 - p)).toFixed(2) + '%)' : '';
       leave(el, Math.min(1, p * 2) * (1 - q));
       if (p < .999 && q < .001) el.style.filter = 'blur(' + ((1 - p) * 5).toFixed(1) + 'px)';
+      else if (q > 0) el.style.filter = q < .999 ? 'blur(' + (6 * q).toFixed(1) + 'px)' : 'none';
     }
   });
 });
