@@ -43,10 +43,11 @@ test('G: page text is selectable, controls are not', async ({ page }) => {
   await stubGateway(page, 'core');
   await openLive(page, 'sessions');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  await expect(page.locator('#content .srow').first()).toBeVisible();
   const us = await page.evaluate(() => {
     const c = document.querySelector('#content');
     const btn = c.querySelector('button');
-    const txt = c.querySelector('h2, h3, .ct, .cap');
+    const txt = Array.from(c.querySelectorAll('h2, h3, .ct, .cap, td')).find((e) => !e.closest('button, label, [role], .chip, .seg, svg'));
     return [getComputedStyle(c).userSelect, getComputedStyle(btn).userSelect, txt && getComputedStyle(txt).userSelect, getComputedStyle(document.querySelector('.tbar')).userSelect];
   });
   expect(us[0]).toBe('text'); expect(us[1]).toBe('none'); expect(us[2]).toBe('text'); expect(us[3]).toBe('none');
