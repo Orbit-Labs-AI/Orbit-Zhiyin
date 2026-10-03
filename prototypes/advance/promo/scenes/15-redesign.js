@@ -1,9 +1,9 @@
 /* 15-redesign 1d–1e（b11.8–23.0） — STORYBOARD.md v17.1（V1 / V2 T4–T6 / V4）.
-   1d 我们认为，人与 AI 的协作，也值得被重新设计（b12.4–18.0）：b11.8 起 1c 的光标（10-intro 的短列，停在 (1400, 615)）
+   1d 但，人与 Agent 的交互本身，也需要被重新定义（v17.2 文案，b12.8–17.8）：b11.8 起 1c 的光标（10-intro 的短列，停在 (1400, 615)）
       「躺倒」向左展开成窄 ∩ 弧 arcD（H3，b13.4 落定 cc (744, 584) … cp (1176, 584)）；输入框从点组中心生出、落到 (960, 880)，
       b17.2–17.6 缩回点组。纠正气泡分两层：cx / ds 挂在点上方（同一点新气泡替换旧的），cc / gm / cp 挂在点下方（新的把旧的
       下推 64px，每点 2 个）；b16.8 起剩下的从最新到最旧依次缩回各自的点。
-   1e So，We Redesign for everyone（b17.8–22.0）：弧展开成 R 420 圆环（H4，polar (960, 700)），环内三行字；b19.2 起虚线圆画进
+   1e So，我们做了一个 Assistant / Redesign / Agent Workflow / for everyone（v17.2 文案，b18.2–22.0）：弧展开成 R 420 圆环（H4，polar (960, 700)），环内三行字；b19.2 起虚线圆画进
       AGD.back，半径每帧取 cc 到 (960, 540) 的距离，所以 20-orbit 在 b21.6 收紧圆环时它跟着收，b22.4–23.0 淡出。
    b21.6 起圆环的 key 归 20-orbit；本场景只写 b11.8（H3，在 10-intro 段内，10-intro 不写 b11.8 之后的 key）与 b17.4 两个 key。 */
 'use strict';
@@ -11,8 +11,13 @@ css(`
 .k .ln.rd-h{font-size:100px}
 .k .ln.rd-or>span,.k .rd-or{color:var(--a1)}
 .k .ln.rd-so{font-size:56px;font-weight:300;color:rgba(255,255,255,.7);letter-spacing:0}
-.k .ln.rd-xl{font-size:96px}
+.k .ln.rd-xl{font-size:84px}
 .k .ln.sv b.rd-or{color:var(--a1);-webkit-text-fill-color:var(--a1)}
+/* v17.2: the connectives 「但，」/「So，…」 share one light small size; 「重新定义」 is an orange .w inside silver type; the
+   highlighter word keeps its own white fill so the band sits under the glyphs, not over the silver gradient */
+.k .ln.rd-cj{font-size:44px;font-weight:300;color:rgba(255,255,255,.72);letter-spacing:0}
+.k .ln.sv .w.rd-or{background:none;color:var(--a1);-webkit-text-fill-color:var(--a1)}
+.k .ln.sv .rd-mk{color:#fff;-webkit-text-fill-color:#fff;--mk:rgba(226,96,43,.78)}
 `);
 scene('15-redesign', () => {
   /* ---------- Agent 点 ---------- */
@@ -36,10 +41,31 @@ scene('15-redesign', () => {
     const q = exit ? E.inOut(clamp((tl - (life - BB(.6))) / BB(.6))) : 0;
     el.style.transform = 'translate(-50%,-50%) translateY(' + (-6 * (ts / BEAT - 12.8) - 36 * q).toFixed(1) + 'px)';
   };
-  txt(12.8, 17.8, [['lt', '<span style="color:rgba(255,255,255,.6)">我们认为，</span>']], { x: 960, y: 150, align: 'c' },
-    { anim: K.blurIn({ spread: .7, dur: .5, out: .6 }), tick: drift(true) });
-  txt(13.2, 17.8, [['hv sv rd-h', '人与 AI 的协作，']], { x: 960, y: 255, align: 'c' }, { inB: 1.4, outB: .6, tick: drift() });
-  txt(14.0, 17.8, [['hv rd-h rd-or', '也值得被重新设计']], { x: 960, y: 370, align: 'c' }, { inB: 1.4, outB: .6, tick: drift() });
+  // v17.2 copy: 「但，」 / 「人与 Agent 的交互本身，」 / 「也需要被重新定义」. 「但，」 lands alone first, the way 1e's 「So，」
+  // does (K.big: soft and large, settled within .4 beats), and the dots flinch with it (r × .9); line 2 rises at b13.4 as
+  // the arc lands; the orange highlighter under 「交互本身」 is driven by the correction bubbles (each one moves it a tenth
+  // further, so it speeds up as they crowd in, b13.85 → b15.9); line 3: 「也需要被」 rises, then 「重新定义」 (orange)
+  // drops in last through the line's mask and settles (scale 1.06 → 1, no flash), landing with the last bubble
+  txt(12.8, 17.8, [['rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
+    { anim: K.big({ scale: 2.2, dur: .4, out: .6, spread: true }), tick: drift(true) });
+  for (let i = 0; i < 5; i++) AGD.pulse(i, 12.8, .9, .5);
+  const markBy = (el, b) => {
+    const p = BUB.reduce((s, u) => s + E.inOut(clamp((b - u.b0 + .25) / .4)), 0) / BUB.length;
+    el.querySelectorAll('.mk').forEach((m) => { m.style.backgroundSize = (p * 100).toFixed(1) + '% .26em'; });
+  };
+  txt(13.4, 17.8, [['hv sv rd-h', '人与 Agent 的<span class="mk rd-mk">交互本身</span>，']], { x: 960, y: 255, align: 'c' },
+    { inB: 1.2, outB: .6, tick: (el, tl, life, ts) => { drift()(el, tl, life, ts); markBy(el, ts / BEAT); } });
+  const fall = (o) => (el, tl, life) => {
+    const [a, w] = el.querySelectorAll('.w'), q = exitQ(tl, life, o.out);
+    const p0 = E.expo(clamp(tl / BB(o.inB))), p1 = E.out(clamp((tl - BB(o.at)) / BB(o.dur)));
+    a.style.transform = 'translateY(' + ((1 - p0) * 130 - (1 - q) * 30).toFixed(2) + '%)';
+    a.style.opacity = Math.min(1, p0 * 1.4).toFixed(3);
+    w.style.transform = 'translateY(' + (-(1 - p1) * 110 - (1 - q) * 30).toFixed(2) + '%) scale(' + lerp(1.06, 1, p1).toFixed(4) + ')';
+    w.style.opacity = Math.min(1, p1 * 1.6).toFixed(3);
+    leave(el, q, true);
+  };
+  txt(14.8, 17.8, [['hv sv rd-h', '<span class="w">也需要被</span><span class="w rd-or">重新定义</span>']], { x: 960, y: 370, align: 'c' },
+    { anim: fall({ inB: 1.2, at: .6, dur: .5, out: .6 }), tick: drift() });
 
   /* ---------- 1d 输入框 + 纠正气泡 ---------- */
   // typing ~.1–.2 beats a character, faster as the corrections pile up; the box is never idle: the 4th one is typed
@@ -109,18 +135,21 @@ scene('15-redesign', () => {
       '" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 7" transform="rotate(' + ang.toFixed(2) + ' 960 540)"/>';
   });
 
-  /* ---------- 1e 环内三行（fit 640，b21.4–22.0 字距拉开退场） ---------- */
-  // pacing: 「So，」 settles over .7 beats and the words cut in .45 beats apart; from b18.4 the three lines push in
-  // together (scale 1 → 1.04 about the ring centre, constant speed) so they never sit still under the turning ring.
-  // 1.04 keeps the corners of a 640-px line inside the ring's inner edge (radius 380)
+  /* ---------- 1e 环内一行小字 + 三行大字（fit，b21.4–22.0 字距拉开退场） ---------- */
+  // v17.2 copy: 「So，我们做了一个 Assistant」 / 「Redesign」 / 「Agent Workflow」 / 「for everyone」. The small line comes
+  // first (「So，」 lands soft and large like 1d's 「但，」, the rest follows from lower right), then the three big lines cut
+  // in one per .45 beats from b19.0. From b18.4 everything pushes in together (scale 1 → 1.04 about the ring centre,
+  // constant speed) so it never sits still under the turning ring; the fit widths keep every line's corners inside the
+  // ring's inner edge (radius 380) at 1.04
   const zoom = (y, own) => (el, tl, life, ts) => {
     const s = 1 + .04 * clamp((ts / BEAT - 18.4) / 3.6), add = ' translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
     el.style.transform = (own ? 'translate(-50%,-50%)' : el.style.transform) + add;     // K.words rewrites it every frame, K.big never
   };
-  txt(18.2, 22.0, [['hv rd-so', '<span class="w">So，</span>']], { x: 960, y: 400, align: 'c' },
-    { anim: K.big({ scale: 3, dur: .7, out: .6, spread: true }), tick: zoom(400, true) });
-  txt(18.7, 22.0, [['xl sv rd-xl', '<span class="w">We </span><span class="w">Redesign</span>']], { x: 960, y: 520, align: 'c' },
-    { anim: K.words({ at: [0, .45], fit: 640, out: .6, spread: true }), tick: zoom(520) });
-  txt(19.6, 22.0, [['xl sv rd-xl', '<span class="w">for <b class="rd-or">everyone</b></span>']], { x: 960, y: 645, align: 'c' },
-    { anim: K.words({ at: [0], fit: 640, out: .6, spread: true }), tick: zoom(645) });
+  txt(18.2, 22.0, [['rd-cj', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w">Assistant</span>']],
+    { x: 960, y: 362, align: 'c' }, { anim: K.big({ scale: 2.4, dur: .6, fly: .2, out: .6, spread: true }), tick: zoom(362, true) });
+  // [beat, y, html, fit]
+  for (const [b, y, h, fit] of [[19.0, 462, 'Redesign', 560], [19.45, 568, 'Agent Workflow', 620], [19.9, 674, 'for <b class="rd-or">everyone</b>', 600]]) {
+    txt(b, 22.0, [['xl sv rd-xl', '<span class="w">' + h + '</span>']], { x: 960, y, align: 'c' },
+      { anim: K.words({ at: [0], fit, out: .6, spread: true }), tick: zoom(y) });
+  }
 });
