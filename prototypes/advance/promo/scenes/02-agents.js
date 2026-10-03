@@ -1,5 +1,7 @@
 /* AGD — the one set of five Agent dots that runs through the whole film (STORYBOARD.md「共享 API (a)」「转场关键帧」).
-   Every dot is always its Agent's logo badge (agBadge), never a plain dot. All beats are film beats.
+   Every dot is always its Agent's logo badge (agBadge), never a plain dot. All beats are the calling scene's own beats:
+   each call is stored + SHIFT of its scene, and every callback / live param below receives that scene's beats (promo.js
+   CTX_SH), so AGD.pos / AGD.centroid inside it need no conversion.
 
    AGD.ID = ['cc','cx','gm','ds','cp'] (= AGID, index i = 0..4), AGD.NAME = display names, AGD.C = AGC colours.
    AGD.key(b, form, o)       formation keyframe from beat b. Each dot eases (o.ease, default E.inOut) over o.dur beats
@@ -93,23 +95,25 @@ const AGD_KEYS = [], AGD_FOL = [], AGD_PUL = [], AGD_LINKS = [], AGD_BUB = [], A
 let AGD_SORTED = false;
 const agWrap = (d) => ((d % 360) + 540) % 360 - 180;       // to (−180, 180]
 const agDeg = Math.PI / 180;
-AGD.key = (b, form, o = {}) => { AGD_KEYS.push({ b: b + SH, form, o }); AGD_SORTED = false; };
-AGD.follow = (b0, b1, fn, o = {}) => AGD_FOL.push({ b0, b1, fn, blend: o.blend ?? .6 });
-AGD.pulse = (i, b, k, dur = .4) => AGD_PUL.push({ i, b, k, dur });
-AGD.link = (b0, b1, i, to, o = {}) => AGD_LINKS.push({ b0, b1, i, to, o, id: AGD_LINKS.length });
-AGD.bubble = (i, b0, b1, text, o = {}) => AGD_BUB.push({ i, b0, b1, text, o, el: null });
-AGD.glow = (i, b0, b1, v = 1) => AGD_GLOW.push({ i, b0, b1, v });
+// v17.3 SHIFT: every beat is stored + SH of the registering scene (sh); its callbacks get that scene's own beats (agCall)
+const agCall = (sh, fn, b, ...a) => inCtx(sh, () => fn(b - sh, ...a));
+AGD.key = (b, form, o = {}) => { AGD_KEYS.push({ b: b + SH, sh: SH, form, o }); AGD_SORTED = false; };
+AGD.follow = (b0, b1, fn, o = {}) => AGD_FOL.push({ b0: b0 + SH, b1: b1 + SH, sh: SH, fn, blend: o.blend ?? .6 });
+AGD.pulse = (i, b, k, dur = .4) => AGD_PUL.push({ i, b: b + SH, k, dur });
+AGD.link = (b0, b1, i, to, o = {}) => AGD_LINKS.push({ b0: b0 + SH, b1: b1 + SH, sh: SH, i, to, o, id: AGD_LINKS.length });
+AGD.bubble = (i, b0, b1, text, o = {}) => AGD_BUB.push({ i, b0: b0 + SH, b1: b1 + SH, sh: SH, text, o, el: null });
+AGD.glow = (i, b0, b1, v = 1) => AGD_GLOW.push({ i, b0: b0 + SH, b1: b1 + SH, v });
 // a scene's own drawing under the mark and the dots: fn(b) → SVG string, drawn into #agdBack in [b0, b1)
-AGD.back = (b0, b1, fn) => AGD_BACK.push({ b0, b1, fn });
+AGD.back = (b0, b1, fn) => AGD_BACK.push({ b0: b0 + SH, b1: b1 + SH, sh: SH, fn });
 
 // one formation, evaluated live at beat b → { x, y, r, a, back, el } (el: ellipse descriptor for polar blends, orbit only)
 // a formation parameter, live: o[k] may be a number or (b, i) => number
-const agV = (o, k, d, b, i) => { const x = o[k]; return typeof x === 'function' ? x(b, i) : x ?? d; };
+const agV = (o, k, d, b, i, sh = 0) => { const x = o[k]; return typeof x === 'function' ? agCall(sh, x, b, i) : x ?? d; };
 function agForm(n, i, b) {
-  const K = AGD_KEYS[n], o = K.o, f = K.form, db = b - K.b, v = (k, d) => agV(o, k, d, b, i);
+  const K = AGD_KEYS[n], o = K.o, f = K.form, db = b - K.b, v = (k, d) => agV(o, k, d, b, i, K.sh);
   switch (f) {
     case 'pts': {
-      const h = hash01(i, 5), dr = v('drift', 12), px = 9 + 5 * hash01(i, 6), py = 9 + 5 * hash01(i, 7), q = typeof o.pts === 'function' ? o.pts(b, i) : o.pts[i];
+      const h = hash01(i, 5), dr = v('drift', 12), px = 9 + 5 * hash01(i, 6), py = 9 + 5 * hash01(i, 7), q = typeof o.pts === 'function' ? agCall(K.sh, o.pts, b, i) : o.pts[i];
       return { x: q[0] + dr * Math.sin(2 * Math.PI * (b / px + h)), y: q[1] + dr * Math.sin(2 * Math.PI * (b / py + h * 1.7) ), r: v('r', 40), a: v('a', 1) };
     }
     case 'ring': {
@@ -170,18 +174,22 @@ function agPos(n, i, b) {
 }
 function agSort() { if (!AGD_SORTED) { AGD_KEYS.sort((a, b) => a.b - b.b); AGD_SORTED = true; } }
 AGD.pos = (i, b) => {
-  agSort();
+  agSort(); b += CTX_SH + SH;                               // b in the calling scene's beats (registration: SH, callbacks: CTX_SH)
+  const c0 = CTX_SH, s0 = SH; CTX_SH = 0; SH = 0;
+  try { return agPosF(i, b); } finally { CTX_SH = c0; SH = s0; }
+};
+function agPosF(i, b) {
   let n = -1; for (let k = 0; k < AGD_KEYS.length; k++) if (AGD_KEYS[k].b <= b) n = k;
   let q = n < 0 ? { x: 960, y: 540, r: 0, a: 0 } : Object.assign({}, agPos(n, i, b));
   for (const f of AGD_FOL) {
     if (b < f.b0 || b >= f.b1) continue;
-    const w = Math.min(E.inOut(clamp((b - f.b0) / f.blend)), E.inOut(clamp((f.b1 - b) / f.blend))), v = f.fn(i, b, q);
+    const w = Math.min(E.inOut(clamp((b - f.b0) / f.blend)), E.inOut(clamp((f.b1 - b) / f.blend))), v = agCall(f.sh, (bb) => f.fn(i, bb, q), b);
     if (!v) continue;
     for (const k of ['x', 'y', 'r', 'a']) if (v[k] != null) q[k] = lerp(q[k], v[k], w);
   }
   for (const u of AGD_PUL) if (u.i === i && b >= u.b && b < u.b + u.dur) q.r *= 1 + (u.k - 1) * Math.sin(Math.PI * (b - u.b) / u.dur);
   return q;
-};
+}
 AGD.centroid = (b) => {
   const P = [0, 1, 2, 3, 4].map((i) => AGD.pos(i, b)).filter((p) => p.a > .02);
   if (!P.length) return { x: 960, y: 540, rho: 0 };
@@ -208,13 +216,13 @@ const agMix = (i) => 'color-mix(in oklab, ' + AGC[i] + ' 50%, #fff)';
 let agFrame = -1, agCache = [];
 function applyAgents(t) {
   const b = t / BEAT; agSort();
-  const P = [0, 1, 2, 3, 4].map((i) => AGD.pos(i, b)); agCache = P; agFrame = b;
+  const P = [0, 1, 2, 3, 4].map((i) => agPosF(i, b)); agCache = P; agFrame = b;
   let back = '', front = '', defs = '';
-  for (const g of AGD_BACK) if (b >= g.b0 && b < g.b1) { try { back += g.fn(b) || ''; } catch (e) { console.error('AGD.back', e); g.b1 = -1; } }
+  for (const g of AGD_BACK) if (b >= g.b0 && b < g.b1) { try { back += agCall(g.sh, g.fn, b) || ''; } catch (e) { console.error('AGD.back', e); g.b1 = -1; } }
   // links
   for (const L of AGD_LINKS) {
     if (b < L.b0 || b >= L.b1) continue;
-    const o = L.o, p = P[L.i], T = typeof L.to === 'function' ? L.to(b) : L.to, c = agCubic([p.x, p.y], T, o.bend ?? .4);
+    const o = L.o, p = P[L.i], T = typeof L.to === 'function' ? agCall(L.sh, L.to, b) : L.to, c = agCubic([p.x, p.y], T, o.bend ?? .4);
     const vis = Math.min(E.out(clamp((b - L.b0) / (o.draw ?? .35))), 1 - E.in(clamp((b - (L.b1 - (o.out ?? .3))) / (o.out ?? .3))));
     if (vis <= .002) continue;
     const d = 'M' + c[0].map((v) => v.toFixed(1)).join(' ') + 'C' + c.slice(1).map((q) => q.map((v) => v.toFixed(1)).join(' ')).join(' ');
@@ -259,7 +267,7 @@ function applyAgents(t) {
   }
   const m = P[0].merged || 0;
   if (m > .01) {
-    const K = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= b).pop(), sp = K ? agV(K.o, 'spin', 6, b, 0) * (b - K.b) : 0, p = P[0], rr = p.r + 7;
+    const K = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= b).pop(), sp = K ? agV(K.o, 'spin', 6, b, 0, K.sh) * (b - K.b) : 0, p = P[0], rr = p.r + 7;
     for (let i = 0; i < 5; i++) { const a0 = sp + i * 72 + 3, a1 = sp + i * 72 + 69, q0 = [p.x + rr * Math.sin(a0 * agDeg), p.y - rr * Math.cos(a0 * agDeg)], q1 = [p.x + rr * Math.sin(a1 * agDeg), p.y - rr * Math.cos(a1 * agDeg)];
       front += '<path d="M' + q0[0].toFixed(1) + ' ' + q0[1].toFixed(1) + 'A' + rr.toFixed(1) + ' ' + rr.toFixed(1) + ' 0 0 1 ' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + '" fill="none" stroke="' + AGC[i] + '" stroke-width="1.5" opacity="' + (m * Math.min(1, p.a)).toFixed(3) + '"/>'; }
   }
@@ -278,7 +286,7 @@ function agBubEnd(u) {
 // live state of bubble u at beat b on dot p: tail anchor (ax, ay), dx, dy, scale sc, shrink pout, end
 function agBub(u, b, p) {
   const end = agBubEnd(u), live = b >= u.b0 && b < end;
-  const dx = typeof u.o.dx === 'function' ? u.o.dx(b) : u.o.dx ?? 0, dy0 = typeof u.o.dy === 'function' ? u.o.dy(b) : u.o.dy, dy = dy0 ?? -p.r - 18;
+  const dx = typeof u.o.dx === 'function' ? agCall(u.sh, u.o.dx, b) : u.o.dx ?? 0, dy0 = typeof u.o.dy === 'function' ? agCall(u.sh, u.o.dy, b) : u.o.dy, dy = dy0 ?? -p.r - 18;
   const pin = ease.back(clamp((b - u.b0) / .25)), pout = E.in(clamp((b - (end - .2)) / .2));
   return { live, end, dx, dy, ax: p.x + dx, ay: p.y + dy, pout, sc: Math.max(0, pin) * (1 - pout) };
 }
@@ -303,9 +311,9 @@ function agBubbles(b, P) {
 }
 const AG_SEND = '<svg viewBox="0 0 24 24"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 AGD.chat = (b0, b1, o) => {
-  const c = { b0, b1, o, types: [], sends: [], el: null };
-  c.type = (b, text, dur) => { c.types.push({ b, text, dur }); return c; };
-  c.send = (b, i, so = {}) => { const ty = c.types.filter((x) => x.b <= b).pop(); c.sends.push({ b, i }); if (ty) AGD.bubble(i, b + .15, so.until ?? b + 2, ty.text, so); return c; };
+  const c = { b0: b0 + SH, b1: b1 + SH, sh: SH, o, types: [], sends: [], el: null };
+  c.type = (b, text, dur) => { c.types.push({ b: b + SH, text, dur }); return c; };
+  c.send = (b, i, so = {}) => { const ty = c.types.filter((x) => x.b <= b + SH).pop(); c.sends.push({ b: b + SH, i }); if (ty) AGD.bubble(i, b + .15, so.until ?? b + 2, ty.text, so); return c; };
   AGD_CHATS.push(c); return c;
 };
 function agChats(b, t) {
@@ -318,9 +326,9 @@ function agChats(b, t) {
     if (o.from || o.to) {
       // grows out of / shrinks back into a point (e.g. the dots' centroid): centre and scale blend, origin at the box centre
       let x = o.x, y = o.y, s = 1, a = 1;
-      if (o.from) { const f = o.from(b), e = E.out(clamp((b - c.b0) / .6)); x = lerp(f.x, x, e); y = lerp(f.y, y, e); s = lerp(.15, 1, e); a = clamp((b - c.b0) / .25); }
+      if (o.from) { const f = agCall(c.sh, o.from, b), e = E.out(clamp((b - c.b0) / .6)); x = lerp(f.x, x, e); y = lerp(f.y, y, e); s = lerp(.15, 1, e); a = clamp((b - c.b0) / .25); }
       else { const pin = E.out(clamp((b - c.b0) / .4)); y += 40 * (1 - pin); a = pin; }
-      if (o.to) { const T = o.to(b), e = E.in(clamp((b - (c.b1 - .4)) / .4)); x = lerp(x, T.x, e); y = lerp(y, T.y, e); s *= lerp(1, .15, e); a *= 1 - e; }
+      if (o.to) { const T = agCall(c.sh, o.to, b), e = E.in(clamp((b - (c.b1 - .4)) / .4)); x = lerp(x, T.x, e); y = lerp(y, T.y, e); s *= lerp(1, .15, e); a *= 1 - e; }
       else { const pout = E.in(clamp((b - (c.b1 - .4)) / .4)); y += 40 * pout; a *= 1 - pout; }
       c.el.style.transformOrigin = '50% 50%';
       c.el.style.transform = 'translate(' + (x - o.w / 2).toFixed(1) + 'px,' + (y - 44).toFixed(1) + 'px) scale(' + s.toFixed(4) + ')';

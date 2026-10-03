@@ -5,11 +5,16 @@
    (preview) or frame by frame on Playwright's fake clock (render.mjs). Times are written in beats. */
 'use strict';
 const BPM = 132, BEAT = 60 / BPM;                         // beats; music.py uses the same grid
-let END = 88;                                             // length in beats; the closing scene sets it
-/* v17: every scene runs on film beats (SHIFT is empty, kept so older helpers that read it still work). Each cue, tween,
-   text, tag, drive and click still remembers SH of the scene that registered it (always 0 now). music.py uses the same grid. */
-const SHIFT = {};
-let SH = 0;
+let END = 88;                                             // length in beats of the closing scene, in its own beats (it sets it)
+/* v17.3: every scene file is written in its own beats (= film beats before v17.3). SHIFT[scene] (beats) pushes everything
+   that scene registers later: tween / txt / tag / drive / at / clickAt / markAt and every AGD call (key, follow, pulse,
+   link, bubble, glow, back, chat). Callbacks (drive, markAt, ticks, AGD live params, AGD follow / back / link targets /
+   bubble offsets / chat from / to) receive the scene's own beats; while one runs, CTX_SH holds its shift, so AGD.pos(i, b)
+   and AGD.centroid(b) called inside it read b in that scene's beats too. music.py carries the same table. */
+const SHIFT = { '10-intro': 0, '15-redesign': 3, '20-orbit': 5.1, '30-persona': 5.1, '40-recs': 6.9, '50-tools': 9.9, '60-close': 12.9 };
+let SH = 0, CTX_SH = 0;
+// run f with the callback context of a scene shifted by sh (AGD.pos / centroid inside read that scene's beats)
+function inCtx(sh, f) { const p = CTX_SH; CTX_SH = sh; try { return f(); } finally { CTX_SH = p; } }
 const RENDER = location.search.includes('render');
 const DEBUG = location.search.includes('debug');
 const $ = (s, r) => (r || document).querySelector(s);
@@ -158,13 +163,13 @@ function applyFx(t) {
     const t0 = f.b0 * BEAT, t1 = f.b1 * BEAT, live = t >= t0 && t < t1;
     if (live && !f.el) { f.el = document.createElement('div'); f.el.className = 'k'; f.el.innerHTML = f.html; f.el.setAttribute('style', f.style); f.el.style.transform = f.base; fxEl.appendChild(f.el); }
     if (!live && f.el) { f.el.remove(); f.el = null; }
-    if (f.el) { const ts = t - f.sh * BEAT; f.anim(f.el, t - t0, t1 - t0, ts); if (f.tick) f.tick(f.el, t - t0, t1 - t0, ts); }
+    if (f.el) { const ts = t - f.sh * BEAT; inCtx(f.sh, () => { f.anim(f.el, t - t0, t1 - t0, ts); if (f.tick) f.tick(f.el, t - t0, t1 - t0, ts); }); }
   }
 }
 
 /* ---------- app control ---------- */
 const cues = [];
-function at(b, fn) { cues.push({ b: b + SH, fn, done: false }); }
+function at(b, fn) { cues.push({ b: b + SH, sh: SH, fn, done: false }); }
 function app(d) {
   const k = decks[d], W = k.W, D = k.D;
   return {
@@ -201,7 +206,7 @@ function applyDrives(t) {
     if (x.fin || b < x.b0) continue;
     const D = decks[x.d].D; if (!D && !decks[x.d].virtual) continue;
     const p = clamp((b - x.b0) / (x.b1 - x.b0));
-    try { x.fn(p, b - x.sh, D); } catch (e) { console.error('drive @' + x.b0, e); x.fin = true; }
+    try { inCtx(x.sh, () => x.fn(p, b - x.sh, D)); } catch (e) { console.error('drive @' + x.b0, e); x.fin = true; }
     if (p >= 1) x.fin = true;
   }
 }
@@ -233,8 +238,7 @@ function applyTags(t) {
     g.el.style.textAlign = g.side === 'left' ? 'right' : al >= .99 ? 'right' : al > .01 && al < .99 ? 'center' : 'left';
     g.el.style.transformOrigin = g.side === 'left' ? '100% 50%' : g.side === 'right' ? '0 50%' : (al * 100) + '% ' + (g.side === 'top' ? '100%' : '0');
     g.el.style.transform = 'scale(' + s.toFixed(4) + ') ' + tr;
-    const ts = t - g.sh * BEAT; g.anim(g.el, t - t0, t1 - t0, ts);
-    if (g.o.tick) g.o.tick(g.el, t - t0, t1 - t0, ts);
+    const ts = t - g.sh * BEAT; inCtx(g.sh, () => { g.anim(g.el, t - t0, t1 - t0, ts); if (g.o.tick) g.o.tick(g.el, t - t0, t1 - t0, ts); });
   }
 }
 
@@ -586,7 +590,7 @@ function orbitAt(bf) {
   let h = ''; MARK.pose = null;
   for (const m of MARKS) {
     if (bf < m.b0 || bf >= m.b1) continue;
-    let r; try { r = m.fn(clamp((bf - m.b0) / (m.b1 - m.b0)), bf - m.sh); } catch (e) { console.error('markAt @' + m.b0, e); m.b1 = -1; continue; }
+    let r; try { r = inCtx(m.sh, () => m.fn(clamp((bf - m.b0) / (m.b1 - m.b0)), bf - m.sh)); } catch (e) { console.error('markAt @' + m.b0, e); m.b1 = -1; continue; }
     for (const q of (Array.isArray(r) ? r : [r])) { if (!q) continue; const o = Object.assign({ t: 1, a: 1, color: MARK_INK }, q); h += orbitSVG(o); MARK.pose = o; }
   }
   orbEl.innerHTML = h ? '<defs><radialGradient id="orbGlow"><stop offset="0" stop-color="rgba(255,255,255,.9)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>' + h : '';
@@ -654,7 +658,8 @@ const every = (b0, b1, fn) => drive(2, b0, b1, (p, b) => fn(p, b));
    must hand over to the next one; times are beats (132 BPM, 1 beat = 0.455 s). */
 const SCENES = [];
 function scene(name, fn) { SCENES.push({ name, fn }); }
-function script() { for (const s of SCENES) { SH = SHIFT[s.name] || 0; try { s.fn(); } catch (e) { console.error('scene ' + s.name, e); } } SH = 0; }
+let END_SH = 0;                                            // SHIFT of the scene that set END
+function script() { for (const s of SCENES) { SH = SHIFT[s.name] || 0; const e0 = END; try { s.fn(); } catch (e) { console.error('scene ' + s.name, e); } if (END !== e0) END_SH = SH; } SH = 0; }
 // styles a scene needs for its own type or overlays
 function css(text) { const st = document.createElement('style'); st.textContent = text; document.head.appendChild(st); }
 const L = 160, R = 1760;
@@ -669,7 +674,7 @@ function now() {
 }
 function step(tt) {
   const t = tt ?? now(); PROMO.t = t;
-  for (const c of cues) if (!c.done && t >= c.b * BEAT) { c.done = true; try { c.fn(); } catch (e) { console.error('cue @' + c.b, e); } }
+  for (const c of cues) if (!c.done && t >= c.b * BEAT) { c.done = true; try { inCtx(c.sh, c.fn); } catch (e) { console.error('cue @' + c.b, e); } }
   // the app re-renders on clicks and route changes: re-mark the solo component when its element was replaced
   for (const k of decks) if (k.solo && k.D) for (const s of Array.isArray(k.solo) ? k.solo : [k.solo]) { const el = find(k.i, s); if (el && !el.classList.contains('promo-solo')) el.classList.add('promo-solo'); }
   // scrollIntoView inside an app copy (solo) also scrolls the promo page and the stage itself: pin them every frame
@@ -696,7 +701,7 @@ function syncAnims() {
 }
 PROMO.start = (from = 0) => {
   offset = from; t0 = performance.now();
-  for (const c of cues) if (c.b * BEAT < from) { c.done = true; try { c.fn(); } catch (e) { console.error(e); } }
+  for (const c of cues) if (c.b * BEAT < from) { c.done = true; try { inCtx(c.sh, c.fn); } catch (e) { console.error(e); } }
   if (!RENDER) (function loop() { step(); requestAnimationFrame(loop); })();
 };
 PROMO.sync = (t) => { step(t); syncAnims(); };
@@ -714,7 +719,7 @@ decks.filter((k) => k.frame).forEach((k) => k.frame.addEventListener('load', () 
   boot();
 }));
 function boot() {
-  script(); PROMO.duration = END * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
+  script(); END += END_SH; PROMO.duration = END * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
   if (DEBUG) { const d = document.createElement('div'); d.className = 'dbg'; stage.appendChild(d); setInterval(() => { d.textContent = 'b' + (PROMO.t / BEAT).toFixed(2); }, 50); }
   PROMO.ready = true;
 }

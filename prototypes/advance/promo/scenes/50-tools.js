@@ -6,9 +6,6 @@
    旧镜头（.mt-ph 胶囊、播放头、DIAG 传送带）来自 git show 78841089^:prototypes/advance/promo/scenes/50-montage.js。
    生成过程用 App 自己的 studioStep / refreshStudio，但按成片拍逐帧推进（App 自带的定时器约 8 秒跑完，这里压到 b65.95–70.75，SKILL.md 逐字写出）。 */
 scene('50-tools', () => {
-  // SHIFT moves tween / txt / tag / drive / at / clickAt / AGD.key, but AGD.link / glow / pulse take film beats and the
-  // merge key's live x / y / r get the film beat: those are converted with the scene's shift here, so the scene survives SHIFT
-  const SH0 = SH;
   css(`
 .mt-ph{display:inline-flex;align-items:center;gap:14px;font:600 44px var(--sans);color:#fff;padding:10px 26px 12px;border-radius:999px;background:rgba(10,11,13,.9);border:1px solid rgba(255,255,255,.22)}
 .mt-ph i{width:14px;height:14px;border-radius:50%;background:#fff}
@@ -70,7 +67,7 @@ scene('50-tools', () => {
       : backXY(b);
   };
   const mergeR = (b) => b < 66.0 ? lerp(44, 26, io(b, 56.8, .6)) : b < 71.1 ? lerp(26, 36, io(b, 66.0, .6)) : lerp(36, 40, io(b, 71.1, 1.1));
-  AGD.key(55.0, 'merge', { x: (b) => mergeXY(b - SH0)[0], y: (b) => mergeXY(b - SH0)[1], r: (b) => mergeR(b - SH0), dur: 1.2, stag: .05 });
+  AGD.key(55.0, 'merge', { x: (b) => mergeXY(b)[0], y: (b) => mergeXY(b)[1], r: (b) => mergeR(b), dur: 1.2, stag: .05 });
 
   /* ---------- top copy: three lines, swapped in place at 5.4, out at b71.4 ---------- */
   const sw = (a, b) => '<span class="sw"><span>' + a + '</span><span>' + b + '</span></span>';
@@ -96,9 +93,9 @@ scene('50-tools', () => {
   tween(0, 56.6, 8.0, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.04 }), E.sine);
   // the merged dot owns this session: a thin wire to the card's left edge, drawn .5 beat and taken back by b57.3 as the dot
   // leaves for the playhead (T11′)
-  AGD.link(56.4 + SH0, 57.3 + SH0, 0, () => elXY(0, '.tl-card', 0, .5), { color: WIRE, width: 1.5, draw: .5, out: .3 });
+  AGD.link(56.4, 57.3, 0, () => elXY(0, '.tl-card', 0, .5), { color: WIRE, width: 1.5, draw: .5, out: .3 });
   // the failing deploy (crit, playhead 24 → 36 min over b60.5–62.5): the riding dot glows once while its pill is up
-  AGD.glow(0, 60.85 + SH0, 61.85 + SH0, .8);
+  AGD.glow(0, 60.85, 61.85, .8);
   // playhead through the five phases (0–6–9–24–36–42 min): one smooth monotone curve through the phase knots (no stop at
   // a knot). v17.3: each phase lasts as long as its pill needs to be read (pop .4 beat + 0.9 + .12 per CJK character, as
   // far as 3 extra beats go): 探索 1.3 (it pops at b55.6 while the card lands, readable from b56.1), 规划 1.45, 实施 1.85,
@@ -173,7 +170,7 @@ scene('50-tools', () => {
   // 5.5 the merged dot is the pointer: it has slid onto 开始生成 (mergeXY, b64.4–65.65) and presses it — no pointer, only the
   // orange bloom, and the dot dips (.88) with the press; the app's own timers are cleared, the run is driven below
   clickAt(1, 65.8, startBtn, (a, el) => { a.click(el); a.W.eval('clearTimeout(RUNT)'); remark1(); }, { bloom: 'var(--a1)', cursor: false });
-  AGD.pulse(0, 65.8 + SH0, .88, .3);
+  AGD.pulse(0, 65.8, .88, .3);
   // 5.6 the app's run (v1: pack · analyse · draft · self-check · replay + judge · review), on the film's beats: ≥ .45 beat per
   // step, SKILL.md typed character by character at an even rate over b67.05–69.65 (2.6 beats; the finished file then reads
   // 1.45 beats before the exit), new log lines fade/rise in
@@ -211,8 +208,8 @@ scene('50-tools', () => {
   // the merged dot is the generator: once it has backed off to 56 px left of the run card (b66.0–66.6), its wire grows from it
   // and carries pulses into the card while SKILL.md is written (no separate guide line: the dot itself was on the button)
   const runEdge = () => elXY(1, runCard, 0, .5);
-  AGD.link(66.35 + SH0, 71.3 + SH0, 0, runEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .45, out: .3 });
-  AGD.glow(0, 65.95 + SH0, 70.75 + SH0, 1);
+  AGD.link(66.35, 71.3, 0, runEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .45, out: .3 });
+  AGD.glow(0, 65.95, 70.75, 1);
   // 5.7 out: the cards shrink into the dot, turn slightly and fade (clear by b72.1) while the dot returns to the centre. The
   // camera is first re-anchored on the dot (same picture: the frame point under the dot becomes the anchor), then the anchor
   // travels with the dot to (960, 540) on the dot's own curve (1.1 beats, E.inOut: the dot stays on the anchor); the cards
