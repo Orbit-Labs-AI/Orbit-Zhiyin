@@ -27,7 +27,7 @@ PATHS = {"claude_code": {"permission_rule": "~/.claude/settings.json", "hook": "
 # (orbit_catalog.compat SKILL_DIRS / RULE_FILES). Their hook and permission files are not confirmed,
 # so those kinds stay without a path (the card gives no landing path rather than a guessed one).
 for _agent, _home in (("opencode", "~/.config/opencode/"), ("hermes", "~/.hermes/"), ("dsh", "~/.dsh/"),
-                      ("pi", "~/.pi/agent/")):
+                      ("pi", "~/.pi/agent/"), ("kimi", "~/.kimi/")):
     PATHS[_agent] = {"skill": _home + "skills/{id}/SKILL.md", "rule": "AGENTS.md", "prompt": "AGENTS.md"}
 
 
@@ -73,7 +73,7 @@ def project_name(project_id: str | None, inputs: dict) -> str | None:
 
 
 AGENT_HOME = {"claude_code": "~/.claude/", "codex": "~/.codex/", "opencode": "~/.config/opencode/",
-              "hermes": "~/.hermes/", "dsh": "~/.dsh/", "pi": "~/.pi/"}
+              "hermes": "~/.hermes/", "dsh": "~/.dsh/", "pi": "~/.pi/", "kimi": "~/.kimi/"}
 
 
 def agent_owns_path(path: str, agent: str | None) -> bool:
