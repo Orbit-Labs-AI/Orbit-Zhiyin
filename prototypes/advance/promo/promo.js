@@ -324,7 +324,7 @@ function buildCompass() {
     lys.map((ly) => '<path class="ly" fill="' + cpMute(AGC[D.AG.indexOf(ly.a)], 58) + '" fill-opacity=".42"/>').join('') +
     lys.map((ly) => '<path class="ed" fill="none" stroke="' + cpMute(AGC[D.AG.indexOf(ly.a)], 78) + '" stroke-width="2.3" stroke-linejoin="round"/>').join('') +
     '<g class="dim">' + CODES.map((c, t) => '<path data-t="' + t + '" fill="#000" opacity="0" d="' + cpSector(CP.R0 - 2, CP.R0 + CP.RH + 10, t * 22.5, (t + 1) * 22.5) + '"/>').join('') + '</g></g>' +
-    '<g class="cp-pls">' + D.orb.planets.map((x) => { const c = AGC[D.AG.indexOf(x.a)]; return '<g class="pl"><circle r="27" fill="' + cpMute(c, 60) + '" fill-opacity=".2"/>' + D.agLogo(x.a.id, 0, 0, 19, cpMute(c, 86)) + '</g>'; }).join('') + '</g>' +
+    '<g class="cp-pls">' + D.orb.planets.map((x) => { const c = AGC[D.AG.indexOf(x.a)]; return '<g class="pl"><circle r="27" fill="' + cpMute(c, 60) + '" fill-opacity=".2"/>' + D.agLogo(x.a.id, 0, 0, 19, cpMute(c, 86), '#0e0f12') + '</g>'; }).join('') + '</g>' +
     '<g class="cp-core"><circle cx="400" cy="400" r="' + CP.CORE + '" fill="#08090b" stroke="' + Wt + '.16)" stroke-width="1.6"/></g>' +
     '<g class="cp-flower">' + D.fl.map(fl).join('') + fl(D.mine, 'me') + '</g>';
   const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('viewBox', '0 0 800 800'); svg.setAttribute('width', '800'); svg.setAttribute('height', '800'); svg.setAttribute('class', 'compass');
