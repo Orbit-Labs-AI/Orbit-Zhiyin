@@ -27,7 +27,8 @@ function redact(text) {
 }
 // Native capabilities of the shell (contract: native-shell batch). A control shows only when the host lists the feature in
 // __ORBIT_NATIVE__.features and a message handler exists; in a browser or an older shell the row is hidden, never broken.
-// NATV.ask(type, payload) posts {type, id, ...} and resolves the reply event 'tandem:<type>' (or 'tandem:reply') with that id.
+// NATV.ask(type, payload) posts {type, reqId, ...} and resolves the reply event 'tandem:<type>' (or 'tandem:reply') whose
+// detail carries the same reqId (or id); no reply within ms rejects with code 'timeout'.
 const NATV = {
   on() { const n = window.ORBIT && window.ORBIT.native; return !!(n && n.isNative && n.hasHost()); },
   has(f) { const n = window.ORBIT && window.ORBIT.native; return NATV.on() && n.has(f); },
@@ -39,10 +40,10 @@ const NATV = {
     return new Promise((resolve, reject) => {
       const evs = ['tandem:' + type, 'tandem:reply'];
       const done = (fn, v) => { evs.forEach((x) => window.removeEventListener(x, h)); clearTimeout(t); fn(v); };
-      const h = (e) => { const d = (e && e.detail) || {}; if (d.id === id) done(resolve, d); };
+      const h = (e) => { const d = (e && e.detail) || {}; if (d.reqId === id || d.id === id) done(resolve, d); };
       const t = setTimeout(() => done(reject, Object.assign(new Error('timeout'), { code: 'timeout' })), ms || 4000);
       evs.forEach((x) => window.addEventListener(x, h));
-      if (!n.post(type, Object.assign({}, payload || {}, { id }))) done(reject, Object.assign(new Error('no host'), { code: 'no_host' }));
+      if (!n.post(type, Object.assign({}, payload || {}, { reqId: id }))) done(reject, Object.assign(new Error('no host'), { code: 'no_host' }));
     });
   },
   // 登录时启动: the switch mirrors SMAppService; S.login stays false until the host answered
@@ -75,7 +76,7 @@ let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE
 // A sheet left open by the previous tab (工具名映射表, 协作人格如何计算 …) or by the main window would cover the settings window and
 // swallow every pointer event, so opening settings or switching tabs closes it first (palette excluded: it has no host).
 function setDropSheet() { if (!$('#modal').hidden && MODAL_HOST) closeModal(); tipOff(); }
-function openSettings(tab) { if (tab) S.setTab = tab; NATV.loginGet(); S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
+function openSettings(tab) { if (tab) S.setTab = tab; NATV.loginGet(); if (S.setTab === 'notify') NATV.notifGet(); S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
 function closeSettings() { if (MODAL_HOST === $('#set')) closeModal(); $('#set').hidden = true; S.keyWin = 'main'; keyWinApply(); }
 /* centred horizontally, 60px under the menu bar (or wherever it was dragged to), always fully inside the stage */
 function setPlace() {
@@ -121,7 +122,10 @@ function renderSet() {
   } else if (t === 'notify') {
     // each column is its own channel: a row with only 悬浮组件 ticked changes the HUD and nothing else (BUG-40)
     const nOn = (c) => NEV.filter((e) => S.notif[e[0]][c]).length;
-    body = card('投递矩阵', '默认克制：只在需要你动作或有明确结果时打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + nevCols().map((i) => [NEV_COL[i], i]).map(([c, i]) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + nevCols().map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + nevCols().map((i) => NEV_COL[i]).map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:6px">每列独立生效 · 用菜单栏「演示」菜单模拟事件即可预览</div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
+    const AUTH = { authorized: ['已允许', 'var(--good)'], provisional: ['静默投递（临时授权）', 'var(--ink-2)'], denied: ['已关闭', 'var(--warn)'], notDetermined: ['还没有询问过', 'var(--ink-2)'] };
+    const au = AUTH[S.notifAuth] || ['读取中…', 'var(--ink-3)'];
+    const sys = NATV.has('notificationStatus') ? card('系统通知', 'Orbit 不在前台时，横幅改由 macOS 通知中心投递', '<div class="row" data-tl="notif-auth" data-v="' + esc(S.notifAuth || '') + '" style="gap:10px;flex-wrap:wrap"><span style="font-size:13px;color:' + au[1] + '">' + au[0] + '</span>' + (S.notifAuth === 'denied' ? '<button type="button" class="btn sm" data-act="setNotifSys">打开系统设置</button><span class="cap" style="font-size:11px">在「通知 › Orbit」里允许通知</span>' : S.notifAuth === 'notDetermined' ? '<span class="cap" style="font-size:11px">点「预览通知」时系统会询问一次</span>' : '') + '</div>') : '';
+    body = sys + card('投递矩阵', '默认克制：只在需要你动作或有明确结果时打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + nevCols().map((i) => [NEV_COL[i], i]).map(([c, i]) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + nevCols().map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + nevCols().map((i) => NEV_COL[i]).map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:6px">每列独立生效 · 用菜单栏「演示」菜单模拟事件即可预览</div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
       card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div>' + (badgeOn() ? '<span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span>' : '') + '<div class="row" style="gap:10px;padding-top:6px;border-top:1px solid var(--hair)">' + swBtn(!S.hud.tipOff, 'setTipOn', '', '悬浮组件里的上下文提示') + '<span style="flex:1;min-width:0;font-size:13px">悬浮组件里的上下文提示<span class="cap" style="display:block;font-size:11px">上下文超过 60% 时建议「先总结进度」' + (S.hud.tipOff ? '；已被「不再提示此类」关闭' : '') + '</span></span></div><div><button type="button" class="btn sm" data-act="setTestNotif">发送测试通知</button></div></div>');
   } else {
     body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px">' + appIcon(64) + '</span><div style="font-size:22px;font-weight:700">Orbit</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">' + (LV.live ? '关于 Orbit' : '关于这个 Demo') + '</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
@@ -139,7 +143,7 @@ function resetDemo() {
 }
 Object.assign(ACT, {
   openSettings: (el) => openSettings(el && el.dataset ? el.dataset.tab : undefined),
-  setTab: (el) => { S.setTab = el.dataset.v; setDropSheet(); renderSet(); },
+  setTab: (el) => { S.setTab = el.dataset.v; setDropSheet(); renderSet(); if (S.setTab === 'notify') NATV.notifGet(); },
   setClose: () => closeSettings(),
   setTheme: (el) => { setTheme(el.dataset.v); render(); },
   setHud: () => toggleHud(),
@@ -179,7 +183,8 @@ Object.assign(ACT, {
   setTipOn: () => { S.hud.tipOff = !S.hud.tipOff; render(); toast(S.hud.tipOff ? '已关闭悬浮组件里的上下文提示' : '已恢复悬浮组件里的上下文提示'); },
   setAiCh: (el) => { const k = el.dataset.k; S.aiCh[k] = !S.aiCh[k]; renderSet(); },
   setMute: () => setHudMuted(!S.hud.mute),
-  setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true }),
+  setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true, system: true }),
+  setNotifSys: () => { if (window.ORBIT && ORBIT.native) ORBIT.native.post('openNotificationSettings', {}); },
   setUpdate: () => toast('已是最新版本（演示）'),
   obReplay: () => openOnboarding(0),
   doReset: () => doReset()

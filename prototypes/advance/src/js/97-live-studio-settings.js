@@ -595,6 +595,7 @@ if (TL.mode === 'live') {
     base(el, ev);
   });
   wrap('setTestNotif', (base, el, ev) => {
+    TLS.testAt = Date.now();   // the frame of POST /v1/notifications/test (type system) goes to the system as well
     TL.send('POST', '/v1/notifications/test', {}).then(() => { if (!TL.events.connected) base(el, ev); else toast('已发送测试通知'); }, (e) => { if (TL.unavailable(e)) base(el, ev); else tlsErr(e, '发送测试通知'); });
   });
   wrap('setUpdate', () => { const ab = TL.resource(R.about).data; const u = ab && ab.update; toast(u && u.available ? '有新版本 ' + u.available : u && u.checked_at ? '已是最新版本' : '还没有检查过更新'); });
@@ -616,11 +617,25 @@ if (TL.mode === 'live') {
   });
 
   /* ---------- notify frames → banner / HUD / 菜单栏角标 ---------- */
-  // in the native shell a banner raised while the window is hidden also goes to the system (notify → UNUserNotification)
+  // In the native shell a banner raised while Orbit is not the focused app (window hidden, or visible on another screen
+  // behind another app) also goes to the system (notify → UNUserNotification). n.system (测试 / 预览通知) always goes, with
+  // force:true, so the first authorisation prompt can appear; a {delivered:false, reason} reply is shown instead of swallowed.
   const tlsNotifyBase = notify;
   notify = function (n) {
     tlsNotifyBase(n);
-    if (ORBIT.native.isNative && document.hidden && !(S.paused && !n.force)) ORBIT.native.post('notify', { id: n.id || undefined, title: n.t || '', body: n.b || '' });
+    if (!ORBIT.native.isNative || (S.paused && !n.force)) return;
+    let away = true; try { away = document.hidden || !document.hasFocus(); } catch (e) { /* keep away */ }
+    if (!n.system && !away) return;
+    const msg = { id: n.id || undefined, title: n.t || '', body: n.b || '' };
+    if (!n.system) { ORBIT.native.post('notify', msg); return; }
+    msg.force = true;
+    NATV.ask('notify', msg, 5000).then((r) => {
+      if (r && r.delivered === false) {
+        if (/denied|not.?authori[sz]ed/i.test(r.reason || '')) S.notifAuth = 'denied';
+        toast('系统通知没有送达：' + (r.reason === 'denied' ? '通知权限已关闭，在「设置 › 通知」中打开' : r.reason || '原因未知'));
+        renderSet();
+      } else if (r && r.delivered) NATV.notifGet();
+    }, () => { /* an older host does not answer: the post itself went out */ });
   };
   // 菜单栏角标 in the native shell: the kinds delivered on the badge channel, pruned once they are no longer open; posted as
   // statusBadge {state: none | info | warn} on change (paused → none). The simulated menu bar (S.sim) is hidden in body.native.
@@ -643,7 +658,7 @@ if (TL.mode === 'live') {
       else if (k === 'waiting') { S.waitOpen = true; set('waiting'); }
       else if (k === 'stuck' || k === 'ctx') { S.attn.add(k); set(k); }
     }
-    if (ch.indexOf('banner') >= 0) notify({ id: d.id, t: d.title || '通知', b: d.body || '', force: true, a1: '查看', on1: () => { S.pop = true; render(); }, a2: '稍后', on2: () => { if (d.id) TL.send('POST', '/v1/notifications/' + encodeURIComponent(d.id) + '/ack', { snooze_s: 3600 }).catch(() => {}); } });
+    if (ch.indexOf('banner') >= 0) notify({ id: d.id, t: d.title || '通知', b: d.body || '', force: true, system: d.type === 'system' && Date.now() - (TLS.testAt || 0) < 15000, a1: '查看', on1: () => { S.pop = true; render(); }, a2: '稍后', on2: () => { if (d.id) TL.send('POST', '/v1/notifications/' + encodeURIComponent(d.id) + '/ack', { snooze_s: 3600 }).catch(() => {}); } });
     render();
   }
   TL.on('event', (ev) => {
