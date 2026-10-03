@@ -1,7 +1,7 @@
 /* ============ live persona + A1 overview feed (slice 1) ============
    Mock mode: nothing here runs (LV.live is false), persona() stays the demo formula and PERIODS keeps the demo months.
    Live mode:
-   - persona(L, minN) → personaLive: a JS port of uiview/persona.py (Wilson 95% axes, insufficient / experimental) when
+   - persona(L, minN) → personaLive: a JS port of uiview/persona.py (letter = value ≥ 50 → high pole, no undetermined band) when
      the rows carry the G1 unit counts (dk / dn / vk / op / t0 / t1). Until facts ships them, L is matched against the
      scopes the server can answer (7 / 30 / 90 / all, the last four calendar months, under the current Agent / project
      filters) and the memoised GET /v1/uiview/persona for that scope is returned; months come from that payload's
@@ -36,7 +36,6 @@ function peMonthKeys() { return LV.live ? lvMonths().map((m) => m.k) : ['jun', '
 const peCurMonth = () => { const k = peMonthKeys(); return k[k.length - 1]; };
 
 /* ---- G1 port of uiview/persona.py (used when facts rows carry dk / dn / vk / op / t0 / t1) ---- */
-const LVP_MIN_UNITS = { D: 30, I: 30, M: 10, V: 30 };
 function lvWilson(k, n) {
   if (n <= 0) return [0, 1];
   const z = 1.96, p = k / n, den = 1 + z * z / n, c = (p + z * z / (2 * n)) / den;
@@ -63,21 +62,19 @@ const LVP_LR = { D: ['D 委托', '掌舵 S'], I: ['P 规划', '即兴 I'], M: ['
 const LVP_HI = { D: ['D', 'S'], I: ['I', 'P'], M: ['M', 'F'], V: ['V', 'T'] };
 function lvPersonaCompute(L, minN) {
   const n = L.length; const days = new Set(L.map((s) => s.d)).size;
-  if (n < (minN || 30) || !n) return { ok: false, classified: false, n, days, conf: '低' };
+  if (!n) return { ok: false, classified: false, n, days, conf: '低' };
   const u = lvUnits(L);
   const axes = AXES.map((ax) => {
     const k = ax.k, kk = u[k][0], nn = u[k][1];
     const value = nn ? 100 * kk / nn : null; let [lo, hi] = lvWilson(kk, nn); lo = Math.round(lo * 1000) / 10; hi = Math.round(hi * 1000) / 10;
-    let letter = '?', state = 'experimental';
-    if (nn < LVP_MIN_UNITS[k] || days < 10 || value == null) state = 'insufficient';
-    else if (lo >= 55) { letter = LVP_HI[k][0]; state = 'settled'; } else if (hi <= 45) { letter = LVP_HI[k][1]; state = 'settled'; }
+    const letter = (value == null ? 50 : value) >= 50 ? LVP_HI[k][0] : LVP_HI[k][1], state = value == null ? 'no_data' : 'settled';
     return { k, value: value == null ? null : Math.round(value * 10) / 10, lo, hi, n_units: nn, k_units: kk, letter, state,
       strong: value == null ? null : Math.round(Math.max(value, 100 - value)), left: LVP_LR[k][0], right: LVP_LR[k][1], dim: ax.dim, q: ax.q, sig: ax.sig };
   });
   const code = axes.map((a) => a.letter).join('');
   const t = TYPES[code];
-  return { ok: true, classified: !!t, n, days, code, zh: t ? t[0] : '尚未定型', en: t ? t[1] : 'Undetermined', line: t ? t[2] : '有维度落在 45–55 之间，暂不下结论。',
-    v: axes.reduce((o, a) => { o[a.k] = a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : '中', method: 'client-port' };
+  return { ok: true, classified: !!t, n, days, code, zh: t[0], en: t[1], line: t[2], hint: personaHint(n),
+    v: axes.reduce((o, a) => { o[a.k] = a.value == null ? 50 : a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : n >= PERSONA_SOFT_N ? '中' : '低', method: 'client-port' };
 }
 
 // per-axis evidence for the client port (same shape and formulas as uiview/persona.py evidence(); BUG R4-03)
@@ -110,8 +107,8 @@ function lvShape(b, L) {
   const v = {}; ['D', 'I', 'M', 'V'].forEach((k) => { const x = b.v && b.v[k]; v[k] = x == null ? 50 : x; });
   const t = TYPES[b.code];
   const out = Object.assign({}, b, { ok: true, classified: b.classified != null ? !!b.classified : !!t, n: b.n, v, code: b.code,
-    zh: b.zh || (t ? t[0] : '尚未定型'), en: b.en || (t ? t[1] : 'Undetermined'), line: b.line || (t ? t[2] : '有维度落在 45–55 之间，暂不下结论。'),
-    conf: b.conf || (b.n >= 100 ? '高' : '中'), axes: b.axes || [], server: b });
+    zh: b.zh || (t ? t[0] : '—'), en: b.en || (t ? t[1] : ''), line: b.line || (t ? t[2] : ''), hint: b.hint !== undefined ? b.hint : personaHint(b.n),
+    conf: b.conf || (b.n >= 100 ? '高' : b.n >= PERSONA_SOFT_N ? '中' : '低'), axes: b.axes || [], server: b });
   if (L) { out.st = stats(L); Object.assign(out, lvAvg(L)); }
   return out;
 }
@@ -188,7 +185,7 @@ function personaLive(L, minN) {
     if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
     return p;
   }
-  if (L.length < (minN || 30)) return { ok: false, classified: false, n: L.length };
+  if (!L.length) return { ok: false, classified: false, n: 0 };
   const period = lvpScopes().get(lvpSig(L));
   if (period) {
     const full = LVP.full.get(lvpKey(period) + '/v1/uiview/persona');

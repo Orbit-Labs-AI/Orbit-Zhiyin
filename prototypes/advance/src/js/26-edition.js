@@ -49,7 +49,7 @@ function renderSideLite() {
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const n = sel({ noExtra: true }).length;
   const nav = (i, ct, bd) => sideNavBtn(LITE_ROUTES[i][0], LITE_ROUTES[i][1], LITE_ROUTES[i][2], ct, bd);
-  $('#side').innerHTML = edSwitch() + '<div class="sb-scroll">' +
+  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
     sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
     sideGroup('action', '行动', nav(3, '', recN || '')) +
     sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();

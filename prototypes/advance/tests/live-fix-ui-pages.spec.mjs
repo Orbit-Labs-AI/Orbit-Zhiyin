@@ -96,12 +96,12 @@ test('C: project menu is height-capped, folds empty / scratch projects and filte
   expect(errors).toEqual([]);
 });
 
-test('D/E: one-session persona says keep using Orbit, names its own period; axes use pole words', async ({ page }) => {
+test('D/E: an empty persona says keep using Orbit, names its own period; axes use pole words', async ({ page }) => {
   const errors = collectErrors(page);
   await stubGateway(page, 'core');
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
-  await page.evaluate((row) => { LV.hydrate({ rows: [Object.assign({}, row, { d: '2026-09-20' })], projects: [], agents: [] }); S.range = 30; go('persona'); }, oldRow);
+  await page.evaluate(() => { LV.hydrate({ rows: [], projects: [], agents: [] }); S.range = 30; go('persona'); });
   const low = page.locator('.pe-low');
   await expect(low).toContainText('会话还不够，继续使用 Orbit 就会积累');
   await expect(low.locator('[data-act="peRelax"]')).toHaveCount(0);

@@ -11,18 +11,57 @@
 let lvFrame = 0, lvFrameT = null, lvLastSig = null, lvTick = 0;
 const lvIds = new WeakMap(); let lvIdN = 0;
 const lvId = (o) => { if (o == null || typeof o !== 'object') return String(o); let v = lvIds.get(o); if (!v) lvIds.set(o, v = ++lvIdN); return v; };
+// Import progress is not page data: a job frame only moves the numbers, so the signature keeps the job's identity and
+// status (start / finish re-render) and the frames themselves patch the progress nodes in place (lvPatchProgress).
+const LV_ACTIVE = ['queued', 'pending', 'running'];
+const lvJobSig = (j) => (j ? (j.id || '') + ':' + (j.kind || '') + ':' + (j.status || '') : '');
+function lvImporting() {
+  const j = TL.job; if (j && j.kind === 'import' && LV_ACTIVE.indexOf(j.status) >= 0) return true;
+  const L = typeof OB !== 'undefined' && OB && OB.live; return !!(L && L.job && LV_ACTIVE.indexOf(L.job.status) >= 0);
+}
 function lvSig() {
-  const parts = [lvTick, LV.rev, LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvId(TL.job), TL.job && TL.job.status, lvId(TL.failure), lvId(TL.error), lvId(TL.status),
+  const parts = [lvTick, LV.rev, LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvJobSig(TL.job), lvId(TL.failure), lvId(TL.error), lvId(TL.status),
     TL.events && TL.events.connected, lvId(TL.collection), TL.collection && TL.collection.state];
   try { parts.push(JSON.stringify(TL.services || {})); } catch (e) { parts.push(++lvTick); }
   TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0) + (r.dirty ? 'd' : '')); return false; });
   return parts.join('|');
 }
+// A live-triggered render is postponed while the user is in the middle of something (wheel / touch scrolling in the last
+// 700 ms, a dropdown open, or — during an import — typing in a field) — at most LV_DEFER_MAX, so data never goes stale for long — and while an
+// import runs, live renders are spaced LV_IMPORT_GAP apart: the import publishes often and every publish would otherwise
+// rebuild the page under the user's cursor (bug: scroll positions and open menus jumping back during the first import).
+const LV_IMPORT_GAP = 4000, LV_DEFER_MAX = 8000;
+let lvLastRenderT = 0, lvDeferSince = 0, lvUserT = 0;
+if (typeof window !== 'undefined') {
+  const mark = () => { lvUserT = Date.now(); };
+  ['wheel', 'touchmove'].forEach((n) => window.addEventListener(n, mark, { passive: true, capture: true }));
+  window.addEventListener('keydown', (e) => { if (/^(Page(Up|Down)|Arrow(Up|Down)|Home|End| )$/.test(e.key)) mark(); }, true);
+}
+function lvUserBusy(now) {
+  if (now - lvUserT < 700) return true;
+  if (typeof DD !== 'undefined' && DD) return true;
+  // a focused field only holds renders back during an import (search answers must still arrive while typing)
+  const a = document.activeElement;
+  return !!(a && lvImporting() && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest('#main, #side'));
+}
 function lvFlush() {
   if (lvFrame) { cancelAnimationFrame(lvFrame); lvFrame = 0; }
   if (lvFrameT) { clearTimeout(lvFrameT); lvFrameT = null; }
-  const sig = lvSig(); if (sig === lvLastSig) return;
+  lvPatchProgress();
+  const sig = lvSig(); if (sig === lvLastSig) { lvDeferSince = 0; return; }
+  const now = Date.now();
+  const gap = lvImporting() && lvLastRenderT ? lvLastRenderT + LV_IMPORT_GAP - now : 0;
+  const busy = lvUserBusy(now) && (!lvDeferSince || now - lvDeferSince < LV_DEFER_MAX);
+  if (gap > 0 || busy) { if (!lvDeferSince) lvDeferSince = now; lvFrameT = setTimeout(lvFlush, Math.max(400, Math.min(gap, 2000))); return; }
+  lvDeferSince = 0;
   render();
+}
+// the import progress strip (TandemLive.ui.progress) is patched in place on every job frame instead of re-rendering the page
+function lvPatchProgress() {
+  if (typeof document === 'undefined') return;
+  const els = document.querySelectorAll('#content .tl-progress'); if (!els.length) return;
+  const html = TLU.progress(TL); if (!html) return;
+  els.forEach((el) => { if (el.outerHTML !== html) el.outerHTML = html; });
 }
 function lvSchedule() {
   if (lvFrame || lvFrameT) return;
@@ -121,9 +160,10 @@ const LV = {
   feeds: {}, applied: {}
 };
 { const ch0 = TL.changed; TL.changed = function () { lvTick++; return ch0.apply(this, arguments); }; }
-TL.on('event', () => { lvTick++; });
+// job frames are progress, not data (see lvJobSig): they do not count as a change of the live state
+TL.on('event', (ev) => { if (!ev || ev.name !== 'job') lvTick++; });
 // every render (whatever triggered it) records the live state it showed, so the next TL frame can tell whether it is new
-LV.rendered = () => { if (LV.live) { try { lvLastSig = lvSig(); } catch (e) { lvLastSig = null; } } };
+LV.rendered = () => { lvLastRenderT = Date.now(); if (LV.live) { try { lvLastSig = lvSig(); } catch (e) { lvLastSig = null; } } };
 if (LV.live && typeof window !== 'undefined') window.__lvRendered = LV.rendered;
 LV.backendId = (uiId) => { const a = AGI[uiId]; return a && a.key ? a.key : uiId; };
 // scope for page endpoints: {range, agents (backend ids | null = all), project, tz} + the UI-only filters
@@ -499,8 +539,15 @@ if (LV.live) {
   // no mock rows ever reach a live screen: start from the empty spine, then load
   LV.hydrate({ rows: [] });
   LV.state = 'connecting';
+  // while an import runs, data.published arrives batch after batch: reload the spine at most every LV_IMPORT_GAP
+  let lvDataT = null, lvDataLast = 0;
+  const lvDataReload = () => { lvDataT = null; lvDataLast = Date.now(); LV.resetWindow(); LV.loadSpine(); };
   TL.on('event', (ev) => {
-    if (/^data\b/.test(ev.name)) { LV.resetWindow(); LV.loadSpine(); return; }
+    if (/^data\b/.test(ev.name)) {
+      if (!lvImporting()) { clearTimeout(lvDataT); lvDataReload(); return; }
+      if (!lvDataT) lvDataT = setTimeout(lvDataReload, Math.max(0, lvDataLast + LV_IMPORT_GAP - Date.now()));
+      return;
+    }
     if (ev.name !== 'analysis.ready') return;
     // a wider window finished (same scope_hash as its meta.window entry): widen to it without blanking the screen
     const p = ev.data || ev.payload || ev.p || {};
