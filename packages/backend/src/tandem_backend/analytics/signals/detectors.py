@@ -17,14 +17,15 @@ from typing import Any
 from ...models import stable_id
 from ...privacy import direct_user_text
 from ...profiling.bottlenecks import _expected_failure
-from ..common import human
+from ..common import clauses, human
 from ..context import AnalysisContext
-from ..interaction.rules import correction_terms
+from ..interaction.rules import QUOTED, correction_terms
+from ..lexicon import emotion_cues
 from .dictionary import (
     CORRECTION_CHARS,
     EDIT_KINDS,
     FIND_WRITE_ACTIONS,
-    FRUSTRATION,
+    FRUSTRATION_STREAK_CHARS,
     GIT_BRANCH_LIST,
     GIT_BRANCH_WRITE,
     READONLY_COMMANDS,
@@ -358,7 +359,7 @@ def _order(row: Record) -> tuple:
 
 
 def detect_correction(view: SessionView) -> list[Record] | None:
-    """Lexical correction proxy between assistant replies (5–200 direct characters)."""
+    """Lexical correction proxy between assistant replies (``CORRECTION_CHARS`` direct characters)."""
     if view.events is None:
         return None
     responded, groups = set(), defaultdict(list)
@@ -383,17 +384,18 @@ def detect_correction(view: SessionView) -> list[Record] | None:
 
 
 def detect_frustration(view: SessionView) -> list[Record] | None:
-    """v1 lexical proxy: frustration vocabulary or two short corrections in a row."""
+    """v1 lexical proxy: a negative emotion cue (``lexicon.emotion_cues``) or two short
+    corrections in a row. Quoted material never counts."""
     if view.events is None:
         return None
     hits, streak = [], []
     for e in _human_messages(view):
         text = direct_user_text(e.get("text") or "")
-        if FRUSTRATION.search(text):
-            hits.append(_event_occurrence(e, reason="vocabulary"))
+        if any(emotion_cues(c)[1] for c in clauses(QUOTED.sub("", text))):
+            hits.append(_event_occurrence(e, reason="emotion_cue"))
             streak = []
             continue
-        if len(text) <= 40 and correction_terms(text):
+        if len(text) <= FRUSTRATION_STREAK_CHARS and correction_terms(text):
             streak.append(e)
             if len(streak) == 2:
                 hits.append(_event_occurrence(e, reason="short_correction_streak"))

@@ -63,9 +63,13 @@ PROBLEM_TYPES: dict[str, dict] = {
 WILSON_LO_MIN = 0.0
 SCOPES = ("all", "project", "source")
 
-CORRECTION_CHARS = (5, 200)
-FRUSTRATION = re.compile(
-    r"算了|别弄了|怎么又|又错了|第几次|烦死|好烦|seriously|again\?!|\bugh\b", re.I)
+# Direct characters of a correction candidate: 2 admits the commonest Chinese short
+# rejections ("错了", "重来", "不对"); above 200 the message is a pasted spec/log where a
+# lexical hit is mostly quoted material.
+CORRECTION_CHARS = (2, 200)
+# Frustration reuses ``analytics.lexicon.emotion_cues`` (negation/hypothetical aware);
+# a short-correction streak is "two consecutive corrections of at most this many chars".
+FRUSTRATION_STREAK_CHARS = 40
 
 # Read-only shell heads (契约 §4.2 command.readonly); compared on the normalized head of
 # every segment. A head alone is not enough: the argument checks below reject the forms

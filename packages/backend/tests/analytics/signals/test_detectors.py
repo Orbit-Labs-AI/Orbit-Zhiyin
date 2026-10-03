@@ -37,6 +37,17 @@ def test_correction_positive_negative_and_unavailable():
     assert detected([chat("c", "不对，我说的是用 Python 写")], events=False)["correction"] is None
 
 
+@pytest.mark.parametrize("text", ["错了", "不对", "重来", "不行，重来", "不是这样的"])
+def test_short_corrections_reach_the_detector(text):
+    # CORRECTION_CHARS lower bound is 2: the commonest Chinese rejections are 2-5 chars.
+    assert keys(detected([chat("a", text)])["correction"]) == [("correction:none", 1)]
+
+
+@pytest.mark.parametrize("text", ["哪里错了？", "好", "算了一下复杂度"])
+def test_short_non_corrections_stay_silent(text):
+    assert detected([chat("a", text)])["correction"] == []
+
+
 def test_correction_dimension_maps_to_repeated_instruction():
     s = Session("a")
     s.user("请写报告")
