@@ -19,7 +19,8 @@
    不碰 deck 2（归 30-persona）、不画虚线圆（归 15-redesign）。compass key 按交接表由接手方 30-persona 写；它没写时这里补上（见下）。 */
 'use strict';
 css(`
-.k .ln.wm-s{font-size:44px;font-weight:300;color:rgba(255,255,255,.76);letter-spacing:.08em}
+/* v18.4：副标题 300/.76 太虚，压不住字标下的空白——提到 500 / .9、字距 .08 → .04em，读得出是一句话而不是装饰 */
+.k .ln.wm-s{font-size:44px;font-weight:500;color:rgba(255,255,255,.9);letter-spacing:.04em}
 `);
 scene('20-orbit', () => {
   const PC = [960, 540], MYSH = SH;
@@ -47,7 +48,8 @@ scene('20-orbit', () => {
   // 交接检查：原先 BACK0 − .3 起 1.6 拍，点在副标题淡出、「rb」还实着时就从字母间穿上去；改为 BACK0 + .25 起 1.1 拍
   // （到位拍不变），路径中段向下兜 40px（arc −40）：点升进字母带时副标题已无、「rb」只剩 ≲ 15 % 的残影
   const RET = BACK0 + .25;
-  AGD.key(RET, 'orbit', { ...OB, ph: 294 + OB.spin * (RET - CK + 1.9), dur: 1.1, ease: E.sine, stag: .04, polar: PC, arc: -40 });
+  // v18.4：回轨轨道半径 +18 px（rx 368 → 386、ry 69 → 87）：O 转回、翻平前（b31.3 = 片 b42.6）近半圈的 cc bead 原先压在内圈 O 描边上
+  AGD.key(RET, 'orbit', { ...OB, rx: OB.rx + 18, ry: OB.ry + 18, ph: 294 + OB.spin * (RET - CK + 1.9), dur: 1.1, ease: E.sine, stag: .04, polar: PC, arc: -40 });
   /* ---------- v17.7 点的形态（STORYBOARD「v17.7」F3 (2)） ---------- */
   // 收紧（b21.6）：15-redesign 交来的 bead 保持，公转加速时沿切线再拉长一点（w 2.5 → 2.85，≈ 拖影 .15）
   AGD.morph(21.6, 'all', 'bead', { dur: .6, stag: 0, w: 2.85, ls: .9 });
@@ -129,9 +131,10 @@ scene('20-orbit', () => {
     if (!WORDMARK.F) return icon(b);                         // frames missing: keep the icon (no wordmark)
     P0 = P0 || WORDMARK.place(icon(WS)); P1 = P1 || WORDMARK.place(icon(BACK1));
     let v, at;
+    // v18.4：收字 offRate 1.5 → 2.4：7 个字母 1080 ms / 2.4 ≈ .99 拍，b30.5（片 b41.8）前收完，O 转回时不再留 r/b 残影
     if (b < BACK0) { v = E.inOut(lp(b, WS, TT)); at = mixP(P0, readAt(b), v); }
     else { const e = E.inOut(lp(b, BACK0, BACKD)); v = 1 - e; at = mixP(readAt(b), P1, e); }
-    WORDMARK.add(WORDMARK.svg({ a: 1, cx: at.cx, cy: at.cy, k: at.k, v, b, on: ON, off: OFF, offRate: 1.5 }));
+    WORDMARK.add(WORDMARK.svg({ a: 1, cx: at.cx, cy: at.cy, k: at.k, v, b, on: ON, off: OFF, offRate: 2.4 }));
     return null;
   });
   // 副标题「你的 AI 协作复盘助手」（pitch deck）：字标字母升起后接着浮现（b26.7），在字标下方，每拍上移 3px 与点行同步；
