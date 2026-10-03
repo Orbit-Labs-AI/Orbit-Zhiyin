@@ -183,6 +183,26 @@ test('Lite: home, persona, sessions and recs run on the real agents; persona mon
   expect(errors).toEqual([]);
 });
 
+test('Lite persona: 匹配度 comes from /v1/uiview/persona/reveal for the same period when the code is classified', async ({ page }) => {
+  const errors = collectErrors(page);
+  const settled = fx('s1/persona-90-settled.json'), rv = fx('s1/reveal-settled.json');
+  const gw = await stubGateway(page, 's1', routes({ persona: () => settled, reveal: rv }));
+  await openLive(page, 'overview');
+  await page.evaluate(() => edSet('lite', 'l-persona'));
+  await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('lite|l-persona');
+  await expect(page.locator('.l-phero .letters')).toBeVisible();
+  const want = rv.candidates.find((c) => c.code === settled.code);
+  await expect(page.locator('.l-phero .l-match .bdg')).toHaveText('匹配度 ' + Math.round(want.match) + '%');
+  await expect(page.locator('.l-phero .l-match')).toContainText(settled.n + ' 个会话');
+  // the reveal is fetched for the Lite range, the same period as the persona it is matched against
+  const per = (x) => new URLSearchParams(x.query).get('period');
+  const pp = gw.seen.filter((x) => x.path === '/v1/uiview/persona').map(per), rp = gw.seen.filter((x) => x.path === '/v1/uiview/persona/reveal').map(per);
+  expect(rp.length).toBeGreaterThan(0);
+  expect(rp.every((x) => pp.includes(x))).toBe(true);
+  expect(await page.locator('#main').innerText()).not.toMatch(/\bn\s*[=≈]/);
+  expect(errors).toEqual([]);
+});
+
 test('empty spine and missing endpoints: owned routes render honest empty states, zero page errors', async ({ page }) => {
   test.skip(!!PASS, 'stubbed answers (gw.set / 404s) only');
   const errors = collectErrors(page);
