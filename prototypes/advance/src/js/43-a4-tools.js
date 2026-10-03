@@ -63,7 +63,7 @@ PAGES.tools = () => {
     VZ.kpi({ label: '需要你审批', value: fmt(approvals), delta: { cur: approvals, prev: approvalsPrev, goodDown: true, fmt: 'int' }, trend: weekly((x) => approvalsOf(toolRows(x)), endDay, 12), trendLabel: trendLbl, tip: '平均等待 38 s · 约 ' + Math.round(approvals * 38 / 3600) + ' 小时被打断（示例）' }),
     VZ.kpi({ label: '子代理派发', value: fmt(task ? task.n : 0), delta: { cur: task ? task.n : 0, prev: taskPrev ? taskPrev.n : null, fmt: 'int' }, trend: weekly((x) => { const t = toolRows(x).find((r) => r.name === 'Task'); return t ? t.n : 0; }, endDay, 12), trendLabel: trendLbl, tip: '平均 96 s · 最多并行 9（示例）' })
   ].join('');
-  return tbar('工具调用', fmt(st.tools) + ' 次调用 · ' + TOOLS.length + ' 种工具 · ' + mcpN + ' 个 MCP 服务', '<button type="button" class="btn" data-act="csv">' + ic('down', 14) + '导出 CSV</button><button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>') +
+  return tbar('工具调用', fmt(st.tools) + ' 次调用 · ' + TOOLS.length + ' 种工具 · ' + mcpN + ' 个 MCP 服务', '<button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>') +
     '<div class="content" id="content">' + filterRow('<button type="button" class="chip' + (T.failOnly ? ' on' : '') + '" data-act="failOnly" aria-pressed="' + T.failOnly + '">' + ic('alert', 13) + '仅看失败</button>') +
     '<div class="stack"><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))">' + kpis + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具明细</span><span class="cap" title="点列头排序 · 点行展开最近调用 · 迷你线为' + rangeLabel() + '每日调用' + (rangeN > 7 ? '（7 天滑动平均）' : '') + '">点行展开最近调用 · 列头可排序</span></div></div><div class="scroll-x"><table class="tbl tt"><thead><tr>' + th('name', '工具') + th('n', T.failOnly ? '失败次数' : '调用次数') + th('err', '错误率', 'right') + th('avg', '耗时 p50 / p95', 'right') + th('ap', '需审批', 'right') + '<th title="每日调用' + (rangeN > 7 ? '，7 天滑动平均' : '') + '">' + rangeLabel() + '</th></tr></thead><tbody>' + (tbody || '<tr><td colspan="6" class="cap">没有失败的调用</td></tr>') + '</tbody></table></div></div>' +
@@ -93,6 +93,5 @@ Object.assign(ACT, {
   toggleTool: (el) => { S.tools.open = S.tools.open === el.dataset.t ? null : el.dataset.t; render(); },
   failOnly: () => { S.tools.failOnly = !S.tools.failOnly; render(); },
   openFail: (el) => { S.tools.openFail = S.tools.openFail === el.dataset.k ? null : el.dataset.k; render(); },
-  failSessions: () => { S.fric = '工具 / 环境失败'; go('sessions'); toast('已筛选出现「工具 / 环境失败」的会话'); },
-  csv: () => openCSV()
+  failSessions: () => { S.fric = '工具 / 环境失败'; go('sessions'); toast('已筛选出现「工具 / 环境失败」的会话'); }
 });

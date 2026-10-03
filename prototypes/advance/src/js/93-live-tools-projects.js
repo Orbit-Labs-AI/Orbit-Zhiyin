@@ -187,7 +187,7 @@ function lvtpCallRows(name) {
 }
 function lvToolsPage() {
   const T = S.tools; const fs = LV.feedState('tools'); const b = LVTP.tools;
-  const actions = '<button type="button" class="btn" data-act="csv">' + ic('down', 14) + '导出 CSV</button><button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>';
+  const actions = '<button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>';
   const chip = '<button type="button" class="chip' + (T.failOnly ? ' on' : '') + '" data-act="failOnly" aria-pressed="' + !!T.failOnly + '">' + ic('alert', 13) + '仅看失败</button>';
   const head = (meta) => tbar('工具调用', meta, actions) + '<div class="content" id="content">' + filterRow(chip) + lvtpScopeNote();
   if (fs === 'error' && !b) return head('—') + empty('本地服务暂不提供工具统计') + '</div>';
