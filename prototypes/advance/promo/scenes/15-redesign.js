@@ -25,7 +25,10 @@ css(`
 .k .ln.rd-h{font-size:100px}
 .k .ln.rd-or>span,.k .rd-or{color:var(--a1)}
 .k .ln.rd-so{font-size:56px;font-weight:300;color:rgba(255,255,255,.7);letter-spacing:0}
-.k .ln.rd-xl{font-size:84px}
+.k .ln.rd-xl{font-size:94px}
+/* v18.1: 1e's So line — silver, a step under the peak (36 px, 500); 「So，」 lands alone at the ring centre first, so the
+   line may not clip it on its way up to its slot */
+.k .ln.rd-s1{font-size:36px;font-weight:500;letter-spacing:0;overflow:visible}
 .k .ln.sv b.rd-or{color:var(--a1);-webkit-text-fill-color:var(--a1)}
 /* v17.2: the connectives 「但，」/「So，…」 share one light small size; 「重新定义」 is an orange .w inside silver type; the
    highlighter word keeps its own white fill so the band sits under the glyphs, not over the silver gradient */
@@ -53,7 +56,11 @@ scene('15-redesign', () => {
   // v17.7: each of 1e's three hard cuts (b21.9 / 22.3 / 22.7) steps the beads 4° on along the ring (.2 beat, E.inOut, no
   // rebound); the spin gives those 12° back (9° over 5.7 beats), so the ring still hands on at 228° (b26.0)
   const JUMP = (b) => 4 * [21.9, 22.3, 22.7].reduce((s, t) => s + E.inOut(clamp((b - t) / .2)), 0);
-  AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: 420, ph: (b) => 207 + JUMP(b), spin: 9 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
+  // v18.1 slow push on the 1e peak: ring + So line + three lines scale 1 → 1.04 about the ring centre from the first hard
+  // cut (b21.9) to b25.7 (E.sine), then hold at 1.04 into 20-orbit's b26.0 key; the beads ride the scaled radius so they
+  // stay matched with the dashed circle and the type
+  const PUSH = (b) => 1 + .04 * E.sine(clamp((b - 21.9) / 3.8));
+  AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: (b) => 420 * PUSH(b), ph: (b) => 207 + JUMP(b), spin: 9 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
 
   /* ---------- 1d 文字（三行底边 ≤ 420，b20.1–20.7 一起向上淡出、模糊） ---------- */
   // pacing: the reveals run slower, and while they are up all three lines drift up together at 6 px/beat (no dead
@@ -227,15 +234,17 @@ scene('15-redesign', () => {
   // spiral's tail then starts on this very circle (R 300) as it fades (20-orbit's b21.6 / b22.4, pushed 4.4 by SHIFT)
   // v17.7: the circle is drawn out of the five beads — from each bead's bearing both ways (36° each, b22.1–22.9), so
   // it closes halfway between them; the arcs ride with the beads (their bearings each frame) and their radius
-  AGD.back(22.1, 27.4, (b) => {
-    const p = AGD.pos(0, b), R = Math.hypot(p.x - 960, p.y - 540);
-    const a = E.inOut(clamp((b - 22.1) / .3)) * (1 - E.inOut(clamp((b - 26.8) / .6))) * (.24 + .08 * E.inOut(clamp((b - 25.8) / .7)));
-    const s = 36.4 * E.inOut(clamp((b - 22.1) / .8));
-    if (a <= .002 || R < 1 || s < .2) return '';
-    const P = (g) => (960 + R * Math.sin(g * Math.PI / 180)).toFixed(1) + ' ' + (540 - R * Math.cos(g * Math.PI / 180)).toFixed(1);
+  AGD.back(21.0, 27.4, (b) => {
+    // v18.1: drawn out of the beads as they land (b21.0–21.7, each arc at its own bead's radius until they agree), fully
+    // closed by b21.7 (before the first hard cut), .32 → .4 so it reads as a line, not a haze
+    const a = E.inOut(clamp((b - 21.0) / .3)) * (1 - E.inOut(clamp((b - 26.8) / .6))) * (.32 + .08 * E.inOut(clamp((b - 25.8) / .7)));
+    const s = 36.4 * E.out(clamp((b - 21.0) / .7));
+    if (a <= .002 || s < .2) return '';
     let d = '';
     for (let i = 0; i < 5; i++) {
-      const q = AGD.pos(i, b), g = Math.atan2(q.x - 960, -(q.y - 540)) * 180 / Math.PI;
+      const q = AGD.pos(i, b), R = Math.hypot(q.x - 960, q.y - 540), g = Math.atan2(q.x - 960, -(q.y - 540)) * 180 / Math.PI;
+      if (R < 1) continue;
+      const P = (h) => (960 + R * Math.sin(h * Math.PI / 180)).toFixed(1) + ' ' + (540 - R * Math.cos(h * Math.PI / 180)).toFixed(1);
       d += 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 1 ' + P(g + s) + 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 0 ' + P(g - s);
     }
     return '<path d="' + d + '" fill="none" stroke="#fff" stroke-opacity="' + a.toFixed(3) +
@@ -249,12 +258,24 @@ scene('15-redesign', () => {
   // everyone 3.1 beats readable). From b21.3 everything pushes in together (scale 1 → 1.04 about the ring centre,
   // constant speed) so it never sits still under the turning ring; the fit widths keep every line's corners inside the
   // ring's inner edge (radius 380) at 1.04
+  // v18.1: the push is PUSH (b21.9–25.7, E.sine, the ring scales with it), so before the first cut the type sits still
   const zoom = (y, own) => (el, tl, life, ts) => {
-    const s = 1 + .04 * clamp((ts / BEAT - 21.3) / 5.1), add = ' translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
+    const s = PUSH(ts / BEAT), add = ' translateY(' + ((y - 540) * (s - 1)).toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
     el.style.transform = (own ? 'translate(-50%,-50%)' : el.style.transform) + add;     // K.words rewrites it every frame, K.big never
   };
-  txt(21.1, 26.4, [['rd-cj', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w">Assistant</span>']],
-    { x: 960, y: 362, align: 'c' }, { anim: K.all(K.big({ scale: 1.9, dur: .28, out: .6, spread: true }), step([null, [.26, .22, 1.07], [.5, .24, 1.12]], { dy: 18 })), tick: zoom(362, true) });
+  // v18.1: 「So，」 comes in at b20.6 at the ring centre (soft and large, as the 1d lines leave and the box shrinks into
+  // the dots there), so the ring is never empty; at b20.95–21.35 it rises to its slot at the head of the line and the
+  // rest of the line follows it in (「我们做了一个」 21.45, 「Assistant」 21.65)
+  const soRise = (el, tl) => {
+    const w = el.querySelector('.w'), u = tl / BEAT, p = E.out(clamp(u / .3)), m = E.inOut(clamp((u - .35) / .4));
+    const dx = el.offsetWidth / 2 - (w.offsetLeft + w.offsetWidth / 2), dy = 540 - 362;
+    w.style.transform = 'translate(' + (dx * (1 - m)).toFixed(1) + 'px,' + (dy * (1 - m)).toFixed(1) + 'px) scale(' + (lerp(1.9, 1, p) * lerp(2.2, 1, m)).toFixed(4) + ')';
+    w.style.transformOrigin = '50% 60%';
+    w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 14).toFixed(1) + 'px)' : 'none';
+    w.style.opacity = Math.min(1, p * 2).toFixed(3);
+  };
+  txt(20.6, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w">Assistant</span>']],
+    { x: 960, y: 362, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .22, 1.07], [1.05, .24, 1.12]], { dy: 18 })), tick: zoom(362, true) });
   // v17.5: each big line still cuts in hard (K.words), then settles from 1.06× (.32 beat) before the next one
   // v17.7: and it comes in 12 px from the side of the bead nearest it (the ring's bearings at its cut, landed), as if
   // that bead set it down inside the ring
@@ -272,7 +293,7 @@ scene('15-redesign', () => {
     w.style.filter = z < .5 ? 'blur(' + ((1 - z * 2) * 3).toFixed(1) + 'px)' : 'none';
   });
   // [beat, y, html, fit]
-  for (const [b, y, h, fit] of [[21.9, 462, 'Redesign', 560], [22.3, 568, 'Agent Workflow', 620], [22.7, 674, 'for <b class="rd-or">everyone</b>', 600]]) {
+  for (const [b, y, h, fit] of [[21.9, 460, 'Redesign', 740], [22.3, 568, 'Agent Workflow', 740], [22.7, 676, 'for <b class="rd-or">everyone</b>', 740]]) {
     txt(b, 26.4, [['xl sv rd-xl', '<span class="w">' + h + '</span>']], { x: 960, y, align: 'c' },
       { anim: K.all(K.words({ at: [0], fit, out: .6, spread: true }), settle(fromBead(b, y))), tick: zoom(y) });
   }
