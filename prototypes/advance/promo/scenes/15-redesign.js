@@ -3,7 +3,7 @@
       挂在点的下方（同一点的新气泡把旧的往下推 64px，最多叠 2 个），b16.8 起从新到旧依次缩回。
    1e So，We Redesign for everyone（b17.8–22.0）：弧展开成 R 420 圆环（H4，polar），环内三行字；b19.2 起虚线圆画进
       AGD.back，半径每帧取 cc 到 (960, 540) 的距离，所以 20-orbit 在 b21.6 收紧圆环时它跟着收，b22.4–23.0 淡出。
-   b21.6 起圆环的 key 归 20-orbit；本场景只写 b12.4 与 b17.8 两个 key。 */
+   b21.6 起圆环的 key 归 20-orbit；本场景只写 b12.4 与 b17.4 两个 key。 */
 'use strict';
 css(`
 .k .ln.rd-h{font-size:100px}
@@ -15,7 +15,9 @@ css(`
 scene('15-redesign', () => {
   /* ---------- Agent 点 ---------- */
   AGD.key(12.4, 'pts', { pts: AGD.P.arc, r: 40, a: 1, dur: 1.0, stag: .06 });                                   // H3
-  AGD.key(17.8, 'ring', { cx: 960, cy: 540, R: 420, ph: 209, spin: 5, r: 40, dur: 1.4, stag: .05, polar: [960, 540] });   // H4
+  // H4 starts at b17.4 (not 17.8) so gm, which rises straight up the middle, is above 「So，」 (y 400) before K.big lands it at
+  // b18.2; ph 207 = 209 − 5·0.4 keeps the b19.4 landing and the b21.6 angle (228) that 20-orbit hands on from
+  AGD.key(17.4, 'ring', { cx: 960, cy: 540, R: 420, ph: 207, spin: 5, r: 40, dur: 1.4, stag: .05, polar: [960, 540] });   // H4
 
   /* ---------- 1d 文字（三行底边 ≤ 420，b17.2–17.8 一起向上淡出、模糊） ---------- */
   const lift = () => (el, tl, life) => {                                                 // exit drifts up 36px
