@@ -31,10 +31,10 @@ They are product defaults, not calibrated against a population baseline.
 
 from __future__ import annotations
 
-import math
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 
+from ..analytics import stats
 from . import derive, facts
 from .typecopy import AXES, SOURCE, TYPES, copy
 
@@ -78,13 +78,9 @@ MONTHS = {k: i + 1 for i, k in enumerate(("jan", "feb", "mar", "apr", "may", "ju
 
 
 def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    if n <= 0:
-        return 0.0, 1.0
-    p = k / n
-    denom = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / denom
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
-    return max(0.0, centre - half), min(1.0, centre + half)
+    """``analytics.stats.wilson`` with the persona's no-data convention (0, 1)."""
+    lo, hi = stats.wilson(k, n, z) if n > 0 else (None, None)
+    return (0.0, 1.0) if lo is None else (lo, hi)
 
 
 def _overlap(intervals: list[tuple[int, int]]) -> bool:
@@ -126,13 +122,9 @@ def cluster_interval(clusters: list[tuple[int, int]], z: float = 1.96
 
 
 def wilson_p(p: float, n: float, z: float = 1.96) -> tuple[float, float]:
-    """Wilson interval for proportion p at (possibly effective, non-integer) size n."""
-    if n <= 0:
-        return 0.0, 1.0
-    denom = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / denom
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
-    return max(0.0, centre - half), min(1.0, centre + half)
+    """``analytics.stats.wilson_p`` at an effective (non-integer) size; (0, 1) at n ≤ 0."""
+    lo, hi = stats.wilson_p(p, n, z)
+    return (0.0, 1.0) if lo is None else (lo, hi)
 
 
 def units(rows: list[dict], aux: dict) -> dict[str, tuple[int, int]]:

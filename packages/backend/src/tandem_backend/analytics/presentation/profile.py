@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 from ..instruction import resolve_instruction_scope
 from ..preference import summarize_preferences
+from ..stats import wilson
 from ..task import summarize_task_distribution
 
 PROFILE_VERSION = "collaboration-profile-v2"
@@ -193,11 +194,8 @@ def _task_states(tasks, instructions):
 
 
 def _wilson(k, n, z=1.959963984540054):
-    p = k / n
-    denom = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / denom
-    half = z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5 / denom
-    return [round(max(0.0, centre - half), 4), round(min(1.0, centre + half), 4)]
+    lo, hi = wilson(k, n, z)
+    return [round(lo, 4), round(hi, 4)]
 
 
 def _axes(states, source_available):
