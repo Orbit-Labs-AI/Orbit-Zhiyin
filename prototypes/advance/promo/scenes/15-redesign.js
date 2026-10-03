@@ -1,9 +1,11 @@
-/* 15-redesign 1d–1e（b12.4–23.0） — STORYBOARD.md v17.
-   1d 我们认为，人与 AI 的协作，也值得被重新设计（b12.4–18.0）：点回到 1b 的弧（H3），输入框再次升起，纠正气泡越来越密，
-      挂在点的下方（同一点的新气泡把旧的往下推 64px，每点 2 个），每个约 2 拍滚动消失，b16.9 起剩下的从旧到新依次缩回。
-   1e So，We Redesign for everyone（b17.8–22.0）：弧展开成 R 420 圆环（H4，polar），环内三行字；b19.2 起虚线圆画进
+/* 15-redesign 1d–1e（b11.8–23.0） — STORYBOARD.md v17.1（V1 / V2 T4–T6 / V4）.
+   1d 我们认为，人与 AI 的协作，也值得被重新设计（b12.4–18.0）：b11.8 起 1c 的光标（10-intro 的短列，停在 (1400, 615)）
+      「躺倒」向左展开成窄 ∩ 弧 arcD（H3，b13.4 落定 cc (744, 584) … cp (1176, 584)）；输入框从点组中心生出、落到 (960, 880)，
+      b17.2–17.6 缩回点组。纠正气泡分两层：cx / ds 挂在点上方（同一点新气泡替换旧的），cc / gm / cp 挂在点下方（新的把旧的
+      下推 64px，每点 2 个）；b16.8 起剩下的从最新到最旧依次缩回各自的点。
+   1e So，We Redesign for everyone（b17.8–22.0）：弧展开成 R 420 圆环（H4，polar (960, 700)），环内三行字；b19.2 起虚线圆画进
       AGD.back，半径每帧取 cc 到 (960, 540) 的距离，所以 20-orbit 在 b21.6 收紧圆环时它跟着收，b22.4–23.0 淡出。
-   b21.6 起圆环的 key 归 20-orbit；本场景只写 b12.4 与 b17.4 两个 key。 */
+   b21.6 起圆环的 key 归 20-orbit；本场景只写 b11.8（H3，在 10-intro 段内，10-intro 不写 b11.8 之后的 key）与 b17.4 两个 key。 */
 'use strict';
 css(`
 .k .ln.rd-h{font-size:100px}
@@ -14,14 +16,18 @@ css(`
 `);
 scene('15-redesign', () => {
   /* ---------- Agent 点 ---------- */
-  // H3: same 1.0 beat / stag .06, but the same front-loaded ease as H2 (zero speed at both ends): with E.inOut the dots
-  // barely leave scatterC until b12.8, which reads as a dead hold after 1c's text clears, and gm (960, 110 → 492) is
-  // still at y ≈ 170 when 「我们认为，」 (y 150) blurs in at b12.8; this way it is at y ≈ 290
+  // front-loaded but zero speed at both ends: the dots move off as soon as the previous content clears
   const H3E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
-  AGD.key(12.4, 'pts', { pts: AGD.P.arc, r: 40, a: 1, dur: 1.0, stag: .06, ease: H3E });                       // H3
-  // H4 starts at b17.4 (not 17.8) so gm, which rises straight up the middle, is above 「So，」 (y 400) before K.big lands it at
-  // b18.2; ph 207 = 209 − 5·0.4 keeps the b19.4 landing and the b21.6 angle (228) that 20-orbit hands on from
-  AGD.key(17.4, 'ring', { cx: 960, cy: 540, R: 420, ph: 207, spin: 5, r: 40, dur: 1.4, stag: .05, polar: [960, 540] });   // H4
+  // H3 (T4): from 1c's caret (column x 1400, y 547 … 683, r 16) the column lies down to the left into the 1d arc; cc, top
+  // of the caret, travels furthest and leaves first (stag .05), the path bows up 40px. Lands b13.4 at cc (744, 584) /
+  // cx (852, 566) / gm (960, 560) / ds (1068, 566) / cp (1176, 584), r 34, while 1c's icons fly out the other way
+  AGD.key(11.8, 'arc', { ...AGD.P.arcD, dur: 1.4, stag: .05, arc: 40, ease: H3E });                            // H3
+  // H4 (T6): polar about (960, 700), below the arc, so the bearings 298 / 321 / 0 / 39 / 62° open clockwise without
+  // crossing: gm rises straight up the middle, cc / cp swing out and down like a flower opening. ph 207 = 209 − 5·0.4
+  // keeps the v17 landing points and the b21.6 angle (228) that 20-orbit hands on from. H3E instead of E.inOut: T6 has
+  // gm above y 300 by b18.0, before 「So，」 (y 400) lands (with E.inOut it would still be at y ≈ 506 and cross the word
+  // at b18.2); H3E puts it at y ≈ 320 at b18.0 and clears line 3 (bottom 420) only after the 1d lines are gone (b17.8)
+  AGD.key(17.4, 'ring', { cx: 960, cy: 540, R: 420, ph: 207, spin: 5, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
 
   /* ---------- 1d 文字（三行底边 ≤ 420，b17.2–17.8 一起向上淡出、模糊） ---------- */
   // pacing: the reveals run slower, and while they are up all three lines drift up together at 6 px/beat (no dead
@@ -38,35 +44,45 @@ scene('15-redesign', () => {
   /* ---------- 1d 输入框 + 纠正气泡 ---------- */
   // typing ~.1–.2 beats a character, faster as the corrections pile up; the box is never idle: the 4th one is typed
   // but never sent (the box sinks with it at b17.2)
-  const c = AGD.chat(12.6, 17.6, { x: 960, y: 880, w: 980 });
+  // the box grows out of the dots' centroid ((960, ≈570) at b12.6, the arc still landing) down to (960, 880) by b13.2,
+  // and shrinks back into it over b17.2–17.6
+  const c = AGD.chat(12.6, 17.6, { x: 960, y: 880, w: 980, from: AGD.centroid, to: AGD.centroid });
   c.type(13.0, '请你修改', .8); c.type(14.05, 'fix', .47); c.type(14.82, '请你继续', .58); c.type(15.8, '看清需求', .9);
-  // every correction bubble: [dot, b0, text, send beat | null]; sent ones pop at send + .15 (AGD.chat). Ten bubbles,
-  // two per dot (no dot ever holds a third), gaps shrinking from .3 to .1 beats
+  // every correction bubble: [dot, b0, text, send beat | null]; sent ones pop at send + .15 (AGD.chat). Ten bubbles, two
+  // per dot, gaps shrinking from .3 to .1 beats. T5 layers: cx / ds (UP) hang above their dots, a newer one replacing
+  // the older (AGD's replace; while the new one pops over PIN the old one shrinks back into the dot), so each of them
+  // holds its pair as far apart as the stream allows (14.1 / 15.66 and 14.4 / 15.76); cc / gm / cp hang below, the
+  // newer one pushing the older down 64px (replace: false), at most 2 stacked
   const BUB = [
-    [1, 14.1, '请你修改', 13.95], [2, 14.4, '不对，重来'], [4, 14.65, '说中文'], [3, 14.82, 'fix', 14.67],
-    [3, 15.12, '别动这个文件'], [1, 15.28, '再改一版'], [0, 15.42, '还是报错'], [2, 15.54, 'fix again'],
-    [0, 15.66, '请你继续', 15.51], [4, 15.76, '继续']
+    [1, 14.1, '请你修改', 13.95], [3, 14.4, '不对，重来'], [4, 14.65, '说中文'], [2, 14.82, 'fix', 14.67],
+    [0, 15.12, '别动这个文件'], [4, 15.28, '再改一版'], [0, 15.42, '还是报错'], [2, 15.54, 'fix again'],
+    [1, 15.66, '请你继续', 15.51], [3, 15.76, '继续']
   ].map(([i, b0, text, send], k) => ({ i, b0, text, send, k }));
-  // dx: the left dots lean left, the right dots lean right, gm alternates; sized so no box covers a neighbour's dot
-  // or another dot's bubble (box centre = dot + 2·dx, see agBubbles)
-  const DX = [() => -60, () => -40, (u) => (BUB.filter((v) => v.i === 2 && v.b0 < u.b0).length % 2 ? 30 : -30), () => 30, () => 60];
+  // T5 tail anchors (dot x + dx, the box centre is dot x + 2·dx, see agBubbles): above cx 812 / ds 1108 (dy −r − 18,
+  // boxes y ≈ 446–506 under line 3, bottom 420); below cc 690 / gm 960 / cp 1230 (dy r + 18, boxes from y ≈ 620, two
+  // stacked reach ≈ 770, above the input box's top edge 836)
+  const UP = [false, true, false, true, false], DX = [-54, -40, 0, 40, 54], R = AGD.P.arcD.r;
   // each bubble pops over PIN beats, stays ≥ 1.2 beats fully readable, shrinks over POUT beats; a natural life of LIFE
-  // beats turns it into a rolling stream; whatever would outlive R0 + POUT shrinks back oldest → newest from R0, RS apart
-  const PIN = .5, POUT = .35, LIFE = 2.1, R0 = 16.9, RS = .06;
+  // beats turns it into a rolling stream; whatever would outlive R0 + POUT shrinks back newest → oldest from R0 (T5:
+  // b16.8–17.2), RS apart, the last one gone by b17.4 as H4 sets off
+  const PIN = .5, POUT = .35, LIFE = 2.1, R0 = 16.8, RS = .05;
   for (const u of BUB) {
     const same = BUB.filter((v) => v.i === u.i && v.b0 > u.b0);
     u.b1 = u.b0 + LIFE;
     if (same[1]) u.b1 = Math.min(u.b1, same[1].b0 + .3);                                     // a 3rd one: the oldest goes
-    u.dx = DX[u.i](u);
   }
-  BUB.filter((u) => u.b1 >= R0 + POUT - 1e-6).sort((a, b) => a.b0 - b.b0).forEach((u, k) => { u.b1 = R0 + RS * k + POUT; });
+  BUB.filter((u) => u.b1 >= R0 + POUT - 1e-6).sort((a, b) => b.b0 - a.b0).forEach((u, k) => { u.b1 = R0 + RS * k + POUT; });
   const slow = [];                                                                           // [AGD_BUB record, b0, b1]
   for (const u of BUB) {
-    // newer ones push it down, starting .15 beats before they pop so the old box has cleared the dot by the time the
-    // new one is full size
-    const push = BUB.filter((v) => v.i === u.i && v.b0 > u.b0 && v.b0 < u.b1 - POUT);
-    const dy = (b) => 40 + 18 + 64 * push.reduce((s, v) => s + E.inOut(clamp((b - v.b0 + .15) / .45)), 0);
-    const o = { kind: 'fix', dx: u.dx, dy, until: u.b1 };
+    let o;
+    if (UP[u.i]) o = { kind: 'fix', dx: DX[u.i], dy: -R - 18, until: u.b1 };
+    else {
+      // newer ones push it down, starting .15 beats before they pop so the old box has cleared the dot by the time the
+      // new one is full size
+      const push = BUB.filter((v) => v.i === u.i && v.b0 > u.b0 && v.b0 < u.b1 - POUT);
+      const dy = (b) => R + 18 + 64 * push.reduce((s, v) => s + E.inOut(clamp((b - v.b0 + .15) / .45)), 0);
+      o = { kind: 'fix', dx: DX[u.i], dy, until: u.b1, replace: false };
+    }
     if (u.send != null) c.send(u.send, u.i, o); else AGD.bubble(u.i, u.b0, u.b1, u.text, o);
     const r = AGD_BUB[AGD_BUB.length - 1]; slow.push([r, r.b0, r.b1]);
     AGD.pulse(u.i, u.b0, .94, .45);                                                          // flinch: 被打断
