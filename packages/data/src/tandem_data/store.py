@@ -45,6 +45,8 @@ VACUUM_SLACK = 0.05
 # factor or this share of its pages is free (state in ``maintenance.json`` in the home).
 MAINTAIN_GROWTH = 1.25
 MAINTAIN_FREE_SHARE = 0.05
+# The WAL is truncated to this size whenever it is reset (``journal_size_limit``).
+WAL_SIZE_LIMIT = 64 << 20
 
 
 def target_page_size(size_bytes: int, page_size: int) -> int:
@@ -267,6 +269,9 @@ class Store:
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA busy_timeout = 5000")
+        # SQLite reuses a WAL file instead of shrinking it: after one large rebuild it stays
+        # gigabytes big (v0.0.2: 5.8 GB). Each WAL reset now truncates it to this size.
+        self.db.execute(f"PRAGMA journal_size_limit = {WAL_SIZE_LIMIT}")
         # WAL + NORMAL keeps committed data across process crashes; only power loss
         # can drop the last transactions, which a rescan recaptures from source files.
         self.db.execute("PRAGMA synchronous = NORMAL")
@@ -389,6 +394,27 @@ class Store:
 
     def __exit__(self, *_):
         self.db.close()
+
+    def checkpoint(self, *, wait_ms: int = 2000) -> dict:
+        """Copy the WAL into the database and truncate it (end of an import job).
+
+        ``TRUNCATE`` waits up to ``wait_ms`` for readers on older snapshots; if they are
+        still reading it returns ``busy`` and leaves the WAL for a later checkpoint.
+        """
+        if self.db.in_transaction:
+            return {"busy": True, "reason": "transaction"}
+        self.db.execute(f"PRAGMA busy_timeout = {int(wait_ms)}")
+        try:
+            busy, frames, done = self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        finally:
+            self.db.execute("PRAGMA busy_timeout = 5000")
+        wal = Path(str(self.db_path) + "-wal")
+        return {
+            "busy": bool(busy),
+            "frames": frames,
+            "checkpointed": done,
+            "wal_bytes": wal.stat().st_size if wal.exists() else 0,
+        }
 
     @contextmanager
     def transaction(self):

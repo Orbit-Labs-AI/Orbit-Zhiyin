@@ -17,6 +17,7 @@ import json
 import multiprocessing
 import os
 import pickle
+import re
 import shutil
 import sqlite3
 import tempfile
@@ -129,7 +130,9 @@ class WorkerPool:
 
     def spill_dir(self, home: Path) -> str:
         if self._spill is None:
-            self._spill = tempfile.mkdtemp(prefix="import-", dir=home)
+            # The owner's pid in the name lets a later import remove it if this process
+            # is killed before ``close()`` (``remove_stale_spills``).
+            self._spill = tempfile.mkdtemp(prefix=f"{SPILL_PREFIX}{os.getpid()}-", dir=home)
         return self._spill
 
     def close(self):
@@ -149,6 +152,40 @@ class WorkerPool:
 
     def __exit__(self, *_):
         self.close()
+
+
+SPILL_PREFIX = "import-"
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def remove_stale_spills(home, *, legacy: bool = False) -> list[str]:
+    """Delete mapping spill directories whose import process is gone.
+
+    ``import-<pid>-*`` belongs to a process that is no longer alive; ``legacy`` also
+    removes v0.0.2's ``import-*`` names without a pid, which is only safe while the caller
+    holds the import lock (no other writer can be using one).
+    """
+    removed = []
+    for path in sorted(Path(home).glob(SPILL_PREFIX + "*")):
+        if not path.is_dir() or path.is_symlink():
+            continue
+        match = re.fullmatch(re.escape(SPILL_PREFIX) + r"(\d+)-.+", path.name)
+        if match and _alive(int(match[1])):
+            continue
+        if not match and not legacy:
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+        removed.append(path.name)
+    return removed
 
 
 def _drop_spill(future):
