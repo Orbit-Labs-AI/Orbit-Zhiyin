@@ -425,13 +425,25 @@ def _window(params, now_ms, zone=None):
     return int(since), int(until)
 
 
+def _prev_start(params, since, until, zone=None):
+    """Start of the comparison window ``[prev, since)``. A ``days`` window compares with the
+    N local calendar days before it (like A1's previous window); an explicit ``since`` keeps
+    an equal-length span."""
+    if params.get("since") or zone is None:
+        return since - (until - since)
+    days = int(params.get("days") or 30)
+    start = datetime.fromtimestamp(since / 1000, zone).date() - timedelta(days=days)
+    return int(datetime.combine(start, dt_time(0), zone).timestamp() * 1000)
+
+
 def build_sentiment(conn, appdb, scope, params, *, now_ms: int) -> dict:
     params = params or {}
     zone = ZoneInfo(params["tz"]) if params.get("tz") else datetime.now().astimezone().tzinfo
     since, until = _window(params, now_ms, zone)
     base = {k: v for k, v in (scope or {}).items() if k not in ("from_ts", "until_ts")}
     sessions = fetch_sessions(conn, {**base, "from_ts": since, "until_ts": until})
-    prev_sessions = fetch_sessions(conn, {**base, "from_ts": since - (until - since),
+    prev_sessions = fetch_sessions(conn, {**base,
+                                          "from_ts": _prev_start(params, since, until, zone),
                                           "until_ts": since})
     humans = fetch_humans(conn, sessions)
     by_session: dict[str, list[dict]] = defaultdict(list)

@@ -86,6 +86,20 @@ def test_sentiment_days_are_local_calendar_days():
     assert a4a6_sentiment._window({"days": 1}, now)[0] == now - 86_400_000
 
 
+def test_sentiment_previous_window_is_the_n_days_before():
+    """The comparison window is the N local calendar days before ``since`` (A1 prev_win),
+    not an equal-length span that starts mid-day."""
+    zone = ZoneInfo("Asia/Shanghai")
+    now = int(datetime(2025, 10, 10, 15, 30, tzinfo=zone).timestamp() * 1000)
+    since, until = a4a6_sentiment._window({"days": 7}, now, zone)
+    prev = a4a6_sentiment._prev_start({"days": 7}, since, until, zone)
+    assert prev == int(datetime(2025, 9, 27, tzinfo=zone).timestamp() * 1000)
+    assert since == int(datetime(2025, 10, 4, tzinfo=zone).timestamp() * 1000)
+    # explicit since / no zone keep the equal-length span
+    assert a4a6_sentiment._prev_start({"since": 50}, 50, 80, zone) == 20
+    assert a4a6_sentiment._prev_start({"days": 7}, since, until) == since - (until - since)
+
+
 def test_project_persona_comes_from_the_fact_rows():
     """A5's persona column was always ``persona_pending`` (nothing set ``persona_lookup``);
     it now reads the same fact rows and ``persona.persona`` as A2, per project."""
