@@ -13,6 +13,7 @@ from __future__ import annotations
 import threading
 from datetime import UTC, datetime
 
+from ..uiview.metrics import IDLE_CAP_MS
 from . import (
     DAY_MS,
     day_index,
@@ -55,7 +56,8 @@ def _counts(gw, now: int, tz: int) -> tuple[dict, dict, list[dict]]:
     """(today, week, recent_done) from orbit.db; zeros when there is no database."""
     today = day_index(now, tz)
     week = _empty_week(today)
-    totals = {"date": _date(today), "sessions": 0, "duration_s": 0}
+    totals = {"date": _date(today), "sessions": 0, "duration_s": 0,
+              "duration_basis": "active_estimate"}
     if not has_db(gw):
         return totals, week, []
     where, args = main_where(gw)
@@ -73,12 +75,20 @@ def _counts(gw, now: int, tz: int) -> tuple[dict, dict, list[dict]]:
                 continue
             day["sessions"] += n
             day["by_agent"][agent if agent in AGENTS else "other"] += n
-        # Duration: started today, up to its end (or its last event while still open).
-        span = db.execute(
-            f"SELECT COUNT(*), COALESCE(SUM(MAX(MIN(COALESCE(s.ended_at, (SELECT MAX(e.ts) "
-            f"FROM event e WHERE e.session_uid = s.session_uid), s.started_at), ?) "
-            f"- s.started_at, 0)), 0) FROM session s WHERE {where} AND s.started_at >= ? "
-            f"AND s.started_at <= ?", [now, *args, start_today, now]).fetchone()
+        # Sessions started today and their active time: the overview / session list ``dur``
+        # (``uiview.metrics.active_ms``: event gaps of the root tree capped at IDLE_CAP_MS),
+        # not the wall-clock start→end span, which counted idle hours as work.
+        count = db.execute(
+            f"SELECT COUNT(*) FROM session s WHERE {where} AND s.started_at >= ? "
+            f"AND s.started_at <= ?", [*args, start_today, now]).fetchone()[0]
+        active = db.execute(
+            f"SELECT COALESCE(SUM(MIN(COALESCE(gap, 0), ?)), 0) FROM ("
+            f"SELECT e.ts - LAG(e.ts) OVER (PARTITION BY t.root_uid ORDER BY e.ts) AS gap "
+            f"FROM event e JOIN session t ON t.session_uid = e.session_uid "
+            f"WHERE e.ts IS NOT NULL AND e.ts <= ? AND t.root_uid IN ("
+            f"SELECT s.session_uid FROM session s WHERE {where} AND s.started_at >= ? "
+            f"AND s.started_at <= ?))",
+            [IDLE_CAP_MS, now, *args, start_today, now]).fetchone()[0]
         done = db.execute(
             f"SELECT s.session_uid, s.title, src.agent, p.name, s.started_at, s.ended_at, "
             f"s.status FROM session s LEFT JOIN source src USING(source_id) "
@@ -88,7 +98,7 @@ def _counts(gw, now: int, tz: int) -> tuple[dict, dict, list[dict]]:
     total = sum(d["sessions"] for d in week["days"])
     week["avg_per_day"] = round(total / 7, 1)
     week["today"] = week["days"][-1]["sessions"]
-    totals.update(sessions=span[0], duration_s=int(span[1] // 1000))
+    totals.update(sessions=count, duration_s=int(active // 1000))
     recent = [{"session_uid": r[0], "title": r[1], "agent": r[2], "project": r[3],
                "started_at": r[4], "ended_at": r[5],
                "duration_s": None if r[4] is None else max(0, (r[5] - r[4]) // 1000),

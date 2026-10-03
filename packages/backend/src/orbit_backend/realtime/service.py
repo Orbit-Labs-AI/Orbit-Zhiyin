@@ -243,8 +243,13 @@ class Realtime:
                 counts[item["state"]] += 1
             if "context_pressure" in item["flags"]:
                 counts["context_pressure"] += 1
+        # Today's counts use the overview / menu-bar session set (``shell.main_where``: main
+        # sessions, not excluded, not started by Orbit itself), never subagent sessions.
+        counted = self._counted([t for t, _ in pairs])
         finished = 0
         for tail, _ in pairs:
+            if tail.session_uid not in counted:
+                continue
             done = finish_ts(tail)
             finished += done is not None and midnight <= done <= now_ms
         if paused:
@@ -254,12 +259,30 @@ class Realtime:
         idle = sum(1 for i in items if i["state"] == "idle")
         return {"generated_at": now_ms, "status": status, "counts": {**counts, "idle": idle},
                 "today": None if paused else {
-                    "sessions_started": sum(1 for t, _ in pairs
-                                            if (t.started_at or 0) >= midnight),
+                    "sessions_started": sum(1 for t, _ in pairs if t.session_uid in counted
+                                            and (t.started_at or 0) >= midnight),
                     "sessions_finished": finished},
                 "reason": "collection_paused" if paused else None,
                 # Only live and recently finished sessions; idle ones are counted, not listed.
                 "sessions": [i for i in items if i["state"] != "idle"]}
+
+    def _counted(self, tails: list[SessionTail]) -> set[str]:
+        """Tails that are analysed main sessions (``shell.main_where``); without the gateway
+        pieces (tests, no app.db) the session kind alone decides."""
+        mains = [t.session_uid for t in tails if t.kind == "main"]
+        if not mains:
+            return set()
+        try:
+            from ..shell import main_where
+
+            where, args = main_where(self.gw)
+            marks = ",".join("?" * len(mains))
+            with self.gw.reads.read(check=False) as db:
+                rows = db.execute(f"SELECT s.session_uid FROM session s WHERE {where} "
+                                  f"AND s.session_uid IN ({marks})", [*args, *mains])
+                return {r[0] for r in rows}
+        except Exception:  # noqa: BLE001 - no app.db / home: kind only
+            return set(mains)
 
     def prewarm(self) -> None:
         """Warm the tail query (page cache, statement cache) without notifying anyone."""

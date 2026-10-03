@@ -32,6 +32,7 @@ class TailCall:
 @dataclass
 class SessionTail:
     session_uid: str
+    kind: str = "main"  # session.kind; only main sessions count in ``today``
     agent: str | None = None
     native_id: str | None = None  # the agent's own session id (hook events key)
     project_id: str | None = None
