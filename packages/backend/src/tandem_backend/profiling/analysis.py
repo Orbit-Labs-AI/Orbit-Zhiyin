@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
+from ..analytics.stats import wilson
 from ..models import Event
 from ..store import Store
 from .bottlenecks import diagnose
@@ -14,16 +15,14 @@ from .trajectory import audit_revisions
 
 
 def wilson_interval(successes: int, trials: int, z: float = 1.96) -> list[float] | None:
-    """A binomial reference interval; correlated sessions weaken its interpretation."""
+    """A binomial reference interval (``analytics.stats.wilson``); correlated sessions
+    weaken its interpretation."""
     if trials == 0:
         return None
     if not 0 <= successes <= trials:
         raise ValueError("successes 必须在 0 和 trials 之间")
-    p, z2 = successes / trials, z * z
-    denominator = 1 + z2 / trials
-    center = (p + z2 / (2 * trials)) / denominator
-    half = z * math.sqrt(p * (1 - p) / trials + z2 / (4 * trials * trials)) / denominator
-    return [round(max(0, center - half), 4), round(min(1, center + half), 4)]
+    lo, hi = wilson(successes, trials, z)
+    return [round(lo, 4), round(hi, 4)]
 
 
 def union_duration(intervals: list[tuple[float, float]]) -> float:

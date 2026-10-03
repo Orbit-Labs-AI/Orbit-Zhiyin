@@ -189,6 +189,17 @@ class RecommendationContext(Contract):
     preferences: list[PreferenceInput] = Field(default_factory=list, max_length=100)
     benefit_scenarios: list[BenefitScenario] = Field(default_factory=list, max_length=100)
 
+    @field_validator("agent")
+    @classmethod
+    def known_agent(cls, value: str) -> str:
+        # Same target set as /v1/analytics/recommendations (generic + capability matrix agents):
+        # a misspelt agent would otherwise silently match no compatibility entry.
+        from ..analytics.recommendations.catalog import TARGETS
+
+        if value not in TARGETS:
+            raise ValueError(f"Unknown agent {value!r}; expected one of {sorted(TARGETS)}")
+        return value
+
     @model_validator(mode="after")
     def unique_scenarios(self):
         keys = [(s.resource_id, s.signal_id) for s in self.benefit_scenarios]

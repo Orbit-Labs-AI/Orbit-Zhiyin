@@ -43,7 +43,7 @@ legacy 规则同时覆盖中文与英文：clarity／brevity／planning／verifi
 | D 委托 / S 掌舵 | 真人触发的轮次 | 步数 ≥ `step_threshold`（5）的轮次占比 | 按会话聚类 |
 | I 即兴 / P 规划 | 每会话首条真人消息 | 无结构开场的占比 | Wilson |
 | M 多线 / F 专注 | 活跃日 | 同日 ≥ 2 个 Agent 或会话时间重叠的天数占比 | Wilson |
-| V 求证 / T 信任 | 真人触发的轮次 | 要求验证或运行验证命令的轮次占比 | 按会话聚类 |
+| V 求证 / T 信任 | 真人触发的轮次 | 用户要求验证或 Agent 运行测试/检查/构建命令的轮次占比 | 按会话聚类 |
 
 value = 100·p。字母只看取值：value ≥ 50 取高极字母，< 50 取低极字母；没有单位的轴按 50 计（state 为 `no_data`）。1 个会话即可给出完整的 4 字母类型（产品决定，见 main 上 `fix(persona)` ebdc750e），只有空选择没有画像。区间与单位数作为参考随 payload 输出：区间整体落在 45–55 判定带之外的轴标 `decided`，`decided_axes` 为这类轴的数量；不足 `soft_sessions`（30）个会话时 `hint` 提示「数据越多越准」但不扣留类型。置信度 `conf` 按会话数：≥ 100 为高、≥ 30 为中、其余为低。
 
@@ -58,7 +58,7 @@ value = 100·p。字母只看取值：value ≥ 50 取高极字母，< 50 取低
 | `soft_sessions` | 30 | 低于此会话数时给出样本量提示；正态近似常用的 n ≥ 30 经验下限，产品默认 |
 | `midpoint` | 50 | 字母分界；产品决定始终给出完整类型 |
 | `band` | 45–55 | 只用于 `decided` 标记：区间整体越过该带才算统计上已定型；产品默认，没有人群基线 |
-| `step_threshold` | 5 | 来自 `uiview/facts.py`，未按 Agent 的工具粒度标定 |
+| `step_threshold` | 5 | 来自 `uiview/facts.py`；产品默认，未校准：尚无真实的每轮步数分布，也未按 Agent 的工具粒度分档 |
 
 `decided` 的敏感性：在有效样本量 n 下，要让 Wilson 下界越过高侧阈值，观测占比至少为
 
@@ -70,7 +70,17 @@ value = 100·p。字母只看取值：value ≥ 50 取高极字母，< 50 取低
 
 在仓库合成库（150 会话，`tests/uiview/synth.py`）上，判定带取 50–50、45–55、40–60 时，`decided` 的轴都是 I、V；D 的区间 44.0–51.3 跨过 50，M 的区间 47.6–72.4 也太宽，这两轴的字母只反映取值倾向。合成数据只能说明计算是否稳定，不能代表真实用户的分布。
 
-局限：D 的步数取决于 Agent 的工具调用粒度；I 只看首条消息，续会话会被判为即兴；V 包含 Agent 自行运行的验证命令，不能区分是否由用户要求；M 把同日顺序使用两个 Agent 也算作多线。这些构念问题的修正涉及 `uiview/facts.py`，由事实层负责。
+事实层的判据（`uiview/facts.py`）：
+
+- 验证命令按命令本身判断（`is_validation_command`）：去掉环境变量与 `uv run`、`npx`、`python -m` 等前缀后，命令头是测试/lint/类型检查工具（pytest、vitest、ruff、mypy、tsc 等），或构建工具的 test/check/lint/build 子命令（`cargo test`、`go vet`、`make check`、`pnpm run typecheck` 等）。`cd build`、`ls test/`、`git diff --check`、`docker build .` 不再算验证。Codex 的 `bash -lc "<脚本>"` 按脚本内容判断。
+- 每个轮次记 `[步数, 验证, 用户要求, Agent 运行]`。V 轴仍按「验证」（任一成立）计；画像证据分开列出「用户要求验证」与「仅 Agent 自行运行」的轮次数。
+- 结构化开场只看列表（≥ 2 项）、验收词、规格/计划文档，以及指令层标出的 `execution_order` / `acceptance_criteria`；只提到文件名或消息很长（如粘贴报错）都不再算结构化。
+
+局限：
+
+- D 的步数 = 工具调用数 + 最终回复数，取决于 Agent 的工具粒度：Claude Code 每次 Read / Edit / Bash（含并行调用）各记一步；Codex 一次 `apply_patch` 可改多个文件（`third_party/codex/codex-rs/apply-patch`），一次 exec 也可以用 `&&` 串多条命令。同样的工作在 Claude Code 下更容易被判为「委托」。阈值 5 未校准，需在获得授权的真实数据上按 Agent 测出分布后再分档。
+- V 轴目前仍把 Agent 自行运行的验证计入「求证」。Claude Code 等会默认自跑测试，因此只看「用户要求」更贴近用户自身的习惯，但会改变已有用户的字母，是否切换由团队决定。
+- I 只看首条消息，续会话会被判为即兴；M 把同日顺序使用两个 Agent 也算作多线。
 
 ## 在 CLI 中核对
 
