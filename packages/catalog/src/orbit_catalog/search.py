@@ -1,16 +1,18 @@
 """Filter first, independent recall routes, RRF, transparent reranking and diversity.
 
-Eligibility is a boolean mask from the in-memory index; the lexical route asks FTS5 for
-the top-K chunks once (K doubles only when the mask leaves too few items) and the
-semantic route scans an fp16 matrix exactly.
+Eligibility is applied before route top-K. Lexical postings cover the full corpus,
+then a bounded candidate pool is rescored from all passages of each item. Semantic
+recall scans an fp16 matrix exactly and aggregates by resource before top-K.
 """
 
 import json
 import math
 import re
 import sqlite3
+import sys
 import threading
-from collections import OrderedDict, defaultdict
+import weakref
+from collections import Counter, OrderedDict, defaultdict
 
 import numpy as np
 
@@ -19,7 +21,7 @@ from .features import VOCABULARY, lexical_tokens
 from .quality import assess as assess_quality
 from .vectors import blocked_scores, normalize_vectors
 
-RANKING_VERSION = "hybrid-bm25f-abs-mmr80-v5"
+RANKING_VERSION = "hybrid-bm25f-wide-mmr80-v6"
 ROUTE_WEIGHTS = {"remedy": 1.5, "feature": 1.2, "lexical": 1.0, "semantic": 2.0}
 # Han function words, Lucene's EnglishAnalyzer default stop set (a an and are as at be but by for
 # if in into is it no not of on or such that the their then there these they this to was will with),
@@ -70,9 +72,17 @@ MIN_TEXT_RELEVANCE = 0.2
 # prior changes idf by < 0.15 nats for every df, so large-library ranking is unaffected.
 IDF_PRIOR_DOCS = 1000
 # Items rescored with exact term counts (chunk text is recomputed, ~1 ms per cached item).
-RERANK = 40
+RERANK = 200
+RERANK_OVERSAMPLE = 4
 _QUERY_CACHE: OrderedDict = OrderedDict()
 _QUERY_LOCK = threading.Lock()
+# Cache terms, not query scores: corpus IDF, prefixes and query weights remain live.
+# Weak store keys avoid retaining a closed store's large indexes/model matrices.
+LEXICAL_CACHE_ITEMS = 512
+LEXICAL_CACHE_MAX_BYTES = 32 * 1024 * 1024
+_LEXICAL_CACHE: OrderedDict = OrderedDict()
+_LEXICAL_CACHE_BYTES = 0
+_LEXICAL_CACHE_LOCK = threading.Lock()
 
 
 def eligibility(request: MatchRequest) -> tuple[str, list]:
@@ -217,7 +227,8 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
     2009) with b=0 over query concepts (see ``query_concepts``):
       raw = Σ_c max_alt mean_t idf(t) · tf~/(k1 + tf~),  tf~ = TITLE_WEIGHT·tf_title + tf_body.
     Stage 1 assumes tf=1 per field that contains t; the best ``RERANK`` items are rescored
-    with exact term counts recomputed from ``store.chunk_texts`` (the FTS table is contentless).
+    with exact term counts over every passage from ``store.chunk_texts``. This bounded
+    first stage is approximate: candidates outside its oversampled pool are not rescored.
     The absolute score divides by the best case of the same sum: every concept that occurs in
     the corpus at all, matched by a df=1 term with tf→∞. It depends only on the item and the
     corpus, not on which other items happened to be candidates.
@@ -233,9 +244,15 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
             rows = [r[0] for r in conn.execute("SELECT rowid FROM chunk_fts WHERE chunk_fts MATCH ?", (fts,))]
             if not rows:
                 continue  # Out-of-vocabulary tokens (typos, CJK filler bigrams) say nothing about any item.
-            weights[term] = idf(n_docs, len(rows))
+            owners = index.items_of(np.asarray(rows, dtype=np.int64))
+            # Keep corpus statistics independent of query eligibility. Filter postings before
+            # allocating Python term sets so excluded resources do not dominate query memory.
+            weights[term] = idf(n_docs, int((owners >= 0).sum()))
+            rows = {rowid for rowid, owner in zip(rows, owners, strict=True) if owner >= 0 and mask[owner]}
+            if not rows:
+                continue
             titled = {r[0] for r in conn.execute("SELECT rowid FROM chunk_fts WHERE chunk_fts MATCH ?",
-                                                 ("{title} : " + fts,))}
+                                                 ("{title} : " + fts,)) if r[0] in rows}
             for rowid in titled:
                 title_hits[rowid].add(term)
             # Title and content share one FTS row: a titled row may or may not also hold t in its
@@ -268,26 +285,82 @@ def _lexical(store, conn, index, mask, text, limit, prefix):
         item_id = index.ids[owner]
         if item_id not in best or (raw, -rowid) > (best[item_id][0], -best[item_id][1]):
             best[item_id] = (raw, rowid)
-    ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], kv[0]))[:max(limit, RERANK)]
+    ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], kv[0]))[:max(limit * RERANK_OVERSAMPLE, RERANK)]
     rescored = []
-    for position, (item_id, (raw, rowid)) in enumerate(ranked):
-        if position < RERANK:
-            raw = _exact_bm25(store, conn, index, item_id, rowid, live, weights) or raw
+    for item_id, (raw, rowid) in ranked:
+        exact = _exact_bm25(store, conn, item_id, live, weights, index.generation)
+        if exact is not None:
+            raw, rowid = exact
         rescored.append((item_id, raw, rowid))
     rescored.sort(key=lambda r: (-r[1], r[0]))
     hits = [(item_id, raw / ceiling) for item_id, raw, _ in rescored[:limit]]
     return hits, {item_id: rowid for item_id, _, rowid in rescored[:limit]}
 
 
-def _exact_bm25(store, conn, index, item_id, rowid, concepts, weights) -> float | None:
-    ordinal = int(index.chunk_ordinal[rowid]) if 0 <= rowid < len(index.chunk_ordinal) else -1
-    texts = store.chunk_texts(conn, item_id)
-    if not 0 <= ordinal < len(texts):
+def _retained_size(value, seen=None):
+    """Conservative retained Python bytes; shared objects across entries count each time."""
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return 0
+    seen.add(id(value))
+    size = sys.getsizeof(value)
+    if isinstance(value, dict):
+        size += sum(_retained_size(k, seen) + _retained_size(v, seen) for k, v in value.items())
+    elif isinstance(value, (tuple, list)):
+        size += sum(_retained_size(v, seen) for v in value)
+    return size
+
+
+def _passage_terms(store, conn, item_id, generation):
+    global _LEXICAL_CACHE_BYTES
+    row = conn.execute("SELECT name,latest_version FROM catalog_item WHERE item_id=?", (item_id,)).fetchone()
+    if row is None:
         return None
-    row = conn.execute("SELECT name FROM catalog_item WHERE item_id=?", (item_id,)).fetchone()
-    title = lexical_tokens(row["name"]) if row is not None else []
-    body = lexical_tokens(texts[ordinal])
-    return _concept_score(concepts, weights, lambda t: TITLE_WEIGHT * _tf(title, *t) + _tf(body, *t))
+    # Projection rebuilds allocate new rowids even when source versions are unchanged.
+    key = (weakref.ref(store), generation, item_id, row["latest_version"])
+    with _LEXICAL_CACHE_LOCK:
+        cached = _LEXICAL_CACHE.get(key)
+        if cached is not None:
+            _LEXICAL_CACHE.move_to_end(key)
+            return cached[0]
+    texts = store.chunk_texts(conn, item_id)
+    passages = tuple((rowid, Counter(lexical_tokens(texts[ordinal]))) for rowid, ordinal in conn.execute(
+        "SELECT chunk_rowid,ordinal FROM resource_chunk WHERE item_id=? ORDER BY ordinal", (item_id,))
+        if 0 <= ordinal < len(texts))
+    terms = Counter(lexical_tokens(row["name"])), passages
+    # Include conservative allowance for OrderedDict links and the (value, size) wrapper.
+    size = _retained_size((key, terms)) + 256
+    with _LEXICAL_CACHE_LOCK:
+        old = _LEXICAL_CACHE.pop(key, None)
+        if old is not None:
+            _LEXICAL_CACHE_BYTES -= old[1]
+        if size <= LEXICAL_CACHE_MAX_BYTES and LEXICAL_CACHE_ITEMS > 0:
+            _LEXICAL_CACHE[key] = terms, size
+            _LEXICAL_CACHE_BYTES += size
+        while _LEXICAL_CACHE and (len(_LEXICAL_CACHE) > LEXICAL_CACHE_ITEMS
+                                  or _LEXICAL_CACHE_BYTES > LEXICAL_CACHE_MAX_BYTES):
+            _, (_, evicted_size) = _LEXICAL_CACHE.popitem(last=False)
+            _LEXICAL_CACHE_BYTES -= evicted_size
+    return terms
+
+
+def _count_term(counts, term):
+    return sum(count for token, count in counts.items() if token.startswith(term[0])) if term[1] else counts[term[0]]
+
+
+def _exact_bm25(store, conn, item_id, concepts, weights, generation) -> tuple[float, int] | None:
+    terms = _passage_terms(store, conn, item_id, generation)
+    if terms is None:
+        return None
+    title, passages = terms
+    title_counts = {term: TITLE_WEIGHT * _count_term(title, term) for term in weights}
+    best = None
+    for rowid, body in passages:
+        counts = {term: title_counts[term] + _count_term(body, term) for term in weights}
+        score = _concept_score(concepts, weights, counts.get)
+        if best is None or score > best[0]:
+            best = score, rowid
+    return best
 
 
 def _features(index, mask, features, limit, curated_only=False):
@@ -322,16 +395,24 @@ def _semantic(conn, index, mask, encoder, text, limit):
         return [], {}, 0
     scores = blocked_scores(matrix, query)
     rows = np.flatnonzero(eligible & (scores > 0))
-    # <=4 embed chunks per item, so the top 4*limit rows always hold `limit` distinct items.
-    if len(rows) > limit * 4:
-        rows = rows[np.argpartition(-scores[rows], limit * 4)[:limit * 4]]
-    best = {}
-    for row in rows[np.argsort(-scores[rows], kind="stable")]:
-        item_id = index.ids[owners[row]]
-        if item_id not in best:
-            best[item_id] = (float(scores[row]), int(row))
-    hits = sorted(((item_id, score) for item_id, (score, _) in best.items()), key=lambda x: (-x[1], x[0]))[:limit]
-    return hits, {item_id: int(rowids[best[item_id][1]]) for item_id, _ in hits}, scanned
+    # Aggregate before top-K: a long resource can own arbitrarily many vectors.
+    # Chunk top-K would let its passages crowd out every other eligible resource.
+    item_scores = np.full(len(index), -np.inf, dtype=np.float32)
+    np.maximum.at(item_scores, owners[rows], scores[rows])
+    candidates = np.flatnonzero(np.isfinite(item_scores))
+    if len(candidates) > limit:
+        cutoff = np.partition(item_scores[candidates], -limit)[-limit]
+        # Keep boundary ties until the stable item-id tiebreak; argpartition alone is unstable.
+        candidates = candidates[item_scores[candidates] >= cutoff]
+    ranked = sorted(candidates, key=lambda i: (-float(item_scores[i]), index.ids[i]))[:limit]
+    selected = set(ranked)
+    best_rows = {}
+    for row in rows:
+        owner = int(owners[row])
+        if owner in selected and scores[row] == item_scores[owner]:
+            best_rows[owner] = min(best_rows.get(owner, int(rowids[row])), int(rowids[row]))
+    return ([(index.ids[i], float(item_scores[i])) for i in ranked],
+            {index.ids[i]: best_rows[i] for i in ranked}, scanned)
 
 
 def _matched_features(conn, item_ids, wanted, query_weights):
@@ -359,8 +440,10 @@ def _passages(store, conn, index, rowids: dict) -> dict:
         if not 0 <= rowid < len(index.chunk_ordinal):
             continue
         ordinal = int(index.chunk_ordinal[rowid])
-        row = conn.execute("SELECT field,heading FROM resource_chunk WHERE item_id=? AND ordinal=? AND chunk_rowid=?",
-                           (item_id, ordinal, rowid)).fetchone()
+        row = conn.execute("SELECT c.field,c.heading,i.body_policy FROM resource_chunk c JOIN catalog_item i USING(item_id) "
+                           "WHERE c.item_id=? AND c.ordinal=? AND c.chunk_rowid=?", (item_id, ordinal, rowid)).fetchone()
+        if row and row["field"] == "body" and row["body_policy"] == "index_only":
+            continue  # Local retrieval permission does not authorize redisplaying third-party text.
         texts = store.chunk_texts(conn, item_id) if row else []
         if ordinal < len(texts):
             result[item_id] = {"chunk_id": str(rowid), "field": row["field"], "heading": row["heading"],
@@ -469,10 +552,12 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
         evidence = 1.0 - math.prod(1.0 - v for v in strengths.values())
         coverage = parts[item_id].get("feature", {}).get("raw_score", 0.0)
         quality_report = assess_quality(row)
-        quality = quality_report["score"]
+        # Body availability is a licensing/storage choice, not relevance evidence.
+        ranking_dimensions = [present for key, present in quality_report["dimensions"].items() if key != "body_available"]
+        quality = sum(ranking_dimensions) / len(ranking_dimensions)
         risk = json.loads(row["risk"])
         penalty = min(0.1, len(risk) * 0.02)
-        # Content quality scales the evidence (metadata-only rows lose up to 5%) but never creates it.
+        # Documentation completeness scales evidence but never creates it or certifies safety.
         relevance = max(0.0, evidence * (0.9 + 0.1 * quality) - penalty)
         candidates.append({"item_id": item_id, "type": row["type"], "name": row["name"], "summary": row["summary"],
                            "url": row["url"], "agents": json.loads(row["agents"]), "license": row["license"],
@@ -482,7 +567,8 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
                            "quality": quality_report,
                            "content_hash": row["content_hash"], "score": relevance, "score_parts": {"routes": parts[item_id],
                            "evidence": evidence, "rrf": fusion[item_id], "feature_coverage": coverage,
-                           "content_quality": quality, "risk_penalty": penalty},
+                           "content_quality": quality, "quality_basis": "documentation_excluding_body_availability",
+                           "risk_penalty": penalty},
                            "matched_features": matched.get(item_id, []), "risk": risk, "risk_level": row["risk_level"],
                            "passage": passage_rows.get(item_id),
                            "evidence_ids": request.evidence_ids, "profile_evidence_ids": request.profile_evidence_ids,
@@ -505,8 +591,12 @@ def redundancy_keys(row) -> frozenset:
     """
     url = row["url"] or ""
     repo = re.match(r"https?://(?:www\.)?github\.com/([^/]+/[^/#?]+)", url, re.I)
-    return frozenset({("name", row["name_key"]), ("repo", repo.group(1).lower().removesuffix(".git") if repo else url),
-                      ("type", row["type"])})
+    keys = {("name", row["name_key"]), ("type", row["type"])}
+    if repo:
+        keys.add(("repo", repo.group(1).lower().removesuffix(".git")))
+    elif url:
+        keys.add(("url", url))
+    return frozenset(keys)
 
 
 def _similarity(left, right):
@@ -519,15 +609,31 @@ def _similarity(left, right):
 def _mmr(candidates, limit):
     """Greedy MMR (0.8 relevance, 0.2 redundancy); max similarity is updated incrementally."""
     selected, seen_hashes = [], set()
+    families = defaultdict(int)
+    def family(candidate):
+        return next((v for k, v in candidate["_keys"] if k == "repo" and v), None)
+
+    def penalty(candidate):
+        # Repeated repository results consume progressively more of the existing 20% MMR
+        # diversity budget; no hard quota hides a uniquely relevant repository.
+        count = families.get(family(candidate), 0)
+        family_similarity = count / (count + 1) if count else 0.0
+        return max(redundancy[candidate["item_id"]], family_similarity)
+
     redundancy = {c["item_id"]: 0.0 for c in candidates}
     remaining = list(candidates)
     while remaining and len(selected) < limit:
-        best = min(remaining, key=lambda c: (-(0.8 * c["score"] - 0.2 * redundancy[c["item_id"]]),
+        best = min(remaining, key=lambda c: (-(0.8 * c["score"] - 0.2 * penalty(c)),
                                                -c["score_parts"]["rrf"], c["item_id"]))
         remaining.remove(best)
         if best["content_hash"] in seen_hashes:
             continue
-        best["diversity_score"] = 0.8 * best["score"] - 0.2 * redundancy[best["item_id"]]
+        best["diversity_score"] = 0.8 * best["score"] - 0.2 * penalty(best)
+        best["score_parts"]["diversity"] = {"redundancy": redundancy[best["item_id"]],
+                                             "repository_results_before": families.get(family(best), 0),
+                                             "penalty": 0.2 * penalty(best)}
+        if family(best):
+            families[family(best)] += 1
         selected.append(best)
         seen_hashes.add(best["content_hash"])
         for c in remaining:

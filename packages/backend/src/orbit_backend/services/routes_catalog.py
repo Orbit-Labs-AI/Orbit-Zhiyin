@@ -225,12 +225,18 @@ def router(gw: Gateway) -> APIRouter:
         # A foreign or unreadable catalog.db must not stop the gateway; catalog paths 404.
         log.warning("catalog unavailable", exc_info=True)
         return APIRouter()
+    # Recommendations and the library share a model session and the large filter /
+    # vector index rather than materializing a second 100k-resource snapshot.
+    gw.catalog = service
 
     def rev():
+        from orbit_catalog.search import RANKING_VERSION
+
         with service.store.reader() as conn:
             generation = service.store.generation(conn)
+            embedding_generation = service.store.embedding_generation(conn)
         value = gw.revisions.value
-        return f"{generation}.{value.get('data_rev')}.{value.get('inventory_rev') or 0}"
+        return f"{RANKING_VERSION}.{generation}.{embedding_generation}.{value.get('data_rev')}.{value.get('inventory_rev') or 0}"
 
     for prefix in ETAG_PREFIXES:
         # The library window is day-aligned, so its tag also moves when the day rolls over.

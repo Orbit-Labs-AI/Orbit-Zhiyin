@@ -102,3 +102,24 @@ def test_sync_passes_concurrency_offline_and_reports_durations(client, monkeypat
         time.sleep(0.01)
     assert {name for name, *_ in recorded} >= {"catalog.sync", "catalog.sync.source"}
     assert client.post("/v1/catalog/sync", json={"concurrency": 99}).status_code == 422
+
+
+def test_embedding_publication_invalidates_search_etag_without_resource_rebuild(client):
+    first = client.get('/v1/catalog/search', params={'q': 'debug'})
+    tag = first.headers['etag']
+    assert client.get('/v1/catalog/search', params={'q': 'debug'}, headers={'If-None-Match': tag}).status_code == 304
+    store = client.app.state.gateway.catalog.store
+    with store.connect() as db:
+        before = store.generation(db)
+        db.execute("INSERT INTO catalog_meta(key,value) VALUES('embedding_generation','1') "
+                   "ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1")
+        assert store.generation(db) == before
+    fresh = client.get('/v1/catalog/search', params={'q': 'debug'}, headers={'If-None-Match': tag})
+    assert fresh.status_code == 200 and fresh.headers['etag'] != tag
+
+
+def test_ranking_revision_invalidates_cached_search(client, monkeypatch):
+    first = client.get('/v1/catalog/search', params={'q': 'debug'})
+    monkeypatch.setattr('orbit_catalog.search.RANKING_VERSION', 'test-rank-next')
+    second = client.get('/v1/catalog/search', params={'q': 'debug'}, headers={'If-None-Match': first.headers['etag']})
+    assert second.status_code == 200 and second.headers['etag'] != first.headers['etag']

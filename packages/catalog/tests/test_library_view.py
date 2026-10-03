@@ -145,3 +145,61 @@ def test_search_match_is_absolute_not_relative_to_best_candidate(service):
     skills = service.library(profile=None, q="retry loop", kinds=["skill"], limit=50)
     m = {i["id"]: (i["m"], i["parts"]["feature_overlap"]) for i in view["items"]}
     assert skills["items"] and all(m[i["id"]] == (i["m"], i["parts"]["feature_overlap"]) for i in skills["items"])
+
+
+def test_100000_profile_candidates_are_filtered_before_a_bounded_window(service, monkeypatch):
+    # Populate only the card/feature projections under test. These synthetic rows do not
+    # pretend to be full source imports or measure real user recommendation accuracy.
+    with service.store.connect() as conn:
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(catalog_item)")]
+        overrides = {"item_id": "printf('scale-%06d',n)", "name": "printf('Scale %06d',n)",
+                     "name_key": "printf('scale %06d',n)", "type": "CASE WHEN n=99999 THEN 'hook' ELSE 'skill' END",
+                     "stars": "n", "body_policy": "'index_only'", "verification": "'dataset_snapshot_read'"}
+        values = ",".join(overrides.get(column, "i." + column) for column in columns)
+        conn.execute("WITH RECURSIVE numbers(n) AS (VALUES(0) UNION ALL SELECT n+1 FROM numbers WHERE n<99999) "
+                     f"INSERT INTO catalog_item ({','.join(columns)}) SELECT {values} FROM numbers "
+                     "CROSS JOIN catalog_item i WHERE i.item_id='lib01'")
+        conn.execute("INSERT INTO item_feature SELECT item_id,'domain','scale',1.0,'extracted','constructed' "
+                     "FROM catalog_item WHERE item_id LIKE 'scale-%'")
+        service.store._bump(conn)
+    profile = {"ok": True, "features": [{"feature": "domain", "value": "scale", "weight": 1}]}
+    built = []
+    original = query.card
+    def track(row):
+        built.append(row["item_id"])
+        return original(row)
+    monkeypatch.setattr(query, "card", track)
+    first = query.library(service.store, profile=profile, sort="stars", limit=20)
+    assert len(built) == query.LIBRARY_PROFILE_CANDIDATES
+    assert first["candidate_window"] == {"profile_limit": 1000, "profile_matches": 100000,
+                                          "profile_truncated": True, "hybrid_candidates": 0}
+    assert first["total_scope"] == "eligible_candidate_window" and first["total"] == 1000
+    assert first["items"][0]["id"] == "scale-099999"
+    second = query.library(service.store, profile=profile, sort="stars", limit=20, cursor=first["next_cursor"])
+    assert second["items"][0]["id"] == "scale-099979"
+    assert not {i["id"] for i in first["items"]} & {i["id"] for i in second["items"]}
+    # Filter before top-K: only one matching hook lives at the opposite end of item-id order.
+    hooks = query.library(service.store, profile=profile, kinds=["hook"])
+    assert hooks["total"] == 1 and hooks["items"][0]["id"] == "scale-099999"
+    assert hooks["candidate_window"]["profile_matches"] == 1
+    excluded = query.library(service.store, profile=profile, kinds=["hook"], exclude=["scale-099999"], q="scale")
+    assert excluded["items"] == []
+
+
+def test_index_only_resource_is_profile_exploration_not_verified_remedy(service):
+    resource = Resource(item_id="public-python", type="skill", name="Python practices", summary="Python workflows",
+                        body="Python debugging verification", body_policy="index_only", agents=["codex"], language="en",
+                        url="https://github.com/example/skills", metadata={"verification": "dataset_snapshot_read",
+                                                                        "installable": False}, risk=["unverified_license"])
+    publish(service.store, [Record(native_id="public-python", resource=resource)], mode="incremental")
+    profile = {"ok": True, "window_days": 7, "features": [{"feature": "software", "value": "python", "weight": 1,
+                                                            "sessions": 4, "label": "Python"}]}
+    view = service.library(profile=profile)
+    item = next(i for i in view["items"] if i["id"] == "public-python")
+    assert item["parts"]["feature_overlap"] > 0 and item["why"] == ["你近 7 天在 4 个会话用到 Python"]
+    assert not query.get_item(service.store, "public-python")["install"]["installable"]
+    from orbit_catalog.contracts import MatchRequest
+    request = MatchRequest(text="Python", purpose="recommendation", problem_id="p", problem_type="tool_retry",
+                           scene="coding", agents=["codex"], language="en", evidence_ids=["e"], profile_evidence_ids=["p"],
+                           features=[Feature(feature="dimension", value="verify")])
+    assert not service.match(request)["items"]

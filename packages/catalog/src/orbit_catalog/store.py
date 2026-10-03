@@ -226,23 +226,32 @@ class CatalogStore:
         return int(conn.execute("SELECT value FROM catalog_meta WHERE key='generation'").fetchone()[0])
 
     @staticmethod
+    def embedding_generation(conn) -> int:
+        row = conn.execute("SELECT value FROM catalog_meta WHERE key='embedding_generation'").fetchone()
+        return int(row[0]) if row else 0
+
+    @staticmethod
     def _bump(conn) -> None:
         conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 WHERE key='generation'")
 
     def index(self, conn=None):
-        """In-memory snapshot (see index.py), rebuilt lazily when the generation moves."""
+        """Match this reader's WAL generation; older readers never replace a newer cache."""
         if conn is None:
             with self.reader() as conn:
                 return self.index(conn)
         generation = self.generation(conn)
         current = self._index
-        if current is not None and current.generation >= generation:
+        if current is not None and current.generation == generation:
             return current
         with self._index_lock:
-            if self._index is None or self._index.generation < generation:
-                from .index import CatalogIndex
-                self._index = CatalogIndex.build(conn, generation)
-            return self._index
+            current = self._index
+            if current is not None and current.generation == generation:
+                return current
+            from .index import CatalogIndex
+            snapshot = CatalogIndex.build(conn, generation)
+            if current is None or current.generation < generation:
+                self._index = snapshot
+            return snapshot
 
     # -- sources and sync ----------------------------------------------------------------
     def register(self, sources: list[SourceSpec]) -> None:
@@ -382,12 +391,14 @@ class CatalogStore:
 
     def _apply_stage(self, conn, run_id: str, source_id: str, now: int) -> tuple[set, int]:
         """Staged rows → item_source; returns (item ids to re-materialize, rows seen)."""
-        prior = {r["native_id"]: r for r in conn.execute(
-            "SELECT native_id,item_id,res_sha,body_sha,raw_sha,status FROM item_source WHERE source_id=?", (source_id,))}
         affected, touched, seen, last = set(), [], 0, ""
         while batch := conn.execute("SELECT native_id,resource,raw FROM sync_stage WHERE run_id=? AND native_id>? "
                                     "ORDER BY native_id LIMIT ?", (run_id, last, BATCH)).fetchall():
             last = batch[-1][0]
+            prior = {r["native_id"]: r for r in conn.execute(
+                "SELECT native_id,item_id,res_sha,body_sha,raw_sha,status FROM item_source WHERE source_id=? "
+                "AND native_id IN (SELECT value FROM json_each(?))",
+                (source_id, json.dumps([row[0] for row in batch])))}
             for native_id, resource_z, raw_z in batch:
                 seen += 1
                 doc = json.loads(zlib.decompress(resource_z))
@@ -471,6 +482,10 @@ class CatalogStore:
                          "metadata=?,last_seen=? WHERE item_id=?", (*display, now, item_id))
             return 0, 0
         pieces = chunks(resource)
+        policy = conn.execute("SELECT value FROM catalog_meta WHERE key='embedding_policy'").fetchone()
+        if policy and policy[0] == "all":
+            for piece in pieces:
+                piece["embed"] = 1
         listable = int(resource.status == "active" and resource.type not in UNLISTED_TYPES)
         conn.execute("INSERT INTO catalog_item(item_id,type,name,name_key,summary,url,status,license,agents,language,"
                      "difficulty,official,origin,author,version,installs,stars,updated_at,risk,risk_level,canonical_of,"
@@ -651,6 +666,7 @@ class CatalogStore:
                 return conn.execute(sql).fetchone()[0]
             return {"contract": "catalog-v1", "schema_version": SCHEMA_VERSION,
                     "generation": int(count("SELECT value FROM catalog_meta WHERE key='generation'")),
+                    "embedding_generation": self.embedding_generation(conn),
                     "items": count("SELECT count(*) FROM catalog_item WHERE status='active'"),
                     "listable": count("SELECT count(*) FROM catalog_item WHERE listable=1"),
                     "chunks": count("SELECT count(*) FROM resource_chunk"),
@@ -690,14 +706,35 @@ class CatalogStore:
                            "ON v.version_id=i.latest_version WHERE i.item_id=?", (item_id,)).fetchone()
         if row is None:
             return []
+        from sys import getsizeof
+
+        # A hit moves to the newest end: plain dict insertion order otherwise makes
+        # this FIFO and repeatedly evicts shared hot candidates during broad reranking.
+        key = (FEATURE_VERSION, CHUNK_VERSION, row["version_id"])
         with self._chunk_lock:
-            cached = self._chunk_cache.get(row["version_id"])
-        if cached is None:
-            cached = [c["text"] for c in chunks(self.load_resource(conn, row["doc_sha"], row["body_sha"]))]
-            with self._chunk_lock:
-                self._chunk_cache[row["version_id"]] = cached
-                while len(self._chunk_cache) > 512:
-                    self._chunk_cache.pop(next(iter(self._chunk_cache)))
+            cached = self._chunk_cache.pop(key, None)
+            if cached is not None:
+                self._chunk_cache[key] = cached
+                return cached
+        cached = [c["text"] for c in chunks(self.load_resource(conn, row["doc_sha"], row["body_sha"]))]
+        size = (getsizeof(cached) + sum(getsizeof(text) for text in cached) + getsizeof(key)
+                + sum(getsizeof(part) for part in key) + 512)
+        with self._chunk_lock:
+            sizes = getattr(self, "_chunk_cache_sizes", None)
+            if sizes is None:
+                self._chunk_cache_sizes = sizes = {}
+                self._chunk_cache_bytes = 0
+            self._chunk_cache.pop(key, None)
+            self._chunk_cache_bytes -= sizes.pop(key, 0)
+            if size <= 16 * 1024 * 1024:
+                self._chunk_cache[key] = cached
+                sizes[key] = size
+                self._chunk_cache_bytes += size
+            while self._chunk_cache and (len(self._chunk_cache) > 512 or self._chunk_cache_bytes > 16 * 1024 * 1024):
+                evicted = next(iter(self._chunk_cache))
+                self._chunk_cache.pop(evicted)
+                self._chunk_cache_bytes -= sizes.pop(evicted)
+
         return cached
 
     def detail(self, item_id: str) -> dict | None:
@@ -711,13 +748,18 @@ class CatalogStore:
             resource = self.load_resource(conn, row["doc_sha"], row["body_sha"])
             texts = self.chunk_texts(conn, item_id)
             item = get_item(self, item_id)
-            return {"resource": {**resource.model_dump(exclude={"popularity"}), "status": row["status"]},
+            index_only = resource.body_policy == "index_only"
+            public_resource = resource.model_dump(exclude={"popularity"})
+            if index_only:
+                public_resource["body"] = ""
+            return {"resource": {**public_resource, "status": row["status"]},
                     "version_id": row["latest_version"], "content_hash": row["content_hash"],
                     "first_seen": row["first_seen"], "last_seen": row["last_seen"],
                     "sources": item["sources"], "readme": item["readme"], "versions": item["versions"],
                     "risk": {"flags": item["risk"], "level": item["risk_level"], "estimate": True},
                     "chunks": [{"chunk_id": str(r["chunk_rowid"]), "field": r["field"], "heading": r["heading"],
-                                "ordinal": r["ordinal"], "start": None, "text": texts[r["ordinal"]]}
+                                "ordinal": r["ordinal"], "start": None,
+                                "text": "" if index_only and r["field"] == "body" else texts[r["ordinal"]]}
                                for r in conn.execute("SELECT * FROM resource_chunk WHERE item_id=? ORDER BY ordinal", (item_id,))]}
 
     @staticmethod
@@ -740,6 +782,30 @@ class CatalogStore:
             return False
         self.rebuild()
         return True
+
+    def enable_all_embeddings(self) -> dict:
+        """Explicit opt-in: make every stored passage eligible, preserving existing vectors.
+
+        The policy also applies to future source publications and projection rebuilds.
+        Bodies remain subject to their original display/install policy.
+        """
+        changed = 0
+        with self.writer(), self.connect() as conn:
+            conn.execute("INSERT INTO catalog_meta(key,value) VALUES('embedding_policy','all') "
+                         "ON CONFLICT(key) DO UPDATE SET value='all'")
+            last = ""
+            while batch := conn.execute("SELECT DISTINCT item_id FROM resource_chunk WHERE embed=0 AND item_id>? "
+                                        "ORDER BY item_id LIMIT 100", (last,)).fetchall():
+                for row in batch:
+                    texts = self.chunk_texts(conn, row[0])
+                    rows = conn.execute("SELECT ordinal FROM resource_chunk WHERE item_id=? AND embed=0", (row[0],)).fetchall()
+                    conn.executemany("UPDATE resource_chunk SET embed=1,text_hash=? WHERE item_id=? AND ordinal=?",
+                                     [(bytes.fromhex(digest(texts[r[0]])[:32]), row[0], r[0]) for r in rows])
+                    changed += len(rows)
+                last = batch[-1][0]
+            if changed:
+                self._bump(conn)
+        return {"policy": "all", "newly_eligible_chunks": changed}
 
     def rebuild(self):
         """Recompute feature/chunk projections from normalized source records, without network."""
