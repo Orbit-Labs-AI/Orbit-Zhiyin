@@ -36,19 +36,25 @@ def file_kind(path: str, skill_dirs=frozenset(), rules=(), plugin_dirs=None) -> 
 
     `skill_dirs`: directories holding a SKILL.md; markdown under them (agents/, rules/, references/...)
     belongs to that skill and is not a standalone subagent/rule/command. `rules`: `[{glob, type}]`
-    from `SourceSpec.config.kind_rules`, checked first. `plugin_dirs`: plugin roots; when given, a
+    from `SourceSpec.config.kind_rules`; `type: ignore` excludes matching paths before all
+    classification. Explicit `standalone: true` permits audited sibling workflows beneath a
+    repository-root SKILL.md; upstream document metadata cannot set it. `plugin_dirs`: plugin roots; when given, a
     `.mcp.json` only counts inside one (a repository's own dev config is not a catalog item).
     """
     pure = PurePosixPath(path)
     name = pure.name
     parts = path.split("/")
+    for rule in rules:
+        if (isinstance(rule, dict) and rule.get("type") == "ignore"
+                and isinstance(rule.get("glob"), str) and pure.full_match(rule["glob"])):
+            return None
     if name == "SKILL.md":
         return "skill"
     internal = any(str(parent) in skill_dirs for parent in pure.parents)
     for rule in rules:
         if (isinstance(rule, dict) and rule.get("type") in RULE_TYPES and isinstance(rule.get("glob"), str)
                 and name.lower() != "readme.md" and pure.full_match(rule["glob"])):
-            return None if internal and rule["type"] in SKILL_INTERNAL else rule["type"]
+            return None if internal and rule["type"] in SKILL_INTERNAL and rule.get("standalone") is not True else rule["type"]
     if _plugin_manifest(path):
         return "plugin"
     if name == ".mcp.json":
@@ -135,13 +141,21 @@ class GitHubConnector:
         self.repo = source.config["repo"]
         if not re.fullmatch(r"[\w.-]+/[\w.-]+", self.repo):
             raise ValueError("invalid_github_repository")
+        self.revision = source.config.get("revision")
+        if self.revision is not None and (not isinstance(self.revision, str) or not re.fullmatch(r"[a-f0-9]{40}", self.revision)):
+            raise ValueError("invalid_git_revision")
 
     def fetch_page(self, checkpoint: dict, state: dict) -> Page:
         if not checkpoint:
             info = self.http.json(f"https://api.github.com/repos/{self.repo}")
-            branch = quote(info["default_branch"], safe="")
-            commit = self.http.json(f"https://api.github.com/repos/{self.repo}/branches/{branch}")["commit"]
+            if self.revision:
+                commit = self.http.json(f"https://api.github.com/repos/{self.repo}/commits/{self.revision}", immutable=True)
+            else:
+                branch = quote(info["default_branch"], safe="")
+                commit = self.http.json(f"https://api.github.com/repos/{self.repo}/branches/{branch}")["commit"]
             head = commit["sha"]
+            if self.revision and head != self.revision:
+                raise ValueError("git_revision_mismatch")
             if head == state.get("revision"):
                 return Page(records=[], complete=True, mode="incremental", revision=head)
             committed = ((commit.get("commit") or {}).get("committer") or {}).get("date")
@@ -151,6 +165,8 @@ class GitHubConnector:
         sha = checkpoint["sha"]
         if not re.fullmatch(r"[a-f0-9]{40}", sha):
             raise ValueError("invalid_git_revision")
+        if self.revision and sha != self.revision:
+            raise ValueError("git_revision_checkpoint_mismatch")
         tree = self.http.json(f"https://api.github.com/repos/{self.repo}/git/trees/{sha}?recursive=1", immutable=True)
         if tree.get("truncated") or not isinstance(tree.get("tree"), list):
             raise ValueError("incomplete_git_tree")
