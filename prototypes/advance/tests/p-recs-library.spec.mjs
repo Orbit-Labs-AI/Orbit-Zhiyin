@@ -33,7 +33,7 @@ test('recs cards carry the unified metric, select by keyboard, and strike one ca
   expect(saves.slice(0, 2)).toEqual(['4.3%', '3.8%']);   // 省时 · token of the top card
   expect(saves.join(' ')).not.toMatch(/h|min/);
   // sorted by the main share (the first number) inside each group（高收益 · 低成本 / 值得投入 · 需要配置）
-  const groups = await page.evaluate(() => { const out = []; for (const el of document.querySelectorAll('#content .stack > *')) { if (el.classList.contains('eb')) out.push([]); else if (el.classList.contains('rcard')) { out[out.length - 1].push(parseFloat(el.querySelector('.rc-save b').textContent.replace(/[^\d.]/g, ''))); } } return out; });
+  const groups = await page.evaluate(() => { const out = []; for (const el of document.querySelectorAll('#content .stack > *')) { if (el.classList.contains('eb')) out.push([]); else if (el.classList.contains('rcard')) { const b = el.querySelector('.rc-save b'); out[out.length - 1].push(b ? parseFloat(b.textContent.replace(/[^\d.]/g, '')) : -1); } } return out; });   // 未估算 (model) → -1, sorts last
   expect(groups.length).toBe(2);
   for (const g of groups) for (let i = 1; i < g.length; i++) expect(g[i]).toBeLessThanOrEqual(g[i - 1] + 1e-9);
   await expect(page.locator('#content .rcard').first().locator('.rc-ag .dot')).toHaveCount(2);
