@@ -547,7 +547,7 @@
           "to": null
         }
       ],
-      "x-ddl": "CREATE TABLE inventory_item (\n  scan_id INTEGER NOT NULL REFERENCES inventory_scan, inv_id TEXT NOT NULL,\n  type TEXT NOT NULL CHECK(type IN ('skill','mcp','hook','plugin','rule','scheduled_task')),\n  name TEXT NOT NULL, config_path TEXT NOT NULL, locator TEXT NOT NULL,\n  enabled INTEGER CHECK(enabled IN (0,1)),\n  evidence TEXT NOT NULL CHECK(evidence IN ('file','configured','cached','installed')),\n  config TEXT NOT NULL CHECK(json_valid(config)), content_hash TEXT NOT NULL,\n  PRIMARY KEY(scan_id, inv_id)\n) STRICT"
+      "x-ddl": "CREATE TABLE \"inventory_item\" (\n  scan_id INTEGER NOT NULL REFERENCES inventory_scan, inv_id TEXT NOT NULL,\n  type TEXT NOT NULL CHECK(type IN\n    ('skill','mcp','hook','plugin','rule','scheduled_task','command','agent')),\n  name TEXT NOT NULL, config_path TEXT NOT NULL, locator TEXT NOT NULL,\n  enabled INTEGER CHECK(enabled IN (0,1)),\n  evidence TEXT NOT NULL CHECK(evidence IN ('file','configured','cached','installed')),\n  config TEXT NOT NULL CHECK(json_valid(config)), content_hash TEXT NOT NULL,\n  PRIMARY KEY(scan_id, inv_id)\n) STRICT"
     },
     "inventory_scan": {
       "type": "object",

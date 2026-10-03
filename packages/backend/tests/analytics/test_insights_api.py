@@ -154,3 +154,51 @@ def test_targets_match_the_data_capability_matrix_and_analyzer_accepts_them():
         assert "excluded_resources" in result
     with pytest.raises(ValueError):
         recommend_bottlenecks(analysis, target_agent="cursor")
+
+
+@pytest.fixture
+def legacy_client(tmp_path, monkeypatch):
+    from tandem_backend.api import create_app
+
+    data = bundle(corpus())
+
+    class FixtureStore:
+        path = tmp_path / "fixture.db"
+
+        def analysis_bundle(self, scope):
+            return data
+
+    monkeypatch.setattr("tandem_backend.api.routes.Store", lambda _: FixtureStore())
+    return TestClient(create_app(db=tmp_path / "unused.db"))
+
+
+@pytest.mark.parametrize("agent", ["hermes", "kimi", "pi"])
+def test_legacy_routes_accept_the_same_target_agents_as_the_gateway(legacy_client, agent):
+    view = legacy_client.get("/v1/analytics/presentation", params={"target_agent": agent})
+    assert view.status_code == 200, view.text
+    assert view.json()["resources"]["for_you"]["target_agent"] == agent
+    recommendations = legacy_client.get("/v1/analytics/recommendations", params={"target_agent": agent})
+    assert recommendations.status_code == 200, recommendations.text
+    assert recommendations.json()["bottleneck_recommendations"]["target_agent"] == agent
+
+
+@pytest.mark.parametrize("route", ["presentation", "recommendations"])
+def test_legacy_routes_reject_unknown_target_agent_like_the_gateway(legacy_client, route):
+    response = legacy_client.get(f"/v1/analytics/{route}", params={"target_agent": "cursor"})
+    assert response.status_code == 422
+    assert "target_agent" in response.json()["detail"]
+
+
+def test_legacy_presentation_window_uses_the_gateway_day_anchor(legacy_client, monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    # 2026-03-10 15:30 in Shanghai: a 7d window ends at the next local midnight and
+    # starts 7 local days earlier (2026-03-04 00:00), whatever the minute of the request.
+    zone = ZoneInfo("Asia/Shanghai")
+    now = int(datetime(2026, 3, 10, 15, 30, tzinfo=zone).timestamp() * 1000)
+    monkeypatch.setattr("tandem_backend.services.routes_analytics.now_ms", lambda: now)
+    body = legacy_client.get("/v1/analytics/presentation",
+                             params={"window": "7d", "display_timezone": "Asia/Shanghai"}).json()
+    assert body["scope"]["until_ts"] == int(datetime(2026, 3, 11, tzinfo=zone).timestamp() * 1000)
+    assert body["scope"]["from_ts"] == int(datetime(2026, 3, 4, tzinfo=zone).timestamp() * 1000)

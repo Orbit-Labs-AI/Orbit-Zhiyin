@@ -5,19 +5,19 @@ from pathlib import Path
 
 import yaml
 
-from .reader import KINDS, ScanReader
+from .reader import BASE_KINDS, KINDS, ScanReader
 
 SUPPORTED = {
-    "codex": KINDS,
-    "dsh": KINDS,
-    "hermes": KINDS,
-    "kimi": KINDS,
+    "codex": BASE_KINDS,
+    "dsh": BASE_KINDS,
+    "hermes": BASE_KINDS,
+    "kimi": BASE_KINDS,
     "pi": ("skill", "mcp", "plugin", "rule"),
     "opencode": ("skill", "mcp", "plugin", "rule"),
-    "claude_code": ("skill", "mcp", "hook", "plugin", "rule"),
+    "claude_code": ("skill", "mcp", "hook", "plugin", "rule", "command", "agent"),
     "common": ("skill", "rule"),
     "project": KINDS,
-    "claude_desktop": KINDS,
+    "claude_desktop": BASE_KINDS,
 }
 
 
@@ -134,15 +134,14 @@ def _frontmatter_name(raw: bytes) -> str | None:
 
 def claude_markdown_components(reader, root):
     """Claude Code slash commands (commands/**/*.md, `/dir:name`) and subagent definitions
-    (agents/**/*.md, frontmatter `name`). Both are prompt documents the user can invoke;
-    Claude Code now treats commands as skills, so they are stored as kind "skill" with
-    config.component telling them apart (the inventory DDL has no command/agent type)."""
+    (agents/**/*.md, frontmatter `name`). Stored as their own inventory types (schema 15);
+    config.component repeats the type for readers of scanner-1.3.0 rows."""
     for component, directory in (("command", "commands"), ("agent", "agents")):
         folder = root / directory
-        for path in reader.walk(folder, ("skill",)):
+        for path in reader.walk(folder, (component,)):
             if path.suffix != ".md":
                 continue
-            raw = reader.read(path, ("skill",))
+            raw = reader.read(path, (component,))
             if raw is None:
                 continue
             relative = path.relative_to(folder).with_suffix("")
@@ -152,7 +151,7 @@ def claude_markdown_components(reader, root):
                 else _frontmatter_name(raw) or relative.name
             )
             reader.add(
-                "skill",
+                component,
                 name,
                 path,
                 f"{directory}/{relative.as_posix()}",

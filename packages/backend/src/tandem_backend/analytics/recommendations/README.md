@@ -8,7 +8,7 @@
 - `policy.py`：可调整的样本、覆盖和触发门槛。
 - `diagnosis.py`：按根会话树编排既有规则，绑定筛选范围和特征快照 digest。
 - `analyzer.py`：保留 `recommend_bottlenecks` 调用签名，转交 `recommend.service`；显式传入的旧资源列表通过适配器转换。
-- `catalog.py`、`ranking.py`：保留上一版目录和低层排序函数的兼容性；新主链路不使用旧排序公式。
+- `catalog.py`：内置试用模板、旧目录加载、`rejection_reason` 资源准入检查（`recommend/sources/normalize.py` 与 `recommend/catalog.py` 使用）和 `TARGETS`。旧排序函数 `ranking.rank_resources` 与 `vetted_catalog` 已无调用方，已删除；排序以 `recommend/` 的统一评分为准。
 
 七类诊断为：确认纠偏密度、同对象重复强调、失败后同参数重试、同工具失败、同任务/版本/范围验证反复失败、明确验收项的证据缺口、完整请求用量与重试/压缩记录共同出现的上下文压力。
 
