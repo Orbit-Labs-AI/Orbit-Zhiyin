@@ -19,7 +19,8 @@
    不碰 deck 2（归 30-persona）、不画虚线圆（归 15-redesign）。compass key 按交接表由接手方 30-persona 写；它没写时这里补上（见下）。 */
 'use strict';
 css(`
-.k .ln.wm-s{font-size:44px;font-weight:300;color:rgba(255,255,255,.76);letter-spacing:.08em}
+/* v18.4：副标题 300/.76 太虚，压不住字标下的空白——提到 500 / .9、字距 .08 → .04em，读得出是一句话而不是装饰 */
+.k .ln.wm-s{font-size:44px;font-weight:500;color:rgba(255,255,255,.9);letter-spacing:.04em}
 `);
 scene('20-orbit', () => {
   const PC = [960, 540], MYSH = SH;
@@ -34,18 +35,66 @@ scene('20-orbit', () => {
   // 2.1 / H5：圆环 R 420 → 300 收紧、5 → 30°/拍 加速（ph = 旧环在 b21.6 的角度 207 + 5·4.2 = 228，刚体、不倒转）
   AGD.key(21.6, 'ring', { cx: 960, cy: 540, R: 300, ph: 228, spin: 30, r: 34, dur: .8, stag: 0, polar: PC });
   // 2.3 / H7：随标志立起（RISE 1.3 拍），点缩小、落到标志外的倾斜轨道（rx 1.6R、ry .3R、cy = 520 + .14R；远半圈在标志后面）
-  const OB = { cx: 960, cy: 552, rx: 368, ry: 69, spin: 25.4, r: 18 };
+  // v17.7：轨道上的点 r 18 → 19.5（远半圈 r × .88 时 bead 的 logo 仍 ≥ 20 px）
+  const OB = { cx: 960, cy: 552, rx: 368, ry: 69, spin: 25.4, r: 19.5 };
   AGD.key(RISE0, 'orbit', { ...OB, ph: 228 + 30 * (RISE0 - 21.6), dur: RISE, ease: E.sine, stag: 0, polar: PC });
   // 字标段：标志转身时点离开轨道（按 x 排序，不交叉），在字标与副标题下方排成一小行；读字时这一行缓缓上移、点距慢慢舒展（不静止）
   // （b24.8 起 1.6 拍：副标题 b26.7 浮现前点已越过它的那一行）。转身时标志左移成 O，扫过轨道左端：点早 .4 拍起步、
   // 路径向下兜 90px（arc −90），最左的 cp 在标志左缘扫到前已落到它下方，不再从 O 上穿过
   const ROW = WS + .2;
-  AGD.key(ROW, 'row', { cx: 960, y: (b) => 812 - 3 * Math.max(0, b - ROW), gap: (b) => 60 + 1.4 * Math.max(0, b - ROW), r: 15, order: 'x', dur: 1.6, ease: E.sine, stag: .06, arc: -90 });
+  // v17.7：行里是完整的圆徽章 r 15 → 20（logo ≈ 26 px），行距与舒展同比放宽 60 → 80、1.4 → 1.87 px/拍
+  AGD.key(ROW, 'row', { cx: 960, y: (b) => 812 - 3 * Math.max(0, b - ROW), gap: (b) => 80 + 1.87 * Math.max(0, b - ROW), r: 20, order: 'x', dur: 1.6, ease: E.sine, stag: .06, arc: -90 });
   // 收字时点先回到轨道（polar 沿椭圆参数）；相位使 CK 交给 compass 时每个点的位置与原来（轨道 key 后 1.9 拍）完全一样。
   // 交接检查：原先 BACK0 − .3 起 1.6 拍，点在副标题淡出、「rb」还实着时就从字母间穿上去；改为 BACK0 + .25 起 1.1 拍
   // （到位拍不变），路径中段向下兜 40px（arc −40）：点升进字母带时副标题已无、「rb」只剩 ≲ 15 % 的残影
   const RET = BACK0 + .25;
-  AGD.key(RET, 'orbit', { ...OB, ph: 294 + OB.spin * (RET - CK + 1.9), dur: 1.1, ease: E.sine, stag: .04, polar: PC, arc: -40 });
+  // v18.4：回轨轨道半径 +18 px（rx 368 → 386、ry 69 → 87）：O 转回、翻平前（b31.3 = 片 b42.6）近半圈的 cc bead 原先压在内圈 O 描边上
+  AGD.key(RET, 'orbit', { ...OB, rx: OB.rx + 18, ry: OB.ry + 18, ph: 294 + OB.spin * (RET - CK + 1.9), dur: 1.1, ease: E.sine, stag: .04, polar: PC, arc: -40 });
+  /* ---------- v17.7 点的形态（STORYBOARD「v17.7」F3 (2)） ---------- */
+  // 收紧（b21.6）：15-redesign 交来的 bead 保持，公转加速时沿切线再拉长一点（w 2.5 → 2.85，≈ 拖影 .15）
+  AGD.morph(21.6, 'all', 'bead', { dur: .6, stag: 0, w: 2.85, ls: .9 });
+  // 立起（b23.3，与 orbit key 同起同长）：落到倾斜轨道上，h 按轨道透视变化——近半圈接近圆、远半圈扁（logo 仍 ≥ 20 px）
+  const orbC = (b, i) => clamp((OB.cy - AGD.pos(i, b).y) / OB.ry, -1, 1);   // cos θ：> 0 远半圈
+  const orbH = (b, i) => { const c = orbC(b, i); return c > 0 ? 1.8 * (1 - .35 * c) : 1.8 + .45 * -c; };
+  AGD.morph(RISE0, 'all', 'bead', { dur: RISE, stag: 0, ease: E.sine, w: 2.5, h: orbH, ls: .9 });
+  // 离开轨道（b24.8 起 1.6 拍）：路径中段 bead → dot，到行里是完整的圆徽章
+  AGD.morph(ROW + .45, 'all', 'dot', { dur: .7, stag: .06, ease: E.sine });
+  // 字母升起（b26.25 起）：每个字母升起时，正下方最近的点同步上提 6 px 再回（.4 拍），像字母把点轻轻带了一下
+  let LX = null;                                               // 字母中心 x（字标单位）与升起序号
+  const letterX = () => {
+    if (LX || !WORDMARK.L) return LX;
+    const g = document.createElementNS(SVGNS, 'svg'); g.setAttribute('style', 'position:absolute;width:0;height:0;visibility:hidden'); document.body.appendChild(g);
+    LX = WORDMARK.L.map((l) => { const q = document.createElementNS(SVGNS, 'path'); q.setAttribute('d', l.d); g.appendChild(q); const r = q.getBBox(); return { x: r.x + r.width / 2, w: r.width, i: l.i }; });
+    g.remove(); return LX;
+  };
+  AGD.follow(ON - .1, ON + 2.4, (i, b, base) => {
+    const L = letterX(); if (!L) return null;
+    const [vx, , vw] = WORDMARK.vb, mx = vx + vw / 2, at = readAt(b);
+    // 行的槽位 x = 960 + (k − 2)·gap（不读 AGD.pos：follow 里再读会递归）；字母归最近的槽，本点 = 离自己最近的槽
+    const gap = 80 + 1.87 * Math.max(0, b - ROW), slot = (x) => clamp(Math.round((x - 960) / gap) + 2, 0, 4), me = slot(base.x);
+    let lift = 0;
+    for (const l of L) {
+      if (l.w < 40) continue;                                  // 「·」与 i 的点不带点
+      const sx = at.cx + (l.x - mx) * at.k, t = ON + WORDMARK.ms(l.i * 110);
+      if (slot(sx) !== me || Math.abs(960 + (me - 2) * gap - sx) > 140) continue;
+      const u = (b - t) / .4; if (u > 0 && u < 1) lift = Math.max(lift, 6 * Math.sin(Math.PI * u));
+    }
+    return lift > .01 ? { y: base.y - lift } : null;
+  }, { blend: .05 });
+  // 副标题浮现（b26.7）时这一行整体 glow .3
+  for (let i = 0; i < 5; i++) AGD.glow(i, ON + .45, ON + 1.1, .3);
+  // 回到轨道（b30.25 起）：途中 dot → bead（轨道透视同上）；compass key 落到罗盘外圈时 bead → dot（外圈徽章必须是 logo）
+  AGD.morph(RET + .2, 'all', 'bead', { dur: .55, stag: .04, ease: E.sine, h: orbH, ls: .9 });
+  // 翻平（b31.7–33.0）后描边光从 12 点顺时针扫（30-persona 的 sweep：b33.0 起 1.2 拍一圈），扫到哪个点它就 glow .4 一下
+  const ang = (p) => ((Math.atan2(p.x - 960, -(p.y - 540)) / agDeg) % 360 + 360) % 360;
+  const cpGlow = (b, i) => {
+    if (b < FLIP1 - .2 || b > FLIP1 + 1.8) return 0;
+    // r177 复查：.4 × 渐变中心 .55 ≈ .22，在描边光旁边几乎看不见——提到 .7、加宽到 .7 拍，峰值对准光经过（晚 .05 拍）
+    const u = (b - (FLIP1 + 1.2 * ang(AGD.pos(i, b)) / 360) + .3) / .7;
+    return u > 0 && u < 1 ? .7 * Math.sin(Math.PI * u) : 0;
+  };
+  AGD.morph(CK + .8, 'all', 'dot', { dur: .8, stag: .06, ease: E.sine, glow: cpGlow });
+
   // 2.5 / H9：轨道椭圆张开成罗盘外圈，点比翻平早 .2 拍起步（b34.5，sine），领着标志翻开。交接汇总规定这条 compass key 由接手方 30-persona 写；
   // 为了两边谁都不漏、也不重复，在第一帧检查（按本场景拍比较）：CK −.3 / +.8 内没有 compass key 时才补这一条
   let compassChecked = false;
@@ -82,9 +131,10 @@ scene('20-orbit', () => {
     if (!WORDMARK.F) return icon(b);                         // frames missing: keep the icon (no wordmark)
     P0 = P0 || WORDMARK.place(icon(WS)); P1 = P1 || WORDMARK.place(icon(BACK1));
     let v, at;
+    // v18.4：收字 offRate 1.5 → 2.4：7 个字母 1080 ms / 2.4 ≈ .99 拍，b30.5（片 b41.8）前收完，O 转回时不再留 r/b 残影
     if (b < BACK0) { v = E.inOut(lp(b, WS, TT)); at = mixP(P0, readAt(b), v); }
     else { const e = E.inOut(lp(b, BACK0, BACKD)); v = 1 - e; at = mixP(readAt(b), P1, e); }
-    WORDMARK.add(WORDMARK.svg({ a: 1, cx: at.cx, cy: at.cy, k: at.k, v, b, on: ON, off: OFF, offRate: 1.5 }));
+    WORDMARK.add(WORDMARK.svg({ a: 1, cx: at.cx, cy: at.cy, k: at.k, v, b, on: ON, off: OFF, offRate: 2.4 }));
     return null;
   });
   // 副标题「你的 AI 协作复盘助手」（pitch deck）：字标字母升起后接着浮现（b26.7），在字标下方，每拍上移 3px 与点行同步；
