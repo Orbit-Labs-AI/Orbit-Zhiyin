@@ -1,14 +1,23 @@
-/* A2 persona: low-sample relax chips, fingerprint v2 Orbit compass (bezel ticks / smooth five-layer orbit band + hour hit areas + Agent planets / rhythm band / type flower whose lead petal points at the collaboration centre), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 Orbit compass on a transparent face (hairline bezel / per-Agent aurora ribbons around 16 type sectors + type hit areas + Agent logo badges / type flower whose lead petal points at your type), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
-/* 小时热区叠在轨道环带上，本身透明：悬停 / 聚焦时罩一层浅色，选中时描边，其余小时罩一层纸色（等价于原来的 .dim 变淡） */
+/* 16 个类型热区叠在轨道上，本身透明：悬停 / 聚焦时罩一层很淡的墨色，选中时细描边；选中一型时整条轨道变淡（.fp-orbw），
+   只有该型扇区里的那一段（.fp-focus）保持原样——不再给其它扇区罩纸色，表盘始终没有底色 */
 .fp2 .fps path{transition:fill .15s,fill-opacity .15s}
 .fp2 .fps{cursor:pointer;outline:none}
-.fp2 .fps.dim path:first-child{fill:var(--surface);fill-opacity:.62}
-.fp2 .fps:hover path:first-child,.fp2 .fps:focus-visible path:first-child{fill:var(--field)}
-.fp2 .fps.sel path:first-child{fill:var(--field);stroke:var(--ink-1);stroke-width:1.5}
+.fp2 .fps:hover path:first-child,.fp2 .fps:focus-visible path:first-child{fill:var(--field);fill-opacity:.6}
+.fp2 .fps.sel path:first-child{fill:transparent}
 .fp2 .fps:focus-visible path:first-child{stroke:var(--focus);stroke-width:2}
+/* 轨道色带：只有色带本身着色（低饱和、略透），基线以内与色带之外都直接是纸面，没有底盘或衬带 */
+:root{--fp-base:var(--h1);--fp-bo:.9}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fp-base:var(--h2);--fp-bo:.85}}
+:root[data-theme="dark"]{--fp-base:var(--h2);--fp-bo:.85}
+.fp2 .fpo{fill-opacity:var(--fp-bo)}
+.fp2 .fp-orbw{transition:opacity .2s}
+.fp2.fp-sel :is(.fp-orbw,.fp-pls){opacity:.28}
+.fp2 .fp-pls{transition:opacity .2s}
+.fp2 .fpd:hover circle{fill:var(--field)}
 .fp2 .fpd{transform-box:fill-box;transform-origin:center;animation:grow .25s ease-out both}
 .pe-evo{margin-top:12px}
 .pe-ev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hair)}
@@ -29,7 +38,6 @@
 .fp2:hover .fp-bd{animation:fp-jit .9s ease-in-out infinite}
 @keyframes fp-jit{0%,100%{transform:rotate(0deg)}25%{transform:rotate(3deg)}50%{transform:rotate(-1.5deg)}75%{transform:rotate(-3deg)}}
 @media (prefers-reduced-motion:reduce){.fp2:hover .fp-bd{animation:none}}
-.pe-fp-legend .lnk{white-space:nowrap}
 /* hero polish: evolution months as one row of four, fingerprint + legend centred in the paper panel */
 .pe-evw{margin-top:24px}
 .pe-evrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:4px;align-items:center;max-width:520px}
@@ -37,7 +45,6 @@
 .pe-evrow button>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .persona-hero .fp-wrap{justify-content:center;padding:40px 12px 24px}
 .pe-fpc{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
-.pe-fp-legend>.row{align-items:center}
 /* fit card: title on one line, scale note beneath; meta as two fixed lines (sample · CI / friction · completion) */
 .pe-fit-h{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
 .pe-fit-h .cap{font-size:11px}
@@ -46,7 +53,6 @@
 /* pass 2: hero line in display sans + three tabular facts; one-line footnotes; strengths / blind spots as aligned rows; fit name at 13 */
 .pe-line{margin:12px 0 0;max-width:580px;font:500 15px/1.55 var(--font-display);color:var(--ink-1);text-wrap:balance}
 .pe-line .btn{vertical-align:1px;margin-left:2px;font-family:var(--font-sans)}
-.pe-line .aib{margin-right:6px;vertical-align:2px;font-family:var(--font-sans);font-weight:500}
 .pe-facts{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12px;line-height:16px;color:var(--ink-3)}
 .pe-facts b{color:var(--ink-1);font-weight:600}
 .pe-foot{margin-top:8px;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -60,8 +66,7 @@
 .pe-fit-t b{font-variant-numeric:tabular-nums}
 /* mid widths: the three cards wrap 2 + 1 — the fit card takes the full row instead of leaving half of it empty */
 @container main (max-width:799px){.pe-three>:nth-child(3){grid-column:1/-1}}
-/* 行星：画在 00 上方的轨道上，按 --pa（该 Agent 的协作重心）转到位；入场时 WAAPI 从 0° 转到 --pa */
+/* Agent 徽章：画在 12 点方向的轨道外，按 --pa（该 Agent 会话最多的类型）转到位，标志反向转回保持正立；入场时 WAAPI 从 0° 转到 --pa */
 .fp2 .fp-pl{transform:rotate(var(--pa,0deg));transform-origin:200px 200px;transform-box:view-box}
-.fp2 .fp-pl .fp-pd{transition:r .15s}
+.fp2 .fp-pl .fp-pd{transform:rotate(calc(-1 * var(--pa,0deg)));transform-origin:center;transform-box:fill-box}
 .fp2 .fp-pl[data-tf]{cursor:default}
-.fp2 .fp-pl[data-tf]:hover .fp-pd{r:5.6}

@@ -2,13 +2,14 @@
 // and the needle / orbit motif in Genesis (src/js/56-onboarding.js).
 //
 // Test flow:
-//  1 dial         persona page: 120 bezel ticks; the core is the persona's flower (.fp-flower data-code = the code; 12 / 5
-//                 petals for M / F, a back whorl only for V, a helm ring only for S) and all 16 types give 16 different flowers;
-//                 the flower turns to --hd = circular mean of session start times (computed here independently) so its lead
-//                 petal points there; the orbit is one smooth layer per Agent (2° samples) with a contour line each;
-//                 24 transparent hour hit areas still expand into session dots; each Agent badge carries that Agent's logo and
-//                 sits on that Agent's own circular mean (measured from the rendered badge, 1°), badges never overlap;
-//                 --orbit appears only on the lead petal, the 00 triangle and the Orbit mark
+//  1 dial         persona page: the bezel is the 16 types in Gray-code order (128 ticks, 16 codes, neighbours differ by one
+//                 letter, computed here independently); the core is the persona's flower (.fp-flower data-code = the code, the
+//                 type's own petal count, a ring heart only for V) and all 16 types give 16 different flowers; the flower turns
+//                 to --hd = the bearing of your type so its lead petal points there; every session is classified into exactly
+//                 one type; the orbit is one smooth layer per Agent (2.5° samples) with a contour line each; 16 transparent type
+//                 hit areas expand into that type's session dots; each Agent badge carries that Agent's logo and sits on the
+//                 type most of its sessions fall into (measured from the rendered badge, 1°), badges never overlap;
+//                 --orbit appears only on the lead petal, the type triangle and the Orbit mark
 //  2 entry        entering persona (Advance) and l-persona (Lite) sways the flower once (WAAPI on .fp-bd), sweeps the band open
 //                 from 00 (.fp-sweep) and runs every badge from 00 to its heading; re-renders do not
 //  3 genesis      the dial starts tilted (Orbit orbit, rotateX) and flattens; the closed bud is spun frame by frame, blooms,
@@ -18,12 +19,9 @@
 import { test, expect } from '@playwright/test';
 import { openDemo, go } from './helpers.mjs';
 
-// circular mean of start times on the 24 h dial, 0° = 00:00 clockwise (independent of fpHeading)
-const meanDeg = (page, expr) => page.evaluate((e) => {
-  const L = eval(e); let x = 0, y = 0;
-  for (const s of L) { const t = (s.h * 60 + s.mi) / 1440 * 2 * Math.PI; x += Math.cos(t); y += Math.sin(t); }
-  return ((Math.atan2(y, x) * 180 / Math.PI) % 360 + 360) % 360;
-}, expr);
+// the 16 types around the dial: reflected Gray code, D I M V at north, 22.5° each (independent of FP_TYPES)
+const GRAY = Array.from({ length: 16 }, (_, i) => { const g = i ^ (i >> 1); return [['D', 'S'], ['I', 'P'], ['M', 'F'], ['V', 'T']].map((p, k) => p[(g >> (3 - k)) & 1]).join(''); });
+const typeDeg = (code) => GRAY.indexOf(code) * 22.5;
 const needle = (page, scope) => page.evaluate((sc) => { const n = document.querySelector(sc + ' svg.fp2 .fp-bloom'); return n ? { hd: parseFloat(getComputedStyle(n).getPropertyValue('--hd')), data: +n.dataset.hd, inline: n.style.transform, anims: n.querySelector('.fp-bd').getAnimations().length, closed: [...n.querySelectorAll('.fp-pw')].filter((el) => el.style.transform).length, title: n.querySelector('title').textContent } : null; }, scope);
 const rot = (deg) => { const r = deg * Math.PI / 180; return [Math.cos(r), Math.sin(r)]; };
 const adiff = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
@@ -33,43 +31,49 @@ test('persona dial: bezel ticks, type flower turned to the collaboration centre,
   await go(page, 'persona');
   const fp = page.locator('#main svg.fp2');
   const ticks = await fp.locator('.fp-tk').evaluateAll((els) => els.reduce((n, el) => n + (el.getAttribute('d').match(/M/g) || []).length, 0));
-  expect(ticks, '120 bezel ticks (every 3°)').toBe(120);
-  // the core is the persona's flower: petal count, back whorl and helm ring follow the letters
+  expect(ticks, '128 bezel ticks (8 per type)').toBe(128);
+  expect(await fp.locator('.fp-hours text').evaluateAll((els) => els.map((el) => el.lastChild.textContent))).toEqual(GRAY);
+  for (let i = 0; i < 16; i++) expect([...GRAY[i]].filter((c, k) => c !== GRAY[(i + 1) % 16][k]).length, 'neighbours differ by one letter').toBe(1);
+  // the core is the persona's flower: the type's own petals, a ring heart only for V
   const fl = await page.evaluate(() => { const f = $('#main svg.fp2 .fp-flower'); const n = (sel) => { const el = f.querySelector(sel); return el ? (el.getAttribute('d').match(/M/g) || []).length : 0; }; return { code: f.dataset.code, want: CUR.persona.code, front: n('.fp-pet') + n('.fp-lead'), lead: n('.fp-lead'), back: n('.fp-back path'), helm: f.querySelectorAll('.fp-heart circle').length }; });
   expect(fl.code).toBe(fl.want);
   expect(fl.lead).toBe(1);
-  expect(fl.front).toBe(fl.code[2] === 'M' ? 12 : 5);
-  expect(fl.back).toBe(fl.code[3] === 'V' ? fl.front : 0);
-  expect(fl.helm).toBe(fl.code[0] === 'S' ? 3 : 2);
-  // 16 types → 16 different flowers (petal count × swirl × length / heart × back whorl)
+  expect(fl.front).toBe(await page.evaluate((c) => BLOOMS[c].n, fl.code)); expect(fl.front).toBeLessThanOrEqual(8);
+  expect(fl.back).toBe(0);
+  expect(fl.helm).toBe(fl.code[3] === 'V' ? 2 : 1);
+  // 16 types → 16 different flowers (each type has its own petal shape)
   const shapes = await page.evaluate(() => Object.keys(TYPES).map((k) => { const g = bloom(typeP(k), 200, 82); return [g.n, g.hr.toFixed(1), g.minor ? 1 : 0, g.lead].join('|'); }));
   expect(new Set(shapes).size).toBe(16);
-  const want = await meanDeg(page, 'personaScope([PERIODS[S.persona.period][0], PERIODS[S.persona.period][1]])');
+  const want = typeDeg(fl.code);
   const n = await needle(page, '#main');
   expect(Math.abs(n.hd - want)).toBeLessThan(0.1);
   expect(n.data).toBe(n.hd);
-  expect(n.title).toMatch(/^协作重心 \d{1,2}:\d{2}$/);
+  expect(n.title).toBe('你的类型 ' + fl.code + ' ' + await page.evaluate((c) => TYPES[c][0], fl.code));
   // the rendered transform is rotate(--hd) around the dial centre
   const m = await page.evaluate(() => getComputedStyle(document.querySelector('#main svg.fp2 .fp-bloom')).transform);
   const [c, s] = rot(n.hd); const v = m.match(/matrix\(([^)]+)\)/)[1].split(',').map(Number);
   expect(Math.abs(v[0] - c) + Math.abs(v[1] - s)).toBeLessThan(0.01);
   await expect(page.locator('#main .pe-fp-legend')).toHaveCount(0);
   await expect(page.locator('#main .pe-line .aib')).toHaveCount(0);
-  // hour ring: 24 segments, clicking one expands its session dots, again collapses
-  await expect(fp.locator('.fps')).toHaveCount(24);
-  const h = await page.evaluate(() => CUR.fp.byH.findIndex((x) => x.length > 0));
-  await page.locator('#main svg.fp2 .fps[data-h="' + h + '"]').dispatchEvent('click');
-  await expect.poll(() => page.locator('#main svg.fp2 .fpd').count()).toBeGreaterThan(0);
-  await expect(page.locator('#main svg.fp2 .fps.dim')).toHaveCount(23);
-  await page.locator('#main svg.fp2 .fps[data-h="' + h + '"]').dispatchEvent('click');
+  expect(await page.evaluate(() => getComputedStyle($('#main svg.fp2 .fp-n0')).transform !== 'none' || $('#main svg.fp2 .fp-n0').getAttribute('transform'))).toBeTruthy();
+  // every session is classified into exactly one type
+  const cls = await page.evaluate(() => ({ n: CUR.fp.n, sum: CUR.fp.byT.reduce((a, x) => a + x.length, 0), ids: new Set(CUR.fp.byT.flat().map((s) => s.id)).size }));
+  expect(cls.sum).toBe(cls.n); expect(cls.ids).toBe(cls.n);
+  // type ring: 16 segments, clicking one expands its session dots, again collapses
+  await expect(fp.locator('.fps')).toHaveCount(16);
+  const h = await page.evaluate(() => CUR.fp.byT.findIndex((x) => x.length > 0));
+  await page.locator('#main svg.fp2 .fps[data-t="' + h + '"]').dispatchEvent('click');
+  await expect.poll(() => page.locator('#main svg.fp2 .fpd').count()).toBe(await page.evaluate((t) => CUR.fp.byT[t].length, h));
+  await expect(page.locator('#main svg.fp2 .fps.dim')).toHaveCount(15);
+  await page.locator('#main svg.fp2 .fps[data-t="' + h + '"]').dispatchEvent('click');
   await expect(page.locator('#main svg.fp2 .fpd')).toHaveCount(0);
-  // orbit: one smooth layer per Agent with sessions, in AG order, 181 samples (every 2°) on each edge, each with its contour line
+  // orbit: one smooth layer per Agent with sessions, in AG order, 145 samples (every 2.5°) on each edge, each with its contour line
   const layers = await fp.locator('.fp-orb .fpo').evaluateAll((els) => els.map((el) => [el.dataset.a, (el.getAttribute('d').match(/L/g) || []).length]));
   expect(await fp.locator('.fp-orb .fpc').evaluateAll((els) => els.map((el) => el.dataset.a))).toEqual(layers.map((x) => x[0]));
   const withS = await page.evaluate(() => { const L = personaScope([PERIODS[S.persona.period][0], PERIODS[S.persona.period][1]]); return AG.filter((a) => L.some((s) => s.a === a.id)).map((a) => a.id); });
   expect(layers.map((x) => x[0])).toEqual(withS);
   expect(withS.length).toBe(5);
-  for (const [, n] of layers) expect(n).toBe(181 * 2 - 1);
+  for (const [, n] of layers) expect(n).toBe(145 * 2 - 1);
   expect(await fp.locator('.fp-orb').getAttribute('mask')).toMatch(/^url\(#fpm\d+\)$/);
   // badges: one per Agent with sessions, each with that Agent's logo; the rendered badge sits on that Agent's own circular mean
   // (independent, 1°) and no two badges overlap
@@ -80,7 +84,9 @@ test('persona dial: bezel ticks, type flower turned to the collaboration centre,
   expect(pl.map((x) => x[0])).toEqual(withS);
   expect(pl.every((x) => x[5]), 'every badge carries its Agent logo').toBe(true);
   for (let i = 0; i < pl.length; i++) for (let j = i + 1; j < pl.length; j++) expect(Math.hypot(pl[i][2] - pl[j][2], pl[i][3] - pl[j][3]), pl[i][0] + ' vs ' + pl[j][0]).toBeGreaterThanOrEqual(pl[i][4] - 0.5);
-  for (const [a, deg] of pl) expect(adiff(deg, await meanDeg(page, 'personaScope([PERIODS[S.persona.period][0], PERIODS[S.persona.period][1]]).filter((s) => s.a === "' + a + '")')), a).toBeLessThan(1);
+  // the type most of that Agent's sessions fall into
+  const modes = await page.evaluate(() => Object.fromEntries(AG.map((a) => { const c = CUR.fp.byT.map((xs) => xs.filter((s) => s.a === a.id).length); let t = 0; c.forEach((x, k) => { if (x > c[t]) t = k; }); return [a.id, t * 22.5]; })));
+  for (const [a, deg] of pl) expect(adiff(deg, modes[a]), a).toBeLessThan(1);
   await page.locator('#main svg.fp2 .fp-pl').last().dispatchEvent('mouseover');
   // the flower is drawn last, over the core disk; the lead petal is the topmost petal
   const kids = await page.evaluate(() => [...$('#main svg.fp2').children].map((e) => e.getAttribute('class')));
@@ -155,12 +161,12 @@ test('genesis: the bud spins, blooms, settles on the collaboration centre, and l
   expect(g.closed, 'and leaves it fully open').toBe(0);
   // the band has been swept open and the planets have settled back on their --pa
   expect(await page.evaluate(() => [$('#genBox .fp-sweep').style.strokeDashoffset, $$('#genBox .fp-pl').every((el) => !el.style.transform && !el.style.opacity)])).toEqual(['', true]);
-  expect(Math.abs(g.hd - await meanDeg(page, 'obSel()'))).toBeLessThan(0.1);
+  expect(g.hd).toBe(typeDeg(await page.evaluate(() => GNS.p.code)));
   await page.locator('#overlay [data-act="obDone"]').click();
   await expect(page.locator('#overlay')).toBeHidden({ timeout: 2000 });
   const p = await needle(page, '#main');
-  // the landing page uses the persona scope (which can differ from obSel by a session); the angle must not visibly jump
-  expect(Math.abs(p.hd - g.hd)).toBeLessThan(1);
+  // the landing page points at the same type
+  expect(p.hd).toBe(g.hd);
   expect(p.anims, 'no sway when the dial flies in').toBe(0);
   expect(errors).toEqual([]);
 });
