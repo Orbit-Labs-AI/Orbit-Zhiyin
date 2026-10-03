@@ -1,6 +1,6 @@
 // Settings ↔ native capabilities (57-settings.js NATV, 97-live-studio-settings.js notify / statusBadge, 20-ui.js setTheme)
 // and the settings dialog semantics. The fake host below lists the features of the native-shell contract and answers the
-// request/reply messages the way apps/desktop/Orbit.swift is expected to: 'tandem:<type>' events carrying the same reqId.
+// request/reply messages the way apps/desktop/Orbit.swift does: 'tandem:<type>' (notify: 'tandem:notified') with the same id.
 //  1. browser      no native rows (登录时启动 / 系统通知), the simulated menu bar keeps its 角标 column, no console errors
 //  2. native       loginItem get/set (+ rollback on failure), notificationStatus denied → 打开系统设置, appearance, no fake lights
 //  3. old shell    features missing → rows and the 菜单栏角标 column hidden
@@ -13,23 +13,23 @@ import { ADV_FILE, stubGateway, openLive, collectErrors, sseText } from './live-
 
 const URL0 = pathToFileURL(ADV_FILE).href;
 const ONLY = () => test.skip(test.info().project.name !== 'mac-14', 'runs once, at the default size');
-const FULL = ['window', 'notify', 'prefs', 'commands', 'loginItem', 'statusBadge', 'notificationStatus', 'openNotificationSettings', 'appearance'];
+const FULL = ['window', 'notify', 'prefs', 'commands', 'loginItem', 'statusBadge', 'notificationStatus', 'openNotificationSettings', 'notifyResult', 'appearance'];
 
 async function host(page, features, o) {
   await page.addInitScript(([features, o]) => {
     window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.3', platform: 'macos', features };
     window.__nativeMsgs = []; window.__login = !!o.login; window.__loginFail = false; window.__notifAuth = o.auth || 'denied';
-    const reply = (ev, m, d) => setTimeout(() => window.dispatchEvent(new CustomEvent(ev, { detail: Object.assign({ reqId: m.reqId }, d) })), 10);
+    const reply = (ev, m, d) => setTimeout(() => window.dispatchEvent(new CustomEvent(ev, { detail: Object.assign({ id: m.id }, d) })), 10);
     window.webkit = { messageHandlers: { tandem: { postMessage(m0) {
       const m = JSON.parse(JSON.stringify(m0)); if (m.type === 'dragRegions') return;
       window.__nativeMsgs.push(m);
       if (m.type === 'loginItem') {
-        if (m.op === 'get') reply('tandem:loginItem', m, { enabled: window.__login, status: window.__login ? 'enabled' : 'notRegistered' });
-        else if (window.__loginFail) reply('tandem:loginItem', m, { ok: false, enabled: window.__login, reason: '系统拒绝了请求' });
-        else { window.__login = !!m.enabled; reply('tandem:loginItem', m, { ok: true, enabled: window.__login, status: window.__login ? 'enabled' : 'notRegistered' }); }
+        if (m.enabled === undefined) reply('tandem:loginItem', m, { enabled: window.__login, status: window.__login ? 'enabled' : 'notRegistered' });
+        else if (window.__loginFail) reply('tandem:loginItem', m, { enabled: window.__login, status: 'notRegistered', error: '系统拒绝了请求' });
+        else { window.__login = !!m.enabled; reply('tandem:loginItem', m, { enabled: window.__login, status: window.__login ? 'enabled' : 'notRegistered' }); }
       }
       if (m.type === 'notificationStatus') reply('tandem:notificationStatus', m, { status: window.__notifAuth });
-      if (m.type === 'notify' && m.force) reply('tandem:notify', m, window.__notifAuth === 'denied' ? { delivered: false, reason: 'denied' } : { delivered: true });
+      if (m.type === 'notify' && m.force) reply('tandem:notified', m, window.__notifAuth === 'denied' ? { delivered: false, reason: 'denied' } : { delivered: true });
     } } } };
   }, [features, o || {}]);
 }

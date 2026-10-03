@@ -640,7 +640,7 @@ if (TL.mode === 'live') {
     const msg = { id: n.id || undefined, title: n.t || '', body: n.b || '' };
     if (!n.system) { ORBIT.native.post('notify', msg); return; }
     msg.force = true;
-    NATV.ask('notify', msg, 5000).then((r) => {
+    NATV.ask('notify', msg, 5000, 'tandem:notified').then((r) => {
       if (r && r.delivered === false) {
         if (/denied|not.?authori[sz]ed/i.test(r.reason || '')) S.notifAuth = 'denied';
         toast('系统通知没有送达：' + (r.reason === 'denied' ? '通知权限已关闭，在「设置 › 通知」中打开' : r.reason || '原因未知'));
