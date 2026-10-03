@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -48,6 +49,47 @@ def decode_json(value, fallback=None):
         except ValueError:
             return fallback if fallback is not None else value
     return value if value is not None else fallback
+
+
+def mcp_server_names(store, agent: str) -> frozenset[str]:
+    """MCP server names any inventory scan of ``agent`` has observed (union over scans).
+
+    Sessions can predate the current config, so every observed name counts. Without an
+    inventory scan the set is empty and single-separator MCP names stay unresolved.
+    """
+    cache = getattr(store, "_mcp_server_names", None)
+    if cache is None:
+        cache = store._mcp_server_names = {}
+    if agent not in cache:
+        try:
+            rows = store.db.execute(
+                "SELECT DISTINCT i.name FROM inventory_item i JOIN inventory_scan s "
+                "USING(scan_id) WHERE i.type='mcp' AND s.agent=?",
+                (agent,),
+            ).fetchall()
+        except sqlite3.OperationalError:  # store without inventory tables
+            rows = []
+        cache[agent] = frozenset(row[0] for row in rows if isinstance(row[0], str) and row[0])
+    return cache[agent]
+
+
+def split_mcp_name(name, prefix: str, servers, sanitize) -> tuple[str, str] | None:
+    """(server, tool) for ``<prefix><sanitize(server)>_<tool>`` names.
+
+    The single ``_`` separator is ambiguous when server names contain ``_``, so only a
+    known server name (from inventory) resolves it; the longest match wins. Returns
+    None when no known server matches, never a guessed split.
+    """
+    if not isinstance(name, str) or not name.startswith(prefix):
+        return None
+    rest = name[len(prefix) :]
+    best = None
+    for server in servers:
+        head = sanitize(server) + "_"
+        if rest.startswith(head) and len(rest) > len(head):
+            if best is None or len(head) > len(best[0]):
+                best = (head, server)
+    return (best[1], rest[len(best[0]) :]) if best else None
 
 
 def media_type(block: dict) -> str | None:
