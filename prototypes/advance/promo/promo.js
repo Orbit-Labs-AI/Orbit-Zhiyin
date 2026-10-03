@@ -290,7 +290,9 @@ function compassData() {
   const W = decks[0].W, L = W.eval('sel({ noExtra: true })');
   const me = W.eval('persona')(L), typeP = W.eval('typeP'), bloom = W.eval('bloom'), parts = W.eval('bloomParts');
   const col = { ink: 'rgb(' + CPC.ink1 + ')', gray: CPC.petal2, lead: 'var(--orbit)', bg: '#000', hw: 2.8 };
-  const flower = (p) => { const g = bloom(p, CP.C, CP.RR), q = parts(g, CP.C, CP.C, col); return { back: q.back, front: q.front, heart: q.heart }; };
+  // pf / pb: the main / gray petals as single paths (bloom draws each petal as one 'M…Z' run), for the petal relay
+  const sp = (d) => (d ? d.split(/(?=M)/).filter((x) => x.trim()) : []);
+  const flower = (p) => { const g = bloom(p, CP.C, CP.RR), q = parts(g, CP.C, CP.C, col); return { back: q.back, front: q.front, heart: q.heart, pf: sp(g.major), pb: sp(g.back), n: g.n }; };
   const base = cpOrb(L);
   CPD = { TYPES: W.eval('TYPES'), AXES: W.eval('AXES'), AG: W.eval('AG'), me, L, cls: base.cls, orb: base.orb, agLogo: W.eval('agLogo'),
     lbl: W.eval('fpCodeLbls')(true), sets: { base }, fl: CODES.map((c) => flower(typeP(c))), mine: flower(me), mineIdx: CODES.indexOf(W.eval('bloomCode')(me)) };
@@ -317,7 +319,12 @@ function buildCompass() {
   const D = compassData();
   const tk = ['', '', '']; for (let i = 0; i < 128; i++) { const w = i % 32 === 0 ? 2 : i % 8 === 0 ? 1 : 0; tk[w] += 'M' + f2(cpt(392, i * 2.8125)) + 'L' + f2(cpt([385, 379, 370][w], i * 2.8125)); }
   const codes = D.lbl.map((x) => '<text class="tcode cp-code" data-t="' + x.t + '" x="' + (x.p[0] * CP.K).toFixed(1) + '" y="' + (x.p[1] * CP.K).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (x.fs * CP.K).toFixed(1) + '" style="letter-spacing:.04em">' + x.code + '</text>').join('');
-  const fl = (f, i) => '<g class="fl" data-i="' + i + '" opacity="0"><g class="rot"><g class="bk">' + (f.back || '') + '</g><g class="fr">' + f.front + '</g></g><g class="ht">' + f.heart + '</g></g>';
+  // each petal its own path (.pt, data-d = its bearing in the unturned flower: main petal j at j·360/n, gray petal j half a
+  // step later), same fills as bloomParts; falls back to the joined layers if the split does not give n petals
+  const one = (d, j, n, half, fill, c) => '<path class="' + c + ' pt" data-d="' + ((j + half) * 360 / n).toFixed(2) + '" d="' + d + '" fill="' + fill + '"/>';
+  const fl = (f, i) => '<g class="fl" data-i="' + i + '" opacity="0"><g class="rot"><g class="bk">' +
+    (f.pf.length === f.n && (!f.pb.length || f.pb.length === f.n) ? f.pb.map((d, j) => one(d, j, f.n, .5, CPC.petal2, 'fp-bk')).join('') + '</g><g class="fr">' + f.pf.map((d, j) => one(d, j, f.n, 0, 'rgb(' + CPC.ink1 + ')', 'fp-pet')).join('')
+      : (f.back || '') + '</g><g class="fr">' + f.front) + '</g></g><g class="ht">' + f.heart + '</g></g>';
   const h = '<defs><radialGradient id="cpHead"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".35" stop-color="#cfe9ef" stop-opacity=".6"/><stop offset="1" stop-color="#a3adb0" stop-opacity="0"/></radialGradient></defs>' +
     '<clipPath id="cpTickClip"><path/></clipPath><clipPath id="cpBandClip"><path/></clipPath>' +
     // ruled-out types: their band sectors fade through a mask (the dial has no face, so nothing is painted over the light behind)
@@ -335,7 +342,7 @@ function buildCompass() {
     '<g class="cp-flower">' + D.fl.map(fl).join('') + fl(D.mine, 'me') + '</g>';
   const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('viewBox', '0 0 800 800'); svg.setAttribute('width', '800'); svg.setAttribute('height', '800'); svg.setAttribute('class', 'compass');
   svg.style.overflow = 'visible'; svg.innerHTML = h; k.rig.appendChild(svg); k.svg = svg;
-  k.fls = [...svg.querySelectorAll('.cp-flower .fl')].map((g) => ({ g, rot: g.querySelector('.rot'), fr: g.querySelector('.fr'), bk: g.querySelector('.bk'), ht: g.querySelector('.ht') }));
+  k.fls = [...svg.querySelectorAll('.cp-flower .fl')].map((g) => ({ g, rot: g.querySelector('.rot'), fr: g.querySelector('.fr'), bk: g.querySelector('.bk'), ht: g.querySelector('.ht'), pets: [...g.querySelectorAll('.pt')].map((el) => ({ el, d: +el.dataset.d })) }));
   k.body = [...svg.querySelectorAll('.cp-band .body path')]; k.edges = [...svg.querySelectorAll('.cp-band .edges path')];
   k.codes = [...svg.querySelectorAll('.cp-code')]; k.pls = [...svg.querySelectorAll('.cp-pls .pl')]; k.dims = [...svg.querySelectorAll('#cpDim path')];
   return svg;
@@ -355,7 +362,13 @@ function cpSector(r0, r1, a0, a1) { const p0 = cpt(r0, a0), p1 = cpt(r1, a0), p2
    (curves → one ring at r 300, badges onto it), ticks (0..1: ticks and codes revealed clockwise from north), trace
    (0..1: a light running once around the ticks; traceA its strength), pl (opacity of the compass's own badges; the film
    passes 0 and AGD draws them). spin / orbit / settle: kept for old call sites, no effect — since 0.0.4 every badge stays
-   at its Agent's mean direction and the curves stay on their types, as in the app. } */
+   at its Agent's mean direction and the curves stay on their types, as in the app.
+   Promo-only options (absent = the app's behaviour): tri (bearing of the triangle and the emphasised code; default deg, so
+   the flower can turn on its own); rev (5 degrees by AGD index: Agent i's curve and badge revolve that far around the
+   dial; CPS / cpBadge follow); relay: { a, b, u, a0 } a petal-by-petal change of type, u 0..1 — a's petals, ranked
+   clockwise from 12 o'clock at flower bearing a0 (default deg), fold into the heart one after another at an even cadence
+   (u .0–.77) while b's open one after another right behind them (u .14–1), hearts cross-fade at u .38–.68; the flower
+   keeps turning with deg. } */
 // a pie wedge (clip) from bearing a0, span degrees clockwise
 function cpWedge(a0, span) {
   if (span >= 359.9) return 'M-200 -200H1000V1000H-200Z';
@@ -410,6 +423,8 @@ function drawCompass(st) {
     });
     svg.querySelector('.cp-band .ring').setAttribute('opacity', E.in(col).toFixed(3));
   }
+  const rv = st.rev;
+  AGID.forEach((id, i) => { const r = rv ? rv[i] || 0 : 0, fb = k.body[i], fe = k.edges[i]; if (r || fb._r) { const t = r ? 'rotate(' + r.toFixed(3) + ' 400 400)' : ''; fb.setAttribute('transform', t); fe.setAttribute('transform', t); fb._r = r; } });
   const bg = svg.querySelector('.cp-band');
   if (st.sweepSegs) { svg.querySelector('#cpBandClip path').setAttribute('d', st.sweepSegs.map(([a0, sp]) => cpWedge(a0, sp)).join('')); bg.setAttribute('clip-path', 'url(#cpBandClip)'); }
   else if (sw < 1) { svg.querySelector('#cpBandClip path').setAttribute('d', cpWedge(st.sweepFrom || 0, sw * 360)); bg.setAttribute('clip-path', 'url(#cpBandClip)'); } else bg.removeAttribute('clip-path');
@@ -425,6 +440,7 @@ function drawCompass(st) {
       else if (b != null) o = BMEO(cpWin(ms, 260, 320));
       else if (a != null) o = 1 - BMEO(cpWin(ms, 0, 300));
     }
+    if (rv) d += rv[i] || 0;
     const q = cpt(lerp(CP.PR, CP.RING, col), d); pos[i] = [q[0], q[1], CP.PB]; pa[i] = o;
     const g = k.pls[i], v = o * clamp(sw * 2 - i * .2) * (1 - col) * dial * pla;
     g.setAttribute('transform', 'translate(' + f2(q) + ')'); g.style.opacity = v.toFixed(3); g.style.display = v < .002 ? 'none' : '';
@@ -442,7 +458,7 @@ function drawCompass(st) {
   } else if (trg.firstChild) trg.innerHTML = '';
   // ---- triangle, flower angles and the emphasised code
   const deg = st.deg || 0, tw = st.twist || 0;
-  let tri = deg, em = null;
+  let tri = st.tri ?? deg, em = null;
   const hA = fold ? cpTypeDeg(wv.a) : deg, hB = fold ? cpTypeDeg(wv.b) : deg, dl = cpDelta(hA, hB), sg = dl < 0 ? -1 : 1;
   if (fold) {
     // the triangle turns along the shortest arc with a small settle (760 ms, BM_IO); the old code fades back to gray from
@@ -467,6 +483,8 @@ function drawCompass(st) {
   const x = dd < .15 ? dd / .15 : 1, op = new Array(17).fill(0);
   if (st.fi != null) op[st.fi] = 1; else { op[i0] = .5 + .5 * x; op[nb] += .5 - .5 * x; }
   if (wv) { op.fill(0); if (fold) op[wv.a] = 1; op[wv.b] = 1; }
+  const rl = !wv && st.relay && st.relay.a !== st.relay.b ? st.relay : null, ru = rl ? clamp(rl.u) : 0;
+  if (rl) { op.fill(0); op[rl.a] = 1; op[rl.b] = 1; }
   const mine = clamp(st.mine || 0);
   if (mine > 0) { if (wv) { op[16] = op[wv.b] * mine; op[wv.b] *= 1 - mine; } else { for (let t = 0; t < 16; t++) op[t] *= 1 - mine; op[16] = mine; } }
   const gr = clamp(st.grow ?? 1), sc = CP.BUD + (1 - CP.BUD) * gr, hearts = fold ? [D.fl[wv.a].heart, D.fl[wv.b].heart] : null, same = hearts && hearts[0] === hearts[1];
@@ -485,8 +503,18 @@ function drawCompass(st) {
         if (!same) { const e = BMO(cpWin(ms, 230, 320)); H = e < .55 ? { s: .4 + .74 * e / .55, o: e / .55 } : { s: 1.14 - .14 * (e - .55) / .45, o: 1 }; }
       } else { F = cpOpen(cpWin(ms, 0, 600), 32, 1.05); B = cpOpen(cpWin(ms, 80, 600), 32, 1.05); }
     }
-    f.rot.setAttribute('transform', cpTf(ang, sc));
     const set = (el, q) => { if (!q) { if (el._q) { el.removeAttribute('transform'); el.style.opacity = ''; el._q = 0; } return; } el._q = 1; el.setAttribute('transform', cpTf(q.r || 0, q.s)); el.style.opacity = clamp(q.o).toFixed(3); };
+    // relay: rank this flower's petals clockwise from 12 o'clock (at the change's starting bearing a0), then an even
+    // cadence — the old flower's petals fold (twist 14° into the heart), the new one's open right behind them
+    const rs = rl && (j === rl.a ? 'A' : j === rl.b ? 'B' : null);
+    if (rs) {
+      const a0 = rl.a0 ?? deg + tw, n = f.pets.length, sameH = D.fl[rl.a].heart === D.fl[rl.b].heart;
+      const ord = f.pets.map((p, m) => [((a0 + p.d) % 360 + 360) % 360, m]).sort((x, y) => x[0] - y[0]);
+      ord.forEach(([, m], r) => { const p0 = rs === 'A' ? .55 * r / n : .14 + .55 * r / n, q = rs === 'A' ? cpFold(clamp((ru - p0) / .22), 14) : cpOpen(clamp((ru - p0) / .3), 18); set(f.pets[m].el, q); });
+      if (rs === 'A') H = { s: 1 - .3 * E.in(clamp((ru - .38) / .16)), o: sameH ? 0 : 1 - BMEO(clamp((ru - .38) / .16)) };
+      else if (!sameH) { const e = BMO(clamp((ru - .44) / .24)); H = e < .55 ? { s: .4 + .74 * e / .55, o: e / .55 } : { s: 1.14 - .14 * (e - .55) / .45, o: 1 }; }
+    } else f.pets.forEach((p) => set(p.el, null));
+    f.rot.setAttribute('transform', cpTf(ang, sc));
     set(f.fr, F); set(f.bk, B); set(f.ht, H);
   });
 }

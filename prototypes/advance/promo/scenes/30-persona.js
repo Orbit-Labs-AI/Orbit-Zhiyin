@@ -64,7 +64,8 @@ scene('30-persona', () => {
   // ① 罗盘成形后标题 / 强调行停留：左移 b31.4 → 32.8（+1.4，标题 b29.45 起到左移约 3.35 拍，期间慢推 + 外圈慢转）；
   // ② R1 先慢漂 .9 拍（+.4）；③ 匀速 V 150 → 130、清晰带加宽到中心线下 170 / 上 310px（R2–R5 过线间隔 1.05 → 1.21 拍）；
   // ④ 揭晓块到中心线后读到 EX = T6 + 3.0（原 + 2.2）。
-  const XL = 5.0, EX = 39.2 + XL, CO = 39.4 + XL;          // EX：滚动列退场；CO：罗盘退场 = 交给 40-recs 的拍
+  // v17.5：花随分析一瓣瓣更换（见下方 CH），揭晓前多给 1 拍让最后一次更换落在 DIMV 后再显影：XL 5.0 → 6.0
+  const XL = 6.0, EX = 39.2 + XL, CO = 39.4 + XL;          // EX：滚动列退场；CO：罗盘退场 = 交给 40-recs 的拍
   const MV = 32.8, MVD = 1.4;
   // 罗盘中心 (400, 400) → 舞台 (960, 540)，s .86：描边光半径 381 × .86 = 328 = 俯视标志外圈 R；描边光与标志 b28.4 前收完，b29.5 起才慢推
   // 相机几何在 HB 先就位（仍透明），compass key 从 HB 起读 cpBadge 就是最终的舞台坐标；b26.4 才显示 deck 2
@@ -76,8 +77,13 @@ scene('30-persona', () => {
   // v17.1 T10：缩小淡出时中心同拍左移 600 → 480，表盘朝 40-recs 的点列（x 330）收去，像被点带走
   tween(2, CO, .85, { s: .6, o: 0, ax: 480 }, E.inOut);     // E.inOut：表盘底盘与轨道层不在点飞走后残留（CO + .85 已透明）
 
-  /* ---------- 花苞：随扫描转（梯形速度），b28.4 起减速，b29.6 落在你的类型（+1 圈） ---------- */
-  const DEG1 = typeDeg(ME.code) + 360, B0 = 27.2, BT = 2.4, ACC = .3, DEC = 1.2;
+  /* ---------- 花苞：随扫描转（梯形速度），b28.4 起减速，b29.6 落在起始类型 X0 ---------- */
+  // v17.5：分析前还不知道你的类型——花先落在与你四个字母里三个相反的 X0（DIMV → SIFT），分析列每定一个字母，
+  // 花就一瓣瓣换成与已定字母一致的类型（SIFT → DIFT → DIMT → DIMV，每次只翻一个字母），揭晓前落在你的类型
+  const FLIP = { D: 'S', S: 'D', I: 'P', P: 'I', M: 'F', F: 'M', V: 'T', T: 'V' };
+  const flip = (c, ks) => c.split('').map((x, k) => (ks.includes(k) ? FLIP[x] : x)).join('');
+  const X0 = flip(ME.code, [0, 2, 3]);
+  const DEG1 = typeDeg(X0), B0 = 27.2, BT = 2.4, ACC = .3, DEC = 1.2;
   const VMAX = DEG1 / (BT - ACC / 2 - DEC / 2);
   const degAt = (b) => {
     const t = b - B0;
@@ -94,17 +100,54 @@ scene('30-persona', () => {
   const V = 130, VR = 50, GAP = 157.5;                     // px / beat；条目间距 px
   const C0 = MV + .8, TR0 = C0 + .9, RU = 1.2, YR = RU * (V + VR) / 2;
   const TR = [0, 1, 2, 3, 4].map((k) => (k ? TR0 + RU + (GAP * k - YR) / V : TR0));   // b34.5 / 36.08 / 37.29 / 38.5 / 39.72
-  const SLOW = TR[4] + .7, T6 = SLOW + .8;                 // b40.42 / 41.22
+  const SLOW = TR[4] + .7, T6 = SLOW + 1.8;                // b40.42 / 42.22（v17.5：减速段 .8 → 1.8 拍，R5 多留在中心附近，揭晓块晚 1 拍）
   // 4 个维度依次排除不符的一半扇区（16 → 8 → 4 → 2 → 1）
   const axQ = (k, b) => E.inOut(lp(b, TR[k + 1] - .1, .6));
   const keepAt = (b) => CODES.map((c) => { let v = 1; for (let k = 0; k < 4; k++) if (c[k] !== ME.code[k]) v *= 1 - axQ(k, b); return v; });
+
+  /* ---------- v17.5：花一瓣瓣更换（CH）、花匀速慢转、外圈曲线与徽章公转 ---------- */
+  // 三次更换紧接着排（每次 2.0–2.1 拍，中间不停）：旧花的瓣从 12 点起顺时针一瓣瓣收进花心、新花的瓣紧跟着一瓣瓣开，
+  // 花心在中途交叉淡换（drawCompass relay）；三角与强调码在 u .2–.8 滑到新类型。① 字母牌 D 落定前 .3 拍开始
+  // （三角 .42 拍后才动，晚于落定）；② 紧接其后，三角在 M 落定（TR[3] − .2）前后滑到 DIMT；③ 在 V 落定后开始，
+  // b41.68 落在 DIMV（类型码 T6 − .8 起显影）
+  const ci = (c) => CODES.indexOf(c);
+  const CH = [];
+  [[TR[1] - .5, 2.1, [0]], [null, 2.0, [2]], [null, 2.0, [3]]].reduce((a, [s0, L, ks]) => {
+    const b = flip(a, ks), s = s0 ?? CH[CH.length - 1].s + CH[CH.length - 1].L;
+    CH.push({ s, L, a, b, ai: ci(a), bi: ci(b), dl: cpDelta(typeDeg(a), typeDeg(b)) });
+    return b;
+  }, X0);
+  const triAt = (b) => (b < B0 + BT ? degAt(b) : DEG1 + CH.reduce((v, c) => v + c.dl * E.inOut(clamp(((b - c.s) / c.L - .2) / .6)), 0));
+  // 花本身匀速慢转（约 7°/拍，顺时针）：花苞落定后 1 拍内起步，T6 + .8 前 1.5 拍内收住，收住时一瓣正对你的类型
+  const TA = B0 + BT, TE = T6 + .8, NME = D0.fl[ME_IDX].n || 5;
+  const TURN = (() => { const st = 360 / NME, base = ((typeDeg(ME.code) - DEG1) % st + st) % st, want = 7 * (TE - TA - 1.25); return base + st * Math.max(0, Math.round((want - base) / st)); })();
+  const turnAt = (b) => {
+    const t = b - TA, T = TE - TA, v = TURN / (T - 1.25);
+    if (t <= 0) return 0;
+    if (t >= T) return TURN;
+    if (t < 1) return v * t * t / 2;
+    if (t < T - 1.5) return v * (t - .5);
+    return TURN - v * (T - t) * (T - t) / 3;
+  };
+  const faAt = (b) => degAt(b) + turnAt(b);
+  // 公转：每个 Agent 的曲线和徽章各以匀速绕表盘转，内圈（曲线平均半径小）快：9 / 6.5 / 4.5 / 3 / 1.8°/拍（b26.4 起 1 拍内起步）；
+  // 每次换花再同步多转一段（sine）。多转的量让每个 Agent 到 CO 恰好转满 360°——徽章回到数据方位，40-recs 按方位排好的
+  // 竖列（ORD）照常接手，不交叉；交入时（b25.7–26.4）公转为 0，20-orbit 交来的编队形状不变
+  const RB = 26.4, RV = [9, 6.5, 4.5, 3, 1.8];
+  const lyM = D0.sets.base.ly.map((y) => (y ? y.reduce((a, v) => a + v, 0) / y.length : -1));
+  const SPD = []; [0, 1, 2, 3, 4].sort((p, q) => lyM[p] - lyM[q]).forEach((i, r) => { SPD[i] = RV[r]; });
+  const baseRev = (i, b) => { const t = b - RB; return t <= 0 ? 0 : t < 1 ? SPD[i] * t * t / 2 : SPD[i] * (t - .5); };
+  const EXT = SPD.map((v, i) => { let e = (360 - baseRev(i, CO)) / CH.length; while (e < 20) e += 360 / CH.length; return e; });
+  const revAt = (b) => SPD.map((v, i) => baseRev(i, b) + EXT[i] * CH.reduce((a, c) => a + E.sine(clamp((b - c.s) / c.L)), 0));
 
   /* ---------- v17.1 T9：引导线把视线从罗盘带到右列 ---------- */
   // 从罗盘上 x 最大的徽章（相机只平移缩放、rz 0，所以按方位 sin 最大取下标，左移全程不变）连到右列中心线左端
   // (1100, 540)：白 30%（连线自带 stroke-opacity .7，.43 × .7），1.5px，长出 .5 拍，pulse 1，收回 .4 拍。
   // 拍号跟 R1：V2 写的 b32.2–33.6 对应排速前 R1 在 b33.0 过线；排速后 R1 在 TR[0]（b32.3）过线，
   // 所以照同样的相对关系写成线在 R1 过线前 .2 拍长满、过线后 .2 拍开始收回（v17.4：R1 b34.5 过线 → b33.8 → 34.3 长满 → 34.7–35.1 收回）。
-  const T9I = D0.sets.base.pl.reduce((m, d, i) => (d != null && (m < 0 || Math.sin(d * Math.PI / 180) > Math.sin(D0.sets.base.pl[m] * Math.PI / 180)) ? i : m), -1);
+  // v17.5：徽章在公转，按 R1 过线时（TR[0]）的方位取最右的那个
+  const R9 = revAt(TR[0]), T9D = D0.sets.base.pl.map((d, i) => (d == null ? null : d + R9[i]));
+  const T9I = T9D.reduce((m, d, i) => (d != null && (m < 0 || Math.sin(d * Math.PI / 180) > Math.sin(T9D[m] * Math.PI / 180)) ? i : m), -1);
   if (T9I >= 0) AGD.link(TR[0] - .7, TR[0] + .6, T9I, [1100, 540], { color: 'rgba(255,255,255,.43)', width: 1.5, draw: .5, out: .4, pulse: 1 });
   // 表圈上 16 个扇区的亮弧（罗盘坐标，跟着相机走）：R1 依次闪亮一遍；之后仍可能的扇区微亮，最后你的扇区留橙色
   let HL = null;
@@ -132,8 +175,10 @@ scene('30-persona', () => {
   drive(2, 26.4, 41.5 + XL, (p, b) => {
     const out = 1 - E.inOut(lp(b, CO, .8)), keep = keepAt(b);
     const dial = E.out(lp(b, 26.5, .8)) * out;
+    const ck = CH.find((c) => b >= c.s && b < c.s + c.L);
     drawCompass({
-      pl: 0, deg: degAt(b), fi: ME_IDX, grow: E.inOut(lp(b, 28.4, 1.2)), mine: E.inOut(lp(b, T6 - .3, 1.4)),
+      pl: 0, deg: faAt(b), tri: triAt(b), fi: b < CH[0].s ? ci(X0) : ME_IDX, rev: revAt(b),
+      relay: ck ? { a: ck.ai, b: ck.bi, u: (b - ck.s) / ck.L, a0: faAt(ck.s) } : null, grow: E.inOut(lp(b, 28.4, 1.2)), mine: E.inOut(lp(b, T6 - .3, 1.4)),
       spin: (b - 26.4) * .6, keep,
       ticks: E.inOut(lp(b, 26.6, 1.2)),
       trace: b < 29 ? lp(b, 27.4, 1.0) : null, traceA: 1 - E.out(lp(b, 28.4, .5)),
