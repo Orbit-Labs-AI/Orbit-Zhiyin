@@ -49,9 +49,10 @@ def synthetic_analysis(monkeypatch, tmp_path):
     """Exercise the real feature/recommendation engine while isolating persistence."""
     path = tmp_path / "synthetic-api.sqlite"
 
-    def fake_analyze_store(store, scope=None, with_text=True):
+    def fake_analyze_store(store, scope=None, with_text=True, *, with_recommendations=True):
         assert store.path == path
-        return service.analyze_bundle(synthetic_bundle(), scope=scope, with_text=False)
+        return service.analyze_bundle(synthetic_bundle(), scope=scope, with_text=False,
+                                      with_recommendations=with_recommendations)
 
     monkeypatch.setattr(service, "analyze_store", fake_analyze_store)
     return path
