@@ -15,7 +15,7 @@
    (b15.25–18.7), 「Everything」 2.9, the gloss 3.65 (b15.6–19.25).
    v17.5 word-by-word rhythm (length unchanged): every word / phrase opens fast (.24 beat) and lands with a small settle
    (1.07× → 1, blur 6 → 0 by +.4), then sits still until the next one, about half a beat apart: 「用」 b0.4 · 「AI Agent，」
-   0.72 · 「正在」 1.05 · 「成为」 1.5 · 「每个人的」 1.95 · 「日常」 stamp 2.3 (hit 2.6) · 「从想法」 T(5.2) · 「到交付」 +.35 · We / Are /
+   0.72 · 「正在」 1.1 · 「成为」 1.5 · 「每个人的」 1.95 · 「日常」 stamp 2.3 (hit 2.6) · 「从想法」 T(5.2) · 「到交付」 +.35 · We / Are /
    Redesigning / Everything on CB0 + 0 / .5 / 1.0 / 1.5; the pen and the caret step on in the gap after each landing.
    The five dots are one tight group the eye follows, and the content comes out of it:
    1a 用 AI Agent，/ 正在成为每个人的日常（b0–5.4）：a cluster (R 60) pops in the middle of the black and 「用 AI Agent，」
@@ -123,7 +123,7 @@ scene('10-intro', () => {
     tick: (el, tl) => { el.style.transform += ' translateY(' + (18 * (1 - E.out(clamp(tl / BB(.9))))).toFixed(1) + 'px)'; }
   });
   const HEAD = ['hv sv in-big', '<span class="w">正在</span><span class="w">成为</span><span class="w">每个人的</span><span class="w in-hot">日常</span>'];
-  const HB0 = .5, HB1 = T(5.4), HAT = [.55, 1.0, 1.45, 1.8];      // v17.5: b1.05 / 1.5 / 1.95, 「日常」 stamps b2.3, hits b2.6
+  const HB0 = .5, HB1 = T(5.4), HAT = [.6, 1.0, 1.45, 1.8];       // v17.5: b1.1 / 1.5 / 1.95, 「日常」 stamps b2.3, hits b2.6
   txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: HAT, stamp: 3, fit: 1600, push: .06, up: 60, out: .6 }) });
   // T0′ the pen (b0.8–4.8): a ∪ arc (gap 56, sag −14, r 28) 112 px under the headline, centred under the newest word. A
   // centred line re-centres as a word grows, so word k sits at 960 + (width of the words before it) / 2 for its whole
@@ -140,7 +140,7 @@ scene('10-intro', () => {
   // front-loaded (smoothstep into a cubic ease-out, zero speed at both ends) so the cluster clears the type band
   // (y 480–600) while 「每天」 is still wiping in: at b1.0 the dots are ≈ 75 % of the way down
   const PEN_E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
-  AGD.key(0.8, 'arc', { cx: penX, cy: penY, gap: 56, sag: -14, r: 28, dur: .5, stag: .04, ease: PEN_E });
+  AGD.key(0.8, 'arc', { cx: penX, cy: penY, gap: 56, sag: -14, r: 28, dur: .5, stag: .025, ease: PEN_E });   // v17.5: tighter stagger — the last dot is below the type band before the quick 「正在」 is half in
   // every dot breathes (1.06, .5 beats) as each word lands; under 「日常」 the pen gives a firmer press (1.1) on the hit,
   // b2.66; while the whole line is read it keeps breathing softly (1.04) about every .65 beat (new grid) until the exit
   for (const k of [0, 1, 2]) for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[k] + .2 + .03 * i, 1.06, .5);   // v17.5: on each landing
