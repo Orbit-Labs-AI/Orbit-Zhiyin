@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from tandem_data import models as model_catalog
+from tandem_data.command_spec import command_spec
 from tandem_data.contract import TOKENS, canonical, uid
 from tandem_data.shell import command_head
 from tandem_data.store import insert, insert_rows
@@ -252,7 +253,7 @@ TOOL_KINDS = {
 }
 
 
-def tool_metadata(name, attrs):
+def tool_metadata(name, attrs, *, cwd=None, project_id=None):
     kind = next((key for key, names in TOOL_KINDS.items() if name.lower() in names), "other")
     if attrs.get("category") in TOOL_KINDS:
         kind = attrs["category"]
@@ -273,6 +274,13 @@ def tool_metadata(name, attrs):
         skill = args.get("skill") if kind == "skill" else attrs.get("skill")
     # Effective program (cd/env/shell wrappers unwrapped); never a path or an assignment.
     head = command_head(command)
+    spec = (
+        command_spec(
+            command, cwd=(args or {}).get("workdir", attrs.get("cwd", cwd)), project_id=project_id
+        )
+        if kind == "shell" and isinstance(command, str)
+        else None
+    )
     return {
         "name_raw": name,
         "name": tool if kind == "mcp" else name.lower(),
@@ -281,11 +289,14 @@ def tool_metadata(name, attrs):
         "mcp_tool": tool,
         "skill": skill,
         "command_head": head,
+        "command_spec": canonical(spec) if spec is not None else None,
         "files": canonical(files),
     }
 
 
 def _duration(call, result, attrs):
+    if attrs.get("duration_unmeasured"):
+        return None, "unknown", "missing"
     reported = attrs.get("duration_ms")
     if isinstance(reported, int) and not isinstance(reported, bool) and reported >= 0:
         return reported, "reported", "reported"
@@ -472,6 +483,16 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
         )
         progress({"stage": "derive_sessions", "completed": index + 1, "total": len(metas)})
     _link_spawns(store, metas, spawn_ids)
+    # A partial import can first create a child-path project; later parent metadata
+    # folds its sessions into the enclosing project. Keep explicit inventories and
+    # overrides, but discard provisional rows with no remaining canonical evidence.
+    store.db.execute(
+        "DELETE FROM project WHERE project_id NOT IN (SELECT project_id FROM ("
+        "SELECT project_id FROM session UNION ALL SELECT project_id FROM event_context "
+        "UNION ALL SELECT project_id FROM turn UNION ALL SELECT project_id FROM tool_call "
+        "UNION ALL SELECT project_id FROM model_call UNION ALL SELECT project_id FROM project_override "
+        "UNION ALL SELECT project_id FROM inventory_scan) WHERE project_id IS NOT NULL)"
+    )
 
 
 def _link_spawns(store, metas, spawn_ids):
@@ -604,7 +625,7 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                 "native_call_id": event["call_id"],
                 "call_event_uid": event["event_uid"],
                 "result_event_uid": None,
-                **tool_metadata(attrs["name"], attrs),
+                **tool_metadata(attrs["name"], attrs, cwd=context["cwd"], project_id=project_id),
                 "subagent_session_uid": attrs.get("subagent_session_uid"),
                 "status": attrs.get("status") or "unknown",
                 "pairing_quality": "missing_result",
@@ -632,7 +653,7 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                     result_event_uid=event["event_uid"],
                     status=attrs.get("status", "unknown"),
                     pairing_quality="native_id",
-                    ended_at=event["ts"],
+                    ended_at=None if attrs.get("duration_unmeasured") else event["ts"],
                     exit_code=attrs.get("exit_code"),
                     error_class=attrs.get("error_class"),
                     status_scope=attrs.get("status_scope", "unknown"),
@@ -641,6 +662,24 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                 values.update(
                     duration_ms=duration, duration_source=source, duration_quality=quality
                 )
+                native_execution = attrs.get("native_execution_ms")
+                if (
+                    isinstance(native_execution, int)
+                    and not isinstance(native_execution, bool)
+                    and native_execution >= 0
+                    and not attrs.get("duration_unmeasured")
+                ):
+                    values["native_execution_ms"] = native_execution
+                ctime, rtime = call["attrs"]["time"], attrs["time"]
+                if (
+                    ctime["semantics"] == "started"
+                    and rtime["semantics"] == "completed"
+                    and ctime["quality"] == rtime["quality"] == "reported"
+                    and call["ts"] is not None
+                    and event["ts"] is not None
+                    and event["ts"] >= call["ts"]
+                ):
+                    values["wall_elapsed_ms"] = event["ts"] - call["ts"]
             else:
                 call_uid = uid("tool_call", event["event_uid"])
                 tools[call_uid] = (
@@ -651,7 +690,12 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                         "project_id": project_id,
                         "native_call_id": event["call_id"],
                         "result_event_uid": event["event_uid"],
-                        **tool_metadata(attrs.get("name") or "unknown", attrs),
+                        **tool_metadata(
+                            attrs.get("name") or "unknown",
+                            attrs,
+                            cwd=context["cwd"],
+                            project_id=project_id,
+                        ),
                         "status": "ambiguous" if matches else "orphan_result",
                         "pairing_quality": "ambiguous" if matches else "missing_call",
                         "ended_at": event["ts"],
@@ -715,6 +759,16 @@ def _derive_session(store, session_uid, meta, events, recorded_root=None, shared
                         "project_id": project_id,
                         "usage_event_uid": event["event_uid"],
                         "request_id": attrs.get("request_id"),
+                        "request_identity_quality": "reported"
+                        if attrs.get("request_id")
+                        else "derived"
+                        if attrs.get("request_key")
+                        else "unknown",
+                        "boundary_quality": "reported"
+                        if attrs.get("request_id")
+                        else "observed"
+                        if attrs.get("boundary_evidence") == "changed_cumulative_usage"
+                        else "unknown",
                         "provider": provider,
                         "model_raw": raw,
                         "model_id": model_id,

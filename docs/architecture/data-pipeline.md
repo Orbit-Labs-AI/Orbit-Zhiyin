@@ -114,3 +114,11 @@ uv run tandem evaluate
 `TANDEM_HOME`、`--home` 与 App 共用默认目录 `~/Library/Application Support/Tandem`。旧 `.local/tandem.sqlite` 必须显式 `--db` 读取，不能改名当 canonical 库。旧导入的持久采样参数保留在兼容模式；新导入遇到这些参数会提示使用分析范围，不静默扩大样本。评价在独立临时兼容库运行。
 
 完整原生 trajectory、原文索引、schema 5 迁移与无复制采集边界见 [来源索引与 App 接口](../modules/data/indexed-trajectories.md)。
+
+## 请求、命令与生命周期事实
+
+存储版本 9 增加模型请求身份与边界质量，call/delta 是 model_call 的构造不变量。升级旧库后重建投影，才能让读者消费当前 mapper/reducer 版本；不会给所有请求统一补可靠边界。
+
+CommandSpec 从完整调用参数解析，保存执行器、有限子命令、工作目录、参数摘要和验证种类，不复制敏感任意参数。direct_command 与命令状态契约一致；复合脚本、命令提及和试运行不冒充通过的检查，检查通过也不证明任务验收。
+
+子代理生命周期区分创建、活动、消息、等待、结果与关闭。子代理数量按明确子会话身份去重，UI item ID 不能作子会话 ID。墙钟端点、原生执行报告、审批等待和模型延迟分别统计；轨迹边复用只作为结构描述。

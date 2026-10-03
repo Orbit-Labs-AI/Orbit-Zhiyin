@@ -2,6 +2,8 @@ import json
 import time
 from datetime import UTC
 
+import pytest
+
 from tandem_backend.uiview import trajectory
 
 from .l1_builder import *  # noqa: F403 - pytest fixtures
@@ -129,6 +131,7 @@ def test_lite_nodes_and_insight(client, l1):
     assert client.get("/v1/uiview/sessions/nope").status_code == 404
 
 
+@pytest.mark.serial
 def test_detail_5000_events_under_200ms(l1):
     uid = "big"
     l1.session(uid, started=T0)

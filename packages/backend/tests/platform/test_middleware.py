@@ -4,6 +4,7 @@ import asyncio
 import statistics
 import time
 
+import pytest
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
@@ -110,6 +111,7 @@ def test_route_template_fallback():
     assert route_template({"path": "/v1/a/0123456789abcdef0123"}) == "/v1/a/{id}"
 
 
+@pytest.mark.serial
 def test_overhead_microbenchmark(started):
     enable(started)
     started.gw.revisions.update(data_rev=1, inventory_rev=1)

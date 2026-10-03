@@ -341,6 +341,7 @@ def rebuild(
             ): info["file_id"]
             for info in infos
             if info["file_id"] in mappers
+            and not getattr(mappers[info["file_id"]], "mirror_file_id", None)
         }
         by_file = {info["file_id"]: info for info in infos}
         ordered, visiting, visited = [], set(), set()
@@ -552,7 +553,7 @@ def rebuild(
         progress({"stage": "map", "completed": 0, "total": len(infos), "records": 0})
         for index, info in enumerate(infos):
             mapper = mappers.get(info["file_id"])
-            if mapper is None:
+            if mapper is None or getattr(mapper, "mirror_file_id", None):
                 continue
             if info["agent"] == "codex" and mapper.cut is not None and mapper.parent:
                 parent_file = by_native.get((info["source_id"], str(mapper.parent)))
@@ -649,6 +650,53 @@ def rebuild(
                         "INSERT OR IGNORE INTO record_event VALUES(?,?,?,'{}')",
                         (record.record_uid, event_uid, result.disposition or "folded"),
                     )
+        for mapper in mappers.values():
+            original_file = getattr(mapper, "mirror_file_id", None)
+            if original_file is None:
+                continue
+            # Re-read to verify that the mirrored source has not changed since
+            # preparation. The raw ledger includes invalid and pending rows too.
+            for _ in store.iter_file(mapper.info["file_id"]):
+                pass
+            matched = list(
+                store.db.execute(
+                    "SELECT c.record_uid,w.record_uid AS original_record_uid,w.session_uid,w.disposition,w.note "
+                    "FROM file_record cf JOIN raw_record c USING(record_uid) "
+                    "JOIN file_record wf ON wf.file_id=? AND wf.locator=cf.locator "
+                    "JOIN raw_record w ON w.record_uid=wf.record_uid AND w.sha256=c.sha256 "
+                    "WHERE cf.file_id=?",
+                    (original_file, mapper.info["file_id"]),
+                )
+            )
+            expected = store.db.execute(
+                "SELECT count(*) FROM file_record WHERE file_id=?", (mapper.info["file_id"],)
+            ).fetchone()[0]
+            if len(matched) != expected:
+                raise ValueError("Exact Codex mirror has inconsistent indexed records")
+            for record in matched:
+                references = store.db.execute(
+                    "SELECT event_uid FROM record_event WHERE record_uid=?",
+                    (record["original_record_uid"],),
+                ).fetchall()
+                store.db.executemany(
+                    "INSERT OR IGNORE INTO record_event VALUES(?,?,'duplicate','{}')",
+                    ((record["record_uid"], r[0]) for r in references),
+                )
+                store.db.execute(
+                    "UPDATE raw_record SET session_uid=?,disposition=?,note=? WHERE record_uid=?",
+                    (
+                        record["session_uid"],
+                        "duplicate" if references else record["disposition"],
+                        canonical(
+                            {
+                                **json.loads(record["note"]),
+                                "mirror_reason": "exact native session file mirror",
+                                "original_record_uid": record["original_record_uid"],
+                            }
+                        ),
+                        record["record_uid"],
+                    ),
+                )
         parent_updates = []
         for event_uid, native_key in parent_keys.items():
             if native_key in first_by_native and first_by_native[native_key] != event_uid:

@@ -5,6 +5,8 @@ import sqlite3
 import time
 from types import SimpleNamespace
 
+import pytest
+
 from tandem_backend.uiview import facts
 
 from .synth import analysed
@@ -114,6 +116,7 @@ def _bulk(n: int) -> dict:
     return {**body, "rows": rows}
 
 
+@pytest.mark.serial
 def test_wire_size_and_build_speed():
     _, store, scope, result, _ = analysed()
     started = time.perf_counter()

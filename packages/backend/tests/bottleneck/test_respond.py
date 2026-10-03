@@ -111,6 +111,39 @@ def test_subagent_relations_need_ids_and_fork_is_not_spawn(make_event, make_sess
     assert r["fork_relations"] == [{"session_uid": "fork", "forked_from": "s"}]
 
 
+def test_observers_do_not_create_extra_subagent_runs_or_parent_relations(make_event, make_session):
+    sessions = [make_session(), make_session("child", kind="subagent", parent_uid="s")]
+    es = [make_event("spawn", 1, "subagent.spawn", child_session_uid="child"),
+          make_event("view", 900, "subagent.activity", sid="viewer", child_session_uid="child",
+                     parent_session_uid="viewer"),
+          make_event("view2", 1, "subagent.result", ts=300, sid="viewer2", child_session_uid="child",
+                     parent_session_uid="viewer2", status="completed"),
+          make_event("orphan", 1, "subagent.wait", sid="viewer", child_session_uid="orphan")]
+    out = build_execution_relations(es, sessions)
+    assert len(out["subagent_relations"]) == 1
+    assert out["subagent_instance_count"] == len(out["subagent_runs"]) == 2
+    assert out["subagent_parent_unknown_n"] == 1
+    child = next(r for r in out["subagent_runs"] if r["child_session_uid"] == "child")
+    assert child["parent_session_uid"] == "s"
+    assert child["evidence_uids"] == ["spawn", "view", "view2"]
+    assert child["completed_at"] == 300
+    assert child["observing_session_uids"] == ["s", "viewer", "viewer2"]
+    assert build_execution_relations(list(reversed(es)), sessions) == out
+
+
+def test_conflicting_creators_abstain_and_run_identity_does_not_depend_on_observer(make_event, make_session):
+    activity = make_event("view", 1, "subagent.activity", sid="viewer", child_session_uid="child")
+    initially = build_execution_relations([activity], [])
+    metadata = [make_session("child", kind="subagent", parent_uid="s")]
+    resolved = build_execution_relations([activity], metadata)
+    assert initially["subagent_runs"][0]["subagent_run_uid"] == resolved["subagent_runs"][0]["subagent_run_uid"]
+    spawn = make_event("conflict", 1, "subagent.spawn", sid="other", child_session_uid="child")
+    conflict = build_execution_relations([activity, spawn], metadata)
+    assert conflict["subagent_relations"] == []
+    assert conflict["subagent_parent_unknown_n"] == 1
+    assert conflict["subagent_parent_conflicts"][0]["parent_session_uids"] == ["other", "s"]
+
+
 def test_failure_reason_is_not_inferred_from_plain_text(make_call):
     c = make_call(status="failed", text="all tests passed")
     r = analyze_respond([], [c], [], {"s"})
@@ -118,6 +151,17 @@ def test_failure_reason_is_not_inferred_from_plain_text(make_call):
     assert r["failure_reason_unknown_n"] == 1
     c["error_class"] = "permission_denied"
     assert analyze_execution_sequence([c])["failure_reasons"][0]["failure_reason"] == "permission_denied"
+
+
+def test_workflow_unsupported_branch_abstains_even_with_observed_rewind(make_event):
+    from tandem_backend.analytics.respond.sequence import workflow
+
+    events = [make_event("rewind", 1, "branch", action="rewind")]
+    unsupported = workflow(events, [], {"s"}, supported_kinds=set())
+    assert unsupported["branch_count"] is None
+    assert unsupported["rollback_rewind_count"] is None
+    supported = workflow(events, [], {"s"}, supported_kinds={"branch"})
+    assert supported["branch_count"] == supported["rollback_rewind_count"] == 1
 
 
 def test_l2_only_input_can_pair_without_inventing_turns(make_event):

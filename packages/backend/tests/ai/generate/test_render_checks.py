@@ -158,6 +158,7 @@ def test_slot_validate_glue():
     assert validate_slots("glue", defaults, pack) == []
 
 
+@pytest.mark.serial
 def test_render_lint_scan_under_30ms():
     pack, template = hook_pack(), get("retry-breaker")
     render(template, HOOK, pack, True)

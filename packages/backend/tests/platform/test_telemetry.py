@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from tandem_backend import platform as pf
 from tandem_backend.platform import telemetry as tm
 from tandem_backend.platform.telemetry import HOUR_MS, MINUTE_MS, Telemetry
@@ -128,6 +130,7 @@ def test_clear(platform_env):
     assert t.clear() == 1 and t.stats()["rows"] == 0
 
 
+@pytest.mark.serial
 def test_record_performance(platform_env):
     t = enabled(platform_env)
     t0 = time.perf_counter()
@@ -143,6 +146,7 @@ def test_record_performance(platform_env):
     assert time.perf_counter() - t0 < 0.1
 
 
+@pytest.mark.serial
 def test_flush_2000_series_fast(platform_env):
     t = enabled(platform_env)
     for i in range(2000):

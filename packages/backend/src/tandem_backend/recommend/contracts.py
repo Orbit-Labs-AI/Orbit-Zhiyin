@@ -246,6 +246,7 @@ class RecommendationResult(Contract):
     analysis_digest: str | None = None
     scope: dict[str, Any] | None = None
     excluded_resources: list[dict[str, Any]] = Field(default_factory=list)
+    resource_assessments: list[dict[str, Any]] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
 
 

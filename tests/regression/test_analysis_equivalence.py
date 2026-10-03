@@ -127,6 +127,7 @@ def core_sections(result, products):
         "projects": result["projects"],
         "tools": result["tools"],
         "workflow": result["workflow"],
+        "work_graph": result["work_graph"],
         "statistics.sample_counts": sample_counts(result["statistics"]),
         "products.statistics.sample_counts": sample_counts(products["statistics"]),
         "products.tools": products["tools"],

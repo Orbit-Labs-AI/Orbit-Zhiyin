@@ -50,6 +50,7 @@ SECTIONS = (
     "tasks",
     "preferences",
     "instruction",
+    "work_graph",
     "lexical",
     "statistics",
     "bottleneck_recommendations",
@@ -989,12 +990,24 @@ class AnalysisSections:
                 "records": self.instruction_records if self.events_available else None,
                 "summary": self.instruction_summary,
             },
+            "work_graph": self._work_graph,
             "lexical": lexical,
             "statistics": self._statistics,
             "bottleneck_recommendations": lambda: recommend_resources(
                 self.full(with_recommendations=False)
             ),
         }
+
+    def _work_graph(self) -> Record:
+        from .work_graph.graph import build_work_graph
+
+        context = self.context
+        families = context.families(set(context.session_map))
+        return build_work_graph(context.work_index, context.sessions, families["respond"],
+                                families["outcome"], self.instruction_records,
+                                self.semantic.preferences["evidence"], event_status=context.event_status,
+                                context_events=context.diagnostics["context_events"],
+                                interaction=families["interaction"])
 
     def section(self, name: str):
         """Compute one section (and only its dependencies)."""

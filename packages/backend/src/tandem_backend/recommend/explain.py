@@ -41,6 +41,10 @@ def explain_candidate(row):
                         "intervention": item.capability.model_dump(), "expected_effect": item.expected_effect.model_dump(),
                         "pending_requirements": pending},
         "hypothesis": signal["hypothesis"], "effect_status": "unmeasured", "source": source,
+        "evidence_tier": "mixed" if any(s.get("evidence_tier") == "model_inferred" for s in matched)
+        and any(s.get("evidence_tier") != "model_inferred" for s in matched) else
+        "model_inferred" if matched and all(s.get("evidence_tier") == "model_inferred" for s in matched) else "reported",
+        "calibrated_utility_probability": None,
         "preference_explanation": {"matches": features["preference_matches"],
                                    "conflicts": state.preference_state.get("conflicts", []),
                                    "precedence": state.preference_state.get("precedence")},

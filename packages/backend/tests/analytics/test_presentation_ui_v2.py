@@ -78,7 +78,7 @@ def test_shared_native_task_keeps_each_project_and_timeline_label_evidence_local
         event["attrs"].update(task_id="shared-native-task", task_id_source="native")
     features = analyze_bundle(bundle, Scope(display_timezone="Asia/Shanghai"), with_text=False)
     view = build_presentation(features)
-    assert len(features["tasks"]["records"]) == 1
+    assert len(features["tasks"]["records"]) == 2  # identical source-local IDs in different legacy projects stay separate
     assert len(view["timeline"]) == 2
     a = next(p for p in view["projects"] if p["legacy_project_id"] == "a")
     assert {r["id"] for r in a["domain_details"]["rows"]} == {

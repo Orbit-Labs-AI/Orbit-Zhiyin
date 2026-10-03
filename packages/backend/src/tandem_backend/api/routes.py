@@ -4,10 +4,12 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .. import __version__
 from ..analytics.inputs import Scope
+from ..analytics.work_graph import task_subgraph
 from ..application.reports import build_report
 from ..evaluation import SCENE_BUDGETS, evaluate_text
 from ..profiling.analysis import analyze
@@ -293,7 +295,9 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
             except ValueError as exc:
                 raise analysis_error(exc) from exc
             result["sessions"] = [session_summary(s) for s in result["sessions"]]
-            return result
+            # Stored cache values have already passed strict JSON serialization.
+            # Avoid a second recursive FastAPI conversion of the large provenance block.
+            return JSONResponse(result)
         result = analytics_section("sessions", scope, with_text)
         result["total"] = len(result["sessions"])
         result["sessions"] = [session_summary(s) for s in result["sessions"][offset:offset + limit]]
@@ -309,7 +313,7 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
                 raise analysis_error(exc) from exc
             if result["session"] is None:
                 raise HTTPException(404, "会话不在本次分析范围内")
-            return result
+            return JSONResponse(result)
         result = analytics_section("sessions", scope, with_text)
         row = next((s for s in result.pop("sessions") if s["session_uid"] == session_id), None)
         if row is None:
@@ -336,6 +340,19 @@ def create_app(db: str | Path | None = None, catalog_cache: str | Path = ".local
     @app.get("/v1/analytics/tasks")
     def feature_tasks(scope=scope_dependency):
         return analytics_section("tasks", scope)
+
+    @app.get("/v1/analytics/work-graph")
+    def feature_work_graph(scope=scope_dependency):
+        return analytics_section("work_graph", scope)
+
+    @app.get("/v1/analytics/tasks/{task_uid}/trajectory")
+    def feature_task_trajectory(task_uid: str, scope=scope_dependency):
+        result = analytics_section("work_graph", scope)
+        graph = result.pop("work_graph")
+        trajectory = next((t for t in graph["task_trajectories"] if t["task_uid"] == task_uid), None)
+        if trajectory is None:
+            raise HTTPException(404, "任务不在本次分析范围内")
+        return {**result, "trajectory": trajectory, **task_subgraph(graph, trajectory)}
 
     @app.get("/v1/analytics/preferences")
     def feature_preferences(scope=scope_dependency, task_id: str | None = None):

@@ -59,11 +59,11 @@ DOMAIN_DETAILS = {
 
 TASK_TYPES = {
     "research": r"调研|检索|搜索|查找|\b(?:research|search|investigate)\b",
-    "create": r"编写|撰写|创建|生成|实现|开发|(?:^|请|再|然后|现在)写|\b(?:write|create|implement|build)\b",
+    "create": r"编写|撰写|创建|生成|实现|开发|(?:^|请|再|然后|现在)写|(?:请|帮我|需要你|希望你)\s*(?:给|为)[^，,。.!！？?\n]{1,24}写|\b(?:write|create|implement|build)\b",
     "modify": r"修改|改写|调整|重构|完善|优化|去除|删除|\b(?:modify|revise|refactor|update|remove|delete|optimi[sz]e)\b",
     "debug": r"修复|排查|调试|\b(?:fix|debug|troubleshoot)\b",
     "test": r"测试(?!字段|数据|报告|题|卷|成绩|分数|用例|结果)|验证|验收|\b(?:test(?!\s+(?:report|results?|data|cases?|scores?)\b)|verify|validate)\b",
-    "explain": r"解释|讲解|说明|推导|证明|\b(?:explain|derive|prove)\b",
+    "explain": r"解释|讲解|说明|介绍(?!信)|推导|证明|\b(?:explain|describe|introduce|derive|prove)\b",
     "analyze": r"分析|统计|可视化|\b(?:analy[sz]e|visuali[sz]e|count)\b",
     "design": r"设计|\bdesign\b",
     "translate": r"翻译|\btranslate\b",

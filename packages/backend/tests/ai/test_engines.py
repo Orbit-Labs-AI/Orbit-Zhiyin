@@ -9,6 +9,7 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
 from ai_support import ANSWER
 
 from tandem_backend.ai import capabilities, engines, isolation, prices
@@ -140,6 +141,7 @@ def test_default_engines_register_api_key_only_with_env(monkeypatch, ai_env):
     assert "api_key" in engines.default_engines(ai_env.tmp)
 
 
+@pytest.mark.serial
 def test_detect_and_cache(fake_cli, ai_env, monkeypatch):
     info = capabilities.detect("claude_code", ai_env.tmp / "t")
     assert info["available"] and info["logged_in"] is True

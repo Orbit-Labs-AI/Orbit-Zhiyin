@@ -3,6 +3,7 @@
 import re
 
 from ...privacy import direct_user_text
+from ..semantic_cascade import observation_for
 from .linking import link_feedback_targets
 
 RULE_VERSION = "subjective-outcome-v1"
@@ -76,9 +77,11 @@ def collect_deliveries(events, main_ids):
     return output
 
 
-def extract_subjective_feedback(messages, deliveries, main_ids):
+def extract_subjective_feedback(messages, deliveries, main_ids, *, context_events=None):
     """Return recognized human feedback including candidates with unresolved targets."""
     feedback = []
+    delivery_ids = {(d["session_uid"], d["delivery_event_uid"]) for d in deliveries}
+    lookup = {(e["session_uid"], e["event_uid"]): e for e in context_events or []}
     for event in messages:
         attrs = event.get("attrs", {})
         if (event["session_uid"] not in main_ids or event["kind"] != "message.user"
@@ -86,13 +89,26 @@ def extract_subjective_feedback(messages, deliveries, main_ids):
                 or attrs.get("replayed_from") or attrs.get("duplicate_of")):
             continue
         label = classify_feedback(event.get("text"))
+        semantic = observation_for(event, lookup)
+        inferred = (semantic or {}).get("feedback")
+        use_inferred = bool(inferred and (label is None or inferred["acceptance"] in ("partial", "mixed")))
+        if use_inferred:
+            label = {"user_acceptance": inferred["acceptance"],
+                     "user_confirmed_completion": inferred["completion"], "completion_conflict": False,
+                     "rework_feedback": [{"request": inferred["quote"], "reason": inferred["reason"]}] if inferred["rework"] else [],
+                     "signal": "mixed" if inferred["acceptance"] in ("partial", "mixed") else
+                     "positive" if inferred["acceptance"] == "accepted" or inferred["completion"] is True else "negative",
+                     "evidence_text": inferred["quote"], "rule_version": "bounded-semantic-v1",
+                     "label_source": "semantic_model", "confidence": {"tier": "inferred", "calibrated_probability": None}}
         if label is None:
             continue
         feedback.append({**label, "event_uid": event["event_uid"], "session_uid": event["session_uid"],
                          "seq": event["seq"], "ts": event.get("ts"), "available_at": event.get("ts"),
                          "time_quality": "reported" if event.get("ts") is not None else "sequence_only",
                          "task_id": attrs.get("task_id"), "task_id_source": attrs.get("task_id_source", "explicit"),
-                         "requested_target": attrs.get("feedback_target"),
+                         "requested_target": attrs.get("feedback_target") if "feedback_target" in attrs else
+                         ({"delivery_event_uid": semantic["target_event_uid"]}
+                          if use_inferred and (event["session_uid"], semantic["target_event_uid"]) in delivery_ids else None),
                          "text_truncated": bool(event.get("text_truncated")),
                          "ambiguous_text_target": bool(re.search(r"上一版|旧版|之前的|第[一二三四五六七八九十0-9]+版|\bv\d+\b|previous version|older version", label["evidence_text"], re.I))})
     for item in feedback:

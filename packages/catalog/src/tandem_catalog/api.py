@@ -28,7 +28,8 @@ class EmbeddingRequest(Contract):
 
 def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None,
                    profile: Callable[[dict], dict | None] | None = None,
-                   installed_summary: Callable[[], dict | None] | None = None) -> APIRouter:
+                   installed_summary: Callable[[], dict | None] | None = None,
+                   status_summary: Callable[[], dict] | None = None) -> APIRouter:
     """``profile(scope)`` returns the library profile (see query.library) or None; both hooks are
     supplied by the gateway so this package never imports the features module."""
     router = APIRouter(prefix="/v1/catalog", tags=["resource catalog"])
@@ -54,7 +55,7 @@ def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None
 
     @router.get("/status")
     def status():
-        return service.store.stats()
+        return status_summary() if status_summary else service.store.stats()
 
     @router.get("/sources")
     def sources():

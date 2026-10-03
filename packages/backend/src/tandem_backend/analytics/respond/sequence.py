@@ -2,7 +2,7 @@
 
 from collections import Counter, defaultdict
 
-from ..common import human, ratio
+from ..common import human, ratio, reported_task_identity
 from .calls import ordered_call_group
 from .rules import STATES, result_status
 
@@ -44,11 +44,17 @@ def workflow(events, calls, main_ids, supported_kinds=None):
     kinds = Counter(e["kind"] for e in events)
     for name, kind in (("error_count", "error"), ("branch_count", "branch"),
                        ("compaction_count", "context.compaction"), ("permission_request_count", "permission.request"),
-                       ("subagent_spawn_count", "subagent.spawn"), ("interruption_count", "turn.interrupted")):
+                       ("interruption_count", "turn.interrupted")):
         counts[name] = kinds[kind] if supported_kinds is None or kind in supported_kinds else None
-    counts["rollback_rewind_count"] = (sum(e["kind"] == "branch" and e.get("attrs", {}).get("action") in ("rollback", "rewind")
-                                           for e in events) if kinds["branch"] else 0
-                                       if supported_kinds is None or "branch" in supported_kinds else None)
+    children = {e.get("attrs", {}).get("child_session_uid") for e in events
+                if e["kind"] == "subagent.spawn" and e.get("attrs", {}).get("child_session_uid")}
+    counts["subagent_spawn_count"] = len(children) if supported_kinds is None or "subagent.spawn" in supported_kinds else None
+    counts["subagent_spawn_unknown_events"] = sum(e["kind"] == "subagent.spawn"
+        and not e.get("attrs", {}).get("child_session_uid") for e in events)
+    counts["rollback_rewind_count"] = (
+        sum(e["kind"] == "branch" and e.get("attrs", {}).get("action") in ("rollback", "rewind")
+            for e in events) if kinds["branch"] else 0
+    ) if supported_kinds is None or "branch" in supported_kinds else None
     consecutive, same, max_failures, digest_eligible = 0, 0, 0, 0
     by_session = defaultdict(list)
     for c in calls or []:
@@ -77,6 +83,9 @@ def workflow(events, calls, main_ids, supported_kinds=None):
             previous = c
     return {**counts, "transition_count": count, "repeated_transition_count": repeated,
             "repeated_transition_rate": ratio(repeated, count), "max_repeated_transition_run": runs,
+            "transition_edge_reuse_count": repeated, "transition_edge_reuse_rate": ratio(repeated, count),
+            "transition_reuse_meaning": "workflow topology only; does not measure retry, waste or bottleneck",
+            "deprecated_metrics": ["repeated_transition_count", "repeated_transition_rate", "max_repeated_transition_run"],
             "transitions": [{"from": a, "to": b, "count": n, "probability": n / totals[a]}
                             for (a, b), n in sorted(transitions.items())],
             "consecutive_failed_calls": consecutive if calls is not None and not unknown_call_sessions else None,
@@ -114,6 +123,7 @@ def analyze_execution_sequence(calls):
             p = prior.get(explicit) if explicit else previous
             if p and result_status(p) == "failed" and (c.get("name_raw"), c.get("kind")) == (p.get("name_raw"), p.get("kind")):
                 task_same = bool(c.get("task_uid") and c.get("task_uid") == p.get("task_uid"))
+                task_confirmed = task_same and all(reported_task_identity(row) for row in (c, p))
                 task_conflict = c.get("task_uid") and p.get("task_uid") and not task_same
                 scope_same = bool(c.get("status_scope") not in (None, "unknown")
                                   and c.get("status_scope") == p.get("status_scope"))
@@ -122,13 +132,13 @@ def analyze_execution_sequence(calls):
                                     and c.get("argument_digest_kind") == p.get("argument_digest_kind"))
                 same_args = c.get("argument_digest") == p.get("argument_digest") if digest_known else None
                 if not task_conflict and (explicit or same_args is not False):
-                    confirmed = task_same and scope_same and (bool(explicit) or same_args is True)
+                    confirmed = task_confirmed and scope_same and (bool(explicit) or same_args is True)
                     retries.append({"session_uid": c["session_uid"], "from_call_uid": p["call_uid"],
                                     "to_call_uid": c["call_uid"], "state": "confirmed" if confirmed else "candidate",
                                     "basis": "explicit_link" if explicit else "failed_same_tool_repeat",
                                     "same_arguments": same_args, "status_scope": c.get("status_scope"),
                                     "task_uid": c.get("task_uid"),
-                                    "missing": ([] if task_same else ["task_identity"])
+                                    "missing": ([] if task_confirmed else ["task_identity_unconfirmed" if task_same else "task_identity"])
                                         + ([] if scope_same else ["status_scope"])
                                         + ([] if explicit or digest_known else ["argument_digest_identity"])})
             prior[c["call_uid"]], previous = c, c

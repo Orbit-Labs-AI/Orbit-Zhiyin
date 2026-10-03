@@ -26,7 +26,7 @@ def event(uid, seq, text, *, sid="s", delivery=False, ts="auto", **attrs):
     return {"event_uid": uid, "session_uid": sid, "seq": seq, "ts": seq * 100 if ts == "auto" else ts,
             "kind": "message.assistant" if delivery else "message.user", "turn_uid": "turn",
             "actor": "assistant" if delivery else "human", "text": text,
-            "attrs": {"origin": "assistant" if delivery else "human", "task_id": "task",
+            "attrs": {"origin": "assistant" if delivery else "human", "task_id": "task", "task_id_source": "native",
                       **({"phase": "final"} if delivery else {}), **attrs}}
 
 

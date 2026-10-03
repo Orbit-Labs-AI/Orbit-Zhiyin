@@ -343,6 +343,12 @@ def test_analysis_omits_native_copies_but_keeps_facts_and_evidence(data):
 def test_existing_store_adds_indexes_for_deferred_parent_inserts(data, schema_version):
     home, _ = data
     with Store(home) as store:
+        # A historical fixture must have its historical columns, not just an old
+        # version number attached to the current DDL.
+        for table, columns in (("model_call", ("request_identity_quality", "boundary_quality")),
+                               ("tool_call", ("command_spec", "wall_elapsed_ms", "native_execution_ms"))):
+            for column in columns:
+                store.db.execute(f'ALTER TABLE "{table}" DROP COLUMN "{column}"')
         if schema_version == 4:
             store.db.execute("DROP TABLE inventory_item")
             store.db.execute("DROP TABLE inventory_scan")

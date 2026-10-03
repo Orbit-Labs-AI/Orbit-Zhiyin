@@ -174,6 +174,18 @@ def test_openapi_lists_every_uiview_route(gw):
         assert '"array"' in json.dumps(params["agent"]["schema"]), (path, params["agent"])
 
 
+def test_catalog_status_has_one_route_and_preserves_gateway_fields(gw):
+    status_routes = [route for route in gw.client.app.routes
+                     if getattr(route, "path", "") == "/v1/catalog/status"
+                     and "GET" in getattr(route, "methods", set())]
+    assert len(status_routes) == 1
+    response = gw.client.get("/v1/catalog/status")
+    assert response.status_code == 200
+    assert {"coverage", "first_sync"} <= set(response.json())
+    spec = gw.client.get("/v1/openapi.json").json()
+    assert "get" in spec["paths"]["/v1/catalog/status"]
+
+
 def test_facets_and_agents_filter_a4a6_pages(gw):
     put_facts(gw)
     c = gw.client

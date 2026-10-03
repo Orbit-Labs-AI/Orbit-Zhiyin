@@ -80,6 +80,7 @@ def test_session_filter_uses_index(seeded):
     assert "SCAN tc" not in plan and "USING INDEX" in plan
 
 
+@pytest.mark.serial
 def test_fifty_thousand_rows_under_300ms(tandem):
     tandem.session("s1")
     tandem.session("s2", agent="codex")

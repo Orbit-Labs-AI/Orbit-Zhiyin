@@ -202,6 +202,7 @@ def test_facet_payload_chunking():
     assert out["human_messages"][-1]["event_uid"] == "h11"
 
 
+@pytest.mark.serial
 def test_build_under_250ms_on_2k_sessions(tdb, appdb, tandem_home):
     for i in range(2000):
         tdb.session(f"s{i:04d}", project="p1" if i % 2 else "p2", start=NOW - (i % 60) * DAY // 2,
