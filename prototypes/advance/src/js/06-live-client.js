@@ -29,6 +29,16 @@ const OrbitLive = (function () {
   // 503 analysis_unavailable says "<code>: <message>" (timeout, worker_crashed …); the code is the reason the UI names
   function analysisReason(code, message) { if (code !== 'analysis_unavailable') return null; const m = /^([a-z_]+):\s/.exec(message || ''); return m ? m[1] : null; }
   const isUnavailable = (e) => !!e && e.status === 503 && e.code === 'analysis_unavailable';
+  // projection_pending: the first import has not published yet (or a job ran before it did). That is a normal state while
+  // data is being organised, not a failure: no error banner, the resource reads as computing and reloads quietly.
+  const isPending = (e) => !!e && (e.code === 'projection_pending' || e.reason === 'projection_pending');
+  // 503 service_unavailable 'Database busy' (SQLite locked by the import writer, Retry-After 1): during an import this is the
+  // writer holding the lock, not an outage → retried quietly like projection_pending, up to BUSY_MAX times in a row (then
+  // it is a real failure and raises the banner as before). A long import can hold the lock past the cap: while its job frames
+  // keep advancing (one within BUSY_FRESH_MS) the writer is clearly alive, so the quiet retries go on
+  const isBusy = (e) => !!e && e.status === 503 && e.code === 'service_unavailable' && /^Database busy/.test(e.message || '');
+  const BUSY_MAX = 8;
+  const BUSY_FRESH_MS = 10000;
   // scope keys POST /v1/analytics/recompute accepts (the analytics scope), used to rebuild a scope from a resource query
   const SCOPE_KEYS = ['display_timezone', 'project_ids', 'legacy_project_ids', 'model_ids', 'effort_raw', 'from_ts', 'until_ts', 'root_session_uids', 'excluded_session_uids', 'include_children', 'scene', 'source_ids', 'agent_ids'];
   const JOB_DONE = ['completed', 'failed'];
@@ -108,7 +118,20 @@ const OrbitLive = (function () {
       events: { connected: false, attempt: 0, delays: [], lastId: null, resyncs: 0, running: false },
       STATES
     };
-    let pageCtrl = null, scheduled = false, statusRes = null;
+    let pageCtrl = null, scheduled = false, statusRes = null, renderMark = 0;
+    // markRender() at the start of a page render: resources read (C.resource) after it are the ones on screen, so their
+    // retries reload by themselves instead of asking for another full render (a 1 s Retry-After loop rebuilt the page)
+    C.markRender = function () { renderMark = Math.max(1, now()); };
+    // (only once the host marks its renders: without markRender a retry just flags the resource dirty and calls onChange)
+    const onScreen = (r) => renderMark > 0 && r.touchedAt != null && r.touchedAt >= renderMark;
+    // any read still waiting for the first publish (projection_pending)
+    C.isPending = function () { let p = false; resources.forEach((r) => { if (r.error && isPending(r.error)) p = true; }); return p; };
+    function retryLater(r, wait) {
+      r.retryTimer = timers.setTimeout(() => {
+        r.retryTimer = null; r.dirty = true;
+        if (onScreen(r) && !r.loading) C.load(r); else changed();
+      }, wait);
+    }
 
     function emit(name, payload) { (listeners[name] || []).slice().forEach((fn) => { try { fn(payload); } catch (e) { /* listener errors stay local */ } }); }
     C.on = function (name, fn) { (listeners[name] = listeners[name] || []).push(fn); return () => { listeners[name] = listeners[name].filter((f) => f !== fn); }; };
@@ -196,11 +219,18 @@ const OrbitLive = (function () {
         r = { key: k.key, path, scope: o.scope || null, query: o.query || null, section: o.section || sectionOf(path), state: 'idle', data: null, meta: null, error: null, updatedAt: null, dirty: true, loading: null, retryTimer: null, waitMs: o.waitMs || 0 };
         resources.set(k.key, r);
       }
+      r.touchedAt = now();
       return r;
     };
+    // an import is running: a job frame says so, or the host knows (C.importing, e.g. the first-run overlay's own job)
+    const importJobActive = () => !!(C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0);
+    // the import's job frames moved (progress / phase changed) recently: the writer is working, not stuck
+    let jobSig = null; let jobAdvancedAt = 0;
+    const importAdvancing = () => importJobActive() && now() - jobAdvancedAt < BUSY_FRESH_MS;
+    const importingNow = () => { if (importJobActive()) return true; try { return !!(C.importing && C.importing()); } catch (e) { return false; } };
     C.stateOf = function (r) {
       if (!r) return 'idle';
-      const importing = C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0;
+      const importing = importJobActive();
       if (importing && (r.state === 'empty' || (r.data == null && (r.state === 'loading' || r.state === 'idle')))) return 'importing';
       return r.state;
     };
@@ -217,10 +247,25 @@ const OrbitLive = (function () {
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
         // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
         const jid = res.meta && res.meta.job_id; if (jid && (res.state === 'computing' || res.state === 'stale')) watchJob(r, jid);
-        C.failure = null; r.fails = 0;
+        C.failure = null; r.fails = 0; r.busy = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
+        if (isPending(e)) {
+          // nothing published yet: keep the last data (stale) or read as computing; retry on Retry-After without a banner
+          r.error = { status: e.status || 503, code: 'projection_pending', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null };
+          r.state = r.data != null ? 'stale' : 'computing';
+          r.fails = (r.fails || 0) + 1;
+          retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : Math.min(5000, 1000 * r.fails));
+          return;
+        }
+        if (isBusy(e) && importingNow() && ((r.busy = (r.busy || 0) + 1) <= BUSY_MAX || importAdvancing())) {
+          r.error = { status: 503, code: 'service_unavailable', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null, busy: true };
+          r.state = r.data != null ? 'stale' : 'computing';
+          retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : 1000);
+          return;
+        }
+        if (!isBusy(e)) r.busy = 0;
         r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter, reason: e.reason || null };
         r.state = 'error';
         if (r === statusRes) C.error = r.error;
@@ -232,7 +277,7 @@ const OrbitLive = (function () {
         // that failed while the gateway was briefly unreachable recovers by itself instead of staying 'error' (R4-11)
         r.fails = (r.fails || 0) + 1;
         const wait = e.retryAfter != null ? e.retryAfter : r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
-        if (wait != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, wait);
+        if (wait != null) retryLater(r, wait);
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
     };
@@ -264,7 +309,11 @@ const OrbitLive = (function () {
       r.jobId = id; const w = r.jobWatch = { id };
       C.analysis.poll(id, (job) => { if (r.jobWatch === w) { r.job = job; changed(); } }).then((job) => {
         if (r.jobWatch !== w) return; r.jobWatch = null;
-        if (job.status === 'failed') {
+        if (job.status === 'failed' && isPending(job.error)) {
+          // the analysis ran before the first publish: wait for it quietly instead of offering 重新计算
+          r.state = r.data != null ? 'stale' : 'computing'; r.error = { status: 503, code: 'projection_pending', message: (job.error && job.error.message) || '', retryable: true, reason: null };
+          r.fails = (r.fails || 0) + 1; retryLater(r, Math.min(5000, 1000 * r.fails));
+        } else if (job.status === 'failed') {
           const er = job.error || {};
           r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: er.code || 'analysis_failed', message: er.message || '分析失败', retryable: false, job };
         } else r.dirty = true;
@@ -355,6 +404,7 @@ const OrbitLive = (function () {
       p = p || {};
       if (name === 'job') {
         C.job = p;
+        if (p.kind === 'import') { const sig = JSON.stringify([p.id, p.status, p.phase, p.progress]); if (sig !== jobSig) { jobSig = sig; jobAdvancedAt = now(); } }
         if (ACTIVE_JOB.indexOf(p.status) < 0 && p.kind === 'import') C.invalidate((r) => r === statusRes);
         changed();
       } else if (name === 'data.published') {
@@ -849,6 +899,7 @@ const OrbitLive = (function () {
   function hm(ts) { if (ts == null) return DASH; const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts)); if (isNaN(d)) return DASH; return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   const CSS = '.tl-strip{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}.tl-strip:empty{display:none}' +
     '.tl-banner{display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;background:var(--warn-bg,#fbf0d8);color:var(--warn,#8a5a00)}' +
+    '.tl-banner.info{background:var(--sunken,#f0efeb);color:var(--ink-2,#45484f)}' +
     '.tl-banner.crit{background:var(--crit-bg,#fbe8e6);color:var(--crit,#c62f2f)}' +
     '.tl-progress{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2,#45484f)}.tl-progress .tl-bar{height:4px;border-radius:2px;background:var(--hair,#eeece7);overflow:hidden}.tl-progress .tl-bar i{display:block;height:100%;background:var(--a2,#2a78d6)}' +
     '.tl-badge{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:11px;background:var(--sunken,#f0efeb);color:var(--ink-3,#62666f);white-space:nowrap}' +
@@ -860,7 +911,7 @@ const OrbitLive = (function () {
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--font-mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
-  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
+  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '正在整理数据…' };
   // import stages (docs/development/import-pipeline.md §3): the gateway sends progress.label / detail / unit / overall;
   // older gateways send only progress.stage, named here. Units say what completed / total count.
   const STAGE_NAMES = { capture: '读取会话文件', normalize: '准备发布', reset_projection: '开始重建', prepare: '预读会话文件', map: '解析会话记录', derive: '汇总会话', derive_metadata: '汇总会话信息', derive_projects: '归属项目', derive_sessions: '统计轮次与工具', validate_projection: '校验', published: '已发布', progressive_batch: '分批发布' };
@@ -879,7 +930,8 @@ const OrbitLive = (function () {
     unitName: (unit) => UNIT_NAMES[unit] || '',
     reason: (code) => REASONS[code] || (code ? '分析失败（' + code + '）' : '分析失败'),
     // analysis_unavailable (503, a failed job or an analysis.failed frame) → its reason; null for any other error
-    unavailable: (err) => (err && err.code === 'analysis_unavailable' ? ui.reason(err.reason) : null),
+    unavailable: (err) => (err && err.code === 'analysis_unavailable' && !isPending(err) ? ui.reason(err.reason) : null),
+    pending: isPending,
     ensureStyle(doc) {
       doc = doc || (typeof document !== 'undefined' ? document : null);
       if (!doc || !doc.head || doc.getElementById('tl-style')) return;
@@ -897,6 +949,9 @@ const OrbitLive = (function () {
     banner(C) {
       if (!C || C.mode !== 'live') return '';
       if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Orbit 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
+      // the first import is still being organised: a calm status line (the import progress above already says so)
+      const pend = (C.failure && isPending(C.failure)) || (C.isPending && C.isPending());
+      if (pend) return ui.progress(C) ? '' : '<div class="tl-banner info" role="status" data-tl="pending">正在整理数据… · 导入的会话发布后自动显示</div>';
       if (C.failure) return '<div class="tl-banner" role="alert" data-tl="unavailable">服务暂时不可用（' + esc(C.failure.code) + '）· 显示上一屏数据' + (C.failure.retryAfter != null ? '，' + Math.ceil(C.failure.retryAfter / 1000) + ' 秒后重试' : '') + '</div>';
       // supervisor states: ok / idle (worker parked until work arrives) / stopped (shutdown) are healthy; only the rest raise it
       const bad = Object.keys(C.services).filter((k) => C.services[k] && SERVICE_OK.indexOf(C.services[k]) < 0);
@@ -906,6 +961,7 @@ const OrbitLive = (function () {
     badge(v) {
       if (!v) return '';
       if (v.state === 'stale') return '<span class="tl-badge" data-tl="stale">更新于 ' + hm(v.updatedAt) + ' · 正在刷新</span>';
+      if (v.error && isPending(v.error) && v.state !== 'ready') return '<span class="tl-badge" data-tl="pending">正在整理数据…</span>';
       if (v.state === 'computing') return '<span class="tl-badge" data-tl="computing">计算中</span>';
       if (v.state === 'error' && ui.unavailable(v.error)) return '<span class="tl-badge" data-tl="unavailable">' + esc(ui.unavailable(v.error)) + (v.vm ? ' · 显示上次结果' : '') + '</span>';
       if (v.state === 'error' && v.vm) return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
@@ -921,6 +977,7 @@ const OrbitLive = (function () {
     skeleton() { return '<div class="tl-grid" data-tl="skeleton"><div class="tl-skel"></div><div class="tl-skel"></div><div class="tl-skel"></div></div>'; },
     empty(msg) { return '<div class="tl-card tl-empty" data-tl="empty">' + esc(msg || '还没有可分析的会话。') + '<br>到 设置 › 数据源 启用来源后，导入的数据会出现在这里。</div>'; },
     errorCard(err) {
+      if (isPending(err)) return '<div class="tl-card tl-empty" data-tl="pending" role="status">正在整理数据… · 导入的会话发布后自动显示</div>';
       if (ui.unavailable(err)) return '<div class="tl-card tl-empty" data-tl="unavailable" role="alert">' + esc(ui.unavailable(err)) + ' · 可以重新计算</div>';
       return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>';
     },

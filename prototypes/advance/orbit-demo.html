@@ -2530,6 +2530,16 @@ const OrbitLive = (function () {
   // 503 analysis_unavailable says "<code>: <message>" (timeout, worker_crashed …); the code is the reason the UI names
   function analysisReason(code, message) { if (code !== 'analysis_unavailable') return null; const m = /^([a-z_]+):\s/.exec(message || ''); return m ? m[1] : null; }
   const isUnavailable = (e) => !!e && e.status === 503 && e.code === 'analysis_unavailable';
+  // projection_pending: the first import has not published yet (or a job ran before it did). That is a normal state while
+  // data is being organised, not a failure: no error banner, the resource reads as computing and reloads quietly.
+  const isPending = (e) => !!e && (e.code === 'projection_pending' || e.reason === 'projection_pending');
+  // 503 service_unavailable 'Database busy' (SQLite locked by the import writer, Retry-After 1): during an import this is the
+  // writer holding the lock, not an outage → retried quietly like projection_pending, up to BUSY_MAX times in a row (then
+  // it is a real failure and raises the banner as before). A long import can hold the lock past the cap: while its job frames
+  // keep advancing (one within BUSY_FRESH_MS) the writer is clearly alive, so the quiet retries go on
+  const isBusy = (e) => !!e && e.status === 503 && e.code === 'service_unavailable' && /^Database busy/.test(e.message || '');
+  const BUSY_MAX = 8;
+  const BUSY_FRESH_MS = 10000;
   // scope keys POST /v1/analytics/recompute accepts (the analytics scope), used to rebuild a scope from a resource query
   const SCOPE_KEYS = ['display_timezone', 'project_ids', 'legacy_project_ids', 'model_ids', 'effort_raw', 'from_ts', 'until_ts', 'root_session_uids', 'excluded_session_uids', 'include_children', 'scene', 'source_ids', 'agent_ids'];
   const JOB_DONE = ['completed', 'failed'];
@@ -2609,7 +2619,20 @@ const OrbitLive = (function () {
       events: { connected: false, attempt: 0, delays: [], lastId: null, resyncs: 0, running: false },
       STATES
     };
-    let pageCtrl = null, scheduled = false, statusRes = null;
+    let pageCtrl = null, scheduled = false, statusRes = null, renderMark = 0;
+    // markRender() at the start of a page render: resources read (C.resource) after it are the ones on screen, so their
+    // retries reload by themselves instead of asking for another full render (a 1 s Retry-After loop rebuilt the page)
+    C.markRender = function () { renderMark = Math.max(1, now()); };
+    // (only once the host marks its renders: without markRender a retry just flags the resource dirty and calls onChange)
+    const onScreen = (r) => renderMark > 0 && r.touchedAt != null && r.touchedAt >= renderMark;
+    // any read still waiting for the first publish (projection_pending)
+    C.isPending = function () { let p = false; resources.forEach((r) => { if (r.error && isPending(r.error)) p = true; }); return p; };
+    function retryLater(r, wait) {
+      r.retryTimer = timers.setTimeout(() => {
+        r.retryTimer = null; r.dirty = true;
+        if (onScreen(r) && !r.loading) C.load(r); else changed();
+      }, wait);
+    }
 
     function emit(name, payload) { (listeners[name] || []).slice().forEach((fn) => { try { fn(payload); } catch (e) { /* listener errors stay local */ } }); }
     C.on = function (name, fn) { (listeners[name] = listeners[name] || []).push(fn); return () => { listeners[name] = listeners[name].filter((f) => f !== fn); }; };
@@ -2697,11 +2720,18 @@ const OrbitLive = (function () {
         r = { key: k.key, path, scope: o.scope || null, query: o.query || null, section: o.section || sectionOf(path), state: 'idle', data: null, meta: null, error: null, updatedAt: null, dirty: true, loading: null, retryTimer: null, waitMs: o.waitMs || 0 };
         resources.set(k.key, r);
       }
+      r.touchedAt = now();
       return r;
     };
+    // an import is running: a job frame says so, or the host knows (C.importing, e.g. the first-run overlay's own job)
+    const importJobActive = () => !!(C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0);
+    // the import's job frames moved (progress / phase changed) recently: the writer is working, not stuck
+    let jobSig = null; let jobAdvancedAt = 0;
+    const importAdvancing = () => importJobActive() && now() - jobAdvancedAt < BUSY_FRESH_MS;
+    const importingNow = () => { if (importJobActive()) return true; try { return !!(C.importing && C.importing()); } catch (e) { return false; } };
     C.stateOf = function (r) {
       if (!r) return 'idle';
-      const importing = C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0;
+      const importing = importJobActive();
       if (importing && (r.state === 'empty' || (r.data == null && (r.state === 'loading' || r.state === 'idle')))) return 'importing';
       return r.state;
     };
@@ -2718,10 +2748,25 @@ const OrbitLive = (function () {
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
         // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
         const jid = res.meta && res.meta.job_id; if (jid && (res.state === 'computing' || res.state === 'stale')) watchJob(r, jid);
-        C.failure = null; r.fails = 0;
+        C.failure = null; r.fails = 0; r.busy = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
+        if (isPending(e)) {
+          // nothing published yet: keep the last data (stale) or read as computing; retry on Retry-After without a banner
+          r.error = { status: e.status || 503, code: 'projection_pending', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null };
+          r.state = r.data != null ? 'stale' : 'computing';
+          r.fails = (r.fails || 0) + 1;
+          retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : Math.min(5000, 1000 * r.fails));
+          return;
+        }
+        if (isBusy(e) && importingNow() && ((r.busy = (r.busy || 0) + 1) <= BUSY_MAX || importAdvancing())) {
+          r.error = { status: 503, code: 'service_unavailable', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null, busy: true };
+          r.state = r.data != null ? 'stale' : 'computing';
+          retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : 1000);
+          return;
+        }
+        if (!isBusy(e)) r.busy = 0;
         r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter, reason: e.reason || null };
         r.state = 'error';
         if (r === statusRes) C.error = r.error;
@@ -2733,7 +2778,7 @@ const OrbitLive = (function () {
         // that failed while the gateway was briefly unreachable recovers by itself instead of staying 'error' (R4-11)
         r.fails = (r.fails || 0) + 1;
         const wait = e.retryAfter != null ? e.retryAfter : r.error.retryable && (!e.status || e.status >= 500) ? Math.min(backoff.max, backoff.base * Math.pow(2, Math.min(r.fails - 1, 5))) : null;
-        if (wait != null) r.retryTimer = timers.setTimeout(() => { r.retryTimer = null; r.dirty = true; changed(); }, wait);
+        if (wait != null) retryLater(r, wait);
       }).then(() => { r.loading = null; r.refreshing = false; changed(); return r; });
       return r.loading;
     };
@@ -2765,7 +2810,11 @@ const OrbitLive = (function () {
       r.jobId = id; const w = r.jobWatch = { id };
       C.analysis.poll(id, (job) => { if (r.jobWatch === w) { r.job = job; changed(); } }).then((job) => {
         if (r.jobWatch !== w) return; r.jobWatch = null;
-        if (job.status === 'failed') {
+        if (job.status === 'failed' && isPending(job.error)) {
+          // the analysis ran before the first publish: wait for it quietly instead of offering 重新计算
+          r.state = r.data != null ? 'stale' : 'computing'; r.error = { status: 503, code: 'projection_pending', message: (job.error && job.error.message) || '', retryable: true, reason: null };
+          r.fails = (r.fails || 0) + 1; retryLater(r, Math.min(5000, 1000 * r.fails));
+        } else if (job.status === 'failed') {
           const er = job.error || {};
           r.state = 'error'; r.error = { status: 503, code: 'analysis_unavailable', reason: er.code || 'analysis_failed', message: er.message || '分析失败', retryable: false, job };
         } else r.dirty = true;
@@ -2856,6 +2905,7 @@ const OrbitLive = (function () {
       p = p || {};
       if (name === 'job') {
         C.job = p;
+        if (p.kind === 'import') { const sig = JSON.stringify([p.id, p.status, p.phase, p.progress]); if (sig !== jobSig) { jobSig = sig; jobAdvancedAt = now(); } }
         if (ACTIVE_JOB.indexOf(p.status) < 0 && p.kind === 'import') C.invalidate((r) => r === statusRes);
         changed();
       } else if (name === 'data.published') {
@@ -3350,6 +3400,7 @@ const OrbitLive = (function () {
   function hm(ts) { if (ts == null) return DASH; const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts)); if (isNaN(d)) return DASH; return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   const CSS = '.tl-strip{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}.tl-strip:empty{display:none}' +
     '.tl-banner{display:flex;gap:8px;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;background:var(--warn-bg,#fbf0d8);color:var(--warn,#8a5a00)}' +
+    '.tl-banner.info{background:var(--sunken,#f0efeb);color:var(--ink-2,#45484f)}' +
     '.tl-banner.crit{background:var(--crit-bg,#fbe8e6);color:var(--crit,#c62f2f)}' +
     '.tl-progress{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2,#45484f)}.tl-progress .tl-bar{height:4px;border-radius:2px;background:var(--hair,#eeece7);overflow:hidden}.tl-progress .tl-bar i{display:block;height:100%;background:var(--a2,#2a78d6)}' +
     '.tl-badge{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:11px;background:var(--sunken,#f0efeb);color:var(--ink-3,#62666f);white-space:nowrap}' +
@@ -3361,7 +3412,7 @@ const OrbitLive = (function () {
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
     '.tl-ev{font:12px/1.5 var(--font-mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
-  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
+  const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '正在整理数据…' };
   // import stages (docs/development/import-pipeline.md §3): the gateway sends progress.label / detail / unit / overall;
   // older gateways send only progress.stage, named here. Units say what completed / total count.
   const STAGE_NAMES = { capture: '读取会话文件', normalize: '准备发布', reset_projection: '开始重建', prepare: '预读会话文件', map: '解析会话记录', derive: '汇总会话', derive_metadata: '汇总会话信息', derive_projects: '归属项目', derive_sessions: '统计轮次与工具', validate_projection: '校验', published: '已发布', progressive_batch: '分批发布' };
@@ -3380,7 +3431,8 @@ const OrbitLive = (function () {
     unitName: (unit) => UNIT_NAMES[unit] || '',
     reason: (code) => REASONS[code] || (code ? '分析失败（' + code + '）' : '分析失败'),
     // analysis_unavailable (503, a failed job or an analysis.failed frame) → its reason; null for any other error
-    unavailable: (err) => (err && err.code === 'analysis_unavailable' ? ui.reason(err.reason) : null),
+    unavailable: (err) => (err && err.code === 'analysis_unavailable' && !isPending(err) ? ui.reason(err.reason) : null),
+    pending: isPending,
     ensureStyle(doc) {
       doc = doc || (typeof document !== 'undefined' ? document : null);
       if (!doc || !doc.head || doc.getElementById('tl-style')) return;
@@ -3398,6 +3450,9 @@ const OrbitLive = (function () {
     banner(C) {
       if (!C || C.mode !== 'live') return '';
       if (C.error) return '<div class="tl-banner crit" role="alert" data-tl="offline">无法连接 Orbit 本地服务（' + esc(C.error.code) + '）· 正在保留上一屏数据</div>';
+      // the first import is still being organised: a calm status line (the import progress above already says so)
+      const pend = (C.failure && isPending(C.failure)) || (C.isPending && C.isPending());
+      if (pend) return ui.progress(C) ? '' : '<div class="tl-banner info" role="status" data-tl="pending">正在整理数据… · 导入的会话发布后自动显示</div>';
       if (C.failure) return '<div class="tl-banner" role="alert" data-tl="unavailable">服务暂时不可用（' + esc(C.failure.code) + '）· 显示上一屏数据' + (C.failure.retryAfter != null ? '，' + Math.ceil(C.failure.retryAfter / 1000) + ' 秒后重试' : '') + '</div>';
       // supervisor states: ok / idle (worker parked until work arrives) / stopped (shutdown) are healthy; only the rest raise it
       const bad = Object.keys(C.services).filter((k) => C.services[k] && SERVICE_OK.indexOf(C.services[k]) < 0);
@@ -3407,6 +3462,7 @@ const OrbitLive = (function () {
     badge(v) {
       if (!v) return '';
       if (v.state === 'stale') return '<span class="tl-badge" data-tl="stale">更新于 ' + hm(v.updatedAt) + ' · 正在刷新</span>';
+      if (v.error && isPending(v.error) && v.state !== 'ready') return '<span class="tl-badge" data-tl="pending">正在整理数据…</span>';
       if (v.state === 'computing') return '<span class="tl-badge" data-tl="computing">计算中</span>';
       if (v.state === 'error' && ui.unavailable(v.error)) return '<span class="tl-badge" data-tl="unavailable">' + esc(ui.unavailable(v.error)) + (v.vm ? ' · 显示上次结果' : '') + '</span>';
       if (v.state === 'error' && v.vm) return '<span class="tl-badge" data-tl="error">刷新失败 · 显示上次结果</span>';
@@ -3422,6 +3478,7 @@ const OrbitLive = (function () {
     skeleton() { return '<div class="tl-grid" data-tl="skeleton"><div class="tl-skel"></div><div class="tl-skel"></div><div class="tl-skel"></div></div>'; },
     empty(msg) { return '<div class="tl-card tl-empty" data-tl="empty">' + esc(msg || '还没有可分析的会话。') + '<br>到 设置 › 数据源 启用来源后，导入的数据会出现在这里。</div>'; },
     errorCard(err) {
+      if (isPending(err)) return '<div class="tl-card tl-empty" data-tl="pending" role="status">正在整理数据… · 导入的会话发布后自动显示</div>';
       if (ui.unavailable(err)) return '<div class="tl-card tl-empty" data-tl="unavailable" role="alert">' + esc(ui.unavailable(err)) + ' · 可以重新计算</div>';
       return '<div class="tl-card tl-empty" data-tl="error" role="alert">读取失败：' + esc((err && (err.message || err.code)) || '未知错误') + (err && err.retryable ? ' · 稍后自动重试' : '') + '</div>';
     },
@@ -3694,18 +3751,25 @@ function openDD(anchor, items, onPick, opt) {
   const dd = $('#dd');
   const draw = (its) => { dd.innerHTML = its.map((it, i) => it.sep ? '<hr>' : it.h ? '<div class="h">' + esc(it.h) + '</div>' : '<button type="button" role="menuitem" data-i="' + i + '"' + (it.dis ? ' disabled' : '') + '><span class="ck">' + (it.on ? '✓' : '') + '</span><span>' + esc(it.t) + '</span>' + (it.k ? '<span class="k">' + esc(it.k) + '</span>' : it.sub ? '<span class="sub">▶</span>' : '') + '</button>').join(''); };
   draw(items);
-  DD = { items, onPick, keep: opt.keep, refresh: opt.refresh, draw, anchor };
+  DD = { items, onPick, keep: opt.keep, refresh: opt.refresh, draw, anchor, align: opt.align };
   dd.hidden = false;
+  ddPlace(anchor, opt.align);
+}
+// places #dd under (or above) its anchor; render() calls it again when the anchor was rebuilt (uiDDRestore, 25-nav.js)
+function ddPlace(anchor, align) {
+  const dd = $('#dd');
   const r = anchor.getBoundingClientRect(), d = desk.getBoundingClientRect();
   const inBar = !!anchor.closest('.mbar');
   let left = Math.round(r.left - d.left), top = Math.round(r.bottom - d.top) + (inBar ? 1 : 4);
   const w = dd.offsetWidth, h = dd.offsetHeight;
-  if (opt.align === 'right' || left + w > d.width - 8) left = Math.max(8, Math.round(r.right - d.left) - w);
+  if (align === 'right' || left + w > d.width - 8) left = Math.max(8, Math.round(r.right - d.left) - w);
   if (top + h > d.height - 8) top = Math.max(8, Math.round(r.top - d.top) - h - 4);
   dd.style.left = left + 'px'; dd.style.top = top + 'px';
   $$('.mbar button.on').forEach((b) => b.classList.remove('on'));
   if (inBar) anchor.classList.add('on');
 }
+// the page under an open dropdown moved (the live strip above it changed height): follow the anchor
+function ddFollow() { if (DD && DD.anchor && DD.anchor.isConnected && !DD.anchor.closest('.mbar')) ddPlace(DD.anchor, DD.align); }
 function closeDD() { $('#dd').hidden = true; DD = null; $$('.mbar button.on').forEach((b) => b.classList.remove('on')); }
 $('#dd').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-i]'); if (!b || !DD) return;
@@ -4039,11 +4103,48 @@ function uiRestore(snap) {
   el.focus({ preventScroll: true });
   try { if (f.s0 != null) el.setSelectionRange(f.s0, f.s1); } catch (e) { /* type without caret */ }
 }
+/* uiKeep(root) → restore(): the same promise for a box that rebuilds itself outside render() — the settings window
+   (renderSet), the first-run overlay (drawOB) — every scrolled element under root (found again by child-index path, tag
+   and class) and the focused field with its caret come back after the rebuild. */
+function uiKeep(root) {
+  if (!root || root.hidden) return () => {};
+  const sc = [];
+  root.querySelectorAll('*').forEach((el) => { if (el.scrollTop || el.scrollLeft) { const p = uiPath(el, root); if (p) sc.push({ p, tag: el.tagName, cls: el.className, t: el.scrollTop, l: el.scrollLeft }); } });
+  const a = document.activeElement; let f = null;
+  if (a && root.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { const p = uiPath(a, root); let s0 = null, s1 = null; try { s0 = a.selectionStart; s1 = a.selectionEnd; } catch (e) { /* no caret */ } if (p) f = { p, tag: a.tagName, id: a.id, v: a.value, s0, s1 }; }
+  return () => {
+    sc.forEach((x) => { const el = uiAt(root, x.p); if (el && el.tagName === x.tag && el.className === x.cls) { el.scrollTop = x.t; el.scrollLeft = x.l; } });
+    const cur = document.activeElement;
+    if (!f || (cur && cur !== document.body && cur.isConnected)) return;   // focus survived (or moved on purpose): leave it
+    const el = (f.id && document.getElementById(f.id)) || uiAt(root, f.p);
+    if (!el || el.tagName !== f.tag || !root.contains(el)) return;
+    if (el.value !== f.v && !el.value) el.value = f.v;
+    el.focus({ preventScroll: true });
+    try { if (f.s0 != null) el.setSelectionRange(f.s0, f.s1); } catch (e) { /* no caret */ }
+  };
+}
+// an open dropdown (#dd) whose anchor a render replaced: hang it from the anchor's successor (same path, same act) so it
+// stays open where it was instead of floating over a detached chip
+function uiDDSnap() {
+  if (typeof DD === 'undefined' || !DD || !DD.anchor) return null;
+  const roots = [$('#side'), $('#main'), $('#set')]; const a = DD.anchor;
+  const ri = roots.findIndex((r) => r && r.contains(a)); if (ri < 0) return null;
+  const p = uiPath(a, roots[ri]); return p ? { dd: DD, ri, p, act: a.dataset ? a.dataset.act : null } : null;
+}
+function uiDDRestore(x) {
+  if (!x || DD !== x.dd || x.dd.anchor.isConnected) return;
+  const roots = [$('#side'), $('#main'), $('#set')];
+  let el = roots[x.ri] && uiAt(roots[x.ri], x.p);
+  if ((!el || (x.act && el.dataset.act !== x.act)) && x.act) el = roots[x.ri] && roots[x.ri].querySelector('[data-act="' + x.act + '"]');
+  if (!el) return;
+  x.dd.anchor = el;
+  if (typeof ddPlace === 'function') ddPlace(el, x.dd.align);
+}
 const UI_DEBUG = (() => { try { return new URLSearchParams(location.search).get('debug') === 'render'; } catch (e) { return false; } })();
 window.__renderCount = 0;
 function render() {
   window.__renderCount++; if (UI_DEBUG) console.debug('[render]', window.__renderCount, S.route);
-  const snap = uiSnap();
+  const snap = uiSnap(); const dds = uiDDSnap();
   agentSync();
   applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
@@ -4052,7 +4153,7 @@ function render() {
   // the window rect cannot change while the page renders (stageSize is cached, 22-window.js): re-place only the dependants
   // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
   placeDeps();
-  uiRestore(snap);
+  uiRestore(snap); uiDDRestore(dds);
   paneSync();
   if (window.__lvRendered) window.__lvRendered();
 }
@@ -6630,12 +6731,15 @@ function ovMini(kind, a, b) {
   if (kind === 'bars') { const mx = Math.max(1, ...a); return '<svg class="ov-mini" width="36" height="24" viewBox="0 0 36 24" aria-hidden="true">' + a.slice(0, 3).map((v, i) => '<rect x="0" y="' + (i * 8) + '" width="' + Math.max(2, v / mx * 36).toFixed(1) + '" height="6" rx="1.5" fill="' + (i === 0 ? 'var(--crit)' : 'var(--h2)') + '"/>').join('') + '</svg>'; }
   return '<svg class="ov-mini" width="' + (Math.max(1, a + b) * 9) + '" height="24" viewBox="0 0 ' + (Math.max(1, a + b) * 9) + ' 24" aria-hidden="true">' + Array.from({ length: a + b }, (_, i) => '<rect x="' + (i * 9) + '" y="8" width="7" height="7" rx="1.5" fill="' + (i < a ? 'var(--ai)' : 'none') + '" stroke="var(--ai)" stroke-width="1.2"/>').join('') + '</svg>';
 }
+// projection_pending（首次导入还没发布）是正常的进行中状态，不当成「取不到」（F08）；与 OrbitLive.ui.pending 同一判定
+function persPending(e) { return !!e && (e.code === 'projection_pending' || e.reason === 'projection_pending'); }
 // 人格未揭晓：保留卡片的结构（占位码 + 进度 + 四轴空轨），不留大块空白，也不编造数值（R4-14）
 function ovPersEmpty(pers) {
   const n = pers.n || 0; const need = 0;   // 1 个会话即可出结论：这里只剩「没有会话 / 取不到 / 暂不计算」三种空态，不再有进度条
-  const why = pers.error ? '画像暂时取不到，稍后会自动重试' : !n ? '还没有会话 · 有 1 个会话即可揭晓' : '当前筛选下暂不计算画像';
+  const pend = persPending(pers.error);   // 首次导入还没发布：正在整理，不是取不到也不是没有会话（F08）
+  const why = pend ? '导入的会话发布后会自动显示画像' : pers.error ? '画像暂时取不到，稍后会自动重试' : !n ? '还没有会话 · 有 1 个会话即可揭晓' : '当前筛选下暂不计算画像';
   // 没有画像时不放占位码（F21）：虚线花形轮廓 + 一句说明；没有会话时给导入入口
-  return '<div class="ov-code-r" data-lv="pers-empty">' + emptyBloomSVG(56) + '<span class="col" style="gap:4px;min-width:0"><span class="serif" style="font-size:18px;font-weight:600;color:var(--ink-2)">' + (pers.error ? '画像暂时取不到' : '还没有长出来') + '</span>' + (!n && !pers.error ? emptyActs(false) : '') + '</span></div>' +
+  return '<div class="ov-code-r" data-lv="pers-empty">' + emptyBloomSVG(56) + '<span class="col" style="gap:4px;min-width:0"><span class="serif" style="font-size:18px;font-weight:600;color:var(--ink-2)">' + (pend ? '正在整理数据…' : pers.error ? '画像暂时取不到' : '还没有长出来') + '</span>' + (!n && !pers.error ? emptyActs(false) : '') + '</span></div>' +
     '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;gap:8px"><span class="cap">' + why + '</span>' + (need ? '<span class="mono cap">' + n + '</span>' : '') + '</div>' +
     (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:0%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
     '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
@@ -7078,7 +7182,7 @@ PAGES.persona = () => {
     const more = relax.some((r) => r.k !== 'period'), wider = relax.some((r) => r.k === 'period');
     return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--font-num)" fill="var(--ink-1)">' + L.length + '</text></svg><div class="col" style="flex:1;min-width:240px">' +
       (allOff ? '<h2 class="serif" style="margin:0;font-size:24px">所有数据源已停用</h2><p style="margin:0;color:var(--ink-2)">人格需要会话数据。到「设置 › 数据源」重新启用至少一个 Agent，分析会立即恢复。</p><div class="row"><button type="button" class="btn p" data-act="openSettings" data-tab="sources">打开设置 · 数据源</button></div>'
-        : L.length ? '<h2 class="serif" style="margin:0;font-size:24px">' + (p.error ? '画像暂时取不到' : '当前筛选下暂不计算画像') + '</h2><p style="margin:0;color:var(--ink-2)">' + (p.error ? '稍后会自动重试，也可以换一个统计周期。' : '换一个统计周期，或清除 Agent / 项目筛选。') + '</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>'
+        : L.length ? '<h2 class="serif" style="margin:0;font-size:24px">' + (persPending(p.error) ? '正在整理数据…' : p.error ? '画像暂时取不到' : '当前筛选下暂不计算画像') + '</h2><p style="margin:0;color:var(--ink-2)">' + (persPending(p.error) ? '导入的会话发布后会自动显示画像。' : p.error ? '稍后会自动重试，也可以换一个统计周期。' : '换一个统计周期，或清除 Agent / 项目筛选。') + '</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>'
         : '<h2 class="serif" style="margin:0;font-size:24px">当前筛选下还没有会话</h2><p style="margin:0;color:var(--ink-2)">有 1 个会话就能给出协作人格。' + (relax.length ? '放宽下面任一筛选可以补到：' : '会话还不够，继续使用 Orbit 就会积累。') + '</p>' + peScopeTag(per) +
         (relax.length ? '<div class="pe-relax">' + relax.map((r) => '<button type="button" class="chip on" data-act="peRelax" data-k="' + r.k + '">' + esc(r.t) + ic('x', 12) + '<b class="mono" style="color:' + (r.n >= 1 ? 'var(--good)' : 'var(--ink-3)') + '">移除后约 ' + r.n + ' 个会话</b></button>').join('') + '</div>' : '') +
         (more || wider ? '<div class="row" style="flex-wrap:wrap">' + (more ? '<button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button>' : '') + (wider ? '<button type="button" class="btn' + (more ? '' : ' p') + '" data-act="period" data-v="all">看全部历史</button>' : '') + '</div>' : '')) +
@@ -10675,11 +10779,15 @@ function lvImporting() {
   const j = TL.job; if (j && j.kind === 'import' && LV_ACTIVE.indexOf(j.status) >= 0) return true;
   const L = typeof OB !== 'undefined' && OB && OB.live; return !!(L && L.job && LV_ACTIVE.indexOf(L.job.status) >= 0);
 }
+// Errors count by what they say (code / reason), not by object identity: a retry that fails the same way again (a 1 s
+// Retry-After loop while the first import publishes) is not new state. A load starting or ending with the same answer is
+// not either (r.loading is left out). The strip (badges, banner, import note) is patched in place (lvPatchStrip).
+const lvErrKey = (e) => (e ? (e.code || '') + '/' + (e.reason || '') + '/' + (e.status || '') : '');
 function lvSig() {
-  const parts = [lvTick, LV.rev, LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvJobSig(TL.job), lvId(TL.failure), lvId(TL.error), lvId(TL.status),
+  const parts = [lvTick, LV.rev, LV.state, LV.stale, !!LV.pending, LV.failed && LV.failed.reason, LV.job && LV.job.status, S.route, lvJobSig(TL.job), lvErrKey(TL.failure), lvErrKey(TL.error), lvId(TL.status),
     TL.events && TL.events.connected, lvId(TL.collection), TL.collection && TL.collection.state];
   try { parts.push(JSON.stringify(TL.services || {})); } catch (e) { parts.push(++lvTick); }
-  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvId(r.error) + ':' + (r.loading ? 1 : 0) + (r.dirty ? 'd' : '')); return false; });
+  TL.invalidate((r) => { parts.push(r.key + ':' + r.state + ':' + lvId(r.data) + ':' + lvErrKey(r.error) + (r.dirty ? 'd' : '')); return false; });
   return parts.join('|');
 }
 // A live-triggered render is postponed while the user is in the middle of something (wheel / touch scrolling in the last
@@ -10698,17 +10806,19 @@ function lvUserBusy(now) {
   if (typeof DD !== 'undefined' && DD) return true;
   // a focused field only holds renders back during an import (search answers must still arrive while typing)
   const a = document.activeElement;
-  return !!(a && lvImporting() && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest('#main, #side'));
+  // an open native <select> anywhere in the window or settings would be closed by a rebuild
+  if (a && a.tagName === 'SELECT' && a.closest('#main, #side, #set, #overlay')) return true;
+  return !!(a && lvImporting() && /^(INPUT|TEXTAREA)$/.test(a.tagName) && a.closest('#main, #side, #set, #overlay'));
 }
 function lvFlush() {
   if (lvFrame) { cancelAnimationFrame(lvFrame); lvFrame = 0; }
   if (lvFrameT) { clearTimeout(lvFrameT); lvFrameT = null; }
   lvPatchProgress();
-  const sig = lvSig(); if (sig === lvLastSig) { lvDeferSince = 0; return; }
+  const sig = lvSig(); if (sig === lvLastSig) { lvDeferSince = 0; lvPatchStrip(); return; }
   const now = Date.now();
   const gap = lvImporting() && lvLastRenderT ? lvLastRenderT + LV_IMPORT_GAP - now : 0;
   const busy = lvUserBusy(now) && (!lvDeferSince || now - lvDeferSince < LV_DEFER_MAX);
-  if (gap > 0 || busy) { if (!lvDeferSince) lvDeferSince = now; lvFrameT = setTimeout(lvFlush, Math.max(400, Math.min(gap, 2000))); return; }
+  if (gap > 0 || busy) { lvPatchStrip(); if (!lvDeferSince) lvDeferSince = now; lvFrameT = setTimeout(lvFlush, Math.max(400, Math.min(gap, 2000))); return; }
   lvDeferSince = 0;
   render();
 }
@@ -10719,12 +10829,30 @@ function lvPatchProgress() {
   const html = TLU.progress(TL); if (!html) return;
   els.forEach((el) => { if (el.outerHTML !== html) el.outerHTML = html; });
 }
+// the status strip at the top of #content (lvStrip, 96-live-bind.js) follows the live state without a page render: the
+// banner, the page badge, 「正在整理数据…」 and elapsed-time notes change here, the page below stays as it is
+function lvPatchStrip() {
+  if (typeof document === 'undefined' || typeof lvStrip !== 'function') return;
+  const c = document.querySelector('#content'); if (!c) return;
+  const old = c.querySelector(':scope > [data-tl="strip"]');
+  let html = ''; try { html = lvStrip(S.route); } catch (e) { return; }
+  if (old && old.outerHTML === html) return;
+  if (old && old.contains(document.activeElement)) return;   // a focused 重试 / 重新计算 stays put until it is used
+  const top = c.scrollTop;
+  if (old) old.remove();
+  if (html) c.insertAdjacentHTML('afterbegin', html);
+  c.scrollTop = top;
+  if (typeof ddFollow === 'function') ddFollow();
+}
 function lvSchedule() {
   if (lvFrame || lvFrameT) return;
   if (typeof requestAnimationFrame === 'function') lvFrame = requestAnimationFrame(lvFlush);
   lvFrameT = setTimeout(lvFlush, 120);
 }
 const TL = OrbitLive.create({ onChange: () => lvSchedule() });
+// the first-run overlay runs its own import job (no job frame on TL yet): tell the client so a 'Database busy' 503 while it
+// writes is retried quietly instead of raising the outage banner (F08)
+TL.importing = () => lvImporting();
 const TLU = OrbitLive.ui;
 const TL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
 
@@ -10815,6 +10943,7 @@ const LV = {
   meta: null, wire: null, rev: 0, excluded: [], undated: 0,
   feeds: {}, applied: {}
 };
+const lvChanged = TL.changed;   // schedules a flush without bumping lvTick: only a real change of lvSig re-renders
 { const ch0 = TL.changed; TL.changed = function () { lvTick++; return ch0.apply(this, arguments); }; }
 // job frames are progress, not data (see lvJobSig): they do not count as a change of the live state
 TL.on('event', (ev) => { if (!ev || ev.name !== 'job') lvTick++; });
@@ -11101,6 +11230,15 @@ let lvSpineAgain = false, lvSpineTimer = null, lvSpineBusy = null, lvSpineFails 
 const LV_SECTION = 'uiview_facts';
 LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
 LV.job = null;      // the analysis job being polled for the spine: {id, status, elapsed_s, timeout_s}
+LV.pending = false; // the spine read answered projection_pending: the first import is still being published (not a failure)
+let lvPendN = 0;
+// projection_pending (the read, or the analysis job behind it): show 「正在整理数据…」 and read again shortly — quietly, the
+// spine's own state is part of lvSig, so a retry that changes nothing renders nothing
+function lvSpinePending() {
+  LV.pending = true; LV.job = null; LV.failed = null;
+  if (LV.state === 'ready') LV.stale = true; else LV.state = 'computing';
+  lvPendN++; lvSpineLater(Math.min(5000, 1000 * lvPendN));
+}
 function lvSpineFailed(f) {
   LV.failed = f; LV.job = null; LV.stale = false;
   if (LV.state !== 'ready') LV.state = 'error';
@@ -11111,6 +11249,7 @@ function lvWatchSpine(id) {
   LV.job = { id, status: 'queued' };
   TL.analysis.poll(id, (j) => { if (LV.job && LV.job.id === id) { LV.job = Object.assign({ id }, j); TL.changed(); } }).then((j) => {
     if (!LV.job || LV.job.id !== id) return;
+    if (j.status === 'failed' && j.error && j.error.code === 'projection_pending') { lvSpinePending(); lvChanged(); return; }
     if (j.status === 'failed') { lvSpineFailed({ reason: (j.error && j.error.code) || 'analysis_failed', message: j.error && j.error.message }); return; }
     LV.job = null;
     if (j.status === 'gone') lvSpineLater(1200); else LV.loadSpine();
@@ -11143,11 +11282,12 @@ LV.loadSpine = function () {
       // analysis is not running (its failure circuit is open), so the strip offers 重新计算 instead of retrying blindly
       const jid = res.meta && res.meta.job_id;
       if (jid) lvWatchSpine(jid);
+      else if (TL.analysis && TL.analysis.failed[LV_SECTION] === 'projection_pending') lvSpinePending();
       else if (TL.analysis) lvSpineFailed({ reason: TL.analysis.failed[LV_SECTION] || null });
       else lvSpineLater(1200);
       return;
     }
-    LV.stale = false; LV.failed = null; LV.job = null; LV.progress = null;
+    LV.stale = false; LV.failed = null; LV.job = null; LV.progress = null; LV.pending = false; lvPendN = 0;
     if (res.data && res.data.meta && res.data.meta.window) LV.noteWindow(res.data.meta.window);
     // 304: nothing changed — but a read that failed meanwhile has now succeeded, so leave the error state (R4-11)
     if (res.data === lvSpineData && LV.state !== 'connecting') { if (LV.state === 'error') LV.state = ALL.length ? 'ready' : 'empty'; return; }
@@ -11170,6 +11310,7 @@ LV.loadSpine = function () {
       const fb = LV.scopeTooLarge(days);
       if (fb != null && fb !== days) { LV.spineDays = fb; lvSpineAgain = true; return; }
     }
+    if (e && (e.code === 'projection_pending' || e.reason === 'projection_pending')) { LV.error = null; lvSpinePending(); return; }
     if (e && e.code === 'analysis_unavailable') { LV.error = e; lvSpineFailed({ reason: e.reason || null, message: e.message }); return; }
     lvSpineFails++;
     // the gateway answered with an error (5xx / 4xx): that is a failed read, not a connection still being set up
@@ -11182,7 +11323,8 @@ LV.loadSpine = function () {
     // the wanted window changed while this read was in flight (SSE analysis.ready, a range switch, a 422 fallback)
     if (lvSpineAgain || (LV.spineDays != null && LV.spineDays !== days)) { lvSpineAgain = false; setTimeout(() => LV.loadSpine(), 0); }
     else LV.widen();
-    TL.changed();
+    // the spine's state is in lvSig: a read that changed nothing (304, the same failure again) does not re-render
+    lvChanged();
   });
   return lvSpineBusy;
 };
@@ -11378,7 +11520,10 @@ function lvpFetch(period, path, store) {
 LV.personaFor = function (period, L) {
   const e = lvpFetch(period, '/v1/uiview/persona', LVP.full);
   if (e.data) return lvShape(e.data, L);
-  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: true };
+  // the error itself goes along: projection_pending (first import not published yet) reads 正在整理数据…, not 取不到 (F08);
+  // it is refetched when the publish moves LV.rev
+  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: e.error || true };
+  if (e.error && persPending(e.error)) return { ok: false, classified: false, n: L ? L.length : 0, error: e.error };
   return { ok: false, classified: false, n: L ? L.length : 0, pending: true };
 };
 LV.reveal = function (period) { return lvpFetch(period, '/v1/uiview/persona/reveal', LVP.full); };
@@ -11404,7 +11549,8 @@ function personaLive(L, minN) {
     if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
     return p;
   }
-  if (!L.length) return { ok: false, classified: false, n: 0 };
+  // no sessions yet while the first import is still being published (projection_pending) → 正在整理数据…, not 还没有会话 (F08)
+  if (!L.length) return TL.isPending && TL.isPending() ? { ok: false, classified: false, n: 0, error: { code: 'projection_pending' } } : { ok: false, classified: false, n: 0 };
   const period = lvpScopes().get(lvpSig(L));
   if (period) {
     const full = LVP.full.get(lvpKey(period) + '/v1/uiview/persona');
@@ -12714,6 +12860,8 @@ function lvSpineProgress() {
 function lvSpineBadge() {
   if (LV.failed) return '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.reason(LV.failed.reason)) + (ALL.length ? ' · 显示上次结果' : '') + '</span>' + lvRecBtn();
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
+  // the first import is still being published (projection_pending): normal progress, not an error
+  if (LV.pending && (LV.state === 'computing' || LV.stale)) return '<span class="tl-badge" data-tl="pending">正在整理数据…' + (ALL.length ? ' · 显示上次结果' : '') + '</span>';
   if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvSpineProgress() + '</span>';
   if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
@@ -12727,7 +12875,9 @@ function lvStrip(route) {
       : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中' + lvFeedProgress(route) + '</span>' : '';
   // the wanted range is wider than the window served so far (first-open fast path): say so, calmly
   const hint = LV.windowHint(route);
-  const b = (lvSpineBadge() || page) + (hint ? '<span class="tl-badge" data-tl="window"' + (lvSpineBadge() || page ? ' style="margin-left:8px"' : '') + '>' + esc(hint) + '</span>' : '');
+  // 「正在整理数据…」 already stands in the banner (or the import note above says it): no second 分析中 / 整理中 badge
+  const calm = (x) => (TLU.pending && (TL.isPending && TL.isPending()) && /data-tl="(computing|pending)"/.test(x) ? '' : x);
+  const b = (calm(lvSpineBadge()) || calm(page)) + (hint ? '<span class="tl-badge" data-tl="window"' + (calm(lvSpineBadge()) || calm(page) ? ' style="margin-left:8px"' : '') + '>' + esc(hint) + '</span>' : '');
   // offline / unavailable banner: 重试 refetches now (failed resources also retry by themselves with backoff, R4-11)
   let banner = TLU.banner(TL);
   if (banner && (TL.error || TL.failure)) banner = banner.replace(/<\/div>$/, '<button type="button" class="btn sm" data-act="lvRetry" data-tl="retry" style="margin-left:auto">重试</button></div>');
@@ -12747,12 +12897,18 @@ if (LV.live) {
   }, 20000);
   const baseRender = render;
   render = function () {
+    if (TL.markRender) TL.markRender();
     LV.pump(S.route);
     baseRender();
     const c = $('#content'); if (!c) return;
+    // the page restored its scroll before the strip went back in on top: put it back once more (scroll anchoring would
+    // otherwise push the page down by the strip's height on every render)
+    const top = c.scrollTop;
     const old = c.querySelector(':scope > [data-tl="strip"]'); if (old) old.remove();
     const strip = lvStrip(S.route);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
+    c.scrollTop = top;
+    ddFollow();
   };
   // sidebar indicator, in order: gateway unreachable / connecting, collection paused, spine read failed, computing; once ready
   // the index mode — S.paused / S.index mirror the gateway's collection.paused and settings.sync_mode (97-live-studio-settings)
@@ -14594,6 +14750,19 @@ setInterval(() => {
     $$('[data-livetools]').forEach((x) => { x.textContent = S.live.tools; });
   }
 }, 1000);
+// the settings window and the first-run overlay rebuild themselves outside render() (live settings writes, job frames):
+// keep their scroll positions and the focused field across every rebuild (F03). A tab change of the settings window and a
+// step change of the overlay start at top (the old tab's positions mean nothing in the new one).
+{
+  const setBase = renderSet;
+  let setDrawn = null;   // the tab the window last showed (the tab buttons set S.setTab before they call renderSet)
+  renderSet = function () { const keep = uiKeep($('#set')); const r = setBase.apply(this, arguments); if (S.setTab === setDrawn) keep(); setDrawn = S.setTab; return r; };
+  // closing the window forgets it: reopening (even on the same tab) starts at top, like a fresh window
+  const closeBase = closeSettings;
+  closeSettings = function () { setDrawn = null; return closeBase.apply(this, arguments); };
+  const obBase = drawOB;
+  drawOB = function () { const was = OB && OB.drawn; const keep = uiKeep($('#overlay')); const r = obBase.apply(this, arguments); if (OB && OB.drawn === was) keep(); return r; };
+}
 // viewport resize: re-clamp the window at once (cheap), redraw the desktop layer after the burst settles
 let RZ = null;
 window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(RZ); RZ = setTimeout(() => { renderWidgets(); renderHud(); }, 80); });
