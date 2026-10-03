@@ -83,6 +83,7 @@
 | [调研总结](research/landscape.md) | 主流 Agent、设计哲学、开源项目与算法选型 |
 | [竞品分析](research/competitors.md) | 7 类约 60 个产品与开源项目 |
 | [先借鉴哪些项目](research/backend-research.md) | 已核对的开源实现与取舍 |
+| [Apple macOS 指南对照](research/apple-macos-guidelines.md) | HIG 与 AppKit / WebKit 文档对照 Orbit 原生壳与 UI 的 Mac 习惯符合度 |
 | [Agent 会话格式对比](research/agent-sessions/README.md) | [Claude Code](research/agent-sessions/claude-code.md)、[Codex](research/agent-sessions/codex.md)、[DSH](research/agent-sessions/dsh.md)、[Hermes](research/agent-sessions/hermes-agent.md)、[OpenCode](research/agent-sessions/opencode.md)、[pi](research/agent-sessions/pi.md) 的落盘格式 |
 
 ## 8. 历史
