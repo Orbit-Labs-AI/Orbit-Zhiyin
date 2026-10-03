@@ -91,6 +91,34 @@ scene('40-recs', () => {
   // over the last .4 beat of their glide (b40.52 / 40.66); rows 0–2 get there through their intro pill (below)
   [3, 4].forEach((r) => AGD.morph(PEEL + PST * r + PD - .4, ROWDOT[r], 'bullet', { dur: .5 }));
 
+  /* ---------- v18.3 3→4 match cut (b39.6–40.2): your type's flower leaves the fading dial, shrinks 1 → .1 and flies onto
+     the first column bullet (row 0) just as that dot lands, while the other badges keep peeling off around it; the reveal
+     block (DIMV / name / line) drifts 30 px left as it fades (30-persona's own fade, EX … EX + 1.1). The dial's flower is
+     hidden from MC0 and a copy of it (same paths, frozen at that frame) does the flight ---------- */
+  const MC0 = 39.6, MC1 = 40.2, mcE = (b) => E.inOut(lp(b, MC0, MC1 - MC0));
+  const meFl = () => decks[2].svg && decks[2].svg.querySelector('.cp-flower .fl[data-i="me"]');
+  drive(2, 39.0, 40.6, (p, b) => {
+    const g = decks[2].svg && decks[2].svg.querySelector('.cp-flower'); if (g) g.style.visibility = b >= MC0 ? 'hidden' : '';
+    const col = stage.querySelector('.pe-col'); if (col) col.style.translate = (-30 * E.inOut(lp(b, 39.2, 1.1))).toFixed(1) + 'px 0';
+  });
+  txt(MC0, MC1 + .05, [['', '']], { x: 0, y: 0 }, {
+    anim: (el, tl, life, t) => {
+      const b = t / BEAT, f = meFl(); if (!f) return;
+      if (!el._mc) {
+        el._mc = 1; el.style.transform = 'none'; el.style.left = '0'; el.style.top = '0';
+        const c = cpStage(400, 400), q = cpStage(500, 400);
+        el._c = { c, u: Math.hypot(q[0] - c[0], q[1] - c[1]) / 100 };
+        el.innerHTML = '<svg viewBox="0 0 800 800" width="800" height="800" style="position:absolute;left:0;top:0;overflow:visible;transform-origin:400px 400px">' + f.outerHTML.replace(/ opacity="[^"]*"/, '') + '</svg>';
+      }
+      const { c, u } = el._c, sv = el.firstChild, e = mcE(b), d = AGD.pos(ROWDOT[0], b);
+      const x = lerp(c[0], d.x, e), y = lerp(c[1], d.y, e) - 18 * 4 * e * (1 - e), s = u * lerp(1, .1, e);
+      // starts at the dial flower's own (fading) opacity, so nothing pops; brightens as it condenses, gone as it lands
+      const a0 = (+f.getAttribute('opacity') || 0) * (decks[2].C.o ?? 1), a = lerp(a0, .88, E.inOut(lp(b, MC0, .35))) * (1 - E.inOut(lp(b, MC1 - .2, .25)));
+      sv.style.transform = 'translate(' + (x - 400).toFixed(1) + 'px,' + (y - 400).toFixed(1) + 'px) scale(' + s.toFixed(4) + ') rotate(' + (40 * e).toFixed(1) + 'deg)';
+      sv.style.opacity = a.toFixed(3);
+    }
+  });
+
   /* ---------- app data (read once; nothing hard-coded) ---------- */
   const W = decks[0].W;
   let PCT = IDS.map(() => null), AGS = IDS.map(() => [0]), TOT = { t: [], k: [] };
