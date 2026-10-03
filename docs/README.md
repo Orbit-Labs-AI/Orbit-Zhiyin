@@ -13,6 +13,7 @@
 | [产品与交付边界](product/scope.md) | 已实现的数据链路、原型与正式 App 的差距 |
 | [设计资料](design/README.md) | Lite / Advance 设计归属、存档记录与设计文档入口 |
 | [品牌](design/brand.md) | Orbit 名称、代码标识沿用规则、标志与 App 图标 |
+| [路演组件素材](design/ppt-assets/README.md) | UI 页面、独立组件、品牌与矢量素材的提取和使用 |
 | [Demo 说明](design/demo.md) | 统一 App 怎么看、交互清单、修改与发布 |
 | [画板与设计决定](design/boards.md) | Advance v1 画板索引、设计决定、v1 之后的现行决定 |
 | [Lite 审查](design/lite-review.md) | Lite 原稿的需求对应、交互说明与自查 |
