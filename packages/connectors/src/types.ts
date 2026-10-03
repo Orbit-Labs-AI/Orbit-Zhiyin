@@ -25,7 +25,7 @@ export interface SourceFile {
 }
 export interface IngestResult {
   source_id: string; files_seen: number; files_changed: number; files_failed: number; records_added: number;
-  sessions_rebuilt: number; maintenance_skipped: boolean;
+  sessions_rebuilt: number; rebuild_failed: number; maintenance_skipped: boolean;
   accounting: Record<string, number>; diagnostics: number;
 }
 export function object(value: unknown): Obj {
