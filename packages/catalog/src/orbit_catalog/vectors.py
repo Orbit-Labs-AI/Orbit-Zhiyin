@@ -226,7 +226,8 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
         key = conn.execute("SELECT model_key FROM embedding_model WHERE model_id=?", (encoder.model_id,)).fetchone()[0]
         generation = store.generation(conn)
     cursor = (item_start or "", -1)
-    while not cancelled() and (max_chunks is None or indexed < max_chunks):
+    was_cancelled = False
+    while not (was_cancelled := bool(cancelled())) and (max_chunks is None or indexed < max_chunks):
         limit = min(batch_size, max_chunks - indexed) if max_chunks is not None else batch_size
         with store.connect(True) as conn:
             # Primary-key order avoids repeatedly sorting/scanning the catalog as the
@@ -275,7 +276,7 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
         coverage = embedding_coverage(conn, encoder.model_id)
     pending = coverage["missing_overview_items"] if scope == "overview" else coverage["pending_chunks"]
     return {"model_id": encoder.model_id, "scope": scope, "indexed": indexed, "computed": computed, "reused": reused,
-            "pending": pending, "coverage": coverage, "cancelled": bool(cancelled()),
+            "pending": pending, "coverage": coverage, "cancelled": was_cancelled,
             "status": "ready" if pending == 0 else "partial"}
 
 

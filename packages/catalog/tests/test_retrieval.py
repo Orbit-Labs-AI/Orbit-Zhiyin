@@ -341,15 +341,7 @@ GOLDEN_ZH = {"代码审查": ("review",), "数据库迁移": ("sql", "migration"
              "支付": ("payment", "stripe"), "截图": ("screenshot",), "设计系统": ("design system", "design-system")}
 
 
-# Known regression after the 2026-10-03 seed rebuild: "设计系统" ranks generic design items
-# (adobe-create-mockups, imagegen) above toss-style-design-system (6th). Two-concept Han queries
-# let one strong concept ("设计"→design in the name) outweigh both concepts matching; tracked as a
-# follow-up on concept coverage in search._concept_score, not hidden by widening the target.
-ZH_KNOWN_MISSES = {"设计系统"}
-
-
-@pytest.mark.parametrize("text", [pytest.param(t, marks=pytest.mark.xfail(strict=True, reason="seed 2026-10-03 ranking"))
-                                  if t in ZH_KNOWN_MISSES else t for t in sorted(GOLDEN_ZH)])
+@pytest.mark.parametrize("text", sorted(GOLDEN_ZH))
 def test_seed_chinese_queries_reach_english_items_without_a_model(seeded, text):
     result = seeded.match(MatchRequest(text=text, purpose="library", limit=5))
     names = [i["name"].casefold() for i in result["items"]]

@@ -460,7 +460,12 @@ def _semantic(conn, index, mask, encoder, text, limit):
     cosine = np.full(len(owners), -1.0, dtype=np.float32)
     for probe in probes:  # Each probe is gated against its own distribution; a chunk keeps its best.
         scores = blocked_scores(matrix, encode_query(encoder, probe))
-        probe_keep, probe_strength, _ = semantic_gate(scores, eligible)
+        # Estimate the gate from resources, so a long document cannot dominate it.
+        resource_scores = np.full(len(index), -np.inf, dtype=np.float32)
+        np.maximum.at(resource_scores, owners[eligible], scores[eligible])
+        resource_keep, resource_strength, _ = semantic_gate(resource_scores, mask & np.isfinite(resource_scores))
+        probe_keep = eligible & resource_keep[owners] & (scores == resource_scores[owners])
+        probe_strength = resource_strength[owners]
         better = probe_keep & (probe_strength >= strength)
         strength[better], cosine[better] = probe_strength[better], scores[better]
         keep |= probe_keep

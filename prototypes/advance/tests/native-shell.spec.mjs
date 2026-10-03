@@ -108,3 +108,38 @@ test('HUD surface reports a width that fits the pill and its shadow (the panel s
   expect(await page.evaluate(() => getComputedStyle(document.querySelector('#hud > .pill')).maxWidth)).toBe('496px');
   await ctx.close();
 });
+
+// Title-bar alignment: the host reports its traffic-light row (Orbit.swift measureTitlebar → __ORBIT_NATIVE__.titlebar);
+// the sidebar toggle shares the lights' centre line 16px after the last light, the Lite / Advance switch and the toolbar
+// share the page title row's centre, and full screen moves the toggle to the sidebar icon column.
+test('native title bar: toggle on the lights row, edition switch on the title row (expanded, collapsed, full screen)', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 1320, height: 860 } });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.2', platform: 'macos', features: ['window'], titlebar: { height: 32, left: 9, right: 69, fullscreen: false } };
+    window.__ORBIT_PREFS__ = { edition: 'advance' };
+  });
+  await page.goto(URL0);
+  await page.waitForFunction(() => typeof S !== 'undefined' && !!document.querySelector('#content'));
+  await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
+  const geo = () => page.evaluate(() => {
+    const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { x: b.x, cy: b.y + b.height / 2 }; };
+    return { toggle: r('#wtop .sbtoggle'), edsw: r('#side .edsw'), h1: r('.main .tbar h1'), tools: r('.main .tbar .tright'), tbar: r('.main .tbar') };
+  });
+  let g = await geo();
+  expect(g.toggle.cy).toBeCloseTo(16, 0);
+  expect(g.toggle.x).toBeCloseTo(85, 0);
+  expect(g.edsw.cy).toBeCloseTo(g.tbar.cy, 0);
+  expect(g.h1.cy).toBeCloseTo(g.tbar.cy, 0);
+  expect(g.tools.cy).toBeCloseTo(g.tbar.cy, 0);
+  await page.locator('#wtop .sbtoggle').click();
+  await expect(page.locator('#win')).toHaveClass(/nosb/);
+  g = await geo();
+  expect(g.toggle.cy).toBeCloseTo(16, 0);
+  expect(g.toggle.x).toBeCloseTo(85, 0);
+  expect(g.h1.x).toBeCloseTo(20, 0);
+  await page.evaluate(() => document.documentElement.toggleAttribute('data-native-fs', true));
+  g = await geo();
+  expect(g.toggle.x).toBeCloseTo(12, 0);
+  await ctx.close();
+});

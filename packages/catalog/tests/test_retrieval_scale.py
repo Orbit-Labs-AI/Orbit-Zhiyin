@@ -47,7 +47,7 @@ def test_semantic_topk_aggregates_unbounded_passages_and_stable_ties():
             matrix = np.array([[1, 0, 0]] * 100 + [[.9, 0, 0]] * 2 + [[1, 0, 0]], dtype=np.float16)
             return matrix, np.array([0] * 100 + [1, 2, 3]), np.arange(103)
 
-    hits, passages, scanned = _semantic(None, Index(), np.array([True, True, True, False]),
+    hits, passages, scanned, _ = _semantic(None, Index(), np.array([True, True, True, False]),
                                        ToyEncoder(), "fault isolation", 2)
     assert [item for item, _ in hits] == ["long", "a-target"]
     assert scanned == 102 and passages == {"long": 0, "a-target": 100}
@@ -109,9 +109,10 @@ def test_semantic_item_topk_with_100000_candidates():
             return matrix, rows, rows
 
     index = Index()
-    hits, _, scanned = _semantic(None, index, np.ones(len(index), dtype=bool), ToyEncoder(), "fault isolation", 10)
+    hits, _, scanned, _ = _semantic(None, index, np.ones(len(index), dtype=bool), ToyEncoder(), "fault isolation", 10)
     assert scanned == 100000
-    assert [i for i, _ in hits] == ["item-099999", *index.ids[:9]]
+    # The z-score gate excludes the 99,999 equally weak candidates before top-K.
+    assert [i for i, _ in hits] == ["item-099999"]
 
 
 @pytest.fixture

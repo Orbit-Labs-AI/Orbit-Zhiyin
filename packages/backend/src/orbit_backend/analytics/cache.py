@@ -29,9 +29,17 @@ from .inputs import Scope
 CACHE_FORMAT = "analysis-cache-v1"
 SESSIONS = "sessions"
 LRU_ENTRIES = 128
+# The process LRU holds JSON text. Uncapped, one full pass of a real home left ~1 GB of it
+# in the analysis worker (projects / statistics / bottleneck_features are hundreds of MB of
+# JSON each) on top of the analysis itself, so every worker crossed the 1.5 GB recycle line
+# and was killed after each task anyway. Sections larger than LRU_ENTRY_BYTES are read from
+# analysis.sqlite; the whole tier stays under LRU_BYTES.
+LRU_BYTES = 64 * 1024 * 1024
+LRU_ENTRY_BYTES = 8 * 1024 * 1024
 ROW_PAGE = 1000
 
 _lru: OrderedDict[tuple, str] = OrderedDict()
+_lru_used = 0
 _lru_lock = threading.Lock()
 
 
@@ -215,18 +223,36 @@ def _lru_get(key: tuple) -> Any:
     return None if text is None else json.loads(text)
 
 
-def _lru_put(key: tuple, value: Any) -> None:
+def _lru_put(key: tuple, value: Any, size: int | None = None) -> None:
+    """Remember a section's JSON text; ``size`` (its stored JSON bytes, when known) skips
+    serializing a section that is too large for the tier anyway."""
+    global _lru_used
+    if size is not None and size > LRU_ENTRY_BYTES:
+        return
     text = json.dumps(value, ensure_ascii=False, allow_nan=False)
+    if len(text) > LRU_ENTRY_BYTES:
+        return
     with _lru_lock:
+        old = _lru.pop(key, None)
+        if old is not None:
+            _lru_used -= len(old)
         _lru[key] = text
-        _lru.move_to_end(key)
-        while len(_lru) > LRU_ENTRIES:
-            _lru.popitem(last=False)
+        _lru_used += len(text)
+        while _lru and (len(_lru) > LRU_ENTRIES or _lru_used > LRU_BYTES):
+            _, evicted = _lru.popitem(last=False)
+            _lru_used -= len(evicted)
+
+
+def lru_stats() -> dict:
+    with _lru_lock:
+        return {"entries": len(_lru), "chars": _lru_used}
 
 
 def clear_memory_cache() -> None:
+    global _lru_used
     with _lru_lock:
         _lru.clear()
+        _lru_used = 0
 
 
 # Sections larger than this are not copied into the run snapshot (see ``_compute``).
@@ -261,12 +287,13 @@ class AnalysisCache:
                 missing.append(name)
             else:
                 found[name] = value
-        stored = self.history.sections(key, input_fp, missing)
+        sizes: dict[str, int] = {}
+        stored = self.history.sections(key, input_fp, missing, sizes=sizes)
         for name, value in stored.items():
             if name == SESSIONS:
                 value = self._all_rows(key, input_fp)
             else:
-                _lru_put((self.home, key, input_fp, name), value)
+                _lru_put((self.home, key, input_fp, name), value, sizes.get(name))
             found[name] = value
         return found
 
@@ -351,7 +378,7 @@ class AnalysisCache:
         self.history.prune(algo_version=algo, protect=[(key, input_fp)])
         for name, value in stored.items():
             if name != SESSIONS:
-                _lru_put((self.home, key, input_fp, name), value)
+                _lru_put((self.home, key, input_fp, name), value, sizes.get(name))
         stats = {"computed": builder.rows_computed, "reused": builder.rows_reused}
         return computed, {"computed_at": computed_at, "rows": stats, "run_id": run_id}
 

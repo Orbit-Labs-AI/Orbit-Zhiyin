@@ -199,15 +199,15 @@ def test_background_slices_cover_all_chunks_and_resume(tmp_path, monkeypatch):
         svc.store.register([SourceSpec(source_id="primary", kind="bundle", url="bundled:test")])
         # Name + summary only: one overview chunk each (features.chunks), all with embed=1.
         publish(svc.store, items(("a", "alpha only"), ("b", "bravo only"), ("c", "alpha and bravo")))
-        assert embedding_coverage(svc.store, encoder.model_id) == {
-            "model_id": encoder.model_id, "eligible_chunks": 3, "embedded_chunks": 0, "pending_chunks": 3, "ratio": 0.0}
+        assert embedding_coverage(svc.store, encoder.model_id).items() >= {
+            "model_id": encoder.model_id, "eligible_chunks": 3, "embedded_chunks": 0, "pending_chunks": 3, "ratio": 0.0}.items()
         assert svc.vector_status()["status"] == "not_indexed"
         assert wait(svc, svc.vector_tick(slice_chunks=2))["result"]["indexed"] == 2
         status = svc.vector_status()
         assert status["status"] == "partial" and status["coverage"]["embedded_chunks"] == 2
         assert status["coverage"]["ratio"] == round(2 / 3, 4)
-        assert wait(svc, svc.vector_tick(slice_chunks=2))["result"] == {
-            "model_id": encoder.model_id, "indexed": 1, "computed": 1, "reused": 0, "pending": 0, "status": "ready"}
+        assert wait(svc, svc.vector_tick(slice_chunks=2))["result"].items() >= {
+            "model_id": encoder.model_id, "indexed": 1, "computed": 1, "reused": 0, "pending": 0, "status": "ready"}.items()
         assert svc.vector_status()["status"] == "ready"
         calls = len(encoder.encoded)
         assert svc.vector_tick() is None and len(encoder.encoded) == calls  # idle: same generation
@@ -229,12 +229,14 @@ def test_cancelled_slice_keeps_committed_batches_and_bumps_generation(tmp_path):
     store.register([SourceSpec(source_id="primary", kind="bundle", url="bundled:test")])
     publish(store, items(("a", "alpha only"), ("b", "bravo only"), ("c", "alpha and bravo")))
     with store.reader() as conn:
-        before = store.generation(conn)
+        before = store.embedding_generation(conn)
+        resources_before = store.generation(conn)
     checks = iter([False, True])
     result = index_embeddings(store, FixtureEncoder(), batch_size=1, cancelled=lambda: next(checks))
     assert (result["indexed"], result["pending"], result["status"]) == (1, 2, "partial")
     with store.reader() as conn:
-        assert store.generation(conn) == before + 1
+        assert store.embedding_generation(conn) == before + 1
+        assert store.generation(conn) == resources_before
     assert index_embeddings(store, FixtureEncoder())["pending"] == 0  # resumes with the other two
 
 

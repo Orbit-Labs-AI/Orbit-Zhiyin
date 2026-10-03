@@ -14,6 +14,11 @@ const LVN = { ACTIVE: ['queued', 'pending', 'running'], appState: null };
   const n = ORBIT.native; if (!n.isNative) return;
   document.body.classList.add('native');
   if (n.surface) document.body.classList.add('surface-' + n.surface);
+  // the host's traffic-light row (Orbit.swift measureTitlebar): title band height and the toggle's x after the lights
+  const tb = !n.surface && n.info && n.info.titlebar, root = document.documentElement;
+  if (tb && tb.height > 16 && tb.height < 80) root.style.setProperty('--titlebar-inset', tb.height + 'px');
+  if (tb && tb.right > 0 && tb.right < 200) root.style.setProperty('--sbtoggle-x', (tb.right + 16) + 'px');
+  if (tb && tb.fullscreen) root.setAttribute('data-native-fs', '');
 })();
 
 /* ---- host menu commands ---- */
