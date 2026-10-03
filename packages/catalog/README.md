@@ -1,17 +1,17 @@
 # Orbit Catalog
 
-独立的资源采集、版本、索引与检索包，Python 3.13，公共 import 为 tandem_catalog，CLI 为 tandem-catalog。使用根 uv workspace，数据合同和 DDL 由 packages/data 提供，数据库仍是独立的 catalog.db。
+独立的资源采集、版本、索引与检索包，Python 3.13，公共 import 为 orbit_catalog，CLI 为 orbit-catalog。使用根 uv workspace，数据合同和 DDL 由 packages/data 提供，数据库仍是独立的 catalog.db。
 
 从仓库根运行：
 
     uv sync --locked --all-packages --dev
     uv run pytest -q packages/catalog/tests
-    uv run tandem-catalog --home .local/catalog init
-    uv run tandem-catalog --home .local/catalog verify
+    uv run orbit-catalog --home .local/catalog init
+    uv run orbit-catalog --home .local/catalog verify
 
-明确启用来源才执行 sync；默认检查不联网抓取、不下载模型。可选本地 E5 测试需要 --extra embeddings 和 TANDEM_TEST_E5_DIR，未提供权重时如实跳过。
+明确启用来源才执行 sync；默认检查不联网抓取、不下载模型。可选本地 E5 测试需要 --extra embeddings 和 ORBIT_TEST_E5_DIR，未提供权重时如实跳过。
 
-内置资源种子归本包管理，backend 的旧目录 API 读取相同资源；本包运行时不依赖 tandem_backend。与 backend 的组合测试在根 tests/integration/test_catalog_api.py。Swift 客户端在 [catalog-macos](../catalog-macos/README.md)。
+内置资源种子归本包管理，backend 的旧目录 API 读取相同资源；本包运行时不依赖 orbit_backend。与 backend 的组合测试在根 tests/integration/test_catalog_api.py。Swift 客户端在 [catalog-macos](../catalog-macos/README.md)。
 
 完整边界与入口见 [架构](../../docs/modules/catalog/architecture.md)；历史实测与限制见 [验证记录](../../docs/modules/catalog/validation.md)。
 
@@ -44,7 +44,7 @@
 | `GET /models`、`/models/{canonical_id}`、`/benchmarks` | 按 `canonical_id` 合并多来源模型；成绩带 `resolved` |
 | 保留 | `status`、`sources`、`PUT sources/{id}`、`sync`、`embeddings`、`jobs`、`POST search`、`GET items/detail` |
 
-错误统一为 `HTTPException(status, detail=<snake_code>)`，如 `invalid_query`、`catalog_item_not_found`、`self_check_required`。网关通过 `tandem_catalog.get_service(home/'catalog.db')` 挂载同一实例，并为卡片补 `installed`、为详情补 `scan`（来源模块缺失时为 `null`）。
+错误统一为 `HTTPException(status, detail=<snake_code>)`，如 `invalid_query`、`catalog_item_not_found`、`self_check_required`。网关通过 `orbit_catalog.get_service(home/'catalog.db')` 挂载同一实例，并为卡片补 `installed`、为详情补 `scan`（来源模块缺失时为 `null`）。
 
 ### 基准
 

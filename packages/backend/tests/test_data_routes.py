@@ -6,12 +6,12 @@ import subprocess
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from tandem_data.maintenance import PURGE_CONFIRMATION
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.maintenance import PURGE_CONFIRMATION
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
-from tandem_backend.api import data_routes
+from orbit_backend.api import data_routes
 
 SECRET = "sk-proj-" + "Q1w2E3r4T5y6U7i8O9p0"
 
@@ -21,7 +21,7 @@ def home(tmp_path):
     roots = create_sources(tmp_path / "fixtures")
     row = {
         "sessionId": "secret-session",
-        "cwd": "/tandem-demo",
+        "cwd": "/orbit-demo",
         "timestamp": "2026-10-02T00:00:00Z",
         "type": "user",
         "uuid": "secret-u",
@@ -104,10 +104,10 @@ def test_storage_and_purge_routes(client, home):
         assert busy.status_code == 409
     finally:
         os.close(descriptor)
-    assert (home / "tandem.db").exists()
+    assert (home / "orbit.db").exists()
     done = client.post("/v1/storage/purge", json={"confirm": PURGE_CONFIRMATION})
     assert done.status_code == 200 and done.json()["deleted_files"] > 0
-    assert not (home / "tandem.db").exists()
+    assert not (home / "orbit.db").exists()
     assert client.post("/v1/storage/purge", json={"confirm": PURGE_CONFIRMATION}).status_code == 400
 
 
@@ -123,7 +123,7 @@ def test_privacy_routes(client):
 
 
 def test_register_alongside_application_routes(tmp_path, home):
-    from tandem_backend.api.routes import create_app
+    from orbit_backend.api.routes import create_app
 
     app = create_app(home=home, catalog_cache=tmp_path / "catalog.json")
     client = TestClient(app)

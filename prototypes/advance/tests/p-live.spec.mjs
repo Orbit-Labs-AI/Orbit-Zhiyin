@@ -167,10 +167,10 @@ test('desktop widgets come in three sizes, the week chart is labelled, size pers
   await page.locator('#widgets [data-act="wgMenu"]').click({ force: true });
   await expect(page.locator('#dd button')).toHaveCount(3);
   await page.locator('#dd button', { hasText: '小' }).click();
-  expect(await page.evaluate(() => [S.wgSize, localStorage.getItem('tandem-demo:wgSize')])).toEqual(['s', '"s"']);
+  expect(await page.evaluate(() => [S.wgSize, localStorage.getItem('orbit-demo:wgSize')])).toEqual(['s', '"s"']);
   await page.reload(); await expect(page.locator('#main')).not.toBeEmpty();
   await expect(page.locator('#widgets')).toHaveAttribute('data-size', 's');
-  await page.evaluate(() => localStorage.removeItem('tandem-demo:wgSize'));
+  await page.evaluate(() => localStorage.removeItem('orbit-demo:wgSize'));
   expect(errors).toEqual([]);
 });
 
@@ -181,7 +181,7 @@ test('settings: range persists, HUD tip can be restored, matrix counts and AI ch
   await page.locator('#set [data-act="setRange"][data-v="7"]').click();
   await page.reload(); await expect(page.locator('#main')).not.toBeEmpty();
   expect(await page.evaluate(() => S.range)).toBe(7);
-  await page.evaluate(() => localStorage.removeItem('tandem-demo:range'));
+  await page.evaluate(() => localStorage.removeItem('orbit-demo:range'));
   // 不再提示此类 → restored from settings › 通知 (BUG-83)
   await page.evaluate(() => { S.live.ctx = 70; S.hud.open = true; renderHud(); });
   await page.locator('#hud [data-act="hudTipOff"]').click();

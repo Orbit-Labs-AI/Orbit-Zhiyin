@@ -6,7 +6,8 @@
    dark) and drive filled buttons, switches, badges, selected tokens, menu highlight and chart selection; colour only
    carries identity (agent hues) and status (good / warn / crit, AI purple). The focus ring (--focus) is the only blue.
    --orbit is the brand slate of the Orbit mark; it is used only by the mark, the north half of the compass needle and the
-   00 reference triangle on the persona compass.
+   00 reference triangle on the persona compass. --orbit-word colours the wordmark Orbit·知音: the same slate on light,
+   champagne #d6c7a1 on dark (docs/design/brand.md).
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
    Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono, plus --font-type (SF Pro Rounded) for persona type codes. */
@@ -16,7 +17,7 @@
 --ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
 --accent:#17181b;--accent-ink:#ffffff;--accent-tint:rgba(23,24,27,.1);--sel:rgba(23,24,27,.07);--sel-off:rgba(23,24,27,.045);--focus:rgba(0,103,244,.5);
 --ai:#5a3fd0;--ai-bg:#efecff;
---orbit:#5f6b6f;
+--orbit:#5f6b6f;--orbit-word:#5f6b6f;
 --good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#17181b;--pri-ink:#ffffff;--tip:#f8f7f4;--tip-ink:#17181b;--toast-act:#17181b;--scrim:rgba(17,19,24,.22);
 --a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;--a6:#0f8b8d;--a6t:#dcf4f4;--a7:#7a5cc7;--a7t:#ede6fb;--a8:#5f8a1e;--a8t:#eaf3d9;--a9:#8a6a4f;--a9t:#f3ebe3;--a0:var(--ink-3);--a0t:var(--sunken);
@@ -41,7 +42,7 @@
 --ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
 --accent:#f2f2f4;--accent-ink:#17181b;--accent-tint:rgba(255,255,255,.16);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
 --ai:#b4a8ff;--ai-bg:#2f2954;
---orbit:#a3adb0;
+--orbit:#a3adb0;--orbit-word:#d6c7a1;
 --good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;--a6:#2aa3a5;--a6t:#12302f;--a7:#9278dc;--a7t:#261f3b;--a8:#87a83a;--a8t:#232c12;--a9:#b08e70;--a9t:#2e241b;--a0:var(--ink-3);--a0t:var(--sunken);
@@ -56,7 +57,7 @@ color-scheme:dark}}
 --ink-1:#f2f2f4;--ink-2:#c9c9ce;--ink-3:#9a9aa0;--ink-4:#66666c;
 --accent:#f2f2f4;--accent-ink:#17181b;--accent-tint:rgba(255,255,255,.16);--sel:rgba(255,255,255,.12);--sel-off:rgba(255,255,255,.07);--focus:rgba(26,169,255,.5);
 --ai:#b4a8ff;--ai-bg:#2f2954;
---orbit:#a3adb0;
+--orbit:#a3adb0;--orbit-word:#d6c7a1;
 --good:#4cc97a;--warn:#f0b341;--crit:#ff7b72;--good-bg:#183522;--warn-bg:#3b2d12;--crit-bg:#401f1e;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
 --pri:#f2f2f4;--pri-ink:#17181b;--tip:#3a3a40;--tip-ink:#f2f2f4;--toast-act:#f2f2f4;--scrim:rgba(0,0,0,.42);
 --a1:#d95926;--a1t:#3f2116;--a2:#3987e5;--a2t:#182b42;--a3:#199e70;--a3t:#123124;--a4:#c98500;--a4t:#39260a;--a5:#d55181;--a5t:#3e1f29;--a6:#2aa3a5;--a6t:#12302f;--a7:#9278dc;--a7t:#261f3b;--a8:#87a83a;--a8t:#232c12;--a9:#b08e70;--a9t:#2e241b;--a0:var(--ink-3);--a0t:var(--sunken);

@@ -8,9 +8,9 @@ Lite 与 Advance 自 2026-10-02 起是**同一个 App**，源码在 [`prototypes
 
 | 入口 | 位置 | 说明 |
 | --- | --- | --- |
-| 统一 App（本地） | [`prototypes/advance/tandem-demo.html`](../../prototypes/advance/tandem-demo.html) | 单个 HTML，浏览器直接打开，不需构建或联网（联网时加载 Google Fonts）；侧栏顶部切换版本（也可用「显示」菜单、⌘K 或 ⌃⌘L），地址加 `#l-home` 直接以 Lite 打开 |
+| 统一 App（本地） | [`prototypes/advance/orbit-demo.html`](../../prototypes/advance/orbit-demo.html) | 单个 HTML，浏览器直接打开，不需构建或联网（联网时加载 Google Fonts）；侧栏顶部切换版本（也可用「显示」菜单、⌘K 或 ⌃⌘L），地址加 `#l-home` 直接以 Lite 打开 |
 | 统一 App（在线） | <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8> | 每次 Demo 合入 main 后按下文「修改 Demo」最后一行重新发布 |
-| Lite 原稿 | [`prototypes/lite/tandem-benchmark-demo.html`](../../prototypes/lite/tandem-benchmark-demo.html) | `genius-FXC` 的八页设计来源，直接打开，范围与审查见 [lite-review.md](lite-review.md) |
+| Lite 原稿 | [`prototypes/lite/orbit-benchmark-demo.html`](../../prototypes/lite/orbit-benchmark-demo.html) | `genius-FXC` 的八页设计来源，直接打开，范围与审查见 [lite-review.md](lite-review.md) |
 | Advance 画板 | 在线画布 <https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>、[`visual-cases-v1/`](visual-cases-v1/) | 版式停在 v1.1，文字与标志已改为 Orbit（v1.6），见 [画板与设计决定](boards.md) |
 
 ## Lite 与 Advance：同一个 App
@@ -49,7 +49,7 @@ Demo 把主应用、菜单栏面板、悬浮组件、桌面小组件和关键流
 
 ## 修改 Demo
 
-`prototypes/advance/tandem-demo.html` 是构建产物，**不要直接改它**：源码在 [`prototypes/advance/src/`](../../prototypes/advance/src/)，下一次构建会覆盖对产物的直接修改。
+`prototypes/advance/orbit-demo.html` 是构建产物，**不要直接改它**：源码在 [`prototypes/advance/src/`](../../prototypes/advance/src/)，下一次构建会覆盖对产物的直接修改。
 
 - `src/index.html` 是页面骨架，`/*@css*/` 与 `/*@js*/` 两个占位符各出现一次；`src/styles/*.css` 与 `src/js/*.js` 按文件名排序后拼接进去。
 - 文件名必须是 `NN-名称.css` 或 `NN-名称.js`，两位数字前缀决定拼接顺序；`00-utils.js` 必须排在第一位，它开头的 `"use strict"` 对整段脚本生效。
@@ -59,11 +59,11 @@ Demo 把主应用、菜单栏面板、悬浮组件、桌面小组件和关键流
 
 | 命令（在 `prototypes/advance/` 下运行） | 作用 |
 | --- | --- |
-| `pnpm build` | 由 `src/` 生成 `tandem-demo.html`（仓库根可用 `pnpm --filter @tandem/prototype-advance build`） |
-| `pnpm check` | 检查提交的 `tandem-demo.html` 与源码一致，提交前必须通过 |
+| `pnpm build` | 由 `src/` 生成 `orbit-demo.html`（仓库根可用 `pnpm --filter @orbit/prototype-advance build`） |
+| `pnpm check` | 检查提交的 `orbit-demo.html` 与源码一致，提交前必须通过 |
 | `pnpm test` | 构建后跑 Playwright：各页面在 6 种窗口尺寸下的渲染与横向溢出，以及浮层、菜单、模拟事件和快捷键 |
 | `pnpm test:ui` | 只在 mac-14 尺寸下构建并测试 |
 | `node tools/shoot.mjs --sizes mac-14,compact --full`（`--ed lite` 拍 Lite 四页） | 截图到 `shots/`（不提交），用于目视检查 |
 | `node build.mjs --artifact <文件>` | 生成发布到 claude.ai 的版本（去掉 doctype、html、head、body 行），再发布到上面的在线 Demo 地址 |
 
-仓库根的 `pnpm check:ui` 同时跑 Lite 数据检查与 Advance 浏览器测试。源码与产物一起提交；PR 中 `tandem-demo.html` 的差异会被折叠（见仓库根 `.gitattributes`）。
+仓库根的 `pnpm check:ui` 同时跑 Lite 数据检查与 Advance 浏览器测试。源码与产物一起提交；PR 中 `orbit-demo.html` 的差异会被折叠（见仓库根 `.gitattributes`）。

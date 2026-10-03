@@ -3,8 +3,8 @@ import time
 
 import pytest
 
-from tandem_backend.recommend.recall import catalog_route, generative, hashed, models
-from tandem_backend.recommend.recall.multi import recall_all
+from orbit_backend.recommend.recall import catalog_route, generative, hashed, models
+from orbit_backend.recommend.recall.multi import recall_all
 
 
 def signal(rule_id, root, value=2):
@@ -154,7 +154,7 @@ def test_catalog_none_falls_back_to_legacy_bm25():
     assert {"source": "catalog", "status": "fallback", "reason": "catalog_not_configured"} in result["diagnostics"]
     legacy = [c for c in result["candidates"] if "catalog" in c["routes"]]
     assert legacy and all(c["rec_key"].startswith("catalog:") for c in legacy)
-    assert "catalog:tandem-diagnose-retry" in {c["rec_key"] for c in legacy}
+    assert "catalog:orbit-diagnose-retry" in {c["rec_key"] for c in legacy}
 
 
 def test_vector_ready_skips_hashed_lexical_route():
@@ -220,7 +220,7 @@ def test_graph_pairs_with_installed():
 
 
 def test_complement_survives_problem_cards_with_cap():
-    from tandem_backend.recommend import engine
+    from orbit_backend.recommend import engine
 
     memory = {"state": {"kb:retry-breaker": {"status": "installed"}}}
     inputs = make(facts=READONLY, main=30)  # a permission problem drives its own cards
@@ -262,7 +262,7 @@ HOMES = {"claude_code": "~/.claude/", "codex": "~/.codex/"}
 
 @pytest.mark.parametrize("agent", AGENTS7)
 def test_landing_path_never_falls_back_to_another_agent(agent):
-    from tandem_backend.recommend import engine, narrate
+    from orbit_backend.recommend import engine, narrate
 
     inputs = make(facts=READONLY, agents={agent: 30})
     result = recall_all(inputs, {})
@@ -294,7 +294,7 @@ def test_catalog_query_covers_every_used_agent():
 
 
 def test_fuse_weights_change_order():
-    from tandem_backend.recommend.recall.fusion import fuse
+    from orbit_backend.recommend.recall.fusion import fuse
 
     routes = {"kb": [("a", 1.), ("b", .9)], "catalog": [("b", 1.), ("a", .9)]}
     # w_kb=1, w_cat=.7: a = 1/61 + .7/62 = .027684, b = 1/62 + .7/61 = .027605 → a first

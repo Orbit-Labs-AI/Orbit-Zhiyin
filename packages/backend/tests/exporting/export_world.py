@@ -1,4 +1,4 @@
-"""Export test helpers: synthetic tandem.db from the real migrations, tmp app.db and a fake gateway for export."""
+"""Export test helpers: synthetic orbit.db from the real migrations, tmp app.db and a fake gateway for export."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from types import SimpleNamespace
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.services import routes_export
-from tandem_backend.services.gateway import Revisions, install_error_handlers
+from orbit_backend.appdb import AppDB
+from orbit_backend.services import routes_export
+from orbit_backend.services.gateway import Revisions, install_error_handlers
 
-MIGRATIONS = Path(__file__).parents[3] / "data" / "src" / "tandem_data" / "migrations"
+MIGRATIONS = Path(__file__).parents[3] / "data" / "src" / "orbit_data" / "migrations"
 T0 = 1_780_000_000_000
 FAKE_SECRET = "sk-test0123456789abcdefXYZ"
 
@@ -29,11 +29,11 @@ def migration_columns() -> dict[str, set[str]]:
 
 class World:
     def __init__(self, home: Path):
-        from tandem_data.query import MAPPER_VERSION, REDUCER_VERSION
+        from orbit_data.query import MAPPER_VERSION, REDUCER_VERSION
 
         self.home = home
-        self.path = home / "tandem.db"
-        from tandem_data.store import Store
+        self.path = home / "orbit.db"
+        from orbit_data.store import Store
 
         # The real Store applies every migration and stamps schema_version / user_version
         # (raw migration files alone leave the manifest at the last version a file stamps).
@@ -83,7 +83,7 @@ def fake_gateway(home: Path, *, data_rev=None) -> SimpleNamespace:
     revisions = Revisions()
     revisions.update(data_rev=data_rev)
     return SimpleNamespace(home=home, appdb=AppDB(home / "app.db"), revisions=revisions,
-                           reads=SimpleNamespace(path=home / "tandem.db"))
+                           reads=SimpleNamespace(path=home / "orbit.db"))
 
 
 def client_for(gw) -> TestClient:

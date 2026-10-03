@@ -3,7 +3,7 @@
 // Synthetic bodies only. Run: node --test prototypes/shared/tests/
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const TandemLive = require('../tandem-live.js');
+const OrbitLive = require('../orbit-live.js');
 
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), { status, headers: Object.assign({ 'Content-Type': 'application/json' }, headers) });
@@ -19,7 +19,7 @@ function gateway(routes) {
   };
   return { fetch, calls, hits };
 }
-const live = (gw) => TandemLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 't', fetch: gw.fetch, win: {} });
+const live = (gw) => OrbitLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 't', fetch: gw.fetch, win: {} });
 const OV = { overview: { counts: { sessions: 12 } }, meta: { freshness: 'fresh' } };
 
 test('202 with job_id polls the job with backoff, then refetches once it completes', async () => {
@@ -54,9 +54,9 @@ test('a failed job becomes analysis_unavailable with its reason; recompute posts
   C.view('overview', { range: 7, tz: 'Asia/Shanghai' }); await tick(60);
   let v = C.view('overview', { range: 7, tz: 'Asia/Shanghai' });
   assert.equal(v.state, 'error'); assert.equal(v.error.code, 'analysis_unavailable'); assert.equal(v.error.reason, 'timeout');
-  assert.equal(TandemLive.ui.unavailable(v.error), '分析超时');
-  assert.match(TandemLive.ui.body(v, () => 'X'), /data-tl="unavailable"[^>]*>分析超时/);
-  assert.equal(TandemLive.ui.banner(C), '', 'no service banner for a failed analysis');
+  assert.equal(OrbitLive.ui.unavailable(v.error), '分析超时');
+  assert.match(OrbitLive.ui.body(v, () => 'X'), /data-tl="unavailable"[^>]*>分析超时/);
+  assert.equal(OrbitLive.ui.banner(C), '', 'no service banner for a failed analysis');
   await C.recompute(v.res.ov);
   const post = gw.calls.find((c) => c.k === 'POST /v1/analytics/recompute');
   assert.deepEqual(post.body.sections, ['overview']);
@@ -74,7 +74,7 @@ test('503 analysis_unavailable: reason from the message, no Retry-After loop, no
   await C.load(r);
   assert.equal(r.state, 'error'); assert.equal(r.error.reason, 'timeout'); assert.equal(r.error.retryable, false);
   assert.equal(r.retryTimer, null); assert.equal(C.failure, null);
-  assert.equal(TandemLive.ui.reason('worker_crashed'), '分析进程异常退出');
+  assert.equal(OrbitLive.ui.reason('worker_crashed'), '分析进程异常退出');
 });
 
 test('a 202 whose job is gone (404) refetches once instead of polling forever', async () => {

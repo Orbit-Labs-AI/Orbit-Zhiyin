@@ -1,11 +1,11 @@
 import json
 import sqlite3
 
-from tandem_data.contract import canonical
-from tandem_data.query import trajectory_page
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.source_reader import record_source
-from tandem_data.store import Store
+from orbit_data.contract import canonical
+from orbit_data.query import trajectory_page
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.source_reader import record_source
+from orbit_data.store import Store
 
 
 def write(path, rows):

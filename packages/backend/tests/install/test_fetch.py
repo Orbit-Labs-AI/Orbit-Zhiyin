@@ -8,9 +8,9 @@ import tarfile
 
 import pytest
 
-from tandem_backend.install import fetch as fetchmod
-from tandem_backend.install.fetch import FetchError, UrlFetcher, fetch_source, gc, read_tree
-from tandem_backend.recommend.resource_fetch import GitHubSourceClient
+from orbit_backend.install import fetch as fetchmod
+from orbit_backend.install.fetch import FetchError, UrlFetcher, fetch_source, gc, read_tree
+from orbit_backend.recommend.resource_fetch import GitHubSourceClient
 
 COMMIT = "c" * 40
 TOP = f"acme-skills-{COMMIT}"

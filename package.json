@@ -1,5 +1,5 @@
 {
-  "name": "tandem-workspace",
+  "name": "orbit-workspace",
   "private": true,
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.25.0",
@@ -14,6 +14,6 @@
     "check:ui": "bash scripts/check-ui.sh",
     "check:installed": "bash scripts/check-installed.sh",
     "check:docs": "uv run --no-sync python scripts/check-repository.py",
-    "build": "uv build --all-packages && pnpm --filter @tandem/connectors build && pnpm --filter @tandem/prototype-advance build"
+    "build": "uv build --all-packages && pnpm --filter @orbit/connectors build && pnpm --filter @orbit/prototype-advance build"
   }
 }

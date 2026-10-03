@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from tandem_data.inventory import InventoryRequest, read_inventory, scan_inventory
-from tandem_data.store import Store
+from orbit_data.inventory import InventoryRequest, read_inventory, scan_inventory
+from orbit_data.store import Store
 
 
 def write(root, name, value):

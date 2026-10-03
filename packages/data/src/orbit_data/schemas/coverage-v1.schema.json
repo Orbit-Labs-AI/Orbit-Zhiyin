@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Orbit input coverage v1",
+  "description": "Input evidence coverage, not job success, tool outcome, or inference accuracy. Producers may add dataset-specific metadata.",
+  "type": "object",
+  "required": ["status", "rows", "reasons", "reason_counts"],
+  "properties": {
+    "status": {"enum": ["available", "partial", "unavailable", "excluded"]},
+    "rows": {"type": ["integer", "null"], "minimum": 0},
+    "reasons": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "reason_counts": {
+      "type": "object",
+      "propertyNames": {"minLength": 1},
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"enum": ["available", "partial"]}}},
+     "then": {"properties": {"rows": {"type": "integer"}}}},
+    {"if": {"properties": {"status": {"const": "unavailable"}}},
+     "then": {"properties": {"rows": {"type": "null"}}}},
+    {"if": {"properties": {"status": {"const": "available"}}},
+     "then": {"properties": {"reasons": {"maxItems": 0}, "reason_counts": {"maxProperties": 0}}},
+     "else": {"properties": {"reasons": {"minItems": 1}}}}
+  ]
+}

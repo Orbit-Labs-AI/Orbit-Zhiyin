@@ -1,11 +1,11 @@
-"""Fixtures for realtime tests over a tmp tandem.db."""
+"""Fixtures for realtime tests over a tmp orbit.db."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from realtime_fixtures import Tandem
+from realtime_fixtures import Orbit
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def home(tmp_path) -> Path:
 
 
 @pytest.fixture
-def tandem(home):
-    t = Tandem(home)
+def orbit(home):
+    t = Orbit(home)
     yield t
     t.db.close()

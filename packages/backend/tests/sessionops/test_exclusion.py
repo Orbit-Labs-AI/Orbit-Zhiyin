@@ -2,9 +2,9 @@ import sqlite3
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.services.routes_analytics import analytics_scope
-from tandem_backend.sessionops import exclusion
+from orbit_backend.appdb import AppDB
+from orbit_backend.services.routes_analytics import analytics_scope
+from orbit_backend.sessionops import exclusion
 
 
 def test_add_is_idempotent_and_list_orders_newest_first(home):
@@ -45,9 +45,9 @@ def test_provider_merges_into_analytics_scope(home):
         db.close()
 
 
-def test_exclusion_endpoints(tandem, client):
-    tandem.session("s1")
-    tandem.session("s2", agent="codex", project="p2")
+def test_exclusion_endpoints(orbit, client):
+    orbit.session("s1")
+    orbit.session("s2", agent="codex", project="p2")
     assert client.post("/v1/sessions/nope/exclude", json={}).json()["error"]["code"] == "not_found"
     first = client.post("/v1/sessions/s1/exclude", json={"reason": "test", "note": "demo"})
     assert first.status_code == 200 and first.json()["excluded"] is True
@@ -77,8 +77,8 @@ def test_exclude_without_database_is_503(client):
     assert client.get("/v1/sessions/excluded").json() == {"count": 0, "items": []}
 
 
-def test_excluded_list_etag_changes_on_exclusion(tandem, client):
-    tandem.session("s1")
+def test_excluded_list_etag_changes_on_exclusion(orbit, client):
+    orbit.session("s1")
     first = client.get("/v1/sessions/excluded")
     tag = first.headers["etag"]
     assert client.get("/v1/sessions/excluded", headers={"If-None-Match": tag}).status_code == 304
@@ -87,8 +87,8 @@ def test_excluded_list_etag_changes_on_exclusion(tandem, client):
     assert fresh.status_code == 200 and fresh.json()["count"] == 1
 
 
-def test_broken_exclusion_store_returns_503_not_private_sessions(tandem, client, gateway):
-    tandem.session("s1")
+def test_broken_exclusion_store_returns_503_not_private_sessions(orbit, client, gateway):
+    orbit.session("s1")
     assert client.get("/v1/quota").status_code == 200
 
     def broken():

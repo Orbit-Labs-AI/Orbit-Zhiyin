@@ -1,10 +1,10 @@
-# Tandem 后端扩建记录：资源库、特征、推荐、AI、安装与平台（Q1–Q7）
+# Orbit 后端扩建记录：资源库、特征、推荐、AI、安装与平台（Q1–Q7）
 
 > 状态：实现记录（集成分支未合入 main，不等同 main 能力） · 维护者 `yhyfhgs` · 2026-10-02 · 分支 `wip/yhyfhgs-backend`（`28e42bf`）
 
 > 本文回答 `yhyfhgs` 提出的 Q1–Q7：每个模块改造前是什么样、怎么设计、集成分支上已经实现了什么（路径、端点、表、算法、实测数字）、还剩什么。依据是两轮实现的本机工作笔记（各区域设计稿、第 1 轮实现结果、第 2 轮接线与补缺结果、端点清单），代码只做了低成本核对。feature ID 与阶段以 [feature-map.md](feature-map.md) §6 为准；算法的完整定义在 [recommendation-module.md](recommendation-module.md)、[ai-module.md](ai-module.md)、[evaluation-module.md](evaluation-module.md) 与 [module-contract.md](module-contract.md)。
 >
-> 实测数字均来自合成数据与本机 M 系列机器，多数在其他实现任务并行占满 CPU 时测得（负载均值 36–100），只说明量级，不是验收值。下文 `BE/` = `packages/backend/src/tandem_backend/`，`CAT/` = `packages/catalog/src/tandem_catalog/`。
+> 实测数字均来自合成数据与本机 M 系列机器，多数在其他实现任务并行占满 CPU 时测得（负载均值 36–100），只说明量级，不是验收值。下文 `BE/` = `packages/backend/src/orbit_backend/`，`CAT/` = `packages/catalog/src/orbit_catalog/`。
 
 > 真实数据验收见 [real-data-validation.md](real-data-validation.md)：本机真实日志只读导入（1,895 个会话、77.2 万事件）后，逐页核对分析、推荐、安装与 AI 上下文包，记录性能热点、缺陷和修复分支（基线 `wip/yhyfhgs-backend-r4`），只含聚合结果。
 
@@ -26,23 +26,23 @@
 
 | 库 | 内容 | 写者 | 可否重建 |
 | --- | --- | --- | --- |
-| `tandem.db` | 采集投影：L1–L3、会话、tool_call、inventory 快照 | 只有 ingest-worker | 可以，按原始归档重投影 |
+| `orbit.db` | 采集投影：L1–L3、会话、tool_call、inventory 快照 | 只有 ingest-worker | 可以，按原始归档重投影 |
 | `catalog.db` | 资源库：条目、版本、特征、向量、模型、成绩 | CatalogService 的同步作业（进程内一把写锁） | 可以，重新同步 |
 | `app.db` | 用户状态与模块产物：标签、曝光、推荐 run、安装账本、授权、AI 作业与产物、通知、遥测、评测记录、会话排除 | 网关进程，经 `gw.appdb.write()` 串行写入 | **不可以**，丢了就丢用户决定 |
 | `cache/search.sqlite` | 检索派生索引（trigram） | features 检索模块 | 可以，随时丢弃 |
 
 拆库的理由有三条：
 
-- **生命周期不同。** tandem.db 会因映射规则变化被整库重投影；如果标签、安装账本、授权与它同库，重建就会丢失用户的决定，或者要做复杂的保留迁移。
+- **生命周期不同。** orbit.db 会因映射规则变化被整库重投影；如果标签、安装账本、授权与它同库，重建就会丢失用户的决定，或者要做复杂的保留迁移。
 - **写竞争。** 导入是长写事务；用户点「不适用」或「安装」必须毫秒级落库，不能排在导入后面等。
 - **单写者可验证。** 每个库只有一个写入口，崩溃恢复与并发语义都只需要在一处保证。
 
 ### 1.2 规则
 
-- **tandem.db 只由 ingest-worker 写。** 网关只能经 `gw.reads.read()`（每线程 `mode=ro` 连接池）读取。重计算放在 worker 的分析分节里（例如推荐的 `recommend_inputs`），产物进快照缓存，网关进程不跑分析。tandem.db 的 ANALYZE / VACUUM 也必须由 worker 新增维护操作来做（§8 剩余项）。
-- **app.db 只经 `gw.appdb.write()` 写。** 实现在 `BE/appdb/store.py`：WAL、`synchronous=NORMAL`、`busy_timeout=5000`、一把进程内锁串行化写入；读走每线程只读连接。文件头 `application_id = TAPP`，防止把 tandem.db 或 catalog.db 误当成 app.db 打开。
+- **orbit.db 只由 ingest-worker 写。** 网关只能经 `gw.reads.read()`（每线程 `mode=ro` 连接池）读取。重计算放在 worker 的分析分节里（例如推荐的 `recommend_inputs`），产物进快照缓存，网关进程不跑分析。orbit.db 的 ANALYZE / VACUUM 也必须由 worker 新增维护操作来做（§8 剩余项）。
+- **app.db 只经 `gw.appdb.write()` 写。** 实现在 `BE/appdb/store.py`：WAL、`synchronous=NORMAL`、`busy_timeout=5000`、一把进程内锁串行化写入；读走每线程只读连接。文件头 `application_id = TAPP`，防止把 orbit.db 或 catalog.db 误当成 app.db 打开。
 - **每个模块一份幂等 DDL**，位于 `BE/appdb/schema/<module>.sql`，全部是 `CREATE … IF NOT EXISTS … STRICT`。启动时按文件 sha256 与 `module_schema` 表比对，文件改了就重放。加列由模块自己守卫（例如 `install.store.ensure_columns()`）。
-- **跨库读取由 features 的 QueryHub 负责**：主库为 app.db，`ATTACH` tandem.db 为 `t`、catalog.db 为 `c`，全部只读；文件晚出现时下次取连接再补挂。
+- **跨库读取由 features 的 QueryHub 负责**：主库为 app.db，`ATTACH` orbit.db 为 `t`、catalog.db 为 `c`，全部只读；文件晚出现时下次取连接再补挂。
 - **新路由的接入方式**：新建 `services/routes_<pkg>.py`，再在 `Gateway.app()` 的 import 列表与 `for module in (...)` 元组里各加一行。多个包并行开发时，合并冲突只会出现在这两处的单行上。
 
 | app.db 模块 | 表 |
@@ -65,11 +65,11 @@ flowchart LR
   subgraph AGENTS["本机 Agent 日志"]
     LOGS["Claude Code / Codex / 其余 5 个"]
   end
-  subgraph WORKER["ingest-worker：tandem.db 唯一写者"]
+  subgraph WORKER["ingest-worker：orbit.db 唯一写者"]
     ING["导入、投影、剔除 AI 会话"]
     SEC["分析分节 recommend_inputs"]
   end
-  TDB[("tandem.db")]
+  TDB[("orbit.db")]
   CDB[("catalog.db")]
   ADB[("app.db")]
   SIDX[("cache/search.sqlite")]
@@ -155,7 +155,7 @@ flowchart LR
   - `GET /v1/catalog/items`、`/items/{id}`、`/search`、`/facets`、`/models`、`/models/{canonical_id}`、`/benchmarks`，全部带 ETag；令牌由 catalog generation、data_rev、inventory_rev 组成。
   - `POST /v1/catalog/sync`：新增 `concurrency` 1–8、`offline`、`ttl`。
   - `POST /v1/catalog/local`、`DELETE /v1/catalog/local/{id}`。
-- 卡片的「已安装」状态改用 `features.linked_inventory()` 的真实形状；`metadata.body_sha256` 供 features 做哈希连接。catalog.db 损坏或不是 Tandem 的库时，网关照常启动，只是缺少资源库路由。
+- 卡片的「已安装」状态改用 `features.linked_inventory()` 的真实形状；`metadata.body_sha256` 供 features 做哈希连接。catalog.db 损坏或不是 Orbit 的库时，网关照常启动，只是缺少资源库路由。
 - 实测（5k 条，负载均值 36）：
 
 | 项 | 改造前（3k 条） | 现在（5k 条） |
@@ -179,13 +179,13 @@ flowchart LR
 
 **改造前**
 
-- tandem.db 的 `session_feature` 只有 5 类特征；`inventory_item` 出于隐私不存 URL 和正文，它的 `content_hash` 是原始字节的 sha256，与 catalog 的规范化 JSON 哈希不是同一个量，不能直接比较。
+- orbit.db 的 `session_feature` 只有 5 类特征；`inventory_item` 出于隐私不存 URL 和正文，它的 `content_hash` 是原始字节的 sha256，与 catalog 的规范化 JSON 哈希不是同一个量，不能直接比较。
 - 推荐侧的 `features.py` 是候选打分特征，不是用户画像，用户侧特征与条目侧特征不在同一个 id 空间。
 - 没有跨库查询层和并行执行器；`event_fts` 建了但没有查询，unicode61 分词也无法命中中文子串。
 - 改造前实测（5k 会话 / 50 万事件 / 15 万 tool_call / 9.7 万 session_feature，库 209 MB）：
   - `session_feature` 全量聚合 130 ms，tool_call 按 skill / MCP 聚合 10–13 ms，files JSON 聚合 170 ms；
   - 8 个混合查询单线程 838 ms、4 线程 376 ms（SQLite 执行时释放 GIL）。
-  - 结论：热路径不需要给 tandem.db 加索引，贵的是每次请求都重新聚合，所以应当物化并按 rev 缓存。
+  - 结论：热路径不需要给 orbit.db 加索引，贵的是每次请求都重新聚合，所以应当物化并按 rev 缓存。
 
 **设计与已实现**
 
@@ -203,8 +203,8 @@ flowchart LR
 
 | 实体 | 键 | 所在库 | 与谁连接 |
 | --- | --- | --- | --- |
-| 会话 | `session_uid` | tandem.db | `sess_feat`、`session_exclusion`、推荐证据、AI facet |
-| 已装组件 | `inv_id`（最新 inventory 快照） | tandem.db | `inv_link` → `catalog_item_id`；`install_ledger.inv_id`（`action='link'` 行） |
+| 会话 | `session_uid` | orbit.db | `sess_feat`、`session_exclusion`、推荐证据、AI facet |
+| 已装组件 | `inv_id`（最新 inventory 快照） | orbit.db | `inv_link` → `catalog_item_id`；`install_ledger.inv_id`（`action='link'` 行） |
 | 目录条目 | `item_id`（含 `canonical_of`） | catalog.db | `inv_link`、推荐 catalog 召回、`install_ledger.catalog_item_id` |
 | 推荐候选 | `rec_key` / `candidate_id` | app.db | `rec_state`、`rec_exposure`、`label`、`tracking.install_id` |
 | 安装 | `install_id` | app.db | `install_state`、`tracking`、`rec_outcome`、`ai_artifact.install_id` |
@@ -248,7 +248,7 @@ worker 分节 recommend_inputs（复用分析 memo + SQL 事实，≤ 200 KB）
 
 | 环节 | 路径与要点 |
 | --- | --- |
-| 知识库 RC-01 | `BE/data/recommend/remedies.v1.json`：17 条 Tandem 自写模板，覆盖 10 类 MVP 问题，其中 3 条通用；`kb.py` 用 pydantic `extra=forbid` 校验，拒绝重复 id 和悬空引用，版本号为 `kb-v1@<sha8>` |
+| 知识库 RC-01 | `BE/data/recommend/remedies.v1.json`：17 条 Orbit 自写模板，覆盖 10 类 MVP 问题，其中 3 条通用；`kb.py` 用 pydantic `extra=forbid` 校验，拒绝重复 id 和悬空引用，版本号为 `kb-v1@<sha8>` |
 | 问题层 | `problems.py`：n < 5 记为 insufficient；k ≥ 3 且 Wilson 下界 ≥ 0.05 记为 active；`problem_id = sha256(scope_hash\|type\|key)[:16]`；被静音的问题类型跳过 |
 | 机制表 RC-06 | `mechanism.py`：MVP 第 1、2、11、12、13 行；同一问题已装 rule 但仍活跃时，hook 前移 |
 | 多路召回 RC-02 | `recall/multi.recall_all()`，9 路：kb、catalog（每个活跃问题一个 MatchRequest，4 线程、每波 2 s 时限，失败降级到旧种子 BM25）、dense（512 维 blake2b 签名哈希兜底，向量未就绪时启用）、graph（`pairs_with` + 已装标签 Jaccard）、subtract RC-07（`removal:<inv_id>`）、template RC-16、model RC-08 轻量版、generative（`generate:<kind>:<key>`）、generic RC-11（主会话 < 10 时）；接线后新增 feature 路。每路单独 try/except，失败写入 diagnostics |
@@ -303,7 +303,7 @@ UI 接入（`wip/yhyfhgs-ui-live-backend`，只在夹具模式下验证）：
 
 ```
 routes_ai → AIService(gw) ─ consent ─ engines(claude_code | codex | api_key | fake)
-              │                          └ 隔离：agent-cwd + .tandem-ai 标记 + 首行 marker + 不落会话 + 环境变量白名单
+              │                          └ 隔离：agent-cwd + .orbit-ai 标记 + 首行 marker + 不落会话 + 环境变量白名单
               ├ pack.build（只读组包 → 第二遍脱敏 → 逐项 token → preview_digest）
               ├ registry：TASKS 字典（分析类 + 生成类）
               └ runner：每个引擎一条串行队列 → 缓存 → 引擎 → JSON Schema + 任务自校验 → 重试 1 次 → 降级
@@ -320,7 +320,7 @@ routes_ai → AIService(gw) ─ consent ─ engines(claude_code | codex | api_ke
 | 生成 AI-06 / AI-07 / AI-13 | `generate/`：<br>• 仓库模板用内容哈希固定，模型只填有类型约束的槽位，落点符号由代码渲染。<br>• 6 个只依赖 stdlib 的 hook 模板（retry-breaker、verify-before-commit、post-edit-check、stop-verify、compaction-reminder、scope-guard），核心逻辑是纯函数 `decide(event, config, state)`；另有 rule、skill、subagent、command 的 Markdown 模板。<br>• 三道自检：lint（frontmatter、命名冲突、3-gram 重复与冲突）、静态扫描（元字符、URL、凭据路径、破坏性命令、提权、脚本哈希）、进程内历史回放（recall、false_block）。<br>• 产物按 `content_hash` 去重写入 `ai_artifact`，形状对齐 install 的 InstallSpec，`files[].lines` 带 `+` / `ai` 标记和证据。 |
 | 问本地 Agent AI-09 | `ask.py`：L0 预置问题覆盖 8 个页面上下文，每个 3 个基础问题，加 1 个由数据触发的条件问题；模板回答里的数字全部来自查询；开场建议服务 POP-11。<br>`ask.question`：plan 调用 → 按 `queries.py` 白名单（10 个只读 API，参数用 JSON Schema 约束，每次 ≤ 20 行）执行查询 → answer 调用，校验引用和数字都必须来自查询结果；超出范围的问题回固定句并给出页面跳转。 |
 | 分析任务 AI-03 / AI-05.1 / AI-10 / AI-12 | `facet.session`：每批 8 个会话，单项失败重试，同批过半失败则中止，丢弃外来证据 id；`narrate.overview`：校验证据、数字与可读性，失败退回「做得好 / 卡在哪 / 立刻可做」模板；`diagnose.workflow`：结果可交给生成工坊；`rerank.fit`：只调整顺序 |
-| 不污染采集数据 | 固定 cwd `<home>/agent-cwd`（含 `.tandem-ai` 标记文件）、首行 `[tandem-analysis v1 …]`、`--no-session-persistence` / `--ephemeral`；数据侧 `tandem_data.pipeline.exclude_tandem_ai_sessions()` 在 rebuild 时删除这类会话的 L2 / L3，并把孤立的 L1 标为 ignored；组包时也会排除它们 |
+| 不污染采集数据 | 固定 cwd `<home>/agent-cwd`（含 `.orbit-ai` 标记文件）、首行 `[orbit-analysis v1 …]`、`--no-session-persistence` / `--ephemeral`；数据侧 `orbit_data.pipeline.exclude_orbit_ai_sessions()` 在 rebuild 时删除这类会话的 L2 / L3，并把孤立的 L1 标为 ignored；组包时也会排除它们 |
 | 可观测 | 遥测 `ai.tokens`、`ai.cost_usd`、`ai.job`；用户发起的作业完成时发出 `ai_job_done` 通知；`auto_facet_new(gw)` 已导出，供调度调用 |
 
 端点：
@@ -391,12 +391,12 @@ InstallSpec ── plan.py ──> resolve_targets(IN-01) ──> targets[] ─�
 | 原子写与备份 IN-03 | `applier.py`：<br>• 按文件 `flock` 加锁，锁内重读文件；只有 guard 仍然匹配才重新合并，否则报 stale。<br>• 备份到 `home/backups/<install_id>/`（0700，带 meta），写同目录临时文件，fsync 后 `os.replace`，再 fsync 目录。<br>• 任一目标失败就按逆序从备份还原，全成或全无。 |
 | 账本与撤销 IN-04 | `store.py` + `service.py`：<br>• 账本只追加（install_begin → install / install_failed，另有 revert、revert_refused、reconcile、link）；启动时 reconcile 处理崩溃遗留。<br>• 撤销：文件未被改过时字节级还原；merge_json 和标记块按单元反向移除；用户改过的单元拒绝撤销，并返回三方 diff 和手工步骤；重复撤销是幂等的；支持批量。 |
 | 下载校验 IN-08 | `fetch.py`：只在用户触发时联网；主机白名单，重定向也只允许白名单；先把 ref 解析成 40 位 commit 再下载 codeload tarball，逐个成员校验，不用 `extractall`；限额 ≤ 200 个文件、单文件 1 MB、解包 5 MB、压缩包 8 MB；内容寻址缓存 `objects/aa/<sha>`，LRU 200 MB；许可缺失或为 NOASSERTION 时只给链接（`link_only`） |
-| 计划与来源 RC-12 | `plan.py`：来源可以是 spec、candidate、catalog（catalog detail 映射为 install 形状，MCP 从 registry manifest 推出 npx / uvx / remote）或 AI 产物（`{tandem.hooks}` 解析为 `<agent 根>/hooks/tandem`）；`plan_id` 由输入决定，相同输入得到相同计划 |
+| 计划与来源 RC-12 | `plan.py`：来源可以是 spec、candidate、catalog（catalog detail 映射为 install 形状，MCP 从 registry manifest 推出 npx / uvx / remote）或 AI 产物（`{orbit.hooks}` 解析为 `<agent 根>/hooks/orbit`）；`plan_id` 由输入决定，相同输入得到相同计划 |
 | 生命周期 IN-06 | `lifecycle.py`：installed / observing / kept / idle / reverted / archived；来自推荐的安装进入 observing 并登记追踪；平台每天执行 `install_sweep` 维护任务（闲置判定、备份保留 50 次或 90 天、计划保留 30 天、下载缓存 GC） |
 
 | kind | claude_code | codex |
 | --- | --- | --- |
-| permission_rule | `settings.json` `/permissions/allow`（项目：`settings.local.json`） | `~/.codex/rules/tandem-<id>.rules`（语法待验证 V6） |
+| permission_rule | `settings.json` `/permissions/allow`（项目：`settings.local.json`） | `~/.codex/rules/orbit-<id>.rules`（语法待验证 V6） |
 | rule | `CLAUDE.md` 标记块 | `~/.codex/AGENTS.md` 标记块 |
 | skill | `skills/<n>/…` | 探测到的 skills 目录（`~/.agents/skills` 或 `~/.codex/skills`） |
 | subagent / command | `agents/<n>.md` / `commands/<n>.md` | command → `prompts/<n>.md`；subagent 不可映射 |
@@ -409,7 +409,7 @@ InstallSpec ── plan.py ──> resolve_targets(IN-01) ──> targets[] ─�
 - 环境与计划：`GET /v1/install/environment`、`POST /v1/install/plans`、`GET/POST /v1/install/plans/{id}/preview`、`POST /v1/install/preview`。
 - 写入与撤销：`POST /v1/install/apply`、`POST /v1/install/{id}/revert`、`POST /v1/install/revert`。
 - 查询与生命周期：`GET /v1/install/ledger`、`GET /v1/install/state`、`POST /v1/install/{id}/lifecycle`、`GET /v1/install/{id}`、`POST /v1/install/fetch`。
-- CLI：`tandem install environment`、`tandem install ledger`。
+- CLI：`orbit install environment`、`orbit install ledger`。
 
 实测（2.2 MB `~/.claude.json`，同一个 MCP spec 同时装到 Claude Code 和 Codex）：
 
@@ -453,14 +453,14 @@ UI 接入（夹具模式）：
 | --- | --- |
 | 遥测 FE-18 底座 | `telemetry.py`：本机记录，默认关闭；在内存中按分钟聚合 count / sum / min / max，毫秒类指标另有 15 个对数桶；分钟数据保留 6 h 后卷成小时，小时数据保留 14 天；每表最多 6 万行，每个指标最多 200 组标签。`record()` 开启时 0.67 µs，关闭时约 0.3 µs；flush 2000 条序列 4.6 ms |
 | 计时与 ETag | `middleware.py`：每个响应带 Server-Timing 和 X-Request-Id；注册路径的 GET / HEAD 使用弱 ETag `W/"<boot>-<rev>-<crc32>"`，匹配时在进入路由前直接返回 304；中位开销 0.0035 ms。已注册的路径有会话、项目、来源、清单、资源库、features 和排除名单；`register_etag` / `bump_rev` 对其他区域开放 |
-| 健康与诊断 SB-08 / GL-06 | `health.py`：检查 app / tandem / cache 三个库、磁盘、worker、事件总线、同步循环、维护和日志；浅检查缓存 5 s；`deep=1` 时做 quick_check。`diagnostics.py`：导出 0600 zip，密钥类字段脱敏、路径替换为 `~` 或 sha8，不含 prompt、环境变量和会话正文；保留最近 5 份 |
-| 日志 | `logs.py`：JSON 日志写入 `home/logs/tandem.log`，2 MB × 5 份轮转；脱敏 Bearer、`sk-`、邮箱和 `/Users/<名>`；慢请求只记路由模板，不记 query |
+| 健康与诊断 SB-08 / GL-06 | `health.py`：检查 app / orbit / cache 三个库、磁盘、worker、事件总线、同步循环、维护和日志；浅检查缓存 5 s；`deep=1` 时做 quick_check。`diagnostics.py`：导出 0600 zip，密钥类字段脱敏、路径替换为 `~` 或 sha8，不含 prompt、环境变量和会话正文；保留最近 5 份 |
+| 日志 | `logs.py`：JSON 日志写入 `home/logs/orbit.log`，2 MB × 5 份轮转；脱敏 Bearer、`sk-`、邮箱和 `/Users/<名>`；慢请求只记路由模板，不记 query |
 | 存储报告 SET-15 | `storage.py`：按组件统计体积并标注可否重建，保留 30 份历史 |
 | 维护 DT-15 | `maintenance.py`：单线程，5 s tick；有作业运行时只做 metrics_flush。任务与周期：metrics_flush 60 s、wal_checkpoint 5 min（超过 64 MB 时 TRUNCATE）、optimize 1 h、snapshot_compact 10 min、storage_report 1 h（磁盘不足时发通知）、retention 1 天、telemetry_export 1 天、integrity 7 天、install_sweep 1 天；每次执行记入 `maintenance_run` |
 | 通知与关注队列 FE-18.1 / AN-13.1 | `notify.py`：决策链依次为 disabled → muted → snooze → 冷却去重 → 勿扰（跨午夜）→ 横幅限流 → 通道矩阵；被抑制的事件也落库并写明原因；冷却期内同一 key 合并计数；关注队列按优先级排序。每次 emit 远小于 1 ms |
 | 采集暂停 DT-02.1 | `collection.py`：暂停区间落库，重启后仍然有效；恢复时提交补扫导入，遇到 JobConflict 就保留 `catch_up_pending` 等下轮重试；`_sync_loop` 在暂停期间跳过同步类导入；`/v1/status` 带 `collection.paused` 和 `badge` |
-| 实时状态 AN-13 / DT-14.1 / EV-15 | `realtime/`：只读 tandem.db，不新增表；状态为 running / awaiting_approval / failing / just_finished / idle，另有 context_pressure 标记；阈值是模块常量，标为待验证；进入状态时 notify，离开时 resolve，暂停采集时不发；SSE 只在内容哈希变化时推送，15 s 保活；上下文窗口表支持用 `platform_kv` 覆盖。2 万会话库上刷新 30 个活跃会话 < 200 ms，且查询计划里没有 `SCAN event`；8 个回放用例全部通过，误报 0 |
-| 评测运行器 EV-12 | `evalrun/`：<br>• suite 由 pkgutil 自动发现，每个 suite 在独立 tempdir 里运行；崩溃记为失败；skip 不影响通过；`fail_under` 含端点。<br>• `tandem eval list/run/history`，退出码 0 / 1 / 2；结果写入 `eval_run` / `eval_check`，保留 200 次。<br>• 共 10 个 suite：pipeline、probe、readability、recommend_replay、install_roundtrip、privacy、ai_ledger、facet_quality、realtime、insights。<br>• `tandem label` 标注 CLI；标签精度汇总带 Wilson 区间。 |
+| 实时状态 AN-13 / DT-14.1 / EV-15 | `realtime/`：只读 orbit.db，不新增表；状态为 running / awaiting_approval / failing / just_finished / idle，另有 context_pressure 标记；阈值是模块常量，标为待验证；进入状态时 notify，离开时 resolve，暂停采集时不发；SSE 只在内容哈希变化时推送，15 s 保活；上下文窗口表支持用 `platform_kv` 覆盖。2 万会话库上刷新 30 个活跃会话 < 200 ms，且查询计划里没有 `SCAN event`；8 个回放用例全部通过，误报 0 |
+| 评测运行器 EV-12 | `evalrun/`：<br>• suite 由 pkgutil 自动发现，每个 suite 在独立 tempdir 里运行；崩溃记为失败；skip 不影响通过；`fail_under` 含端点。<br>• `orbit eval list/run/history`，退出码 0 / 1 / 2；结果写入 `eval_run` / `eval_check`，保留 200 次。<br>• 共 10 个 suite：pipeline、probe、readability、recommend_replay、install_roundtrip、privacy、ai_ledger、facet_quality、realtime、insights。<br>• `orbit label` 标注 CLI；标签精度汇总带 Wilson 区间。 |
 | 会话运维 AN-16.1 / DT-24 / AN-01.2 | `sessionops/`：<br>• 排除名单持久化，`analytics_scope` 合并已持久化的排除；排除变化时 `bump_rev` 并发 `data` 帧。<br>• resume 命令模板经 shlex 引号处理，全部标 `verified=false`。<br>• tool_call 下钻：keyset 游标，参数摘要脱敏后截到 200 字，不读工具输出。<br>• 原始日志定位：只有落在来源根目录内的路径才可以在 Finder 中显示。 |
 
 端点：
@@ -489,7 +489,7 @@ UI 接入（夹具模式）：
 
 **剩余**
 
-- tandem.db 的 ANALYZE / optimize 需要 ingest-worker 新增维护操作；WAL 超过 512 MB 时目前只告警。
+- orbit.db 的 ANALYZE / optimize 需要 ingest-worker 新增维护操作；WAL 超过 512 MB 时目前只告警。
 - 维护任务的周期表是写死的，外部模块无法注册任务，因此 `auto_facet_new` 和资源库定时同步都没有被调度。
 - 网关关闭时不调用 `Realtime.close()`，守护线程最多会多跑约 30 s；`outcome` 恒为 null；每个会话的泳道只取最新 200 个事件。
 - 系统级横幅和角标的实际投递要由 macOS 宿主消费 SSE 帧来完成；实时状态的阈值、`permission.request` 的命令字段名、insights 的 token 口径都需要在真实数据上验证。
@@ -543,7 +543,7 @@ DT、AN 两行只列本分支触及的项，其余数据与分析 feature 的现
 1. **补齐端到端**：知识库来源的推荐卡片（如 `kb:retry-breaker`、`kb:systematic-debugging`）还没有安装规格或模板，不能从候选直接安装；「推荐 → 安装 → 追踪 → 撤销」与「生成 → 安装」两条链还要补完。
 2. **`rerank.fit` 移出 GET 路径**：改为后台作业加 run 级缓存，GET 只读取结果。
 3. **修复评测发现的两处缺陷**：脱敏补上 AWS key 和 SSH 私钥（EV-14）；提交作业前按估算判断是否超出每日上限（EV-11）。
-4. **平台维护扩展点**：允许各区域注册维护任务（`auto_facet_new`、资源库定时同步）；网关关闭时调用 `Realtime.close()`；ingest-worker 新增 tandem.db 维护操作。
+4. **平台维护扩展点**：允许各区域注册维护任务（`auto_facet_new`、资源库定时同步）；网关关闭时调用 `Realtime.close()`；ingest-worker 新增 orbit.db 维护操作。
 5. **真实环境验证清单**：Codex `.rules` 语法、skills 目录与 hook 事件（V6）；`MIN_VERSIONS`；resume 参数；实时状态阈值与 `permission.request` 字段名；连接器 status / error_class 的真实取值；insights 的 token 口径。每项都应在 EV 运行器里有 `--real` 冒烟检查。
 6. **资源库内容与复测**：确定默认来源和首次同步策略，在空闲机器上复测 20k 条构建与检索；成绩到模型的模糊对齐。
 7. **UI 对真实网关验收**：两版原型在 live 模式下逐页对接真实网关；补齐 A7 的会话数和常驻 token 字段、Lite 标签入口、HUD 和小组件推荐、安装面板的项目选择。

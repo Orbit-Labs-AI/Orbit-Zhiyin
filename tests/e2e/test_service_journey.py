@@ -7,8 +7,8 @@ import sys
 
 from fastapi.testclient import TestClient
 
-from tandem_backend.api import create_app
-from tandem_backend.cli import demo_home
+from orbit_backend.api import create_app
+from orbit_backend.cli import demo_home
 
 
 def test_import_report_and_evidence_from_outside_checkout(tmp_path):
@@ -20,7 +20,7 @@ def test_import_report_and_evidence_from_outside_checkout(tmp_path):
 
     def cli(*args):
         return subprocess.run(
-            [sys.executable, "-m", "tandem_backend", "--home", str(home), "--catalog-cache", str(catalog), *args],
+            [sys.executable, "-m", "orbit_backend", "--home", str(home), "--catalog-cache", str(catalog), *args],
             cwd=tmp_path, env=environment, text=True, capture_output=True, check=True,
         )
 

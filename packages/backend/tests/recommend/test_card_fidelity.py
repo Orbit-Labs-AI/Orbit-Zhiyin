@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from test_rec_routes import env  # noqa: F401 - shared FastAPI fixture (fake gateway + inputs)
 
-from tandem_backend.recommend import engine, relations, runs, store
+from orbit_backend.recommend import engine, relations, runs, store
 
 FIXTURE = Path(__file__).parent / "fixtures" / "parity_inputs.json"
 MEMORY = {"now": 0, "state": {}, "labels": {}, "muted_kb_rules": [], "muted_problem_types": [], "weights": {},
@@ -195,8 +195,8 @@ def test_relations_priority_and_key_rules():
 
 
 def test_instruction_var_and_title_fallback():
-    from tandem_backend.recommend import kb, problems
-    from tandem_backend.recommend.recall import kb_route
+    from orbit_backend.recommend import kb, problems
+    from orbit_backend.recommend.recall import kb_route
 
     signal = {"rule_id": "repeated_requirements", "reason": "重复要求：用 pnpm 而不是 npm",
               "scope": {"group": "pnpm"}}
@@ -230,7 +230,7 @@ def test_store_counts_and_problem_filter(env):  # noqa: F811
 def test_section_projects_name_directories():
     import sqlite3
 
-    from tandem_backend.recommend.section import _projects
+    from orbit_backend.recommend.section import _projects
 
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE project (project_id TEXT, name TEXT, paths TEXT)")

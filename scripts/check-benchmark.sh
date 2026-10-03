@@ -7,7 +7,7 @@ if [[ ! -x .venv/bin/python ]]; then
   exit 1
 fi
 BENCHMARK_DATA_HOME=.local/backend-nine-hour/current-data
-if [[ ! -f "$BENCHMARK_DATA_HOME/tandem.db" ]]; then
+if [[ ! -f "$BENCHMARK_DATA_HOME/orbit.db" ]]; then
   BENCHMARK_DATA_HOME=.local/backend-nine-hour/p0-data
 fi
 exec .venv/bin/python -m evals.benchmark.local --home "$BENCHMARK_DATA_HOME" "$@"

@@ -8,9 +8,9 @@ from contextlib import contextmanager
 
 import pytest
 
-from tandem_backend import features
-from tandem_backend.recommend import section
-from tandem_backend.services.sections import SECTIONS
+from orbit_backend import features
+from orbit_backend.recommend import section
+from orbit_backend.services.sections import SECTIONS
 
 
 @pytest.fixture(autouse=True)
@@ -69,7 +69,7 @@ class FakeMemo:
 
 
 def build(tmp_path, sessions=6):
-    path = tmp_path / "tandem.db"
+    path = tmp_path / "orbit.db"
     conn = sqlite3.connect(path)
     conn.executescript(SCHEMA)
     conn.execute("INSERT INTO source VALUES ('src1','claude_code'), ('src2','codex')")

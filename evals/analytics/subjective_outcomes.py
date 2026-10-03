@@ -17,11 +17,11 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import legacy_bundle
-from tandem_backend.analytics.outcome_subjective import analyze_subjective_outcomes
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.api import create_app
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analytics.inputs import legacy_bundle
+from orbit_backend.analytics.outcome_subjective import analyze_subjective_outcomes
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.api import create_app
+from orbit_backend.store import Store, import_codex
 
 from .fixtures import synthetic_events
 
@@ -88,7 +88,7 @@ def real_flow(source, codex_home, output):
     analysis_seconds = time.perf_counter() - start
     full_output = output / "real-analytics.json"
     env = {**os.environ, "PYTHONPATH": str(ROOT / "packages/backend/src")}
-    command = [sys.executable, "-m", "tandem_backend", "--db", str(snapshot), "analytics", "--no-text", "--output", str(full_output)]
+    command = [sys.executable, "-m", "orbit_backend", "--db", str(snapshot), "analytics", "--no-text", "--output", str(full_output)]
     start = time.perf_counter()
     subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=True)
     cli_seconds = time.perf_counter() - start

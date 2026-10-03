@@ -1,11 +1,11 @@
 {
-  "name": "@tandem/connectors",
+  "name": "@orbit/connectors",
   "version": "0.2.1",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "engines": { "node": ">=24.7.0" },
-  "bin": { "tandem-ingest": "dist/cli.js" },
+  "bin": { "orbit-ingest": "dist/cli.js" },
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "files": ["dist", "schema"],
   "scripts": {
@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.ts",
     "check": "pnpm typecheck && pnpm test && pnpm build",
-    "tandem": "node src/cli.ts"
+    "orbit": "node src/cli.ts"
   },
   "dependencies": { "ajv": "8.17.1" },
   "devDependencies": { "@types/node": "24.7.2", "typescript": "5.9.3" }

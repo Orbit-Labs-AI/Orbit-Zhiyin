@@ -2,14 +2,14 @@
 
 import json
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.store import Store
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.store import Store
 
-from tandem_backend.analytics.coverage import coverage_details
-from tandem_backend.analytics.service import analyze_store
-from tandem_backend.cli import demo_home, main
-from tandem_backend.data_access.ingest import ingest
-from tandem_backend.data_access.store import CanonicalStore
+from orbit_backend.analytics.coverage import coverage_details
+from orbit_backend.analytics.service import analyze_store
+from orbit_backend.cli import demo_home, main
+from orbit_backend.data_access.ingest import ingest
+from orbit_backend.data_access.store import CanonicalStore
 
 
 def prepare(tmp_path):
@@ -24,7 +24,7 @@ def test_cli_explains_optional_inputs_without_running_inventory(tmp_path, capsys
     def forbidden(*args, **kwargs):
         raise AssertionError("analytics must not enable configuration collection")
 
-    monkeypatch.setattr("tandem_data.inventory.scan_inventory", forbidden)
+    monkeypatch.setattr("orbit_data.inventory.scan_inventory", forbidden)
     main(["--home", str(home), "analytics", "--no-text"])
     text = capsys.readouterr().out
     assert "不是命令执行状态" in text and "未运行文本聚类" in text
@@ -99,8 +99,8 @@ def test_unpaired_and_excluded_are_explained_without_alias_duplicates():
 def test_api_cli_and_report_share_coverage_contract(tmp_path, capsys):
     from fastapi.testclient import TestClient
 
-    from tandem_backend.api import create_app
-    from tandem_backend.reporting.narrative import markdown
+    from orbit_backend.api import create_app
+    from orbit_backend.reporting.narrative import markdown
 
     _, home = prepare(tmp_path)
     main(["--home", str(home), "analytics", "--no-text"])
@@ -120,7 +120,7 @@ def test_api_cli_and_report_share_coverage_contract(tmp_path, capsys):
 
 
 def test_all_agents_use_the_same_missing_input_contract(tmp_path):
-    from tandem_data.validation.fixtures import create_sources
+    from orbit_data.validation.fixtures import create_sources
 
     roots = create_sources(tmp_path / "agents")
     roots["codex"] = demo_home(tmp_path / "codex")
@@ -139,9 +139,9 @@ def test_all_agents_use_the_same_missing_input_contract(tmp_path):
 
 
 def test_new_source_reason_does_not_need_local_cli_patch():
-    from tandem_data.coverage import dataset_coverage
+    from orbit_data.coverage import dataset_coverage
 
-    from tandem_backend.analytics.coverage import build_coverage_report, coverage_lines
+    from orbit_backend.analytics.coverage import build_coverage_report, coverage_lines
 
     report = build_coverage_report({"new_source": dataset_coverage(3, reason_counts={"new_adapter_gap": 1})})
     assert report["datasets"]["new_source"]["reason_codes"] == ["new_adapter_gap"]
@@ -168,9 +168,9 @@ def test_source_filter_isolates_coverage_but_keeps_failed_selected_sources(tmp_p
 
 
 def test_product_exports_and_history_preserve_shared_coverage(tmp_path):
-    from tandem_backend.analytics.history import history_for
-    from tandem_backend.analytics.products import analyze_product_store
-    from tandem_backend.analytics.products.render import html_report, terminal_report
+    from orbit_backend.analytics.history import history_for
+    from orbit_backend.analytics.products import analyze_product_store
+    from orbit_backend.analytics.products.render import html_report, terminal_report
 
     _, home = prepare(tmp_path)
     store = CanonicalStore(home)
@@ -188,8 +188,8 @@ def test_product_exports_and_history_preserve_shared_coverage(tmp_path):
 
 
 def test_missing_call_order_is_preserved_and_never_becomes_an_adjacency():
-    from tandem_backend.analytics.respond.calls import normalize_tool_calls
-    from tandem_backend.analytics.respond.sequence import analyze_execution_sequence, workflow
+    from orbit_backend.analytics.respond.calls import normalize_tool_calls
+    from orbit_backend.analytics.respond.sequence import analyze_execution_sequence, workflow
 
     calls = [{"session_uid": "s", "call_uid": uid, "seq": seq, "status": "failed", "name_raw": "shell"}
              for uid, seq in (("first", 1), ("missing", None), ("last", 3))]

@@ -1,8 +1,8 @@
 import pytest
 
-from tandem_catalog import query
-from tandem_catalog.contracts import Feature, Record, Resource, SourceSpec
-from tandem_catalog.store import CatalogStore
+from orbit_catalog import query
+from orbit_catalog.contracts import Feature, Record, Resource, SourceSpec
+from orbit_catalog.store import CatalogStore
 
 from .test_storage import publish
 
@@ -126,8 +126,8 @@ def test_models_merge_sources_and_benchmarks_resolve(tmp_path):
 
 
 def test_empty_catalog_reads(tmp_path):
-    from tandem_catalog.contracts import MatchRequest
-    from tandem_catalog.search import search
+    from orbit_catalog.contracts import MatchRequest
+    from orbit_catalog.search import search
     store = CatalogStore(tmp_path / "empty.db")
     assert query.list_items(store) == {"items": [], "next_cursor": None, "total": 0, "generation": 0}
     assert query.facets(store)["total"] == 0 and query.facets(store)["agent"] == []

@@ -8,12 +8,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from tandem_backend.services import fastpath
-from tandem_backend.services.auth import ApiError
-from tandem_backend.services.gateway import Revisions
-from tandem_backend.services.routes_analytics import analytics_scope
-from tandem_backend.services.sections import rules_digest
-from tandem_backend.services.snapshots import SnapshotKey, SnapshotStore, scope_hash
+from orbit_backend.services import fastpath
+from orbit_backend.services.auth import ApiError
+from orbit_backend.services.gateway import Revisions
+from orbit_backend.services.routes_analytics import analytics_scope
+from orbit_backend.services.sections import rules_digest
+from orbit_backend.services.snapshots import SnapshotKey, SnapshotStore, scope_hash
 
 NOW = datetime(2026, 10, 3, 15, 30, tzinfo=UTC)
 

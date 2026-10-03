@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import pytest
 
-from tandem_backend.analytics.respond import analyze_respond
+from orbit_backend.analytics.respond import analyze_respond
 
 
 def test_canonical_calls_join_selected_events_and_ignore_list_or_clock_order(make_call, make_event):

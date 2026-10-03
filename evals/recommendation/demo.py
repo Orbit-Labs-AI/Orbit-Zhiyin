@@ -7,9 +7,9 @@ import argparse
 import json
 from pathlib import Path
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.recommendations import recommend_bottlenecks
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.recommendations import recommend_bottlenecks
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def synthetic_bundle():

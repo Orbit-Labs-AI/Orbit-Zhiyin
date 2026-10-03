@@ -99,15 +99,15 @@ test('R4-10: the onboarding source list shows whole rows only (no row cut at the
   expect(errors).toEqual([]);
 });
 
-test('R4-17: About shows Orbit on the 本机服务 row even when the gateway reports its legacy name', async ({ page }) => {
+test('R4-17: About shows the Orbit·知音 wordmark and the gateway name, version and contract on the 本机服务 row', async ({ page }) => {
   const errors = collectErrors(page);
-  const about = fx('s7/about.json'); about.app = Object.assign({}, about.app, { name: 'Tandem' });
-  await stubGateway(page, ['core', 's7'], { 'GET /v1/app/state': fx('s7/app-state-full.json'), 'GET /v1/app/about': about });
+  await stubGateway(page, ['core', 's7'], { 'GET /v1/app/state': fx('s7/app-state-full.json'), 'GET /v1/app/about': fx('s7/about.json') });
   await openLive(page, 'overview');
   await page.evaluate(() => openAbout());
   const rows = page.locator('#modal [data-about="rows"]');
   await expect(rows).toBeVisible({ timeout: 10_000 });
-  await expect(rows).toContainText('Orbit · 0.13.6 · tandem-app-v1');
-  await expect(page.locator('#modal')).not.toContainText(/Tandem/);
+  await expect(rows).toContainText('Orbit · 0.13.6 · orbit-app-v1');
+  await expect(page.locator('#modal svg.orbit-word')).toHaveAttribute('aria-label', 'Orbit·知音');
+  await expect(page.locator('#modal')).not.toContainText(/Tandem/);  // orbit-rename: keep
   expect(errors).toEqual([]);
 });

@@ -1,4 +1,4 @@
-"""Offline library seed snapshot and the official Tandem KB source; no network."""
+"""Offline library seed snapshot and the official Orbit KB source; no network."""
 
 import gzip
 import json
@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from tandem_catalog.contracts import Feature, Page, Record, Resource, SourceSpec, SyncRequest
-from tandem_catalog.service import CatalogService
-from tandem_catalog.snapshot import (
+from orbit_catalog.contracts import Feature, Page, Record, Resource, SourceSpec, SyncRequest
+from orbit_catalog.service import CatalogService
+from orbit_catalog.snapshot import (
     BODY_LIMIT,
     FORMAT,
     build_snapshot,
@@ -19,12 +19,12 @@ from tandem_catalog.snapshot import (
     load_seed,
     retire_seeds,
 )
-from tandem_catalog.sources.structured import official_entries
-from tandem_catalog.store import CatalogStore
-from tandem_catalog.sync import CatalogSync
+from orbit_catalog.sources.structured import official_entries
+from orbit_catalog.store import CatalogStore
+from orbit_catalog.sync import CatalogSync
 
-REMEDIES = Path(__file__).resolve().parents[2] / "backend/src/tandem_backend/data/recommend/remedies.v1.json"
-HOOK = {"hook": {"event": "PostToolUse", "matcher": "Bash", "command": "~/.tandem/hooks/retry.sh"}}
+REMEDIES = Path(__file__).resolve().parents[2] / "backend/src/orbit_backend/data/recommend/remedies.v1.json"
+HOOK = {"hook": {"event": "PostToolUse", "matcher": "Bash", "command": "~/.orbit/hooks/retry.sh"}}
 
 
 def resource(item_id, kind, **kwargs):
@@ -193,9 +193,9 @@ def test_service_sync_retires_seed_and_bootstrap_imports_once(tmp_path):
 
 def test_kb_source_maps_all_remedies_as_curated_official_items(tmp_path):
     store = CatalogStore(tmp_path / "kb" / "catalog.db")
-    store.register([SourceSpec(source_id="tandem-kb", kind="kb", url="bundled:kb", priority=100,
+    store.register([SourceSpec(source_id="orbit-kb", kind="kb", url="bundled:kb", priority=100,
                                config={"file": str(REMEDIES)})])
-    [result] = CatalogSync(store, http=None).sync(["tandem-kb"])
+    [result] = CatalogSync(store, http=None).sync(["orbit-kb"])
     assert result["status"] == "completed" and result["seen"] == 25
     rules = json.loads(REMEDIES.read_text())["rules"]
     with store.connect(True) as conn:
@@ -206,25 +206,25 @@ def test_kb_source_maps_all_remedies_as_curated_official_items(tmp_path):
     assert all(r["official"] == 1 and r["listable"] == 1 for r in rows.values())
     assert {("kb:" + r["id"], t) for r in rules for t in r["problem"]["types"]} <= friction
     retry = store.detail("kb:retry-breaker")["resource"]
-    assert retry["install"]["hook"] == {"event": "PostToolUse", "matcher": "Bash", "command": "~/.tandem/hooks/retry-breaker.sh"}
-    assert retry["type"] == "hook" and retry["license"] == "MIT" and retry["metadata"]["origin"] == "tandem-kb"
+    assert retry["install"]["hook"] == {"event": "PostToolUse", "matcher": "Bash", "command": "~/.orbit/hooks/retry-breaker.sh"}
+    assert retry["type"] == "hook" and retry["license"] == "MIT" and retry["metadata"]["origin"] == "orbit-kb"
     assert sum(1 for r in rows.values() if r["type"] == "hook") >= 3
     # Unchanged KB: the next visit is a no-op.
-    store.register([SourceSpec(source_id="tandem-kb", kind="kb", url="bundled:kb", priority=100,
+    store.register([SourceSpec(source_id="orbit-kb", kind="kb", url="bundled:kb", priority=100,
                                config={"file": str(REMEDIES)})])
-    assert CatalogSync(store, http=None).sync(["tandem-kb"], force=True)[0]["changed"] == 0
+    assert CatalogSync(store, http=None).sync(["orbit-kb"], force=True)[0]["changed"] == 0
 
 
 def test_bundled_official_export_matches_the_recommend_kb():
-    bundled = json.loads((Path(__file__).resolve().parents[1] / "src/tandem_catalog/data/official.v1.json").read_text())
+    bundled = json.loads((Path(__file__).resolve().parents[1] / "src/orbit_catalog/data/official.v1.json").read_text())
     assert bundled == official_entries(json.loads(REMEDIES.read_text())), \
-        "run: python -m tandem_catalog export-official --remedies <remedies.v1.json> --out data/official.v1.json"
+        "run: python -m orbit_catalog export-official --remedies <remedies.v1.json> --out data/official.v1.json"
 
 
 def test_listable_names_and_summaries_carry_no_template_slots(tmp_path):
     import re
 
-    from tandem_catalog.sources.structured import listing_text
+    from orbit_catalog.sources.structured import listing_text
     # Single-brace slots only: an upstream summary may legitimately describe "{{placeholders}}".
     slot = re.compile(r"(?<!\{)\{[a-z_]+\}(?!\})")
     assert listing_text("编辑后自动运行 {build_command}") == "编辑后自动运行构建命令"
@@ -259,7 +259,7 @@ def test_bundled_seed_is_small_valid_and_covers_every_library_kind():
 
 def test_bundled_seed_has_fixed_source_mappings():
     """Guards the shipped snapshot: hook names from plugin dirs, no skill-internal rules, one row per mirror."""
-    from tandem_catalog.snapshot import bundled_seed, load_seed
+    from orbit_catalog.snapshot import bundled_seed, load_seed
 
     doc = load_seed(bundled_seed())
     items = [r for source in doc["sources"].values() for r in source["items"]]

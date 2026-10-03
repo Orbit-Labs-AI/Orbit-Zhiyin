@@ -8,12 +8,12 @@ import pytest
 from cache_fixtures import build_home
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics import warmup
-from tandem_backend.analytics.cache import clear_memory_cache
-from tandem_backend.analytics.history import history_for
-from tandem_backend.analytics.service import ROW_STATS
-from tandem_backend.api import create_app
-from tandem_backend.data_access.store import CanonicalStore
+from orbit_backend.analytics import warmup
+from orbit_backend.analytics.cache import clear_memory_cache
+from orbit_backend.analytics.history import history_for
+from orbit_backend.analytics.service import ROW_STATS
+from orbit_backend.api import create_app
+from orbit_backend.data_access.store import CanonicalStore
 
 
 @pytest.fixture(autouse=True)
@@ -62,8 +62,8 @@ def test_thousand_sessions_warm_requests_meet_latency_budgets(tmp_path, monkeypa
         def fail(*args, **kwargs):
             raise AssertionError("full analysis must not run for a cached session row")
 
-        monkeypatch.setattr("tandem_backend.analytics.service.AnalysisSections.full", fail)
-        monkeypatch.setattr("tandem_backend.analytics.cache.AnalysisCache._compute", fail)
+        monkeypatch.setattr("orbit_backend.analytics.service.AnalysisSections.full", fail)
+        monkeypatch.setattr("orbit_backend.analytics.cache.AnalysisCache._compute", fail)
         sid = body["sessions"][7]["session_uid"]
         detail, seconds = timed(client, f"/v1/analytics/sessions/{sid}")
         assert detail.status_code == 200, detail.text
@@ -81,9 +81,9 @@ def test_cold_session_detail_computes_only_the_sessions_section(tmp_path, monkey
         raise AssertionError("session detail must not compute lexical/statistics/recommendations")
 
     for name in ("_statistics",):
-        monkeypatch.setattr(f"tandem_backend.analytics.service.AnalysisSections.{name}", fail)
-    monkeypatch.setattr("tandem_backend.analytics.products.lexical.lexical_analysis", fail)
-    monkeypatch.setattr("tandem_backend.analytics.service.recommend_resources", fail)
+        monkeypatch.setattr(f"orbit_backend.analytics.service.AnalysisSections.{name}", fail)
+    monkeypatch.setattr("orbit_backend.analytics.products.lexical.lexical_analysis", fail)
+    monkeypatch.setattr("orbit_backend.analytics.service.recommend_resources", fail)
     with TestClient(create_app(home=home)) as client:
         sid = client.get("/v1/analytics/sessions?limit=1").json()["sessions"][0]["session_uid"]
         detail = client.get(f"/v1/analytics/sessions/{sid}").json()
@@ -161,7 +161,7 @@ def test_insights_routes_are_mounted_and_read_cached_sections(tmp_path, monkeypa
         assert signals.status_code == 200 and "signals" in signals.json()
         # Signals filled the sessions/bottleneck sections; later insight reads must not run
         # the engine again, only input selection.
-        import tandem_backend.analytics.service as service
+        import orbit_backend.analytics.service as service
 
         def fail(*args, **kwargs):
             raise AssertionError("insight route recomputed analysis sections")
@@ -187,8 +187,8 @@ def imported_gateway(tmp_path):
     sys.path.insert(0, str(Path(__file__).parents[1] / "services"))
     from synthetic import write_codex_tree
 
-    from tandem_backend.services.gateway import Gateway
-    from tandem_backend.services.supervisor import SupervisorConfig
+    from orbit_backend.services.gateway import Gateway
+    from orbit_backend.services.supervisor import SupervisorConfig
 
     root = tmp_path / "agents" / "codex"
     write_codex_tree(root, 4)
@@ -225,7 +225,7 @@ def test_presentation_window_is_stable_within_a_day_and_moves_across_days(tmp_pa
     """Gateway route: window=7d anchors on the local day, so the snapshot key is reused all day."""
     from datetime import datetime
 
-    from tandem_backend.services import routes_analytics
+    from orbit_backend.services import routes_analytics
 
     day = int(datetime.fromisoformat("2026-10-03T09:00:00+00:00").timestamp() * 1000)
     clock = {"now": day}
@@ -254,7 +254,7 @@ def test_presentation_window_is_stable_within_a_day_and_moves_across_days(tmp_pa
 
 @pytest.mark.serial  # gateway with worker processes and wall-clock waits
 def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path):
-    from tandem_catalog import get_service
+    from orbit_catalog import get_service
 
     url = "/v1/catalog/match-analysis?wait_ms=3000"
     with imported_gateway(tmp_path) as (client, gateway):
@@ -298,8 +298,8 @@ class _Gateway:
 def _client(gateway):
     from fastapi import FastAPI
 
-    from tandem_backend.services.gateway import install_error_handlers
-    from tandem_backend.services.routes_analytics import router
+    from orbit_backend.services.gateway import install_error_handlers
+    from orbit_backend.services.routes_analytics import router
 
     app = FastAPI()
     install_error_handlers(app)
@@ -316,7 +316,7 @@ def _client(gateway):
     ("work_graph", "/v1/analytics/work-graph", {}),
 ])
 def test_recompute_hashes_like_the_get_route(monkeypatch, section, get_url, params):
-    from tandem_backend.services import routes_analytics
+    from orbit_backend.services import routes_analytics
 
     monkeypatch.setattr(routes_analytics, "now_ms", lambda: 1_790_985_600_000)
     get_hash = _client(_Gateway(None)).get(get_url).json()["meta"]["scope_hash"]
@@ -343,15 +343,15 @@ def test_recompute_rejects_invalid_params_before_queueing(section, params):
 
 
 def test_coverage_status_table_holds_only_statuses():
-    from tandem_backend.analytics.coverage import STATUS_LABELS, build_coverage_report
+    from orbit_backend.analytics.coverage import STATUS_LABELS, build_coverage_report
 
     assert set(STATUS_LABELS) == {"available", "partial", "unavailable", "excluded"}
     assert set(build_coverage_report({})["status_meanings"]) == set(STATUS_LABELS)
 
 
 def test_every_session_feature_is_in_the_shared_dictionary():
-    from tandem_backend.analytics.dictionary import FEATURES
-    from tandem_backend.analytics.features import session_features
+    from orbit_backend.analytics.dictionary import FEATURES
+    from orbit_backend.analytics.features import session_features
 
     events = [{"event_uid": "u1", "session_uid": "s", "kind": "message.user", "seq": 1,
                "actor": "human", "ts": 1_790_000_000_000, "text": "fix a.py",

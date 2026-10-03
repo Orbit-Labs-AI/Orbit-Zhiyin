@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fakectx import hook_pack
 
-from tandem_backend.ai.generate import diagnose, rerank
-from tandem_backend.ai.generate.util import numbers_ok
+from orbit_backend.ai.generate import diagnose, rerank
+from orbit_backend.ai.generate.util import numbers_ok
 
 
 def _diag_pack():

@@ -5,11 +5,11 @@ import sqlite3
 import pytest
 import zstandard
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.bridge import import_connector
-from tandem_data.contract import canonical
-from tandem_data.schema_export import table_schemas
-from tandem_data.store import Store, readonly_connection
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.bridge import import_connector
+from orbit_data.contract import canonical
+from orbit_data.schema_export import table_schemas
+from orbit_data.store import Store, readonly_connection
 
 
 def stream(store, agent, root, rows, filename="fixture.jsonl", format_name="jsonl"):
@@ -71,11 +71,11 @@ def test_full_lengths_redaction_scope_and_empty_selection(tmp_path):
         assert pending["projection_run_id"] == published["projection_run_id"]
         assert pending["sessions"] == published["sessions"]
         assert pending["events"] == published["events"]
-        from tandem_data.query import current_projection
-        from tandem_data.store import readonly_connection
+        from orbit_data.query import current_projection
+        from orbit_data.store import readonly_connection
 
         with (
-            readonly_connection(store.home / "tandem.db") as db,
+            readonly_connection(store.home / "orbit.db") as db,
             pytest.raises(ValueError, match="pending"),
         ):
             current_projection(db)
@@ -246,7 +246,7 @@ def test_typescript_connector_archive_bridge_and_record_crosswalk(tmp_path):
     sha = hashlib.sha256(raw).hexdigest()
     chunk = staging / "raw" / (sha + ".zst")
     chunk.write_bytes(zstandard.ZstdCompressor().compress(raw))
-    with sqlite3.connect(staging / "tandem.db") as connection:
+    with sqlite3.connect(staging / "orbit.db") as connection:
         connection.executescript(
             "CREATE TABLE source(source_id TEXT,agent TEXT,root_path TEXT,label TEXT); CREATE TABLE source_file(file_id TEXT,source_id TEXT,path TEXT,role TEXT,format TEXT,status TEXT); CREATE TABLE archive_chunk(file_id TEXT,generation INTEGER,offset INTEGER,byte_len INTEGER,sha256 TEXT,path TEXT); CREATE TABLE raw_record(record_uid TEXT,file_id TEXT,generation INTEGER,line_no INTEGER,sha256 TEXT);"
         )
@@ -261,21 +261,21 @@ def test_typescript_connector_archive_bridge_and_record_crosswalk(tmp_path):
             "INSERT INTO archive_chunk VALUES('file',0,0,?,?,?)", (len(raw), sha, str(chunk))
         )
         connection.execute("INSERT INTO raw_record VALUES('external-record','file',0,1,?)", (sha,))
-    before = (staging / "tandem.db").read_bytes()
+    before = (staging / "orbit.db").read_bytes()
     with Store(tmp_path / "data") as store:
         assert import_connector(store, staging)["imported_revisions"] == 1
         store.rebuild()
         assert import_connector(store, staging)["imported_revisions"] == 0
         record_uid = store.db.execute("SELECT record_uid FROM connector_record_link").fetchone()[0]
         assert store.read_raw(record_uid) == raw
-        assert (staging / "tandem.db").read_bytes() == before
+        assert (staging / "orbit.db").read_bytes() == before
         assert store.verify()["unparsed"] == 0
 
 
 def test_generated_table_schema_matches_actual_ddl():
     from importlib.resources import files
 
-    saved = json.loads(files("tandem_data").joinpath("schemas/tables-v1.schema.json").read_text())
+    saved = json.loads(files("orbit_data").joinpath("schemas/tables-v1.schema.json").read_text())
     assert saved == table_schemas()
     assert "is_wrapper" in saved["$defs"]["tool_call"]["properties"]
 
@@ -334,7 +334,7 @@ def test_historical_scope_does_not_leak_future_tool_status(tmp_path):
     with Store(tmp_path / "data") as store:
         stream(store, "pi", tmp_path / "source", rows)
         store.rebuild()
-        from tandem_data.contract import time_fields
+        from orbit_data.contract import time_fields
 
         cutoff = time_fields("2026-10-02T00:00:02Z", "timestamp")[0]
         data = read_analysis(store.home, AnalysisScope("Asia/Shanghai", until_ts=cutoff))
@@ -382,7 +382,7 @@ def test_historical_scope_does_not_use_unknown_time_tool_outcome(tmp_path):
     with Store(tmp_path / "data") as store:
         stream(store, "pi", tmp_path / "source", rows)
         store.rebuild()
-        from tandem_data.contract import time_fields
+        from orbit_data.contract import time_fields
 
         cutoff = time_fields("2026-10-02T00:00:02Z", "timestamp")[0]
         data = read_analysis(store.home, AnalysisScope("Asia/Shanghai", until_ts=cutoff))

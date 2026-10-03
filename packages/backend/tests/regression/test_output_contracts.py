@@ -1,13 +1,13 @@
 import json
 from pathlib import Path
 
-from tandem_backend.analysis import analyze
-from tandem_backend.content import length_contract, measure_length, visible_text
-from tandem_backend.feedback import signals
-from tandem_backend.models import Event, ParsedSession, Session
-from tandem_backend.pipeline_eval import pipeline_benchmark
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store
+from orbit_backend.analysis import analyze
+from orbit_backend.content import length_contract, measure_length, visible_text
+from orbit_backend.feedback import signals
+from orbit_backend.models import Event, ParsedSession, Session
+from orbit_backend.pipeline_eval import pipeline_benchmark
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store
 
 
 def test_summary_budget_does_not_constrain_the_requested_full_proof():
@@ -56,7 +56,7 @@ def test_visible_overload_respects_explicit_limit_and_records_measurement(tmp_pa
 
 
 def test_new_probe_has_no_feedback_path_to_history():
-    path = Path(__file__).parents[2] / "src/tandem_backend/data/pipeline_probe_cases.json"
+    path = Path(__file__).parents[2] / "src/orbit_backend/data/pipeline_probe_cases.json"
     result = pipeline_benchmark(path)
     assert result["cases"] == 12 and result["correct"] == 12
     assert result["history_updated"] is False

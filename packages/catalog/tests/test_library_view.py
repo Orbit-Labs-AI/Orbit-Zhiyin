@@ -4,11 +4,11 @@ import re
 
 import pytest
 
-from tandem_catalog import query
-from tandem_catalog.contracts import Feature, Record, Resource, SourceSpec
-from tandem_catalog.features import extract
-from tandem_catalog.risk import scan
-from tandem_catalog.service import CatalogService
+from orbit_catalog import query
+from orbit_catalog.contracts import Feature, Record, Resource, SourceSpec
+from orbit_catalog.features import extract
+from orbit_catalog.risk import scan
+from orbit_catalog.service import CatalogService
 
 from .test_storage import publish
 

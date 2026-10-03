@@ -4,9 +4,9 @@ import time
 
 import pytest
 
-from tandem_backend import platform as pf
-from tandem_backend.platform import telemetry as tm
-from tandem_backend.platform.telemetry import HOUR_MS, MINUTE_MS, Telemetry
+from orbit_backend import platform as pf
+from orbit_backend.platform import telemetry as tm
+from orbit_backend.platform.telemetry import HOUR_MS, MINUTE_MS, Telemetry
 
 
 def enabled(platform) -> Telemetry:

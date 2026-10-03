@@ -9,13 +9,13 @@ from collections import namedtuple
 
 import pytest
 from ai_support import answer_task
-from realtime_fixtures import NOW, Tandem
+from realtime_fixtures import NOW, Orbit
 
-from tandem_backend import platform
-from tandem_backend.ai import engines, registry
-from tandem_backend.ai.engines import FakeEngine
-from tandem_backend.ai.service import AIService, service
-from tandem_backend.realtime.service import Realtime
+from orbit_backend import platform
+from orbit_backend.ai import engines, registry
+from orbit_backend.ai.engines import FakeEngine
+from orbit_backend.ai.service import AIService, service
+from orbit_backend.realtime.service import Realtime
 
 
 def notes(client, kind):
@@ -91,9 +91,9 @@ def test_min_run_policy_validation(gateway_factory):
 
 
 def test_short_runs_finish_quietly(gateway_factory, tmp_path):
-    home = tmp_path / "tandem"
+    home = tmp_path / "orbit"
     home.mkdir()
-    t = Tandem(home)
+    t = Orbit(home)
     for uid, minutes in (("short", 3), ("long", 25)):
         t.session(uid, started=NOW - minutes * 60_000)
         t.event(uid, NOW - 1_000)

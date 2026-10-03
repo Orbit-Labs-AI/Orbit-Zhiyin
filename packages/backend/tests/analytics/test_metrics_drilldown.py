@@ -3,11 +3,11 @@
 import pytest
 from signal_fixtures import DAY, Session, analyze, bundle, retry_session
 
-from tandem_backend.analytics.drilldown import tool_calls
-from tandem_backend.analytics.metrics import GROUP_BY, metrics
-from tandem_backend.analytics.signals import analyze_signals
-from tandem_backend.analytics.signals.inventory import installed_unused
-from tandem_backend.analytics.stats import INSUFFICIENT_N, count, median, proportion, wilson
+from orbit_backend.analytics.drilldown import tool_calls
+from orbit_backend.analytics.metrics import GROUP_BY, metrics
+from orbit_backend.analytics.signals import analyze_signals
+from orbit_backend.analytics.signals.inventory import installed_unused
+from orbit_backend.analytics.stats import INSUFFICIENT_N, count, median, proportion, wilson
 
 # ---------------------------------------------------------------- stats
 
@@ -212,7 +212,7 @@ def _status_session(sid, failed, success, unknown):
     (2, 1, 7, None),    # coverage 3/10 = 30% < 50%: the known subset is not representative
 ])
 def test_tool_failure_rate_uses_status_coverage_gate(failed, success, unknown, expected):
-    from tandem_backend.analytics.respond.features import tool_summary
+    from orbit_backend.analytics.respond.features import tool_summary
 
     context, result, layer = analyze(bundle([_status_session("a", failed, success, unknown)]))
     overall = metrics(context, result, ["tool_failure_rate"], layer=layer)["metrics"]["tool_failure_rate"]["overall"]
@@ -240,5 +240,5 @@ def test_tool_failure_rate_uses_status_coverage_gate(failed, success, unknown, e
     ({"type": "mcp", "name": "hub"}, {"kind": "mcp", "name_raw": "mcp__plugin_github_github__search"}, False),
 ])
 def test_inventory_name_matching(item, call, used):
-    from tandem_backend.analytics.signals.inventory import _uses
+    from orbit_backend.analytics.signals.inventory import _uses
     assert _uses(item, call) is used

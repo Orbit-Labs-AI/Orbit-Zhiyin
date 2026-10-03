@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Smoke-check a built Orbit.app's frozen tandem-helper (no GUI needed, CI friendly).
+"""Smoke-check a built Orbit.app's frozen orbit-helper (no GUI needed, CI friendly).
 
     python3 scripts/check-macos-app.py [--app .local/macos-build/Orbit.app]
 
-Starts ``tandem-helper gateway`` against a fresh temporary home (HOME is redirected too, so
+Starts ``orbit-helper gateway`` against a fresh temporary home (HOME is redirected too, so
 agent discovery never sees real sessions), then checks: the {"port": N} handshake, /app and
 /lite served without a token with the page CSP, the API rejecting a missing token, /v1/status
 with the token, an analytics section answered by a frozen analysis worker (no 500 /
@@ -57,16 +57,16 @@ def main() -> int:
     parser.add_argument("--keep", action="store_true", help="keep the temporary home")
     args = parser.parse_args()
     resources = args.app / "Contents/Resources"
-    helper = resources / "backend/tandem-helper"
+    helper = resources / "backend/orbit-helper"
     check(helper.is_file() and os.access(helper, os.X_OK), "helper executable", helper)
     check((resources / "orbit.html").is_file(), "bundled UI", resources / "orbit.html")
 
     temp = Path(tempfile.mkdtemp(prefix="orbit-check-"))
-    home, user = temp / "tandem", temp / "user"
+    home, user = temp / "orbit", temp / "user"
     user.mkdir()
     token = secrets.token_hex(32)
     env = {k: v for k, v in os.environ.items() if not k.endswith("_HOME")}
-    env.update(HOME=str(user), TANDEM_HOME=str(home), TANDEM_API_TOKEN=token)
+    env.update(HOME=str(user), ORBIT_HOME=str(home), ORBIT_API_TOKEN=token)
     log = (temp / "helper.log").open("w")
     started = time.monotonic()
     proc = subprocess.Popen([str(helper), "gateway", "--home", str(home), "--port", "0",

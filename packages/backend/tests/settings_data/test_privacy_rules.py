@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from tandem_data.privacy import REDACTION_VERSION
+from orbit_data.privacy import REDACTION_VERSION
 
-from tandem_backend import privacy_rules
-from tandem_backend.ai.redact import redact2
+from orbit_backend import privacy_rules
+from orbit_backend.ai.redact import redact2
 
 KEY = "sk-ant-" + "a" * 24
 SAMPLE = (f"token {KEY} mail alice@example.com path /Users/alice/x host 10.0.0.8 "

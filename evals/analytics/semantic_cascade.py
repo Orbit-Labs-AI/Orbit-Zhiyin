@@ -6,18 +6,18 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.analysis_input import AnalysisScope, read_analysis
 
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.semantic_cascade import (
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.semantic_cascade import (
     Budget,
     attach_cache,
     cache_identity,
     run_cascade,
 )
-from tandem_backend.analytics.semantic_cascade.provider import CodexProvider
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.semantic_cascade.provider import CodexProvider
+from orbit_backend.analytics.service import analyze_bundle
 
 ROOT = Path(__file__).resolve().parents[2]
 

@@ -1,4 +1,4 @@
-"""Hand-built tandem.db slice for the SQL-fact problem path (no analytics labels, no real HOME).
+"""Hand-built orbit.db slice for the SQL-fact problem path (no analytics labels, no real HOME).
 
 Column names follow packages/data migrations (001.sql, 005.sql); constraints are dropped so each
 row stays short. Five friction groups of six sessions each mirror the parity audit's synthetic
@@ -119,7 +119,7 @@ def _write_lines(path: Path, lines: int, line: str) -> Path:
 
 def build(tmp_path: Path) -> tuple[FakeStore, FakeMemo, dict]:
     """Return (store, memo, info) with 30 main sessions spread over 30 days."""
-    path = tmp_path / "tandem.db"
+    path = tmp_path / "orbit.db"
     conn = sqlite3.connect(path)
     conn.executescript(SCHEMA)
     conn.execute("INSERT INTO project VALUES ('p1', '/synthetic/webapp')")

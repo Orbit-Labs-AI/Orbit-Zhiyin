@@ -1,4 +1,4 @@
-/* ============ live binding: A9 生成工坊 · 问本地 Agent · 设置 · 通知（TandemLive studio-settings section） ============
+/* ============ live binding: A9 生成工坊 · 问本地 Agent · 设置 · 通知（OrbitLive studio-settings section） ============
    Loaded after 96-live-bind.js; only active in live mode. The demo pages keep their markup and visual language: live data is
    written into the same structures the demo renders from (CTX / GEN / STEP_DUR / S.notif / S.paused / S.aiCh …) or patched
    into the rendered cards, never into a new layout. Personal data never falls back to demo values: a route the gateway does
@@ -14,7 +14,7 @@ const TLS_DONE = ['done', 'ok', 'succeeded', 'completed', 'skipped'];
 const TLS_KIND = { waiting: ['awaiting_approval', 'waiting'], done: ['just_finished', 'done', 'session_done'], stuck: ['failing', 'stuck'], ctx: ['context_pressure', 'ctx'], weekly: ['weekly', 'weekly_report'] };
 const TLS_ART_KIND = { skill: 'Skill', hook: 'Hook', rule: '规则', subagent: '子代理', glue: '工作流', command: '命令' };
 const tlsKind = (type) => Object.keys(TLS_KIND).find((k) => TLS_KIND[k].indexOf(type) >= 0) || null;
-const tlsAgOf = (eid) => Object.keys(TandemLive.AGENT_KEYS).find((a) => TandemLive.AGENT_KEYS[a].indexOf(eid) >= 0) || null;
+const tlsAgOf = (eid) => Object.keys(OrbitLive.AGENT_KEYS).find((a) => OrbitLive.AGENT_KEYS[a].indexOf(eid) >= 0) || null;
 // display name of an engine id (「Claude Code」, not claude_code): the engines list first, then the app's agent table
 const tlsEngName = (id) => {
   if (!id) return null;
@@ -640,7 +640,7 @@ if (TL.mode === 'live') {
     const msg = { id: n.id || undefined, title: n.t || '', body: n.b || '' };
     if (!n.system) { ORBIT.native.post('notify', msg); return; }
     msg.force = true;
-    NATV.ask('notify', msg, 5000, 'tandem:notified').then((r) => {
+    NATV.ask('notify', msg, 5000, 'orbit:notified').then((r) => {
       if (r && r.delivered === false) {
         if (/denied|not.?authori[sz]ed/i.test(r.reason || '')) S.notifAuth = 'denied';
         toast('系统通知没有送达：' + (r.reason === 'denied' ? '通知权限已关闭，在「设置 › 通知」中打开' : r.reason || '原因未知'));

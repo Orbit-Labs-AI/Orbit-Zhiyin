@@ -2,13 +2,13 @@
 
 from fastapi.testclient import TestClient
 
-from tandem_backend.analysis import analyze
-from tandem_backend.api import create_app
-from tandem_backend.feedback import reader_context, signals, task_contexts
-from tandem_backend.models import Event, ParsedSession, Session
-from tandem_backend.narrative import explain, markdown
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store
+from orbit_backend.analysis import analyze
+from orbit_backend.api import create_app
+from orbit_backend.feedback import reader_context, signals, task_contexts
+from orbit_backend.models import Event, ParsedSession, Session
+from orbit_backend.narrative import explain, markdown
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store
 
 
 def event(sid, ordinal, text, kind="user_message"):

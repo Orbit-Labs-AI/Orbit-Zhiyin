@@ -1,8 +1,8 @@
 """EV-14 suite: redacted classes stay hidden; a disabled redactor leaks and is flagged."""
 
-from tandem_backend.ai import redact
-from tandem_backend.evalrun.contract import EvalContext
-from tandem_backend.evalrun.suites import privacy as suite
+from orbit_backend.ai import redact
+from orbit_backend.evalrun.contract import EvalContext
+from orbit_backend.evalrun.suites import privacy as suite
 
 # Classes the current redactor covers. aws_key / ssh_key are reported gaps (see followups).
 COVERED = ("api_key", "bearer", "email", "home_path", "url_auth")

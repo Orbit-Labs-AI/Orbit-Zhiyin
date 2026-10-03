@@ -1,0 +1,359 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Orbit analysis history rows v1",
+  "$defs": {
+    "analysis_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_key",
+        "input_fp",
+        "section",
+        "idx",
+        "row_key",
+        "payload",
+        "json_bytes",
+        "sha256"
+      ],
+      "properties": {
+        "request_key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "input_fp": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "section": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "idx": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "row_key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "payload": {
+          "type": "string",
+          "x-sql-type": "BLOB"
+        },
+        "json_bytes": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "analysis_section",
+          "from": "request_key",
+          "to": "request_key"
+        },
+        {
+          "table": "analysis_section",
+          "from": "input_fp",
+          "to": "input_fp"
+        },
+        {
+          "table": "analysis_section",
+          "from": "section",
+          "to": "section"
+        }
+      ],
+      "x-ddl": "CREATE TABLE analysis_row (\n    request_key TEXT NOT NULL,\n    input_fp TEXT NOT NULL,\n    section TEXT NOT NULL,\n    idx INTEGER NOT NULL CHECK(idx >= 0),\n    row_key TEXT,\n    payload BLOB NOT NULL,\n    json_bytes INTEGER NOT NULL CHECK(json_bytes >= 0),\n    sha256 TEXT NOT NULL,\n    PRIMARY KEY(request_key, input_fp, section, idx),\n    FOREIGN KEY(request_key, input_fp, section)\n        REFERENCES analysis_section(request_key, input_fp, section) ON DELETE CASCADE\n)"
+    },
+    "analysis_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "engine",
+        "status",
+        "started_at",
+        "finished_at",
+        "request_json",
+        "snapshot_id",
+        "error_type",
+        "error_message",
+        "request_key",
+        "input_fp",
+        "cache_hit",
+        "owner_pid"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "engine": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "started_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "finished_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "request_json": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "snapshot_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "error_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "error_message": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "request_key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "input_fp": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "cache_hit": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "owner_pid": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "analysis_snapshot",
+          "from": "snapshot_id",
+          "to": "snapshot_id"
+        }
+      ],
+      "x-ddl": "CREATE TABLE analysis_run (\n    run_id TEXT PRIMARY KEY,\n    engine TEXT NOT NULL,\n    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),\n    started_at INTEGER NOT NULL,\n    finished_at INTEGER,\n    request_json TEXT NOT NULL CHECK(json_valid(request_json)),\n    snapshot_id TEXT REFERENCES analysis_snapshot(snapshot_id),\n    error_type TEXT,\n    error_message TEXT, request_key TEXT, input_fp TEXT, cache_hit INTEGER NOT NULL DEFAULT 0 CHECK(cache_hit IN (0, 1)), owner_pid INTEGER,\n    CHECK((status = 'completed' AND snapshot_id IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'failed' AND error_type IS NOT NULL AND finished_at IS NOT NULL)\n          OR (status = 'running' AND snapshot_id IS NULL AND finished_at IS NULL))\n)"
+    },
+    "analysis_section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_key",
+        "input_fp",
+        "section",
+        "payload",
+        "json_bytes",
+        "sha256",
+        "created_at",
+        "last_hit_at",
+        "hits"
+      ],
+      "properties": {
+        "request_key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "input_fp": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "section": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "payload": {
+          "type": "string",
+          "x-sql-type": "BLOB"
+        },
+        "json_bytes": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "created_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "last_hit_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "hits": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE analysis_section (\n    request_key TEXT NOT NULL,\n    input_fp TEXT NOT NULL,\n    section TEXT NOT NULL,\n    payload BLOB NOT NULL,\n    json_bytes INTEGER NOT NULL CHECK(json_bytes >= 0),\n    sha256 TEXT NOT NULL,\n    created_at INTEGER NOT NULL,\n    last_hit_at INTEGER NOT NULL,\n    hits INTEGER NOT NULL DEFAULT 0 CHECK(hits >= 0),\n    PRIMARY KEY(request_key, input_fp, section)\n)"
+    },
+    "analysis_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_id",
+        "analysis_digest",
+        "schema_version",
+        "json_bytes",
+        "payload",
+        "created_at"
+      ],
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "analysis_digest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "schema_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "json_bytes": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "payload": {
+          "type": "string",
+          "x-sql-type": "BLOB"
+        },
+        "created_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE analysis_snapshot (\n    snapshot_id TEXT PRIMARY KEY,\n    analysis_digest TEXT,\n    schema_version TEXT,\n    json_bytes INTEGER NOT NULL CHECK(json_bytes >= 0),\n    payload BLOB NOT NULL,\n    created_at INTEGER NOT NULL\n)"
+    },
+    "session_exclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_uid",
+        "reason",
+        "created_at"
+      ],
+      "properties": {
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "created_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE session_exclusion (\n    session_uid TEXT PRIMARY KEY,\n    reason TEXT,\n    created_at INTEGER NOT NULL\n)"
+    },
+    "session_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_session_uid",
+        "scope_class",
+        "algo_version",
+        "tree_fp",
+        "payload",
+        "json_bytes",
+        "sha256",
+        "computed_at"
+      ],
+      "properties": {
+        "root_session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "scope_class": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "algo_version": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "tree_fp": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "payload": {
+          "type": "string",
+          "x-sql-type": "BLOB"
+        },
+        "json_bytes": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "computed_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE session_result (\n    root_session_uid TEXT NOT NULL,\n    scope_class TEXT NOT NULL,\n    algo_version TEXT NOT NULL,\n    tree_fp TEXT NOT NULL,\n    payload BLOB NOT NULL,\n    json_bytes INTEGER NOT NULL CHECK(json_bytes >= 0),\n    sha256 TEXT NOT NULL,\n    computed_at INTEGER NOT NULL,\n    PRIMARY KEY(root_session_uid, scope_class, algo_version)\n)"
+    }
+  },
+  "description": "JSON text columns must be decoded before validating a row. Event semantic validation also uses event-v1.schema.json."
+}

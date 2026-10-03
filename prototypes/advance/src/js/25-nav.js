@@ -79,7 +79,7 @@ function renderMain() {
 /* toolbar overflow, in order: the search field collapses to its icon as soon as the meta text would be clipped; the meta
    then shrinks (ellipsis); items that still do not fit move (right to left) into a » popover. The page title never
    shrinks — a clipped title counts as overflow too (its .grow box hides what sticks out). Runs after every page render
-   and on 'tandem:layout' (window resize, sidebar toggle). */
+   and on 'orbit:layout' (window resize, sidebar toggle). */
 function tbarFit() {
   const tb = $('#main .tbar'); if (!tb) return;
   const tr = tb.querySelector('.tright'); if (!tr) return;
@@ -109,7 +109,7 @@ function tbarFit() {
   const pop = more.querySelector('.tmore-pop');
   while (!fits() && tr.children.length) pop.prepend(tr.lastElementChild);
 }
-window.addEventListener('tandem:layout', tbarFit);
+window.addEventListener('orbit:layout', tbarFit);
 /* menu bar: Apple menu, app menus (never fold with the window width), status items: demo (flask) · Orbit · control centre · Wi-Fi · battery · clock */
 const APPLE = '<svg width="14" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M16.37 12.7c-.03-2.6 2.13-3.86 2.23-3.92-1.22-1.78-3.11-2.02-3.78-2.05-1.61-.16-3.14.95-3.96.95-.82 0-2.08-.93-3.42-.9-1.76.03-3.38 1.02-4.29 2.6-1.83 3.17-.47 7.87 1.31 10.44.87 1.26 1.91 2.67 3.27 2.62 1.31-.05 1.81-.85 3.4-.85 1.59 0 2.03.85 3.42.82 1.41-.03 2.31-1.28 3.17-2.55 1-1.46 1.41-2.87 1.43-2.95-.03-.01-2.75-1.05-2.78-4.21zM13.76 5.05c.72-.88 1.21-2.1 1.08-3.31-1.04.04-2.3.69-3.05 1.57-.67.78-1.26 2.02-1.1 3.21 1.16.09 2.35-.59 3.07-1.47z"/></svg>';
 const SYS_ICONS = '<span class="sysicon" aria-hidden="true"><svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x=".55" y=".55" width="14.9" height="4.9" rx="2.45"/><circle cx="3" cy="3" r="1.5" fill="currentColor" stroke="none"/><rect x=".55" y="6.55" width="14.9" height="4.9" rx="2.45"/><circle cx="13" cy="9" r="1.5" fill="currentColor" stroke="none"/></svg></span>' +

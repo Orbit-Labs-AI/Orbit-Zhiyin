@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from tandem_backend.recommend import engine, narrate
+from orbit_backend.recommend import engine, narrate
 
 UI_KEYS = {"dim", "type", "icon", "lvl", "aud", "title", "gain", "why", "ev", "evq", "compat", "primary", "target",
            "file", "steps", "commands", "track", "save", "tok", "n"}
@@ -158,7 +158,7 @@ def test_sourced_unit_minutes_use_benefit_scenario_bounds():
 
 
 def test_catalog_entries_never_share_invented_minutes():
-    from tandem_backend.recommend.recall.catalog_route import from_item
+    from orbit_backend.recommend.recall.catalog_route import from_item
 
     prob = problem(evidence={"session_uids": ["s1"], "signal_ids": [], "event_ids": []})
     cards = []
@@ -171,8 +171,8 @@ def test_catalog_entries_never_share_invented_minutes():
 
 
 def test_token_pricing_is_symmetric():
-    from tandem_backend.recommend.ranking.rank import score
-    from tandem_backend.recommend.units import CONTEXT_TOKENS_PER_UNIT
+    from orbit_backend.recommend.ranking.rank import score
+    from orbit_backend.recommend.units import CONTEXT_TOKENS_PER_UNIT
 
     removal = raw("removal:x", kind="removal", unit_minutes=None, resident_tokens=3000,
                   cost={"setup_minutes": 0, "context_tokens": 0})

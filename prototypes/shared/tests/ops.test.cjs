@@ -5,12 +5,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const TandemLive = require('../tandem-live.js');
+const OrbitLive = require('../orbit-live.js');
 
 const DIR = path.join(__dirname, '..', 'fixtures', 'ops');
 const FX = (name) => JSON.parse(fs.readFileSync(path.join(DIR, name + '.json'), 'utf8'));
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-const H = TandemLive.ops;
+const H = OrbitLive.ops;
 
 function gateway(routes) {
   const calls = [];
@@ -24,7 +24,7 @@ function gateway(routes) {
   return { fetch, calls };
 }
 const timers = { setTimeout: (f, ms) => setTimeout(f, Math.min(ms, 5)), clearTimeout: (t) => clearTimeout(t) };
-const live = (gw) => TandemLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 'tok', fetch: gw.fetch, timers, win: {} });
+const live = (gw) => OrbitLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 'tok', fetch: gw.fetch, timers, win: {} });
 const sseBody = (chunks) => new ReadableStream({ start(c) { chunks.forEach((x) => c.enqueue(new TextEncoder().encode(x))); c.close(); } });
 
 test('rtDerive: primary is the running session; alerts, others and today come from the snapshot', () => {
@@ -151,7 +151,7 @@ test('export: CSV text with the bearer header, report sections and scope, share 
 
 test('mock mode: ops calls reject without touching fetch', async () => {
   let n = 0;
-  const C = TandemLive.create({ mode: 'mock', fetch: () => { n++; }, win: {} });
+  const C = OrbitLive.create({ mode: 'mock', fetch: () => { n++; }, win: {} });
   await assert.rejects(C.ops.realtime(), (e) => e.code === 'mock_mode');
   await assert.rejects(C.ops.csv('tool_calls'), (e) => e.code === 'mock_mode');
   C.ops.startStream();

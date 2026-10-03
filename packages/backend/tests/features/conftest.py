@@ -1,4 +1,4 @@
-"""Synthetic tandem.db / catalog.db / app.db under tmp_path; never touches the real HOME."""
+"""Synthetic orbit.db / catalog.db / app.db under tmp_path; never touches the real HOME."""
 
 from __future__ import annotations
 
@@ -8,21 +8,21 @@ from importlib.resources import files
 from pathlib import Path
 
 import pytest
-from tandem_data.store import Store
+from orbit_data.store import Store
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.features.service import FeatureService
+from orbit_backend.appdb import AppDB
+from orbit_backend.features.service import FeatureService
 
 DAY = 86_400_000
 T0 = 1_760_000_000_000
 
 
-class Tandem:
-    """Raw INSERT helper over a real tandem.db schema (foreign keys off)."""
+class Orbit:
+    """Raw INSERT helper over a real orbit.db schema (foreign keys off)."""
 
     def __init__(self, home: Path):
         Store(home).db.close()
-        self.db = sqlite3.connect(home / "tandem.db", isolation_level=None)
+        self.db = sqlite3.connect(home / "orbit.db", isolation_level=None)
         self.db.execute("PRAGMA foreign_keys = OFF")
         self.calls = 0
         for agent in ("claude_code", "codex"):
@@ -69,7 +69,7 @@ class Tandem:
 def make_catalog(home: Path, items) -> sqlite3.Connection:
     """items: [(item_id, type, agents, status, [(feature, value, weight), …])]."""
     db = sqlite3.connect(home / "catalog.db", isolation_level=None)
-    schema = files("tandem_data").joinpath("migrations/catalog/schema.sql").read_text()
+    schema = files("orbit_data").joinpath("migrations/catalog/schema.sql").read_text()
     db.executescript(schema)
     for item_id, kind, agents, status, feats in items:
         db.execute("INSERT INTO catalog_item(item_id,type,name,name_key,summary,url,status,agents,language,"
@@ -98,8 +98,8 @@ def home(tmp_path) -> Path:
 
 
 @pytest.fixture
-def tandem(home) -> Tandem:
-    t = Tandem(home)
+def orbit(home) -> Orbit:
+    t = Orbit(home)
     yield t
     t.db.close()
 
@@ -125,7 +125,7 @@ def make_service(home, revs):
         appdb.close()
 
 
-def seed_basic(t: Tandem) -> None:
+def seed_basic(t: Orbit) -> None:
     t.session("s1", project="p1", day=0,
               features=[("tool_category", "shell", 3), ("command_head", "git status", 2),
                         ("file_extension", ".py", 4), ("mcp_server", "playwright", 1)],
@@ -142,9 +142,9 @@ def seed_basic(t: Tandem) -> None:
 
 
 @pytest.fixture
-def seeded(tandem) -> Tandem:
-    seed_basic(tandem)
-    return tandem
+def seeded(orbit) -> Orbit:
+    seed_basic(orbit)
+    return orbit
 
 
 @pytest.fixture

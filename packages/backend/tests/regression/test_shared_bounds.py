@@ -3,8 +3,8 @@
 import pytest
 from test_supplemental_requirements import run
 
-from tandem_backend.feedback import signals
-from tandem_backend.models import Event
+from orbit_backend.feedback import signals
+from orbit_backend.models import Event
 
 
 @pytest.mark.parametrize('request_text', [

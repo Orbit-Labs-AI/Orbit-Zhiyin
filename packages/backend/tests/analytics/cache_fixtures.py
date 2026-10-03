@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from tandem_backend.data_access.ingest import ingest
+from orbit_backend.data_access.ingest import ingest
 
 PROMPTS = (
     "请修复 src/app.py 的测试并运行 pytest。",

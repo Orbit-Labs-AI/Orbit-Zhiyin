@@ -5,12 +5,12 @@ from importlib.resources import files
 import pytest
 import zstandard
 
-from tandem_data import SCHEMA_VERSION
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.source_reader import record_source
-from tandem_data.store import Store, sqlite_rows
+from orbit_data import SCHEMA_VERSION
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.source_reader import record_source
+from orbit_data.store import Store, sqlite_rows
 
 
 def write(path, rows):
@@ -203,15 +203,15 @@ def test_archive_to_native_keeps_cumulative_observation_history(tmp_path):
 def test_both_v5_variants_migrate_without_losing_data(tmp_path, v5_variant):
     home = tmp_path / "data"
     home.mkdir()
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         for name in ("001.sql", "002.sql", "003.sql", "004.sql"):
-            db.executescript(files("tandem_data").joinpath("migrations/" + name).read_text())
+            db.executescript(files("orbit_data").joinpath("migrations/" + name).read_text())
         db.execute(
             "INSERT INTO source(source_id,agent,root_path,discovered_at) VALUES('s','pi','/synthetic',0)"
         )
         db.commit()
         if v5_variant == "inventory":
-            db.executescript(files("tandem_data").joinpath("migrations/005.sql").read_text())
+            db.executescript(files("orbit_data").joinpath("migrations/005.sql").read_text())
             db.execute(
                 "INSERT INTO inventory_scan VALUES(1,'root','pi','/synthetic','global',NULL,1,'test','{}','[]')"
             )
@@ -219,7 +219,7 @@ def test_both_v5_variants_migrate_without_losing_data(tmp_path, v5_variant):
                 "INSERT INTO inventory_item VALUES(1,'item','skill','test','/synthetic/SKILL.md','root',1,'file','{}','hash')"
             )
         else:
-            db.executescript(files("tandem_data").joinpath("migrations/006.sql").read_text())
+            db.executescript(files("orbit_data").joinpath("migrations/006.sql").read_text())
             db.execute("PRAGMA user_version=5")
             db.execute("UPDATE schema_manifest SET schema_version=5")
             db.execute("INSERT INTO source_scan VALUES('s',1,'full',0,0,0,0)")

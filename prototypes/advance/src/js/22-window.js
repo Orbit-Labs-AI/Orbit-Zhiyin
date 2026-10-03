@@ -7,7 +7,7 @@
 // WIN_MIN), "zoom" (fills the area under the menu bar), "full" (fills the stage, menu bar slides away, ⌃⌘F / green light)
 // or "fit" (stage smaller than WIN_MIN + margins, e.g. 820px wide: 16px margins, the inner layout adapts through
 // container queries). applyWin() writes the rect, keeps the sidebar flags coherent (a window narrower than SIDE_MIN_WIN
-// hides the sidebar and shows it as an overlay on demand) and fires window 'tandem:layout' whenever the content size or
+// hides the sidebar and shows it as an overlay on demand) and fires window 'orbit:layout' whenever the content size or
 // the sidebar changed — pages and vizkit re-measure on it. Drag the title row to move, 8px edges / corners to resize,
 // double-click to zoom.
 const MB_H = 24, WIN_MIN = { w: 900, h: 600 }, STAGE_PAD = 16, SIDE_MIN_WIN = 900;
@@ -73,7 +73,7 @@ function applyWin() {
 function layoutChanged() {
   const r = WIN_LAST || winRect(); const m = $('#main');
   const detail = { win: { x: r.x, y: r.y, w: r.w, h: r.h, mode: r.mode }, side: !$('#win').classList.contains('nosb'), main: { w: m ? m.clientWidth : 0, h: m ? m.clientHeight : 0 } };
-  try { window.dispatchEvent(new CustomEvent('tandem:layout', { detail })); } catch (e) { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent('orbit:layout', { detail })); } catch (e) { /* ignore */ }
 }
 function placeDeps() { toastPlace(); sheetPlace(); overlayPlace(); if (S.pop) popPlace(); hudPlace(); }
 function overlayPlace() {

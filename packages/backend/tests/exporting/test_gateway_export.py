@@ -1,11 +1,11 @@
-"""`/v1/export/*` through the real Gateway app (tmp home, no tandem.db, workers not started)."""
+"""`/v1/export/*` through the real Gateway app (tmp home, no orbit.db, workers not started)."""
 
 from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.services.gateway import Gateway
+from orbit_backend.services.gateway import Gateway
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 PORT = 8765

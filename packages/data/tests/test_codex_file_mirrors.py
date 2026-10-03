@@ -3,9 +3,9 @@
 import pytest
 import zstandard
 
-from tandem_data.contract import canonical
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
+from orbit_data.contract import canonical
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
 
 
 def write(path, records):

@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from tandem_backend.ai.pack import is_correction
-from tandem_backend.ai.tasks_v1 import feedback_rule
+from orbit_backend.ai.pack import is_correction
+from orbit_backend.ai.tasks_v1 import feedback_rule
 
 LABELS: list[tuple[str, bool]] = [
     # --- zh corrections

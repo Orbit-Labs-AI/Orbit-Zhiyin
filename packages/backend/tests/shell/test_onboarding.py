@@ -66,7 +66,7 @@ def test_estimates_then_import_progress(gateway_factory, tmp_path):
         assert done == sorted(done), note
     assert any(total for _, _, total in seen)
     # The note names the step (never a raw stage such as "map") and where the job is.
-    from tandem_data.progress import STAGES
+    from orbit_data.progress import STAGES
 
     labels = {label for label, _, _ in STAGES.values()}
     assert {note.split(" · ")[0] for note, _, _ in seen} <= labels

@@ -1,0 +1,209 @@
+{
+  "paragraph": {
+    "version": 2,
+    "kind": "rule",
+    "file": "rules/paragraph@2.md",
+    "sha256": "76a61df91895a373ea72f4ee496a7a76e6496987b9f2af184635069e10b08212",
+    "defaults": {
+      "title": "改完先验证",
+      "rules": [
+        {
+          "text": "改完代码后先运行项目已有的检查命令，通过后再报告完成。",
+          "dimension": "verification"
+        },
+        {
+          "text": "只改与当前目标相关的文件，顺手发现的问题记下来另行处理。",
+          "dimension": "scope"
+        }
+      ]
+    },
+    "events": []
+  },
+  "retry-breaker": {
+    "version": 2,
+    "kind": "hook",
+    "file": "hooks/retry-breaker@2.py",
+    "sha256": "1d4719529b39c223694ea29cca9e6e46ad7cb7f9cb9c3bfc0d47a814a7cc9c42",
+    "defaults": {
+      "matcher": "Bash",
+      "threshold": 3,
+      "message": "同一命令已连续失败多次，先读错误输出、查清原因再重试。",
+      "command_heads": []
+    },
+    "events": [
+      {
+        "event": "PreToolUse",
+        "matcher": null
+      },
+      {
+        "event": "PostToolUse",
+        "matcher": null
+      }
+    ]
+  },
+  "verify-before-commit": {
+    "version": 2,
+    "kind": "hook",
+    "file": "hooks/verify-before-commit@2.py",
+    "sha256": "97364d92c04b1fb08491014b2b066e748c96d79f1ea7ee25f38fdc52d7e9b8a9",
+    "defaults": {
+      "matcher": "Bash",
+      "threshold": 2,
+      "message": "修改后还没有通过验证命令，先运行检查再提交。",
+      "command_heads": []
+    },
+    "events": [
+      {
+        "event": "PreToolUse",
+        "matcher": "Bash"
+      },
+      {
+        "event": "PostToolUse",
+        "matcher": "Bash|Edit|Write|MultiEdit"
+      }
+    ]
+  },
+  "post-edit-check": {
+    "version": 2,
+    "kind": "hook",
+    "file": "hooks/post-edit-check@2.py",
+    "sha256": "6e14492ebebbdbbe3fb6bece85f662c84d46dd3e896001f04ba5cbbb710148bc",
+    "defaults": {
+      "matcher": "Edit",
+      "threshold": 2,
+      "message": "文件已修改，记得运行对应的检查。",
+      "command_heads": [],
+      "file_glob": "*"
+    },
+    "events": [
+      {
+        "event": "PostToolUse",
+        "matcher": "Edit|Write|MultiEdit"
+      }
+    ]
+  },
+  "stop-verify": {
+    "version": 2,
+    "kind": "hook",
+    "file": "hooks/stop-verify@2.py",
+    "sha256": "77175e8112d3df08f7edcd5b73e6c77c41cd320ad76626a5d4e171a6dcd7f064",
+    "defaults": {
+      "matcher": "*",
+      "threshold": 2,
+      "message": "还有未验证的修改，先运行验证命令再结束。",
+      "command_heads": []
+    },
+    "events": [
+      {
+        "event": "PostToolUse",
+        "matcher": "Bash|Edit|Write|MultiEdit"
+      },
+      {
+        "event": "Stop",
+        "matcher": ""
+      }
+    ]
+  },
+  "compaction-reminder": {
+    "version": 2,
+    "kind": "hook",
+    "file": "hooks/compaction-reminder@2.py",
+    "sha256": "d7208bc3cfdbd2f559888d9d06dc5be66b732283026ccded6b719f45665c1edb",
+    "defaults": {
+      "matcher": "*",
+      "threshold": 2,
+      "message": "上下文即将压缩：先记下目标、已改文件和未完成的验证。",
+      "command_heads": []
+    },
+    "events": [
+      {
+        "event": "PreCompact",
+        "matcher": ""
+      }
+    ]
+  },
+  "scope-guard": {
+    "version": 2,
+    "kind": "hook",
+    "file": "hooks/scope-guard@2.py",
+    "sha256": "a6ce68317dc4e33562de928f37809371e781df6e4ccc03e77e5afee61e2c61a4",
+    "defaults": {
+      "matcher": "Bash",
+      "threshold": 2,
+      "message": "这个命令超出约定范围，先和用户确认。",
+      "command_heads": [
+        "git push --force",
+        "git reset --hard"
+      ]
+    },
+    "events": [
+      {
+        "event": "PreToolUse",
+        "matcher": "Bash"
+      }
+    ]
+  },
+  "procedure": {
+    "version": 1,
+    "kind": "skill",
+    "file": "skills/procedure@1.md",
+    "sha256": "4c7f38105a5369588742448483e36744758823b8218f325de41f459213f67c4c",
+    "defaults": {
+      "name": "verify-then-report",
+      "description": "改动完成后按固定步骤核对并汇报：确认范围、运行检查、整理结论。在用户要求收尾、提交或汇报进度时使用。",
+      "steps": [
+        "确认本次目标和改动涉及的文件",
+        "运行项目已有的检查命令并记录结果",
+        "检查失败时先修复，再重新运行",
+        "用两三句话汇报改了什么、怎么验证的"
+      ],
+      "dont": [
+        "不要跳过检查直接汇报完成",
+        "不要顺手修改与目标无关的文件"
+      ],
+      "verify": "检查命令全部通过，汇报里写明运行过的命令",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ]
+    },
+    "events": []
+  },
+  "reviewer": {
+    "version": 1,
+    "kind": "subagent",
+    "file": "agents/reviewer@1.md",
+    "sha256": "f3c2813f95f53a06246e75694be234db32cc8f84ae001401ea4dd39bc1f8fd3a",
+    "defaults": {
+      "name": "change-reviewer",
+      "description": "改动完成后做只读审查：对照目标检查遗漏的验证、越界修改和未处理的错误。",
+      "tools": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "body": {
+        "role": "你是只读审查员，只看不改，帮主 agent 在提交前发现遗漏。",
+        "inputs": "本次目标、改动文件列表和最近一次检查命令的输出。",
+        "output_format": "按严重程度列出问题，每条给出文件位置和建议的修改。",
+        "forbidden": "不修改文件，不运行会改变状态的命令。"
+      }
+    },
+    "events": []
+  },
+  "checklist": {
+    "version": 1,
+    "kind": "command",
+    "file": "commands/checklist@1.md",
+    "sha256": "b83ca69e5fd24a29f6aa50460db7bcfbf8fd7b61ea13b13bcf7f4eb40bca288b",
+    "defaults": {
+      "name": "finish-checklist",
+      "description": "收尾前逐项核对：检查命令、diff 范围和未完成事项。",
+      "body": "1. 运行项目的检查命令并贴出结果\n2. 查看 git diff，确认只包含本次目标的改动\n3. 列出未完成或待确认的事项",
+      "argument_hint": "[本次目标]"
+    },
+    "events": []
+  }
+}

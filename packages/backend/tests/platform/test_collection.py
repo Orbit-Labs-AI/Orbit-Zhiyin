@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from notify_fake import clock, gw  # noqa: E402,F401
 
-from tandem_backend.platform.collection import Collection  # noqa: E402
+from orbit_backend.platform.collection import Collection  # noqa: E402
 
 
 def enable_sources(gw, *ids):
@@ -98,7 +98,7 @@ class Stopper:
 
 
 def run_sync_loop(gw, rounds: int) -> None:
-    from tandem_backend.services.gateway import Gateway
+    from orbit_backend.services.gateway import Gateway
 
     gw.stopping, gw.sync_interval_s = Stopper(rounds), (0.0, 0.0)
     Gateway._sync_loop(gw)
@@ -130,7 +130,7 @@ def test_sync_loop_retries_catch_up_until_submitted(gw, clock):
 
 
 def test_sync_loop_survives_an_unexpected_error_and_logs_it(gw, clock, monkeypatch):
-    from tandem_backend.services import gateway as gateway_module
+    from orbit_backend.services import gateway as gateway_module
 
     enable_sources(gw, "a")
     gw.state.update_settings({"sync_mode": "live"})

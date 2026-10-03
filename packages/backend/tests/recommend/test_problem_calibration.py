@@ -5,8 +5,8 @@ import pytest
 from test_engine import INPUTS, MEMORY, fake_recall, raw
 from test_recommend_problems import inputs, signal
 
-from tandem_backend.recommend import engine, problems
-from tandem_backend.recommend.ranking import gates
+from orbit_backend.recommend import engine, problems
+from orbit_backend.recommend.ranking import gates
 
 
 def _failures(k, software="docker"):
@@ -86,7 +86,7 @@ def test_signal_units_read_in_chinese_and_unknown_usage_is_not_unused():
 
 
 def test_merge_keeps_the_primary_problem_type():
-    from tandem_backend.recommend.recall import multi
+    from orbit_backend.recommend.recall import multi
 
     def payload(ptype, lo):
         prob = {"type": ptype, "status": "active", "wilson_lo": lo, "weekly_count": 1, "key": ptype}
@@ -105,7 +105,7 @@ def _independent_wilson_lo(k, n, z=1.96):
 
 @pytest.mark.parametrize(("n", "bar", "min_k"), [(60, .05, 7), (200, .0273861, 11), (400, .0193649, 14)])
 def test_relaxed_wilson_bar_minimum_k_table(n, bar, min_k):
-    from tandem_backend.recommend.problems import min_wilson_lo
+    from orbit_backend.recommend.problems import min_wilson_lo
 
     # bar = .05 · √(60/n) above n = 60 (floor .01): √.3 = .547723, √.15 = .387298
     assert min_wilson_lo(n) == pytest.approx(bar, abs=1e-6)
@@ -126,7 +126,7 @@ def test_signal_without_metric_counts_evidence_not_one():
 
 
 def test_short_window_uses_actual_days():
-    from tandem_backend.recommend.problems import observed_weeks
+    from orbit_backend.recommend.problems import observed_weeks
 
     assert observed_weeks({"weeks": .5}) == .5
     assert observed_weeks({"first_ts": "2026-09-01T00:00:00Z", "last_ts": "2026-09-04T12:00:00Z"}) == .5
@@ -143,7 +143,7 @@ def test_short_window_uses_actual_days():
     (8, None, False), (10, 10, False), (11, 10, False), (12, 10, True), (8, 10, True), (9, 10, False),
     (1, 0, True), (0, 0, False)])
 def test_evidence_changed_twenty_percent(current, last, changed):
-    from tandem_backend.recommend.ranking.gates import evidence_changed
+    from orbit_backend.recommend.ranking.gates import evidence_changed
 
     # |current − last| / max(last, 1) ≥ .2 ; session counts are integers: 12 vs 10 → .2, 11 vs 10 → .1
     assert evidence_changed(current, last) is changed
@@ -160,7 +160,7 @@ def _days(k, n):
     (3, 21, False),    # share .143, Wilson lo .04981 < .05
     (3, 100, False)])  # share .03, Wilson lo .01025
 def test_mixed_recurs_boundaries(k, n, recurs):
-    from tandem_backend.recommend.recall import templates
+    from orbit_backend.recommend.recall import templates
 
     data = {"sessions": {"main": n, "weeks": 4}, "facts": {"session_days": _days(k, n)}}
     assert templates._mixed_recurs(data) is recurs

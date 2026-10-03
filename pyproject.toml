@@ -1,12 +1,12 @@
 [project]
-name = "tandem-workspace"
+name = "orbit-workspace"
 version = "0.0.0"
 license = "Apache-2.0"
 requires-python = ">=3.13,<3.14"
-dependencies = ["tandem-backend"]
+dependencies = ["orbit-backend"]
 
 [project.optional-dependencies]
-embeddings = ["tandem-catalog[embeddings]==0.1.0"]
+embeddings = ["orbit-catalog[embeddings]==0.1.0"]
 
 [tool.uv]
 package = false
@@ -15,9 +15,9 @@ package = false
 members = ["packages/backend", "packages/data", "packages/catalog"]
 
 [tool.uv.sources]
-tandem-backend = { workspace = true }
-tandem-data = { workspace = true }
-tandem-catalog = { workspace = true }
+orbit-backend = { workspace = true }
+orbit-data = { workspace = true }
+orbit-catalog = { workspace = true }
 
 [dependency-groups]
 dev = ["pytest==8.4.1", "pytest-xdist==3.8.0", "httpx==0.28.1", "ruff==0.12.2"]

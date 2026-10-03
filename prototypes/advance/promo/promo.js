@@ -1,4 +1,4 @@
-/* Tandem promo: a beat-locked timeline. Two live copies of the app take turns showing ONE component each (everything
+/* Orbit promo: a beat-locked timeline. Two live copies of the app take turns showing ONE component each (everything
    else in that copy is hidden), framed by a virtual camera next to the copy that explains it. Transitions overlap the
    outgoing and incoming component with long eases; there are no beat-synced shakes or flashes.
    Everything is a pure function of the master time t (seconds), so the page plays in real time with the soundtrack

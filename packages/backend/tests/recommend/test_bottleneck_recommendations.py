@@ -5,9 +5,9 @@ import json
 
 import pytest
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.recommendations import RecommendationPolicy, recommend_bottlenecks
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.recommendations import RecommendationPolicy, recommend_bottlenecks
+from orbit_backend.analytics.service import analyze_bundle
 
 RULE_IDS = {
     "correction_density", "repeated_requirements", "identical_retries", "tool_failures",

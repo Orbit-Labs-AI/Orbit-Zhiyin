@@ -2,9 +2,9 @@
 
 import sqlite3
 
-from tandem_data.analysis_fingerprint import fingerprints, known_sessions
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data.analysis_fingerprint import fingerprints, known_sessions
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
 
 def codex_rows(sid, text="请运行测试", minute=0):
@@ -122,7 +122,7 @@ def test_rowid_or_count_changes_alone_invalidate_the_tree(tmp_path):
             write(store, source, f"rw-{index}", codex_rows(f"rw-{index}", minute=index))
         store.rebuild()
     before = fingerprints(home)
-    connection = sqlite3.connect(home / "tandem.db")
+    connection = sqlite3.connect(home / "orbit.db")
     connection.execute("PRAGMA foreign_keys=OFF")
     session, max_rowid = connection.execute(
         "SELECT session_uid, max(rowid) FROM event GROUP BY session_uid ORDER BY session_uid"
@@ -141,7 +141,7 @@ def test_rowid_or_count_changes_alone_invalidate_the_tree(tmp_path):
 
     # In-place session metadata updates are part of the tree identity as well.
     other = next(iter(others))
-    connection = sqlite3.connect(home / "tandem.db")
+    connection = sqlite3.connect(home / "orbit.db")
     connection.execute("UPDATE session SET title='renamed' WHERE root_uid=?", (other,))
     connection.commit()
     connection.close()
@@ -158,7 +158,7 @@ def test_fingerprints_are_reused_until_the_database_changes(tmp_path):
         store.rebuild()
     first = fingerprints(home)
     assert fingerprints(home) is first  # no commit since: the memo serves it
-    db = sqlite3.connect(home / "tandem.db")
+    db = sqlite3.connect(home / "orbit.db")
     db.execute("UPDATE event SET ts = ts + 1 WHERE rowid = (SELECT min(rowid) FROM event)")
     db.commit()
     db.close()

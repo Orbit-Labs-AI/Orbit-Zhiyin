@@ -4,10 +4,10 @@ import random
 
 from scipy.stats import spearmanr
 
-from tandem_backend.analytics import service
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.products.statistics import spearman_rho
+from orbit_backend.analytics import service
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.products.statistics import spearman_rho
 
 
 def test_spearman_rho_matches_scipy_bit_for_bit():
@@ -42,7 +42,7 @@ def test_tree_lookups_keep_global_order():
 
 
 def test_busy_machine_runs_serially(monkeypatch):
-    monkeypatch.delenv("TANDEM_ANALYSIS_WORKERS", raising=False)
+    monkeypatch.delenv("ORBIT_ANALYSIS_WORKERS", raising=False)
     monkeypatch.setattr(service.os, "cpu_count", lambda: 14)
     monkeypatch.setattr(service.os, "getloadavg", lambda: (15.2, 14.0, 13.0))
     assert service._max_workers() == 1
@@ -52,5 +52,5 @@ def test_busy_machine_runs_serially(monkeypatch):
     assert service._max_workers() == service.DEFAULT_MAX_WORKERS
     assert service._wants_parallel(2500, None)
     assert not service._wants_parallel(10, None)
-    monkeypatch.setenv("TANDEM_ANALYSIS_WORKERS", "1")
+    monkeypatch.setenv("ORBIT_ANALYSIS_WORKERS", "1")
     assert not service._wants_parallel(2500, None)

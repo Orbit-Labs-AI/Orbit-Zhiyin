@@ -1,9 +1,9 @@
 """Constructed (synthetic) bundles for the signal layer, metrics and insights API tests."""
 
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.service import analyze_context
-from tandem_backend.analytics.signals import build_signal_layer
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.service import analyze_context
+from orbit_backend.analytics.signals import build_signal_layer
 
 T0 = 1_790_000_000_000
 MIN = 60_000

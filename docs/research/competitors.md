@@ -9,10 +9,10 @@
 > **与其他文档的分工**：主流 Agent 的内置功能与扩展点、开源项目的源码级研读见 [research.md](landscape.md) §2、§4，本文只引结论；Orbit 各模块的做法见 [analysis.md](../plans/analysis-module.md)、[recommendation.md](../plans/recommendation-module.md)、[ai.md](../plans/ai-module.md)、[evaluation.md](../plans/evaluation-module.md)，功能与分工映射见 [feature-map.md](../plans/feature-map.md)。
 >
 > **Orbit「现状」的口径**（2026-10-02 各分支）：
-> - main `c97c818`：后端 v0.13.6 + Feature Analytics（`src/tandem_backend/`），只读 Codex，没有 LLM 调用和安装器；
-> - PR #9 `feat/session-data-contract`：`packages/data`，`tandem-session-v1` 契约，6 个 connector（Claude Code、Codex、dsh、Hermes、OpenCode、pi），L0–L3；
+> - main `c97c818`：后端 v0.13.6 + Feature Analytics（`src/orbit_backend/`），只读 Codex，没有 LLM 调用和安装器；
+> - PR #9 `feat/session-data-contract`：`packages/data`，`orbit-session-v1` 契约，6 个 connector（Claude Code、Codex、dsh、Hermes、OpenCode、pi），L0–L3；
 > - PR #11 `feat/codex-connector`：`packages/connectors`，Codex 增量 connector、L0 zstd 归档、watch；
-> - Advanced Demo：`prototypes/advance/`（main，示例数据）；Lite Demo：`prototypes/advance/tandem-benchmark-demo.html`（`genius-FXC` 的分支 `feat/genius-FXC-dev`，8 页，示例数据，尚未开 PR）。
+> - Advanced Demo：`prototypes/advance/`（main，示例数据）；Lite Demo：`prototypes/advance/orbit-benchmark-demo.html`（`genius-FXC` 的分支 `feat/genius-FXC-dev`，8 页，示例数据，尚未开 PR）。
 
 ## 0. 结论先行
 

@@ -5,11 +5,11 @@ import json
 
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.analytics.work_graph import build_work_graph, build_work_index
-from tandem_backend.api import create_app
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.work_graph import build_work_graph, build_work_index
+from orbit_backend.api import create_app
 
 
 def trajectory_bundle(*, native=True, spawn=True):
@@ -159,7 +159,7 @@ def test_native_projection_is_idempotent_for_parallel_row_workers():
 def test_workers_reuse_the_parent_projection_with_canonical_task_references():
     # Re-projecting projected rows is not idempotent for a supplied canonical task UID,
     # so a process-pool job must reuse the parent's index instead of rebuilding it.
-    from tandem_backend.analytics import service
+    from orbit_backend.analytics import service
 
     bundle = trajectory_bundle(native=False)
     for event in bundle.events:
@@ -208,7 +208,7 @@ def test_native_patch_mapping_identifies_attempted_files_without_invented_versio
 def test_task_trajectory_endpoint_preserves_scoped_evidence(tmp_path, monkeypatch):
     result = analyze(trajectory_bundle())
     task = next(t for t in result["work_graph"]["task_trajectories"] if t["counts"].get("validation_passed"))
-    monkeypatch.setattr("tandem_backend.analytics.service.analyze_store", lambda *args, **kwargs: copy.deepcopy(result))
+    monkeypatch.setattr("orbit_backend.analytics.service.analyze_store", lambda *args, **kwargs: copy.deepcopy(result))
     with TestClient(create_app(db=tmp_path / "legacy.db")) as client:
         response = client.get(f'/v1/analytics/tasks/{task["task_uid"]}/trajectory')
         assert response.status_code == 200
@@ -224,7 +224,7 @@ def test_task_trajectory_includes_validation_only_artifact_version_owner(tmp_pat
     next(c for c in bundle.tool_calls if c["call_uid"] == "check2")["validation"]["scope"]["artifact_revision"] = "v2"
     result = analyze(bundle)
     task = next(t for t in result["work_graph"]["task_trajectories"] if t["counts"].get("validation_passed"))
-    monkeypatch.setattr("tandem_backend.analytics.service.analyze_store", lambda *a, **k: copy.deepcopy(result))
+    monkeypatch.setattr("orbit_backend.analytics.service.analyze_store", lambda *a, **k: copy.deepcopy(result))
     with TestClient(create_app(db=tmp_path / "legacy.db")) as client:
         body = client.get(f'/v1/analytics/tasks/{task["task_uid"]}/trajectory').json()
     version = next(n for n in body["nodes"] if n["kind"] == "ArtifactVersion" and n["attributes"].get("revision") == "v2")
@@ -233,7 +233,7 @@ def test_task_trajectory_includes_validation_only_artifact_version_owner(tmp_pat
 
 
 def test_task_projection_does_not_expand_through_artifact_to_other_tasks():
-    from tandem_backend.analytics.work_graph import task_subgraph
+    from orbit_backend.analytics.work_graph import task_subgraph
 
     graph = {"nodes": [{"node_uid": uid, "kind": kind} for uid, kind in
                        (("task", "Task"), ("call", "ToolCall"), ("version", "ArtifactVersion"),

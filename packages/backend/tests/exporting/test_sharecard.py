@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import pytest
 
-from tandem_backend.exporting import snapshots
-from tandem_backend.exporting.type_copy import TYPES, copy_for
-from tandem_backend.uiview import fetch
+from orbit_backend.exporting import snapshots
+from orbit_backend.exporting.type_copy import TYPES, copy_for
+from orbit_backend.uiview import fetch
 
 
 def page(code="DPMV", n=30, days=10, units=30, ok=True):

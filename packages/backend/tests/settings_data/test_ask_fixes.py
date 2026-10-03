@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from tandem_backend import privacy_rules
-from tandem_backend.ai import ask
+from orbit_backend import privacy_rules
+from orbit_backend.ai import ask
 
 PROFILE = {"n_sessions": 12, "tags": [
     {"id": "tool:shell", "label": "常用终端", "weight": 1.0, "n": 40},

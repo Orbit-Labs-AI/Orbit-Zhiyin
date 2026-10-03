@@ -1,7 +1,7 @@
 from conftest import DAY, NOW
 
-from tandem_backend.features import linked
-from tandem_backend.features.linked import compute_linked, estimate_tokens
+from orbit_backend.features import linked
+from orbit_backend.features.linked import compute_linked, estimate_tokens
 
 REVS = {"data": 1, "inventory": 1, "catalog": "1"}
 
@@ -139,7 +139,7 @@ def test_resident_tokens_cached_by_content_hash(world):
 
 
 def test_skill_resident_is_name_and_description_only():
-    from tandem_backend.features.linked import resident_text
+    from orbit_backend.features.linked import resident_text
 
     header = "\n".join(f"  - pattern{i}/**" for i in range(40))
     text = (f"---\nname: pdf-tools\ndescription: >\n  Read and fill PDF forms.\n  Use for PDFs.\n"
@@ -186,7 +186,7 @@ def test_agent_without_skill_attribution_is_unknown_not_unused(world):
 def test_usage_aggregate_is_cached_in_app_db_per_data_rev(world):
     from importlib.resources import files
 
-    world.a.executescript(files("tandem_backend.appdb").joinpath("schema/features.sql")
+    world.a.executescript(files("orbit_backend.appdb").joinpath("schema/features.sql")
                           .read_text(encoding="utf-8"))
     seed(world)
     world.call("a", skill="pdf-tools", started=NOW - 5 * DAY)

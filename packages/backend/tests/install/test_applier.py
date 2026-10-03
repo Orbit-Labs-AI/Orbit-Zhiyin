@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.install import applier, ops
-from tandem_backend.install.errors import ApplyFailed, OpConflict, StaleError
+from orbit_backend.install import applier, ops
+from orbit_backend.install.errors import ApplyFailed, OpConflict, StaleError
 
 
 def tgt(idx, path, action="merge_json", **kw):
@@ -36,7 +36,7 @@ def test_preflight_stale_lists_all(env):
     b = env["home"] / "b.md"
     b.write_text("x\n")
     targets = [tgt(0, a, pointer="/permissions/allow", content=["ls"]),
-               tgt(1, b, "md_block", content="r", block_id="tandem:r")]
+               tgt(1, b, "md_block", content="r", block_id="orbit:r")]
     with pytest.raises(StaleError) as e:
         applier.preflight(targets, selected={}, expect={0: "sha256:0", 1: "sha256:0"},
                           home=env["home"])
@@ -102,7 +102,7 @@ def test_atomic_write_failure_leaves_original(env, monkeypatch):
                               install_id="i1", home=env["home"])
     assert e.value.detail["failed_idx"] == 0 and e.value.detail["rolled_back"] == []
     assert path.read_text() == '{"k": 1}\n'
-    assert not [p for p in env["home"].iterdir() if p.name.startswith(".tandem-")]
+    assert not [p for p in env["home"].iterdir() if p.name.startswith(".orbit-")]
 
 
 def test_second_target_failure_rolls_back_first(env):
@@ -110,7 +110,7 @@ def test_second_target_failure_rolls_back_first(env):
     a.write_bytes(b"# mine\r\nkeep\n")
     b = env["home"] / "bad.json"
     b.write_text('{"x": 1}')
-    targets = [tgt(0, a, "md_block", content="rule", block_id="tandem:r"),
+    targets = [tgt(0, a, "md_block", content="rule", block_id="orbit:r"),
                tgt(1, b, pointer="", content={"y": 2})]
     prep = applier.preflight(targets, selected={}, expect=None, home=env["home"])
     b.write_text('{"x": "changed"}')  # unrelated change: merge_json re-renders, still ok

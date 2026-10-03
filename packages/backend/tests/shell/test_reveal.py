@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tandem_backend.shell import reveal
+from orbit_backend.shell import reveal
 
 TYPES = {"DPMV": ("总设计师", "The Architect", "先写清规格。"),
          "DIMV": ("指挥家", "The Conductor", "多线并进。")}
@@ -120,15 +120,15 @@ def test_load_with_export_stand_in(gateway_factory, tmp_path, monkeypatch):
     sections → computing + one submit each; cached sections → the full payload."""
     from types import SimpleNamespace
 
-    from realtime_fixtures import NOW, Tandem
+    from realtime_fixtures import NOW, Orbit
 
-    from tandem_backend.services.sections import rules_digest
-    from tandem_backend.services.snapshots import SnapshotKey, scope_hash
-    from tandem_backend.shell import default_scope
+    from orbit_backend.services.sections import rules_digest
+    from orbit_backend.services.snapshots import SnapshotKey, scope_hash
+    from orbit_backend.shell import default_scope
 
-    home = tmp_path / "tandem"
+    home = tmp_path / "orbit"
     home.mkdir()
-    t = Tandem(home)
+    t = Orbit(home)
     t.session("a", status="completed", started=NOW - 3_600_000, ended=NOW - 1_800_000)
     t.db.close()
     _, gw = gateway_factory(home=home, started=False)

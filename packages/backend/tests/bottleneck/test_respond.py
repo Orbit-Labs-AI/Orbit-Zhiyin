@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from tandem_backend.analytics.respond import (
+from orbit_backend.analytics.respond import (
     analyze_execution_sequence,
     analyze_respond,
     build_execution_relations,
@@ -154,7 +154,7 @@ def test_failure_reason_is_not_inferred_from_plain_text(make_call):
 
 
 def test_workflow_unsupported_branch_abstains_even_with_observed_rewind(make_event):
-    from tandem_backend.analytics.respond.sequence import workflow
+    from orbit_backend.analytics.respond.sequence import workflow
 
     events = [make_event("rewind", 1, "branch", action="rewind")]
     unsupported = workflow(events, [], {"s"}, supported_kinds=set())
@@ -176,7 +176,7 @@ def test_l2_only_input_can_pair_without_inventing_turns(make_event):
 
 
 def test_declined_and_denied_count_as_rejected_not_unknown():
-    from tandem_backend.analytics.respond.features import tool_summary
+    from orbit_backend.analytics.respond.features import tool_summary
 
     calls = [{"name_raw": "Bash", "kind": "shell", "status": s, "result_event_uid": f"r{i}"}
              for i, s in enumerate(["declined", "denied", "completed", "failed"])]
@@ -187,8 +187,8 @@ def test_declined_and_denied_count_as_rejected_not_unknown():
 
 def test_status_biased_subset_withholds_rates():
     """a1a3-B8: only errors carry a status -> no 100% failure rate."""
-    from tandem_backend.analytics.products.tools import tool_shares
-    from tandem_backend.analytics.respond.features import tool_summary
+    from orbit_backend.analytics.products.tools import tool_shares
+    from orbit_backend.analytics.respond.features import tool_summary
 
     calls = [{"name_raw": "Edit", "kind": "edit", "status": "unknown", "result_event_uid": f"r{i}",
               "call_uid": f"c{i}", "session_uid": "s1"} for i in range(300)]

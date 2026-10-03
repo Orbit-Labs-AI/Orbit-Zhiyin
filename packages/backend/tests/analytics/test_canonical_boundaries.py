@@ -6,8 +6,8 @@ from dataclasses import asdict
 
 import pytest
 
-from tandem_backend.analytics.inputs import Scope, select
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import Scope, select
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def canonical(fixtures):

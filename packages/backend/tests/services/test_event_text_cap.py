@@ -10,7 +10,7 @@ import sqlite3
 
 from conftest import add_codex, run_job, wait_job
 
-from tandem_backend.services.text_cap import cap_event
+from orbit_backend.services.text_cap import cap_event
 
 BIG = "".join(chr(0x41 + i % 26) for i in range(100_000))
 
@@ -33,7 +33,7 @@ def test_events_page_and_evidence_cap_long_text(client_factory, codex_root):
     source = add_codex(client, codex_root)
     assert wait_job(client, run_job(client, "import", [source], phase="head")["id"])[
         "status"] == "completed"
-    with sqlite3.connect(gateway.home / "tandem.db") as db:
+    with sqlite3.connect(gateway.home / "orbit.db") as db:
         event_uid, session_uid = db.execute(
             "SELECT event_uid, session_uid FROM event ORDER BY session_uid, seq LIMIT 1"
         ).fetchone()
