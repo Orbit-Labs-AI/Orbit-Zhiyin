@@ -295,7 +295,12 @@ def one_run(study: dict, task: dict, output: Path, docker: str, credentials: Pat
     save(output / "provenance.json", provenance)
     if assets:
         save(output / "assets-manifest.json", read(assets / "manifest.json"))
-    name = create_container(docker, study, task, assets)
+    try:
+        name = create_container(docker, study, task, assets)
+    except BaseException as error:
+        save(output / "infrastructure-error.json", {"type": type(error).__name__, "message": str(error),
+                                                   "stage": "container_creation", "model_calls": 0})
+        raise
     started = time.time()
     try:
         if preflight:

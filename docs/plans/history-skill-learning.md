@@ -38,3 +38,13 @@
 - 引擎按评分、兼容、阈值、画像重叠、去重、最终选择记录每个候选的去向。兼容与其他 gate 原本同时计算；漏斗拆分是同一组逻辑条件的展示，不改变执行行为或推荐名额。
 - AI 补充候选后的选择及持久化截断另记一层；卡片被压缩或超出保留上限时，漏斗仍保留其来源证据。
 - Pi injection、activation、actual usage 由执行器观测，后端未见运行日志时保持 `not_observed`，不能算作 0 或成功。
+
+## 通用技能学习第一版
+
+`recommend.learn` 是显式提交的 AI job，沿用已有 preview、二次脱敏、snippets consent、费用门槛和撤销机制；默认统计模式不调用模型。新的 `trajectories` pack 仅从所选 canonical 会话读取用户目标、公开答复、工具参数与结果，不读取 L0、隐藏推理或未选择的来源。最多八个会话，每个会话保留有界的头尾证据，输出遗漏与裁剪计数；调用方不能用 slots 替换这项内容。
+
+采用 [AWM / ExpeL / Voyager 的简化思路](../research/history-skill-learning.md)：离线归纳跨会话重复操作，保留参数化步骤及引用，再独立检索。每个候选至少支持于两个不同会话，每一步必须引用该候选中的真实 event；模型声称的成功不当作外部验证。输出同时允许 skill、rule、hook、workflow、subagent 与 MCP，材料不足的类型不补齐占位。所有候选含 activation、avoid、requires、procedure、verification、termination 和 limitations。
+
+库作为现有 `ai_artifact` 的 workflow 草稿保存，无新数据库表。`POST /v1/recommendations/learned/retrieve` 接受 `artifact_id`、当前任务 `query`、实际 `capabilities` 和 `top_k`，使用确定性词项余弦分数检索，不再次调用模型。每一级记录数量、类型、score、证据与原因；兼容性按实际能力判断，去重仅合并完全相同的步骤与验证。描述性 hook/MCP/subagent 尚未编译为可运行组件，会被明确过滤。
+
+默认只选经 validation 验证的候选。`POST /v1/recommendations/learned/{artifact_id}/validation` 接受调用方提供的外部评估凭据，绑定 candidate ID、正文 hash、运行报告 hash、模型与任务，拒绝 test split 和未知结果。候选必须在所有已登记 validation 中通过，并至少有一次成功率提升或保守 token 下限比较下节省 10%。接口仅记录调用方声明，不宣称 Orbit 独立运行了评估器。`provisional=true` 只供显式开发诊断，返回值带 provisional 标记。未验证的学习库不会自动安装、注入或替换旧推荐卡片。

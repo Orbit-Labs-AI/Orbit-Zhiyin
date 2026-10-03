@@ -195,6 +195,15 @@ def build(root: Path, docker: str) -> None:
         key = object_digest({"files": task["environment_files"], "dockerfile": task["dockerfile"]})
         if task["task_id"] in study["images"]:
             continue
+        # Identical environments share one immutable image. Rebuilding the same
+        # tag can remove its previous image ID with containerd's image store.
+        shared = next((image for image in study["images"].values()
+                       if image["context_digest"] == key), None)
+        if shared is not None:
+            command([docker, "image", "inspect", shared["id"]])
+            study["images"][task["task_id"]] = dict(shared)
+            save(root / "study.json", study)
+            continue
         context = root / "build" / key
         context.mkdir(parents=True, exist_ok=True)
         environment = Path(study["source"]) / task["source_relative"] / "environment"

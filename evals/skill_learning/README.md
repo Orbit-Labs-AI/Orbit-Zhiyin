@@ -30,6 +30,8 @@ python3 scripts/heavy.py uv run python -m evals.skill_learning.development audit
 
 `pipeline --selection sources.json --output NEW_DIRECTORY --expected-sessions N` 将显式选择的原生 Pi history 通过真实 Gateway 导入任务、分析 worker、推荐与漏斗持久化 API。selection 的每项包含 `root` 和 `split="history"`；其他 split、重复来源或导入期间变化的文件都拒绝。它不调用模型，不自动发现其他来源，也不启用目录联网同步。
 
+`learning --root STUDY_ROOT --data PIPELINE_OUTPUT/data --output NEW_DIRECTORY --arm ours` 经真实 AI preview/job API 从已导入 history 学习。`--arm llm` 使用完全相同的脱敏材料和模型输出预算，直接请 LLM 自行编写个性化 Skill；它不获得 oracle、verifier、validation 或 test 内容。学习过程只运行无工具的隔离 Pi，不探测其他本机 Agent。每次模型调用保留输入、schema、用量、原生 session 和代码摘要。生成与当前任务检索相互分离，最终 test 不再学习。
+
 `trace --run ATTEMPT [--review REVIEW.json]` 从原生 session 提取注入和读取记录。人工方法使用审计采用 `skills: {name: {used, evidence: [{tool_call_id, step}], note}}`；声明 `used=true` 必须有已记录的成功 body read，以及读取后的真实工具调用 ID。没有审阅的使用情况保持 null。
 
 单元检查不调用模型、不需要 Docker：

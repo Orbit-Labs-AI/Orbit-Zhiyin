@@ -1,0 +1,126 @@
+"""History content survives learning; scope, grounding and validation remain hard boundaries."""
+
+from __future__ import annotations
+
+import copy
+import json
+import sqlite3
+from contextlib import contextmanager
+
+import pytest
+
+from orbit_backend.ai import pack, registry
+from orbit_backend.ai.tasks_learning import finalize, validate
+from orbit_backend.appdb import AppDB
+from orbit_backend.recommend.learned import record_validation, retrieve, validation_state
+
+
+def example():
+    refs = [{"session_uid": "s1", "event_uid": "e1"}, {"session_uid": "s2", "event_uid": "e2"}]
+    return {"name": "inspect-edit-verify", "kind": "skill", "description": "Edit structured documents reliably",
+            "activation": "Use for structured document edits", "avoid": ["Unrelated interactive tasks"],
+            "keywords": ["structured", "document", "edit"], "requires": ["read", "write"],
+            "procedure": [{"action": "Inspect field names before editing", "evidence": refs[:1]},
+                          {"action": "Reopen output and check the requested fields", "evidence": refs[1:]}],
+            "verification": ["Compare requested edits to saved output"], "termination": "Stop after reread checks",
+            "evidence": refs, "limitations": ["History outcomes were not independently verified"]}
+
+
+def evidence_pack():
+    return {"content": {"trajectories": {"sessions": [
+        {"session_uid": "s1", "events": [{"event_uid": "e1"}]},
+        {"session_uid": "s2", "events": [{"event_uid": "e2"}]}]}},
+        "refs": {"session": ["s1", "s2"]}, "preview_digest": "digest"}
+
+
+def library(candidates=None):
+    result = finalize({"candidates": candidates or [example()], "gaps": []}, evidence_pack(), "model")
+    return {"artifact_id": "library", "content_hash": "library-hash", "payload": result["result"],
+            "checks": {"validation_receipts": []}}
+
+
+def test_grounding_rejects_foreign_sessions_and_fabricated_step_refs():
+    candidate = example()
+    assert not validate({"candidates": [candidate]}, evidence_pack())
+    candidate["procedure"][1]["evidence"] = [{"session_uid": "s2", "event_uid": "invented"}]
+    assert validate({"candidates": [candidate]}, evidence_pack())
+    candidate = example()
+    candidate["evidence"] = candidate["evidence"][:1]
+    assert validate({"candidates": [candidate]}, evidence_pack())
+
+
+def test_pack_preserves_arguments_redacts_and_cannot_be_replaced_by_slots(tmp_path):
+    db = sqlite3.connect(":memory:")
+    db.row_factory = sqlite3.Row
+    db.executescript("""CREATE TABLE session(session_uid TEXT, kind TEXT, started_at INTEGER,
+        project_id TEXT, source_id TEXT, cwd TEXT);
+        CREATE TABLE event(event_uid TEXT, session_uid TEXT, kind TEXT, seq INTEGER, call_id TEXT,
+        attrs TEXT, text TEXT);""")
+    for uid in ("s1", "s2", "outside"):
+        db.execute("INSERT INTO session VALUES (?, 'main', 100, NULL, 'source', '/task')", (uid,))
+        db.execute("INSERT INTO event VALUES (?, ?, 'tool.call', 7, 'c1', ?, '')", (uid, uid,
+                   json.dumps({"name": "bash", "input": {"command": "python3 -c 'reopen_and_verify()'",
+                                                          "key": "sk-abcdefghijklmnop1234"}})))
+        db.execute("INSERT INTO event VALUES (?, ?, 'reasoning', 8, NULL, '{}', 'private reasoning')",
+                   (uid + "-reasoning", uid))
+
+    @contextmanager
+    def reads():
+        yield db
+
+    result = pack.build(registry.get("recommend.learn"), reads=reads, appdb=AppDB(tmp_path / "app.db"), home=tmp_path,
+                        scope={"start_ms": 0, "end_ms": 1000, "session_uids": ["s1", "s2"],
+                               "excluded_session_uids": ["s2"]},
+                        slots={"trajectories": {"sessions": [{"session_uid": "outside"}]}})
+    sessions = result["content"]["trajectories"]["sessions"]
+    assert [s["session_uid"] for s in sessions] == ["s1"]
+    assert "reopen_and_verify" in sessions[0]["events"][0]["input"]["command"]
+    blob = json.dumps(result)
+    assert "sk-abcdefghijklmnop1234" not in blob and "private reasoning" not in blob
+    assert result["refs"]["event"] == ["s1"] and result["items"][0]["data_class"] == "snippets"
+
+
+def test_validation_is_content_bound_and_negative_receipts_remain():
+    lib = library()
+    candidate = lib["payload"]["candidates"][0]
+    kwargs = {"capabilities": ["read", "write"]}
+    assert not retrieve(lib, "edit structured document", **kwargs)["candidates"]
+    assert retrieve(lib, "edit structured document", **kwargs,
+                    config={"require_validation": False})["candidates"]
+    receipt = {"candidate_id": candidate["candidate_id"], "content_hash": candidate["content_hash"],
+               "candidate_passed": True, "baseline_passed": False,
+               "candidate_tokens": 100, "baseline_tokens_lower_bound": 50}
+    lib["checks"]["validation_receipts"] = [receipt]
+    assert retrieve(lib, "edit structured document", **kwargs)["candidates"]
+    assert validation_state(candidate, [{**receipt, "content_hash": "old"}]) == "unvalidated"
+    lib["checks"]["validation_receipts"].append({**receipt, "candidate_passed": False})
+    assert not retrieve(lib, "edit structured document", **kwargs)["candidates"]
+
+
+def test_compatibility_is_capability_based_and_dedup_does_not_use_titles():
+    first, second = example(), example()
+    second.update(name="different-procedure")
+    second["procedure"][0]["action"] = "Inspect schema types and constraints"
+    lib = library([first, second])
+    result = retrieve(lib, "edit structured document", capabilities=["read", "write"],
+                      config={"require_validation": False})
+    assert len(result["candidates"]) == 2
+    missing = retrieve(lib, "edit structured document", capabilities=["read"],
+                       config={"require_validation": False})
+    assert not missing["candidates"]
+    assert all(r["decisions"][-1]["reason"] == "missing_capabilities:write"
+               for r in missing["funnel"]["candidates"])
+
+
+def test_validation_receipt_rejects_test_and_unknown_outcomes_before_writing():
+    candidate = library()["payload"]["candidates"][0]
+    receipt = {"candidate_id": candidate["candidate_id"], "content_hash": candidate["content_hash"],
+               "split": "test", "task_id": "heldout", "run_digest": "a" * 64, "model": "model",
+               "baseline_passed": True, "candidate_passed": True, "candidate_tokens": 10,
+               "baseline_tokens_lower_bound": 20}
+    with pytest.raises(ValueError, match="validation"):
+        record_validation(None, "library", receipt)
+    changed = copy.deepcopy(receipt)
+    changed.update(split="validation", candidate_passed=None)
+    with pytest.raises(ValueError, match="Unknown"):
+        record_validation(None, "library", changed)

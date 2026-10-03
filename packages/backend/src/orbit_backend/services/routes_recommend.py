@@ -65,6 +65,27 @@ class SettingsRequest(BaseModel):
     level: int | None = Field(None, ge=1, le=4)
 
 
+class LearnedRequest(BaseModel):
+    artifact_id: str
+    query: str = Field(min_length=1, max_length=24000)
+    capabilities: list[Literal["read", "write", "edit", "bash", "network", "mcp", "subagent"]]
+    top_k: int = Field(2, ge=1, le=8)
+    provisional: bool = False
+
+
+class ValidationReceipt(BaseModel):
+    candidate_id: str
+    content_hash: str
+    split: Literal["validation"]
+    task_id: str = Field(min_length=1, max_length=200)
+    run_digest: str = Field(pattern="^[a-f0-9]{64}$")
+    model: str = Field(min_length=1, max_length=200)
+    baseline_passed: bool
+    candidate_passed: bool
+    candidate_tokens: int | None = Field(ge=0)
+    baseline_tokens_lower_bound: int | None = Field(ge=0)
+
+
 class LabelRequest(BaseModel):
     target_kind: Literal["candidate", "problem", "profile", "signal", "key_moment", "facet",
                          "narrative", "reader_case"]
@@ -97,6 +118,30 @@ def _run_meta(run: dict, freshness: str) -> dict:
 def router(gw: Gateway) -> APIRouter:
     api = APIRouter()
     scope_dependency = Depends(analytics_scope)
+
+    @api.post("/v1/recommendations/learned/retrieve")
+    def retrieve_learned(body: LearnedRequest):
+        from ..recommend.learned import read_library, retrieve
+
+        try:
+            library = read_library(gw.appdb, body.artifact_id)
+        except KeyError:
+            raise ApiError(404, "not_found", "Unknown learned library") from None
+        if library["status"] in ("blocked", "archived", "reverted"):
+            raise ApiError(409, "unavailable", "This library is inactive")
+        return retrieve(library, body.query, capabilities=body.capabilities,
+                        config={"top_k": body.top_k, "require_validation": not body.provisional})
+
+    @api.post("/v1/recommendations/learned/{artifact_id}/validation")
+    def validate_learned(artifact_id: str, body: ValidationReceipt):
+        from ..recommend.learned import record_validation
+
+        try:
+            return record_validation(gw.appdb, artifact_id, body.model_dump())
+        except KeyError:
+            raise ApiError(404, "not_found", "Unknown learned library") from None
+        except ValueError as error:
+            raise ApiError(422, "invalid_validation", str(error)) from None
 
     @api.get("/v1/recommendations")
     def recommendations(scope=scope_dependency, dim: str | None = None,
