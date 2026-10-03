@@ -30,11 +30,12 @@ css(`
    line may not clip it on its way up to its slot */
 .k .ln.rd-s1{font-size:52px;font-weight:600;letter-spacing:0;overflow:visible}
 /* v18.5: 「Assistant」 one step up (60 px, pure white) — the answer the line gives */
-.k .ln.rd-s1 .w.rd-w{font-size:60px;margin-left:.12em}
+.k .ln.rd-s1 .w.rd-w{font-size:60px;margin-left:.12em;letter-spacing:-.015em}
 /* the bigger line must stay inside the ring's inner edge (≈ 380): the full-width comma gives back part of its blank half
    and the CJK run sits a hair tighter, and the line sits 10 px lower (y 362) where the ring is wider */
-.k .ln.rd-s1 .w:first-child{margin-right:-.2em}
-.k .ln.rd-s1 .w:nth-child(2){letter-spacing:-.03em}
+.k .ln.rd-s1 .w:first-child{margin-right:-.3em}
+.k .ln.rd-s1 .w:nth-child(2){letter-spacing:-.05em}
+/* v18.5 QA: those three trims give back ≈ 20 px, so the cx bead (b31–33) no longer grazes 「So」 */
 /* v18.2: the So line is 48 px / 600 and 「Assistant」 is pure white (no silver gradient), so the line reads as the answer */
 .k .ln.sv .w.rd-w{background:none;color:#fff;-webkit-text-fill-color:#fff}
 .k .ln.sv b.rd-or{color:var(--a1);-webkit-text-fill-color:var(--a1)}
@@ -108,11 +109,13 @@ scene('15-redesign', () => {
   // b12.85, it holds alone ≈ .3 beat before 「人与 Agent 的」 (b13.15). The dots flinch as it leaves them (r × .9)
   const RISE = 340;
   const cjRise = (el, tl) => el.querySelectorAll('.w').forEach((w) => {
-    const p = E.out(clamp(tl / BB(.5)));
+    // v18.5 QA: hold at the dot row while the blur clears (≈ .1 beat), then rise — a .5-beat E.out from tl 0 had moved
+    // half way up before the word was visible, so it read as appearing at the top, not leaving the dots
+    const p = E.out(clamp((tl - BB(.08)) / BB(.42)));
     w.style.transform = p < .999 ? 'translateY(' + ((1 - p) * RISE).toFixed(1) + 'px)' : '';
   });
   txt(12.35, 20.7, [['sv rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
-    { anim: K.all(K.blurIn({ spread: .1, dur: .42, out: .6, spread2: true }), cjRise), tick: drift(true) });
+    { anim: K.all(K.blurIn({ spread: .05, dur: .2, out: .6, spread2: true }), cjRise), tick: drift(true) });
   for (let i = 0; i < 5; i++) AGD.pulse(i, 12.35, .9, .5);
   const markBy = (el, b) => {
     const p = BUB.reduce((s, u) => s + E.inOut(clamp((b - u.b0 + .25) / .4)), 0) / BUB.length;
