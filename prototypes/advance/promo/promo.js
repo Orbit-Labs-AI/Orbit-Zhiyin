@@ -5,12 +5,10 @@
    (preview) or frame by frame on Playwright's fake clock (render.mjs). Times are written in beats. */
 'use strict';
 const BPM = 132, BEAT = 60 / BPM;                         // beats; music.py uses the same grid
-let END = 118;                                            // length in beats; the closing scene sets it (scene beats)
-/* Scene beats vs film beats: the opening (10-open) runs on film beats; every later scene keeps its own (v7-grid) beats
-   and is played SHIFT[name] beats later: 8 for the wordmark reveal, more after the persona and the recommendations,
-   which were given longer holds so every line can be read. Each cue, tween, text, tag, drive and click remembers the
-   shift of the scene that registered it and sees the clock in its own scene beats. music.py uses the same table. */
-const SHIFT = { '10-open': 0, '20-sentiment': 5.9, '30-persona': 5.9, '40-recs': 14.9, '60-close': 5.4 };
+let END = 88;                                             // length in beats; the closing scene sets it
+/* v17: every scene runs on film beats (SHIFT is empty, kept so older helpers that read it still work). Each cue, tween,
+   text, tag, drive and click still remembers SH of the scene that registered it (always 0 now). music.py uses the same grid. */
+const SHIFT = {};
 let SH = 0;
 const RENDER = location.search.includes('render');
 const DEBUG = location.search.includes('debug');
@@ -328,7 +326,7 @@ function buildCompass() {
     lys.map((ly) => '<path class="ly" fill="' + cpMute(AGC[D.AG.indexOf(ly.a)], 58) + '" fill-opacity=".42"/>').join('') +
     lys.map((ly) => '<path class="ed" fill="none" stroke="' + cpMute(AGC[D.AG.indexOf(ly.a)], 78) + '" stroke-width="2.3" stroke-linejoin="round"/>').join('') +
     '<g class="dim">' + CODES.map((c, t) => '<path data-t="' + t + '" fill="#000" opacity="0" d="' + cpSector(CP.R0 - 2, CP.R0 + CP.RH + 10, t * 22.5, (t + 1) * 22.5) + '"/>').join('') + '</g></g>' +
-    '<g class="cp-pls">' + D.orb.planets.map((x) => { const c = AGC[D.AG.indexOf(x.a)]; return '<g class="pl"><circle r="27" fill="' + cpMute(c, 60) + '" fill-opacity=".2"/>' + D.agLogo(x.a.id, 0, 0, 19, cpMute(c, 86), '#0e0f12') + '</g>'; }).join('') + '</g>' +
+    '<g class="cp-pls">' + D.orb.planets.map((x) => { const c = AGC[D.AG.indexOf(x.a)]; return '<g class="pl"><circle r="27" fill="' + c + '" fill-opacity=".16"/>' + D.agLogo(x.a.id, 0, 0, 19, c, '#0e0f12') + '</g>'; }).join('') + '</g>' +
     '<g class="cp-core"><circle cx="400" cy="400" r="' + CP.CORE + '" fill="#08090b" stroke="' + Wt + '.16)" stroke-width="1.6"/></g>' +
     '<g class="cp-flower">' + D.fl.map(fl).join('') + fl(D.mine, 'me') + '</g>';
   const svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('viewBox', '0 0 800 800'); svg.setAttribute('width', '800'); svg.setAttribute('height', '800'); svg.setAttribute('class', 'compass');
@@ -368,6 +366,23 @@ function cpWedge(a0, span) {
   return 'M400 400L' + f2(p0) + 'A560 560 0 ' + (span > 180 ? 1 : 0) + ' 1 ' + f2(p1) + 'Z';
 }
 function cpArc(r, a0, a1) { const p0 = cpt(r, a0), p1 = cpt(r, a1); return 'M' + f2(p0) + 'A' + r + ' ' + r + ' 0 ' + (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + f2(p1); }
+// CPS: the last drawCompass state (st, plus pla = badge opacity factor and pl[i] = [px, py] of Agent i (AGD order) in
+// compass units). cpStage: compass point → stage px through deck 2's camera (perspective · Z · X · Y · Z, as the CSS).
+// cpBadge(i): where AGD's 'compass' formation puts Agent i this frame.
+let CPS = null;
+function cpStage(px, py) {
+  const C = decks[2].C, R = Math.PI / 180;
+  let X = (px - C.x) * C.s, Y = (py - C.y) * C.s, Z = 0, a = C.rz * R;
+  [X, Y] = [X * Math.cos(a) - Y * Math.sin(a), X * Math.sin(a) + Y * Math.cos(a)];
+  a = C.ry * R; [X, Z] = [X * Math.cos(a) + Z * Math.sin(a), -X * Math.sin(a) + Z * Math.cos(a)];
+  a = C.rx * R; [Y, Z] = [Y * Math.cos(a) - Z * Math.sin(a), Y * Math.sin(a) + Z * Math.cos(a)];
+  Z += C.z; const w = 1 - Z / 2400;
+  return [C.ax + X / w, C.ay + Y / w];
+}
+function cpBadge(i) {
+  const q = CPS ? CPS.pl[i] : cpt(330, i * 72 + 18), p = cpStage(q[0], q[1]);
+  return { x: p[0], y: p[1], r: 19 * decks[2].C.s, a: 1 };
+}
 function drawCompass(st) {
   const svg = buildCompass(), k = decks[2], D = CPD, col = clamp(st.collapse || 0), deg = st.deg;
   // the band: each Agent layer between its inner and outer edge (app units × 2); collapsing pulls every edge to r 300
@@ -402,14 +417,18 @@ function drawCompass(st) {
     const hp = cpt(381, head); h += '<circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="18" fill="url(#cpHead)" opacity="' + ta.toFixed(3) + '"/><circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="5" fill="#fff" opacity="' + ta.toFixed(3) + '"/>';
     trg.innerHTML = h;
   } else if (trg.firstChild) trg.innerHTML = '';
-  // badges: ride with the petal (spread 23° apart), then take the shortest arc to their own bearing and radius
+  // badges: each rides its own layer (same speed) on that layer's outer edge just outside the crest. st.pl scales their
+  // opacity (v17 passes 0: AGD draws the badges); their positions always go to CPS.pl (by AGD index) for AGD's 'compass'
+  const pla = st.pl ?? 1, pos = AGID.map((id, i) => [...cpt(lerp(330, 300, col), i * 72), 19]);
   svg.querySelectorAll('.cp-pls .pl').forEach((g, i) => {
-    // the badge rides its own layer: same speed, on that layer's outer edge just outside the crest
     const x = D.orb.planets[i], li = k.lys.findIndex((ly) => ly.a === x.a || (ly.a && x.a && ly.a.id === x.a.id));
     const a = x.deg + (li >= 0 ? rot[li] : 0), ly = k.lys[Math.max(0, li)], sIdx = Math.round((((x.deg % 360) + 360) % 360) / 360 * N) % (N + 1);
     const r = lerp(CP.R0 + 2 + ly.outer[sIdx] * CP.K + 30, 300, col), q = cpt(r, a);
-    g.setAttribute('transform', 'translate(' + f2(q) + ')'); g.style.opacity = (clamp(sw * 2 - i * .2) * (1 - col) * (st.dial ?? 1)).toFixed(3);
+    const ai = x.a ? AGID.indexOf(x.a.id) : -1; if (ai >= 0) pos[ai] = [q[0], q[1], 19];
+    const o = clamp(sw * 2 - i * .2) * (1 - col) * (st.dial ?? 1) * pla;
+    g.setAttribute('transform', 'translate(' + f2(q) + ')'); g.style.opacity = o.toFixed(3); g.style.display = o < .002 ? 'none' : '';
   });
+  CPS = Object.assign({}, st, { pla, pl: pos });
   // the flower of the type under the petal; near a sector edge it cross-fades into the neighbour; `mine` hands over to
   // your own flower (same type, your own proportions)
   const u = ((deg % 360) + 360) % 360 / 22.5, i0 = Math.floor(u) % 16, fr = u - Math.floor(u), dd = Math.min(fr, 1 - fr), nb = (i0 + (fr < .5 ? 15 : 1)) % 16;
@@ -445,9 +464,7 @@ function drawCompass(st) {
    The same conical spiral as docs/design/logo/generate.py, variant "spiral" (1.6 turns, radius 9 → 16, rise 14, phase
    0.6, seen at yaw 20° / pitch 45° — the app icon), drawn as a tapered line so it can be traced, turned in 3D and seen
    from above (pitch 90° = a flat spiral whose outer turn is a near circle).
-   Open: the five Agent planets fall onto its tail, it is traced, it tips over to a top view and the camera spirals down
-   into the hole in its middle, where the first scene is waiting. Close: the compass aurora collapses to one ring, the
-   ring grows its inner turn back (a flat spiral seen from above), and the spiral rises into the icon. */
+   v17: scenes place it with markAt / markRing (below); orbitSVG itself is never changed. */
 // curve and stroke = docs/design/logo/orbit-spec.json; K = design px per curve unit at the icon view
 // (orbit-geometry.json projection.scale), so every pose is the app icon's curve scaled as a whole
 const ORB = { turns: 1.6, r0: 9, r1: 16, rise: 14, phase: .6, N: 480, K: 15.044624443, wFar: 4, wNear: 14, taper: .1, wFloor: .6, gap: 24 };
@@ -517,99 +534,36 @@ function orbitSVG(o) {
 const AGID = ['cc', 'cx', 'gm', 'ds', 'cp'];
 let AGLOGO = null;
 function agBadge(i, x, y, r) { AGLOGO = AGLOGO || decks[0].W.eval('agLogo'); return AGLOGO(AGID[i], +x.toFixed(1), +y.toFixed(1), r, AGC[i], '#0e0f12'); }
-function planetsSVG(o) {
-  if (!o || o.a <= .001) return '';
-  return '<g opacity="' + o.a.toFixed(3) + '">' + AGC.map((c, i) => {
-    const a = (o.phase + i * 72) * Math.PI / 180, x = o.cx + Math.cos(a) * o.rx * (1 - o.pull), y = o.cy + Math.sin(a) * o.ry * (1 - o.pull);
-    const tx = lerp(x, o.tx, o.pull), ty = lerp(y, o.ty, o.pull), r = o.r || 15;
-    return '<circle cx="' + tx.toFixed(1) + '" cy="' + ty.toFixed(1) + '" r="' + (r * 1.9).toFixed(1) + '" fill="' + c + '" opacity=".16"/>' + agBadge(i, tx, ty, r);
-  }).join('') + '<ellipse cx="' + o.cx + '" cy="' + o.cy + '" rx="' + (o.rx * (1 - o.pull)).toFixed(1) + '" ry="' + (o.ry * (1 - o.pull)).toFixed(1) + '" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="2 7"/></g>';
-}
-/* The brand reveal, used as is: docs/design/logo/kit/motion/orbit-reveal.html holds the precomputed frames of the
-   mark turning once about its own axis while it tips from pitch 45° to the wordmark's O (pitch 75°) and slides onto
-   the O, then the letters rbit·知音 rising one by one (the kit's 1500 ms turn, 110 ms letter stagger, 420 ms each,
-   letters from 75 % of the turn; in reverse, the last letter leaves first). Frames and letters are in the wordmark's
-   own coordinates (viewBox 38.9 40 2322.1 428.3). */
-const REVEAL = { url: '../../../docs/design/logo/kit/motion/orbit-reveal.html', vb: [38.9, 40, 2322.1, 428.3], F: null, L: null, D: 0 };
-const revealReady = fetch(REVEAL.url).then((r) => r.text()).then((h) => {
-  const doc = new DOMParser().parseFromString(h, 'text/html'), js = doc.querySelector('script').textContent;
-  REVEAL.F = JSON.parse(/const F=(\[.*?\]),N=/s.exec(js)[1]);
-  REVEAL.D = +/D=(-?[\d.]+)/.exec(js)[1];
-  REVEAL.T = +/T=(\d+)/.exec(js)[1] / 1000 / BEAT;                   // turn, beats
-  REVEAL.L = [...doc.querySelectorAll('path.l')].map((p) => ({ d: p.getAttribute('d'), i: +/--i:(\d+)/.exec(p.getAttribute('style'))[1], j: +/--j:(\d+)/.exec(p.getAttribute('style'))[1] }));
-}).catch((e) => console.error('promo: reveal frames', e));
-const MS = (ms) => ms / 1000 / BEAT;
-// the wordmark group on screen: centre (cx, cy), k screen px per wordmark unit; v = turn 0..1; on / off = letter beats
-function revealSVG(o) {
-  const [x, y, w, h] = REVEAL.vb, mx = x + w / 2, my = y + h / 2, F = REVEAL.F, N = F.length;
-  let g = '<g opacity="' + o.a.toFixed(3) + '" fill="' + MARK_INK + '" transform="translate(' + o.cx.toFixed(2) + ' ' + o.cy.toFixed(2) + ') scale(' + o.k.toFixed(5) + ') translate(' + (-mx) + ' ' + (-my) + ')">';
-  g += '<path d="' + F[Math.round(o.v * (N - 1))] + '" transform="translate(' + (REVEAL.D * (1 - o.v)).toFixed(2) + ' 0)"/>';
-  for (const l of REVEAL.L) {
-    const pin = E.out(clamp((o.b - o.on - MS(l.i * 110)) / MS(420))), pout = o.off == null ? 0 : E.out(clamp((o.b - o.off - MS(l.j * 110)) / MS(420))), p = pin * (1 - pout);
-    if (p > .001) g += '<path d="' + l.d + '" opacity="' + p.toFixed(3) + '" transform="translate(0 ' + (24 * (1 - p)).toFixed(2) + ')"/>';
-  }
-  return g + '</g>';
-}
-// bounding box of the mark drawn by orbitSVG at a pose with R = 1 around (0, 0), and of a reveal frame in wordmark units
-const MBOX = {};
-function boxOf(d) { const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); orbEl.appendChild(p); const r = p.getBBox(); p.remove(); return r; }
-function unitBox(yaw, pitch) {
-  const key = yaw + '/' + pitch; if (MBOX[key]) return MBOX[key];
-  const m = /d="([^"]+)"/.exec(orbitSVG({ t: 1, yaw, pitch, R: 1000, cx: 0, cy: 0, a: 1 }));
-  const r = boxOf(m[1]); return (MBOX[key] = { x: r.x / 1000, y: r.y / 1000, w: r.width / 1000, h: r.height / 1000 });
-}
-// the orbitSVG pose (R, cx, cy) that puts the mark exactly where a reveal frame sits on screen
-function matchFrame(fi, dx, o, yaw, pitch) {
-  const key = 'F' + fi, [x, y, w, h] = REVEAL.vb; MBOX[key] = MBOX[key] || boxOf(REVEAL.F[fi]);
-  const f = MBOX[key], u = unitBox(yaw, pitch), R = f.width * o.k / u.w;
-  const sx = o.cx + (f.x + dx - (x + w / 2)) * o.k, sy = o.cy + (f.y - (y + h / 2)) * o.k;
-  return { R, cx: sx - u.x * R, cy: sy - u.y * R };
-}
 const MARK_INK = '#fff';
-// Timings (film beats) of the two mark sequences; the open and close scenes overwrite them with Object.assign.
-// open: planets, pulled onto the tail, the mark traced to the icon view (by `hold`), the reveal turn (`turn`), letters
-// in (`on`) and out (`off`), the O tips to the top view (`tip`) and the camera dives into it (`dive` → `end`);
-// close (scene beats): the band's ring tips into an orbit (`orbit`), the spiral grows along it (`grow`), rises to the
-// icon view (`rise` → `settle`), fades (`out`).
-const OPEN = { planets: 3.0, pull: 7.5, trace: 7.9, hold: 10.0, turn: 10.4, off: 15.9, tip: 16.9, dive: 18.7, end: 20.5, cy: 500, k0: 1.0, k1: .6 };
-const CLOSE = { ring: 104.2, orbit: 104.2, grow: 105.0, rise: 106.6, settle: 108.4, out: 111.6, outDur: 1.4, tilt: 64 };
+/* ---------- the mark track (v17) ----------
+   markAt(b0, b1, fn): in [b0, b1) fn(p, b) runs every frame (p = progress 0..1 in the segment) and returns an orbitSVG
+   pose { t0, t, yaw, pitch, R, cx, cy, a, head, color }, an array of poses, or null; overlapping segments all draw
+   (cross-fades). Colour defaults to MARK_INK. MARK.pose = the last pose drawn this frame (null if none). */
+const MARKS = [];
+function markAt(b0, b1, fn) { MARKS.push({ b0: b0 + SH, b1: b1 + SH, sh: SH, fn }); }
+const MARK = {
+  pose: null,
+  ICON: { yaw: 20, pitch: 45 },                            // the app icon view
+  TOP: { yaw: 0, pitch: 90 },                              // seen from above: outer turn radius R, inner 9/16·R
+  // numeric mix of two poses (keys of b missing in a are taken from b)
+  mix: (a, b, e) => { const o = Object.assign({}, a, b); for (const k in b) if (typeof b[k] === 'number' && typeof a[k] === 'number') o[k] = lerp(a[k], b[k], e); return o; }
+};
+/* markRing: the spiral grown from its tail (outer turn first) at pitch 90 − tilt (or o.pitch), yaw o.yaw (0). The tail
+   (z = rise / 2) is lifted back onto the circle of radius R (v16 CLOSE's lift, × o.lift, default 1; 0 at pitch 90).
+   o = { cx, cy, R, grow 0..1 (1), tilt (0), yaw, pitch, lift, a (1), head } */
+function markRing(o) {
+  const pitch = o.pitch ?? 90 - (o.tilt || 0), g = clamp(o.grow ?? 1);
+  const lift = (ORB.rise / 2 / ORB.r1) * o.R * Math.cos(pitch * Math.PI / 180) * (o.lift ?? 1);
+  return { t0: 1 - g * .999, t: 1, yaw: o.yaw || 0, pitch, R: o.R, cx: o.cx, cy: o.cy + lift, a: o.a ?? 1, head: o.head || 0 };
+}
 function orbitAt(bf) {
-  let h = '', b = bf;
-  const O = OPEN, ready = !!REVEAL.F;
-  if (b >= O.planets && b < O.trace + .7) {
-    const start = orbitPts(-25, 72)[0];
-    h += planetsSVG({ a: E.out(lp(b, O.planets, .8)) * (1 - E.in(lp(b, O.trace + .2, .5))), phase: (b - O.planets) * 95, cx: 960, cy: 790, rx: 380, ry: 64, pull: E.inOut(lp(b, O.pull, 1)), tx: 960 + start[0] * 215, ty: 410 + start[1] * 215 });
+  let h = ''; MARK.pose = null;
+  for (const m of MARKS) {
+    if (bf < m.b0 || bf >= m.b1) continue;
+    let r; try { r = m.fn(clamp((bf - m.b0) / (m.b1 - m.b0)), bf - m.sh); } catch (e) { console.error('markAt @' + m.b0, e); m.b1 = -1; continue; }
+    for (const q of (Array.isArray(r) ? r : [r])) { if (!q) continue; const o = Object.assign({ t: 1, a: 1, color: MARK_INK }, q); h += orbitSVG(o); MARK.pose = o; }
   }
-  if (ready && b >= O.trace && b < O.end) {
-    const W0 = { cx: 960, cy: O.cy, k: O.k0 }, P0 = matchFrame(0, REVEAL.D, W0, 20, 45);
-    if (b < O.hold) {
-      // traced while it turns from a steep view to the icon view, landing exactly on the reveal's first frame
-      const turn = E.out(lp(b, O.trace, O.hold - O.trace));
-      h += orbitSVG({ t: E.inOut(lp(b, O.trace, 2.4)), yaw: lerp(-25, 20, turn), pitch: lerp(72, 45, turn), R: P0.R, cx: P0.cx, cy: P0.cy, a: 1, head: 1 - lp(b, O.trace + 2.2, .5), color: MARK_INK });
-    } else if (b < O.tip) {
-      const v = E.inOut(lp(b, O.turn, REVEAL.T)), k = lerp(O.k0, O.k1, E.inOut(lp(b, O.turn, REVEAL.T)));
-      h += revealSVG({ a: 1, cx: 960, cy: O.cy, k, v, b, on: O.turn + REVEAL.T * .75, off: O.off });
-    } else {
-      // the O (pitch 75°) tips to the top view, moves to the centre and grows; then the camera dives into its hole
-      const P1 = matchFrame(REVEAL.F.length - 1, 0, { cx: 960, cy: O.cy, k: O.k1 }, 20, 75);
-      const tilt = E.inOut(lp(b, O.tip, O.dive - O.tip)), dive = lp(b, O.dive, O.end - O.dive);
-      const R = lerp(P1.R, 270, tilt) * Math.pow(18, E.in(dive)), cx = lerp(P1.cx, 960, tilt), cy = lerp(P1.cy, 540, tilt);
-      $('#hole1').style.clipPath = b >= O.dive ? 'circle(' + (R * ORB.r0 / ORB.r1 * .9).toFixed(1) + 'px at ' + cx.toFixed(1) + 'px ' + cy.toFixed(1) + 'px)' : 'circle(0px at 960px 540px)';
-      h += orbitSVG({ t: 1, yaw: lerp(20, 0, tilt) - 620 * E.in(dive), pitch: lerp(75, 90, tilt), R, cx, cy, a: 1 - E.in(lp(b, O.end - .6, .6)), color: MARK_INK });
-    }
-  }
-  if (b >= O.end && b < O.end + .2) $('#hole1').style.clipPath = 'none';
-  b = bf - SHIFT['60-close'];                                        // the close runs on scene beats
-  if (b >= CLOSE.ring) {
-    const C = CLOSE, R0 = 300 * decks[2].C.s, tip = E.inOut(lp(b, C.orbit, 1.2)), grow = E.inOut(lp(b, C.grow, C.rise - C.grow)), rise = E.inOut(lp(b, C.rise, C.settle - C.rise));
-    const pitch = lerp(lerp(90, 90 - C.tilt, tip), 45, rise), a = E.out(lp(b, C.grow, .3)) * (1 - E.inOut(lp(b, C.out, C.outDur)));
-    // five Agent planets ride the orbit while the spiral grows out of it, as at the start of the film
-    if (b < C.rise + .6) h += planetsSVG({ a: E.out(lp(b, C.orbit + .3, .6)) * (1 - E.inOut(lp(b, C.rise - .2, .8))), phase: (b - C.orbit) * 70, cx: 960, cy: 540, rx: R0, ry: R0 * Math.sin(pitch * Math.PI / 180), pull: 0, tx: 960, ty: 540 });
-    // while it lies on the orbit, the tail (z = rise / 2) sits on the compass ring: undo its projected height
-    const R = lerp(R0, 215, rise), lift = (ORB.rise / 2 / ORB.r1) * R * Math.cos(pitch * Math.PI / 180) * (1 - rise);
-    h += orbitSVG({ t0: 1 - grow * .999, t: 1, yaw: lerp(0, 20, rise), pitch, R, cx: 960, cy: lerp(540, 410, rise) + lift, a, color: MARK_INK });
-  }
-  orbEl.innerHTML = '<defs><radialGradient id="orbGlow"><stop offset="0" stop-color="rgba(255,255,255,.9)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>' + h;
+  orbEl.innerHTML = h ? '<defs><radialGradient id="orbGlow"><stop offset="0" stop-color="rgba(255,255,255,.9)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>' + h : '';
 }
 
 /* a macOS pointer that glides to a control, presses it, and then the action runs — one per app copy, drawn inside the
@@ -691,7 +645,9 @@ function step(tt) {
   for (const k of decks) if (k.solo && k.D) for (const s of Array.isArray(k.solo) ? k.solo : [k.solo]) { const el = find(k.i, s); if (el && !el.classList.contains('promo-solo')) el.classList.add('promo-solo'); }
   // scrollIntoView inside an app copy (solo) also scrolls the promo page and the stage itself: pin them every frame
   stage.scrollLeft = stage.scrollTop = 0; document.documentElement.scrollLeft = document.documentElement.scrollTop = 0; document.body.scrollLeft = document.body.scrollTop = 0;
-  applyDrives(t); applyCams(t); applyCursors(t); applyTags(t); orbitAt(t / BEAT); applyFx(t); applyGlow(t);
+  applyDrives(t); applyCams(t); applyCursors(t); applyTags(t); orbitAt(t / BEAT);
+  if (typeof applyAgents === 'function') applyAgents(t);  // scenes/02-agents.js: after the cameras and the mark (it reads deck 2's camera)
+  applyFx(t); applyGlow(t);
 }
 // Pin every CSS animation/transition (here and in both app copies) to the virtual clock: each one is paused and its
 // currentTime set from the moment it was first seen; finished ones are finished explicitly so the end events still fire.
@@ -726,10 +682,10 @@ decks.filter((k) => k.frame).forEach((k) => k.frame.addEventListener('load', () 
   const S = k.W.eval('S'); S.widgets = false; S.hud.show = false; k.W.render();
   k.D.querySelectorAll('#notes .nt').forEach((n) => n.remove());
   if (++loaded < 2) return;
-  revealReady.then(boot);
+  boot();
 }));
 function boot() {
-  script(); PROMO.duration = (END + SHIFT['60-close']) * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
+  script(); PROMO.duration = END * BEAT; tweens.sort((a, b) => a.b - b.b); cues.sort((a, b) => a.b - b.b); step(0);
   if (DEBUG) { const d = document.createElement('div'); d.className = 'dbg'; stage.appendChild(d); setInterval(() => { d.textContent = 'b' + (PROMO.t / BEAT).toFixed(2); }, 50); }
   PROMO.ready = true;
 }
