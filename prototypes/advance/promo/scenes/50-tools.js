@@ -99,7 +99,7 @@ scene('50-tools', () => {
   line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '边写边验', 270, 67.6);
 
   /* ---------- 5.2–5.3 trajectory (deck 0, b55.09–68.2) ----------
-     v18.1: only the timeline itself is shown (svg.vz-t-timeline on its own white panel, promo-card), framed ≈ 1440 px wide
+     v18.1: only the timeline itself is shown (svg.vz-t-timeline on its own white panel, promo-card), framed ≈ 1300 px wide (QA: 1440 cut the panel at the right edge)
      (640 frame px × 2.25): lane names and axis (11 px) read at ≈ 25 px, phase labels (10 px) at ≈ 22 px. The whole card
      (930 × 414) would not fit at that size. The panel sits right of the merged orb (its left edge ≈ 70 px right of it) and
      grows out of the orb: the camera is anchored on the orb's screen point (330, 540) and scales .94 → 1 about it. */
@@ -112,16 +112,18 @@ scene('50-tools', () => {
     a.S.sess.ph = 0; a.W.eval('tlFrame(false)'); solo(0, TL); panel();
   });
   let PAN = 0;                                              // frame px the camera drifts with the playhead
-  const TW = 1440, TLX = 400, TCY = 652;                    // timeline width / left edge / centre y on screen at rest
+  const TW = 1300, TLX = 400, TCY = 652;                    // timeline width / left edge / centre y on screen at rest
   const trajCam = () => {
     const r = rectOf(0, TL), s = Math.min(TW / r.w, 2.4); PAN = r.w * .035;
     const cx = TLX + r.w * s / 2, x = r.x + r.w / 2 - PAN + (MERGE[0] - cx) / s, y = r.y + r.h / 2 + (MERGE[1] - TCY) / s;
     return { x, y, s, ax: MERGE[0], ay: MERGE[1], rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 };
   };
   // grows from the orb (left): s .94 → 1 about the orb's point while it clears (b55.09–56.4, E.out); no slide from the right
-  tween(0, 55.09, 1.31, trajCam, E.out, (T) => ({ s: T.s * .94, o: 0, bl: 6 }));
+  // QA: opacity is left to the separate fade below (with o here the E.out tween had the panel half-visible under the % at b55.2)
+  tween(0, 55.09, 1.31, () => { const c = trajCam(); delete c.o; return c; }, E.out, (T) => ({ s: T.s * .94, bl: 6 }));
   // its opacity on a slower in-out (.1 at b55.4, whole by b56.1) so it does not stack on 40-recs' fading % payoff
-  tween(0, 55.09, 1.0, { o: 1 }, E.inOut);
+  // QA: starts at b55.35 (film 86.25), once 40-recs' % payoff has cleared — earlier the half-faded panel sat under it
+  tween(0, 55.35, .8, { o: 1 }, E.inOut);
   // then the slow drift with the playhead (2 · PAN left) and a 3 % push about the orb's point
   tween(0, 56.6, 11.0, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.03 }), E.sine);
   // the merged dot owns this session: a thin wire to the panel's left edge, drawn .5 beat and taken back by b57.3 as the dot
@@ -219,6 +221,10 @@ scene('50-tools', () => {
   // after the press the app's own 停止 takes its place in the header: the (now disabled) button fades out .15–.3 beat after
   // the click, then goes back to the task card unseen
   drive(1, 56.15, 69.05, (p, b) => { placeBtn(); const el = startBtn(decks[1].D); if (el) el.style.opacity = (1 - clamp((b - 68.95) / .1)).toFixed(3); });
+  // QA: SKILL.md stays hidden through the push-in (it sat cut off at the frame's right edge beside the button) and fades
+  // in on the glide (b68.95–69.55)
+  drive(1, 56.15, 69.6, (p, b) => { const el = skillCard(decks[1].D); if (el) el.style.opacity = clamp((b - 68.95) / .6).toFixed(3); });
+  at(69.6, () => { const el = skillCard(decks[1].D); if (el) el.style.opacity = ''; });
   at(69.05, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); BTN0.forEach((k) => { b.style[k] = ''; }); b.style.opacity = ''; } });
   // v18.1 one shot: a push-in on 开始生成 alone (b67.3–68.8, the dot slides on and presses it), then the camera glides to
   // SKILL.md (b69.0–70.1), framed at 1.9× from its top edge: the frontmatter and step lines (11.5 px mono) read at ≈ 22 px;
