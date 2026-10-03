@@ -61,8 +61,8 @@ test('ask carries the selected scope and an old answer cannot overwrite a newer 
     'GET /v1/ai/ask/presets': [],
     'POST /v1/ai/ask': async (req) => {
       const body = req.postDataJSON(); bodies.push(body);
-      if (body.question === '第一个问题') { await gate; return { answer: '旧的回答不应该出现' }; }
-      return { answer: '当前问题的答案' };
+      if (body.question === '第一个问题') { await gate; return { answer: '旧的回答不应该出现', source: 'ai' }; }
+      return { answer: '当前问题的答案', source: 'ai' };
     }
   });
   await openLive(page, 'overview');
@@ -74,7 +74,7 @@ test('ask carries the selected scope and an old answer cannot overwrite a newer 
   await page.locator('[data-act="askSend"]').click();
   await expect(page.locator('#askA')).toContainText('当前问题的答案');
   release();
-  await expect.poll(() => page.evaluate(() => ASK.text)).toBe('当前问题的答案');
+  await expect.poll(() => page.evaluate(() => ASK.text)).toBe('当前问题的答案\n\n— 本地 Agent 回答 · 只发送了脱敏后的查询结果');
   expect(bodies[0].scope).toMatchObject({ project_id: 'fixture-project', excluded_session_uids: ['excluded-session'] });
   expect(bodies[0].scope.end_ms - bodies[0].scope.start_ms).toBeLessThanOrEqual(7 * 86400000);
   expect(bodies[0].scope.end_ms - bodies[0].scope.start_ms).toBeGreaterThan(6 * 86400000);
