@@ -36,7 +36,7 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。产品名 **Or
 
 **不过度测试。** 合并门槛只有两条：与最新 `origin/main` 无冲突；改动涉及模块的检查在合并结果（`origin/main` + 分支）上通过。
 
-- 按改动范围选检查（命令见 [测试指南](docs/development/testing.md)）：只改某个 Python 包跑该包的 `uv run pytest -q <包>/tests`；连接器跑 `pnpm --filter @tandem/connectors check`；原型跑 `pnpm check:ui`；Swift 客户端跑 `swift test --package-path packages/catalog-macos`；纯文档跑 `pnpm check:docs`。只有改动依赖与锁文件、DDL / Schema 契约、跨包接口或构建脚本时才跑全量 `pnpm check`。
+- 按改动范围选检查（命令见 [测试指南](docs/development/testing.md)）：只改某个 Python 包跑该包的 `uv run pytest -q <包>/tests`；连接器跑 `pnpm --filter @orbit/connectors check`；原型跑 `pnpm check:ui`；Swift 客户端跑 `swift test --package-path packages/catalog-macos`；纯文档跑 `pnpm check:docs`。只有改动依赖与锁文件、DDL / Schema 契约、跨包接口或构建脚本时才跑全量 `pnpm check`。
 - 不为合并加跑：重复全量、Benchmark、多轮配对测量、截图巡检、安装验收（除非改了打包）。新增测试只用于锁住本次修的 bug 或新行为，不为凑覆盖率补测试。
 - head 在验证后又有新提交时，只补验新提交涉及的模块。计时类测试失败先单独重跑一次；单独复现才算 bug。
 - 发现的 bug 只修与本次改动相关的；无关问题记录下来另开任务，不阻塞合并。
