@@ -1,6 +1,7 @@
 """Small application boundary: public catalog operations and cancellable background jobs."""
 
 import hashlib
+import os
 import threading
 import time
 import uuid
@@ -42,7 +43,9 @@ class CatalogService:
             except CatalogBusy:  # Another process is syncing; defaults are registered next start.
                 pass
         self.http = http or HttpClient(self.store.path.parent / "catalog-http-cache")
-        self.model_dir = model_dir
+        # The App gateway creates CatalogService without constructor options. An explicit
+        # local path enables the same encoder there; never download weights automatically.
+        self.model_dir = model_dir if model_dir is not None else os.environ.get("ORBIT_CATALOG_MODEL_DIR") or None
         self._encoder = encoder
         self._model_lock = threading.Lock()
         self._jobs_lock = threading.Lock()

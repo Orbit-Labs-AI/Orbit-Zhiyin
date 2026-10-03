@@ -107,3 +107,25 @@ def test_feature_contract_upgrade_rebuilds_existing_projection_once(tmp_path):
             assert conn.execute("SELECT 1 FROM item_feature WHERE feature='task_phase' AND value='plan'").fetchone()
     finally:
         service.close()
+
+
+def test_app_model_directory_uses_explicit_path_before_environment(tmp_path, monkeypatch):
+    default = str(tmp_path / 'environment-model')
+    override = tmp_path / 'explicit-model'
+    monkeypatch.setenv('ORBIT_CATALOG_MODEL_DIR', default)
+    service = CatalogService(tmp_path / 'environment.db')
+    explicit = CatalogService(tmp_path / 'explicit.db', model_dir=override)
+    try:
+        assert service.model_dir == default and explicit.model_dir == override
+        assert service._encoder is None and explicit._encoder is None  # No download or eager load.
+        assert service.match(MatchRequest(text='debug'))['vector']['status'] == 'unavailable'
+    finally:
+        service.close()
+        explicit.close()
+    monkeypatch.delenv('ORBIT_CATALOG_MODEL_DIR')
+    unset = CatalogService(tmp_path / 'unset.db')
+    try:
+        assert unset.model_dir is None
+        assert unset.match(MatchRequest(text='debug'))['vector']['status'] == 'not_configured'
+    finally:
+        unset.close()
