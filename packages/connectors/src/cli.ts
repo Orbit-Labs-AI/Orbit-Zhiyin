@@ -97,6 +97,7 @@ async function main():Promise<void> {
           sum(cache_read_tokens) AS known_cache_read_tokens,sum(cache_read_tokens IS NULL) AS cache_read_unknown_calls,
           sum(output_tokens) AS known_output_tokens,sum(output_tokens IS NULL) AS output_unknown_calls FROM main_model_usage GROUP BY model_id`).all(),
         accounting:db.prepare('SELECT disposition,count(*) AS n FROM current_record GROUP BY disposition').all(),
+        unclassified_tools:db.prepare("SELECT name_raw AS name,count(*) AS n FROM tool_call WHERE kind='other' AND is_wrapper=0 GROUP BY name_raw ORDER BY n DESC").all(),
         diagnostics:db.prepare('SELECT code,count(*) AS n FROM diagnostic GROUP BY code').all()},null,2));
     } else {
       if (!values.session) throw new Error('export requires --session');

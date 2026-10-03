@@ -107,17 +107,30 @@ function classify(meta: Obj, index: Obj, imported: boolean): string {
   return 'main';
 }
 function origin(ctx: Context): string { return ctx.kind === 'automation' ? 'automation' : ctx.kind === 'main' ? 'human' : 'injected'; }
-function toolCategory(name: string): string {
-  if (/^mcp__/.test(name)) return 'mcp';
-  if (/^(exec_command|local_shell|CommandExecution|bash|shell)$/.test(name)) return 'shell';
-  if (/^(apply_patch|FileChange|edit_file)$/.test(name)) return 'file.edit';
-  if (/^(view_image|ImageView|read_file)$/.test(name)) return 'file.read';
-  if (/^(spawn_agent|send_message|send_input|followup_task|wait_agent|SubAgentActivity|CollabAgentToolCall)$/.test(name)) return 'subagent';
-  if (/update_plan|TodoWrite/.test(name)) return 'plan';
-  if (/request_user_input/.test(name)) return 'ask_user';
-  if (/web.*search|WebSearch/.test(name)) return 'web.search';
-  if (/web.*fetch|web.*open/.test(name)) return 'web.fetch';
-  return 'other';
+/**
+ * Native tool name -> category. Names come from Codex built-in tools, collab (multi-agent) tools and
+ * Desktop extensions observed in real rollouts; extend the table when unknown_tool_name diagnostics appear.
+ * Code-mode wrappers (custom_tool_call exec/wait) are categorized 'wrapper' by the caller.
+ */
+const TOOL_CATEGORIES: Record<string,readonly string[]> = {
+  shell: ['exec_command','local_shell','local_shell_call','shell','shell_command','bash','CommandExecution','write_stdin'],
+  'file.edit': ['apply_patch','FileChange','edit_file','append_to_file','write_file'],
+  'file.read': ['read_file'],
+  'image.view': ['view_image','ImageView'],
+  'image.generate': ['image_gen.generation','image_generation_call','ImageGeneration'],
+  subagent: ['spawn_agent','send_message','send_input','followup_task','wait_agent','wait','list_agents','interrupt_agent','close_agent',
+    'resume_agent','send_message_to_thread','SubAgentActivity','CollabAgentToolCall'],
+  plan: ['update_plan','TodoWrite'],
+  ask_user: ['request_user_input','request_user_input_async'],
+  'web.search': ['web.search','web_search','web_search_call','WebSearch'],
+  'tool.search': ['tool_search_call','tool_search'],
+  sleep: ['clock.sleep'],
+  automation: ['automation_update'],
+};
+const CATEGORY_BY_NAME = new Map(Object.entries(TOOL_CATEGORIES).flatMap(([category,names])=>names.map(name=>[name,category] as const)));
+export function toolCategory(name: string): string {
+  if (name.startsWith('mcp__')) return 'mcp';
+  return CATEGORY_BY_NAME.get(name) ?? (/^web[._]?(fetch|open)/i.test(name) ? 'web.fetch' : 'other');
 }
 /**
  * Codex writes exit_code -1 when no process exit status exists (the command was declined, interrupted
@@ -197,7 +210,7 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
     const state = status(rawStatus,exit,isError);
     const {is_error:_error,...callExtra}=extra;
     const digestValue=stableJson(argumentsValue),digestKnown=argumentsValue!==null&&!digestValue.includes('<truncated:sha256:')&&!digestValue.includes('<redacted:')&&!digestValue.includes('<opaque:');
-    emit('tool.call','assistant',null,{name,category:toolCategory(name),arguments:argumentsValue,...callExtra,argument_digest:digestKnown?hash(digestValue):null,
+    emit('tool.call','assistant',null,{name,category:callExtra.is_wrapper?'wrapper':toolCategory(name),arguments:argumentsValue,...callExtra,argument_digest:digestKnown?hash(digestValue):null,
       argument_digest_scope:digestKnown?'canonical_redacted':'unavailable'},stableJson(['tool',turn,id,'call']),priority,id,id,started ?? defaultTime,started!==null?'payload.started_at_ms':null,started!==null?'started':'written');
     if (output !== undefined || rawStatus !== undefined) emit('tool.result','tool',typeof output==='string' ? output : content(object(output).content) || null,
       {...nonNull({name,status:state,exit_code:exit,duration_ms:duration,started_at:started,ended_at:ended,is_error:isError,output:output}),
@@ -607,6 +620,7 @@ function derive(store: ConnectorStore, ctx: Context, events: StandardEvent[]): v
       string(r.status)??'unknown',number(r.exit_code),object(call?.attrs.time).semantics==='started'?call?.ts??null:null,number(r.ended_at),number(r.duration_ms),r.status==='declined'?'denied':null,a.is_wrapper?1:0,JSON.stringify(a.attribution??{}));
     store.db.prepare('UPDATE tool_call SET duration_source=?,duration_quality=?,status_scope=?,argument_digest=? WHERE call_uid=?')
       .run(string(r.duration_source)??'unknown',string(r.duration_quality)??'missing',string(r.status_scope)??(a.is_wrapper?'outer_script':'unknown'),string(a.argument_digest),uid(ctx.session,key));
+    if (!a.is_wrapper && string(a.category)==='other') store.diagnostic(ctx.source,'unknown_tool_name',`Unclassified tool name: ${string(a.name)??'unknown'}`);
     if (!a.is_wrapper) {
       for (const [feature,value] of [['tool_kind',string(a.category)],['command',string(a.command_head)],['mcp_server',string(a.mcp_server)]] as const) {
         if (value) store.db.prepare('INSERT INTO session_feature VALUES(?,?,?,1) ON CONFLICT(session_uid,feature,value) DO UPDATE SET n=n+1').run(ctx.session,feature,value);

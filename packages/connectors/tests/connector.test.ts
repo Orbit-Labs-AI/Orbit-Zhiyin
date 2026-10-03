@@ -559,3 +559,13 @@ test('exit_code -1 defers to the native status; any other non-zero exit is a fai
   await s.connector.ingest();
   assert.deepEqual(s.store.db.prepare('SELECT t.status FROM tool_call t JOIN event e ON e.event_uid=t.call_event_uid ORDER BY e.seq').all().map(row=>row.status),['unknown','interrupted','failed','completed']);
 }));
+test('tool categories are table-driven over real Codex names; unclassified names are diagnosed',async()=>sandbox(async s=>{
+  const names=['append_to_file','write_file','write_stdin','wait','list_agents','interrupt_agent','send_message_to_thread','view_image','clock.sleep','mystery_tool'];
+  await writeFile(s.file,jsonLine('session_meta',{id:'categories'},0)+names.map((name,index)=>jsonLine('response_item',{type:'function_call',name,call_id:`c${index}`,arguments:'{}'},index+1)).join('')+
+    jsonLine('response_item',{type:'custom_tool_call',name:'exec',call_id:'w1',input:'await tools.exec_command({cmd:"pwd"})'},20));
+  await s.connector.ingest();
+  const kinds=Object.fromEntries(s.store.db.prepare('SELECT name_raw,kind FROM tool_call').all().map(row=>[row.name_raw,row.kind]));
+  assert.deepEqual(kinds,{append_to_file:'file.edit',write_file:'file.edit',write_stdin:'shell',wait:'subagent',list_agents:'subagent',interrupt_agent:'subagent',
+    send_message_to_thread:'subagent',view_image:'image.view','clock.sleep':'sleep',mystery_tool:'other',exec:'wrapper'});
+  assert.deepEqual(s.store.db.prepare("SELECT message FROM diagnostic WHERE code='unknown_tool_name'").all().map(row=>row.message),['Unclassified tool name: mystery_tool']);
+}));

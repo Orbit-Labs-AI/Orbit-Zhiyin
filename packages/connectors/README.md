@@ -125,6 +125,7 @@ uv run --project packages/data tandem-data --home .local/canonical verify
 - 最高版本 `state_<n>.sqlite` 只读打开，不用 `immutable=1`。在一个读事务内读取支持的 `threads` 元数据列、`thread_spawn_edges`、`projects` 与 `project_roots`；账号 ID 不读取。库暂时不可读时保留已有索引、报告失败，正文扫描继续。
 - `session_index.jsonl` 按追加日志读取；标题优先级是 `threads.name` → 索引的最后一条 → `threads.title/preview`。`external_agent_session_imports.json.records` 标记导入来源，默认不计入主会话用量。
 - 按记录形状兼容 legacy 与 paginated，不按 `cli_version` 切分。消息首选 UI 的 `item_completed` 或旧 `user_message/agent_message`；匹配的 Responses 表示去重，未匹配的 user/developer 表示作为注入上下文保留。
+- 工具类别由 `normalize.ts` 的 `TOOL_CATEGORIES` 名称表决定（shell、file.edit、file.read、image.view、image.generate、subagent、plan、ask_user、web.search、tool.search、sleep、automation、mcp；Code Mode 外层包装为 `wrapper`）。表外名称归 `other` 并写 `unknown_tool_name` 诊断，`stats` 的 `unclassified_tools` 给出各名称次数。
 - 工具首选完成条目的参数、`status`、`exit_code` 和 `duration`。直接工具按 call ID 去重；`exec-…` 嵌套动作与外层包装分别保留。`parent_wrapper_id` 由同轮行序关联，即使动作在外层输出之后到达也可归属，属于顺序推断。
 - 用量优先每个 `response_id` 的 `token_usage_record`。同轮旧单次表示去重，`total_token_usage` 累计部分进入独立 `session_snapshot/cumulative`；没有精确记录的旧轮次，只有能关联稳定响应条目时才把 `last_token_usage` 标为 `call/delta`。累计重复不吞掉新单次值。合成的上下文窗口饱和值不计费。
 - `call/delta` 派生为 `model_call`；累计事件只进入 `usage_snapshot`，不产生虚构请求 ID。`reported` 保存原始计数，缺失分桶保留 null，`coverage=self` 表示该线程的原生计量。模型与思考档位按请求当时的上下文/设置记录；模型不明确的会话累计不回填最后模型。
