@@ -132,3 +132,20 @@ def test_guard_and_lines():
         ["'=1", "'+1", "'-1", "'@a", "'\tx", "'\rx", "ok"]
     assert csv_export.lines([["a,b", 'say "hi"', "l1\nl2", ""]]) == \
         '"a,b","say ""hi""","l1\nl2",\r\n'
+
+
+def test_args_summary_is_redacted_before_it_is_cut(env):
+    client, _, world = env
+    world.session("s1")
+    # A 393-char key (redacted to one short placeholder) followed by a GitHub token that
+    # starts at char 394 and so straddles the old 400-char read boundary.
+    first = "sk-ant-api03-" + "A" * 380
+    token = "ghp_" + "a1" * 18
+    text = f"{first} {token} tail"
+    assert text.index(token) == 394 and text.index(token) + len(token) > 400
+    ev = world.event("s1", text)
+    world.tool_calls("s1", [("c1", "Bash", "ls", "success", T0, ev)])
+    calls = rows_of(client.get("/v1/export/csv", params={"table": "tool_calls"}))
+    summary = dict(zip(calls[0], calls[1], strict=True))["args_summary"]
+    assert "ghp_" not in summary and "a1a1" not in summary
+    assert summary == "[密钥已隐藏] [密钥已隐藏] tail"

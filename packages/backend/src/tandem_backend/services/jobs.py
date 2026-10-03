@@ -229,6 +229,13 @@ class AppState:
             return sorted(self.snapshot()["jobs"].values(), key=lambda j: j["created_at"],
                           reverse=True)
 
+    def latest_job(self, origin: str) -> dict | None:
+        """Newest job with ``origin`` (a copy), without copying the whole job table."""
+        with self.lock:
+            jobs = [j for j in self.state["jobs"].values() if j.get("origin") == origin]
+            newest = max(jobs, key=lambda j: j["created_at"], default=None)
+            return json.loads(json.dumps(newest)) if newest is not None else None
+
     def active_job(self) -> dict | None:
         with self.lock:
             return next((dict(j) for j in self.state["jobs"].values() if j["status"] in ACTIVE),
