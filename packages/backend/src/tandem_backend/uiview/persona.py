@@ -297,15 +297,21 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
     # Unknown message counts stay unknown: they are neither a 0 bin nor a 0 average.
     with_msgs = [r for r in rows if r.get("msgs") is not None]
     msgs = sum(r["msgs"] for r in with_msgs)
-    steps = sum(r.get("steps") or 0 for r in with_msgs)
     per = msgs / len(with_msgs) if with_msgs else None
-    auto = steps / msgs if msgs else None
+    # Steps per message only over rows where both are known: an agent without human turns
+    # has ``steps=None`` and its messages must not dilute the ratio (same rule as
+    # ``derive.stats``'s ``auto``, which additionally requires ``steps``).
+    stepped = [r for r in with_msgs if r.get("steps") is not None]
+    stepped_msgs = sum(r["msgs"] for r in stepped)
+    auto = sum(r["steps"] for r in stepped) / stepped_msgs if stepped_msgs else None
     d_txt = ("消息数未知" if per is None else f"每会话 {per:.1f} 条消息" +
              (f" · 单轮平均 {auto:.1f} 步" if auto is not None else ""))
+    verify = st.get("verify")
     return {
         "D": {"txt": d_txt,
               "vals": _hist([r["msgs"] for r in with_msgs], 10, 20) if with_msgs else None,
-              "lbl": "消息数 0 → 20+ 的会话数", "missing_n": len(rows) - len(with_msgs)},
+              "lbl": "消息数 0 → 20+ 的会话数", "missing_n": len(rows) - len(with_msgs),
+              "auto_n": len(stepped)},
         "I": {"txt": (f"结构化开场占 {round((open_n - axes['I']['k_units']) / open_n * 100)}%"
                       if open_n else "开场结构未知"),
               "vals": [round(v * 100) for v, _ in plan],
@@ -313,7 +319,9 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
               "projects": [derive.project_name(projects, pid) for _, pid in plan]},
         "M": {"txt": f"日均 {avg_s:.1f} 个会话 · 同日 {avg_a:.1f} 个 Agent",
               "vals": _hist(list(by_day.values()), 8, 8), "lbl": "每日会话数 1 → 8+ 的天数"},
-        "V": {"txt": f"{round(st['verify'])}% 会话要求或运行了验证",
+        "V": {"txt": ("验证情况未知" if verify is None
+                      else f"{round(verify)}% 会话要求或运行了验证"),
+              "verify_n": st.get("verify_n"),
               "vals": [round(v * 100) for v, _ in check], "lbl": "项目验证轮次占比 · 低 → 高",
               "projects": [derive.project_name(projects, pid) for _, pid in check]},
     }
@@ -349,18 +357,18 @@ def fit(rows: list[dict], agents: list[str]) -> list[dict]:
     out = []
     for agent in agents:
         xs = [r for r in rows if r.get("a") == agent]
-        st = derive.stats(xs)
-        known = [r for r in xs if r.get("out") is not None]
-        k = sum(1 for r in known if r["out"] == "ok")
-        ok_est = round(100 * k / len(known), 1) if known else None
+        st = derive.stats(xs, unknown=None)
+        ok_n = st["ok_n"]
+        ok_est = None if st["ok"] is None else round(st["ok"], 1)
         ci = None
-        if len(known) >= 5:
-            lo, hi = wilson(k, len(known), CONFIG["z"])
+        if ok_n >= 5:
+            k = sum(1 for r in xs if r.get("out") == "ok")
+            lo, hi = wilson(k, ok_n, CONFIG["z"])
             ci = [round(lo * 100, 1), round(hi * 100, 1)]
         out.append({"a": agent, "n": len(xs), "sessions": [r["id"] for r in xs[-5:]],
                     "corr_rate": round(st["fric"], 2) if st["msgs"] else None,
-                    "ok_est": ok_est, "ok_ci": ci, "ok_n": len(known),
-                    "basis": "descriptive_estimate", "off": len(known) < 5})
+                    "ok_est": ok_est, "ok_ci": ci, "ok_n": ok_n,
+                    "basis": "descriptive_estimate", "off": ok_n < 5})
     return out
 
 
@@ -437,7 +445,7 @@ def _page(body: dict, params: dict, today: date) -> tuple[dict, list[dict]]:
     f = _filters(params)
     L = derive.sel(rows, window, f, no_extra=True)
     p = persona(L, aux)
-    st = derive.stats(L)
+    st = derive.stats(L, unknown=None)
     agent_ids = [a["id"] for a in agents_meta if f["agents"] is None or a["id"] in f["agents"]]
     prev = None
     if prev_window is not None:
