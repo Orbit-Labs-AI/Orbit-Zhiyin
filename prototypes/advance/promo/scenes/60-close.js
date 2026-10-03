@@ -106,7 +106,7 @@ scene('60-close', () => {
      · 花开到位（b71.95）五点一起朝花心收成 petal（hold .3，同 3 的合拢），类型码全亮 b72.64 起 glow 顺时针扫过（cc cx ds cp gm）
      · 收回圆环（b74.3–74.9）dot → bead，rot 取圆环切线（同 1e 穿在 R 300 圆环上的样子） */
   const DEG = 180 / Math.PI, CW = [0, 1, 3, 4, 2];
-  AGD.morph(HB, 0, 'dot', { dur: .2, la: 0 });          // v18.1：orb 散开时 cc 不带 logo（不在中心闪成一颗 cc 大点），logo 随下面的 head 在缩小后出现
+  AGD.morph(HB, 0, 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .3 });   // QA：不走 'dot'（会混入 orb，b106.3 缩小的 orb 里 5 枚小徽章与点 1–4 叠成重影），cc logo 随 orb 缩到 .3R 淡入，不再留一颗无 logo 的空圆盖住点 1–4
   // 点 1–4 拆开时就是普通圆徽章（'bead' 参数写成与 dot 完全相同）：'dot' 在 merged > 0 时会混入 orb，各点自带 5 枚小徽章与色弧、
   // 叠在 orb 上成一团重影；用不触发 orb 混合的同形写法，它们从 orb 里的小徽章原样长出
   AGD.morph(HB, [1, 2, 3, 4], 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01, stag: 0 });
