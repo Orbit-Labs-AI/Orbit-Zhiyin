@@ -286,7 +286,15 @@ def test_inventory_job_republishes_tool_names_its_mcp_servers_resolve(tmp_path):
         store.capture_stream(source, "opencode.db",
                              [(canonical(r) + "\n").encode() for r in rows],
                              format_name="sqlite_rows")
+        other = store.add_source("claude_code", tmp_path / "agents" / "claude")
+        store.capture_stream(other, "p/s.jsonl", [b'{"type":"summary","summary":"x"}\n'],
+                             format_name="jsonl")
         store.rebuild()
+        # Stale for an unrelated reason (e.g. a reducer bump): the inventory job leaves it
+        # for its own import instead of re-reducing the whole library.
+        store.db.execute("UPDATE source_file SET watermark=json_set(watermark,"
+                         "'$.reducer_version','old') WHERE source_id=?", (other,))
+        store.db.commit()
     io = FakeIO()
     job = {"id": "job-inv", "kind": "inventory",
            "sources": [{"id": source, "agent": "opencode", "root": str(root),
@@ -300,3 +308,7 @@ def test_inventory_job_republishes_tool_names_its_mcp_servers_resolve(tmp_path):
         row = store.db.execute(
             "SELECT kind, mcp_server, mcp_tool FROM tool_call WHERE native_call_id='c'").fetchone()
         assert tuple(row) == ("mcp", "my-server", "search")
+        stale = store.db.execute(
+            "SELECT json_extract(watermark,'$.reducer_version') FROM source_file "
+            "WHERE source_id=?", (other,)).fetchone()[0]
+        assert stale == "old"
