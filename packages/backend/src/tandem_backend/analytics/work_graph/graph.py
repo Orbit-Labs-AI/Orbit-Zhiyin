@@ -11,42 +11,86 @@ from .index import REPORTED_TASK_QUALITIES, WORK_GRAPH_VERSION, WorkIndex
 
 
 class Graph:
-    """Request-local writer. Entity namespaces prevent cross-kind UID collisions."""
+    """Request-local writer. Entity namespaces prevent cross-kind UID collisions.
+
+    Each row keeps its evidence set and a running clock summary, so a repeated merge
+    (an artifact touched by many calls) only scans the new evidence instead of the
+    whole union; rows are identical to recomputing provenance from scratch.
+    """
 
     def __init__(self, events):
         self.events = {e["event_uid"]: e for e in events}
         self.nodes, self.edges = {}, {}
+        self._clock = {uid: (e.get("ts"), timestamp(e.get("ts"))) for uid, e in self.events.items()}
+        self._node_evidence, self._edge_evidence = {}, {}
 
-    def provenance(self, evidence, source, state, available_at=None):
-        ids = sorted(set(filter(None, evidence)))
-        known = [self.events[uid] for uid in ids if uid in self.events]
-        times = [e.get("ts") for e in known]
-        if available_at is not None:
-            times.append(available_at)
-        complete = len(known) == len(ids) and bool(ids)
+    def _scan(self, ids, summary=(0, True, None)):
+        """Extend (unknown evidence count, all known times valid, latest time)."""
+        unknown, valid, latest = summary
+        clock = self._clock
+        for uid in ids:
+            entry = clock.get(uid)
+            if entry is None:
+                unknown += 1
+            elif not entry[1]:
+                valid = False
+            elif latest is None or entry[0] > latest:
+                latest = entry[0]
+        return unknown, valid, latest
+
+    def _provenance(self, ids, summary, source, state, available_at):
+        unknown, valid, latest = summary
+        complete = unknown == 0 and bool(ids)
+        # max(known evidence times + [available_at]) when every time is a timestamp.
+        usable = complete and valid and (available_at is None or timestamp(available_at))
         return {"evidence_uids": ids, "source": source,
                 "confidence": {"tier": "reported" if state == "confirmed" else "candidate",
                                "calibrated_probability": None},
                 "coverage": {"status": "available" if complete else "partial",
                              "missing_reasons": [] if complete else ["event_evidence_unavailable"]},
-                "available_at": max(times) if complete and all(timestamp(t) for t in times) else None}
+                "available_at": (None if not usable else latest if available_at is None
+                                 else max(latest, available_at))}
+
+    def _merge(self, store, uid, old, evidence):
+        """Union new evidence into a row's set; return its sorted ids and summary."""
+        new = set(filter(None, evidence))
+        if old is None:
+            ids = sorted(new)
+            summary = self._scan(ids)
+            store[uid] = (new, summary)
+            return ids, summary
+        seen, summary = store[uid]
+        added = sorted(new - seen)
+        if not added:
+            return old["evidence_uids"], summary
+        seen.update(added)
+        summary = self._scan(added, summary)
+        store[uid] = (seen, summary)
+        return sorted([*old["evidence_uids"], *added]), summary
+
+    def provenance(self, evidence, source, state, available_at=None):
+        ids = sorted(set(filter(None, evidence)))
+        return self._provenance(ids, self._scan(ids), source, state, available_at)
 
     def node(self, kind, entity_uid, *, session_uid=None, evidence=(), source="typed_fact",
              state="confirmed", attributes=None, task_uid=None, available_at=None):
         uid = stable_id(WORK_GRAPH_VERSION, kind, session_uid, entity_uid)
-        provenance = self.provenance(evidence, source, state, available_at)
-        row = {"node_uid": uid, "kind": kind, "entity_uid": entity_uid,
-               "session_uid": session_uid, "task_uid": task_uid,
-               "attributes": attributes or {}, **provenance}
-        if uid in self.nodes:
-            old = self.nodes[uid]
-            if old["confidence"]["tier"] == "candidate":
-                state = "candidate"
-            times = [old["available_at"], row["available_at"]]
-            available = max(times) if all(timestamp(t) for t in times) else None
-            row = {**old, **self.provenance([*old["evidence_uids"], *row["evidence_uids"]],
-                                           old["source"], state, available)}
-        self.nodes[uid] = row
+        old = self.nodes.get(uid)
+        if old is None:
+            ids, summary = self._merge(self._node_evidence, uid, None, evidence)
+            self.nodes[uid] = {"node_uid": uid, "kind": kind, "entity_uid": entity_uid,
+                               "session_uid": session_uid, "task_uid": task_uid,
+                               "attributes": attributes or {},
+                               **self._provenance(ids, summary, source, state, available_at)}
+            return uid
+        # This call's own availability first, then the union keeps the old attributes/source.
+        added = self.provenance(evidence, source, state, available_at)["available_at"]
+        if old["confidence"]["tier"] == "candidate":
+            state = "candidate"
+        previous = old["available_at"]
+        available = max(previous, added) if timestamp(previous) and timestamp(added) else None
+        ids, summary = self._merge(self._node_evidence, uid, old, evidence)
+        self.nodes[uid] = {**old, **self._provenance(ids, summary, old["source"], state, available)}
         return uid
 
     def edge(self, kind, start, end, *, evidence, source, state="confirmed", missing=(), available_at=None):
@@ -56,15 +100,15 @@ class Graph:
         uid = stable_id(WORK_GRAPH_VERSION, kind, start, end)
         old = self.edges.get(uid)
         if old:
-            evidence = [*evidence, *old["evidence_uids"]]
             if old["state"] != state:
                 state = "candidate"
             missing = [*missing, *old["missing_reasons"]]
+        ids, summary = self._merge(self._edge_evidence, uid, old, evidence)
         times = [self.nodes[start]["available_at"], self.nodes[end]["available_at"]]
         if available_at is not None:
             times.append(available_at)
         available = max(times) if all(timestamp(t) for t in times) else None
-        provenance = self.provenance(evidence, source, state, available)
+        provenance = self._provenance(ids, summary, source, state, available)
         if available is None:
             provenance["available_at"] = None
         self.edges[uid] = {"edge_uid": uid, "kind": kind, "from_node_uid": start,

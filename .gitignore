@@ -24,3 +24,7 @@ node_modules/
 # Swift Package build state
 .build/
 .swiftpm/
+
+# Local browser exports and render inspection
+/output/playwright/
+/.playwright-cli/

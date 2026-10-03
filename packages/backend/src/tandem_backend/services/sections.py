@@ -363,6 +363,10 @@ register(Section("catalog_requests", "requests", "heavy", _catalog_requests, **_
 register(Section("products", "products", "heavy", _products, timeout_s=1800, **_ON_DEMAND))
 register(Section("presentation", "presentation", "heavy", _presentation, timeout_s=1800,
                  **_ON_DEMAND))
+# Work graph / task trajectories (PR #58): worker-computed like the other analysis
+# sections instead of the legacy create_app() inline fallthrough.
+register(Section("work_graph", "work_graph", "heavy", _section("work_graph", False), False,
+                 **_ON_DEMAND))
 
 LIGHT = tuple(name for name, s in SECTIONS.items()
               if s.cost == "light" and name != "session" and s.prewarm)
