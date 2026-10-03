@@ -178,6 +178,7 @@ function genSessions() {
     delete s.lam;
   });
   demoLean(all);
+  demoUnits(all);
   return all;
 }
 // 示例会话的四维倾向（只供画像页表盘把每个会话归到它偏向的类型，不参与其它任何统计）：按会话 id 的哈希单独取随机数，
@@ -194,6 +195,31 @@ function demoLean(all) {
     const code = pickW(r, w), v = {};
     ['D', 'I', 'M', 'V'].forEach((k, i) => { const x = 60 + r() * 32; v[k] = Math.round(code[i] === k ? x : 100 - x); });
     s.lean = v;
+  });
+}
+// 示例会话的人格单位（与 live 线上行同名：dk/dn/vk/ik/kn/ol/oa/os/sc/rb/t0/t1），供 persona() 的多信号口径使用。
+// 按会话 id 的哈希单独取随机数，不动 genSessions 的随机序列；由会话已有的字段推出：人类轮次 = 消息数，≥ 5 步的轮次占比随
+// 每条消息的工具调用数上升，验证轮次只出现在 verify 会话里，开场结构 / 规格引用随项目的即兴倾向（I），回滚多见于需返工的会话。
+function demoUnits(all) {
+  const AGSUB = { cc: 0.3, cx: 0.12, gm: 0.05, ds: 0.08, cp: 0.04 };
+  all.forEach((s) => {
+    const r = rng(hash(s.id + ':units')), P = PJI[s.p] || { I: 60, V: 50 };
+    const dn = Math.max(1, s.msgs), per = s.tools / Math.max(1, s.msgs);
+    const fd = clamp((per - 1.5) / 7, 0.1, 0.95);
+    let dk = 0, vk = 0, ik = 0;
+    for (let i = 0; i < dn; i++) {
+      if (r() < fd) dk++;
+      if (s.verify && r() < 0.92) vk++;
+      if (r() < 0.02 + (s.msgs ? s.corr / s.msgs : 0) * 0.25) ik++;
+    }
+    if (s.verify && !vk) vk = 1;
+    const planned = r() > P.I / 100;
+    s.dk = dk; s.dn = dn; s.vk = vk; s.ik = ik; s.kn = dn;
+    s.oa = planned ? 1 : 0; s.os = planned && r() < 0.35 ? 1 : 0;
+    s.ol = Math.round(planned ? 160 + r() * 420 : 18 + r() * 110);
+    s.sc = r() < (AGSUB[s.a] || 0.05) ? 2 + Math.floor(r() * 3) : r() < 0.2 ? 1 : 0;
+    s.rb = r() < 0.12 + (s.out === 'part' || s.out === 'fail' ? 0.35 : 0) ? 1 : 0;
+    s.t0 = ((s.d * 24 + s.h) * 60 + s.mi) * 60000; s.t1 = s.t0 + Math.round(s.dur * 60000);
   });
 }
 const ALL = genSessions();

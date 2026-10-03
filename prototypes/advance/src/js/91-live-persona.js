@@ -35,50 +35,16 @@ function lvBuildPeriods() {
 function peMonthKeys() { return LV.live ? lvMonths().map((m) => m.k) : ['jun', 'jul', 'aug', 'sep']; }
 const peCurMonth = () => { const k = peMonthKeys(); return k[k.length - 1]; };
 
-/* ---- G1 port of uiview/persona.py (used when facts rows carry dk / dn / vk / op / t0 / t1) ---- */
-function lvWilson(k, n) {
-  if (n <= 0) return [0, 1];
-  const z = 1.96, p = k / n, den = 1 + z * z / n, c = (p + z * z / (2 * n)) / den;
-  const h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den;
-  return [Math.max(0, c - h), Math.min(1, c + h)];
-}
+/* ---- client port of uiview/persona.py (used when facts rows carry the per-session units dk / dn / vk / ik / kn / ol / oa /
+   os / sc / rb / t0 / t1): the multi-signal composite in 15-derive.js (personaCompose), same anchors and weights ---- */
 const lvHasUnits = (L) => L.length > 0 && L.every((s) => s.dn != null);
-function lvUnits(L) {
-  let dk = 0, dn = 0, vk = 0, ik = 0, inn = 0; const byDay = {};
-  L.forEach((s) => {
-    dk += s.dk || 0; dn += s.dn || 0; vk += s.vk || 0;
-    if (s.op != null) { inn++; if (s.op === 0) ik++; }
-    (byDay[s.d] = byDay[s.d] || []).push(s);
-  });
-  let multi = 0; const days = Object.values(byDay);
-  days.forEach((xs) => {
-    if (new Set(xs.map((s) => s.a)).size >= 2) { multi++; return; }
-    const sp = xs.filter((s) => s.t0 != null && s.t1 != null).map((s) => [s.t0, s.t1]).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
-    let end = null; for (const [a, b] of sp) { if (end != null && a < end) { multi++; return; } end = end == null ? b : Math.max(end, b); }
-  });
-  return { D: [dk, dn], I: [ik, inn], M: [multi, days.length], V: [vk, dn] };
-}
-const LVP_LR = { D: ['D 委托', '掌舵 S'], I: ['P 规划', '即兴 I'], M: ['M 多线', '专注 F'], V: ['V 求证', '信任 T'] };
-const LVP_HI = { D: ['D', 'S'], I: ['I', 'P'], M: ['M', 'F'], V: ['V', 'T'] };
-function lvPersonaCompute(L, minN) {
-  const n = L.length; const days = new Set(L.map((s) => s.d)).size;
-  if (!n) return { ok: false, classified: false, n, days, conf: '低' };
-  const u = lvUnits(L);
-  const axes = AXES.map((ax) => {
-    const k = ax.k, kk = u[k][0], nn = u[k][1];
-    const value = nn ? 100 * kk / nn : null; let [lo, hi] = lvWilson(kk, nn); lo = Math.round(lo * 1000) / 10; hi = Math.round(hi * 1000) / 10;
-    const letter = (value == null ? 50 : value) >= 50 ? LVP_HI[k][0] : LVP_HI[k][1], state = value == null ? 'no_data' : 'settled';
-    return { k, value: value == null ? null : Math.round(value * 10) / 10, lo, hi, n_units: nn, k_units: kk, letter, state,
-      strong: value == null ? null : Math.round(Math.max(value, 100 - value)), left: LVP_LR[k][0], right: LVP_LR[k][1], dim: ax.dim, q: ax.q, sig: ax.sig };
-  });
-  const code = axes.map((a) => a.letter).join('');
-  const t = TYPES[code];
-  return { ok: true, classified: !!t, n, days, code, zh: t[0], en: t[1], line: t[2], hint: personaHint(n),
-    v: axes.reduce((o, a) => { o[a.k] = a.value == null ? 50 : a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : n >= PERSONA_SOFT_N ? '中' : '低', method: 'client-port' };
+function lvPersonaCompute(L) {
+  const p = personaCompose(L);
+  if (p.ok) p.method = 'client-port';
+  return p;
 }
 
 // per-axis evidence for the client port (same shape and formulas as uiview/persona.py evidence(); BUG R4-03)
-const LVP_UNIT = { D: 'turn', I: 'session_opening', M: 'active_day', V: 'turn' };
 function lvEvidence(L, p, st) {
   const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.max(0, Math.min(n - 1, Math.floor(v / max * n)))]++; }); return out; };
   const byDay = {}; L.forEach((s) => { (byDay[s.d] = byDay[s.d] || []).push(s); }); const days = Object.values(byDay);
@@ -182,7 +148,7 @@ function personaLive(L, minN) {
   L = L || [];
   if (lvHasUnits(L)) {
     const p = lvPersonaCompute(L, minN);
-    if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
+    if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.evidence = ev[a.k]; }); }
     return p;
   }
   if (!L.length) return { ok: false, classified: false, n: 0 };

@@ -67,19 +67,16 @@ function fpCodeLbls(sm) {
 }
 const fpTypeIdx = (code) => FP_TYPES.indexOf(code);
 const fpTypeDeg = (code) => (Math.max(0, fpTypeIdx(code)) + 0.5) * 22.5;
-// 单个会话的四个维度（与 persona() 同一口径，只看这一个会话和它所在的那一天）：
-//   live 带单位计数时：D = 委托轮次占比、V = 验证轮次占比、I = 开场是否即兴、M = 当天是否多线（≥ 2 个 Agent 或会话时间重叠）
-//   示例数据：用会话自带的 lean（四维倾向）；没有时 D 由该会话的自主比算，I / V 取所属项目的特征，M 由当天的会话数与 Agent 数算
+// 单个会话的四个维度（与 persona() 同一多信号口径，只看这一个会话和它所在的那一天）：
+//   示例数据：用会话自带的 lean（四维倾向，只供表盘归类）；其它会话：D / I / V 由该会话自己的信号算，M 由当天的会话数、
+//   Agent 数与是否多线算（psAxis，与 persona() 同一份锚点与权重）；某维度没有任何信号时取 50
 function fpSessV(s, dd) {
   let D, I, M, V;
   if (s.lean) ({ D, I, M, V } = s.lean);   // 示例数据：会话自带的四维倾向（05-data.js），只供这里归类；live 会话没有这个字段
-  else if (s.dn != null) {
-    D = s.dn ? (s.dk || 0) / s.dn * 100 : 50; V = s.dn ? (s.vk || 0) / s.dn * 100 : 50;
-    I = s.op == null ? 50 : s.op === 0 ? 75 : 25; M = dd.multi ? 75 : 25;
-  } else {
-    const auto = s.msgs ? (s.steps != null ? s.steps / s.msgs : (s.tools || 0) * 1.54 / s.msgs) : 8, pj = PJI[s.p];
-    D = 50 + (auto - 8) * 5.8; I = pj && pj.I != null ? pj.I : 50; V = pj && pj.V != null ? pj.V : s.verify ? 70 : 30;
-    M = 20 + 7 * dd.n + 5 * dd.a - 6;
+  else {
+    const o = psSuff([s]); o.days = s.d != null ? { [s.d]: [dd.n, dd.a, dd.multi ? 1 : 0] } : {};
+    const val = (k) => { const a = psAxis(o, AXES.find((x) => x.k === k)); return a.value == null ? 50 : a.value; };
+    D = val('D'); I = val('I'); M = val('M'); V = val('V');
   }
   const v = { D: clamp(D, 4, 96), I: clamp(I, 4, 96), M: clamp(M, 4, 96), V: clamp(V, 4, 96) };
   // 软归属：每个轴偏向高值一极的概率（50 → 0.5，96 → 0.91），四轴相乘得到该会话在 16 型上的分布；轨道用它画（相邻类型

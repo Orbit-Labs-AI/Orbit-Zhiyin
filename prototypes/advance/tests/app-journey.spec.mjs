@@ -546,7 +546,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
     await page.keyboard.press('Meta+Shift+s'); await sleep(1500);
     // an unsettled / thin persona honestly refuses the card with a toast (部分维度尚未定型… / 样本不足…): a valid outcome
     const refusal = () => ev(page, () => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.innerText.trim() : ''; });
-    const REFUSE = /部分维度尚未定型|样本不足|协作画像还没有算好/;
+    const REFUSE = /类型暂不可用|部分维度尚未定型|样本不足|协作画像还没有算好/;
     let msg = await refusal();
     if (REFUSE.test(msg)) { s.notes.push('refused: ' + msg); return; }
     if (!(await act(page, 'shareSave', { wait: 3500 }))) {

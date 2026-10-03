@@ -20,7 +20,7 @@ from . import cached_section, default_scope, has_db, reader, submit_section
 FACTS_SECTION = "uiview_facts"
 OVERVIEW_SECTIONS = ("overview",)  # fingerprint / facts lines only
 REASON_TEXT = {"persona_unavailable": "画像模块不可用", "insufficient_data": "样本不足",
-               "unsettled_code": "有维度尚未定型", "computing": "正在计算"}
+               "unsettled_code": "类型暂不可用", "computing": "正在计算"}
 
 
 # -- pure composition (tests feed real ``uiview.persona.page`` payloads) --------------------

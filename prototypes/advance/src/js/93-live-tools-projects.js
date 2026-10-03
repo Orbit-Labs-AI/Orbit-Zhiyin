@@ -274,7 +274,7 @@ function lvtpRows() {
     const fr = r.friction || {};
     return { p, xs: byP.get(r.project_id) || [], raw: r, split,
       st: { n: r.sessions || 0, hours: lvtpHours(r.hours), fric: fr.value != null ? fr.value * 100 : 0, fricLo: fr.lo, fricHi: fr.hi, auto: r.tools_per_human_message || 0 },
-      pers: per.code ? { ok: true, code: per.code, zh: t ? t[0] : '尚未定型', status: per.status } : { ok: false, code: null, status: per.status || 'insufficient', reason: per.reason } };
+      pers: per.code ? { ok: true, code: per.code, zh: t ? t[0] : '—', status: per.status } : { ok: false, code: null, status: per.status || 'insufficient', reason: per.reason } };
   }).sort((a, c) => c.st.hours - a.st.hours || c.st.n - a.st.n);
 }
 function lvtpDetail(id, cmp) {
@@ -320,7 +320,7 @@ function lvProjectsPage() {
     p.git = hd.git || '—'; p.tags = hd.tags || p.tags; p.ruleFiles = hd.rule_files || [];
     p.rec = d.top_recommendation ? d.top_recommendation.candidate_id : null; p.tip = d.top_recommendation ? d.top_recommendation.title : '';
   }
-  const pp = hd.persona && hd.persona.code ? { ok: true, code: hd.persona.code, zh: (TYPES[hd.persona.code] || ['尚未定型'])[0] } : selRow.pers;
+  const pp = hd.persona && hd.persona.code ? { ok: true, code: hd.persona.code, zh: (TYPES[hd.persona.code] || ['—'])[0] } : selRow.pers;
   const now = personaNow();
   const plineTxt = pp.ok ? '在这个项目里你是 <b class="tcode" style="color:var(--ink-1);letter-spacing:.04em">' + esc(pp.code) + '</b> <b style="color:var(--ink-1)">' + esc(pp.zh) + '</b>' + (now && now.ok ? (now.code !== pp.code ? '，和整体（<span class="tcode">' + esc(now.code) + '</span> ' + esc(now.zh) + '）不同' : '，和整体一致') : '') + '。'
     : (pp.status === 'persona_pending' ? (fs === 'computing' || LV.state === 'computing' || LV.state === 'connecting' ? '这个项目的人格还在计算，导入完成后会出现。' : '本地服务还没有给出这个项目的人格，表格里先记为「—」。') : '这个项目的样本还不够，暂不判断人格。');
