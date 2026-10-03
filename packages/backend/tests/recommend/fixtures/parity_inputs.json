@@ -2090,11 +2090,6 @@
       "tokens": 720000,
       "ms": 3600000
      },
-     "check_failed": {
-      "n": 40,
-      "tokens": 280000,
-      "ms": 1500000
-     },
      "readonly": {
       "n": 90,
       "tokens": 0,

@@ -172,13 +172,13 @@ def _tokens(cand: dict, raw: dict) -> int:
 
 
 # Problem type → the trajectory operation class one occurrence stands for (section._ledger):
-# approvals only wait, failures and failed tests / builds rerun, polling and repeated workflows are
-# tool calls; every other problem (correction, repeated instruction, compaction, review round …)
-# costs about one user turn of rework. Removals free resident context on every request instead.
-OP_OF = {"permission_friction": "readonly", "tool_env_failure": "failed", "buggy_output": "check_failed",
-         "late_build_failure": "check_failed", "polling": "call", "repeated_workflow": "call"}
-OP_ZH = {"readonly": "只读审批等待", "failed": "失败的工具调用", "check_failed": "失败的测试 / 构建",
-         "call": "工具调用", "turn": "返工轮次", "resident": "常驻上下文"}
+# approvals only wait, failures (tool, test or build) are failed calls, polling and repeated
+# workflows are tool calls; every other problem (correction, repeated instruction, compaction,
+# review round …) costs about one user turn of rework. Removals free resident context instead.
+OP_OF = {"permission_friction": "readonly", "tool_env_failure": "failed", "buggy_output": "failed",
+         "late_build_failure": "failed", "polling": "call", "repeated_workflow": "call"}
+OP_ZH = {"readonly": "只读审批等待", "failed": "失败的工具调用", "call": "工具调用", "turn": "返工轮次",
+         "resident": "常驻上下文"}
 REMOVAL_TYPES = {"resident_cost", "installed_unused"}
 
 
@@ -322,7 +322,7 @@ def _tok_pct(tok: int, cand: dict, inputs: dict) -> float | None:
     if not tok or total <= 0:
         return 0. if tok == 0 and total > 0 else None
     requests = _requests(ledger, (cand.get("target") or {}).get("agents"))
-    return round(100 * tok * requests / total, 2) if requests else None
+    return round(100 * tok * requests / total, 4) if requests else None
 
 
 def _primary(cand: dict, raw: dict) -> tuple[str, int]:

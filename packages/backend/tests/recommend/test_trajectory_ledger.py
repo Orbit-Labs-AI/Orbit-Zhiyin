@@ -50,7 +50,7 @@ def _store():
 def test_ledger_splits_gaps_and_request_tokens_over_calls():
     conn = _store()
     uids = json.dumps(["root", "sub"])
-    flags = {"a": (False, False, False), "b": (True, True, False), "c": (False, False, True)}
+    flags = {"b": (True, False), "c": (False, True)}   # a: a plain call, not in the flags
     ledger = section._ledger(conn, uids, {"root": "root", "sub": "root"}, flags, [("root", 4000)])
     # tokens = input + cache read / write + output (reasoning excluded, as the App counts them): 100+200+300+400
     assert ledger["tokens"] == 1000 and ledger["requests"] == 4 and ledger["requests_by_agent"] == {"claude_code": 4}
@@ -59,7 +59,7 @@ def test_ledger_splits_gaps_and_request_tokens_over_calls():
     ops = ledger["ops"]
     # a: run 3 000 + wait for the model 2 000, and request 2 that read it ; b: 4 000 + 6 000 and request 3
     assert ops["call"] == {"n": 3, "tokens": 500, "ms": 15000}
-    assert ops["failed"] == ops["check_failed"] == {"n": 1, "tokens": 300, "ms": 10000}
+    assert ops["failed"] == {"n": 1, "tokens": 300, "ms": 10000}
     # approval waits: c's reported 2 500 ms plus a Codex request → decision of 4 000 ms; never tokens
     assert ops["readonly"] == {"n": 2, "tokens": 0, "ms": 6500}
 

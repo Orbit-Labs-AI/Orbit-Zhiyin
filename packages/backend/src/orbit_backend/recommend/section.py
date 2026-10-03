@@ -278,7 +278,8 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
     software_roots: dict[str, set] = defaultdict(set)
     edit_roots: set[str] = set()
     any_approval = False
-    flags: dict[str, tuple[bool, bool, bool]] = {}  # call_uid -> (failed, test/build, approved read-only)
+    # call_uid -> (failed, approved read-only) for the ledger; plain calls stay out
+    flags: dict[str, tuple[bool, bool]] = {}
     waits: list[tuple[str, int]] = []
     for head, error_class, status, approval, name, uid, command, call_uid in _call_rows(conn, uids):
         root = root_of.get(uid, uid)
@@ -301,10 +302,10 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
             per_root[root]["tool_failures"] += 1
             if error_class in FAILURE_CLASSES and head:
                 _add_failure(failures, software_of(head), error_class, root)
-        if call_uid is not None:
-            checks = bool(head and (VERIFY.match(head) or _prefix(head, BUILD_HEADS)))
-            flags[call_uid] = (status in FAILED, checks, bool(matched) and approval is not None
-                               and is_approved(approval) and status not in DECLINED)
+        failed = status in FAILED
+        allowed = bool(matched) and is_approved(approval) and status not in DECLINED
+        if call_uid is not None and (failed or allowed):
+            flags[call_uid] = (failed, allowed)
     if not any_approval:
         _guard("permission_event", diagnostics, _permission_prompts, conn, uids, root_of, readonly,
                per_root, denied, waits)
@@ -390,7 +391,7 @@ def _call_rows(conn, uids: str):
 # say which share of the whole trajectory its problem occupies (narrate._save). The totals use the
 # App's own definitions: tokens as uiview.sessions.TOKENS_SQL (input + cache read / write + output),
 # active time as uiview.metrics.active_ms (event gaps of a session tree, each capped at 5 min).
-OP_CLASSES = ("call", "failed", "check_failed", "readonly")
+OP_CLASSES = ("call", "failed", "readonly")
 LEDGER_TOKENS = ("input_tokens", "cache_read_tokens", "cache_write_tokens", "output_tokens")
 
 
@@ -405,7 +406,7 @@ def _select(cols: set[str], alias: str, names) -> list[str]:
 
 def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
     """Scope totals (tokens, active ms, human turns, requests) and the measured cost of each
-    operation class. Each session tree's timeline (tool call start / end, request) is walked once:
+    operation class (every tool call, failed calls, approved read-only prompts). Each session tree's timeline (tool call start / end, request) is walked once:
     a capped gap goes to the calls running or waiting for the model at its start, and a request's
     tokens to the calls whose results it answered, both split evenly. A failed call therefore
     carries its run, the model's reaction and the request that read its error; whatever no call
@@ -441,7 +442,7 @@ def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
             f"SELECT t.call_uid, t.session_uid, "
             f"{', '.join(_select(call_cols, 't', ('started_at', 'ended_at', 'approval_wait_ms')))} "
             f"FROM tool_call t WHERE t.session_uid IN {UIDS}", (uids,)):
-        calls[root_of.get(uid, uid)].append((start, end, wait, flags.get(call_uid, (False, False, False))))
+        calls[root_of.get(uid, uid)].append((start, end, wait, flags.get(call_uid, (False, False))))
     ops = {name: [0, 0., 0.] for name in OP_CLASSES}  # n, tokens, ms
     for root in set(calls) | set(requests):
         _attribute(calls.get(root, []), requests.get(root, []), IDLE_CAP_MS, ops)
@@ -480,8 +481,8 @@ def _attribute(calls: list, requests: list, cap: int, ops: dict) -> None:
             for i in waiting:
                 cost[i][0] += share
             waiting.clear()
-    for (start, end, wait, (failed, checks, readonly)), (tokens, ms) in zip(calls, cost, strict=True):
-        for name in ("call", *(("failed",) if failed else ()), *(("check_failed",) if failed and checks else ())):
+    for (start, end, wait, (failed, readonly)), (tokens, ms) in zip(calls, cost, strict=True):
+        for name in ("call", "failed") if failed else ("call",):
             ops[name][0] += 1
             ops[name][1] += tokens
             ops[name][2] += ms

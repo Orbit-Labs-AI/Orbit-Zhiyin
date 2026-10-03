@@ -60,7 +60,7 @@ def test_facts_from_events_and_sequences(inputs):
     assert ledger["tokens"] == 30 * 1200 and ledger["requests"] == 30 and ledger["active_ms"] > 0
     # Codex approvals: request → decision of each allowed read-only prompt (7 s apart in this slice)
     assert ledger["ops"]["readonly"] == {"n": 3 * GROUP, "tokens": 0, "ms": 3 * GROUP * 7000}
-    assert ledger["ops"]["failed"]["n"] == 6 * GROUP and ledger["ops"]["check_failed"]["n"] == 4 * GROUP
+    assert ledger["ops"]["failed"]["n"] == 6 * GROUP
 
 
 def test_fact_problems_are_active(inputs):

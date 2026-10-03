@@ -153,7 +153,6 @@ LEDGER = {"tokens": 1_000_000, "active_ms": 36_000_000, "turns": 100, "requests"
           "requests_by_agent": {"claude_code": 1500, "codex": 500},
           "ops": {"call": {"n": 1000, "tokens": 400_000, "ms": 18_000_000},
                   "failed": {"n": 20, "tokens": 200_000, "ms": 1_200_000},
-                  "check_failed": {"n": 0, "tokens": 0, "ms": 0},
                   "readonly": {"n": 50, "tokens": 0, "ms": 1_500_000}}}
 LEDGER_INPUTS = {**INPUTS, "facts": {"trajectory": LEDGER}}
 
@@ -194,9 +193,10 @@ def test_rework_problems_cost_one_turn_and_cap_at_the_class_total():
 
 def test_unmeasured_class_falls_back_to_an_average_call():
     tests = problem(ptype="buggy_output", key="buggy_output", weekly_count=4)
-    save = ui_of(raw("kb:verify-ladder", kind="workflow", prob=tests))["save"]
-    # no failed test / build was timed → 4 × (400 000 / 1000) tokens = 1 600 → .16 % ; 4 × 18 000 ms → .2 %
-    assert save["op"] == "check_failed" and save["share"] == {"time": .2, "token": .16} and "按平均工具调用近似" in save["basis"]
+    untimed = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "ops": {**LEDGER["ops"], "failed": {"n": 0, "tokens": 0, "ms": 0}}}}}
+    save = ui_of(raw("kb:verify-ladder", kind="workflow", prob=tests), untimed)["save"]
+    # no failed call was timed → 4 × (400 000 / 1000) tokens = 1 600 → .16 % ; 4 × 18 000 ms → .2 %
+    assert save["op"] == "failed" and save["share"] == {"time": .2, "token": .16} and "按平均工具调用近似" in save["basis"]
 
 
 def test_removal_frees_resident_tokens_of_its_agent():
@@ -213,6 +213,9 @@ def test_removal_frees_resident_tokens_of_its_agent():
 def test_added_context_is_priced_as_a_share():
     ui = ui_of(raw("kb:ro-allow", cost={"setup_minutes": 1, "context_tokens": 200, "reversible": True}))
     assert ui["tok"] == 200 and ui["tok_pct"] == 30.  # 200 × 1 500 requests / 1M (target agent claude_code)
+    big = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "tokens": 10 ** 9}}}
+    tiny = ui_of(raw("kb:ro-allow", cost={"setup_minutes": 1, "context_tokens": 2, "reversible": True}), big)
+    assert tiny["tok_pct"] == .0003  # 2 × 1 500 / 1e9: a real cost, never rounded to「不占常驻」
 
 
 def test_catalog_entries_share_the_problem_not_invented_numbers():
