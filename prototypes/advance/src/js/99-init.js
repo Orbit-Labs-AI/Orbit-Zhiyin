@@ -10,6 +10,14 @@ setInterval(() => {
     $$('[data-livetools]').forEach((x) => { x.textContent = S.live.tools; });
   }
 }, 1000);
+// the settings window and the first-run overlay rebuild themselves outside render() (live settings writes, job frames):
+// keep their scroll positions and the focused field across every rebuild (F03). A step change of the overlay starts at top.
+{
+  const setBase = renderSet;
+  renderSet = function () { const keep = uiKeep($('#set')); const r = setBase.apply(this, arguments); keep(); return r; };
+  const obBase = drawOB;
+  drawOB = function () { const was = OB && OB.drawn; const keep = uiKeep($('#overlay')); const r = obBase.apply(this, arguments); if (OB && OB.drawn === was) keep(); return r; };
+}
 // viewport resize: re-clamp the window at once (cheap), redraw the desktop layer after the burst settles
 let RZ = null;
 window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(RZ); RZ = setTimeout(() => { renderWidgets(); renderHud(); }, 80); });

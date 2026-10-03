@@ -53,11 +53,48 @@ function uiRestore(snap) {
   el.focus({ preventScroll: true });
   try { if (f.s0 != null) el.setSelectionRange(f.s0, f.s1); } catch (e) { /* type without caret */ }
 }
+/* uiKeep(root) → restore(): the same promise for a box that rebuilds itself outside render() — the settings window
+   (renderSet), the first-run overlay (drawOB) — every scrolled element under root (found again by child-index path, tag
+   and class) and the focused field with its caret come back after the rebuild. */
+function uiKeep(root) {
+  if (!root || root.hidden) return () => {};
+  const sc = [];
+  root.querySelectorAll('*').forEach((el) => { if (el.scrollTop || el.scrollLeft) { const p = uiPath(el, root); if (p) sc.push({ p, tag: el.tagName, cls: el.className, t: el.scrollTop, l: el.scrollLeft }); } });
+  const a = document.activeElement; let f = null;
+  if (a && root.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { const p = uiPath(a, root); let s0 = null, s1 = null; try { s0 = a.selectionStart; s1 = a.selectionEnd; } catch (e) { /* no caret */ } if (p) f = { p, tag: a.tagName, id: a.id, v: a.value, s0, s1 }; }
+  return () => {
+    sc.forEach((x) => { const el = uiAt(root, x.p); if (el && el.tagName === x.tag && el.className === x.cls) { el.scrollTop = x.t; el.scrollLeft = x.l; } });
+    const cur = document.activeElement;
+    if (!f || (cur && cur !== document.body && cur.isConnected)) return;   // focus survived (or moved on purpose): leave it
+    const el = (f.id && document.getElementById(f.id)) || uiAt(root, f.p);
+    if (!el || el.tagName !== f.tag || !root.contains(el)) return;
+    if (el.value !== f.v && !el.value) el.value = f.v;
+    el.focus({ preventScroll: true });
+    try { if (f.s0 != null) el.setSelectionRange(f.s0, f.s1); } catch (e) { /* no caret */ }
+  };
+}
+// an open dropdown (#dd) whose anchor a render replaced: hang it from the anchor's successor (same path, same act) so it
+// stays open where it was instead of floating over a detached chip
+function uiDDSnap() {
+  if (typeof DD === 'undefined' || !DD || !DD.anchor) return null;
+  const roots = [$('#side'), $('#main'), $('#set')]; const a = DD.anchor;
+  const ri = roots.findIndex((r) => r && r.contains(a)); if (ri < 0) return null;
+  const p = uiPath(a, roots[ri]); return p ? { dd: DD, ri, p, act: a.dataset ? a.dataset.act : null } : null;
+}
+function uiDDRestore(x) {
+  if (!x || DD !== x.dd || x.dd.anchor.isConnected) return;
+  const roots = [$('#side'), $('#main'), $('#set')];
+  let el = roots[x.ri] && uiAt(roots[x.ri], x.p);
+  if ((!el || (x.act && el.dataset.act !== x.act)) && x.act) el = roots[x.ri] && roots[x.ri].querySelector('[data-act="' + x.act + '"]');
+  if (!el) return;
+  x.dd.anchor = el;
+  if (typeof ddPlace === 'function') ddPlace(el, x.dd.align);
+}
 const UI_DEBUG = (() => { try { return new URLSearchParams(location.search).get('debug') === 'render'; } catch (e) { return false; } })();
 window.__renderCount = 0;
 function render() {
   window.__renderCount++; if (UI_DEBUG) console.debug('[render]', window.__renderCount, S.route);
-  const snap = uiSnap();
+  const snap = uiSnap(); const dds = uiDDSnap();
   agentSync();
   applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
@@ -66,7 +103,7 @@ function render() {
   // the window rect cannot change while the page renders (stageSize is cached, 22-window.js): re-place only the dependants
   // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
   placeDeps();
-  uiRestore(snap);
+  uiRestore(snap); uiDDRestore(dds);
   paneSync();
   if (window.__lvRendered) window.__lvRendered();
 }
