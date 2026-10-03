@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 
 from tandem_catalog import embedding_model
-
 from tandem_catalog.contracts import MatchRequest, Record, Resource, SourceSpec
 from tandem_catalog.search import search
 from tandem_catalog.store import CatalogStore
