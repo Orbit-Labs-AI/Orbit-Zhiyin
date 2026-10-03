@@ -228,13 +228,16 @@ class AppState:
 
     def jobs(self) -> list[dict]:
         with self.lock:
-            return sorted(self.snapshot()["jobs"].values(), key=lambda j: j["created_at"],
-                          reverse=True)
+            # Millisecond timestamps can tie during immediate dispatch failures.
+            # JSON preserves insertion order, so reverse it before the stable sort.
+            return sorted(reversed(list(self.snapshot()["jobs"].values())),
+                          key=lambda j: j["created_at"], reverse=True)
 
     def latest_job(self, origin: str) -> dict | None:
         """Newest job with ``origin`` (a copy), without copying the whole job table."""
         with self.lock:
-            jobs = [j for j in self.state["jobs"].values() if j.get("origin") == origin]
+            # max keeps its first tie; visit newest insertions first, just as jobs().
+            jobs = [j for j in reversed(self.state["jobs"].values()) if j.get("origin") == origin]
             newest = max(jobs, key=lambda j: j["created_at"], default=None)
             return json.loads(json.dumps(newest)) if newest is not None else None
 

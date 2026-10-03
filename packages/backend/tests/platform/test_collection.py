@@ -205,3 +205,22 @@ def test_failed_resume_dispatch_retries_in_manual_mode_with_backoff(gw, clock, m
     gateway._sync_round(gw, c, 2.0)
     assert len(attempts) == 3 and not c.catch_up_pending
     assert gw.state.latest_job("sync")["status"] == "queued"
+
+
+def test_latest_job_timestamp_ties_use_persisted_insertion_order(tmp_path, monkeypatch):
+    from orbit_backend.services import jobs
+
+    monkeypatch.setattr(jobs, "now_ms", lambda: 123456)
+    state = jobs.AppState(tmp_path / "app-state.json")
+    first, _ = state.create_job("verify", origin="sync")
+    state.transition(first["id"], "failed")
+    second, _ = state.create_job("verify", origin="sync")
+    assert first["created_at"] == second["created_at"]
+    assert state.latest_job("sync")["id"] == second["id"]
+    assert state.latest_job("sync")["status"] == "queued"
+    assert [job["id"] for job in state.jobs()] == [second["id"], first["id"]]
+
+    # Serialization and restart must retain the same tie order, not UUID order.
+    restored = jobs.AppState(state.path)
+    assert restored.latest_job("sync")["id"] == second["id"]
+    assert [job["id"] for job in restored.jobs()] == [second["id"], first["id"]]
