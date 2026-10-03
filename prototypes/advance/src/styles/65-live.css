@@ -1,7 +1,7 @@
 /* live surfaces: menu-bar panel charts, HUD density band, desktop widget sizes, settings matrix / AI channel.
    The context bar (.ctxbar) is the one small chart shared by the panel, the HUD (.dk) and the large widget (S-V03). */
 .ctxbar{display:flex;flex-direction:column;gap:3px;min-width:0}
-.ctxbar-h{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.ctxbar-h{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .ctxbar-h b{color:var(--ink-1)}
 .ctxbar-t{position:relative;height:6px;border-radius:3px;background:var(--line)}
 .ctxbar-f{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ink-1);transition:width .4s var(--ease)}
