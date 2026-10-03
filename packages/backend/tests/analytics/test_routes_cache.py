@@ -2,6 +2,7 @@
 
 import time
 import zlib
+from contextlib import contextmanager
 
 import pytest
 from cache_fixtures import build_home
@@ -172,3 +173,191 @@ def test_insights_routes_are_mounted_and_read_cached_sections(tmp_path, monkeypa
         problems = client.get("/v1/analytics/problems")
         assert problems.status_code == 200, problems.text
         assert client.get("/v1/analytics/metrics?metric=nope").status_code == 422
+
+
+TOKEN = "synthetic-test-token-0123456789abcdef"
+
+
+@contextmanager
+def imported_gateway(tmp_path):
+    """A real gateway (worker processes) over 4 synthetic Codex sessions, import finished."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parents[1] / "services"))
+    from synthetic import write_codex_tree
+
+    from tandem_backend.services.gateway import Gateway
+    from tandem_backend.services.supervisor import SupervisorConfig
+
+    root = tmp_path / "agents" / "codex"
+    write_codex_tree(root, 4)
+    config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0,
+                              backoff_s=(0.1, 0.2, 0.4, 0.8), tick_s=0.05,
+                              light_timeout_s=60.0, heavy_timeout_s=120.0)
+    gateway = Gateway(tmp_path / "home", config=config, discovery=lambda: [],
+                      prewarm_debounce_s=3600.0)
+    with TestClient(gateway.app(token=TOKEN, port=8765), base_url="http://127.0.0.1:8765",
+                    headers={"Authorization": f"Bearer {TOKEN}"}) as client:
+        source = client.post("/v1/app/sources", json={"agent": "codex", "root": str(root)})
+        job = client.post("/v1/app/jobs", json={"kind": "import", "source_ids": [source.json()["id"]]})
+        poll(client, f"/v1/app/jobs/{job.json()['id']}",
+             lambda r: r.json()["status"] not in ("queued", "running"))
+        yield client, gateway
+
+
+def poll(client, url, ok, headers=None):
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        response = client.get(url, headers=headers or {})
+        if ok(response):
+            return response
+        time.sleep(0.1)
+    raise AssertionError(f"{url}: {response.status_code} {response.text[:300]}")
+
+
+def fresh(response):
+    return response.status_code == 200 and response.json()["meta"]["freshness"] == "fresh"
+
+
+@pytest.mark.serial  # gateway with worker processes and wall-clock waits
+def test_presentation_window_is_stable_within_a_day_and_moves_across_days(tmp_path, monkeypatch):
+    """Gateway route: window=7d anchors on the local day, so the snapshot key is reused all day."""
+    from datetime import datetime
+
+    from tandem_backend.services import routes_analytics
+
+    day = int(datetime.fromisoformat("2026-10-03T09:00:00+00:00").timestamp() * 1000)
+    clock = {"now": day}
+    monkeypatch.setattr(routes_analytics, "now_ms", lambda: clock["now"])
+
+    def read(client):
+        return poll(client, "/v1/analytics/presentation?window=7d&wait_ms=3000", fresh).json()
+
+    with imported_gateway(tmp_path) as (client, _):
+        first = read(client)
+        clock["now"] = day + 10 * 3600 * 1000  # 19:00 UTC, same day
+        second = read(client)
+        assert second["meta"]["scope_hash"] == first["meta"]["scope_hash"]
+        assert second["meta"]["computed_at"] == first["meta"]["computed_at"]  # snapshot reused
+        window = first["meta"]["window"]
+        end = int(datetime.fromisoformat("2026-10-04T00:00:00+00:00").timestamp() * 1000)
+        assert (window["from_ts"], window["until_ts"]) == (end - 7 * 86400000, end)
+        assert window["requested_at"] == day
+        # The worker computed with exactly the bounds the gateway reports.
+        assert (first["scope"]["from_ts"], first["scope"]["until_ts"]) == (window["from_ts"], end)
+        clock["now"] = day + 24 * 3600 * 1000  # next day
+        third = read(client)
+        assert third["meta"]["scope_hash"] != first["meta"]["scope_hash"]
+        assert third["meta"]["window"]["until_ts"] == third["scope"]["until_ts"] == end + 86400000
+
+
+@pytest.mark.serial  # gateway with worker processes and wall-clock waits
+def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path):
+    from tandem_catalog import get_service
+
+    url = "/v1/catalog/match-analysis?wait_ms=3000"
+    with imported_gateway(tmp_path) as (client, gateway):
+        first = poll(client, url, fresh)
+        tag = first.headers["ETag"]
+        assert client.get(url, headers={"If-None-Match": tag}).status_code == 304
+        store = get_service(gateway.home / "catalog.db").store
+        with store.connect() as conn:  # what a catalog refresh does to the generation
+            conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 "
+                         "WHERE key='generation'")
+        again = client.get(url, headers={"If-None-Match": tag})
+        assert again.status_code == 200 and again.headers["ETag"] != tag
+
+
+class _Analysis:
+    def __init__(self):
+        self.submitted = []
+
+    def clear_failures(self, *_):
+        pass
+
+    def submit(self, name, scope, params, h, *_):
+        self.submitted.append((name, params, h))
+        return type("Task", (), {"id": f"job-{len(self.submitted)}"})()
+
+
+class _Gateway:
+    def __init__(self, data_rev):
+        self.data_rev = data_rev
+        self.supervisor = type("Supervisor", (), {"analysis": _Analysis()})()
+        outer = self
+
+        class revisions:  # noqa: N801 - mirrors the Gateway attribute
+            @staticmethod
+            def snapshot():
+                return {"data_rev": outer.data_rev, "inventory_rev": 0}
+
+        self.revisions = revisions
+
+
+def _client(gateway):
+    from fastapi import FastAPI
+
+    from tandem_backend.services.gateway import install_error_handlers
+    from tandem_backend.services.routes_analytics import router
+
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(router(gateway))
+    return TestClient(app)
+
+
+@pytest.mark.parametrize("section,get_url,params", [
+    ("presentation", "/v1/analytics/presentation", {}),
+    ("presentation", "/v1/analytics/presentation?window=7d&target_agent=hermes",
+     {"window": "7d", "target_agent": "hermes"}),
+    ("recommendations", "/v1/analytics/recommendations?kind=skill", {"kind": "skill"}),
+    ("products", "/v1/analytics/products?bucket=week", {"bucket": "week"}),
+    ("work_graph", "/v1/analytics/work-graph", {}),
+])
+def test_recompute_hashes_like_the_get_route(monkeypatch, section, get_url, params):
+    from tandem_backend.services import routes_analytics
+
+    monkeypatch.setattr(routes_analytics, "now_ms", lambda: 1_790_985_600_000)
+    get_hash = _client(_Gateway(None)).get(get_url).json()["meta"]["scope_hash"]
+    gateway = _Gateway(1)
+    queued = _client(gateway).post("/v1/analytics/recompute",
+                                   json={"sections": [section], "params": params})
+    assert queued.status_code == 202, queued.text
+    assert queued.json()["jobs"][0]["scope_hash"] == get_hash
+
+
+@pytest.mark.parametrize("section,params", [
+    ("products", {"bucket": "year"}),
+    ("presentation", {"window": "2d"}),
+    ("presentation", {"target_agent": "cursor"}),
+    ("recommendations", {"limit": 99}),
+    ("overview", {"limit": 5}),
+])
+def test_recompute_rejects_invalid_params_before_queueing(section, params):
+    gateway = _Gateway(1)
+    response = _client(gateway).post("/v1/analytics/recompute",
+                                     json={"sections": [section], "params": params})
+    assert response.status_code == 422, response.text
+    assert gateway.supervisor.analysis.submitted == []
+
+
+def test_coverage_status_table_holds_only_statuses():
+    from tandem_backend.analytics.coverage import STATUS_LABELS, build_coverage_report
+
+    assert set(STATUS_LABELS) == {"available", "partial", "unavailable", "excluded"}
+    assert set(build_coverage_report({})["status_meanings"]) == set(STATUS_LABELS)
+
+
+def test_every_session_feature_is_in_the_shared_dictionary():
+    from tandem_backend.analytics.dictionary import FEATURES
+    from tandem_backend.analytics.features import session_features
+
+    events = [{"event_uid": "u1", "session_uid": "s", "kind": "message.user", "seq": 1,
+               "actor": "human", "ts": 1_790_000_000_000, "text": "fix a.py",
+               "attrs": {"origin": "human"}},
+              {"event_uid": "a1", "session_uid": "s", "kind": "message.assistant", "seq": 2,
+               "ts": None, "text": "done", "attrs": {}}]
+    features = session_features({"session_uid": "s"}, events, [], {"s"})["features"]
+    assert {"observed_event_dates", "observed_timestamp_n", "time_unknown_event_count"} <= set(features)
+    assert sorted(set(features) - set(FEATURES)) == []

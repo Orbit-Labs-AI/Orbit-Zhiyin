@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -16,7 +17,7 @@ from datetime import datetime
 from importlib import import_module
 from pathlib import Path
 
-from ..platform import timed
+from ..platform import logs, timed
 from ..services.auth import ApiError
 from . import hooks
 from .classify import classify, finish_ts
@@ -99,6 +100,7 @@ class Realtime:
         self.clients = 0
         self.thread: threading.Thread | None = None
         self.stop = threading.Event()
+        self.last_error: str | None = None  # last logged tick failure (dedupes the log)
         home = getattr(gw, "home", None)
         self.hooks = hooks.HookFeed(Path(home) / "hooks") if home else None
 
@@ -140,8 +142,13 @@ class Realtime:
                     return
             try:
                 self.refresh()
-            except Exception:  # noqa: BLE001 - the loop must survive a bad tick.
-                pass
+                self.last_error = None
+            except Exception as error:  # noqa: BLE001 - the loop must survive a bad tick.
+                # Log once per distinct failure, not every 2 s tick, so a stuck HUD is diagnosable.
+                message = f"{type(error).__name__}: {error}"[:300]
+                if message != self.last_error:
+                    self.last_error = message
+                    logs.log_event("realtime_tick_failed", logging.WARNING, error=message)
 
     # -- reads ---------------------------------------------------------------------------
     def snapshot(self, now: float | None = None, lanes: bool = False) -> dict:

@@ -155,10 +155,15 @@ def test_slate_covers_every_dimension(tmp_path):
     dims = Counter(c["dim"] for c in passing)
     assert dims["agent"] >= 1 and dims["model"] >= 1 and dims["flow"] >= 2, dims
     assert dims["skill"] >= 2 and dims["hook"] >= 2 and dims["rule"] >= 2, dims
-    keys = {c["rec_key"] for c in passing}
-    assert any(k.startswith("generate:skill:") for k in keys), keys
+    # The generated-skill card is recalled; on this fixture its evidence is weak (Wilson lo ≈ .057) and its
+    # risk medium, so its net value is ≤ 0 and it is gated as net_non_positive rather than ranked.
+    generated = [c for c in slate["candidates"] if c["rec_key"].startswith("generate:skill:")]
+    assert generated, [c["rec_key"] for c in slate["candidates"]]
+    assert all(c["gates"]["passed"] or c.get("excluded") == engine.NET_NON_POSITIVE for c in generated)
+    # recalled and either ranked or held back only by the value gate (weak evidence × medium risk)
+    held = [c for c in slate["candidates"] if c.get("excluded") == engine.NET_NON_POSITIVE]
     for name in NEW_RULES:
-        assert any((c.get("source") or {}).get("item_id") == name for c in passing), name
+        assert any((c.get("source") or {}).get("item_id") == name for c in passing + held), name
     worktree = next(c for c in passing if c["source"]["item_id"] == "worktree-isolation")
     assert worktree["ui"]["commands"][0] == "git worktree add ../<repo>-a -b <branch>"
     assert len(worktree["ui"]["commands"]) == len(worktree["ui"]["steps"])

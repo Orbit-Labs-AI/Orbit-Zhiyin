@@ -65,8 +65,12 @@ def inputs(agent: str, root: Path):
         ),
         "dsh": ("sessions/**/session*.jsonl", "sessions/**/session*.jsonl.zstd"),
         "pi": ("sessions/**/*.jsonl",),
-        "hermes": ("state.db",),
-        "opencode": ("opencode.db", "opencode.dev.db"),
+        # Hermes profiles are full homes at <root>/profiles/<name> (hermes_constants.py);
+        # inventory/hermes.py scans the same set.
+        "hermes": ("state.db", "profiles/*/state.db"),
+        # opencode stores opencode.db, or opencode-<channel>.db for non-default
+        # installation channels (packages/core/src/database/database.ts).
+        "opencode": ("opencode*.db",),
         "kimi": ("session_index.jsonl", "sessions/*/*/agents/*/wire.jsonl"),
     }
     if agent not in patterns:
@@ -96,7 +100,11 @@ def inputs(agent: str, root: Path):
             path
             for pattern in patterns[agent]
             for path in root.glob(pattern)
-            if path.is_file() and not path.is_symlink() and contained(path)
+            if path.is_file()
+            and not path.is_symlink()
+            and contained(path)
+            # Dot-named Hermes profile folders are tombstones (profiles/.deleted).
+            and not (agent == "hermes" and path.parent.name.startswith("."))
         }
     )
     if agent == "dsh":

@@ -11,17 +11,17 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from collections import Counter, defaultdict
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from . import CONTRACT
+from . import CONTRACT, metrics, outcome
 
 UIDS = "(SELECT value FROM json_each(?))"
-IDLE_CAP_MS = 5 * 60_000
 FAILED = frozenset(("failed", "error", "failure"))
 UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
-STOPPED_TURN = frozenset(("failed", "error", "interrupted", "aborted", "cancelled"))
 FRIC = ("方向错误", "工具 / 环境失败", "改动过度", "误解需求", "并行会话冲突",
         "流程过重（子代理）", "额度 / 用量中断")
 TOPICS = ("git", "design", "paper", "data", "quant", "net", "other")
@@ -71,10 +71,30 @@ def _tz(name: str | None):
         return UTC
 
 
-def _rows(conn, sql: str, *params):
+# Fields that fell back to null because the store lacks a table/column (meta.degraded).
+_DEGRADED: ContextVar[set[str] | None] = ContextVar("uiview_facts_degraded", default=None)
+SCHEMA_GAPS = ("no such column", "no such table")
+
+
+def is_schema_gap(error: BaseException) -> bool:
+    """An older store lacks a table/column: degrade. Anything else is a bug and raises."""
+    return isinstance(error, sqlite3.OperationalError) and any(
+        gap in str(error).lower() for gap in SCHEMA_GAPS)
+
+
+def degrade(*fields: str) -> None:
+    seen = _DEGRADED.get()
+    if seen is not None:
+        seen.update(fields)
+
+
+def _rows(conn, sql: str, *params, fields: tuple[str, ...] = ()):
     try:
         return conn.execute(sql, params).fetchall()
-    except Exception:  # noqa: BLE001 - older stores lack a column; the field stays null
+    except sqlite3.OperationalError as error:
+        if not is_schema_gap(error):
+            raise
+        degrade(*fields)
         return []
 
 
@@ -104,30 +124,27 @@ def _children_tools(result: dict, root_of: dict) -> dict[str, int]:
 def _active(conn, uids: str, root_of: dict) -> dict[str, float]:
     stamps: dict[str, list[int]] = defaultdict(list)
     for uid, ts in _rows(conn, f"SELECT session_uid, ts FROM event WHERE ts IS NOT NULL AND "
-                               f"session_uid IN {UIDS}", uids):
+                               f"session_uid IN {UIDS}", uids, fields=('dur',)):
         stamps[root_of.get(uid, uid)].append(ts)
-    out = {}
-    for root, values in stamps.items():
-        values.sort()
-        gaps = (min(b - a, IDLE_CAP_MS) for a, b in zip(values, values[1:], strict=False))
-        out[root] = sum(gaps) / 60_000
-    return out
+    return {root: metrics.active_ms(values) / 60_000 for root, values in stamps.items()}
 
 
 def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
     """Human-triggered turns per root: [[steps, verify]] plus the last turn's status."""
     calls = dict(_rows(conn, f"SELECT turn_uid, count(*) FROM tool_call WHERE turn_uid IS NOT "
-                             f"NULL AND session_uid IN {UIDS} GROUP BY turn_uid", uids))
+                             f"NULL AND session_uid IN {UIDS} GROUP BY turn_uid", uids,
+                             fields=('steps',)))
     finals = dict(_rows(conn, f"SELECT turn_uid, count(*) FROM event WHERE kind = "
                               f"'message.assistant' AND turn_uid IS NOT NULL AND "
                               f"json_extract(attrs, '$.phase') IN ('final', 'final_answer') AND "
-                              f"session_uid IN {UIDS} GROUP BY turn_uid", uids))
+                              f"session_uid IN {UIDS} GROUP BY turn_uid", uids,
+                              fields=('steps', 'out')))
     checked: set[str] = set()
     for turn, head, command in _rows(
             conn, f"SELECT tc.turn_uid, tc.command_head, json_extract(e.attrs, '$.input.command')"
                   f" FROM tool_call tc LEFT JOIN event e ON e.event_uid = tc.call_event_uid "
                   f"WHERE tc.turn_uid IS NOT NULL AND tc.kind = 'shell' AND tc.session_uid IN "
-                  f"{UIDS}", uids):
+                  f"{UIDS}", uids, fields=('verify',)):
         text = head or ""
         if command:
             try:
@@ -141,27 +158,43 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
     requested: set[str] = set()
     if verify_events:
         for (turn,) in _rows(conn, f"SELECT turn_uid FROM event WHERE turn_uid IS NOT NULL AND "
-                                   f"event_uid IN {UIDS}", json.dumps(sorted(verify_events))):
+                                   f"event_uid IN {UIDS}", json.dumps(sorted(verify_events)),
+                                   fields=('verify',)):
             requested.add(turn)
     per_root: dict[str, list[list[int]]] = defaultdict(list)
-    last: dict[str, tuple[int, str | None]] = {}
+    last: dict[str, tuple[int, str | None, bool]] = {}
     for turn, uid, idx, status in _rows(
             conn, f"SELECT turn_uid, session_uid, idx, status FROM turn WHERE trigger = 'human' "
-                  f"AND session_uid IN {UIDS} ORDER BY session_uid, idx", uids):
+                  f"AND session_uid IN {UIDS} ORDER BY session_uid, idx", uids,
+                  fields=('steps', 'verify', 'out')):
         root = root_of.get(uid, uid)
         if uid == root:
             per_root[root].append([calls.get(turn, 0) + finals.get(turn, 0),
                                    int(turn in checked or turn in requested)])
             if root not in last or (idx or 0) >= last[root][0]:
-                last[root] = (idx or 0, status)
-    return per_root, {k: v[1] for k, v in last.items()}
+                last[root] = (idx or 0, status, finals.get(turn, 0) > 0)
+    return per_root, {k: (v[1], v[2]) for k, v in last.items()}
+
+
+def _tails(conn, uids: str, root_of: dict) -> dict[str, list[str | None]]:
+    """Last ``outcome.TAIL_FAILED`` tool-call statuses of each main session, oldest first."""
+    out: dict[str, list[str | None]] = defaultdict(list)
+    for uid, status in _rows(conn, f"SELECT session_uid, status FROM tool_call WHERE "
+                                   f"session_uid IN {UIDS} ORDER BY session_uid, started_at, "
+                                   f"call_uid", uids, fields=('out',)):
+        if root_of.get(uid, uid) == uid:
+            tail = out[uid]
+            tail.append(status)
+            del tail[:-outcome.TAIL_FAILED]
+    return out
 
 
 def _tools(conn, uids: str, root_of: dict):
     per_root: dict[str, dict[str, list]] = defaultdict(dict)
     for uid, name, kind, status, n in _rows(
             conn, f"SELECT session_uid, COALESCE(name, name_raw), kind, status, count(*) FROM "
-                  f"tool_call WHERE session_uid IN {UIDS} GROUP BY 1, 2, 3, 4", uids):
+                  f"tool_call WHERE session_uid IN {UIDS} GROUP BY 1, 2, 3, 4", uids,
+                  fields=('errors',)):
         entry = per_root[root_of.get(uid, uid)].setdefault(name or "unknown", [kind, 0, 0, 0])
         entry[1] += n
         if status not in UNKNOWN_STATUS:
@@ -179,7 +212,7 @@ def _models(conn, uids: str, root_of: dict):
     for uid, model, effort, coverage, *parts in _rows(
             conn, f"SELECT session_uid, model_id, effort_raw, coverage, input_tokens, "
                   f"cache_read_tokens, cache_write_tokens, output_tokens FROM model_call WHERE "
-                  f"session_uid IN {UIDS}", uids):
+                  f"session_uid IN {UIDS}", uids, fields=('tok', 'model', 'effort')):
         root = root_of.get(uid, uid)
         if model:
             models[root][model] += 1
@@ -199,7 +232,7 @@ def _human(conn, mains: str):
     texts: dict[str, list[str]] = defaultdict(list)
     for uid, event_uid, text in _rows(
             conn, f"SELECT session_uid, event_uid, text FROM v_human_message WHERE session_uid "
-                  f"IN {UIDS} ORDER BY session_uid, seq", mains):
+                  f"IN {UIDS} ORDER BY session_uid, seq", mains, fields=('title', 'topic', 'fric')):
         if uid not in first:
             first[uid] = (event_uid, text or "")
         if text:
@@ -213,7 +246,10 @@ def _moods(conn, mains: list[str]) -> dict[str, float]:
 
     try:
         balances, _ = session_balances(fetch_humans(conn, mains))
-    except Exception:  # noqa: BLE001 - older stores lack the view; mood stays null
+    except sqlite3.OperationalError as error:  # older stores lack the view; mood stays null
+        if not is_schema_gap(error):
+            raise
+        degrade("mood")
         return {}
     return {uid: round(v, 3) for uid, v in balances.items()}
 
@@ -284,16 +320,15 @@ def friction_of(corr: int | None, texts: list[str], signals: Counter) -> tuple[s
     return best, "lexical_candidate" if lexical else "rule_signal"
 
 
-def outcome_of(last_status: str | None, corr: int | None, errors: int | None, tools: int,
-               steps: int | None) -> str | None:
-    """Estimate only (no user confirmation exists in agent logs)."""
-    if last_status in STOPPED_TURN or (corr or 0) >= 3:
-        return "fail"
-    if (corr or 0) >= 1 or (errors is not None and tools and errors / tools > 0.09):
-        return "part"
-    if steps:
-        return "ok"
-    return None
+def outcome_of(last_turn: tuple[str | None, bool] | None, corr: int | None,
+               msgs: int | None, tail: list[str | None] | None) -> str | None:
+    """Estimate only, via the shared ``uiview.outcome`` rule (same as the A3 list/detail).
+
+    ``last_turn`` = (status, has_final_reply) of the last human turn, ``None`` without turns.
+    """
+    status, has_final = last_turn if last_turn else (None, None)
+    return outcome.estimate(last_turn=status, corr=corr, msgs=msgs, tail=tail,
+                            has_final=has_final)
 
 
 def _clock(ts: int | None, tz) -> tuple[str | None, int | None, int | None]:
@@ -307,7 +342,7 @@ def _projects(conn, ids: set[str]) -> dict[str, dict]:
     out = {}
     for pid, name, key, paths in _rows(conn, f"SELECT project_id, name, key, paths FROM project "
                                              f"WHERE project_id IN {UIDS}",
-                                       json.dumps(sorted(ids))):
+                                       json.dumps(sorted(ids)), fields=('projects',)):
         try:
             parsed = json.loads(paths) if paths else []
         except ValueError:
@@ -326,7 +361,7 @@ def _excluded(conn, uids: list[str], tz) -> list[dict]:
             conn, f"SELECT s.session_uid, src.agent, s.project_id, s.title, s.title_source, "
                   f"s.started_at FROM session s LEFT JOIN source src ON src.source_id = "
                   f"s.source_id WHERE s.session_uid IN {UIDS} AND COALESCE(s.kind, 'main') = "
-                  f"'main'", json.dumps(sorted(uids))):
+                  f"'main'", json.dumps(sorted(uids)), fields=('excluded',)):
         d, h, mi = _clock(started, tz)
         row = {k: None for k in ROW_KEYS}
         row.update(id=uid, d=d, h=h, mi=mi, a=agent, p=pid, title=title,
@@ -343,6 +378,16 @@ ROW_KEYS = ("id", "d", "h", "mi", "a", "p", "title", "title_source", "dur", "spa
 
 def build_facts(conn, result: dict, scope) -> dict:
     """Rows + per-session auxiliaries (tool mix, turn units, opening, interval)."""
+    token = _DEGRADED.set(set())
+    try:
+        body = _build_facts(conn, result, scope)
+        body["meta"]["degraded"] = sorted(_DEGRADED.get() or ())
+        return body
+    finally:
+        _DEGRADED.reset(token)
+
+
+def _build_facts(conn, result: dict, scope) -> dict:
     tz_name = getattr(scope, "display_timezone", None) or "UTC"
     tz = _tz(tz_name)
     mains, root_of = _split(result)
@@ -350,7 +395,8 @@ def build_facts(conn, result: dict, scope) -> dict:
     main_json = json.dumps(sorted(s["session_uid"] for s in mains))
     verify_events, structured_events = _instruction_index(result)
     active = _active(conn, uids, root_of)
-    turns, last_status = _turns(conn, uids, root_of, verify_events)
+    turns, last_turn = _turns(conn, uids, root_of, verify_events)
+    tails = _tails(conn, uids, root_of)
     tools = _tools(conn, uids, root_of)
     tok, cumulative, models, efforts = _models(conn, uids, root_of)
     first, texts = _human(conn, main_json)
@@ -386,7 +432,7 @@ def build_facts(conn, result: dict, scope) -> dict:
         verify = (any(t[1] for t in unit_rows) or None) if unit_rows else None
         if unit_rows and verify is None:
             verify = False
-        out = outcome_of(last_status.get(uid), corr, errors, n_tools, steps)
+        out = outcome_of(last_turn.get(uid), corr, f.get("user_message_count"), tails.get(uid))
         span = f.get("observed_session_span_ms")
         row = {
             "id": uid, "d": d, "h": h, "mi": mi, "a": s.get("agent"), "p": s.get("project_id"),
@@ -518,13 +564,17 @@ def aux_units(a: dict | None) -> dict:
             "t1": a.get("t1")}
 
 
+FLOAT_DIGITS = {"mood": 3, "dur": 2, "span": 2}
+
+
 def compact(body: dict) -> dict:
     """Columnar wire form: ``fields`` + ``rows`` (lists), dictionary-coded strings.
 
     ``dicts[field]`` holds the distinct values; the row stores the index (null stays null).
     A column with one value across all rows moves to ``constants`` (decoded value).
     Session ids drop the shared ``session_`` prefix (``meta.id_prefix``); booleans are 0 / 1;
-    floats keep one decimal. Keeps ≈ 200 KB per 1000 sessions.
+    floats keep one decimal, except ``FLOAT_DIGITS`` (mood in −1..1 keeps 3: one decimal
+    would snap it to 0.1 steps and bias msgs-weighted means). Keeps ≈ 200 KB per 1000 sessions.
     """
     rows = [{**r, **aux_units((body.get("aux") or {}).get(r["id"]))}
             for r in body.get("rows") or []]
@@ -547,7 +597,7 @@ def compact(body: dict) -> dict:
             elif isinstance(value, bool):
                 value = int(value)
             elif isinstance(value, float):
-                value = round(value, 1)
+                value = round(value, FLOAT_DIGITS.get(key, 1))
             values.append(value)
         out.append(values)
     fields = list(WIRE_KEYS)

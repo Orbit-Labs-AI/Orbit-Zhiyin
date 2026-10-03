@@ -1,8 +1,12 @@
-"""Dense fallback: signed feature hashing into 512 dims (no model, no download).
+"""Route ``hashed_lexical``: signed feature hashing into 512 dims (no model, no download).
 
-Used only when the catalog's E5 route is not ready. It approximates semantic
-overlap via shared tokens and Chinese bigrams, which is enough to connect a
-problem description to the few dozen local remedy texts.
+This is NOT a semantic embedding: the vector is a hash of tokens and Chinese bigrams, so
+cosine similarity measures shared surface words only (no synonyms, no cross-language match);
+it is a second lexical route next to BM25. Used only when the catalog's E5 vectors are not ready.
+
+``THRESHOLD`` (.15) is uncalibrated: it was set by hand so a problem description keeps the
+few KB rules sharing several words with it; no ablation or labelled set backs the value.
+Override per call (``rank(..., threshold=)`` / ``recall_all(..., hashed_threshold=)``).
 """
 
 import math
@@ -42,6 +46,7 @@ def cosine(a: dict[int, float], b: dict[int, float]) -> float:
 
 
 _ENCODER = HashedEncoder()
+THRESHOLD = .15
 
 
 @lru_cache(maxsize=8192)
@@ -50,7 +55,7 @@ def _doc(text: str) -> dict[int, float]:
     return _ENCODER.encode(text)
 
 
-def rank(query: str, docs: dict[str, str], *, threshold: float = .15) -> list[tuple[str, float]]:
+def rank(query: str, docs: dict[str, str], *, threshold: float = THRESHOLD) -> list[tuple[str, float]]:
     """Cosine of each doc against the query, keeping scores >= threshold."""
     q = _ENCODER.encode(query)
     if not q:
@@ -59,8 +64,9 @@ def rank(query: str, docs: dict[str, str], *, threshold: float = .15) -> list[tu
     return sorted(((uid, s) for uid, s in scored if s >= threshold), key=lambda row: (-row[1], row[0]))
 
 
-def recall(problems: list[dict], rules, inputs: dict, memory: dict, legacy: tuple = ()) -> tuple[list, dict]:
-    """Route 'dense': KB rules and legacy seeds by hashed cosine to each problem's description."""
+def recall(problems: list[dict], rules, inputs: dict, memory: dict, legacy: tuple = (), *,
+           threshold: float = THRESHOLD) -> tuple[list, dict]:
+    """Route 'hashed_lexical': KB rules and legacy seeds by hashed cosine to each problem's description."""
     from .catalog_route import from_item
     from .kb_route import from_rule, prefix_ok, rule_key
 
@@ -78,7 +84,7 @@ def recall(problems: list[dict], rules, inputs: dict, memory: dict, legacy: tupl
             continue
         query = " ".join([problem["reason"], problem["type"].replace("_", " "),
                           *(str(v) for v in problem["vars"].values() if isinstance(v, str))])
-        for uid, score in rank(query, rule_docs):
+        for uid, score in rank(query, rule_docs, threshold=threshold):
             rule = by_id[uid]
             # Cross-type matches only for problem types no rule claims; otherwise the KB is authoritative.
             if (problem["type"] in claimed and problem["type"] not in rule.problem.types) or (
@@ -87,7 +93,7 @@ def recall(problems: list[dict], rules, inputs: dict, memory: dict, legacy: tupl
             key = rule_key(by_id[uid], problem)
             if score > best.get(key, (0, None))[0]:
                 best[key] = (score, problem)
-        for uid, score in rank(query, item_docs):
+        for uid, score in rank(query, item_docs, threshold=threshold):
             key = "catalog:" + uid
             if score > best.get(key, (0, None))[0]:
                 best[key] = (score, problem)

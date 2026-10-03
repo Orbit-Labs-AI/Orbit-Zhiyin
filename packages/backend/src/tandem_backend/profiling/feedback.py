@@ -21,6 +21,41 @@ RULES = {
     "verification": ("完成后检查", r"测试|验收|跑通|检查.{0,10}(?:代码|运行|结果)|验证.{0,10}(?:代码|运行|结果)"),
     "scope": ("保持范围集中", r"先做最[小简]|不要[再]*[增扩]|只[改做]|MVP|最小.{0,6}(?:版本|范围|原型)|不要重构"),
 }
+# English equivalents for the dimensions most often stated in English prompts. They are
+# whole imperative phrases, so they need no Chinese target heuristics; negated or
+# question/discussion uses are removed by ``_english_target``.
+_W = r"(?<![A-Za-z0-9_])"
+_E = r"(?![A-Za-z0-9_])"
+EN_RULES = {
+    "clarity": _W + r"(?:(?:explain|make it|keep it|write it|say it)[^.;\n]{0,20}" + _W
+               + r"(?:clear(?:ly)?|simple|simply|easy to (?:read|understand|follow))|in plain (?:english|language|words)|"
+               r"(?:i )?(?:don't|do not|can't|cannot) understand|hard to (?:follow|understand))" + _E,
+    "brevity": _W + r"(?:(?:(?:keep|make) (?:it|this|the (?:answer|reply|summary))|be) (?:short|brief|concise)|"
+               r"(?:shorter|more concise) (?:answer|reply|summary|version)|too long|tl;?dr|"
+               r"in (?:one|two|three|\d+) (?:sentences?|paragraphs?))" + _E,
+    "planning": _W + r"(?:plan first|(?:first )?(?:make|write|propose|draft|outline) (?:a |the )?plan|"
+                r"plan (?:it )?(?:out )?before (?:coding|implementing|you (?:start|code|implement)))" + _E,
+    "verification": _W + r"(?:(?:run|rerun|re-run|execute) (?:the |all (?:the )?|unit |existing )*tests?|"
+                    r"make sure (?:the |all (?:the )?)?tests? pass|add (?:unit |regression )?tests?|"
+                    r"verify (?:that )?(?:it|the (?:fix|change|result|output|code))|test (?:it|this|the change))" + _E,
+    "autonomy": _W + r"(?:(?:don't|do not) ask(?: me)?|without asking|no need to (?:ask|confirm)|"
+                r"just do it|go ahead without (?:asking|confirming))" + _E,
+}
+EN_NEGATION = re.compile(r"(?:don't|do not|no need to|never|not|without)\s+(?:\w+\s+){0,2}$", re.I)
+EN_TOPIC = re.compile(r"(?:how (?:do|can|should|to)|what (?:does|is)|why (?:do|does|did|should)|discuss(?:ing)?|talk(?:ing)? about)\b[^.;\n]*$", re.I)
+
+
+def _english_target(text: str, match: re.Match, dimension: str) -> bool:
+    left = max(text.rfind(c, 0, match.start()) for c in ".?!;\n，,。；") + 1
+    prefix = text[left:match.start()]
+    if dimension != "autonomy" and EN_NEGATION.search(prefix):
+        return False
+    end = min([i for i in (text.find(c, match.end()) for c in ".?!;\n") if i >= 0] or [len(text)])
+    if EN_TOPIC.search(prefix) or text[end:end + 1] == "?":
+        return False
+    return True
+
+
 WRITING = re.compile(r"说人话|说明|讲清楚|解释|回答|表达|报告|文档|文章|语言|教程|注释|讲义|证明|思路|方案|策略|解答|读者|学生")
 CODE = re.compile(r"代码|函数|模块|架构|重构|bootstrap|脚本|算法|实现|字段|参数|属性|变量|文件名|命名")
 VISUAL = re.compile(r"画图|绘图|图像|图片|坐标|图表|界面|pdf.*高度|窗口|颜色|字体|看不清楚|排版|换行|居中|页面", re.I)
@@ -150,7 +185,7 @@ def scene_of(text: str) -> str:
         return "developer_report"
     if coding:
         return "coding"
-    if re.search(r"数学|定理|证明|推导|不动点|微分|积分|矩阵|数分|SPADE", text, re.I):
+    if re.search(r"数学|定理|证明|推导|不动点|微分|积分|矩阵|\b(?:theorem|proof|derivation|integral|matrix)\b", text, re.I):
         return "math_explanation"
     if re.search(r"报告|项目进度|完成度|README|开发说明", text, re.I):
         return "developer_report"
@@ -322,7 +357,7 @@ class Signal:
     quote: str
     target: str = "workflow"
     scene: str = "conversation"
-    rule_version: str = "rules-v13"
+    rule_version: str = "rules-v14"
     readers: list[dict] = field(default_factory=list)
     output_contract: dict | None = None
     output_contracts: list[dict] = field(default_factory=list)
@@ -395,6 +430,10 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
             matches = [m for m in matches if _requirement_target(text, m, dimension)]
             if dimension in ("clarity", "brevity"):
                 matches = [m for m in matches if _writing_target(text, m.start(), m.end())]
+            if dimension in EN_RULES:
+                matches += [m for m in re.finditer(EN_RULES[dimension], text, re.I)
+                            if _english_target(text, m, dimension)]
+                matches.sort(key=lambda m: m.start())
             if not matches:
                 continue
             candidates = []
@@ -405,7 +444,7 @@ def signals(events: list[Event], context_by_id: dict | None = None) -> list[Sign
                 category = "request"
                 negative_constraint = dimension == "brevity" and match[0] == "太长" and re.search(
                     r"(?:不要|不用|无需|不必|别|不需要)[^，。；;\n]{0,4}太长", clause)
-                if not negative_constraint and dimension in ("clarity", "brevity", "grounding") and re.search(r"看不懂|没看懂|不满意|(?:你|这[次份段]|还是|又).{0,10}太长", clause):
+                if not negative_constraint and dimension in ("clarity", "brevity", "grounding") and re.search(r"看不懂|没看懂|不满意|(?:你|这[次份段]|还是|又).{0,10}太长|(?<![A-Za-z])(?:too long|(?:don't|do not|can't) understand|hard to follow)", clause, re.I):
                     category = "correction"
                 elif dimension in ("clarity", "brevity", "grounding") and re.search(r"继续修改|据此改进|改写|重写|上一[版轮]|你刚才|更[加]*.{0,5}(?:直观|朴素|易读)", clause):
                     category = "refinement"

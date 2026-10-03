@@ -4036,6 +4036,7 @@
       "task_success": null,
       "unknown_n": null,
       "unknown_reasons": {
+       "heuristic_task_identity": null,
        "human_origin": null,
        "no_prior_same_task_delivery": null,
        "unmeasurable_text": null
@@ -4176,7 +4177,7 @@
      }
     }
    ],
-   "sha256": "1af635ae8ad9737231d036c236d1fc0d6a84ca89e87709e9ae392b38f788c65c"
+   "sha256": "0e1d89aa328dd521364406ebe8931f30eb0a0b2977a0cecf7b1aeb3d03eb503b"
   },
   "sessions.bottleneck_features": {
    "keys": [
@@ -6660,6 +6661,8 @@
      "child_task_unknown_n": null,
      "edges_by_kind": {
       "BELONGS_TO_TASK": null,
+      "CORRECTS": null,
+      "EVALUATES": null,
       "RETRIES": null,
       "SPAWNS": null
      },
@@ -6670,6 +6673,7 @@
      "invalid_instruction_replacements": [],
      "nodes_by_kind": {
       "Artifact": null,
+      "Delivery": null,
       "Feedback": null,
       "Instruction": null,
       "ModelCall": null,
@@ -6688,10 +6692,12 @@
       "acceptance_sets": [],
       "counts": {
        "candidate_retries": null,
+       "rework_feedback": null,
        "tool_failed": null,
        "tool_success": null
       },
       "members": {
+       "Delivery": [],
        "Feedback": [],
        "Instruction": [],
        "ModelCall": [],
@@ -6707,7 +6713,7 @@
      }
     ]
    },
-   "sha256": "403aba3c0b652683f064c81b8c49622578c4371ba1e842c52e4f457f632031a4"
+   "sha256": "0fea1f4625836e04b2c924cc4252bf67b89545b2de8d2337338ef83aab4f0844"
   },
   "workflow": {
    "keys": {

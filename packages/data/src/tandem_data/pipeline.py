@@ -23,6 +23,7 @@ SESSION_TABLES = (
     "usage_snapshot",
     "session_feature",
     "link",
+    "tool_call_file",
     "tool_call",
     "turn",
     "session",

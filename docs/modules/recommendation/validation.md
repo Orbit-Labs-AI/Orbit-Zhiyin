@@ -404,3 +404,12 @@ API 使用 `POST /v1/analytics/recommendations`，请求中的 `context.preferen
 | Swift 测试 | 环境阻塞：CommandLineTools 无法确定 SDK PlatformPath，报 XCTest not available |
 
 因此 `pnpm check` 整体退出码为 1，不能记为全绿。Swift 中断后的原型、文档与安装验收已逐项另行执行并通过；该限制没有通过跳过 Swift 检查掩盖。Python 另有既存 Starlette / AnyIO 弃用警告。完整日志与机器可读结果保存在本地报告目录的 `repository-check.log`、`repository-remaining-checks.log`、`repository-verification.json`。
+
+## engine v2 离线回放（合成集，仅回归）
+
+`uv run python -m evals.recommendation.replay` 跑 `evals/recommendation/fixtures/replay-cases.json`（v2，2026-10-03）。
+
+- **标注来源**：旧版 `relevant` 按引擎同一张 `mechanism.REMEDY_PRIORITY` 优先序给出，`hit@3=1.0` 只是自证。v2 由 Claude（AI，audit-recommend 任务）按每个 case 的 `label_rationale` 独立重标，依据是解法是否直接作用于问题成因（机械强制 > 常驻约定 > 需手动触发），不读引擎输出；待 `yhyfhgs` 复核。`timeline-cases.json` 的采纳目标同样为手写虚构选择。
+- **样本**：14 个正例（含 2 个 KB 规则被静音、只能由资源库条目满足的 catalog 路 case）与 5 个负例（0 会话、4 会话、30 个无摩擦会话、问题类型被静音、全部问题被静音），负例断言 `status` 与不出现问题驱动卡。
+- **当前结果**：`hit_rate@3 = 1.0`、`ndcg@3 = 0.7652`、`negative_pass_rate = 1.0`（n_positive=14，n_negative=5）。`verify-kb-muted-catalog` 的 nDCG 只有 0.20：KB 被静音后排在前面的是模板工作流，资源库的自检 skill 被 `cap:problem` 挤掉，这是如实的弱项。
+- **口径**：输出带 `disclaimer`（合成集，仅回归）。样本量小、全部虚构，指标只用于发现排序回退，不能说明对真实用户有效；测试里的阈值是上述实测值的回归下限，而不是质量目标。

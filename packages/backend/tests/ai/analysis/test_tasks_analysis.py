@@ -32,8 +32,12 @@ def test_taskspecs_follow_contract():
 
 
 def test_numbers_ok():
-    nums = [0.125, 42.0, 3.5]
+    nums = [0.125, 42.0, 3.5, 3]
     assert numbers_ok("失败率 12.5%，共 42 次，3 个会话，平均 3.5 分钟", nums) == []
+    # a small count with a unit is a claim about the data: it must be whitelisted
+    assert numbers_ok("有 7 个会话卡住，重试 2 次", [42]) == ["7", "2"]
+    # bare ordinals / list positions without a unit stay exempt
+    assert numbers_ok("第一，见 A4 页；排名前 3", []) == []
     assert numbers_ok("比例 0.125", [12.5]) == []
     assert numbers_ok("提升了 37%", nums) == ["37%"]
     assert numbers_ok("共 1,234 次", nums) == ["1,234"]
@@ -194,3 +198,62 @@ def test_ask_engine_failure_falls_back(ask_data, appdb, tandem_home):
     ctx = FakeCtx(ASK, pack, [CallFailed("down")], reads=ask_data.reads)
     result = run_task(ASK, ctx)
     assert result["status"] == "fallback" and result["result"]["source"] == "template"
+
+
+def _ask_plan(apis):
+    return {"intents": ["approvals"], "queries": [{"api": a, "params": {"limit": 3}} for a in apis]}
+
+
+def test_ask_withholds_snippet_queries_without_consent(ask_data, appdb, tandem_home):
+    pack = ask_pack(ask_data, appdb, tandem_home, "我最常怎么纠正 Agent？")
+    answer = {"answer": "见工具统计。", "refs": [], "next": "none"}
+    ctx = FakeCtx(ASK, pack, [_ask_plan(["corrections", "tools"]), answer], reads=ask_data.reads,
+                  grants=("summary",))
+    result = run_task(ASK, ctx)
+    sent = json.loads(ctx.calls[1]["prompt"])["results"]
+    assert result["status"] == "ok" and len(sent) == 1  # only the tools (summary) query reached the engine
+    assert all("text" not in row for r in sent for row in r["rows"])
+    assert [q["api"] for q in result["result"]["queries"]] == ["tools"]
+    assert any("snippets" in line for line in ctx.logs)
+
+
+def test_ask_snippet_only_plan_requires_consent(ask_data, appdb, tandem_home):
+    pack = ask_pack(ask_data, appdb, tandem_home, "我最常怎么纠正 Agent？")
+    ctx = FakeCtx(ASK, pack, [_ask_plan(["corrections", "search"])], reads=ask_data.reads, grants=("summary",))
+    result = run_task(ASK, ctx)
+    assert result["status"] == "fallback" and len(ctx.calls) == 1  # no answer call was made
+    assert result["result"]["error_code"] == "consent_required" and result["result"]["missing"] == ["snippets"]
+
+
+def test_ask_sends_snippet_queries_once_granted(ask_data, appdb, tandem_home):
+    pack = ask_pack(ask_data, appdb, tandem_home, "我最常怎么纠正 Agent？")
+    answer = {"answer": "见纠偏记录。", "refs": [], "next": "none"}
+    ctx = FakeCtx(ASK, pack, [_ask_plan(["corrections", "tools"]), answer], reads=ask_data.reads)
+    run_task(ASK, ctx)
+    assert [r["api"] for r in json.loads(ctx.calls[1]["prompt"])["results"]] == ["corrections", "tools"]
+
+
+def test_ask_fabricated_count_fails_after_retry(ask_data, appdb, tandem_home):
+    pack = ask_pack(ask_data, appdb, tandem_home, "哪个工具最差？")
+    plan = {"intents": ["tool_worst"], "queries": [{"api": "tools", "params": {"limit": 3}}]}
+    made_up = {"answer": "有 7 个会话里 Bash 失败。", "refs": [], "next": "tools"}
+    ctx = FakeCtx(ASK, pack, [plan, made_up, made_up], reads=ask_data.reads)
+    result = run_task(ASK, ctx)
+    assert result["status"] == "fallback" and len(ctx.calls) == 3
+    assert result["result"]["error_code"] == "invalid_output"
+    assert result["result"]["answer"] != ask.OUT_OF_SCOPE
+
+
+@pytest.mark.parametrize("reason,code", [("timeout", "timeout"), ("not_logged_in", "engine_unavailable"),
+                                         ("engine_error", "engine_unavailable"), ("refused", "refused")])
+def test_ask_engine_failure_reports_reason(ask_data, appdb, tandem_home, reason, code):
+    pack = ask_pack(ask_data, appdb, tandem_home, "哪个工具最差？")
+    ctx = FakeCtx(ASK, pack, [CallFailed(reason, "detail")], reads=ask_data.reads)
+    result = run_task(ASK, ctx)["result"]
+    assert result["error_code"] == code and result["reason"] == reason
+    assert result["answer"] != ask.OUT_OF_SCOPE
+
+
+def test_ask_out_budget_fits_answer():
+    # answer ≤300 汉字 (~1.5 tokens each) + refs JSON needs more than the old 600-token cap.
+    assert ASK["out_budget"] >= 1200

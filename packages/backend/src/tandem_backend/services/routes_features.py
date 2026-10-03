@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import APIRouter, Query
 
 from .. import features, platform
+from ..features.search import MAX_LIMIT as SEARCH_MAX_LIMIT
 from ..features.service import FeatureService
 from ..features.vocab import VOCAB_VERSION
 from .auth import ApiError
@@ -69,7 +70,8 @@ def router(gw: Gateway) -> APIRouter:
     @api.get("/v1/search")
     def search(q: str = "", kinds: str = "", project_id: Many = None,
                agent: Many = None, since: int | None = None,
-               until: int | None = None, limit: int = Query(20, ge=1, le=100)):
+               until: int | None = None,
+               limit: int = Query(20, ge=1, le=SEARCH_MAX_LIMIT)):
         q = q.strip()
         if not q or len(q) > 200:
             raise ApiError(400, "invalid_request", "q 不能为空且不超过 200 字")
