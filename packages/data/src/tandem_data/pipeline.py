@@ -104,6 +104,34 @@ def exclude_tandem_ai_sessions(store) -> int:
     return len(uids)
 
 
+class ClosureSequences(dict):
+    """Event sequence numbers inside a session-closure rebuild.
+
+    The closure deleted the events of its own sessions, so their numbering restarts at 0.
+    A brand-new file has no mapped records when the closure is computed, so its records
+    can belong to an existing session outside it (a title sidecar written later, another
+    workflow journal): numbering that session from 0 again would collide with its kept
+    events. The first event for such a session escalates the rebuild to include it.
+    """
+
+    def __init__(self, db, scope):
+        super().__init__()
+        self.db, self.scope = db, scope
+
+    def __missing__(self, session_uid):
+        if (
+            session_uid not in self.scope.sessions
+            and self.db.execute(
+                "SELECT 1 FROM event WHERE session_uid=? LIMIT 1", (session_uid,)
+            ).fetchone()
+        ):
+            from tandem_data.scheduler import ScopeEscalation
+
+            raise ScopeEscalation({session_uid}, "new event for a session outside the closure")
+        self[session_uid] = 0
+        return 0
+
+
 @dataclass
 class NativeMapped:
     """Writer-independent result of mapping one record (may come from a worker)."""
@@ -249,7 +277,7 @@ def rebuild(
     progress = progress or (lambda _: None)
     progress({"stage": "reset_projection"})
     mapper_version = mapper_version or MAPPER_VERSION
-    sequences = defaultdict(int)
+    sequences = defaultdict(int) if scope is None else ClosureSequences(store.db, scope)
     parent_keys = {}
     first_by_native = {}
     pending = []

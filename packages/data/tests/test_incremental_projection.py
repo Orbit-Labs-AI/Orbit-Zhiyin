@@ -197,3 +197,57 @@ def test_orphan_subagent_keeps_session_closures(tmp_path):
             )
         )
     assert differing_tables(tmp_path / "data", reference) == []
+
+
+@pytest.mark.parametrize("sidecar", ["title", "journal"])
+def test_new_file_of_a_session_outside_the_closure_escalates(tmp_path, sidecar):
+    """A new file whose records belong to an existing session outside the closure.
+
+    A brand-new file has no mapped records yet, so ``closure()`` cannot know its sessions:
+    a session title sidecar written later for an existing session, or one more Claude
+    Code workflow ``journal.jsonl`` (all of them map into one session). Its events used to
+    be inserted with the closure's fresh sequence numbers and failed the import with
+    ``UNIQUE constraint failed: event.session_uid, event.seq`` on every later scan; now
+    the rebuild escalates to include that session, and the result equals a full rebuild.
+    """
+    import json as _json
+
+    def turn(session, uuid, text):
+        return (
+            _json.dumps(
+                {"type": "user", "sessionId": session, "uuid": uuid, "message": {"content": text}}
+            )
+            + "\n"
+        )
+
+    root = tmp_path / "claude"
+    for n in range(10):
+        path = root / f"projects/p/s{n}.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(turn(f"s{n}", f"u{n}", f"session {n}"))
+    journal = root / "projects/p/s0/subagents/workflows/wf_a/journal.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text(_json.dumps({"type": "launched", "agentId": "a1"}) + "\n")
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store, workers=4)
+        service.import_source(ImportRequest("claude_code", root))
+        if sidecar == "title":
+            added = root / "projects/p/s3/custom-title.json"
+            added.parent.mkdir(parents=True)
+            added.write_text(_json.dumps({"sessionId": "s3", "customTitle": "Renamed"}))
+        else:
+            added = root / "projects/p/s1/subagents/workflows/wf_b/journal.jsonl"
+            added.parent.mkdir(parents=True)
+            added.write_text(_json.dumps({"type": "launched", "agentId": "b1"}) + "\n")
+        result = service.import_source(ImportRequest("claude_code", root))
+        service.close()
+        assert "error" not in result and result["projection"]["scope"]["kind"] == "closure"
+        if sidecar == "title":
+            assert (
+                store.db.execute("SELECT title FROM session WHERE native_id='s3'").fetchone()[0]
+                == "Renamed"
+            )
+        reference = copy_home(store, tmp_path / "reference")
+    with Store(reference) as full:
+        rebuild(full)
+    assert differing_tables(tmp_path / "data", reference) == []
