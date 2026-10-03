@@ -1,35 +1,62 @@
-/* 60-close 6–7（b68.9–88） — STORYBOARD.md v17「6」「7」与「转场关键帧」H13–H17、M6–M9.
-   合并点散开，收拢罗盘（= R 300 圆环）在它们身后从左侧画出 → 展开成罗盘（你的类型的花）→ 再收回圆环 →
-   圆环平着长出螺旋（与 2.2 同一个镜头）→ 立起成 45° Orbit 标志 → 标志上移缩小、点沿圆环两侧滑到底部排成一行 →
+/* 60-close 6–7（b69.2–88） — STORYBOARD.md v17.1 T13（5 → 6 交接 b69.2）与 v17「6」「7」、「转场关键帧」H14–H17、M6–M9.
+   合并点在画面中心 (960, 540) 螺旋放出，各自身后画出一段圆弧，5 段合成收拢罗盘（= R 300 圆环）→ 展开成罗盘（你的类型的花）→
+   再收回圆环 → 圆环平着长出螺旋（与 2.2 同一个镜头）→ 立起成 45° Orbit 标志 → 标志上移缩小、点沿圆环两侧滑到底部排成一行 →
    「Orbit」+「An Assistant Redesign for everyone & every agent」→ 一起淡出到全黑。
-   本场景拥有：deck 2（b68.9 起）、标志 markAt M6–M9、AGD 的 b68.9 / 77.0 / 86.2 三个 key、片尾文字。 */
+   本场景拥有：deck 2（b69.2 起）、标志 markAt M6–M9、AGD 的 b69.2 / 77.0 / 86.2 三个 key 与 b69.2–71.4 的螺旋 follow、片尾文字。 */
 scene('60-close', () => {
   END = 88;
   const PC = [960, 540];
   // 片尾慢推：b78.6–88 由 1 匀速推到 1.07，前 20 % 二次缓起（M8 上移收尾时接上，不会停一下再动）
   const push = (b) => { const p = lp(b, 78.6, 9.4), a = .2; return 1 + .07 * (p < a ? p * p / (2 * a) : p - a / 2) / (1 - a / 2); };
 
+  /* ---------- T13 螺旋放出（b69.2–71.04） ----------
+     50-tools 的合并点 b69.2 停在 (960, 540)、r 40；从这里 5 个点各按 e_i = E.io((b − 69.2 − .06i) / 1.6) 向外放出（ρ = e_i·R，
+     R = 收拢罗盘上徽章到中心的距离 300），同时顺时针转到自己的徽章方位 d_i：θ_i = d_i − G_i·(1 − e_i)。0.0.4 的徽章停在各 Agent
+     的平均方向（不均匀：cc 43 / cx 62 / ds 118 / cp 221 / gm 288°），所以 G_i 取 d_i 到逆时针方向上一个徽章的间隔（cc 115 / cx 19 /
+     ds 56 / cp 103 / gm 67°，合计 360）而不是一律 72°：每个点起转于上一个点的终点方位，角度区间首尾相接、互不交叉，身后的圆弧
+     [d_i − G_i, d_i − G_i + G_i·e_i] 头部始终在点的方位上，b71.04 五段正好合成整圈（无缺口、无重叠）。 */
+  const HB = 69.2, spE = (i, b) => E.inOut(clamp((b - HB - .06 * i) / 1.6)), SP_END = HB + .06 * 4 + 1.6;
+  const spWrap = (d) => ((d % 360) + 360) % 360;
+  let SPG = null;                                             // [d_i, G_i]：徽章方位与它到上一个徽章的顺时针间隔（数据决定，算一次）
+  const spG = () => SPG || (SPG = (() => {
+    const d = compassData().sets.base.pl.map((x, i) => x ?? i * 72 + 18);
+    return d.map((di, i) => { const g = d.map((dj, j) => (j === i ? 0 : spWrap(di - dj))).filter((x) => x > .01); return [di, g.length ? Math.min(...g) : 72]; });
+  })());
+  const S0 = [];                                              // 交接拍 b69.2 时 50-tools 交来的点（AGD.pos 读实际位置，像素级接上）
+  const s0 = (i) => S0[i] || (S0[i] = AGD.pos(i, HB - 1e-6));
+
   /* ---------- deck 2：收拢罗盘 = 圆环 → 罗盘 → 圆环（H13–H15） ---------- */
-  // b68.9 直接设定（H13 提前 0.5 拍：工坊卡还在缩小淡出时合并点就开始散开，b69.2–69.7 不再只剩一个静止的点）：罗盘中心 (400, 400) → 舞台 (960, 540)，s 1，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）
-  tween(2, 68.9, 0, { x: 400, y: 400, s: 1, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
+  // b69.2 直接设定：罗盘中心 (400, 400) → 舞台 (960, 540)，s 1，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）；
+  // 这时圆环的裁剪全是空的（5 段长度都是 0），画面上只有中心的合并点
+  tween(2, HB, 0, { x: 400, y: 400, s: 1, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
   tween(2, 74.8, 1.0, { o: 0 }, E.inOut);                     // 6.4：螺旋长出时罗盘环淡出（drawCompass 继续到 b79）
   let degMe = null;
   // drawCompass 每帧调用到 b79（AGD 的 compass 编队要读点位，直到 row 在 b78.84 落定）；一切都是 b 的纯函数
-  drive(2, 68.9, 79.0, (p, b) => {
+  drive(2, HB, 79.0, (p, b) => {
     if (degMe == null) { const D = compassData(); degMe = D.mineIdx >= 0 ? D.mineIdx * 22.5 + 11.25 : 11.25; }
     const open = E.inOut(lp(b, 71.2, 1.6)), fold = E.inOut(lp(b, 73.2, 1.2));
     const on = E.inOut(lp(b, 71.6, 1.2)) * (1 - fold);        // dial / core：b71.6–72.8 出现，b73.2–74.4 淡出
+    // T13：圆环由点画出——第 i 段从上一个徽章的方位起、长 G_i·e_i，紧跟在点 i 身后（起点往回多 .6° 盖住相邻两段接缝的抗锯齿，
+    // 这 .6° 也随 e_i 长出，开头不会先冒出一小截）；b71.04 合成整圈后不再裁剪
+    const segs = b < SP_END ? spG().map(([d, G], i) => [d - G - .6, (G + .6) * spE(i, b)]) : undefined;
     drawCompass({
-      collapse: 1 - open + fold, dial: on, core: on, pl: 0,
-      spin: (b - 72) * .5,                                     // K0：6 段独立取，b72 全开时 5 个点均匀分布
-      sweep: E.inOut(lp(b, 69.3, 1.8)), sweepFrom: 270,        // 圆环从点飞来的左侧开始画出
+      collapse: 1 - open + fold, dial: on, core: on, pl: 0,     // pl 0：徽章只由 AGD 画（compass 编队骑在同一位置）
+      sweepSegs: segs,
       mine: 1, deg: degMe, grow: lerp(.34, 1, E.out(lp(b, 71.6, 1.2))), needle: 1
     });
   });
 
-  /* ---------- Agent 点（H13 / H16 / H17） ---------- */
-  // H13：合并点从 (220, 540) 散开，直线放射（arc 50，不用 polar）落到 R 300 圆环上，b71.12 落定（圆环 b71.1 画完，b71.2 起展开，不多停），之后骑在罗盘外圈
-  AGD.key(68.9, 'compass', { dur: 1.9, stag: .08, arc: 50 });
+  /* ---------- Agent 点（T13 / H16 / H17） ---------- */
+  // T13：b69.2 起底下是罗盘编队（.4 拍内把合并点的五色细环淡掉；x / y / r 由下面的螺旋 follow 全权接管），
+  // follow 从 b69.0 挂上（b69.2 前返回 null，不影响 50-tools），b69.2 时权重已是 1，起点就是交来的合并点；
+  // e_i = 1 之后 follow 的结果与罗盘编队完全重合，b71.2–71.4 的退出混合看不出来，点继续骑在展开的罗盘外圈上
+  AGD.key(HB, 'compass', { dur: .4, stag: 0 });
+  AGD.follow(69.0, 71.4, (i, b) => {
+    if (b < HB) return null;
+    const e = spE(i, b), G = spG()[i][1], c = cpBadge(i), C = cpStage(400, 400), s = s0(i);
+    const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]) * e, th = (dc - G * (1 - e)) * Math.PI / 180;
+    return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r, e) };
+  }, { blend: .2 });
   // H16 / 7.1：沿圆环两侧慢慢滑到底部、收成一行（cc 在右），b79.32 落定（「Orbit」b79.0 起淡入时还在收尾）
   AGD.key(77.0, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: [4, 3, 2, 1, 0], dur: 2.0, stag: .08, polar: PC });
   // 7.4：片尾不定格——标志、字、点一起以 (960, 540) 为中心匀速慢推 1 → 1.07（b78.6–88，开头 0.2 段缓起），点另有 2px 漂移；
