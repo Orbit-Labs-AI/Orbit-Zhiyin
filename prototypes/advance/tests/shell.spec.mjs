@@ -321,6 +321,76 @@ test('insight order: sidebar, ⌥1–6, window menu and palette follow one page 
   expect(errors).toEqual([]);
 });
 
+// F05 / F14: the Agents list starts with every agent checked; a click checks / unchecks (any subset), 「仅此」 keeps one,
+// the group head's 「全部」 and unchecking the last one restore all; the filter-row Agent chip reads the same S.agents.
+// Rows show the agent logo, not a colour dot. Lite uses the same list.
+test('sidebar Agents: multi-select subset, only-this, all, logos; shared with the Agent chip', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mac-14', 'sidebar behaviour runs once, at the default size');
+  const errors = await openDemo(page);
+  const picked = () => page.evaluate(() => AG.filter((a) => S.agents.has(a.id)).map((a) => a.id).join(','));
+  const all = await page.evaluate(() => AG.map((a) => a.id).join(','));
+  expect(await picked()).toBe(all);
+  await expect(page.locator('#side .ag .ag-ic')).toHaveCount(5);
+  await expect(page.locator('#side .ag .dot')).toHaveCount(0);
+  await expect(page.locator('#side .sect .sr-btn[data-act="agentAll"]')).toHaveCount(0);
+  await page.locator('#side .ag[data-a="cx"] .ag-b').click();
+  await page.locator('#side .ag[data-a="gm"] .ag-b').click();
+  expect(await picked()).toBe('cc,ds,cp');
+  await expect(page.locator('#side .ag[data-a="cx"]')).toHaveClass(/dim/);
+  await expect(page.locator('#side .ag[data-a="cx"] .ag-b')).toHaveAttribute('aria-pressed', 'false');
+  // an unchecked row still counts its own sessions (what checking it would add)
+  expect(Number(await page.locator('#side .ag[data-a="cx"] .ct').textContent())).toBeGreaterThan(0);
+  await expect(page.locator('#main .frow [data-act="agentMenu"]')).toContainText('3 个');
+  await page.locator('#side .ag[data-a="ds"]').hover();
+  await page.locator('#side .ag[data-a="ds"] .ag-only').click();
+  expect(await picked()).toBe('ds');
+  await expect(page.locator('#side .ag[data-a="ds"] .ag-only')).toHaveCount(0);
+  await page.locator('#side .sect [data-act="agentAll"]').click();
+  expect(await picked()).toBe(all);
+  await page.locator('#side .ag[data-a="cc"]').hover();
+  await page.locator('#side .ag[data-a="cc"] .ag-only').click();
+  await page.locator('#side .ag[data-a="cc"] .ag-b').click();   // unchecking the last one = every agent again
+  expect(await picked()).toBe(all);
+  await page.evaluate(() => edSet('lite'));
+  await expect.poll(() => page.evaluate(() => S.ed)).toBe('lite');
+  await page.locator('#side .ag[data-a="cx"] .ag-b').click();
+  expect(await picked()).toBe('cc,gm,ds,cp');
+  expect(errors).toEqual([]);
+});
+
+// F26: pinned projects — without manual pins the group shows the 3 projects with the most sessions in the range and says
+// so in its head; pinning (sidebar hover button or the 项目习惯 page) replaces that with the pinned list, kept in the UI prefs
+test('pinned projects: visible auto rule, pin / unpin from sidebar and projects page, persisted', async ({ page }) => {
+  test.skip(test.info().project.name !== 'mac-14', 'sidebar behaviour runs once, at the default size');
+  const errors = await openDemo(page);
+  const sideIds = () => page.locator('#side .pjp').evaluateAll((els) => els.map((e) => e.dataset.p));
+  const auto = await page.evaluate(() => pinsAuto());
+  expect(auto.length).toBe(3);
+  expect(await sideIds()).toEqual(auto);
+  const head = page.locator('#side .sect').filter({ hasText: '置顶项目' });
+  await expect(head).toContainText('近 30 天会话最多');
+  const n = await page.evaluate((ids) => ids.map((id) => sel({ noExtra: true, project: id }).length), auto);
+  expect([...n].sort((a, b) => b - a)).toEqual(n);
+  await page.locator('#side .pjp').nth(1).hover();
+  await page.locator('#side .pjp').nth(1).locator('.pin-b').click();
+  expect(await sideIds()).toEqual([auto[1]]);
+  await expect(head).toContainText('已置顶');
+  await page.evaluate(() => go('projects'));
+  const other = await page.evaluate((a) => PJ.find((p) => a.indexOf(p.id) < 0).id, auto);
+  await page.locator('#main .pj-tbl tr[data-p="' + other + '"] .pj-pin').click({ force: true });
+  expect(await sideIds()).toEqual([auto[1], other]);
+  await page.reload();
+  await page.waitForFunction(() => typeof S !== 'undefined');
+  expect(await page.evaluate(() => S.pins)).toEqual([auto[1], other]);
+  await page.locator('#side .pjp[data-p="' + other + '"]').hover();
+  await page.locator('#side .pjp[data-p="' + other + '"] .pin-b').click();
+  await page.locator('#side .pjp[data-p="' + auto[1] + '"]').hover();
+  await page.locator('#side .pjp[data-p="' + auto[1] + '"] .pin-b').click();
+  expect(await sideIds()).toEqual(auto);
+  await expect(page.locator('#side .sect').filter({ hasText: '置顶项目' })).toContainText('会话最多');
+  expect(errors).toEqual([]);
+});
+
 test('page key hook runs before global shortcuts; layout changes dispatch orbit:layout', async ({ page }) => {
   const errors = await openDemo(page);
   await page.evaluate(() => {
