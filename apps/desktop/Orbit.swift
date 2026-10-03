@@ -555,7 +555,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = "OrbitStatusItem"  // Keeps the user's ⌘-drag position in the menu bar.
         if let image = NSImage(named: "StatusIcon") {
-            image.isTemplate = true  // orbit-mark-small.svg rendered verbatim; the menu bar tints it.
+            image.isTemplate = true  // kit/nav/orbit-nav-template-16 as published; the menu bar tints it.
             image.size = NSSize(width: image.size.width * 16 / max(image.size.height, 1), height: 16)
             item.button?.image = image
         } else {

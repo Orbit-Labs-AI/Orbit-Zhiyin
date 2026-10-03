@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import os
 import plistlib
-import re
 import shutil
 import struct
 import subprocess
@@ -32,7 +31,7 @@ BUNDLE_ID = "ai.actionmesh.orbit"
 MIN_MACOS = "14.0"  # swiftc target, LSMinimumSystemVersion and the ceiling for bundled Mach-O minos
 APP = OUTPUT / f"{NAME}.app"
 ARTIFACT = f"{NAME}-{VERSION}-arm64"
-LOGO = ROOT / "docs/design/logo"
+KIT = ROOT / "docs/design/logo/kit"
 PYINSTALLER = "pyinstaller==6.22.3"
 
 COLLECT_ALL = ["orbit_backend", "orbit_data", "orbit_catalog", "jieba"]
@@ -89,32 +88,15 @@ def build_host(contents: Path) -> None:
 
 
 def build_icon(resources: Path) -> None:
-    """Orbit.icns from the published artwork, rendered verbatim (never redrawn)."""
-    work = OUTPUT / "icon"
-    shutil.rmtree(work, ignore_errors=True)
-    iconset = work / "Orbit.iconset"
-    iconset.mkdir(parents=True)
-    renderer = work / "render_svg"
-    run("xcrun", "swiftc", "-O", HERE / "render_svg.swift", "-o", renderer)
-    # Every size is orbit-icon.svg scaled as a whole, so the mark stays proportional to the 1024 icon.
-    for points in (16, 32, 128, 256, 512):
-        for scale in (1, 2):
-            px = points * scale
-            name = f"icon_{points}x{points}{'@2x' if scale == 2 else ''}.png"
-            target = iconset / name
-            if px == 1024:
-                shutil.copy2(LOGO / "orbit-icon.png", target)
-            else:
-                run(renderer, LOGO / "orbit-icon.svg", target, px)
-    run("iconutil", "-c", "icns", iconset, "-o", resources / f"{NAME}.icns")
-    # Menu-bar status item: orbit-mark.svg rendered verbatim at its own aspect ratio
-    # (used as a template image, so only its alpha matters). 16 pt tall, @1x and @2x.
-    box = re.search(r'viewBox="[\d.]+ [\d.]+ ([\d.]+) ([\d.]+)"',
-                    (LOGO / "orbit-mark.svg").read_text()).groups()
-    width = round(16 * float(box[0]) / float(box[1]))
-    for scale, suffix in ((1, ""), (2, "@2x")):
-        run(renderer, LOGO / "orbit-mark.svg", resources / f"StatusIcon{suffix}.png",
-            width * scale, 16 * scale)
+    """App and menu-bar icons copied from the published logo kit as they are (never redrawn or resized here).
+
+    ``kit/dock/Orbit.icns`` is the macOS icon on Apple's grid (824 tile in the 1024 canvas, with shadow);
+    ``kit/nav/orbit-nav-template-16*.png`` is the 16 pt menu-bar template image (only its alpha counts).
+    Both are the App icon's curve scaled as a whole; regenerate them with docs/design/logo/export.mjs.
+    """
+    shutil.copy2(KIT / "dock/Orbit.icns", resources / f"{NAME}.icns")
+    for suffix in ("", "@2x"):
+        shutil.copy2(KIT / f"nav/orbit-nav-template-16{suffix}.png", resources / f"StatusIcon{suffix}.png")
 
 
 def write_plist(contents: Path) -> None:

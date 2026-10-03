@@ -12,9 +12,8 @@ let ABOUT = null;
 function aboutRows(a) {
   const n = window.ORBIT && ORBIT.native && ORBIT.native.info;
   const app = (a && a.app) || {}, c = (a && a.components) || {}, rt = (a && a.runtime) || {};
-  // the product version is the App's (the shell); the gateway's own version goes on the 本机服务 row. The gateway still
-  // reports its legacy name 'Orbit': the visible brand is Orbit, the technical contract id (orbit-app-v1) stays as is (R4-17)
-  return [['版本', (n && n.app) || app.version || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name && /^orbit\b/i.test(app.name) ? 'Orbit' : app.name, app.version, app.contract].filter(Boolean).join(' · ') || '—'],
+  // the product version is the App's (the shell); the gateway's own name, version and contract go on the 本机服务 row
+  return [['版本', (n && n.app) || app.version || '—'], ['App 外壳', n ? (n.app || '—') + ' · ' + (n.platform || 'macos') : '浏览器'], ['本机服务', [app.name, app.version, app.contract].filter(Boolean).join(' · ') || '—'],
     ['数据库结构', c.db_schema_version != null ? 'v' + c.db_schema_version : '—'], ['规则 / 分析', [c.rules_version, c.analytics_version].filter(Boolean).join(' · ') || '—'],
     ['脱敏规则', c.redaction_version || '—'], ['支持的 Agent', (c.mappers || []).map((k) => lvAgentOf(k).name).join('、') || '—'],
     ['运行环境', [rt.python && 'Python ' + rt.python, rt.platform, rt.arch].filter(Boolean).join(' · ') || '—']];
@@ -25,7 +24,7 @@ function drawAbout(first) {
   const a = ABOUT, ver = (n && n.app) || (a && a.data && a.data.app && a.data.app.version);
   const body = !a || a.state === 'pending' ? LV.pend(180) : a.state === 'error' ? '<p style="margin:0">' + LV.na('暂时读不到版本信息（本机服务未响应）') + '</p>'
     : '<div class="col" data-about="rows" style="gap:0">' + aboutRows(a.data).map((r) => '<div class="row" style="justify-content:space-between;gap:16px;padding:7px 0;border-bottom:1px solid var(--hair)"><span class="cap" style="font-size:12px;flex:none">' + esc(r[0]) + '</span><span class="mono" style="font-size:12px;text-align:right;min-width:0;overflow-wrap:anywhere">' + esc(String(r[1])) + '</span></div>').join('') + '</div>';
-  openModal(modalHead('关于 Orbit', 'Orbit' + (ver ? ' ' + ver : '') + ' · 本地的跨 Agent 会话分析') + '<div class="mb col" style="gap:12px;font-size:13px;line-height:1.65;color:var(--ink-2)"><div class="row" style="gap:12px"><span class="appicon" style="width:44px;height:44px;flex:none">' + appIcon(44) + '</span><div class="col" style="gap:2px"><b class="serif" style="font-size:20px;color:var(--ink-1)">Orbit</b><span class="mono cap" data-about="version">' + esc(ver || '—') + '</span></div></div>' + body + '<p class="cap" style="margin:0">全部数据只在本机；Orbit 不上传会话内容。</p></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); MODAL_KEY = 'about';
+  openModal(modalHead('关于 Orbit', 'Orbit' + (ver ? ' ' + ver : '') + ' · 本地的跨 Agent 会话分析') + '<div class="mb col" style="gap:12px;font-size:13px;line-height:1.65;color:var(--ink-2)"><div class="row" style="gap:12px"><span class="appicon" style="width:44px;height:44px;flex:none">' + appIcon(44) + '</span><div class="col" style="gap:6px">' + wordmark(20) + '<span class="mono cap" data-about="version">' + esc(ver || '—') + '</span></div></div>' + body + '<p class="cap" style="margin:0">全部数据只在本机；Orbit 不上传会话内容。</p></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide'); MODAL_KEY = 'about';
 }
 function openAboutLive() {
   ABOUT = { state: 'pending', data: null };
@@ -34,7 +33,7 @@ function openAboutLive() {
 }
 function openAbout() {
   if (LV.live) { openAboutLive(); return; }
-  openModal(modalHead('关于这个 Demo', 'Orbit 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI Hackathon 产品（暂定名 Orbit / 同频）的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>名称、MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
+  openModal(modalHead('关于这个 Demo', 'Orbit 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI Hackathon 产品 Orbit·知音 的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
 }
 // 「你」follows the persona page: same period (S.persona.period, default 近 90 天) and the same answer (live persona when the
 // page uses it), labelled with that period. Axis names are the pole words the persona page uses (委托 / 即兴 / 多线 / 求证).
