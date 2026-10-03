@@ -40,12 +40,13 @@ scene('15-redesign', () => {
   /* ---------- Agent 点 ---------- */
   // front-loaded but zero speed at both ends: the dots move off as soon as the previous content clears
   const H3E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
+  // v18.1: the arc sits 24 px lower (cc / cp land at y 608) so the cx / ds bubbles above it clear 「也需要被重新定义」, now at y 395
   // H3 (T4): from 1c's caret (column x 1400, y 547 … 683, r 16) the column lies down to the left into the 1d arc; cc, top
   // of the caret, travels furthest and leaves first (stag .05), the path bows up 40px. Lands b13.4 at cc (744, 584) /
   // cx (852, 566) / gm (960, 560) / ds (1068, 566) / cp (1176, 584), r 34, while 1c's icons fly out the other way
   // v17.3: from b13.4 the arc rises with the 1d lines (6 px/beat, the same drift), so the dots and their bubbles never sit
   // frozen while the stream is read; by H4 (b20.3) it is 41 px higher, which only helps gm clear the lines above
-  AGD.key(11.8, 'arc', { ...AGD.P.arcD, cy: (b) => AGD.P.arcD.cy - 6 * Math.max(0, b - 13.4), dur: 1.4, stag: .05, arc: 40, ease: H3E }); // H3
+  AGD.key(11.8, 'arc', { ...AGD.P.arcD, cy: (b) => AGD.P.arcD.cy + 24 - 6 * Math.max(0, b - 13.4), dur: 1.4, stag: .05, arc: 40, ease: H3E }); // H3
   // H4 (T6): polar about (960, 700), below the arc, so the bearings 298 / 321 / 0 / 39 / 62° open clockwise without
   // crossing: gm rises straight up the middle, cc / cp swing out and down like a flower opening. ph 207 = 209 − 5·0.4
   // keeps the v17 landing points and the angle (228) that 20-orbit hands on from. v17.4: this key moved b19.0 → b20.3 and
@@ -113,7 +114,7 @@ scene('15-redesign', () => {
     w.style.opacity = Math.min(1, p1 * 1.6).toFixed(3);
     leave(el, q, true);
   };
-  txt(15.1, 20.7, [['hv sv rd-h', '<span class="w">也需要被</span><span class="w rd-or">重新定义</span>']], { x: 960, y: 370, align: 'c' },
+  txt(15.1, 20.7, [['hv sv rd-h', '<span class="w">也需要被</span><span class="w rd-or">重新定义</span>']], { x: 960, y: 395, align: 'c' },
     { anim: fall({ inB: .26, at: .5, dur: .3, out: .6 }), tick: drift() });
 
   /* ---------- 1d 输入框 + 纠正气泡 ---------- */
@@ -152,6 +153,13 @@ scene('15-redesign', () => {
     const same = BUB.filter((v) => v.i === u.i && v.b0 > u.b0);
     u.b1 = u.b0 + LIFE;
     if (same[1]) u.b1 = Math.min(u.b1, same[1].b0 + .3);                                     // a 3rd one: the oldest goes
+  }
+  // v18.1: at most 6 bubbles up at once — as a new one pops, the oldest still up starts shrinking back into its dot
+  // (arrivals unchanged; cx / ds bubbles already replaced on their dot do not count)
+  const shown = (v, b) => b >= v.b0 && b < v.b1 - POUT && !(UP[v.i] && BUB.some((w) => w.i === v.i && w.b0 > v.b0 && b >= w.b0));
+  for (const u of BUB) {
+    const on = BUB.filter((v) => v !== u && shown(v, u.b0));
+    if (on.length >= 6) { const old = on.sort((p, q) => p.b0 - q.b0)[0]; old.b1 = u.b0 + POUT; }
   }
   BUB.filter((u) => u.b1 >= R0 + POUT - 1e-6).sort((a, b) => b.b0 - a.b0).forEach((u, k) => { u.b1 = R0 + RS * k + POUT; });
   const slow = [];                                                                           // [AGD_BUB record, b0, b1]
@@ -200,7 +208,7 @@ scene('15-redesign', () => {
   for (let i = 0; i < 5; i++) { WIN.push({ i, t0: 12.2, t1: 12.9, st: 'pill', pr: 1 }, { i, t0: 19.85, t1: 20.4, st: 'pill', pr: 1 }); }
   for (const w of TY) WIN.push({ i: w.i, t0: w.K[0] - .2, t1: w.send != null ? w.send - .2 : 19.85, st: 'caret', pr: 3, w });
   for (const u of BUB) WIN.push({ i: u.i, t0: u.send != null ? u.send - .2 : u.b0 - .15, t1: u.b1 - POUT, st: 'tail', pr: 2 });
-  WIN.push({ i: 3, t0: 13.85, t1: 14.35, st: 'head', pr: 2 });
+  WIN.push({ i: 3, t0: 13.65, t1: 14.4, st: 'head', pr: 2 });
   for (let i = 0; i < 5; i++) {
     const W = WIN.filter((w) => w.i === i), at = (b) => W.filter((w) => b >= w.t0 && b < w.t1).sort((p, q) => q.pr - p.pr || q.t0 - p.t0)[0];
     const T = [...new Set(W.flatMap((w) => [w.t0, w.t1]))].filter((t) => t >= 12.2 && t < 20.4).sort((p, q) => p - q);
@@ -220,10 +228,16 @@ scene('15-redesign', () => {
   // then rounds back out (.5 beat, the logos return) as a pill aimed at the input box about to grow out of them
   AGD.morph(11.8, 'all', 'caret', { hpx: 24, rot: 90, dur: .4, stag: .03 });
   AGD.morph(12.2, 'all', 'pill', { aim: BOX, w: 2.6, dur: .5, stag: .03 });
-  // the highlighter (「交互本身」, from b13.85): ds, nearest its start, becomes a pen head and slides 24 px right, 18 px up
-  // along it, then back (the dots either side leave it no more room)
-  const hm = (b) => E.inOut(clamp((b - 13.85) / .5)) * (1 - E.inOut(clamp((b - 14.35) / .3)));
-  AGD.follow(13.8, 14.7, (i, b, q) => (i === 3 ? { x: q.x + 24 * hm(b), y: q.y - 18 * hm(b) } : null), { blend: .05 });
+  // the highlighter (「交互本身」, from b13.85): ds becomes a pen head, rises from the arc onto the band under 「交互本身」
+  // (b13.72–14.0, as 「交互本身」 steps in), rides the tip of the stroke as it starts to draw (x 1010 + 402·progress, the line's 6 px/beat drift) and
+  // drops back onto the arc by b14.5, before its own bubble (b14.55). v18.1: was a 24 / 18 px nudge ≈ 300 px below the band
+  const hm = (b) => E.inOut(clamp((b - 13.72) / .28)) * (1 - E.inOut(clamp((b - 14.2) / .3)));
+  const tipX = (b) => 1010 + 402 * BUB.reduce((s, u) => s + E.inOut(clamp((b - u.b0 + .25) / .4)), 0) / BUB.length;
+  AGD.follow(13.5, 14.6, (i, b, q) => {
+    if (i !== 3) return null;
+    const h = hm(b), tx = tipX(b) - 10, ty = 328 - 6 * (b - 12.8);                         // just under the band, nose at the tip
+    return { x: lerp(q.x, tx, h), y: lerp(q.y, ty, h) };
+  }, { blend: .05 });
   // 1e: on the way out to the ring each dot becomes a bead (ls .85) threaded on the dashed circle; 「everyone」 lands
   // (b23.0) with a beat of glow
   AGD.morph(20.4, 'all', 'bead', { ls: .85, dur: .8, stag: .05, glow: (b) => .5 * plate(b, 23.0, 24.0, .3) });
