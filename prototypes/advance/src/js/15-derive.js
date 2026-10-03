@@ -78,6 +78,12 @@ function pl(x, an) {
   for (let i = 1; i < an.length; i++) if (x <= an[i][0]) { const [x0, y0] = an[i - 1], [x1, y1] = an[i]; return y0 + (y1 - y0) * (x - x0) / (x1 - x0); }
   return an[an.length - 1][1];
 }
+// 线上 facts 行 → 会话上供人格计算读取的字段（msgs / corr 记 0 供别处求和，原行留在 raw 里，未知仍是未知）。
+// LV.hydrate（90-live-core.js）与前后端对拍工具 tools/persona-eval.mjs 共用这一份映射
+function psRowFields(r) {
+  return { msgs: r.msgs || 0, corr: r.corr || 0, dk: r.dk, dn: r.dn, vk: r.vk, op: r.op, t0: r.t0, t1: r.t1,
+    ik: r.ik, kn: r.kn, ol: r.ol, oa: r.oa, os: r.os, sc: r.sc, rb: r.rb, raw: r };
+}
 // one session's contributions: ratio signals as (k, n) clusters, mean signals as a mapped score
 function psContrib(s) {
   const r = {}, m = {};

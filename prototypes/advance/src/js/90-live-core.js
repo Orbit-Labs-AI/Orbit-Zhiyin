@@ -420,12 +420,11 @@ LV.hydrate = function (spine) {
     ag.all++;
     const p = r.p || '_none';
     if (!pj[p]) pj[p] = { id: p, name: r.p ? r.p : '未归属项目', path: null };
-    ALLX.push({ id: r.id, d: Math.round((lvUtc(r.d) - DAY0) / 86400000), h: r.h || 0, mi: r.mi || 0, a: ag.id, p,
-      dur: r.dur != null ? r.dur : r.span != null ? r.span : 0, msgs: r.msgs || 0, tools: r.tools || 0, errors: r.errors || 0, corr: r.corr || 0,
+    // msgs / corr / persona unit columns / raw come from psRowFields (15-derive.js), shared with the parity tool
+    ALLX.push(Object.assign({ id: r.id, d: Math.round((lvUtc(r.d) - DAY0) / 86400000), h: r.h || 0, mi: r.mi || 0, a: ag.id, p,
+      dur: r.dur != null ? r.dur : r.span != null ? r.span : 0, tools: r.tools || 0, errors: r.errors || 0,
       steps: r.steps != null ? r.steps : null, out: r.out || null, live: !!r.live, verify: r.verify == null ? null : !!r.verify, mood: r.mood != null ? r.mood : null,
-      topic: r.topic || 'other', fric: r.fric || null, tok: r.tok || 0, title: r.title || '（无标题）', model: r.model || null, effort: r.effort || null,
-      dk: r.dk, dn: r.dn, vk: r.vk, op: r.op, t0: r.t0, t1: r.t1,
-      ik: r.ik, kn: r.kn, ol: r.ol, oa: r.oa, os: r.os, sc: r.sc, rb: r.rb, raw: r });
+      topic: r.topic || 'other', fric: r.fric || null, tok: r.tok || 0, title: r.title || '（无标题）', model: r.model || null, effort: r.effort || null }, psRowFields(r)));
   });
   ALLX.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi) || (x.id < y.id ? -1 : 1));
   ALL.length = 0; ALLX.forEach((s) => ALL.push(s));
