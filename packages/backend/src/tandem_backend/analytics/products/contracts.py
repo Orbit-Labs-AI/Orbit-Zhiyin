@@ -21,8 +21,9 @@ RULE_VERSIONS = {
     "cost_time": "bottleneck-features-v1",
     "outcome": "bottleneck-features-v1",
     "outcome_subjective": "subjective-outcome-v1",
-    "lexical": "lexical-v1",
+    "lexical": "lexical-v3",  # == lexical.LEXICAL_VERSION
     "statistics": "descriptive-statistics-v1",
+    "languages": "file-extension-languages-v2",  # == features.LANGUAGE_TABLE_VERSION
 }
 
 
