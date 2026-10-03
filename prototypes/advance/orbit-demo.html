@@ -519,7 +519,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-sw.line{width:12px;height:2px;border-radius:1px}
 .vz-sw.dot{border-radius:50%}
 .vz-lgv{font-family:var(--font-num);font-size:11px;color:var(--ink-1);font-variant-numeric:tabular-nums}
-.vz-tip{position:fixed;z-index:120;pointer-events:none;min-width:120px;max-width:260px;padding:7px 9px;border-radius:8px;background:var(--raised);color:var(--ink-1);box-shadow:var(--sh-pop);font-size:12px;line-height:1.4}
+.vz-tip{position:fixed;z-index:120;pointer-events:none;width:max-content;min-width:120px;max-width:260px;padding:7px 9px;border-radius:8px;background:var(--raised);color:var(--ink-1);box-shadow:var(--sh-pop);font-size:12px;line-height:1.4}
 .vz-th{display:flex;justify-content:space-between;gap:10px;font-weight:600;margin-bottom:3px;white-space:nowrap}
 .vz-th span{color:var(--ink-3);font-weight:400;font-family:var(--font-num);font-size:11px}
 .vz-tr{display:flex;align-items:center;gap:6px;min-height:18px;min-width:0}
@@ -2233,13 +2233,13 @@ const ORBIT_WORDMARK = { vb: [38.9,40,2322.1,428.3], paths: ["M351.336 179.938C3
 const AG = [
   { id: 'cc', name: 'Claude Code', short: 'Claude', c: 'var(--a1)', t: 'var(--a1t)', path: '~/.claude/projects', ver: 'v2.1', model: 'claude-opus-5-5 · thinking high', cli: 'claude -p', resume: 'claude --resume', all: 1412 },
   { id: 'cx', name: 'Codex', short: 'Codex', c: 'var(--a2)', t: 'var(--a2t)', path: '~/.codex/sessions', ver: '0.62', model: '默认模型 · reasoning high', cli: 'codex exec', resume: 'codex resume', all: 498 },
-  { id: 'gm', name: 'Gemini CLI', short: 'Gemini', c: 'var(--a3)', t: 'var(--a3t)', path: '~/.gemini/tmp', ver: '0.31', model: '默认模型', cli: 'gemini -p', resume: 'gemini --resume', all: 211 },
+  { id: 'km', name: 'Kimi CLI', short: 'Kimi', c: 'var(--a3)', t: 'var(--a3t)', path: '~/.kimi-code/sessions', ver: '0.31', model: '默认模型', cli: 'kimi', resume: 'kimi --session', all: 211 },
   { id: 'ds', name: 'DeepSeek Harness', short: 'DeepSeek', c: 'var(--a4)', t: 'var(--a4t)', path: '~/.dsh/sessions', ver: '1.4', model: '默认模型', cli: 'dsh run', resume: 'dsh resume', all: 160 },
-  { id: 'cp', name: 'Copilot CLI', short: 'Copilot', c: 'var(--a5)', t: 'var(--a5t)', path: '~/.copilot/history', ver: '0.9', model: '默认模型', cli: 'copilot -p', resume: 'copilot --resume', all: 135 }
+  { id: 'oc', name: 'OpenCode', short: 'OpenCode', c: 'var(--a5)', t: 'var(--a5t)', path: '~/.local/share/opencode', ver: '0.9', model: '默认模型', cli: 'opencode run', resume: 'opencode --session', all: 135 }
 ];
 const AGI = {}; AG.forEach((a, i) => { AGI[a.id] = a; });
-const AGF = { cc: 1.05, cx: 0.95, gm: 0.82, ds: 0.72, cp: 0.78 };
-const AGFR = { cc: 0.85, cx: 1.1, gm: 1.55, ds: 1.25, cp: 1.6 };
+const AGF = { cc: 1.05, cx: 0.95, km: 0.82, ds: 0.72, oc: 0.78 };
+const AGFR = { cc: 0.85, cx: 1.1, km: 1.55, ds: 1.25, oc: 1.6 };
 const TOPICS = { git: 'Git / PR 收尾与仓库规范', design: '产品设计、Demo 与部署', paper: '论文审阅与 LaTeX', data: 'Agent 数据管线', quant: '量化与数据分析', net: '网络代理规则', other: '其他' };
 const PJ = [
   { id: 'confluo', name: 'Confluo', path: '~/Projects/ActionMesh AI/Confluo', git: 'ActionMesh-AI/Confluo', q: 38, h: 31, A: 12.4, fr: 10.2, I: 76, V: 66, err: 0.075, tags: ['设计', '演示', '部署'], topics: { design: 0.85, git: 0.15 }, fric: { '方向错误': 5, '改动过度': 3, '并行会话冲突': 1 },
@@ -2276,9 +2276,9 @@ const ME = { name: 'yhyfhgs', av: 'yh' };
 const AFF = {
   cc: { confluo: 5, latentskill: 4, teamhub: 2, hackathon: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
   cx: { confluo: 1, latentskill: 2, teamhub: 4, hackathon: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
-  gm: { confluo: 0.4, latentskill: 5, teamhub: 0.5, hackathon: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
+  km: { confluo: 0.4, latentskill: 5, teamhub: 0.5, hackathon: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
   ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, hackathon: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
-  cp: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
+  oc: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
 };
 let DAY0 = Date.UTC(2026, 5, 3);   // live mode (90-live-core) moves DAY0 / LASTDAY to the real calendar
 let LASTDAY = 119;
@@ -2345,7 +2345,7 @@ function genSessions() {
     const weekend = wd(d) >= 5;
     const base = [[2.6, 1], [2.7, 1.1], [5.6, 2.2]][mo][weekend ? 1 : 0];
     const n = Math.max(0, Math.round(base + (r() - 0.5) * 2));
-    const amix = [{ cc: 0.55, cx: 0.35, gm: 0.1 }, { cc: 0.55, cx: 0.3, gm: 0.1, ds: 0.05 }, { cc: 0.6, cx: 0.22, gm: 0.08, ds: 0.06, cp: 0.04 }][mo];
+    const amix = [{ cc: 0.55, cx: 0.35, km: 0.1 }, { cc: 0.55, cx: 0.3, km: 0.1, ds: 0.05 }, { cc: 0.6, cx: 0.22, km: 0.08, ds: 0.06, oc: 0.04 }][mo];
     const pw = [{ latentskill: 5, quant: 4, tweet: 3, other: 2, fhgs: 3, confluo: 2 }, { latentskill: 4, quant: 3, confluo: 4, fhgs: 3, surge: 2, other: 2 }, { confluo: 5, hackathon: 1, latentskill: 3, teamhub: 3, surge: 3, quant: 2, fhgs: 2, other: 2 }][mo];
     for (let i = 0; i < n; i++) {
       const a = pickW(r, amix);
@@ -2357,7 +2357,7 @@ function genSessions() {
   const slots = [];
   SEP.forEach((row, i) => row.forEach((n, j) => { for (let k = 0; k < n; k++) slots.push({ d: 90 + i, a: AG[j].id }); }));
   slots.splice(slots.findIndex((s) => s.d === 119 && s.a === 'cc'), 1);
-  const ord = { cp: 0, ds: 1, gm: 2, cx: 3, cc: 4 };
+  const ord = { oc: 0, ds: 1, km: 2, cx: 3, cc: 4 };
   slots.sort((x, y) => ord[x.a] - ord[y.a] || x.d - y.d);
   const sep = [];
   slots.forEach((s) => {
@@ -2416,9 +2416,9 @@ function genSessions() {
 // 不动 genSessions 的随机序列，其它页面的数字不变。类型权重让外圈有六个分开、宽窄高低不一的峰，四周大致均匀：DIMV（你的类型，
 // 最高，带 DIMT 一点肩）在 12 点右侧，DIFV + DPFV 一座宽峰在委托，DPMT 在右下，SPMV + SPMT 一座宽峰在规划左侧，SIFV 在掌舵，
 // SIMT 一座小峰在左上；峰之间的类型只有零星会话，谷底贴近基线。各 Agent 偏向其中一个峰（Claude Code 偏 DIMV、Codex 偏委托求证、
-// DeepSeek 偏规划多线、Copilot 偏规划掌舵、Gemini 偏即兴掌舵），徽章因此散在四周，每个峰里色带的占比也不同。live 会话不带这个字段。
+// DeepSeek 偏规划多线、OpenCode 偏规划掌舵、Kimi 偏即兴掌舵），徽章因此散在四周，每个峰里色带的占比也不同。live 会话不带这个字段。
 const LEAN_W = { DIMV: 6.5, DIMT: 1.4, DIFT: 0.2, DIFV: 2.4, DPFV: 2, DPFT: 0.2, DPMT: 1.6, DPMV: 0.2, SPMV: 1.8, SPMT: 2.2, SPFT: 0.2, SPFV: 0.2, SIFV: 4, SIFT: 0.2, SIMT: 1.6, SIMV: 0.2 };
-const LEAN_AG = { cc: { DIMV: 1.5 }, cx: { DIFV: 5 }, ds: { DPMT: 20 }, cp: { SPMT: 30 }, gm: { SIFV: 12 } };
+const LEAN_AG = { cc: { DIMV: 1.5 }, cx: { DIFV: 5 }, ds: { DPMT: 20 }, oc: { SPMT: 30 }, km: { SIFV: 12 } };
 function demoLean(all) {
   all.forEach((s) => {
     const r = rng(hash(s.id + ':lean')), tilt = LEAN_AG[s.a] || {}, w = {};
@@ -2499,7 +2499,7 @@ const RECS = [
   { id: 'worktree', dim: 'flow', type: '工作流', icon: 'branch', lvl: 3, aud: 1, title: '并行会话改用 git worktree 隔离', gain: '并行冲突 −5 次 / 月', why: '多个会话同时改同一仓库，产生了 5 次冲突与 2 次覆盖。', ev: '9 个会话', evq: { fric: '并行会话冲突' }, compat: 'Claude Code · Codex', c2: 'var(--a2)', primary: '查看教程', target: '教程（不写入文件）',
     file: [['# 为每个并行会话建立独立 worktree', ' '], ['git worktree add ../Hackathon-a feat/a', '+'], ['git worktree add ../Hackathon-b feat/b', '+'], ['# 在各自目录里启动 Agent，结束后：', ' '], ['git worktree remove ../Hackathon-a', '+']],
     steps: ['为每个要并行的任务建一个 worktree', '在各自目录启动 Agent', '完成后在主目录合并并清理 worktree', '也可以交给生成工坊做成一个 Skill'], track: [['并行冲突', 5, 0, '次'], ['覆盖他人改动', 2, 0, '次'], ['并行会话数', 41, 44, '次']] },
-  { id: 'citation-checker', dim: 'agent', type: '子代理', icon: 'bot', lvl: 2, aud: 1, title: '引用核查子代理（citation-checker）', gain: '引用返工 −3 次 / 月', why: '论文会话里 9 次纠偏与引用格式和 BibTeX 有关。', ev: '9 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code · Gemini CLI', c2: 'var(--a3)', primary: '预览并安装', target: '~/.claude/agents/citation-checker.md',
+  { id: 'citation-checker', dim: 'agent', type: '子代理', icon: 'bot', lvl: 2, aud: 1, title: '引用核查子代理（citation-checker）', gain: '引用返工 −3 次 / 月', why: '论文会话里 9 次纠偏与引用格式和 BibTeX 有关。', ev: '9 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code · Kimi CLI', c2: 'var(--a3)', primary: '预览并安装', target: '~/.claude/agents/citation-checker.md',
     file: [['---', ' '], ['name: citation-checker', '+'], ['description: 核对 \\cite 与 BibTeX 的一致性，输出问题表', '+'], ['tools: Read, Grep', '+'], ['---', ' '], ['只读。逐条检查正文引用是否都在 .bib 中、键名是否一致、', '+'], ['年份与作者是否与原文相符；结果用表格列出，不要改文件。', 'ai']],
     steps: ['预览子代理定义', '安装到 ~/.claude/agents', '在论文会话中说「请 citation-checker 检查第 3 节」'], track: [['引用类纠偏', 9, 3, '次'], ['审稿会话时长', 66, 52, '分钟'], ['BibTeX 错误', 14, 2, '处']] },
   { id: 'remove-figma', dim: 'mcp', type: 'MCP', icon: 'puzzle', lvl: 1, aud: 0, title: '移除闲置的 figma MCP', gain: '每个会话省 ≈ 2.1k tokens', why: 'figma MCP 已安装 41 天，从未被调用，却一直占用上下文。', ev: '186 个会话', evq: {}, compat: 'Claude Code', c2: 'var(--a1)', primary: '一键移除', target: '~/.claude.json · mcpServers',
@@ -2526,12 +2526,12 @@ const RECI = {}; RECS.forEach((r) => { RECI[r.id] = r; });
 const LIB = [
   { id: 'worktree-conductor', kind: 'Skill', icon: 'branch', src: '社区 · MIT', desc: '为每个并行会话自动建立独立 worktree，结束后合并并清理。', m: 94, sc: [96, 92, 74], why: ['你每周约 10 次并行会话，5 次改到同一仓库', '同为 DIMV 的用户安装后冲突减少 72%'], compat: 'Claude Code · Codex', users: 3100, peer: 68, rec: 'worktree' },
   { id: 'retry-breaker', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '同一命令失败 2 次后暂停，先诊断认证与环境再继续。', m: 89, sc: [88, 95, 81], why: ['23 段「失败后原样重试」，最长 4 次', '覆盖你第二大的摩擦：工具 / 环境失败'], compat: 'Claude Code · Codex', users: 1800, peer: 52, rec: 'retry-breaker' },
-  { id: 'release-verifier', kind: '子代理', icon: 'bot', src: '社区 · Apache-2.0', desc: '部署完成后独立检查线上状态码、HTTPS、跳转与缓存。', m: 86, sc: [90, 84, 79], why: ['61% 的会话你会要求验证线上结果', '可以把验收从主会话中拆出去'], compat: 'Claude Code · Gemini CLI', users: 940, peer: 43, rec: 'deploy-target' },
+  { id: 'release-verifier', kind: '子代理', icon: 'bot', src: '社区 · Apache-2.0', desc: '部署完成后独立检查线上状态码、HTTPS、跳转与缓存。', m: 86, sc: [90, 84, 79], why: ['61% 的会话你会要求验证线上结果', '可以把验收从主会话中拆出去'], compat: 'Claude Code · Kimi CLI', users: 940, peer: 43, rec: 'deploy-target' },
   { id: 'paper-audit-loop', kind: 'Skill', icon: 'book', src: '本地生成', local: true, desc: '只读审查 → 归档 → 最小修改 → 编译 → 页数检查。', m: 84, sc: [86, 88, 70], why: ['你在 19 个会话里重复这五步', '由你的本地 Agent 依据你的会话生成'], compat: 'Claude Code', users: 0, peer: 0, rec: 'paper-audit' },
   { id: 'cloudflare-deploy', kind: '插件', icon: 'plug', src: '社区 · MIT', desc: 'wrangler 登录检查、Pages 部署与域名验证命令集。', m: 81, sc: [78, 90, 72], why: ['部署类会话里 4 次走错平台', 'wrangler 未登录导致 37 次失败'], compat: 'Claude Code · Codex', users: 5600, peer: 39, rec: 'deploy-target' },
   { id: 'readonly-allowlist', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '把 git status、ls、gh pr view 等只读命令加入白名单。', m: 79, sc: [74, 92, 70], why: ['212 次只读命令需要你手动批准', '审批平均等待 38 秒'], compat: 'Claude Code · Codex', users: 12000, peer: 61, rec: 'ro-allow' },
   { id: 'gh-review-digest', kind: 'MCP', icon: 'puzzle', src: '社区 · MIT', desc: '把多轮 review 意见合并成一份按优先级排序的清单。', m: 74, sc: [70, 82, 66], why: ['review 循环最长 11 轮', '与 PR 收尾 Skill 搭配效果最好'], compat: 'Claude Code', users: 2200, peer: 27, rec: 'pr-wrapup' },
-  { id: 'citation-checker', kind: '子代理', icon: 'bot', src: '社区 · MIT', desc: '核对论文引用与 BibTeX，一致性问题列成表。', m: 71, sc: [64, 86, 60], why: ['9 次纠偏与引用格式有关', '只读，不会改你的文件'], compat: 'Claude Code · Gemini CLI', users: 780, peer: 18, rec: 'citation-checker' },
+  { id: 'citation-checker', kind: '子代理', icon: 'bot', src: '社区 · MIT', desc: '核对论文引用与 BibTeX，一致性问题列成表。', m: 71, sc: [64, 86, 60], why: ['9 次纠偏与引用格式有关', '只读，不会改你的文件'], compat: 'Claude Code · Kimi CLI', users: 780, peer: 18, rec: 'citation-checker' },
   { id: 'bilingual-report', kind: 'Skill', icon: 'book', src: '社区 · CC BY', desc: '英文交付后自动附中文版，术语表保持一致。', m: 66, sc: [72, 58, 64], why: ['你常在英文结果后要求翻译', '中英混用占 7%'], compat: '所有 Agent', users: 1100, peer: 22, rec: 'acceptance' },
   { id: 'context-saver', kind: 'Hook', icon: 'bolt', src: 'Orbit 官方', desc: '上下文超过 60% 时提醒先总结，再继续。', m: 63, sc: [60, 70, 58], why: ['9 次压缩后需要重复说明约定', '长会话摩擦率 11.2%'], compat: 'Claude Code', users: 4300, peer: 31, rec: 'summary-compact' },
   { id: 'commit-coach', kind: 'Skill', icon: 'book', src: '社区 · MIT', desc: '按约定格式写提交信息，并提醒小步提交。', m: 58, sc: [62, 50, 61], why: ['你的仓库要求 type(scope): 描述', '小步提交时你的满意度更高'], compat: '所有 Agent', users: 6800, peer: 47, rec: 'acceptance' },
@@ -3862,6 +3862,23 @@ function visibleRecs() { return RECS.filter((r) => r.aud <= S.recs.aud && !S.rec
 // Live mode (97-live-recs.js) puts the backend's stable top slate for that surface first.
 function recOrder(surface) { return surface === 'lite' ? liteOrder() : visibleRecs(); }
 function recTop(surface) { return recOrder(surface).filter((r) => !S.installed.has(r.id)); }
+// F21: what a surface says when it has no open recommendation. 「都已处理」 only when there were recommendations and every one
+// was applied or set aside; no sessions, data still on its way (dataBusy, F08) and recommendations still being computed each
+// say so instead. k: busy | computing | error | none | empty | done; t: the sentence; s: the short form for small slots
+function recNone() {
+  const busy = typeof dataBusy === 'function' ? dataBusy() : null;
+  if (busy) return { k: 'busy', t: busy.t.replace(/…$/, '') + '，建议会在完成后给出。', s: '建议计算中' };
+  // no sessions is the true reason before any rec-service state (a live rec error with nothing imported is not the story)
+  if (!ALL.length) return { k: 'none', t: '还没有会话，导入会话后才会给出建议。', s: '暂无建议' };
+  if (LV.live && typeof lvRecState === 'function') {
+    const st = lvRecState();
+    if (st === 'pending' || st === 'computing') return { k: 'computing', t: '正在计算建议…', s: '建议计算中' };
+    if (st === 'error') return { k: 'error', t: '建议暂时取不到，稍后自动重试。', s: '建议暂时取不到' };
+  }
+  const all = RECS.filter((r) => r.aud <= S.recs.aud);
+  if (all.length && all.every((r) => S.installed.has(r.id) || S.recs.gone.has(r.id))) return { k: 'done', t: '建议都已处理。', s: '建议都已处理' };
+  return { k: 'empty', t: '这段时间没有新的建议。', s: '暂无建议' };
+}
 
 /* ============ ui plumbing: theme, tooltip, toast, sheets (#modal), dropdown menus, notifications ============ */
 const desk = $('#desk');
@@ -4492,7 +4509,7 @@ function sidePinsRight() {
 }
 function sidePins() {
   const man = pinsManual(), ids = man.length ? man : pinsAuto();
-  if (!ids.length) return '<div class="sb-note">' + rangeLabel() + '内没有项目会话</div>';
+  if (!ids.length) return '<div class="sb-note">' + (dataBusy() ? '分析完成后显示' : rangeLabel() + '内没有项目会话') + '</div>';
   return ids.map((id) => { const pin = isPinned(id); return '<div class="pjp" data-p="' + esc(id) + '"><button type="button" data-act="pinProject" data-p="' + esc(id) + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + esc(PJI[id].name) + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>' +
     (id === '_none' ? '' : '<button type="button" class="pin-b' + (pin ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(id) + '" aria-pressed="' + pin + '" aria-label="' + (pin ? '取消置顶 ' : '置顶 ') + esc(PJI[id].name) + '" data-tip="' + (pin ? '取消置顶' : '置顶到侧栏') + '">' + ic('pin', 13) + '</button>') + '</div>'; }).join('');
 }
@@ -4523,7 +4540,11 @@ function sideFoot() {
 }
 function personaNow() { return persona(sel({ noExtra: true })); }
 /* page toolbar: lives on the window's 52px title row (title 15px semibold, meta, page items, global search → command palette) */
+// pages whose numbers all come from the sessions: while nothing is published yet (dataBusy, F08) their title meta says what is
+// happening instead of 「0 次调用 · 0 种工具」 / 「0 个会话」
+const BUSY_META_ROUTES = ['overview', 'persona', 'sentiment', 'projects', 'sessions', 'tools', 'l-home', 'l-persona', 'l-sessions'];
 function tbar(title, meta, right) {
+  if (BUSY_META_ROUTES.indexOf(S.route) >= 0) { const b = dataBusy(); if (b) meta = busyMeta(b); }
   const hasInput = /<input\b/i.test(right || '');
   return '<div class="tbar"><div class="grow"><h1>' + title + '</h1>' + (meta ? '<span class="meta">' + meta + '</span>' : '') + '</div>' + (right ? '<div class="tright">' + right + '</div>' : '') +
     '<button type="button" class="tsearch' + (hasInput ? ' ico-only" data-ico="1' : '') + '" data-act="palette" aria-label="搜索（' + kb('⌘K') + '）" data-tip="搜索会话、项目、建议与操作 ' + kb('⌘K') + '">' + ic('search', 14) + '<span>搜索</span><kbd>' + kb('⌘K') + '</kbd></button></div>';
@@ -4532,7 +4553,8 @@ function rangeLabel() { return S.range === 7 ? '近 7 天' : S.range === 30 ? '�
 function winLabel() { const w = win(S.range); const a = dayDate(w[0]), b = dayDate(w[1]); const f = (x) => x.getUTCFullYear() + '-' + String(x.getUTCMonth() + 1).padStart(2, '0') + '-' + String(x.getUTCDate()).padStart(2, '0'); return f(a) + ' — ' + f(b).slice(5); }
 function filterRow(right) {
   const agN = AG.filter((a) => S.agents.has(a.id)).length;
-  const agLbl = agN === AG.length ? 'Agent · 全部 ' + AG.length : agN === 1 ? 'Agent · ' + AG.find((a) => S.agents.has(a.id)).name : 'Agent · ' + agN + ' 个';
+  const fBusy = !!dataBusy();   // F08: counts are not known yet — no 「全部 0」
+  const agLbl = agN === AG.length ? 'Agent · 全部' + (AG.length && !fBusy ? ' ' + AG.length : '') : agN === 1 ? 'Agent · ' + AG.find((a) => S.agents.has(a.id)).name : 'Agent · ' + agN + ' 个';
   const chips = [];
   if (S.topic) chips.push(['topic', '主题 · ' + TOPICS[S.topic]]);
   if (S.outcome) chips.push(['outcome', '结果 · ' + ({ ok: '完成', part: '部分完成', fail: '放弃' })[S.outcome]]);
@@ -4540,7 +4562,7 @@ function filterRow(right) {
   if (S.hour != null) chips.push(['hour', '时段 · ' + S.hour + ':00–' + (S.hour + 1) + ':00']);
   return '<div class="frow"><div class="seg" role="group" aria-label="时间范围">' + [[7, '7 天'], [30, '30 天'], [90, '90 天'], [0, '全部']].map((x) => '<button type="button" data-act="range" data-v="' + x[0] + '" class="' + (S.range === x[0] ? 'on' : '') + '" aria-pressed="' + (S.range === x[0]) + '">' + x[1] + '</button>').join('') + '</div>' +
     '<button type="button" class="chip' + (agN !== AG.length ? ' on' : '') + '" data-act="agentMenu">' + ic('bot', 14, agN === AG.length ? 'color:var(--ink-3)' : '') + agLbl + ic('chev', 11, agN === AG.length ? 'color:var(--ink-3)' : '') + '</button>' +
-    '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 ' + PJ.length) + ic('chev', 11) + '</button>' +
+    '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部' + (PJ.length && !fBusy ? ' ' + PJ.length : '')) + ic('chev', 11) + '</button>' +
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
     '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>' + rangeWidenNote();
 }
@@ -4561,8 +4583,33 @@ function rangeWidenNote() {
   return '<div class="card pad range-note" data-range-note><span>' + rangeLabel() + '内没有会话 · 全部历史共 ' + fmt(sel({ range: 0, noExtra: true }).length) + ' 个</span>' + b + '</div>';
 }
 // 画像不可用时的短词：1 个会话就能出画像（F04），所以 0 个会话写「还没有会话」而不是「样本不足」
-function persNone(p) { return p && p.pending ? '计算中' : p && p.error ? '暂时取不到' : '还没有会话'; }
-function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
+function persNone(p) { return dataBusy() ? '计算中' : p && p.pending ? '计算中' : p && p.error ? '暂时取不到' : '还没有会话'; }
+/* F08: live mode with nothing on screen yet because the data is still on its way — connecting, importing, being organised
+   (projection_pending) or analysed (202). That is not 「没有会话」: titles and empty cards say what is happening instead, with
+   the imported count from /v1/status when the gateway reports one. null in demo, once any session is shown, and once the
+   spine has answered for real (ready / empty / error). */
+function dataBusy() {
+  let lv = null; try { lv = LV; } catch (e) { return null; }
+  if (!lv || !lv.live || ALL.length) return null;
+  const st = (TL.status && TL.status.counts) || {}; const n = st.sessions || 0;
+  const j = TL.job; const importing = !!j && j.kind === 'import' && ['queued', 'pending', 'running'].indexOf(j.status) >= 0;
+  if (lv.state === 'connecting') return TL.error ? { k: 'offline', t: '本机服务未连接', n: 0 } : { k: 'connecting', t: '正在连接本机服务…', n: 0 };
+  if (importing) return { k: 'importing', t: '正在导入会话…', n };
+  if (lv.pending) return { k: 'pending', t: '正在整理数据…', n };
+  if (lv.state === 'computing') return { k: 'computing', t: '正在分析会话…', n };
+  return null;
+}
+// one line for titles / empty cards: 「正在分析会话… · 已导入 26 个会话 · 已用 12 / 60 秒」
+function busyNote(b) {
+  b = b || dataBusy(); if (!b) return '';
+  let p = '';
+  if (b.k === 'computing' && typeof lvSpineProgress === 'function') { try { p = lvSpineProgress(); } catch (e) { p = ''; } }
+  return b.t + (b.n ? ' · 已导入 ' + fmt(b.n) + ' 个会话' : '') + p;
+}
+// the title meta while busy: the calm status instead of 「0 个会话 · 还没有接入 Agent」
+function busyMeta(b) { b = b || dataBusy(); return b ? (b.n ? '已导入 ' + fmt(b.n) + ' 个会话 · ' : '') + (b.k === 'computing' ? '分析中' : b.k === 'importing' ? '导入中' : b.k === 'pending' ? '整理中' : b.t) : ''; }
+function busyCard(b) { b = b || dataBusy(); return '<div class="card pad" data-lv="busy" role="status" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + esc(busyNote(b)) + '<div class="cap" style="margin-top:6px">完成后自动显示，不用刷新</div></div>'; }
+function empty(msg) { return dataBusy() ? busyCard() : '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
 
 /* ============ editions: Lite / Advance in one app ============ */
 // One window, two editions. Advance = the full desktop app (nine pages, filters, every tool). Lite = genius-FXC's focused
@@ -5088,6 +5135,8 @@ VZ.isEmpty = function (spec) {
   if (ser.length) return !ser.some((s) => (s.values || []).some((v) => VZ.num(v && v.y !== undefined ? v.y : v) != null));
   return !vals || !vals.length;
 };
+// empty text: spec.empty or 「暂无数据」; the app may replace it (live: 正在分析… while nothing is published yet, F08)
+VZ.emptyText = (spec) => spec.empty || '暂无数据';
 VZ.lowSample = (spec) => spec.minN != null && spec.n != null && spec.n < spec.minN;
 /* ---------- 共享坐标框架：左轴刻度、网格、x 轴标签、x 定位 ---------- */
 VZ.frame = function (spec, w, h, o) {
@@ -5195,7 +5244,7 @@ VZ.tipRow = (color, name, value, o) => '<div class="vz-tr"><span class="vz-tk' +
 VZ.tipHead = (t, sub) => '<div class="vz-th">' + esc(t) + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div>';
 VZ.emptyHTML = function (spec, h) {
   if (VZ.lowSample(spec)) { const frac = Math.min(1, spec.n / spec.minN); const r = 14, c = 2 * Math.PI * r; return '<div class="vz-empty vz-low" style="min-height:' + Math.max(80, h) + 'px" role="status"><svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="' + r + '" class="vz-ring-bg"/><circle cx="18" cy="18" r="' + r + '" class="vz-ring" stroke-dasharray="' + (c * frac).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 18 18)"/></svg><div><b>样本不足</b><span class="cap">' + spec.n + ' / ' + spec.minN + ' 个会话' + (spec.lowText ? ' · ' + esc(spec.lowText) : '') + '</span></div></div>'; }
-  return '<div class="vz-empty" style="min-height:' + Math.max(64, Math.min(h, 160)) + 'px" role="status">' + VZ.el('svg', { width: 28, height: 20, viewBox: '0 0 28 20', 'aria-hidden': true }, '<path class="vz-empty-ic" d="M2 17h24M5 14l5-6 5 4 5-7 5 4" fill="none"/>') + '<span>' + esc(spec.empty || '暂无数据') + '</span></div>';
+  return '<div class="vz-empty" style="min-height:' + Math.max(64, Math.min(h, 160)) + 'px" role="status">' + VZ.el('svg', { width: 28, height: 20, viewBox: '0 0 28 20', 'aria-hidden': true }, '<path class="vz-empty-ic" d="M2 17h24M5 14l5-6 5 4 5-7 5 4" fill="none"/>') + '<span>' + esc(VZ.emptyText(spec)) + '</span></div>';
 };
 /* ---------- 渲染入口 ---------- */
 VZ.height = (spec, w) => { const t = VZ.types[spec.type]; return spec.height || (t && t.height ? t.height(spec, w) : VZ.defaultH[spec.type]) || 200; };
@@ -5211,7 +5260,7 @@ VZ.render = function (spec, w, h, inst, bare) {
 };
 VZ.svg = function (spec, w, h) {
   w = w || spec.width || 600; const ts = VZ.types[spec.type]; h = h || (ts && ts.svgHeight ? ts.svgHeight(spec, w) : VZ.height(spec, w));
-  if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return '<svg class="vz-svg vz-empty-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(spec.title || '') + '：' + (VZ.lowSample(spec) ? '样本不足' : esc(spec.empty || '暂无数据')) + '"><title>' + esc(spec.title || '') + '</title>' + VZ.txt(w / 2, h / 2 + 4, VZ.lowSample(spec) ? '样本不足 · ' + spec.n + ' / ' + spec.minN : (spec.empty || '暂无数据'), { class: 'vz-ax', 'text-anchor': 'middle' }) + '</svg>';
+  if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return '<svg class="vz-svg vz-empty-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(spec.title || '') + '：' + (VZ.lowSample(spec) ? '样本不足' : esc(VZ.emptyText(spec))) + '"><title>' + esc(spec.title || '') + '</title>' + VZ.txt(w / 2, h / 2 + 4, VZ.lowSample(spec) ? '样本不足 · ' + spec.n + ' / ' + spec.minN : VZ.emptyText(spec), { class: 'vz-ax', 'text-anchor': 'middle' }) + '</svg>';
   return VZ.render(spec, w, h).svg;
 };
 // 图表头：沿用卡片层级 —— .eb 等宽眉标（模块名）、.ct 13px 标题（按 Apple 的做法写成结论句）、.cap 12px 说明（口径 / 范围）、evidence「证据 →」链接
@@ -5257,7 +5306,7 @@ VZ.draw = function (el) {
 VZ.setView = function (el, view) { const inst = VZ._inst.get(el); if (!inst) return; inst.spec.view = view; VZ.draw(el); };
 VZ.table = function (spec) {
   const t = VZ.types[spec.type]; const d = t && t.table ? t.table(spec) : VZ.xyTable(spec);
-  if (!d || !d.rows.length) return '<div class="vz-empty" role="status"><span>' + esc(spec.empty || '暂无数据') + '</span></div>';
+  if (!d || !d.rows.length) return '<div class="vz-empty" role="status"><span>' + esc(VZ.emptyText(spec)) + '</span></div>';
   return '<div class="scroll-x vz-tbl"><table class="tbl"><thead><tr>' + d.cols.map((c, i) => '<th' + (i ? ' style="text-align:right"' : '') + '>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' + d.rows.map((r) => '<tr>' + r.map((c, i) => '<td class="' + (i ? 'mono' : '') + '"' + (i ? ' style="text-align:right"' : '') + '>' + esc(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
 };
 VZ.xyTable = function (spec) {
@@ -6303,7 +6352,9 @@ function countTick(now) {
 /* ---------- page guide: 「这页回答：…」 ---------- */
 // [the question this page answers, where to look first]
 const GUIDE = {
-  overview: () => [rangeLabel() + '你和 Agent 协作得怎么样', '先看顶部「AI 解读」，再看五张指标卡'],
+  // the hint names the badge the top card actually wears (OV_BADGE, set by the overview render): AI 解读 only when the lede is
+  // a model's, 规则解读 for the template, and no badge name while there is no lede at all
+  overview: () => [rangeLabel() + '你和 Agent 协作得怎么样', (typeof OV_BADGE !== 'undefined' && OV_BADGE ? '先看顶部「' + OV_BADGE + '」' : '先看顶部的协作画像') + '，再看五张指标卡'],
   persona: () => ['你属于哪一类协作者、和过去相比变了什么', '先看人格代码和四个维度的条'],
   sessions: () => ['某一次会话里发生了什么、卡在了哪一刻', '先在左侧选会话，再看时间线上的失败与关键时刻'],
   tools: () => ['Agent 最常用哪些工具、哪里在失败或在等你审批', '先看「错误率」卡，再看表里失败多的工具'],
@@ -6740,7 +6791,12 @@ function liteOneCard(open) {
     '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
     '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id, ' · 预计节省') + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' +
     (open.length > 1 ? '<button type="button" class="btn gh l-big" data-act="go" data-r="l-recs">还有 ' + (open.length - 1) + ' 条 →</button>' : '') + liteRecBtn(r) + '</div></div>'
-    : '<div class="card pad l-one l-done"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">建议都已处理。7 天后在「优化建议」里看效果。</p><button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button></div>';
+    : liteNoneCard(recNone());
+}
+// no open recommendation (F21): only a real 「都已处理」 points at the applied ones and their 7-day effect
+function liteNoneCard(rn) {
+  return '<div class="card pad l-one l-done" data-rec-none="' + rn.k + '"><span class="eb">本周最值得做的一件事</span><p class="serif l-say" style="margin:0">' + esc(rn.k === 'done' ? '建议都已处理。7 天后在「优化建议」里看效果。' : rn.t) + '</p>' +
+    (rn.k === 'done' ? '<button type="button" class="btn l-big" data-act="go" data-r="l-recs" style="align-self:flex-start">查看已应用的建议 →</button>' : '') + '</div>';
 }
 // 没有会话时的花（F21）：六片虚线花瓣的轮廓 + 花心，只表示「还没长出来」——不对应任何类型，也不带任何数值
 function emptyBloomSVG(size) {
@@ -6757,22 +6813,24 @@ function emptyActs(big) {
 PAGES['l-home'] = () => {
   const L = sel(); const st = stats(L);
   const pw = prevWin(S.range); const P = pw ? stats(sel({ win: pw })) : null;
-  const pers = personaNow();
+  const pers = personaNow(); const busy = dataBusy();   // 导入 / 分析还在进行（F08）：说明进度，不写「没有会话」
   // live: the L0 insight lede of /v1/uiview/overview (same scope) when it is there; the persona line otherwise
   const ins = LV.live && LV.ready('l-home') && LV.ov ? LV.ov.insight : null;
-  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。';
-  const ev = st.n ? (st.verKnown ? Math.round(st.verify) + '% 的会话要求验证 · ' : '') + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + pctKnown(st.ok, st.okKnown) : '这段时间没有会话';
+  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : busy ? busyNote(busy) : '所选范围还没有会话，暂时无法给出协作画像。';
+  const ev = busy ? '' :   // busy: the lede already is the one status line (with the imported count)
+    st.n ? (st.verKnown ? Math.round(st.verify) + '% 的会话要求验证 · ' : '') + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + pctKnown(st.ok, st.okKnown) : '这段时间没有会话';
   // 没有会话时那句话是固定说明，不是 AI 写的：不挂解读标记（F21）；有话时按来源标 AI 或规则
   const said = (ins && ins.lede) || pers.ok;
   const hero = '<div class="card pad l-hero"><div class="col l-lede">' + (said ? '<div class="row" style="flex-wrap:wrap">' + ovInsBadge(ins) + '<span class="cap">' + (LV.live ? esc(ovInsWhen(ins)) : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' : '') +
-    '<p class="serif l-say">' + esc(lede) + '</p><span class="cap mono l-ev">' + ev + '</span></div>' +
+    '<p class="serif l-say">' + esc(lede) + '</p>' + (ev ? '<span class="cap mono l-ev">' + ev + '</span>' : '') + '</div>' +
     (pers.ok ? '<button type="button" class="ov-code l-code" data-act="go" data-r="l-persona" aria-label="查看协作画像：' + pers.code + ' ' + pers.zh + '"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="serif ov-code-l" data-hero="code">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap;gap:8px"><span class="serif l-zh">' + pers.zh + '</span><span class="serif l-en">' + pers.en + '</span></span><span class="cap">查看协作画像 →</span></button>'
-      : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false) + '</div>') + '</div>';
+      : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + (busy ? '<span class="cap">分析完成后自动显示</span>' : '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false)) + '</div>') + '</div>';
   const d = (cur, prev, o) => P ? Object.assign({ cur, prev }, o) : { text: S.range ? '无可比上期' : '全部历史 · 不比较', cls: '' };
-  const tiles = [
+  // F08: nothing measured yet while importing / analysing — four 「—」 with 计算中, never 0
+  const tiles = busy ? ['会话', '协作时长', '摩擦率', '完成率'].map((l) => VZ.kpi({ label: l, value: '—', sub: '计算中', cls: 'l-busy' })).join('') : [
     liteCount(VZ.kpi({ label: '会话', value: fmt(st.n), delta: d(st.n, P && P.n, { unit: 'pct', goodDown: false, fmt: 'int' }), act: 'go', attrs: ' data-r="l-sessions"' }), st.n),
     liteCount(VZ.kpi({ label: '协作时长', value: st.hours >= 100 ? fmt(st.hours) : f1(st.hours), unit: 'h', delta: d(st.hours, P && P.hours, { unit: 'pct', goodDown: false, fmt: (v) => f1(v) + 'h' }) }), st.hours, st.hours >= 100 ? 0 : 1),
-    (st.msgs ? liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: P && P.msgs ? d(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null }), st.fric, 1) : VZ.kpi({ label: '摩擦率', value: '—', sub: '没有你发出的消息' })),
+    (st.msgs ? liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: P && P.msgs ? d(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null }), st.fric, 1) : VZ.kpi({ label: '摩擦率', value: '—', sub: busy ? '' : '没有你发出的消息' })),
     (st.okKnown ? liteCount(VZ.kpi({ label: '完成率', value: String(Math.round(st.ok)), unit: '%', delta: d(st.ok, P && P.okKnown ? P.ok : null, { unit: 'pt', goodDown: false, fmt: (v) => Math.round(v) + '%' }) }), st.ok) : VZ.kpi({ label: '完成率', value: '—', sub: st.n ? '这些会话没有完成信号' : '' }))
   ].join('');
   // 活跃条带：至少 30 天，当前范围内的日子用实色，范围外的用浅色
@@ -6782,7 +6840,7 @@ PAGES['l-home'] = () => {
   const strip = '<div class="l-strip" role="img" aria-label="每日会话数 · ' + md(days[0]) + ' — ' + md(w[1]) + '">' + days.map((x) => '<i class="' + (x >= w[0] ? 'in' : '') + '" style="height:' + Math.max(4, (per[x] || 0) / mx * 100).toFixed(1) + '%" data-tip="' + md(x) + ' 周' + WD[wd(x)] + ' · ' + (per[x] || 0) + ' 个会话"></i>').join('') + '</div>' +
     '<div class="row cap l-strip-l"><span class="mono">' + md(days[0]) + '</span><span style="flex:1;text-align:center">每日会话 · 深色为' + rangeLabel() + '</span><span class="mono">' + md(w[1]) + '</span></div>';
   const one = liteOneCard(recTop('lite'));
-  return liteBar('概览', winLabel() + ' · ' + st.n + ' 个会话') +
+  return liteBar('概览', winLabel() + ' · ' + (busy ? busyMeta(busy) : st.n + ' 个会话')) +
     '<div class="content" id="content"><div class="lite l-home">' + hero +
     '<section class="l-sec"><div class="tiles l-tiles">' + tiles + '</div>' + strip + '</section>' + one +
     liteFoot([['overview', '完整概览'], ['tools', '工具调用'], ['projects', '项目习惯']]) + '</div></div>';
@@ -6802,7 +6860,8 @@ PAGES['l-persona'] = () => {
   const L = personaScope(); const p = persona(L);
   if (p.pending) return liteBar('协作画像', rangeLabel() + ' · ' + L.length + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona">' + LV.pend(360) + LV.pend(220) + '</div></div>';
   if (!p.ok) {
-    return liteBar('协作画像', rangeLabel() + ' · ' + p.n + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona"><div class="card l-low" data-lv="pers-empty">' + emptyBloomSVG(132) + '<div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">协作画像 · ' + rangeLabel() + '</span><p class="serif l-say" style="margin:0">' + (p.error ? '画像暂时取不到，稍后会自动重试。' : '这段时间还没有会话。有 1 个会话，就能看到你的协作画像。') + '</p>' + emptyActs(true) + '</div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
+    const busy = dataBusy();
+    return liteBar('协作画像', rangeLabel() + ' · ' + (busy ? busyMeta(busy) : p.n + ' 个会话')) + '<div class="content" id="content"><div class="lite l-persona"><div class="card l-low" data-lv="pers-empty">' + emptyBloomSVG(132) + '<div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">协作画像 · ' + rangeLabel() + '</span><p class="serif l-say" style="margin:0">' + esc(busy ? busyNote(busy) + '。分析完成后自动显示协作画像。' : p.error ? '画像暂时取不到，稍后会自动重试。' : '这段时间还没有会话。有 1 个会话，就能看到你的协作画像。') + '</p>' + (busy || p.error ? '' : emptyActs(true)) + '</div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
   }
   // 画像主卡吸收「播放揭晓」第 05 步（F13）：已读取 N 个会话 · N 次工具调用、四字母下的维度分、匹配度、类型名与一句话、
   // 「已经知道的」统计 / 轨迹 / 语义 / 人格四行——都用揭晓页同一组函数（genFacts / genCands，live 用揭晓接口的候选）算同一批会话
@@ -6890,6 +6949,7 @@ PAGES['l-sessions'] = () => {
 /* ---------- 4 优化建议：一句总收益（占协作时间 / token 的比例）→ 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
 PAGES['l-recs'] = () => {
   const all = recOrder('lite'); const top = all.slice(0, 3);
+  const busy = dataBusy();   // F08: importing / analysing — one status line in the hero, no counts
   const open = top.filter((r) => !S.installed.has(r.id));
   // the total: shares of the real trajectory; alternatives on one problem count once (recTotal), and recs without a
   // share never add a made-up 0 %
@@ -6900,7 +6960,8 @@ PAGES['l-recs'] = () => {
         (tot.t != null && tot.k != null ? '<span class="cap mono l-tot2">token 预计省下 ' + fmtPct(tot.k) + ' · 按近期真实轨迹的占比计算</span>' : '<span class="cap mono l-tot2">按近期真实轨迹的占比计算</span>')
       : open.length ? '<p class="serif l-say">这 ' + open.length + ' 件事还没有节省比例的估计。应用后 7 天，在效果追踪里看实际变化。</p>'
       : top.length ? '<p class="serif l-say">前三条都已应用。7 天后看效果追踪，或在 Advance 里挑下一条。</p>'
-      : '<p class="serif l-say">还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。</p>') + '</div>';
+      : busy ? '<p class="serif l-say">' + esc(busyNote(busy)) + '</p>'
+      : '<p class="serif l-say">' + esc(/^(busy|computing|error|none)$/.test(recNone().k) ? recNone().t : '还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。') + '</p>') + '</div>';
   const card = (r, i) => {
     const inst = S.installed.get(r.id);
     const state = inst ? '<span class="tag">' + ic('okc', 12, 'color:var(--good)') + (inst.days >= 7 ? '已应用 · ' + VERDICT[trackStats(r).verdict][0] : '已应用 · 追踪中 ' + inst.days + ' / 7 天') + '</span><button type="button" class="btn gh l-big" data-act="liteRecAdv" data-id="' + r.id + '">查看追踪</button><button type="button" class="btn l-big" data-act="uninstall" data-id="' + r.id + '">' + ic('undo', 13) + '撤销</button>' : liteRecBtn(r);
@@ -6908,9 +6969,9 @@ PAGES['l-recs'] = () => {
       '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
       '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
   };
-  return liteBar('优化建议', all.length + ' 条 · 这里只看最值得做的 3 条') +
-    '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : empty('没有可见的建议')) + '</div>' +
-    liteFoot([['recs', '查看全部 ' + all.length + ' 条建议'], ['library', '资源库']]) + '</div></div>';
+  return liteBar('优化建议', busy ? busyMeta(busy) : all.length + ' 条 · 这里只看最值得做的 3 条') +
+    '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : busy ? '' : empty('没有可见的建议')) + '</div>' +
+    liteFoot((busy ? [] : [['recs', all.length ? '查看全部 ' + all.length + ' 条建议' : '打开优化建议']]).concat([['library', '资源库']])) + '</div></div>';
 };
 
 Object.assign(ACT, {
@@ -6950,6 +7011,8 @@ function ovTiles(L, P, brushed) {
     { k: 'a', label: '自主比', value: autoTxt(st), unit: st.msgs ? '×' : '', delta: st.msgs ? autoD : null, trend: ovTrend((x) => stats(x).auto, endDay), r: 'persona' },
     { k: 'f', label: '摩擦率', value: st.msgs ? f1(st.fric) : '—', unit: st.msgs ? '%' : '', delta: st.msgs && P && P.msgs ? dl(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null, trend: ovTrend((x) => stats(x).fric, endDay), r: 'sentiment' }
   ];
+  // F08: while the data is still being imported / analysed nothing has been measured yet — no 0, no delta, no trend
+  if (dataBusy()) return tiles.map((t) => VZ.kpi({ label: t.label, value: '—', sub: '计算中', act: 'go', attrs: ' data-r="' + t.r + '" data-k="' + t.k + '" data-busy', tf: 'def|' + t.k })).join('');
   return tiles.map((t) => VZ.kpi({ label: t.label, value: t.value, unit: t.unit, delta: t.delta, sub: t.sub && !t.delta ? t.sub : sub, trend: t.trend, trendLabel: tl, sparkOpt: { w: 40, h: 20 }, act: 'go', attrs: ' data-r="' + t.r + '" data-k="' + t.k + '"', tf: 'def|' + t.k })).join('');
 }
 // AI 解读三栏的 24px 微型证据：完成率环 / 摩擦类型条 / 建议数
@@ -6963,16 +7026,18 @@ function persPending(e) { return !!e && (e.code === 'projection_pending' || e.re
 // 人格未揭晓：保留卡片的结构（占位码 + 进度 + 四轴空轨），不留大块空白，也不编造数值（R4-14）
 function ovPersEmpty(pers) {
   const n = pers.n || 0; const need = 0;   // 1 个会话即可出结论：这里只剩「没有会话 / 取不到 / 暂不计算」三种空态，不再有进度条
-  const pend = persPending(pers.error);   // 首次导入还没发布：正在整理，不是取不到也不是没有会话（F08）
-  const why = pend ? '导入的会话发布后会自动显示画像' : pers.error ? '画像暂时取不到，稍后会自动重试' : !n ? '还没有会话 · 有 1 个会话即可揭晓' : '当前筛选下暂不计算画像';
+  const busy = dataBusy();   // 导入 / 整理 / 分析还在进行：说明进度，不写「还没有会话」，也不给导入入口（F08）
+  const pend = persPending(pers.error) || !!busy;   // 首次导入还没发布：正在整理，不是取不到也不是没有会话（F08）
+  const why = busy ? (busy.n ? '已导入 ' + fmt(busy.n) + ' 个会话 · ' : '') + '分析完成后自动显示画像' : pend ? '导入的会话发布后会自动显示画像' : pers.error ? '画像暂时取不到，稍后会自动重试' : !n ? '还没有会话 · 有 1 个会话即可揭晓' : '当前筛选下暂不计算画像';
   // 没有画像时不放占位码（F21）：虚线花形轮廓 + 一句说明；没有会话时给导入入口
-  return '<div class="ov-code-r" data-lv="pers-empty">' + emptyBloomSVG(56) + '<span class="col" style="gap:4px;min-width:0"><span class="serif" style="font-size:18px;font-weight:600;color:var(--ink-2)">' + (pend ? '正在整理数据…' : pers.error ? '画像暂时取不到' : '还没有长出来') + '</span>' + (!n && !pers.error ? emptyActs(false) : '') + '</span></div>' +
+  return '<div class="ov-code-r" data-lv="pers-empty">' + emptyBloomSVG(56) + '<span class="col" style="gap:4px;min-width:0"><span class="serif" style="font-size:18px;font-weight:600;color:var(--ink-2)">' + (busy ? busy.t : pend ? '正在整理数据…' : pers.error ? '画像暂时取不到' : '还没有长出来') + '</span>' + (!n && !pers.error && !pend ? emptyActs(false) : '') + '</span></div>' +
     '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;gap:8px"><span class="cap">' + why + '</span>' + (need ? '<span class="mono cap">' + n + '</span>' : '') + '</div>' +
     (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:0%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
     '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
 }
 // 「AI 解读」徽标只给模型写成的解读：live 下以 insight.basis 为准（ai_narrative），规则模板写成的标中性的「规则解读」，
 // 不用 AI 紫；demo 是预置的 Claude Code 示例，保持原样
+let OV_BADGE = null;
 function ovInsAI(ins) { return !LV.live || !!(ins && ins.basis === 'ai_narrative'); }
 function ovInsBadge(ins) { return ovInsAI(ins) ? '<span class="aib">' + ic('spark', 11) + 'AI 解读</span>' : '<span class="tag" data-lv="ins-basis">规则解读</span>'; }
 // live 的来源行：模型写成的写明执行者与完成时间，否则是规则模板
@@ -6993,7 +7058,7 @@ PAGES.overview = () => {
   const topF = fr[0];
   const projC = {}; L.forEach((s) => { if (s.corr) projC[s.p] = (projC[s.p] || 0) + s.corr; });
   const topP = Object.entries(projC).sort((a, b) => b[1] - a[1]).slice(0, 2).map((x) => PJI[x[0]].name);
-  const topR = recTop('A1').slice(0, 3);
+  const topR = recTop('A1').slice(0, 3); const rNone = recNone(); const busy = dataBusy();
   const okN = L.filter((s) => s.out === 'ok').length;
   // live: the insight texts come from /v1/uiview/overview (L0 template, same scope); the micro evidence stays spine-derived
   const OVL = LV.live ? (LV.ready('overview') && LV.ov ? LV.ov : null) : undefined; const ins = OVL && OVL.insight;
@@ -7001,13 +7066,13 @@ PAGES.overview = () => {
   const ai = [
     ['做得好', 'okc', 'var(--good)', ins && ins.good ? ins.good.text : (st.verKnown ? Math.round(st.verify) + '% 的会话要求测试或线上验证，' : '') + '完成率 ' + pctKnown(st.ok, st.okKnown) + '。', '证据 · ' + okN + ' 个完成的会话', 'evGood', ovMini('ring', st.okKnown ? st.ok : null)],
     ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : st.msgs ? '这段时间没有明显的摩擦。' : '会话里没有你发出的消息，暂时判断不了卡在哪。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
-    ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
+    ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text && !rNone.k.match(/busy|none/) ? ins.next.text : rNone.t, topR.length ? '查看 ' + topR.length + ' 条建议' : rNone.k === 'done' ? '查看已处理的建议' : '', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
   // 0 sessions in range: no praise / friction verdict (the backend's 「这段时间还没有会话」 next to 「查看 3 条建议」 read as
   // contradictory); the range note under the filter row offers the wider range instead
   if (!st.n) { ai[0][3] = '—'; ai[0][4] = ''; ai[1][3] = '—'; ai[1][4] = ''; }
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
-  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
+  const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : busy ? busy.t.replace(/…$/, '') + '，完成后在这里给出协作画像。' : '所选范围还没有会话，暂时无法给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? ovInsWhen(ins) : '本地 Claude Code 生成 · 9/30 23:10';
   const caveat = LV.live && ins && ins.basis === 'ai_narrative' && (ins.caveats || []).length ? ins.caveats.join('；') : '';
   // live「重新生成」提交 narrate.overview：Agent 子集、项目与「全部」都有各自的 ai_scope；主题 / 结果 / 摩擦 / 时段筛选与刷选没有，按钮如实不可用
@@ -7018,6 +7083,7 @@ PAGES.overview = () => {
   const regenTip = regenOff ? (ins ? '按主题、结果、摩擦、时段筛选或刷选时间段的视图暂不生成 AI 解读：清除这些筛选后再生成（Agent 与项目筛选可以保留）' : '数据载入后可生成') : LV.live ? '交给本地 Agent 依据当前数据重写（会调用其模型服务，计入今日 AI 花费）' : '';
   // 无会话且没有洞察 lede 时，那句话是固定说明而不是 AI 输出：不挂解读标记与生成来源（与 Lite 首页 said 同一规则）
   const said = (S.ov.lede && S.ov.lede.key === ledeKey) || (ins && ins.lede) || pers.ok || pendTxt || regenRun;
+  OV_BADGE = said ? (ovInsAI(ins) ? 'AI 解读' : '规则解读') : null;   // the page guide names this badge (37-motion GUIDE)
   const ledeP = pendTxt && !(S.ov.lede && S.ov.lede.key === ledeKey) ? LV.pend(48) : '<p class="serif" id="aiLead" style="margin:0;font-size:17px;line-height:1.5;font-weight:500;text-wrap:pretty">' + esc(lede) + '</p>';
   const ser = series(L, S.range, S.metric); CUR.trend = ser;
   const unitName = S.metric === 'h' ? '小时' : S.metric === 'tok' ? 'tokens · 估算' : '会话';
@@ -7028,7 +7094,7 @@ PAGES.overview = () => {
   const night = stats(L.filter((s) => s.h < 3)), day = stats(L.filter((s) => s.h >= 9 && s.h < 18));
   const ratio = day.fric ? night.fric / day.fric : 0;
   const peakV = hmap.H[peak[0]][peak[1]];
-  const heatLine = S.ov.heat === 'msgs' ? !peakV ? '这段时间没有你发出的消息' : '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + fricTxt(st);
+  const heatLine = busy ? busy.t : S.ov.heat === 'msgs' ? !peakV ? '这段时间没有你发出的消息' : '高峰 周' + WD[peak[0]] + ' ' + peak[1] + '–' + (peak[1] + 1) + ' 时 · ' + peakV + ' 条消息' : (ratio ? '深夜（0–3 时）纠偏率为白天的 ' + f1(ratio) + '×' : '深夜样本不足，暂不比较') + ' · 整体 ' + fricTxt(st);
   // live: tool top 6 from /v1/uiview/overview.tools (real tool names, err over known statuses only; null → —)
   const trows = LV.live ? (OVL ? (OVL.tools && OVL.tools.top || []).map((t) => { const why = typeof lvtpRateWhy === 'function' ? lvtpRateWhy(t) : null; return { name: t.name, n: t.n, err: why ? null : t.err, why: why || (t.err == null ? '状态未知，不计算错误率' : null) }; }) : []) : toolRows(L).slice(0, 6);
   const tmx = Math.max(1, trows[0] ? trows[0].n : 1); const tkinds = LV.live ? (OVL && OVL.tools ? OVL.tools.kinds_total : 0) : 11;
@@ -7036,7 +7102,7 @@ PAGES.overview = () => {
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outKnown = outc.reduce((a, o) => a + o.value, 0);   // sessions with an outcome signal; the rest are 结果未知
   const outLine = outc.map((o) => o.name + ' ' + pctKnown(o.value / Math.max(1, outKnown) * 100, outKnown)).join(' · ') + (outKnown < st.n ? ' · 结果未知 ' + (st.n - outKnown) + ' 个会话' : '');
-  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有接入 Agent'),
+  return tbar('概览', winLabel() + ' · ' + (busy ? busyMeta(busy) : st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有会话')),
     '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
@@ -7045,11 +7111,11 @@ PAGES.overview = () => {
     ai.map((g) => '<div class="col ov-aic"><div class="row ov-aih"><span class="row ov-aik">' + ic(g[1], 14, 'color:' + g[2]) + g[0] + '</span>' + g[6] + '</div>' + (pendTxt && g[5] !== 'evRec' ? LV.pend(36) : '<p class="ov-aip">' + esc(g[3]) + '</p>') + (g[4] ? '<button type="button" class="lnk ov-aiev" data-act="' + g[5] + '">' + esc(g[4]) + '</button>' : '') + '</div>').join('') + '</div>' +
     '<div class="tiles" id="ovTiles">' + ovTiles(L, P) + '</div>' +
     // 会话结果构成：100% 条，放在指标卡下（评审 §5 新增）
-    '<div class="card ov-out"><div class="ov-out-t" title="' + outLine + '"><span class="eb">会话结果</span><span class="ct">完成 <span class="mono">' + pctKnown(outc[0].value / Math.max(1, outKnown) * 100, outKnown) + '</span></span><span class="cap">' + st.n + ' 个会话' + (outKnown < st.n ? ' · ' + outKnown + ' 个有结果' : '') + ' · 点击色段只看该结果</span></div><div class="vz" data-vz="ov-out"></div></div>' +
+    '<div class="card ov-out"><div class="ov-out-t" title="' + (busy ? '' : outLine) + '"><span class="eb">会话结果</span><span class="ct">完成 <span class="mono">' + (busy ? '—' : pctKnown(outc[0].value / Math.max(1, outKnown) * 100, outKnown)) + '</span></span><span class="cap">' + (busy ? '计算中' : st.n + ' 个会话' + (outKnown < st.n ? ' · ' + outKnown + ' 个有结果' : '') + ' · 点击色段只看该结果') + '</span></div><div class="vz" data-vz="ov-out"></div></div>' +
     '<div class="two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 使用趋势</span><span class="cap">' + (ser.length > 31 ? '每周' : '每日') + unitName + (S.metric === 'tok' ? ' <span class="bdg">示例</span>' : '') + ' · ' + ({ stacked: '按 Agent 堆叠', grouped: '按 Agent 分组', pct: '各 Agent 占比' })[S.ov.stack] + '<span data-ovavg></span></span></div></div><div class="row ov-ctl"><div class="seg" role="group" aria-label="度量">' + [['n', '会话'], ['h', '时长'], ['tok', 'Tokens']].map((m) => '<button type="button" data-act="metric" data-v="' + m[0] + '" class="' + (S.metric === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="堆叠方式">' + [['stacked', '堆叠'], ['grouped', '分组'], ['pct', '100%']].map((m) => '<button type="button" data-act="stackMode" data-v="' + m[0] + '" class="' + (S.ov.stack === m[0] ? 'on' : '') + '">' + m[1] + '</button>').join('') + '</div><div class="seg" role="group" aria-label="视图"><button type="button" data-act="view" data-v="chart" class="' + (S.view === 'chart' ? 'on' : '') + '" aria-label="图表视图" style="padding:0 6px">' + ic('chart', 14) + '</button><button type="button" data-act="view" data-v="table" class="' + (S.view === 'table' ? 'on' : '') + '" aria-label="表格视图" style="padding:0 6px">' + ic('grid', 14) + '</button></div></div>' +
     '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>' +
     // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
-    '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">' + (pers.ok ? '置信度 ' + pers.conf + ' · ' : '') + fmt(pers.n || 0) + ' 个会话</span></span></div>' +
+    '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span>' + (busy && !pers.ok ? '' : '<span class="bdg">' + (pers.ok ? '置信度 ' + pers.conf + ' · ' : '') + fmt(pers.n || 0) + ' 个会话</span>') + '</span></div>' +
     (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="ov-code-r"><span class="serif ov-code-l">' + pers.code + '</span>' + glyphSVG(pers, 40) + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
     (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
     '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
@@ -7059,7 +7125,7 @@ PAGES.overview = () => {
     '<div class="ov-heat-line"><b>' + heatLine + '</b>' + (S.ov.heat === 'msgs' ? '<button type="button" class="lnk" data-act="heatCell" data-h="' + peak[1] + '" data-d="' + peak[0] + '">证据 →</button>' : '') + '</div>' +
     '<div class="scroll-x"><div class="vz ov-heat" data-vz="ov-heat"></div></div><div class="cap ov-foot" title="筛选只按小时，不分星期">点击格子查看该小时开始的会话</div></div>' +
     // 工具 Top 6：浅灰 6px 条 + 错误率微型条（评审 A1-V13）
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span><span class="cap">' + fmt(st.tools) + ' 次</span></div><button type="button" class="lnk" data-act="go" data-r="tools">全部 ' + tkinds + ' 种</button></div><div class="ov-tools">' + (pendTxt ? LV.pend(180) : LV.live && !OVL ? LV.na() : LV.live && !trows.length ? LV.na('这段时间没有工具调用') : '') + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err">' + terr(t) + '</span></button>').join('') + '</div><div class="cap ov-foot" title="错误率条的刻度为 0–20%">右列为错误率 · 超过 10% 标红</div></div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具调用 Top 6</span>' + (busy ? '<span class="cap">计算中</span>' : '<span class="cap">' + fmt(st.tools) + ' 次</span>') + '</div>' + (busy ? '' : '<button type="button" class="lnk" data-act="go" data-r="tools">全部 ' + tkinds + ' 种</button>') + '</div><div class="ov-tools">' + (pendTxt ? LV.pend(180) : LV.live && !OVL ? LV.na() : LV.live && !trows.length ? LV.na('这段时间没有工具调用') : '') + trows.map((t) => '<button type="button" class="ov-tool" data-act="openTool" data-t="' + t.name + '"><span class="mono nm">' + t.name + '</span><span class="bar"><span style="width:' + (t.n / tmx * 100).toFixed(1) + '%"></span></span><span class="mono n">' + fmt(t.n) + '</span><span class="ov-err">' + terr(t) + '</span></button>').join('') + '</div><div class="cap ov-foot" title="错误率条的刻度为 0–20%">右列为错误率 · 超过 10% 标红</div></div>' +
     ovRecsCard(topR) +
     '</div></div></div>';
 };
@@ -7107,7 +7173,7 @@ PAGES.overview.after = () => {
 TIPS.heat = (di, h) => { const v = CUR.heat.H[di][h], c = CUR.heat.C[di][h]; return '<b>周' + WD[di] + ' ' + h + ':00–' + (+h + 1) + ':00</b>\n' + v + ' 条消息 · 纠偏 ' + c + ' 次' + (v ? '（' + f1(c / v * 100) + '%）' : ''); };
 // 「本周建议」card (also appended to the live overview by 97-live-recs.js)
 function ovRecsCard(topR) {
-  return '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div><button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button></div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn" title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + esc(recGain(r)) + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap">建议都已处理，下周再看看。</div>') + '</div></div>';
+  return '<div class="card pad ov-recs"><div class="hd"><div class="grow"><span class="ct">本周建议</span></div>' + (dataBusy() ? '' : '<button type="button" class="lnk" data-act="go" data-r="recs">全部 ' + visibleRecs().length + ' 条</button>') + '</div><div class="ov-recl">' + (topR.length ? topR.map((r) => '<div class="ov-rec"><span class="ov-reci">' + ic(r.icon) + '</span><div class="ov-rect"><button type="button" class="ov-recb" data-act="openRec" data-id="' + r.id + '"><span class="ov-recn" title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="ov-recm"><span class="mono">' + r.type + '</span> · ' + esc(recGain(r)) + ' · L' + r.lvl + '</span></button>' + recPrimaryBtn(r, true) + '</div></div>').join('') : '<div class="cap" data-rec-none="' + recNone().k + '">' + esc(recNone().k === 'done' ? '建议都已处理，下周再看看。' : recNone().t) + '</div>') + '</div></div>';
 }
 function recPrimaryBtn(r, small) {
   const inst = S.installed.has(r.id);
@@ -7425,6 +7491,8 @@ PAGES.persona = () => {
     const frac = 0; const x = 56, y = 10;   // 1 个会话即可出结论：这里只剩没有会话 / 取不到 / 暂不计算三种空态，环不再表示进度
     const relax = peRelax([per[0], per[1]]).filter((r) => r.n > L.length);   // only filters whose removal adds sessions (D)
     const more = relax.some((r) => r.k !== 'period'), wider = relax.some((r) => r.k === 'period');
+    const busy = dataBusy();   // 导入 / 分析还在进行（F08）
+    if (busy) return tbar('协作人格', busyMeta(busy) + ' · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low" data-lv="busy" role="status">' + emptyBloomSVG(112) + '<div class="col" style="flex:1;min-width:240px"><h2 class="serif" style="margin:0;font-size:24px">' + esc(busy.t) + '</h2><p style="margin:0;color:var(--ink-2)">' + esc(busyNote(busy)) + '。分析完成后自动显示协作人格，不用刷新。</p></div></div></div>';
     return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--font-num)" fill="var(--ink-1)">' + L.length + '</text></svg><div class="col" style="flex:1;min-width:240px">' +
       (allOff ? '<h2 class="serif" style="margin:0;font-size:24px">所有数据源已停用</h2><p style="margin:0;color:var(--ink-2)">人格需要会话数据。到「设置 › 数据源」重新启用至少一个 Agent，分析会立即恢复。</p><div class="row"><button type="button" class="btn p" data-act="openSettings" data-tab="sources">打开设置 · 数据源</button></div>'
         : L.length ? '<h2 class="serif" style="margin:0;font-size:24px">' + (persPending(p.error) ? '正在整理数据…' : p.error ? '画像暂时取不到' : '当前筛选下暂不计算画像') + '</h2><p style="margin:0;color:var(--ink-2)">' + (persPending(p.error) ? '导入的会话发布后会自动显示画像。' : p.error ? '稍后会自动重试，也可以换一个统计周期。' : '换一个统计周期，或清除 Agent / 项目筛选。') + '</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>'
@@ -8223,7 +8291,7 @@ Object.assign(ACT, {
 const pjPinBtn = (p) => { if (p.id === '_none') return ''; const on = isPinned(p.id); return '<button type="button" class="pj-pin' + (on ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(p.id) + '" aria-pressed="' + on + '" aria-label="' + (on ? '取消置顶 ' : '置顶 ') + esc(p.name) + '" data-tip="' + (on ? '已置顶到侧栏 · 点击取消' : '置顶到侧栏') + '">' + ic('pin', 12) + '</button>'; };
 const FOLDERS = { confluo: ['Confluo', 'Confluo/docs/plan/v2/demo'], latentskill: ['~/Research/ppb', '~/Research/latentskill（软链接）'], teamhub: ['team-hub'], hackathon: ['Hackathon'], quant: ['Auto Finance & Quant', 'Auto Finance & Quant/packages/datahub'], fhgs: ['FHGS Website/apps/web', 'FHGS Website/apps/stats'], surge: ['~/.config/surge'], tweet: ['Tweet Card'], other: ['~/Research/General', '~/Downloads', '~/Projects/Coffee'] };
 // 各类配置哪些 Agent 读取（示例口径）：AGENTS.md 全部；Hooks / 子代理只有 Claude Code；Skills 为 Claude Code 与 Codex；MCP 除 DeepSeek 外都支持
-const COV_SUP = { 'AGENTS.md': ['cc', 'cx', 'gm', 'ds', 'cp'], Hooks: ['cc'], Skills: ['cc', 'cx'], MCP: ['cc', 'cx', 'gm', 'cp'], '子代理': ['cc'] };
+const COV_SUP = { 'AGENTS.md': ['cc', 'cx', 'km', 'ds', 'oc'], Hooks: ['cc'], Skills: ['cc', 'cx'], MCP: ['cc', 'cx', 'km', 'oc'], '子代理': ['cc'] };
 // 散点派生类型：在 VZ.scatter 之上加残差竖线与 A / B 标记；其余（标签避让、拟合带、尺寸图例、表格视图）沿用
 VZ.types.pscatter = Object.assign({}, VZ.types.scatter, {
   name: '项目散点',
@@ -8586,7 +8654,7 @@ const recTok = (id) => { const t = recX(id).tokp; return t == null ? '—' : t >
 function recAgents(r) {
   if (r.live && r.agents) { const on = r.agents.filter((i) => AGI[i]); return on.length ? on : r.agents; }   // live: the rec's verified target agents only (未核实 never reads as 适用)
   if (/所有/.test(r.compat)) return AG.map((a) => a.id);
-  const ids = []; if (/Claude/.test(r.compat)) ids.push('cc'); if (/Codex/.test(r.compat)) ids.push('cx'); if (/Gemini/.test(r.compat)) ids.push('gm'); if (/DeepSeek/.test(r.compat)) ids.push('ds'); if (/Copilot/.test(r.compat)) ids.push('cp');
+  const ids = []; if (/Claude/.test(r.compat)) ids.push('cc'); if (/Codex/.test(r.compat)) ids.push('cx'); if (/Kimi/.test(r.compat)) ids.push('km'); if (/DeepSeek/.test(r.compat)) ids.push('ds'); if (/OpenCode/.test(r.compat)) ids.push('oc');
   return ids.length ? ids : ['cc'];
 }
 // live: which target agents get a converted equivalent instead of the native format
@@ -8637,7 +8705,7 @@ PAGES.recs = () => {
     else if (R.tab === 'preview' && r.live && !r.target && !r.file.length) body = '<div class="col" data-tl="rec-pv-plan" style="gap:10px;align-items:flex-start;font-size:13px;line-height:1.6;color:var(--ink-2)"><span class="eb">将写入</span><p style="margin:0">具体文件由安装预览生成：Orbit 先读取来源，按你的 Agent 逐个生成差异，确认后才写入，写入前自动备份。</p><span class="eb">其他 Agent</span><span style="font-size:12px">' + esc(recConvNote(r)) + '</span>' + recPrimaryBtn(r) + '</div>';
     else if (R.tab === 'preview') body = '<div class="rc-pv"><div class="rc-pv-f"><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb">将写入</span><span class="mono rc-path">' + esc(recTarget(r)).replace(/\//g, '/<wbr>') + '</span><span class="row" style="margin-top:4px;padding:4px 8px;border-radius:6px;background:var(--sunken)">' + ic('file', 13) + '<span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span><span class="mono" style="margin-left:auto;font-size:11px;color:' + (fileKind(r) === '删除项' ? 'var(--crit)' : 'var(--good)') + '">' + fileKind(r) + '</span></span></div><div class="col" style="gap:4px;font-size:12px;min-width:0"><span class="eb rc-eb">安装到' + (recScoped(r) && !S.project ? '<span class="rc-i" data-tip="项目取自侧栏筛选；未筛选时用「项目习惯」里选中的项目" aria-label="说明">' + ic('info', 12) + '</span>' : '') + '</span>' +
       (recScoped(r) ? '<label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'global' ? 'checked ' : '') + 'data-chg="recScope" value="global" style="accent-color:var(--ink-1)">全局（所有项目）</label><label class="row" style="font-size:12px"><input type="radio" name="scope" ' + (R.scope === 'proj' ? 'checked ' : '') + 'data-chg="recScope" value="proj" style="accent-color:var(--ink-1)">仅 ' + esc(scopeProjName()) + '</label>' : /教程|剪贴板/.test(r.target) ? '<span class="cap">不写入文件</span>' : '<span class="cap">已限定项目 · ' + esc(r.target.split('/')[0]) + '</span>') +
-      '<span class="eb" style="margin-top:8px">其他 Agent</span><span style="font-size:12px;line-height:16px;color:var(--ink-2)">' + (r.live ? recConvNote(r) : /Codex|所有/.test(r.compat) ? '同时生成 Codex 等价配置' : 'Codex / Gemini 转为 AGENTS.md 片段') + '</span></div></div><div style="min-width:0"><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span>' + (r.live && !r.file.length ? '' : '<button type="button" class="btn sm gh" data-act="copyRec" data-id="' + r.id + '">' + ic('copy', 13) + '复制</button>') + '</div>' + (r.live && !r.file.length ? '<div class="col" data-tl="rec-pv-nofile" style="gap:10px;align-items:flex-start;padding:12px 14px;border-radius:9px;background:var(--sunken);font-size:12.5px;line-height:1.6;color:var(--ink-2)"><span>这条建议没有附带文件正文。具体内容由安装预览按你的 Agent 逐个生成差异，确认后才写入，写入前自动备份。</span>' + recPrimaryBtn(r) + '</div>' : codeBlock(r.file)) + '</div></div>';
+      '<span class="eb" style="margin-top:8px">其他 Agent</span><span style="font-size:12px;line-height:16px;color:var(--ink-2)">' + (r.live ? recConvNote(r) : /Codex|所有/.test(r.compat) ? '同时生成 Codex 等价配置' : 'Codex / Kimi 转为 AGENTS.md 片段') + '</span></div></div><div style="min-width:0"><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="mono" style="font-size:12px;font-weight:600">' + esc(r.target.split('/').pop()) + '</span>' + (r.live && !r.file.length ? '' : '<button type="button" class="btn sm gh" data-act="copyRec" data-id="' + r.id + '">' + ic('copy', 13) + '复制</button>') + '</div>' + (r.live && !r.file.length ? '<div class="col" data-tl="rec-pv-nofile" style="gap:10px;align-items:flex-start;padding:12px 14px;border-radius:9px;background:var(--sunken);font-size:12.5px;line-height:1.6;color:var(--ink-2)"><span>这条建议没有附带文件正文。具体内容由安装预览按你的 Agent 逐个生成差异，确认后才写入，写入前自动备份。</span>' + recPrimaryBtn(r) + '</div>' : codeBlock(r.file)) + '</div></div>';
     else if (R.tab === 'tut' && r.live && !r.steps.length) body = LV.na('这条建议没有分步教程，可在「预览」里看将写入的内容。');
     else if (R.tab === 'tut') body = '<ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px">' + r.steps.map((s2, i) => '<li class="row" style="align-items:flex-start;gap:10px"><span class="mono" style="width:22px;height:22px;flex:none;border-radius:50%;background:var(--ink-1);color:var(--surface);font-size:11px;font-weight:700;line-height:22px;text-align:center">' + (i + 1) + '</span><span style="font-size:13px;line-height:1.55;padding-top:1px">' + esc(s2) + '</span></li>').join('') + '</ol><div class="cap" style="margin-top:12px">外部链接会在默认浏览器中打开；命令都可以复制。</div>';
     else body = inst ? trackView(r, inst) : '<div class="col" style="gap:10px;align-items:flex-start"><span style="font-size:13px;line-height:18px;color:var(--ink-2)" data-tip="安装后 7 天逐项对比，给出 95% 区间与结论">安装后开始追踪，对比安装前后各 7 天</span><span class="eb">基准 · 安装前 7 天 · ' + x.n[0] + ' 个会话</span><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + (t[1] == null ? '—' : t[1]) + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div>' + recPrimaryBtn(r) + '</div>';
@@ -8808,7 +8876,7 @@ const STEP_DUR = [0.8, 1.4, 3.9, 1.1, 1.3, 0, 0.9];            // shown once a s
 const STEP_MS = [700, 1400, 0, 1100, 1300, 0, 900];             // pause after a step before the next one
 S.studio.tpl = S.studio.tpl || 'v1';
 // page copy that quotes the demo data set; live mode (97-live-studio-settings.js) rewrites it from the gateway
-const STUDIO_COPY = { mine: '从 46 个会话提炼出 5 条可执行规则', replay: '3 个历史会话 · 第二视角评分', hist: 8, detected: 'Claude Code · Codex · Gemini CLI · DeepSeek · Copilot' };
+const STUDIO_COPY = { mine: '从 46 个会话提炼出 5 条可执行规则', replay: '3 个历史会话 · 第二视角评分', hist: 8, detected: 'Claude Code · Codex · Kimi CLI · DeepSeek · OpenCode' };
 let RUNT = null;
 const stFile = () => GEN[S.studio.type].file.split('/').pop();
 const otherAgent = () => AG.find((a) => a.id !== S.studio.agent) || AG[0] || agent(S.studio.agent);
@@ -8975,7 +9043,7 @@ VZ_DEMO.list = [
   { id: 'line', title: 'line · 多系列折线 + 目标线 + 区间带 + 标注 + brush', note: 'x 为毫秒时间戳（按周）；右侧直接标注系列名（≤ 4 个系列且宽度 ≥ 480 时）；拖选触发 onBrush。', spec: () => { const L = sel({ range: 0, noExtra: true }); const W = VZ_DEMO.weekly(L); return { type: 'line', title: '每周会话数 · 按 Agent', height: 220, x: { values: W.x, type: 'time' }, series: AG.map((a, j) => ({ name: a.short, values: W.v[j] })), refs: [{ y: 12, label: '目标 12 / 周' }], bands: [{ from: VZ_DEMO.t(104), to: VZ_DEMO.t(119), label: '安装 PR 收尾 Skill 后' }], notes: [{ i: 9, series: 0, text: '黑客松周' }], brush: true, y: { zero: true }, onBrush: (r) => { VZ_LAST.brush = r; vzLog('brush', r && r.map((t) => VZ.time.md(t)).join(' → ')); }, onSelect: (i, d) => { VZ_LAST.select = d; vzLog('select', d.label); }, onLegend: (n, v) => { VZ_LAST.legend = [n, v]; vzLog('legend', n + ' ' + (v ? '显示' : '隐藏')); } }; } },
   { id: 'area', title: 'area · 单系列 + 95% 置信区间带 + 单调曲线 + 数据驱动的 y 域', note: 'series.band 为 [lo, hi]；curve: monotone 不越过数据点；y 域按数据取 nice 值并始终含 0（评审 A6-V01：不再把 ±1 压成一条直线），refs 画中性线。', spec: () => { const ms = moodSeries(sel({ range: 90 }), 90); return { type: 'area', title: '每周情绪均值', height: 180, curve: 'monotone', x: { values: ms.map((b) => VZ_DEMO.t(b.a)), type: 'time' }, series: [{ name: '情绪', color: 'var(--ink-1)', values: ms.map((b) => b.mood == null ? null : +b.mood.toFixed(2)), band: ms.map((b) => b.mood == null ? null : [+(b.mood - 0.25 / Math.sqrt(Math.max(1, b.n))).toFixed(2), +(b.mood + 0.25 / Math.sqrt(Math.max(1, b.n))).toFixed(2)]) }], refs: [{ y: 0, label: '中性' }], y: { format: 'signed', ticks: 4 }, points: true }; } },
   { id: 'bar', title: 'bar · 堆叠柱 + 合计标注 + 选中 + brush', note: '2px 表面色间隙分隔堆叠段，数据端 4px 圆角；labels: "max" 只标最高一根；selected 描边。', spec: () => { const L = sel({ range: 30 }); const ser = series(L, 30, 'n'); return { type: 'bar', title: '每日会话数 · 按 Agent 堆叠', height: 200, stacked: true, labels: 'max', selected: 12, x: { values: ser.map((b) => b.lbl) }, series: AG.map((a, j) => ({ name: a.short, values: ser.map((b) => b.v[j]), total: ser.reduce((x, b) => x + b.v[j], 0) })), brush: true, onBrush: (r) => { VZ_LAST.brush = r; vzLog('brush', r ? '第 ' + r[0] + ' – ' + r[1] + ' 天' : '清除'); }, onSelect: (i, d) => { VZ_LAST.select = d; vzLog('select', d.label + ' · 合计 ' + d.values.reduce((a, v) => a + (v || 0), 0)); } }; } },
-  { id: 'bar-group', title: 'bar · 分组柱 + 误差条', note: 'series.err 给出 ± 误差；每根 ≤ 24px，同组 2px 间隙。', spec: () => ({ type: 'bar', title: '每会话指标 · 分 Agent', height: 190, x: { values: ['消息', '工具', '错误', '纠偏'] }, series: [{ name: 'Claude', values: [6.9, 48, 3.2, 0.6], err: [0.8, 6, 0.9, 0.2] }, { name: 'Codex', values: [8.1, 36, 4.1, 0.9], err: [1.1, 5, 1.2, 0.3] }, { name: 'Gemini', values: [9.4, 28, 5.8, 1.3], err: [1.4, 4, 1.5, 0.4] }], y: { format: '1f' } }) },
+  { id: 'bar-group', title: 'bar · 分组柱 + 误差条', note: 'series.err 给出 ± 误差；每根 ≤ 24px，同组 2px 间隙。', spec: () => ({ type: 'bar', title: '每会话指标 · 分 Agent', height: 190, x: { values: ['消息', '工具', '错误', '纠偏'] }, series: [{ name: 'Claude', values: [6.9, 48, 3.2, 0.6], err: [0.8, 6, 0.9, 0.2] }, { name: 'Codex', values: [8.1, 36, 4.1, 0.9], err: [1.1, 5, 1.2, 0.3] }, { name: 'Kimi', values: [9.4, 28, 5.8, 1.3], err: [1.4, 4, 1.5, 0.4] }], y: { format: '1f' } }) },
   { id: 'bar-h', title: 'bar · 横向 + 直接标值', note: 'horizontal: true；单系列默认中性 --ink-3（Agent 色只表示身份）、不出图例；类别名过长自动省略；高度按行数自动。', spec: () => { const rows = toolRows(sel()).slice(0, 8); return { type: 'bar', title: '工具调用次数 Top 8', horizontal: true, x: { values: rows.map((r) => r.name) }, series: [{ name: '调用', values: rows.map((r) => r.n) }], selected: 2, onSelect: (i, d) => { VZ_LAST.select = d; vzLog('select', d.label); } }; } },
   { id: 'bar-week', title: 'bar · 按周堆叠 + 末桶斜纹（本周进行中）+ 周均参考线', note: 'hatch: [最后一桶] 加斜纹并用 notes 写「本周进行中（n/7 天）」，读者不会把半周误读成骤降（评审 G-09）；refs 画周均。', spec: () => { const L = sel({ range: 90 }); const ser = series(L, 90, 'n'); const last = ser.length - 1; const days = ser[last].b - ser[last].a + 1; const full = ser.slice(0, last); const avg = full.length ? Math.round(full.reduce((x, b) => x + b.v.reduce((p, q) => p + q, 0), 0) / full.length) : 0; return { type: 'bar', title: '每周会话数 · 近 90 天', height: 200, stacked: true, x: { values: ser.map((b) => b.lbl) }, series: AG.map((a, j) => ({ name: a.short, values: ser.map((b) => b.v[j]) })), hatch: days < 7 ? [last] : [], notes: days < 7 ? [{ i: last, text: '本周进行中（' + days + '/7 天）' }] : [], refs: [{ y: avg, label: '周均 ' + avg }] }; } },
   { id: 'histogram', title: 'histogram · 直方图 + 均值标线', note: '自动 Sturges 分箱并取整到 nice 步长；marks 标均值；brush 返回数值区间。', spec: () => { const L = sel(); const mean = L.length ? sum(L, (s) => s.dur) / L.length : 0; return { type: 'histogram', title: '会话时长分布（分钟）', height: 170, values: L.map((s) => s.dur), bins: 14, format: 'int', unit: '个会话', marks: [{ x: mean, label: '均值 ' + Math.round(mean) + 'm' }], brush: true, onBrush: (r) => { VZ_LAST.brush = r; vzLog('brush', r ? r.map((v) => Math.round(v) + 'm').join(' – ') : '清除'); } }; } },
@@ -9764,7 +9832,7 @@ function drawOB() {
     const tot = AG.filter((a) => OB.src.has(a.id)).reduce((x, a) => x + a.all, 0);
     b = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">找到了这些 Agent 的会话</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div><div class="card" style="padding:2px 0">' +
       AG.map((a) => '<label class="srcrow"><span style="width:30px;height:30px;border-radius:8px;background:' + a.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + a.c) + '</span><span style="min-width:0"><b style="font-size:13px">' + a.name + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + a.path + '</span></span><span class="mono cap" style="font-size:11px">' + fmt(a.all) + '</span><input type="checkbox" data-chg="obSrc" data-a="' + a.id + '"' + (OB.src.has(a.id) ? ' checked' : '') + ' aria-label="分析 ' + a.name + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>').join('') +
-      '<div class="srcrow" style="opacity:.6"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">Cursor</b><span class="cap" style="display:block;font-size:11px">未检测到 · 可稍后在设置中手动指定</span></span><span></span><span></span></div></div>' +
+      '<div class="srcrow" style="opacity:.6"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">Hermes Agent</b><span class="cap" style="display:block;font-size:11px">未检测到 · 可稍后在设置中手动指定</span></span><span></span><span></span></div></div>' +
       '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">首次约 40 秒；之后可以在设置中扩展到全部历史</span></span></div><div class="mono cap" style="font-size:11px">共 ' + fmt(tot) + ' 个会话 · 最早 2025-11-03</div>' +
       '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (OB.src.size ? '' : ' disabled') + '>开始分析</button></div>';
   }
@@ -9811,7 +9879,7 @@ function obLiveStep() {
   const list = L.state === 'loading' && !rows.length ? '<div class="srcrow"><span class="spin" style="width:14px;height:14px;margin:8px"></span><span class="cap">正在查找本机的 Agent 会话…</span><span></span><span></span></div>'
     : rows.length ? rows.map((x) => { const m = ag(x); const dis = busy || x.status === 'permission_denied'; return '<label class="srcrow" data-src="' + esc(x.id) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + col(m, 't') + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + col(m, '')) + '</span><span style="min-width:0"><b style="font-size:13px">' + esc(m.name) + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(x.root || '') + '">' + esc(obTilde(x.root)) + '</span></span><span class="mono cap" style="font-size:11px">' + cnt(x) + '</span><input type="checkbox" data-chg="obSrcL" data-s="' + esc(x.id) + '" data-a="' + esc(m.id) + '"' + (L.sel.has(x.id) ? ' checked' : '') + (dis ? ' disabled' : '') + ' aria-label="分析 ' + esc(m.name) + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>'; }).join('')
     : '<div class="srcrow" style="opacity:.75"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">' + (L.state === 'error' ? '读取来源失败' : '没有找到 Agent 会话目录') + '</b><span class="cap" style="display:block;font-size:11px">' + (L.state === 'error' ? esc(L.loadErr || '本机服务没有响应') : '可以在下面手动添加文件夹') + '</span></span><span></span><span></span></div>';
-  const opts = '<option value="auto">自动识别</option>' + Object.keys(LV.AGENTS).filter((k) => LV.AGENTS[k].key === k).map((k) => '<option value="' + k + '"' + (L.manual.agent === k ? ' selected' : '') + '>' + esc(LV.AGENTS[k].name) + '</option>').join('');
+  const opts = '<option value="auto">自动识别</option>' + Object.keys(LV.AGENTS).filter((k) => LV.AGENTS[k].key === k && LV.importable(k)).map((k) => '<option value="' + k + '"' + (L.manual.agent === k ? ' selected' : '') + '>' + esc(LV.AGENTS[k].name) + '</option>').join('');
   const add = '<div class="srcrow ob-add"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('plus', 15) + '</span><span class="row" style="gap:6px;min-width:0"><select class="ob-agent" data-chg="obAgent" aria-label="来源的 Agent"' + (busy ? ' disabled' : '') + ' style="height:26px;max-width:132px">' + opts + '</select>' +
     (host ? '<span class="cap" style="font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">选择一个会话日志目录</span>' : '<input class="mono ob-path code-t" id="obPath" data-in="obPath" placeholder="~/.claude" value="' + esc(L.manual.path || '') + '" aria-label="文件夹路径"' + (busy ? ' disabled' : '') + ' style="height:26px;min-width:0;flex:1;font-size:11px">') + '</span><span></span>' +
     '<button type="button" class="btn sm" data-act="obAddFolder"' + (busy || L.adding ? ' disabled' : '') + '>' + (L.adding ? '添加中…' : host ? '添加文件夹…' : '添加') + '</button></div>';
@@ -10300,7 +10368,7 @@ $('#overlay').addEventListener('keydown', (e) => {
 
 /* ============ settings window (its own .panel: 720×560, centred near the top, draggable, becomes the key window) ============ */
 const SET_TABS = [['general', '通用', 'settings'], ['sources', '数据源', 'db'], ['privacy', '隐私', 'shield'], ['analysis', '分析', 'chart'], ['notify', '通知', 'bell'], ['about', '关于', 'info']];
-const SRC_ST = { cc: ['正常', 'okc', 'var(--good)', '2 分钟前'], cx: ['正常', 'okc', 'var(--good)', '2 分钟前'], gm: ['部分字段缺失', 'alert', 'var(--warn)', '5 分钟前'], ds: ['正常', 'okc', 'var(--good)', '12 分钟前'], cp: ['正常', 'okc', 'var(--good)', '1 小时前'] };
+const SRC_ST = { cc: ['正常', 'okc', 'var(--good)', '2 分钟前'], cx: ['正常', 'okc', 'var(--good)', '2 分钟前'], km: ['部分字段缺失', 'alert', 'var(--warn)', '5 分钟前'], ds: ['正常', 'okc', 'var(--good)', '12 分钟前'], oc: ['正常', 'okc', 'var(--good)', '1 小时前'] };
 const RULE_RE = {
   '路径中的用户名': [/\/Users\/[A-Za-z0-9._-]+/g, '/Users/‹USER›'],
   '邮箱': [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '‹EMAIL›'],
@@ -10370,7 +10438,8 @@ const NATV = {
 S.loginStatus = null; S.notifAuth = null;
 // settings › 数据源 / 隐私 rows; live mode (97-live-studio-settings.js) swaps these for the gateway's sources and rules
 let srcRows = () => AG.map((a) => ({ name: a.name, ver: a.ver, path: a.path, n: fmt(a.all), st: SRC_ST[a.id] || ['—', 'minus', 'var(--ink-3)', '—'], on: !S.srcOff.has(a.id), t: a.t, c: a.c, attrs: ' data-a="' + a.id + '"' }));
-let srcMissing = () => (S.extraSrc.some((x) => /cursor/i.test(x.name)) ? [] : [{ name: 'Cursor', v: 'Cursor', hint: '未检测到 · 可以手动指定数据库位置' }]);
+// only agents Orbit has a session connector for (orbit_data MAPPERS) are offered; Cursor / Gemini CLI / Copilot CLI are not (D9)
+let srcMissing = () => (S.extraSrc.some((x) => /hermes/i.test(x.name)) ? [] : [{ name: 'Hermes Agent', v: 'Hermes', hint: '未检测到 · 可以手动指定会话目录' }]);
 let srcIndexed = () => '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话';
 let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE[k] ? RULE_RE[k][1].replace('$1', '') : '', on: S.rules[k], locked: false }));
 // A sheet left open by the previous tab (工具名映射表, 协作人格如何计算 …) or by the main window would cover the settings window and
@@ -10434,7 +10503,7 @@ function renderSet() {
     body = card('已检测到的 Agent', '自动扫描默认目录 · 只读会话日志，不读凭据文件', srcRows().map((r) => '<div class="srcrow" style="opacity:' + (r.on ? 1 : 0.55) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + r.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + r.c) + '</span><div style="min-width:0"><div class="row" style="gap:6px;flex-wrap:wrap"><b style="font-size:13px">' + r.name + '</b><span class="mono cap" style="font-size:11px">' + r.ver + '</span><span class="row" style="gap:3px;font-size:11px;color:' + r.st[2] + '">' + ic(r.st[1], 12) + r.st[0] + '</span></div><div class="mono cap" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + r.path + ' · ' + r.n + ' 个会话</div></div><span class="mono cap when" style="font-size:11px">' + r.st[3] + '</span>' + swBtn(r.on, 'setSrc', r.attrs, '启用 ' + r.name) + '</div>').join('') +
       S.extraSrc.map((x, i) => '<div class="srcrow"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('db', 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + esc(x.name) + '</b><span class="bdg">' + ({ jsonl: 'JSONL', sqlite: 'SQLite', md: 'Markdown' })[x.fmt] + '</span><span class="row" style="gap:3px;font-size:11px;color:var(--good)">' + ic('okc', 12) + '正常</span></div><div class="mono cap" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.path) + ' · ' + x.n + ' 个会话</div></div><span class="mono cap when" style="font-size:11px">刚刚</span><button type="button" class="btn sm gh" data-act="setRmSrc" data-i="' + i + '">移除</button></div>').join('') +
       srcMissing().map((m) => '<div class="srcrow" style="opacity:.75"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><div><b style="font-size:13px">' + esc(m.name) + '</b><div class="cap" style="font-size:11px">' + m.hint + '</div></div><span class="when"></span><button type="button" class="btn sm" data-act="setAddSrc" data-v="' + esc(m.v) + '">指定…</button></div>').join('') +
-      (S.addSrc ? '<div class="col" style="gap:10px;margin-top:10px;padding:12px;border-radius:10px;background:var(--sunken)"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><label class="l" for="srcName">名称</label><input id="srcName" value="' + esc(S.addSrc === 'Cursor' ? 'Cursor' : '导出的聊天记录') + '" style="' + FIELD + '"><label class="l" for="srcPath">位置</label><input id="srcPath" value="' + esc(S.addSrc === 'Cursor' ? '~/Library/Application Support/Cursor/User/workspaceStorage' : '~/Documents/chat-export') + '" style="' + FIELD + ';font-family:var(--font-mono)"><span class="l">格式</span>' + seg('setParser', S.addSrcFmt, [['jsonl', 'JSONL'], ['sqlite', 'SQLite'], ['md', 'Markdown 导出']], '格式') + '</div><div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="setAddCancel">取消</button><button type="button" class="btn sm p" data-act="setAddDo">添加并索引</button></div></div>' : ''),
+      (S.addSrc ? '<div class="col" style="gap:10px;margin-top:10px;padding:12px;border-radius:10px;background:var(--sunken)"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><label class="l" for="srcName">名称</label><input id="srcName" value="' + esc(S.addSrc === 'Hermes' ? 'Hermes Agent' : '导出的聊天记录') + '" style="' + FIELD + '"><label class="l" for="srcPath">位置</label><input id="srcPath" value="' + esc(S.addSrc === 'Hermes' ? '~/.hermes' : '~/Documents/chat-export') + '" style="' + FIELD + ';font-family:var(--font-mono)"><span class="l">格式</span>' + seg('setParser', S.addSrcFmt, [['jsonl', 'JSONL'], ['sqlite', 'SQLite'], ['md', 'Markdown 导出']], '格式') + '</div><div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="setAddCancel">取消</button><button type="button" class="btn sm p" data-act="setAddDo">添加并索引</button></div></div>' : ''),
       '<button type="button" class="btn sm" data-act="setMap">工具名映射表</button>') +
       '<div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-act="setAddSrc">' + ic('plus', 14) + '添加自定义来源…</button><span class="cap" style="font-size:11px">支持 JSONL、SQLite、Markdown 导出</span></div>' +
       card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), (badgeOn() ? '暂停后菜单栏图标不显示状态角标，也不产生任何事件' : '暂停后不产生任何事件')) + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', srcIndexed()) + '</div>');
@@ -10491,7 +10560,7 @@ Object.assign(ACT, {
   setLogin: () => NATV.loginSet(),
   setRange: (el) => { S.range = +el.dataset.v; store.set('range', S.range); render(); },
   setSrc: (el) => { const id = el.dataset.a; if (S.srcOff.has(id)) S.srcOff.delete(id); else S.srcOff.add(id); render(); toast(S.srcOff.has(id) ? agent(id).name + ' 已停用：数据在所有页面隐藏，但不删除' : agent(id).name + ' 已重新启用'); },
-  setAddSrc: (el) => { S.addSrc = el.dataset.v || '自定义'; S.addSrcFmt = S.addSrc === 'Cursor' ? 'sqlite' : 'jsonl'; renderSet(); const n = $('#srcPath'); if (n) n.focus(); },
+  setAddSrc: (el) => { S.addSrc = el.dataset.v || '自定义'; S.addSrcFmt = S.addSrc === 'Hermes' ? 'sqlite' : 'jsonl'; renderSet(); const n = $('#srcPath'); if (n) n.focus(); },
   setAddCancel: () => { S.addSrc = false; renderSet(); },
   setParser: (el) => { S.addSrcFmt = el.dataset.v; const nm = $('#srcName'), pa = $('#srcPath'); const keep = [nm ? nm.value : '', pa ? pa.value : '']; renderSet(); if ($('#srcName')) $('#srcName').value = keep[0]; if ($('#srcPath')) $('#srcPath').value = keep[1]; },
   setAddDo: () => { const nm = $('#srcName'), pa = $('#srcPath'); const name = (nm && nm.value.trim()) || '自定义来源', path = pa ? pa.value.trim() : ''; if (!path) { toast('先填写来源位置'); if (pa) pa.focus(); return; } S.extraSrc.push({ name, path, fmt: S.addSrcFmt, n: 37 }); S.addSrc = false; render(); toast('已添加「' + name + '」，正在索引 37 个会话（示例）'); },
@@ -10582,7 +10651,7 @@ function renderPop() {
   const T = popDay(); const today = available.filter((s) => s.d === T && (!simIdle() || !s.live));
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const head = (title, meta, badge) => '<div class="row" style="padding:12px 14px 10px"><div style="flex:1;min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + title + '</b>' + (badge || '') + '</div><div class="mono cap" style="font-size:11px">' + meta + '</div></div><button type="button" class="ib" data-act="openSettings" data-tab="notify" aria-label="通知设置">' + ic('settings', 15) + '</button></div>';
-  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="tcode" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Orbit <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
+  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="tcode" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : dataBusy() ? '计算中' : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Orbit <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
   // last 7 days: one column per day, count on top, today in ink (the orange stays reserved for Claude), weekday underneath
   const days = []; for (let d = T - 6; d <= T; d++) days.push([d, available.filter((s) => s.d === d && !(s.live && simIdle())).length]);
   const mx = Math.max(1, ...days.map((x) => x[1]));
@@ -10601,12 +10670,15 @@ function renderPop() {
       (attn.has('stuck') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('alert', 15, 'color:var(--crit)') + '<b style="font-size:13px">同一命令连续失败 4 次</b></div><div class="cap" style="font-size:12px">Codex · Surge 规则 · 15:02 开始</div><div class="mono" style="font-size:12px;padding:6px 8px;border-radius:6px;background:var(--sunken)">python gen_rules.py --publish</div><div style="font-size:12px;color:var(--ink-2)">可能原因：CDN token 过期（4 次输出里 3 次是 401）</div><div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="popTerm">在终端中处理</button><button type="button" class="btn sm" data-act="popStuckSess">打开会话</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="stuck">忽略 1 小时</button></div></div>' : '') +
       (attn.has('ctx') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:13px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">78%</b></div><div class="cap" style="font-size:12px">Claude Code · latentskill · 审阅第 3 节</div>' + ctxBar(78) + '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div></div>' : '') +
       popLiveCard() + foot;
+  } else if (dataBusy()) {
+    // nothing published yet (F08): no 昨天 / 近 7 天 zeros and no 「还没有会话」, only what is happening
+    html = head('今天', popDate() + ' · ' + busyMeta(), doneBadge) + '<div class="sec col" style="gap:4px" data-lv="busy" role="status"><b style="font-size:13px">' + esc(busyNote()) + '</b><span class="cap" style="font-size:11px">分析完成后显示昨天的对比和近 7 天</span></div>' + foot;
   } else if (simIdle()) {
     const y = available.filter((s) => s.d === T - 1); const ys = stats(y);
     const base = stats(sel({ range: 30, noExtra: true }));
     const byDay = {}; sel({ range: 30, noExtra: true }).forEach((s) => { byDay[s.d] = (byDay[s.d] || 0) + 1; });
     const perDay = Object.keys(byDay).length ? sum(Object.values(byDay), (v) => v) / Object.keys(byDay).length : 0;
-    html = head('今天', popDate() + ' · 还没有会话', doneBadge) + '<div class="sec col" style="gap:8px"><div class="row" style="justify-content:space-between"><b style="font-size:13px">昨天 · ' + popYest() + '</b><span class="mono cap" style="font-size:11px">' + y.length + ' 会话 · ' + dur(sum(y, (s) => s.dur)) + '</span></div><div class="row" style="gap:18px;align-items:flex-start">' +
+    html = head('今天', popDate() + ' · ' + (dataBusy() ? busyMeta() : '还没有会话'), doneBadge) + '<div class="sec col" style="gap:8px"><div class="row" style="justify-content:space-between"><b style="font-size:13px">昨天 · ' + popYest() + '</b><span class="mono cap" style="font-size:11px">' + y.length + ' 会话 · ' + dur(sum(y, (s) => s.dur)) + '</span></div><div class="row" style="gap:18px;align-items:flex-start">' +
       popMetric('摩擦率', ys.fric, base.fric, (v) => f1(v) + '%', true) + popMetric('纠偏', ys.corr, base.n ? base.corr / base.n * Math.max(1, perDay) : 0, (v) => f1(v), true) + popMetric('完成率', ys.ok, base.ok, (v) => Math.round(v) + '%', false) +
       '</div><div class="cap" style="font-size:11px">基线 = 近 30 天均值' + (y.length ? '' : '；昨天没有会话') + '</div></div>' + week +
       popOpening() + foot;
@@ -10824,6 +10896,7 @@ function renderWidgets() {
   const s7 = stats(L7), sp = stats(P7);
   const T = popDay(); const today = ALL.filter((s) => s.d === T && S.agents.has(s.a) && sourceEnabled(s) && !S.excluded.has(s.id) && !(s.live && simIdle()));
   const live = liveSession();
+  const busy = dataBusy();   // F08: importing / analysing — counts are not known yet, show 「—」 + 计算中 instead of 0
   const liveMin = (Date.now() - S.live.t0) / 60000;
   // the two stacked agents: Claude Code / Codex in the demo; live = the two agents with the most sessions (AG is ordered by count)
   const K = wgPair(); const days = []; for (let d = W7[0]; d <= W7[1]; d++) { const xs = L7.filter((s) => s.d === d); days.push([d, xs.filter((s) => s.a === K[0]).length, xs.filter((s) => s.a === K[1]).length, xs.filter((s) => s.a !== K[0] && s.a !== K[1]).length]); }
@@ -10842,8 +10915,8 @@ function renderWidgets() {
   const byH = []; for (let h = 0; h < 24; h++) byH.push(today.filter((s) => s.h === h));
   const dayStrip = '<span class="wg-day" role="img" aria-label="今天每小时开始的会话数"><span class="wg-day-b">' + byH.map((xs, h) => '<i' + (xs.length ? ' class="on" style="height:' + (4 + Math.min(3, xs.length) * 4) + 'px;background:' + agent(xs[0].a).c + '"' : '') + ' data-tip="' + String(h).padStart(2, '0') + ':00 · ' + xs.length + ' 个会话"></i>').join('') + '</span><span class="wg-day-x mono"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></span></span>';
   const squares = '<div class="wg-row"><button type="button" class="wg sq" data-act="wgGo" data-r="persona"><span class="lbl">协作人格</span>' + (p.ok ? glyphSVG(p, 56) : '') + '<span><span class="tcode" style="display:block;font-size:26px;line-height:1;letter-spacing:.02em">' + (p.ok ? p.code : '—') + '</span><span style="font-size:12px;color:var(--ink-2)">' + (p.ok ? p.zh + ' · 置信度' + p.conf : persNone(p)) + '</span></span></button>' +
-    '<button type="button" class="wg sq" data-act="wgGo" data-r="sessions"><span class="lbl">今日</span><span><span class="mono" style="display:block;font-size:34px;font-weight:600;line-height:1">' + today.length + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)) + '</span></span>' + dayStrip + '<span class="row" style="font-size:11px;gap:6px">' + (!live ? '<span class="cap">没有运行中的会话</span>' : '<span class="dot live" style="background:' + agent(live.a).c + '"></span>' + (S.numOnly ? '1 个运行中' : esc(sessProjName(live)) + ' · <span class="mono" data-live>' + liveElapsed() + '</span>')) + '</span></button></div>';
-  const week = '<button type="button" class="wg wk" data-act="wgGo" data-r="overview"><span class="col" style="gap:4px;min-width:0"><span class="lbl">本周</span><span class="mono" style="font-size:34px;font-weight:600;line-height:1">' + s7.n + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · <span class="mono" style="color:var(--ink-3)">' + (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta) + '%</span></span><span style="font-size:12px;color:var(--ink-2)">摩擦率 <b class="mono">' + fricTxt(s7) + '</b>' + (s7.msgs && sp.msgs ? ' <span class="mono" style="white-space:nowrap;color:' + (Math.abs(fricD) < 0.05 ? 'var(--ink-3)' : fricD < 0 ? 'var(--good)' : 'var(--crit)') + '">' + (Math.abs(fricD) < 0.05 ? '＝' : fricD < 0 ? '▼' : '▲') + f1(Math.abs(fricD)) + 'pt</span><span class="cap"> vs 上周</span>' : '') + '</span></span><span class="col" style="gap:5px;min-width:0"><span class="wg-week" role="img" aria-label="近 7 天每天的会话数，按 Agent 堆叠">' + days.map(col).join('') + '</span><span class="row cap" style="font-size:10px;gap:6px">' + K.filter((k) => k).map((k) => '<span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:' + wgC(k) + '"></i>' + esc(wgN(k)) + '</span>').join('') + '<span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--h2)"></i>其他</span></span></span></button>';
+    '<button type="button" class="wg sq" data-act="wgGo" data-r="sessions"><span class="lbl">今日</span><span><span class="mono" style="display:block;font-size:34px;font-weight:600;line-height:1">' + (busy ? '—' : today.length) + '</span><span style="font-size:12px;color:var(--ink-2)">' + (busy ? '计算中' : '会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur))) + '</span></span>' + dayStrip + '<span class="row" style="font-size:11px;gap:6px">' + (!live ? '<span class="cap">没有运行中的会话</span>' : '<span class="dot live" style="background:' + agent(live.a).c + '"></span>' + (S.numOnly ? '1 个运行中' : esc(sessProjName(live)) + ' · <span class="mono" data-live>' + liveElapsed() + '</span>')) + '</span></button></div>';
+  const week = '<button type="button" class="wg wk" data-act="wgGo" data-r="overview"><span class="col" style="gap:4px;min-width:0"><span class="lbl">本周</span><span class="mono" style="font-size:34px;font-weight:600;line-height:1">' + (busy ? '—' : s7.n) + '</span><span style="font-size:12px;color:var(--ink-2)">' + (busy ? '计算中' : '会话 · <span class="mono" style="color:var(--ink-3)">' + (sp.n ? (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta) + '%' : '上周无会话') + '</span>') + '</span><span style="font-size:12px;color:var(--ink-2)">摩擦率 <b class="mono">' + fricTxt(s7) + '</b>' + (s7.msgs && sp.msgs ? ' <span class="mono" style="white-space:nowrap;color:' + (Math.abs(fricD) < 0.05 ? 'var(--ink-3)' : fricD < 0 ? 'var(--good)' : 'var(--crit)') + '">' + (Math.abs(fricD) < 0.05 ? '＝' : fricD < 0 ? '▼' : '▲') + f1(Math.abs(fricD)) + 'pt</span><span class="cap"> vs 上周</span>' : '') + '</span></span><span class="col" style="gap:5px;min-width:0"><span class="wg-week" role="img" aria-label="近 7 天每天的会话数，按 Agent 堆叠">' + days.map(col).join('') + '</span><span class="row cap" style="font-size:10px;gap:6px">' + K.filter((k) => k).map((k) => '<span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:' + wgC(k) + '"></i>' + esc(wgN(k)) + '</span>').join('') + '<span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--h2)"></i>其他</span></span></span></button>';
   const rec = top ? '<button type="button" class="wg" data-act="wgRec" data-id="' + top.id + '" style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><span class="lbl">本周最值得做</span><span style="font-size:15px;font-weight:600;line-height:1.35">' + esc(top.title) + '</span><span class="cap">' + top.type + ' · ' + LEVELS[top.lvl] + ' · ' + esc(recGain(top)) + '</span><span class="row" style="width:100%;justify-content:space-between;margin-top:4px"><span class="cap">还有 ' + Math.max(0, recs.length - 1) + ' 条建议</span><span class="btn sm">预览</span></span></button>' : '';
   // large: the running session with its context bar, then two 7-day sparklines against the previous week
   let big = '';
@@ -10909,10 +10982,11 @@ function simEvent(k) {
     weekly: { t: '每周报告已生成', b: '9 月第 4 周：' + sel({ range: 7, noExtra: true }).length + ' 个会话 · 人格 ' + (personaNow().ok ? personaNow().code : '—') + ' 没有变化', a1: '查看报告', on1: () => openReport() }
   };
   if (k === 'newsrc') {
-    const has = () => S.extraSrc.some((x) => /cursor/i.test(x.name));
-    if (has()) { toast('Cursor 已经添加过了'); return; }
-    // two banners can be open at once: the second「添加」must not add Cursor again (BUG-43)
-    notify({ t: '发现新的数据来源', b: 'Cursor 的会话数据库：~/Library/Application Support/Cursor', a1: '添加', on1: () => { if (has()) { toast('Cursor 已经添加过了'); return; } S.extraSrc.push({ name: 'Cursor', path: '~/Library/Application Support/Cursor/User/workspaceStorage', fmt: 'sqlite', n: 37 }); render(); toast('已添加 Cursor，正在索引 37 个会话（示例）'); }, a2: '忽略', force: true });
+    // the example source is one Orbit has a session connector for (Hermes Agent, orbit_data MAPPERS), not Cursor (D9)
+    const has = () => S.extraSrc.some((x) => /hermes/i.test(x.name));
+    if (has()) { toast('Hermes Agent 已经添加过了'); return; }
+    // two banners can be open at once: the second「添加」must not add it again (BUG-43)
+    notify({ t: '发现新的数据来源', b: 'Hermes Agent 的会话数据库：~/.hermes/state.db', a1: '添加', on1: () => { if (has()) { toast('Hermes Agent 已经添加过了'); return; } S.extraSrc.push({ name: 'Hermes Agent', path: '~/.hermes/state.db', fmt: 'sqlite', n: 37 }); render(); toast('已添加 Hermes Agent，正在索引 37 个会话（示例）'); }, a2: '忽略', force: true });
     return;
   }
   if (ambient) {
@@ -11228,12 +11302,19 @@ function lvAgentOf(backendId) {
   return { id: k || 'unknown', key: k, keys: [k], name: backendId || '未知', short: backendId || '未知', slot: 0 };
 }
 
+// D9: agents Orbit can import sessions from — the gateway's connector registry (/v1/app/about components.mappers, i.e.
+// orbit_data MAPPERS; the settings page stores it in LV.mappers once read), and until then the same list as
+// orbit_data/discovery.inputs. Gemini CLI and Copilot CLI have no session connector: an installed one is an install target
+// (library / environment) only, never a sidebar agent, filter entry, source row or 「导入会话」 choice.
+const LV_IMPORTABLE = ['claude_code', 'codex', 'dsh', 'pi', 'hermes', 'opencode', 'kimi'];
 /* ---- LV ---- */
 const LV = {
   live: TL.mode === 'live',
   demo: (() => { try { return new URLSearchParams(location.search).get('demo') === '1'; } catch (e) { return false; } })(),
   AGENTS: LV_AGENTS,
   agentOf: lvAgentOf,
+  mappers: null,
+  importable: (bid) => { const ms = LV.mappers || LV_IMPORTABLE; return lvAgentOf(bid).keys.some((k) => ms.indexOf(k) >= 0); },
   state: 'connecting',         // connecting | computing | ready | empty | error
   stale: false,                // facts is recomputing; the screen keeps the previous spine
   meta: null, wire: null, rev: 0, excluded: [], undated: 0,
@@ -11344,7 +11425,10 @@ LV.feedState = (route) => {
 LV.ready = (route) => !LV.live || LV.feedState(route) === 'ready';
 // pending / empty placeholders in the prototype's own card language (no tl-table / tl-kpi)
 LV.pend = (h) => '<div class="lv-pend" data-lv="pending" style="height:' + (h || 120) + 'px" aria-busy="true"></div>';
-LV.na = (txt) => '<span class="cap" data-lv="na">' + esc(txt || '暂无数据') + '</span>';
+// nothing published yet and the data still on its way: charts say so instead of 暂无数据 / 所选范围内没有会话 (F08)
+{ const vzE = VZ.emptyText; VZ.emptyText = (spec) => { const b = dataBusy(); return b ? b.t : vzE(spec); }; }
+// F08: while importing / analysing every 「no data」 slot says so — explicit fallbacks (「暂无数据」, 「没有工具调用」) included
+LV.na = (txt) => { const b = dataBusy(); return '<span class="cap" data-lv="na"' + (b ? ' data-busy' : '') + '>' + esc(b ? b.t : txt || '暂无数据') + '</span>'; };
 
 /* ---- spine: /v1/uiview/facts → ALL / BYID / AG / PJ ---- */
 function lvToday() {
@@ -11463,8 +11547,9 @@ LV.hydrate = function (spine) {
   agentSync();
   const ags = {};
   const add = (bid, extra) => { const m = lvAgentOf(bid); const a = ags[m.id] || (ags[m.id] = lvMakeAgent(m)); Object.assign(a, extra || {}); return a; };
-  (spine.discovered || []).forEach((x) => add(x.agent, { detected: true, path: x.root || '—' }));
-  (spine.environment || []).forEach((x) => { const m = lvAgentOf(x.agent); if (ags[m.id] || x.installed) add(x.agent, { detected: true, path: x.root || ags[m.id] && ags[m.id].path || '—', ver: x.version || '—' }); });
+  // detected agents are listed only when Orbit can import their sessions (D9); agents with sessions always are
+  (spine.discovered || []).forEach((x) => { if (LV.importable(x.agent)) add(x.agent, { detected: true, path: x.root || '—' }); });
+  (spine.environment || []).forEach((x) => { const m = lvAgentOf(x.agent); if (ags[m.id] || (x.installed && LV.importable(x.agent))) add(x.agent, { detected: true, path: x.root || ags[m.id] && ags[m.id].path || '—', ver: x.version || '—' }); });
   // projects
   const pj = {};
   (spine.projects || []).forEach((p) => { pj[p.id] = p; });
@@ -12784,6 +12869,7 @@ LVN.addSource = async function (o) {
   }
   const agent = o.agent && o.agent !== 'auto' ? o.agent : LVN.agentFromPath(path);
   if (!agent) throw Object.assign(new Error('认不出这是哪个 Agent 的目录，先在左边选择 Agent'), { path });
+  if (!LV.importable(agent)) throw Object.assign(new Error(lvAgentOf(agent).name + ' 暂不支持导入会话：Orbit 还没有它的会话连接器'), { path });
   try {
     const res = await TL.send('POST', '/v1/app/sources', { agent, root: path, enabled: true });
     return { ok: true, source: res.data, agent, root: path };
@@ -13981,11 +14067,13 @@ function lvRecDetail(id) {
 // A7 without live rows: the page's own toolbar, dimension row and two-column layout with an honest state, never demo rows.
 function lvRecEmptyPage() {
   const st = lvRecState(); const run = LVR.applied && LVR.applied.run;
-  const msg = { pending: null, computing: '正在根据你的会话计算建议…', error: '建议服务暂时不可用，稍后自动重试。', empty: run ? '这次分析没有找到值得改的地方。导入更多会话或过几天再看。' : '还没有建议：Orbit 需要先分析你导入的会话。导入完成后会自动计算，也可以点「重新计算」。' }[st];
+  // F08: sessions are still being imported / analysed — say so, even when the recs endpoint itself errors or is not ready
+  const busy = dataBusy();
+  const msg = busy ? busyNote(busy) : { pending: null, computing: '正在根据你的会话计算建议…', error: '建议服务暂时不可用，稍后自动重试。', empty: run ? '这次分析没有找到值得改的地方。导入更多会话或过几天再看。' : '还没有建议：Orbit 需要先分析你导入的会话。导入完成后会自动计算，也可以点「重新计算」。' }[st];
   const dims = (LVR.applied && LVR.applied.dims) || DIMS.map((d) => ({ id: d[0], label: d[1], count: 0 }));
-  const body = msg ? '<div class="card pad col" data-tl="recs-empty" data-state="' + st + '" style="gap:10px;align-items:flex-start"><span class="eb">优化建议</span><p class="serif" style="margin:0;font-size:17px;line-height:1.5">' + esc(msg) + '</p>' + (st === 'error' ? '' : '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button>') + '</div>' : LV.pend(160);
-  return tbar('优化建议', st === 'pending' ? '' : '0 条' + (run && run.created_at ? ' · ' + lvRecWhen(run.created_at) + ' 更新' : ''), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
-    '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + dims.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + esc(d.id) + '" class="' + (S.recs.dim === d.id ? 'on' : '') + '" aria-selected="' + (S.recs.dim === d.id) + '">' + esc(d.label) + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + TLU.num(d.count || 0) + '</span></button>').join('') + '</div></div>' +
+  const body = msg ? '<div class="card pad col" data-tl="recs-empty" data-state="' + (busy ? 'busy' : st) + '" style="gap:10px;align-items:flex-start"><span class="eb">优化建议</span><p class="serif" style="margin:0;font-size:17px;line-height:1.5">' + esc(msg) + '</p>' + (st === 'error' || busy ? '' : '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button>') + '</div>' : LV.pend(160);
+  return tbar('优化建议', busy ? busyMeta(busy) : st === 'pending' ? '' : '0 条' + (run && run.created_at ? ' · ' + lvRecWhen(run.created_at) + ' 更新' : ''), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
+    '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + dims.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + esc(d.id) + '" class="' + (S.recs.dim === d.id ? 'on' : '') + '" aria-selected="' + (S.recs.dim === d.id) + '">' + esc(d.label) + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + (busy ? '' : TLU.num(d.count || 0)) + '</span></button>').join('') + '</div></div>' +
     '<div class="recs"><div class="stack">' + body + '</div><div style="position:sticky;top:0">' + empty(st === 'pending' ? '正在读取建议…' : '有建议后，这里显示说明、预览和效果追踪') + '</div></div></div>';
 }
 const lvRecWhen = (ms) => { const d = new Date(ms); return isNaN(d) ? '—' : (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
@@ -14595,6 +14683,7 @@ if (TL.mode === 'live') {
     // discovery and the about mappers spell agents differently (claude / claude_code, dsh / deepseek …): compare UI ids
     const norm = (k) => lvAgentOf(k).id || k;
     const have = new Set(disc.map((x) => norm(x.agent)).concat(AG.map((a) => a.id))); const maps = (ab && ab.components && ab.components.mappers) || [];
+    if (maps.length) LV.mappers = maps;   // the gateway's connector registry: what can be imported at all (D9)
     const seen = new Set();
     return maps.filter((k) => { const id = norm(k); if (have.has(id) || seen.has(id)) return false; seen.add(id); return true; })
       .map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
@@ -14708,6 +14797,7 @@ if (TL.mode === 'live') {
       if (!f || f.cancelled || !f.path) return;
       const ag = agentId || (GUESS.find((g) => g[0].test(f.path)) || [])[1];
       if (!ag) { toast('认不出这个文件夹属于哪个 Agent：在「未检测到」那一行点「指定…」'); return; }
+      if (!LV.importable(ag)) { toast(lvAgentOf(ag).name + ' 暂不支持导入会话：Orbit 还没有它的会话连接器'); return; }
       return TL.send('POST', '/v1/app/sources', { agent: ag, root: f.path, enabled: true }).then((x) => {
         const src = x.data || {}; TL.invalidate((q) => q.path === R.state || q.path === R.disc);
         toast('已添加 ' + lvAgentOf(ag).name + ' 来源，正在索引');
@@ -15065,7 +15155,7 @@ if (LV.live) {
     const meta = $('#pop .mono.cap');
     if (meta && pv && pv.today && !S.paused && !S.attn.size) {
       const t = pv.today; const n = Math.max(t.sessions || 0, d && d.today ? d.today.sessions_started || 0 : 0);
-      meta.textContent = popDate() + ' · ' + (n ? TLU.num(n) + ' 会话' + (t.duration_s ? ' · ' + dur(Math.round(t.duration_s / 60)) : '') : '还没有会话');
+      meta.textContent = popDate() + ' · ' + (n ? TLU.num(n) + ' 会话' + (t.duration_s ? ' · ' + dur(Math.round(t.duration_s / 60)) : '') : dataBusy() ? busyMeta() : '还没有会话');
     }
     // the top recommendation: the menubar slate (97-live-recs recTop('menubar')); without one, the popover's top_rec
     if (!$('#pop [data-act="popRec"]') && pv && pv.top_rec && pv.top_rec.title && !S.paused && !S.attn.size && !simIdle()) { const f = $('#pop .sec:last-child'); if (f) f.insertAdjacentHTML('beforebegin', recSec(pv.top_rec)); }
