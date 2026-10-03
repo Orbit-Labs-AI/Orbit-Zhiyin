@@ -46,7 +46,7 @@ scene('30-persona', () => {
       if (b < go) return { deg: STOPS[i - 1][2], k: i - 1, open: 1, twist: 0 };
       if (b < at) {
         const u = (b - go) / MOVE, deg = STOPS[i - 1][2] + (STOPS[i][2] - STOPS[i - 1][2]) * even(u);
-        return { deg, k: u < .5 ? i - 1 : i, open: (1 + Math.cos(2 * Math.PI * u)) / 2, twist: 0 };
+        return { deg, k: u < .5 ? i - 1 : i, open: 1, twist: 0, wave: { a: CODES.indexOf(STOPS[i - 1][0]), b: CODES.indexOf(STOPS[i][0]), u } };
       }
     }
     return { deg: STOPS[STOPS.length - 1][2], k: STOPS.length - 1, open: 1, twist: 0 };
@@ -174,7 +174,7 @@ scene('30-persona', () => {
   drive(2, 24.9, 61.5 + Z, (p, b) => {
     const deg = needleAt(b), w = b < SW0 ? null : browse(b);
     drawCompass({
-      deg, mine: E.inOut(lp(b, 44 + X, 1.4)), grow: w ? w.open : 0, fi: w ? CODES.indexOf(STOPS[w.k][0]) : null, twist: w ? w.twist : 0,
+      deg, mine: E.inOut(lp(b, 44 + X, 1.4)), grow: w ? w.open : 0, fi: w ? CODES.indexOf(STOPS[w.k][0]) : null, twist: w ? w.twist : 0, wave: w && w.wave,
       sweep: b < 30 ? clamp((needle4b(b) + 510) / 360) : 1, sweepFrom: 210 + OFF,
       orbit: (b - 27) * 28 + deg * .3, spin: b - 27, settle: E.inOut(lp(b, 44.8 + X, 1.6)),
       needle: E.out(lp(b, 26.9, .5)), core: E.out(lp(b, 26.7, 1)), dial: E.out(lp(b, 25.7, .9)),
@@ -188,11 +188,39 @@ scene('30-persona', () => {
   txt(27.1, 32.4, [['hv sv', '16 种'], ['hv sv', '协作人格']], { x: 150, y: 490 }, { st: .2, inB: .8, outB: .5 });
   txt(27.4, 32.4, [['lt acc', '4 个维度 · 8 个极']], { x: 150, y: 680 }, { anim: K.blurIn({ spread: .4, out: .5 }) });
 
-  /* 4c: the flower opens on two example types before yours; each caption (name, code, the first clause of the app's
-     one-liner) comes in as the flower opens and leaves as it closes, ≈ 1.5 s of stillness each */
-  STOPS.slice(0, 2).forEach(([code, at], i) => {
-    const t = D0.TYPES[code], end = STOPS[i + 1][1] - MOVE;
-    txt(at - .35, end + .2, [['lt dim', '16 种之一'], ['hv sv', t[0]], ['pe-code', code], ['lt', t[2].split('，')[0]]], { x: 150, y: 530 }, { st: .08, inB: .6, outB: .35 });
+  /* 4c: one caption stays through the browse (name, code, the first clause of the app's one-liner). On each change the
+     four letters roll like a split-flap board — every column at the same even speed through D S I P M F V T, at least
+     once round, so the columns stop one after another — while the name and the line swap at the change's midpoint.
+     It leaves just after your type lands, before the dial moves left for the reveal. */
+  const FLAP = 'DSIPMFVT', STEP = .2;                     // beats per letter
+  const flapPos = (b, c) => {                             // column c: position on the FLAP drum (fractional) at beat b
+    let pos = FLAP.indexOf(STOPS[0][0][c]);
+    for (let i = 1; i < STOPS.length; i++) {
+      const go = STOPS[i][1] - MOVE + .1, to = FLAP.indexOf(STOPS[i][0][c]), dist = 8 + ((to - pos % 8) + 8) % 8;
+      if (b <= go) break;
+      pos = pos % 8 + Math.min(dist, (b - go) / STEP);
+    }
+    return pos % 8;
+  };
+  const stopAt = (b) => { let k = 0; for (let i = 1; i < STOPS.length; i++) if (b >= STOPS[i][1] - MOVE / 2) k = i; return k; };
+  const swapQ = (b) => { for (let i = 1; i < STOPS.length; i++) { const m = STOPS[i][1] - MOVE / 2; if (Math.abs(b - m) < .6) return Math.abs(b - m) / .6; } return 1; };
+  const drum = FLAP + FLAP[0];
+  const flapHTML = [0, 1, 2, 3].map((c) => '<span class="pe-fc"><span class="pe-fs" data-c="' + c + '">' + drum.split('').map((x) => '<i>' + x + '</i>').join('') + '</span></span>').join('');
+  css(`.pe-flap{display:inline-flex;gap:.22em}
+.pe-fc{display:inline-block;width:.86em;height:1.2em;overflow:hidden;position:relative;vertical-align:top}
+.pe-fs{position:absolute;left:0;top:0;width:100%;display:flex;flex-direction:column;will-change:transform}
+.pe-fs i{display:block;height:1.2em;line-height:1.2em;text-align:center;font-style:normal;color:var(--acc)}
+.pe-code.pe-fl{letter-spacing:0}
+.pe-sw2{display:inline-block;will-change:opacity,filter}`);
+  txt(STOPS[0][1] - .35, STOPS[2][1] + 1.4, [['lt dim', '16 种之一'], ['hv sv', '<span class="pe-sw2 pe-nm"></span>'], ['pe-code pe-fl', '<span class="pe-flap">' + flapHTML + '</span>'], ['lt', '<span class="pe-sw2 pe-ol"></span>']], { x: 150, y: 530 }, {
+    st: .08, inB: .6, outB: .5,
+    tick: (el, tl, life, t) => {
+      const b = t / BEAT, k = stopAt(b), T = D0.TYPES[STOPS[k][0]], q = swapQ(b);
+      const nm = el.querySelector('.pe-nm'), ol = el.querySelector('.pe-ol');
+      if (nm && nm.dataset.k !== String(k)) { nm.dataset.k = String(k); nm.textContent = T[0]; ol.textContent = T[2].split('，')[0]; }
+      for (const x of [nm, ol]) if (x) { x.style.opacity = q.toFixed(3); x.style.filter = q < .98 ? 'blur(' + ((1 - q) * 8).toFixed(1) + 'px)' : 'none'; }
+      el.querySelectorAll('.pe-fs').forEach((x) => { x.style.transform = 'translateY(' + (-flapPos(b, +x.dataset.c) * 1.2).toFixed(4) + 'em)'; });
+    }
   });
 
   /* ---------- 4e: settle, glow, reveal (b44–52) ---------- */
