@@ -20,6 +20,7 @@ from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 
+from .compat import supported_agents
 from .contracts import Page, Resource, SourceSpec, canonical_json, digest
 from .features import CHUNK_VERSION, FEATURE_VERSION, chunks, extract, lexical_tokens
 from .risk import assess
@@ -492,7 +493,9 @@ class CatalogStore:
             return 1, 1
         conn.executemany("INSERT INTO item_feature VALUES(?,?,?,?,?,?)",
                          [(item_id, f.feature, f.value, f.weight, f.origin, f.evidence) for f in resource.features])
-        conn.executemany("INSERT OR IGNORE INTO item_agent VALUES(?,?)", [(agent, item_id) for agent in resource.agents])
+        # Declared agents plus agents that load the item's open format unchanged (compat.py).
+        agents = supported_agents(resource.type, resource.agents, resource.url, resource.repo_path)
+        conn.executemany("INSERT OR IGNORE INTO item_agent VALUES(?,?)", [(agent, item_id) for agent in agents])
         children = sorted(set(resource.components))
         conn.executemany("INSERT INTO item_component VALUES(?,?)", [(item_id, child) for child in children])
         conn.executemany("INSERT OR IGNORE INTO item_relation VALUES(?,?,'depends')", [(item_id, child) for child in children])

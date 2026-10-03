@@ -12,6 +12,7 @@ from collections import OrderedDict
 
 import numpy as np
 
+from .compat import install_targets, support_matrix
 from .contracts import canonical_json
 from .risk import allowed_tools, declared_env, scan
 
@@ -28,7 +29,8 @@ KIND_LABELS = {"skill": "Skill", "hook": "Hook", "plugin": "插件", "subagent":
                "rule": "规则", "workflow": "工作流", "command": "命令", "marketplace": "市场", "guide": "指南",
                "output_style": "输出风格", "lsp_server": "LSP"}
 AGENT_LABELS = {"claude_code": "Claude Code", "codex": "Codex", "copilot": "Copilot", "gemini": "Gemini CLI",
-                "opencode": "OpenCode", "cursor": "Cursor", "openclaw": "OpenClaw"}
+                "opencode": "OpenCode", "cursor": "Cursor", "openclaw": "OpenClaw",
+                "hermes": "Hermes", "dsh": "dsh", "pi": "pi", "kimi": "Kimi"}
 SOURCE_LABELS = {"official": "官方", "community": "社区", "local": "本地", "mirror": "镜像"}
 VERIFIED = ("repository_and_skill_read", "repository_and_source_read")
 _SPDX = {"mit": "MIT", "mit license": "MIT", "apache-2.0": "Apache-2.0", "apache 2.0": "Apache-2.0",
@@ -295,6 +297,7 @@ def get_item(store, item_id: str) -> dict | None:
         body = resource.body if licensed else None
         manifest, hints = resource.manifest, resource.install
         license_ok = (row["license"] in PERMISSIVE and licensed) or (row["type"] in ("plugin", "mcp_server") and bool(hints))
+        matrix = support_matrix(row["type"], result["agents"], row["url"], resource.repo_path)
         children = [r[0] for r in conn.execute("SELECT child_id FROM item_component WHERE parent_id=? ORDER BY child_id", (item_id,))]
         child_cards = _cards(conn, children)
         result.update({
@@ -313,7 +316,9 @@ def get_item(store, item_id: str) -> dict | None:
             "sources": [dict(r) for r in conn.execute(
                 "SELECT source_id,native_id,status,fetched_at FROM item_source WHERE item_id=? ORDER BY source_id,native_id",
                 (item_id,))],
-            "install": _install(item_id, row, result["agents"], hints, license_ok),
+            "support": matrix,
+            "install": _install(item_id, row, result["agents"], hints, license_ok,
+                                install_targets(row["type"], row["name"], matrix)),
             "resident_tokens_est": math.ceil(row["body_len"] / 4) if row["type"] in RESIDENT_TYPES else None,
             "scan": scan(resource, result["risk"], row["risk_level"]),
             "first_seen": row["first_seen"], "last_seen": row["last_seen"]})
@@ -321,7 +326,8 @@ def get_item(store, item_id: str) -> dict | None:
         return result
 
 
-def _install(item_id: str, row, targets: list, hints: dict, license_ok: bool) -> dict:
+def _install(item_id: str, row, targets: list, hints: dict, license_ok: bool, paths: list | None = None) -> dict:
+    """``paths``: per-agent target files for skills/rules (compat.install_targets); [] for other types."""
     reason = None
     if row["status"] != "active":
         reason = "inactive"
@@ -330,7 +336,7 @@ def _install(item_id: str, row, targets: list, hints: dict, license_ok: bool) ->
     elif not license_ok:
         reason = "license_not_permissive" if row["type"] not in ("plugin", "mcp_server") else "no_install_declaration"
     return {"ref": {"source": "catalog_item", "id": item_id}, "targets": targets, "hints": hints,
-            "license_ok": license_ok, "installable": reason is None, "reason": reason}
+            "paths": paths or [], "license_ok": license_ok, "installable": reason is None, "reason": reason}
 
 
 def cards_by_id(store, item_ids: list[str]) -> dict:

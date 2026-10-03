@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "description": "Human spot-check decisions on rule-admitted catalog items (see tandem_catalog.admission). Each decision: {item_id, decision: reviewed_accept|reviewed_reject, friction, reviewer, date, note}.",
+  "decisions": []
+}
