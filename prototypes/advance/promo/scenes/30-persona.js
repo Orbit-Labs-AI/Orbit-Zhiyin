@@ -26,7 +26,7 @@ scene('30-persona', () => {
   const OFF = 11.25, MOVE = 3.6, RAMP = .22;
   const typeDeg = (code) => (CODES.indexOf(code) + .5) * 22.5;
   // [code, beat it arrives (fully open), bearing]; it leaves a stop MOVE beats before the next arrival
-  const STOPS = [['SIMT', 33.9, typeDeg('SIMT')], ['DPMV', 40.9, typeDeg('DPMV') + 360], ['DIMV', 47.9, typeDeg('DIMV') + 720]];
+  const STOPS = [['SIMT', 33.9, typeDeg('SIMT')], ['DPMV', 39.9, typeDeg('DPMV') + 360], ['DIMV', 45.9, typeDeg('DIMV') + 720]];
   // later beats of this scene move with the longer browse (X), the longer reveal (Y) and the longer strengths card (Z)
   const X = STOPS[2][1] - 43.4, Y = X + 1.5, Z = Y + 1;
   // 0..1 progress with an even speed between two short eased ramps (velocity: a trapezoid)

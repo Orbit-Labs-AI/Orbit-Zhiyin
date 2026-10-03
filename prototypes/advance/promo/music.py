@@ -22,7 +22,7 @@ SR = 48000
 BPM = 132
 BEAT = 60 / BPM
 # = SHIFT in promo.js: each later scene plays this many beats later (wordmark reveal, longer persona / recs holds)
-SHIFT = {'20-sentiment': 8, '30-persona': 8, '40-recs': 19, '60-close': 9.5}
+SHIFT = {'20-sentiment': 5.9, '30-persona': 5.9, '40-recs': 14.9, '60-close': 5.4}
 SH = 0              # shift put() applies; set per section below
 END = 113 + SHIFT['60-close']   # film beats
 N = int((END * BEAT + 1.5) * SR)
@@ -341,32 +341,32 @@ for i, m in enumerate((81, 84, 88, 91, 93)):                        # five agent
     put(blip(m, 0.4), 1.2 + i * 0.2, 0.2, -0.5 + i * 0.25, to='verbsend')
 put(whoosh(0.8 * BEAT), 2.6, 0.26, -0.2)                            # b3.0 the sentence shrinks to an eyebrow
 groove(3.4, 7.9, style='half', clap_on=False, lvl=0.92)
-bed(3.4, 22.6, 0.32)
+bed(3.4, 20.5, 0.32)
 pads(3.4, 7.9, 0.17, 1200)
 put(marker(0.4), 4.2, 0.5, 0.3)                                     # highlighter under 怎样
 put(whoosh(0.6 * BEAT), 5.3, 0.26, 0.2)                             # sentence swap
 for i in range(5):                                                  # planets pulled to the mark
     put(blip(76 + [0, 3, 7, 10, 12][i], 0.5), 7.5 + i * 0.12, 0.14, -0.4 + i * 0.2, to='verbsend')
 
-# 2 · the mark is traced (b7.9-10.4), the kit's reveal turns it into Orbit·知音 (turn b11-14.1, letters b13.3-15.5),
-# the letters leave (b17.4), the O tips to the top view (b18.6) and we dive into it (b20.8-22.6)
+# 2 · the mark is traced (b7.9-10.0), the kit's reveal turns it into Orbit·知音 (turn b10.4-13.7, letters from b12.9,
+# 110 ms apart), the letters leave (b15.9), the O tips to the top view (b16.9) and we dive into it (b18.7-20.5)
 put(glide(440, 440 * 2 ** 1.2, 2.4 * BEAT), 7.9, 0.08, to='verbsend')
 groove(7.9, 10.3, style='half', clap_on=False, lvl=0.92)
-pads(7.9, 22.6, 0.17, 1300)
+pads(7.9, 20.5, 0.17, 1300)
 put(boom(3.0, 55, 28), 10.3, 0.42, to='verbsend')                   # the mark is complete
-put(whoosh(3.0 * BEAT), 11.0, 0.2, -0.3)                            # the turn
-put(glide(520, 520 * 2 ** 0.5, 3.0 * BEAT), 11.0, 0.06, to='verbsend')
+put(whoosh(3.0 * BEAT), 10.4, 0.2, -0.3)                            # the turn
+put(glide(520, 520 * 2 ** 0.5, 3.0 * BEAT), 10.4, 0.06, to='verbsend')
 for i, m_ in enumerate((76, 79, 81, 83, 84, 86, 88)):                # rbit·知音, one note per glyph
-    put(blip(m_, 0.6), 13.3 + i * 0.227, 0.16, -0.45 + i * 0.15, to='verbsend')
-groove(14.0, 22.6, style='half', clap_on=False, lvl=0.9)
-put(whoosh(0.8 * BEAT), 17.3, 0.2, 0.3)                             # letters leave
-put(glide(440 * 2 ** 0.5, 440, 2.0 * BEAT), 18.6, 0.06, to='verbsend')
+    put(blip(m_, 0.6), 12.9 + i * 0.242, 0.16, -0.45 + i * 0.15, to='verbsend')
+groove(13.4, 20.5, style='half', clap_on=False, lvl=0.9)
+put(whoosh(0.8 * BEAT), 15.8, 0.2, 0.3)                             # letters leave
+put(glide(440 * 2 ** 0.5, 440, 2.0 * BEAT), 16.9, 0.06, to='verbsend')
 k = 0.0                                                             # the dive: a swirl of ticks that speeds up
 while k < 1.8:
-    put(tick(), 20.8 + k, 0.14 + 0.2 * k / 1.8, np.sin(k * 9) * 0.6)
+    put(tick(), 18.7 + k, 0.14 + 0.2 * k / 1.8, np.sin(k * 9) * 0.6)
     k += 0.25 * (1 - k / 2.1) + 0.04
-put(riser(1.8 * BEAT, 300, 6000), 20.8, 0.35, to='verbsend')
-put(reverse_swell(0.8 * BEAT), 21.8, 0.6)
+put(riser(1.8 * BEAT, 300, 6000), 18.7, 0.35, to='verbsend')
+put(reverse_swell(0.8 * BEAT), 19.7, 0.6)
 SH = SHIFT['20-sentiment']                                          # from here on: scene beats
 
 # 3 · sentiment ride (b14.6-21.6): groove A, a blip per road sign, then the push-through
@@ -395,14 +395,14 @@ for i in range(8):                                                  # particles 
 # 4c · the flower browses two example types and lands on yours (30-persona STOPS: 33.9 / 40.9 / 47.9, MOVE 3.6,
 # every change the same even turn): no ticks; a soft swish as the petals spin closed, a bloom chord as the next opens.
 # Everything after the browse moves with it: X (browse), Y (reveal read), Z (strengths card read), as in the scene.
-X = 47.9 - 43.4
+X = 45.9 - 43.4
 Y = X + 1.5
 Z = Y + 1
 groove(28.0, 44.0 + X, style='half', lvl=0.95)
 bed(27.0, 44.0 + X, 0.36)
 pads(28.0, 44.0 + X, 0.24, 1700)
 put(glide(330, 660, 4.5 * BEAT), 29.4, 0.06, to='verbsend')      # the closed bud keeps turning onto the first type
-for at_, ch in ((33.9, (57, 64, 69)), (40.9, (60, 64, 72)), (47.9, (57, 64, 69, 76))):
+for at_, ch in ((33.9, (57, 64, 69)), (39.9, (60, 64, 72)), (45.9, (57, 64, 69, 76))):
     if at_ > 34:
         put(whoosh(1.6 * BEAT), at_ - 3.6, 0.13, -0.2)              # petals spin closed (first half of the change)
     for i, n in enumerate(ch):                                      # bloom: a rolled chord as it opens

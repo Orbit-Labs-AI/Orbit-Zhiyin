@@ -10,7 +10,7 @@ let END = 118;                                            // length in beats; th
    and is played SHIFT[name] beats later: 8 for the wordmark reveal, more after the persona and the recommendations,
    which were given longer holds so every line can be read. Each cue, tween, text, tag, drive and click remembers the
    shift of the scene that registered it and sees the clock in its own scene beats. music.py uses the same table. */
-const SHIFT = { '10-open': 0, '20-sentiment': 8, '30-persona': 8, '40-recs': 19, '60-close': 9.5 };
+const SHIFT = { '10-open': 0, '20-sentiment': 5.9, '30-persona': 5.9, '40-recs': 14.9, '60-close': 5.4 };
 let SH = 0;
 const RENDER = location.search.includes('render');
 const DEBUG = location.search.includes('debug');
@@ -571,7 +571,7 @@ const MARK_INK = '#fff';
 // in (`on`) and out (`off`), the O tips to the top view (`tip`) and the camera dives into it (`dive` → `end`);
 // close (scene beats): the band's ring tips into an orbit (`orbit`), the spiral grows along it (`grow`), rises to the
 // icon view (`rise` → `settle`), fades (`out`).
-const OPEN = { planets: 3.0, pull: 7.5, trace: 7.9, hold: 10.4, turn: 11.0, off: 17.4, tip: 18.6, dive: 20.8, end: 22.6, cy: 500, k0: 1.0, k1: .6 };
+const OPEN = { planets: 3.0, pull: 7.5, trace: 7.9, hold: 10.0, turn: 10.4, off: 15.9, tip: 16.9, dive: 18.7, end: 20.5, cy: 500, k0: 1.0, k1: .6 };
 const CLOSE = { ring: 104.2, orbit: 104.2, grow: 105.0, rise: 106.6, settle: 108.4, out: 111.6, outDur: 1.4, tilt: 64 };
 function orbitAt(bf) {
   let h = '', b = bf;
