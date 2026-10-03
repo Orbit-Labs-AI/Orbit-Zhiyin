@@ -1860,10 +1860,48 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const sum = (arr, fn) => arr.reduce((a, x) => a + fn(x), 0);
 function rng(seed) { let s = seed | 0; return () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h | 0; }
-const store = {
-  get(k, d) { try { const v = localStorage.getItem('tandem-demo:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem('tandem-demo:' + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
-};
+// UI preferences. Browser: localStorage 'tandem-demo:*' only. Native shell with the "prefs" feature: the WKWebView store is
+// non-persistent (and the gateway port changes every launch), so the host keeps <data home>/ui-prefs.json, injects it as
+// window.__ORBIT_PREFS__ at document start, and store.get reads that; store.set still writes localStorage and also posts
+// {type:'prefs', set:{key: value|null}} (merged per key, debounced; null deletes). Surfaces share one file and only send the
+// keys they changed; 'tandem:prefs' carries other surfaces' changes into this page's copy.
+const store = (() => {
+  const LS = 'tandem-demo:';
+  const handler = () => { try { return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tandem; } catch (e) { return null; } };
+  const nat = window.__ORBIT_NATIVE__;
+  const p0 = window.__ORBIT_PREFS__;
+  const native = !!(nat && typeof nat === 'object' && Array.isArray(nat.features) && nat.features.indexOf('prefs') >= 0 && handler());
+  const cache = native ? Object.assign({}, p0 && typeof p0 === 'object' && !Array.isArray(p0) ? p0 : {}) : null;
+  let pending = null, timer = null;
+  function flush() {
+    clearTimeout(timer); timer = null;
+    if (!pending) return;
+    const set = pending; pending = null;
+    try { handler().postMessage({ type: 'prefs', set }); } catch (e) { /* host gone */ }
+  }
+  if (native) {
+    window.addEventListener('tandem:prefs', (e) => {
+      const set = (e && e.detail && e.detail.set) || {};
+      Object.keys(set).forEach((k) => { if (set[k] == null) delete cache[k]; else cache[k] = set[k]; });
+    });
+    window.addEventListener('pagehide', flush);
+  }
+  return {
+    native,
+    get(k, d) {
+      if (native) return Object.prototype.hasOwnProperty.call(cache, k) ? cache[k] : d;
+      try { const v = localStorage.getItem(LS + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; }
+    },
+    set(k, v) {
+      try { localStorage.setItem(LS + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ }
+      if (!native) return;
+      if (v == null) delete cache[k]; else cache[k] = JSON.parse(JSON.stringify(v));
+      (pending = pending || {})[k] = v == null ? null : cache[k];
+      clearTimeout(timer); timer = setTimeout(flush, 150);
+    },
+    flush
+  };
+})();
 const I = {
   overview: 'M4 4h6v8H4zM14 4h6v5h-6zM14 13h6v7h-6zM4 16h6v4H4z',
   persona: 'M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 15c1.5 1.3 4.5 1.3 6 0M9 10h.01M15 10h.01',
@@ -3141,7 +3179,7 @@ if (typeof module === 'object' && module && module.exports) module.exports = Tan
 
 /* ============ state ============ */
 const S = {
-  route: 'overview', range: 30, agents: new Set(AG.map((a) => a.id)), srcOff: new Set(),
+  route: 'overview', range: 30, agents: new Set(AG.map((a) => a.id)), agentOff: new Set(), srcOff: new Set(),
   project: null, topic: null, outcome: null, fric: null, hour: null,
   compare: true, metric: 'n', view: 'chart', theme: store.get('theme', 'system'),
   // shell: sidebar shown (user intent) / sidebar as an overlay in a narrow window / collapsible groups / key window /
@@ -3172,6 +3210,20 @@ function liveElapsed() { const s = Math.floor((Date.now() - S.live.t0) / 1000); 
 /* ============ derived data ============ */
 function win(range) { const L = LASTDAY; return range === 7 ? [L - 6, L] : range === 30 ? [L - 29, L] : range === 90 ? [L - 89, L] : [Math.max(0, Math.min(FIRSTDAY, L)), L]; }
 function prevWin(range) { if (!range) return null; const w = win(range); const a = w[0] - range; return a < 0 ? null : [a, w[0] - 1]; }
+// Agent filter model: the default is every imported agent (S.agents = all of AG). Only an explicit deselection is remembered
+// (S.agentOff, ids); agents that show up later join the filter unless the user unchecked them. agentSync() records the user's
+// choice from S.agents (ids no longer in AG stay in agentOff until picked again); agentApply() rebuilds S.agents from AG
+// and agentOff after AG changes (live hydrate, a restored store) and heals a stale pick: an empty result means all.
+function agentSync() {
+  const off = new Set(Array.from(S.agentOff).filter((id) => !AGI[id]));
+  AG.forEach((a) => { if (!S.agents.has(a.id)) off.add(a.id); });
+  S.agentOff = off;
+}
+function agentApply() {
+  let on = AG.filter((a) => !S.agentOff.has(a.id)).map((a) => a.id);
+  if (!on.length) { on = AG.map((a) => a.id); S.agentOff = new Set(); }
+  S.agents = new Set(on);
+}
 function sourceEnabled(s) { return !S.srcOff.has(s.a); }
 function base(s) { return !s.live && S.agents.has(s.a) && sourceEnabled(s); }
 function pass(s, o) {
@@ -3589,11 +3641,13 @@ function go(route, keepScroll) {
   if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
   if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
+  edRemember(route);   // App: the page to come back to next launch (26-edition.js)
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
   render();
   if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
 function render() {
+  agentSync();
   applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
   if (!$('#set').hidden) renderSet();
@@ -3730,7 +3784,21 @@ function empty(msg) { return '<div class="card pad" style="text-align:center;col
 // command palette and ⌃⌘L). Routes map both ways, so a link, notification or flow that calls go('persona') lands on the
 // matching page of the edition in use; edOpen(route) jumps from Lite into an Advance detail page.
 // Switching slides the switch thumb first, then cross-fades sidebar and content (View Transitions; CSS fallback).
-S.ed = store.get('edition', 'advance') === 'lite' ? 'lite' : 'advance';
+// App (native prefs): a fresh install starts in Lite, later launches come back to the edition and the page last used —
+// each edition keeps its own last page ('route' = {lite, advance}, main window only). The browser demo keeps Advance and
+// the URL hash.
+S.ed = store.get('edition', store.native ? 'lite' : 'advance') === 'lite' ? 'lite' : 'advance';
+const ED_SURFACE = /[?&]surface=(panel|hud|widgets)(&|$)/.test(location.search || '');
+function edLastRoute(ed) {
+  const r = store.get('route', null);
+  return r && typeof r === 'object' && typeof r[ed] === 'string' ? r[ed] : null;
+}
+function edRemember(route) {
+  if (!store.native || ED_SURFACE) return;
+  const ed = /^l-/.test(route) ? 'lite' : 'advance';
+  if (edLastRoute(ed) === route) return;
+  const r = Object.assign({}, store.get('route', null) || {}); r[ed] = route; store.set('route', r);
+}
 const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs']];
 const TO_LITE = { overview: 'l-home', persona: 'l-persona', sessions: 'l-sessions', recs: 'l-recs' };
 const TO_ADV = { 'l-home': 'overview', 'l-persona': 'persona', 'l-sessions': 'sessions', 'l-recs': 'recs' };
@@ -9382,8 +9450,8 @@ LV.hydrate = function (spine) {
   LASTDAY = Math.round((t - DAY0) / 86400000);
   // 全部 starts at the earliest session, not at the 120-day spine floor (R4-04); no rows keeps the full spine
   FIRSTDAY = first ? Math.max(0, Math.min(LASTDAY, Math.round((lvUtc(first) - DAY0) / 86400000))) : 0;
-  // agents: present in facts or detected, ordered by session count; deselections survive by id
-  const prevOff = new Set(AG.filter((a) => !S.agents.has(a.id)).map((a) => a.id));
+  // agents: present in facts or detected, ordered by session count; default all; an explicit deselection survives by id (agentOff)
+  agentSync();
   const ags = {};
   const add = (bid, extra) => { const m = lvAgentOf(bid); const a = ags[m.id] || (ags[m.id] = lvMakeAgent(m)); Object.assign(a, extra || {}); return a; };
   (spine.discovered || []).forEach((x) => add(x.agent, { detected: true, path: x.root || '—' }));
@@ -9420,7 +9488,7 @@ LV.hydrate = function (spine) {
   Object.keys(PJI).forEach((k) => { delete PJI[k]; }); PJ.forEach((p) => { PJI[p.id] = p; });
   LV.excluded = excluded; LV.undated = undated; LV.rev++;
   // S fix-ups
-  S.agents = new Set(AG.map((a) => a.id).filter((id) => !prevOff.has(id)));
+  agentApply();
   S.srcOff = new Set(Array.from(S.srcOff).filter((id) => AGI[id]));
   if (S.project && !PJI[S.project]) S.project = null;
   const done = ALL.filter((s) => !s.live);
@@ -12693,6 +12761,7 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
 (function init() {
   document.documentElement.lang = 'zh-CN';
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
+  if (!h && store.native && !ED_SURFACE) h = edLastRoute(S.ed) || '';   // App: back to the last page of the last edition
   if (/^l-/.test(h)) S.ed = 'lite';
   if (PAGES[h]) S.route = h;
   S.route = edRoute(S.route); if (!PAGES[S.route]) S.route = S.ed === 'lite' ? 'l-home' : 'overview';

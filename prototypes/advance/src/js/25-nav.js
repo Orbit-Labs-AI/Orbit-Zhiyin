@@ -11,11 +11,13 @@ function go(route, keepScroll) {
   if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
   if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
+  edRemember(route);   // App: the page to come back to next launch (26-edition.js)
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
   render();
   if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
 function render() {
+  agentSync();
   applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
   if (!$('#set').hidden) renderSet();
