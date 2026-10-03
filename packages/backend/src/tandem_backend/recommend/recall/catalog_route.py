@@ -80,7 +80,7 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
                  "reversible": True},
         "risk": {"level": "medium" if len(risk_flags) > 1 else "low", "flags": risk_flags},
         "requirements": {"tools": [], "software": []}, "gates_hint": {"scenes": None, "language": None},
-        "unit_minutes": 1., "tags": list(item.get("tags") or ()), "file": None,
+        "unit_minutes": None, "tags": list(item.get("tags") or ()), "file": None,
         "explain_hints": {"reason_template": reason, "mechanism": mechanism,
                           "trial": _user_trial(item.get("trial")), "limitation": limitation,
                           "vars": dict((problem or {}).get("vars") or {})},
