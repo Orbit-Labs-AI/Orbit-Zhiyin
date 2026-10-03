@@ -202,7 +202,7 @@ function genHTML(g) {
     '<div class="g-tail">' + (ob ? '<div class="g-foot" data-g="run"><span class="cap">可以关闭窗口，完成后通知你</span><button type="button" class="btn" data-act="obBg">在后台继续</button></div>' : '') +
     '<div class="g-done" data-g="done">' + done.replace(/<button /g, '<button disabled ') + '</div></div>';
 }
-// 取 fp2SVG 的各层（表盘外框 .fp-base：细线、128 道刻度与 --orbit 三角 .fp-n0 / 四个方位字 .fp-hours / 花 .fp-flower（旋转层
+// 取 fp2SVG 的各层（表盘外框 .fp-base：细线、128 道刻度与 --orbit 三角 .fp-n0 / 16 个类型码 .fp-hours / 花 .fp-flower（旋转层
 // .fp-bloom、开花层 .fp-front / .fp-back）/ 轨道色带的扫描遮罩 .fp-sweep / Agent 标志徽章 .fp-pl）与翻正用的两层（.g-fp、.g-over）。
 // .fp-band、.fp-core 是 fp2SVG 留着的空组（旧版的节律带与内盘），这里照常淡入，不画任何东西
 function genMark(g) {
