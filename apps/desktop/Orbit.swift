@@ -24,11 +24,31 @@ let windowBackground = NSColor(name: NSColor.Name("OrbitWindowBackground")) { ap
 }
 
 func dataHome() -> URL {
-    if let home = ProcessInfo.processInfo.environment["ORBIT_HOME"], !home.isEmpty {
+    let environment = ProcessInfo.processInfo.environment
+    // TANDEM_HOME: the setting's name before the rename to Orbit (v0.0.3 and earlier).
+    if let home = environment["ORBIT_HOME"] ?? environment["TANDEM_HOME"], !home.isEmpty {  // orbit-rename: keep
         return URL(fileURLWithPath: (home as NSString).expandingTildeInPath)
     }
-    return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Orbit")
+    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    let home = support.appendingPathComponent("Orbit")
+    adoptLegacyHome(home, legacy: support.appendingPathComponent("Tandem"))  // orbit-rename: keep
+    return home
+}
+
+/// Before the rename to Orbit (v0.0.3 and earlier) the data lived in Application Support/Tandem. Move it once and leave
+/// a link at the old path: hooks installed back then write to absolute paths under it. The helper renames the files
+/// inside (orbit_data.legacy); an existing Orbit folder is never touched.
+func adoptLegacyHome(_ home: URL, legacy: URL) {
+    let files = FileManager.default
+    guard !files.fileExists(atPath: home.path),
+          let kind = try? files.attributesOfItem(atPath: legacy.path)[.type] as? FileAttributeType,
+          kind == .typeDirectory else { return }
+    do {
+        try files.moveItem(at: legacy, to: home)
+        try files.createSymbolicLink(atPath: legacy.path, withDestinationPath: home.lastPathComponent)
+    } catch {
+        NSLog("Orbit: could not move \(legacy.path): \(error.localizedDescription)")
+    }
 }
 
 /// One Orbit per data directory: the lock is released by the kernel when the process exits.

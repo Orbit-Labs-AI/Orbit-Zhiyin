@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
+    from orbit_data import legacy
     from orbit_data.paths import default_home
 
     parser = argparse.ArgumentParser(prog="orbit-helper")
@@ -28,6 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     worker.add_argument("--home", type=Path, default=None, dest="role_home")
     args = parser.parse_args(argv)
     home = (args.role_home or args.home or default_home()).expanduser().resolve()
+    legacy.migrate_home(home)
     if args.role == "gateway":
         from .gateway import run_gateway
         from .pages import ASSETS_ENV

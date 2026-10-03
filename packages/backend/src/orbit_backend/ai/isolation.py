@@ -12,6 +12,8 @@ import json
 import os
 from pathlib import Path
 
+from orbit_data import legacy
+
 # Shared with ingestion, which drops these sessions from canonical data (orbit_data.pipeline).
 from orbit_data.pipeline import ORBIT_AI_MARKER as MARKER
 from orbit_data.pipeline import ORBIT_AI_MARKER_FILE as MARKER_FILE
@@ -51,7 +53,7 @@ def env() -> dict[str, str]:
 def is_orbit_ai_session(session_cwd: str | Path | None, first_text: str | None,
                          home: Path | None = None) -> bool:
     """True for sessions started by Orbit itself (by cwd, marker file or first line)."""
-    if first_text and first_text.lstrip().startswith(MARKER):
+    if first_text and first_text.lstrip().startswith((MARKER, legacy.AI_MARKER)):
         return True
     if not session_cwd:
         return False
@@ -64,4 +66,4 @@ def is_orbit_ai_session(session_cwd: str | Path | None, first_text: str | None,
             resolved = path
         if resolved == root or root in resolved.parents:
             return True
-    return path.name == "agent-cwd" and (path / MARKER_FILE).is_file()
+    return path.name == "agent-cwd" and any((path / name).is_file() for name in (MARKER_FILE, legacy.AI_MARKER_FILE))

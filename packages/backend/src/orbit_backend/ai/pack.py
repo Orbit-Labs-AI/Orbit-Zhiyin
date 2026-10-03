@@ -18,6 +18,8 @@ import time
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
+from orbit_data import legacy
+
 from orbit_backend import privacy
 
 from .redact import compact, est_tokens, redact_value
@@ -111,8 +113,8 @@ def window(scope: dict | None) -> tuple[int, int, str | None]:
 def session_filter(home: Path | None, alias: str = "s") -> tuple[str, list]:
     """Exclude sessions Orbit itself started (agent-cwd or marker first line)."""
     sql = (f" AND NOT EXISTS (SELECT 1 FROM event m WHERE m.session_uid={alias}.session_uid"
-           f" AND m.seq<=5 AND m.kind='message.user' AND m.text LIKE ?)")
-    params: list = [MARKER + "%"]
+           f" AND m.seq<=5 AND m.kind='message.user' AND (m.text LIKE ? OR m.text LIKE ?))")
+    params: list = [MARKER + "%", legacy.AI_MARKER + "%"]
     if home is not None:
         sql = f" AND ({alias}.cwd IS NULL OR {alias}.cwd NOT LIKE ?)" + sql
         params.insert(0, str(Path(home) / "agent-cwd") + "%")

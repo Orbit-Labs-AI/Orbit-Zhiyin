@@ -4,6 +4,8 @@ import atexit
 import threading
 from pathlib import Path
 
+import orbit_data  # noqa: F401  (first: maps TANDEM_* settings from before the rename to ORBIT_*)
+
 CONTRACT_VERSION = "catalog-v1"
 _SERVICES: dict = {}
 _LOCK = threading.Lock()

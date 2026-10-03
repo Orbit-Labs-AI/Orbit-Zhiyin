@@ -5,7 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from orbit_data import MAPPER_VERSION, REDUCER_VERSION, payload
+from orbit_data import MAPPER_VERSION, REDUCER_VERSION, legacy, payload
 from orbit_data.connectors import MAPPERS
 from orbit_data.connectors.base import Mapping
 from orbit_data.contract import canonical, now_ms, validate_event
@@ -60,8 +60,9 @@ def orbit_ai_session_uids(store) -> list[str]:
         for row in store.db.execute(
             "SELECT DISTINCT e.session_uid FROM event e JOIN session_identity i USING(session_uid) "
             "WHERE i.source_id IN (SELECT source_id FROM rebuild_scope) AND e.actor = 'human' "
-            "AND substr(ltrim(e.text, ' ' || char(9) || char(10) || char(13)), 1, ?) = ?",
-            (len(ORBIT_AI_MARKER), ORBIT_AI_MARKER),
+            "AND (substr(ltrim(e.text, ' ' || char(9) || char(10) || char(13)), 1, ?) = ? "
+            "OR substr(ltrim(e.text, ' ' || char(9) || char(10) || char(13)), 1, ?) = ?)",
+            (len(ORBIT_AI_MARKER), ORBIT_AI_MARKER, len(legacy.AI_MARKER), legacy.AI_MARKER),
         )
     )
     return sorted(found)
@@ -69,7 +70,9 @@ def orbit_ai_session_uids(store) -> list[str]:
 
 def _has_marker(cwd: str) -> bool:
     try:
-        return (Path(cwd) / ORBIT_AI_MARKER_FILE).is_file()
+        return any(
+            (Path(cwd) / name).is_file() for name in (ORBIT_AI_MARKER_FILE, legacy.AI_MARKER_FILE)
+        )
     except OSError:
         return False
 

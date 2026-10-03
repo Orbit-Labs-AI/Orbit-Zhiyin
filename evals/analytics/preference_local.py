@@ -14,6 +14,7 @@ from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
+from orbit_data import legacy
 from orbit_data.store import readonly_connection
 
 from orbit_backend.analytics.common import semantic_messages
@@ -61,7 +62,7 @@ def read_snapshot(database, scope, max_messages=100_000):
     with readonly_connection(database) as connection:
         connection.execute("BEGIN")
         manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
-        if manifest is None or manifest["contract_id"] != "orbit-session-v1":
+        if manifest is None or manifest["contract_id"] not in ("orbit-session-v1", legacy.CONTRACT_ID):
             raise ValueError("Expected canonical orbit-session-v1; staging and legacy ledgers are unsupported")
         events = [dict(row) for row in connection.execute(query, params)]
         if len(events) > max_messages:

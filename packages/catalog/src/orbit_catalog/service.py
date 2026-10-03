@@ -1,12 +1,13 @@
 """Small application boundary: public catalog operations and cancellable background jobs."""
 
 import hashlib
-import os
 import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+from orbit_data.paths import default_home as orbit_default_home
 
 from .contracts import (
     Feature,
@@ -27,7 +28,7 @@ from .vectors import LocalE5Encoder, index_embeddings, normalize_vectors
 
 
 def default_home() -> Path:
-    return Path(os.environ.get("ORBIT_HOME", Path.home() / "Library/Application Support/Orbit"))
+    return orbit_default_home()
 
 
 class CatalogService:

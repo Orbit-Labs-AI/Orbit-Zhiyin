@@ -20,6 +20,8 @@ from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 
+from orbit_data import legacy
+
 from .contracts import Page, Resource, SourceSpec, canonical_json, digest
 from .features import CHUNK_VERSION, FEATURE_VERSION, chunks, extract, lexical_tokens
 from .risk import assess
@@ -125,7 +127,7 @@ class CatalogStore:
             with self.connect(True) as conn:
                 app_id = conn.execute("PRAGMA application_id").fetchone()[0]
                 version = conn.execute("PRAGMA user_version").fetchone()[0]
-                if app_id == APPLICATION_ID and version == SCHEMA_VERSION:
+                if app_id == APPLICATION_ID and version == SCHEMA_VERSION and not legacy.has_catalog_sources(conn):
                     return
         with self.writer():
             self._create_or_upgrade()
@@ -159,6 +161,10 @@ class CatalogStore:
                 conn.executescript("BEGIN IMMEDIATE;\n" + schema +
                                    f"\nPRAGMA application_id={APPLICATION_ID};"
                                    f"\nPRAGMA user_version={SCHEMA_VERSION}; COMMIT;")
+            elif legacy.has_catalog_sources(conn):
+                conn.execute("BEGIN IMMEDIATE")
+                legacy.rename_catalog_sources(conn)
+                conn.execute("COMMIT")
             conn.execute("PRAGMA journal_mode=WAL")
         finally:
             if conn is not None:

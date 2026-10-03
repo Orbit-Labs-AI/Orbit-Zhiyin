@@ -18,6 +18,8 @@ import sqlite3
 import time
 from collections.abc import Callable
 
+from orbit_data import legacy
+
 Step = Callable[[sqlite3.Connection], None]
 
 
@@ -37,11 +39,20 @@ def add_column(table: str, column: str, decl: str) -> Step:
     return step
 
 
+def rename_legacy_collect(db: sqlite3.Connection) -> None:
+    """Step: the collection install recorded before the rename to Orbit keeps counting as installed."""
+    for table in ("install_state", "install_plan"):
+        if {"source_type", "source_id"} <= columns(db, table):
+            db.execute(f"UPDATE {table} SET source_id = 'orbit-collect' WHERE source_type = 'collect' "
+                       "AND source_id = ?", (legacy.COLLECT_SPEC_ID,))
+
+
 # module -> steps; version n means steps[:n] are applied. Append only, never reorder.
 MIGRATIONS: dict[str, list[Step]] = {
     "install": [
         add_column("install_ledger", "inv_id", "TEXT"),
         add_column("install_ledger", "catalog_item_id", "TEXT"),
+        rename_legacy_collect,
     ],
 }
 

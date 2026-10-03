@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from orbit_data import MAPPER_VERSION, REDUCER_VERSION, SCHEMA_VERSION, payload
+from orbit_data import CONTRACT_ID, MAPPER_VERSION, REDUCER_VERSION, SCHEMA_VERSION, legacy, payload
 from orbit_data.privacy import REDACTION_VERSION
 from orbit_data.store import readonly_connection
 
@@ -62,7 +62,7 @@ def projection_state(connection) -> dict:
     and flagged by a ``source_unavailable`` issue).
     """
     manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
-    if not manifest or manifest["contract_id"] != "orbit-session-v1":
+    if not manifest or manifest["contract_id"] not in (CONTRACT_ID, legacy.CONTRACT_ID):
         raise ValueError("Expected canonical orbit-session-v1")
     if manifest["schema_version"] != SCHEMA_VERSION:
         raise ValueError("Storage schema is obsolete; migrate and rebuild before analysis")

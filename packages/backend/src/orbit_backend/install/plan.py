@@ -14,6 +14,8 @@ import re
 import sqlite3
 from pathlib import PurePosixPath
 
+from orbit_data import legacy
+
 from . import collect, store
 from . import targets as targets_mod
 from .env import FULL_SUPPORT, inventory_names
@@ -460,8 +462,8 @@ def _ai_payload(kind: str, payload: dict, files: list[dict]) -> dict:
 
 
 def _from_artifact(row: dict, sid: str) -> dict:
-    body = _json(row.get("payload")) or {}
-    files = _json(row.get("files")) or []
+    body = _json(legacy.upgrade_artifact(row.get("payload"))) or {}
+    files = _json(legacy.upgrade_artifact(row.get("files"))) or []
     kind = body.get("kind") or row.get("kind")
     if isinstance(body.get("payload"), dict):  # already an InstallSpec-shaped body
         inner, agents = body["payload"], body.get("agents")

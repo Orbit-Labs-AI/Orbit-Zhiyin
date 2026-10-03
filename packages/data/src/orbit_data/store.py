@@ -18,7 +18,7 @@ from pathlib import Path
 
 import zstandard as zstd
 
-from orbit_data import SCHEMA_VERSION, payload
+from orbit_data import CONTRACT_ID, SCHEMA_VERSION, legacy, payload
 from orbit_data.contract import RawRecord, canonical, now_ms, shape, uid
 
 PAGE_SIZE = 16384
@@ -255,6 +255,7 @@ class Store:
     def __init__(self, home: str | Path):
         self.home = Path(home).expanduser().resolve()
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+        legacy.migrate_home(self.home)
         self.raw_dir = self.home / "raw"
         self.raw_dir.mkdir(exist_ok=True, mode=0o700)
         self.db_path = self.home / "orbit.db"
@@ -289,10 +290,12 @@ class Store:
         manifest = self.db.execute(
             "SELECT name FROM sqlite_master WHERE name='schema_manifest'"
         ).fetchone()
+        if manifest:
+            legacy.upgrade_manifest(self.db, CONTRACT_ID)
         if (
             not manifest
             or self.db.execute("SELECT contract_id FROM schema_manifest").fetchone()[0]
-            != "orbit-session-v1"
+            != CONTRACT_ID
         ):
             self.db.close()
             raise ValueError(

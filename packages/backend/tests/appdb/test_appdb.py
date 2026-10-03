@@ -72,7 +72,7 @@ def test_old_database_is_upgraded_and_keeps_rows(tmp_path):
         version = conn.execute("SELECT version FROM schema_version WHERE module = 'install'").fetchone()[0]
     assert {"inv_id", "catalog_item_id"} <= cols
     assert tuple(row) == ("e1", "in_1", "kept", None, None)
-    assert version == len(migrations.MIGRATIONS["install"]) == 2
+    assert version == len(migrations.MIGRATIONS["install"]) == 3
     with db.write() as conn:  # the new column is writable
         conn.execute("INSERT INTO install_ledger (entry_id, ts, actor, action, inv_id) "
                      "VALUES ('e2', 6, 'orbit', 'link', 'inv-9')")
@@ -83,7 +83,24 @@ def test_old_database_is_upgraded_and_keeps_rows(tmp_path):
 def test_fresh_database_marks_steps_applied_without_altering(tmp_path):
     db = AppDB(tmp_path / "app.db")
     with db.read() as conn:
-        assert dict(conn.execute("SELECT module, version FROM schema_version").fetchall())["install"] == 2
+        assert dict(conn.execute("SELECT module, version FROM schema_version").fetchall())["install"] == 3
+    db.close()
+
+
+def test_collect_install_from_before_the_rename_still_counts(tmp_path):
+    from orbit_data import legacy
+
+    from orbit_backend.install import store
+
+    db = AppDB(tmp_path / "app.db")
+    with db.write() as conn:  # an install_state row as v0.0.3 wrote it, before the install steps ran
+        conn.execute("INSERT INTO install_state (install_id, plan_id, source_type, source_id, title, kind, agents, "
+                     "scope, preview_digest, state, installed_at) VALUES ('in_old', 'pl_1', 'collect', ?, 't', "
+                     "'collect', '[]', 'user', 'd', 'installed', 1)", (legacy.COLLECT_SPEC_ID,))
+        conn.execute("UPDATE schema_version SET version = 2 WHERE module = 'install'")
+    db.close()
+    db = AppDB(tmp_path / "app.db")
+    assert store.find_active(db, "collect", "orbit-collect")["install_id"] == "in_old"
     db.close()
 
 
