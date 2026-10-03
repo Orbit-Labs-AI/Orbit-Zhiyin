@@ -1,8 +1,11 @@
-"""Route ②: catalog items whose curated features address an active problem.
+"""Route ②: catalog items admitted for an active problem.
 
-The catalog does its own BM25 / feature / remedy / E5 fusion; we only keep
-items with problem evidence (a friction feature or the remedy route), plus a
-profile query gated on enough evidence sessions. Queries run in parallel with
+Problem queries go through the catalog's admission layer (``purpose="recommendation"``): an
+item is returned only when it is verified and either curated for the problem (friction + scene +
+dimension) or rule-admitted for the session friction the problem maps to (FRICTION_OF). The
+catalog does its own BM25 / feature / remedy / E5 fusion inside that set. The profile query has
+no problem behind it, so it stays a library match (its cards say so) gated on enough evidence
+sessions. Queries run in parallel with
 a per-call timeout so a slow catalog never stalls the engine. Without a
 catalog service we fall back to a small BM25 over the bundled legacy seeds.
 """
@@ -36,6 +39,20 @@ KIND_DIM = {"rule": "rule", "prompt": "rule", "permission_rule": "hook", "skill"
             "mcp": "mcp", "plugin": "mcp", "subagent": "agent", "model": "model", "workflow": "flow",
             "builtin": "hook", "removal": "rule", "generate": "skill"}
 PER_PROBLEM, TIMEOUT_S, MIN_PROFILE_EVIDENCE = 8, 2., 3
+# Problem type → the session-side friction ids the catalog's rule admission is keyed on
+# (orbit_catalog.features.VOCABULARY / orbit_backend.features.vocab.FRICTION). Curated catalog
+# entries carry the problem type itself, so every problem also queries under its own type.
+FRICTION_OF = {
+    "permission_friction": ("approval_wait", "readonly_prompted"),
+    "readonly_review": ("readonly_prompted",),
+    "tool_env_failure": ("retry_same_call", "tool_error"),
+    "polling": ("long_tool_wait",),
+}
+# Orbit only reads coding-agent sessions; a problem without its own scene is a coding one.
+DEFAULT_SCENE = "coding"
+# The user's message language is not measured per problem: no restriction (any of the catalog's).
+ANY_LANGUAGE = "zh_or_en"
+ADMITTED = ("curated", "rule_admitted")
 MAX_TRIAL = 60
 # Evaluation protocol wording (A/B comparisons, statistics) is not a user's trial method.
 EVAL_TRIAL = re.compile(r"对照|对比.*前后|统计")
@@ -67,7 +84,9 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
         mechanism = (f"按你的使用画像（{tags}）从资源库匹配的{label}，没有对应的会话问题证据" if tags
                      else f"从资源库匹配的{label}，没有对应的会话问题证据")
         reason = f"资源库里与你常用的 {tags} 相关的{label}" if tags else f"资源库里可能适合你的{label}"
-    limitation = "；".join(x for x in (limitation, "来自公开资源库，效果未用你的数据验证；安装前请先看来源说明")
+    admitted = ("按规则准入、未经人工评审（来源文字提到这类问题，不代表能解决）"
+                if item.get("admission") == "rule_admitted" else "")
+    limitation = "；".join(x for x in (limitation, admitted, "来自公开资源库，效果未用你的数据验证；安装前请先看来源说明")
                           if x)
     steps = list(item.get("steps") or ()) or ["打开来源，查看说明与许可", "确认适用后按来源说明安装",
                                               "7 天后看效果追踪"]
@@ -78,7 +97,8 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
         "routes": {}, "fusion": 0., "evidence": evidence_of(problem),
         "source": {"origin": "catalog", "item_id": item["item_id"], "url": item.get("url"),
                    "license": item.get("license"), "version": item.get("version_id"),
-                   "verified": bool(item.get("verified")), "quality": item.get("quality")},
+                   "verified": bool(item.get("verified")), "quality": item.get("quality"),
+                   **({"admission": item["admission"]} if item.get("admission") else {})},
         "target": {"agents": target_agents(support, inputs), "scope": "project" if project_of(problem) else "user",
                    "project_id": project_of(problem), "path_hint": None,
                    "agents_listed": list(item.get("agents") or ())},
@@ -249,9 +269,16 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
     queries: list[tuple[dict | None, object]] = []
     for problem in active:
         features = [Feature(feature="dimension", value=problem["dimension"])] if problem["dimension"] else []
-        queries.append((problem, MatchRequest(purpose="library", text=(problem["reason"] + " " + words)[:8000],
-                                              problem_type=problem["type"], features=features, agents=top_agent,
-                                              language=problem["language"], limit=10, per_route=100)))
+        evidence = problem.get("evidence") or {}
+        sessions = [str(x) for x in evidence.get("session_uids") or ()][:100]
+        evidence_ids = [str(x) for x in (evidence.get("event_ids") or evidence.get("signal_ids") or sessions)][:100]
+        for friction in dict.fromkeys((problem["type"], *FRICTION_OF.get(problem["type"], ()))):
+            queries.append((problem, MatchRequest(
+                purpose="recommendation", text=(problem["reason"] + " " + words)[:8000],
+                problem_id=str(problem.get("problem_id") or problem["key"]), problem_type=friction,
+                scene=problem.get("scene") or DEFAULT_SCENE, language=problem.get("language") or ANY_LANGUAGE,
+                evidence_ids=evidence_ids, profile_evidence_ids=sessions, features=features, agents=top_agent,
+                limit=10, per_route=100)))
     profile = inputs.get("profile") or {}
     strong = {tag for tag, n in (profile.get("evidence_sessions") or {}).items() if n >= MIN_PROFILE_EVIDENCE}
     profile_terms = [t for t in (*sorted(profile.get("tags") or {}, key=lambda t: -(profile["tags"][t])),
@@ -269,8 +296,8 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
     # 2 s per call; four run at once, so the whole batch gets one deadline per wave.
     deadline = time.monotonic() + TIMEOUT_S * math.ceil(len(queries) / 4)
     try:
-        futures = [(problem, pool.submit(catalog.match, request)) for problem, request in queries]
-        for problem, future in futures:
+        futures = [(problem, request, pool.submit(catalog.match, request)) for problem, request in queries]
+        for problem, request, future in futures:
             label = problem["key"] if problem else "profile"
             try:
                 response = future.result(timeout=max(.01, deadline - time.monotonic()))
@@ -280,6 +307,9 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
             except Exception as exc:  # one bad query must not drop the others
                 diagnostics.append({"source": "catalog", "status": "failed", "reason": f"{label}: {type(exc).__name__}"})
                 continue
+            if response.get("gates"):  # admission prerequisites missing (no evidence, no agent): say so
+                diagnostics.append({"source": "catalog.admission", "status": "gated",
+                                    "reason": f"{label}/{request.problem_type}: " + ",".join(response["gates"])})
             if "generation" in response:
                 meta["generation"] = response["generation"]
             meta.setdefault("vector", response.get("vector") or {"status": "unknown"})
@@ -288,11 +318,17 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
                 if item is None:
                     continue
                 if problem is not None:
-                    friction = any(f.get("feature") == "friction" and f.get("value") == problem["type"]
-                                   for f in row.get("matched_features") or ())
-                    remedy = "remedy" in ((row.get("score_parts") or {}).get("routes") or {})
-                    if not (friction or remedy):
-                        continue
+                    tier = (row.get("admission") or {}).get("tier")
+                    if tier is not None:  # the admission layer's verdict travels with the row
+                        if tier not in ADMITTED:
+                            continue
+                        item["admission"] = tier
+                    else:  # a catalog without admission info: same evidence bar on the row itself
+                        friction = any(f.get("feature") == "friction" and f.get("value") == request.problem_type
+                                       for f in row.get("matched_features") or ())
+                        remedy = "remedy" in ((row.get("score_parts") or {}).get("routes") or {})
+                        if not (friction or remedy):
+                            continue
                 kept.append((problem, item, float(row.get("score") or 0.) + 1e-6))
     finally:
         pool.shutdown(wait=False, cancel_futures=True)

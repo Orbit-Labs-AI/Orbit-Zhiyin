@@ -73,7 +73,16 @@ def test_source_and_license():
 
 
 def test_agent_supported():
-    assert run(raw(agents={"claude_code": "unsupported"}))["checks"]["agent_supported"] is False
+    # every Agent the user runs is judged, not only the most used one (claude_code 40, codex 3)
+    assert run(raw(agents={"claude_code": "unsupported", "codex": "unsupported"}))["checks"]["agent_supported"] is False
+    assert run(raw(agents={"claude_code": "unsupported", "codex": "native"}))["checks"]["agent_supported"] is True
+    # a problem seen only in codex sessions is judged against codex
+    facts = {"session_agents": {"s1": "codex", "s2": "codex", "s3": "claude_code"}}
+    in_codex = raw(agents={"claude_code": "native", "codex": "unsupported"}, problem={"evidence": {"session_uids": ["s1", "s2"]}})
+    assert run(in_codex, inputs={**INPUTS, "facts": facts})["checks"]["agent_supported"] is False
+    unknown = run(raw(agents={"claude_code": "unknown"}, problem={"evidence": {"session_uids": ["s3"]}}),
+                  inputs={**INPUTS, "facts": facts})
+    assert unknown["checks"]["agent_supported"] is True and "needs_context" in unknown["notes"]
     g = run(raw(agents={}))
     assert g["checks"]["agent_supported"] is True and "needs_context" in g["notes"]
     pi = run(raw(kind="mcp", agents={"pi": "native"}), inputs={"agents": {"pi": 9}})
@@ -162,3 +171,23 @@ def test_catalog_agents_without_declaration_are_unknown():
     assert g["checks"]["agent_supported"] is True and "needs_context" in g["notes"]
     declared = from_item(item | {"support": {"claude_code": "native"}}, None, INPUTS, match_basis="profile")
     assert run(raw(agents=declared["agents"]))["notes"] == []
+
+
+def test_landing_path_and_allowlist_follow_the_problem_sessions_agent():
+    """A read-only prompt problem seen in Codex sessions lands in Codex's config and format even
+    though Claude Code is the most used Agent."""
+    from orbit_backend.recommend import kb
+    from orbit_backend.recommend.recall import kb_route
+
+    rule = kb.by_id(kb.load()[0])["readonly-allowlist"]
+    problem = {"type": "permission_friction", "key": "permission_friction", "sessions": 2, "project_ids": [],
+               "vars": {"head_list": ["git status"]},
+               "evidence": {"session_uids": ["s1", "s2"], "signal_ids": [], "event_ids": []}}
+    inputs = {"agents": {"claude_code": 50, "codex": 5},
+              "facts": {"session_agents": {"s1": "codex", "s2": "codex"}}}
+    cand = kb_route.from_rule(rule, problem, inputs, rec_key="kb:readonly-allowlist", match_basis="rule")
+    assert cand["target"]["path_hint"] == "~/.codex/config.toml"
+    assert ["[[permissions.allow]]", "+"] in cand["file"]
+    inputs["facts"]["session_agents"] = {"s1": "claude_code", "s2": "claude_code"}
+    cand = kb_route.from_rule(rule, problem, inputs, rec_key="kb:readonly-allowlist", match_basis="rule")
+    assert cand["target"]["path_hint"] == "~/.claude/settings.json"

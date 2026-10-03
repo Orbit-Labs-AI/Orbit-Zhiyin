@@ -159,8 +159,10 @@ def _compat(agents: dict, inputs: dict | None = None) -> str:
         name, support = AGENT_NAME.get(agent, agent), agents.get(agent, "unknown")
         if support in {"native", "manual"}:
             parts.append(name)
-        elif support != "unsupported":
+        elif support == "adaptation_required":
             parts.append(f"转换给 {name}")
+        elif support == "unknown":  # e.g. Kimi: no upstream source read, never shown as compatible
+            parts.append(f"{name} 未核实")
     return " · ".join(parts)
 
 
@@ -233,19 +235,52 @@ def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -
     steps = max(1, int((problem.get("vars") or {}).get("n_steps") or 1)) if problem.get("type") == "repeated_workflow" else 1
     pool = name
     if name == "turn":
-        n, tokens, ms = int(ledger.get("turns") or 0), ledger.get("tokens") or 0, ledger.get("active_ms") or 0
-        note = "每次约一轮返工"
+        n, tokens, ms, note = _turn_cost(problem, ledger)
     else:
         cls = (ledger.get("ops") or {}).get(name) or {}
         note = "逐次实测"
-        if not cls.get("n"):  # nothing of this class was timed: an average tool call stands in
+        if name == "readonly":
+            # Approval waits are priced only from recorded waits (R8): the mean of the measured
+            # prompts; none recorded → not estimated, never the run time or an average tool call.
+            if not cls.get("n"):
+                return None
+            missing = int(cls.get("unmeasured") or 0)
+            note = (f"按 {int(cls['n'])} 次实测审批等待的均值" + (f"，另 {missing} 次未记录等待" if missing else ""))
+        elif not cls.get("n"):  # nothing of this class was timed: an average tool call stands in
             cls, note, pool = (ledger.get("ops") or {}).get("call") or {}, "按平均工具调用近似", "call"
         n, tokens, ms = int(cls.get("n") or 0), cls.get("tokens") or 0, cls.get("ms") or 0
     if n <= 0:
         return None
     count = total * steps
+    if name == "turn":  # per-turn means of the measured turns, bounded by the whole trajectory
+        all_tokens, all_ms = ledger.get("tokens") or 0, ledger.get("active_ms") or 0
+        return name, min(count * tokens / n, all_tokens), min(count * ms / n, all_ms), note, pool
     op_tokens = 0 if name == "readonly" else min(count * tokens / n, tokens)
     return name, op_tokens, min(count * ms / n, ms), note, pool
+
+
+def _turn_cost(problem: dict, ledger: dict) -> tuple[int, float, float, str]:
+    """(turns, tokens, ms, note) whose mean prices one rework turn (R10), most specific first:
+    the problem's own evidence turns, else the turns of the sessions it occurred in, else every
+    turn of the scope. Each is the measured cost of those turns (section._turn_costs), never all
+    tokens spread over the human turns of other sessions."""
+    turn_cost = ledger.get("turn_cost") or {}
+    evidence = problem.get("evidence") or {}
+    by_event = turn_cost.get("by_event") or {}
+    rows = [by_event[e] for e in evidence.get("event_ids") or () if e in by_event]
+    if rows:
+        return len(rows), sum(r[0] for r in rows), sum(r[1] for r in rows), f"按证据里 {len(rows)} 轮的实测成本"
+    by_session = turn_cost.get("by_session") or {}
+    rows = [by_session[u] for u in dict.fromkeys(evidence.get("session_uids") or ()) if u in by_session]
+    if sum(r[0] for r in rows):
+        return (sum(r[0] for r in rows), sum(r[1] for r in rows), sum(r[2] for r in rows),
+                f"按问题所在 {len(rows)} 个会话每轮的实测成本")
+    if by_session:
+        rows = list(by_session.values())
+        return sum(r[0] for r in rows), sum(r[1] for r in rows), sum(r[2] for r in rows), "按全部轮次每轮的实测成本"
+    # Older ledgers without per-turn costs: the scope average, said as such.
+    return (int(ledger.get("turns") or 0), ledger.get("tokens") or 0, ledger.get("active_ms") or 0,
+            "按全部 token 与时长 ÷ 人类轮次的平均（旧账本）")
 
 
 def _save(cand: dict, raw: dict, inputs: dict) -> dict:
@@ -268,6 +303,8 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
     weeks = observed_weeks(sessions) if (sessions.get("weeks") or sessions.get("first_ts")) else 1.
     total = float(problem.get("weekly_count") or 0) * weeks
     cost = _op_cost(cand, raw, problem, ledger, total)
+    if cost is None and OP_OF.get(problem.get("type")) == "readonly":
+        return _unestimated("这些只读审批没有记录等待时长（approval_wait_ms 或审批请求到决定的间隔），不拿命令运行时长代替，暂不折算")
     if cost is None:
         return _unestimated("轨迹里没有可计量的对应操作")
     op, op_tokens, op_ms, note, pool = cost

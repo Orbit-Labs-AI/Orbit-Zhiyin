@@ -283,7 +283,7 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
     any_approval = False
     # call_uid -> (failed, approved read-only) for the ledger; plain calls stay out
     flags: dict[str, tuple[bool, bool]] = {}
-    waits: list[tuple[str, int]] = []
+    waits: list[tuple[str, int | None]] = []
     for head, _error_class, status, approval, name, uid, command, call_uid, kind in _call_rows(conn, uids):
         root = root_of.get(uid, uid)
         head = real_head(head, command)
@@ -327,13 +327,15 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
             usage[key][name] = {"calls": calls, "sessions": sessions, "last_ts": last}
     model_mix = _model_mix(conn, uids, root_of, edit_roots, per_root, diagnostics)
     agents: dict[str, int] = defaultdict(int)
+    session_agents: dict[str, str] = {}
     try:
         main = json.dumps([r["session_uid"] for r in roots])
-        for agent, count in conn.execute(
-                f"SELECT src.agent, count(*) FROM session s JOIN source src ON "
-                f"src.source_id = s.source_id WHERE s.session_uid IN {UIDS} "
-                f"GROUP BY src.agent", (main,)):
-            agents[agent] = count
+        for uid, agent in conn.execute(
+                f"SELECT s.session_uid, src.agent FROM session s JOIN source src ON "
+                f"src.source_id = s.source_id WHERE s.session_uid IN {UIDS}", (main,)):
+            agents[agent] += 1
+            if agent:
+                session_agents[uid] = agent
     except Exception as error:  # noqa: BLE001 - facts are optional, never fail the section
         diagnostics.append({"source": "agents", "status": "unavailable", "reason": str(error)})
     problems_by_root = defaultdict(set)
@@ -373,6 +375,8 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
         "compactions": _guard("compactions", diagnostics, _compactions, conn, uids, root_of)
         or _empty_compactions(),
         "trajectory": _guard("trajectory", diagnostics, _ledger, conn, uids, root_of, flags, waits),
+        # main session → its Agent, so a card is judged against the Agent where its problem occurred
+        "session_agents": dict(sorted(session_agents.items())),
     }
     return facts, dict(agents)
 
@@ -416,7 +420,9 @@ def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
     tokens to the calls whose results it answered, both split evenly. A failed call therefore
     carries its run, the model's reaction and the request that read its error; whatever no call
     holds (user turns, answers) stays only in the totals. Approved read-only prompts carry just
-    their approval wait (the call itself still runs after an allow-list), no tokens."""
+    their recorded approval wait (``approval_wait_ms`` or a permission request→decision gap; the
+    call itself still runs after an allow-list), no tokens; prompts without a recorded wait are
+    only counted (``ops.readonly.unmeasured``), never priced with the call's run time."""
     from ..uiview.metrics import IDLE_CAP_MS
     from ..uiview.sessions import HUMAN_WHERE
 
@@ -449,18 +455,73 @@ def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
             f"FROM tool_call t WHERE t.session_uid IN {UIDS}", (uids,)):
         calls[root_of.get(uid, uid)].append((start, end, wait, flags.get(call_uid, (False, False))))
     ops = {name: [0, 0., 0.] for name in OP_CLASSES}  # n, tokens, ms
+    unmeasured: dict[str, int] = {}
     for root in set(calls) | set(requests):
-        _attribute(calls.get(root, []), requests.get(root, []), IDLE_CAP_MS, ops)
+        _attribute(calls.get(root, []), requests.get(root, []), IDLE_CAP_MS, ops, unmeasured)
     for _root, wait in waits:
+        if wait is None:
+            unmeasured["readonly"] = unmeasured.get("readonly", 0) + 1
+            continue
         ops["readonly"][0] += 1
         ops["readonly"][2] += min(max(0, wait), IDLE_CAP_MS)
     return {"tokens": total, "active_ms": sum(active.values()), "turns": turns,
             "requests": sum(by_agent.values()), "requests_by_agent": dict(sorted(by_agent.items())),
-            "ops": {name: {"n": n, "tokens": round(tok), "ms": round(ms)} for name, (n, tok, ms) in ops.items()}}
+            "turn_cost": _turn_costs(conn, uids, root_of, requests, IDLE_CAP_MS, HUMAN_WHERE),
+            "ops": {name: {"n": n, "tokens": round(tok), "ms": round(ms),
+                           **({"unmeasured": unmeasured[name]} if name in unmeasured else {})}
+                    for name, (n, tok, ms) in ops.items()}}
 
 
-def _attribute(calls: list, requests: list, cap: int, ops: dict) -> None:
+MAX_TURN_EVENTS = 2000  # per-turn rows kept for event-level pricing; per-session sums are always kept
+
+
+def _turn_costs(conn, uids: str, root_of: dict, requests: dict, cap: int, human_where: str) -> dict:
+    """Measured cost of each human turn (R10): a turn runs from one human message to the next in
+    its session tree and holds the tokens of the requests sent in that span and the capped event
+    gaps that end inside it (the gap before the next human message is still this turn's wait).
+    Work before the first human message belongs to no turn. Returns per-session sums
+    ``{root: [turns, tokens, ms]}`` and, for up to MAX_TURN_EVENTS turns, ``{event_uid: [tokens, ms]}``."""
+    import bisect
+
+    human = f"(CASE WHEN {human_where} THEN 1 ELSE 0 END)"
+    starts: dict[str, list] = defaultdict(list)
+    for root, uid, ts in conn.execute(
+            f"SELECT s.root_uid, e.event_uid, e.ts FROM event e JOIN session s ON s.session_uid = e.session_uid "
+            f"WHERE e.ts IS NOT NULL AND e.session_uid IN {UIDS} AND {human_where} ORDER BY e.ts", (uids,)):
+        starts[root_of.get(root, root)].append((ts, uid))
+    if not starts:
+        return {"by_session": {}, "by_event": {}}
+    cost = {root: [[0, 0] for _ in turns] for root, turns in starts.items()}
+    for root, gap_end, gap in conn.execute(
+            f"SELECT root, ts, MIN(COALESCE(gap, 0), ?) FROM (SELECT s.root_uid AS root, e.ts AS ts, {human} AS h, "
+            f"e.ts - LAG(e.ts) OVER (PARTITION BY s.root_uid ORDER BY e.ts) AS gap FROM event e JOIN session s "
+            f"ON s.session_uid = e.session_uid WHERE e.ts IS NOT NULL AND e.session_uid IN {UIDS}) WHERE gap > 0",
+            (cap, uids)):
+        root = root_of.get(root, root)
+        turns = starts.get(root)
+        if turns:  # a gap ending at the next human message is still the previous turn's
+            i = bisect.bisect_left(turns, (gap_end, "")) - 1
+            if i >= 0:
+                cost[root][i][1] += int(gap or 0)
+    for root, rows in requests.items():
+        turns = starts.get(root)
+        for ts, tokens in rows if turns else ():
+            i = bisect.bisect_right(turns, (ts, "\uffff")) - 1 if ts is not None else -1
+            if i >= 0:
+                cost[root][i][0] += tokens
+    by_session = {root: [len(rows), sum(r[0] for r in rows), sum(r[1] for r in rows)] for root, rows in cost.items()}
+    by_event = {}
+    for root, turns in starts.items():
+        for (_, uid), (tokens, ms) in zip(turns, cost[root], strict=True):
+            if len(by_event) >= MAX_TURN_EVENTS:
+                break
+            by_event[uid] = [tokens, ms]
+    return {"by_session": dict(sorted(by_session.items())), "by_event": by_event}
+
+
+def _attribute(calls: list, requests: list, cap: int, ops: dict, unmeasured: dict | None = None) -> None:
     """Add one session tree's per-call tokens and active milliseconds to ``ops`` (see _ledger)."""
+    unmeasured = {} if unmeasured is None else unmeasured
     cost = [[0., 0.] for _ in calls]
     points = []
     for i, (start, end, _wait, _flags) in enumerate(calls):
@@ -486,16 +547,19 @@ def _attribute(calls: list, requests: list, cap: int, ops: dict) -> None:
             for i in waiting:
                 cost[i][0] += share
             waiting.clear()
-    for (start, end, wait, (failed, readonly)), (tokens, ms) in zip(calls, cost, strict=True):
+    for (_start, _end, wait, (failed, readonly)), (tokens, ms) in zip(calls, cost, strict=True):
         for name in ("call", "failed") if failed else ("call",):
             ops[name][0] += 1
             ops[name][1] += tokens
             ops[name][2] += ms
         if readonly:
-            span = wait if wait is not None else (end - start if start is not None and end is not None else None)
-            if span is not None:
+            # Only a recorded approval wait is a wait: the call's run time is not (R8). Unmeasured
+            # prompts are counted apart so the card can say its cost was not measured.
+            if wait is not None:
                 ops["readonly"][0] += 1
-                ops["readonly"][2] += min(max(0, span), cap)
+                ops["readonly"][2] += min(max(0, wait), cap)
+            else:
+                unmeasured["readonly"] = unmeasured.get("readonly", 0) + 1
 
 
 def _tally(values) -> dict:
@@ -570,7 +634,8 @@ def _command_text(value) -> str | None:
 
 def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None, waits=None) -> None:
     """Codex keeps approvals as permission.request/decision events, not tool_call.approval.
-    ``waits`` collects (root, request → decision ms) of the allowed read-only prompts."""
+    ``waits`` collects (root, request → decision ms) of the allowed read-only prompts; a prompt
+    without a decision timestamp is (root, None) and only counted as unmeasured."""
     requests, decisions = [], {}
     for uid, kind, call_id, command, decision, ts in conn.execute(
             f"SELECT session_uid, kind, COALESCE(json_extract(ext,'$.call_id'), call_id), "
@@ -596,8 +661,8 @@ def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None, wa
         entry["count"] += 1
         entry["sessions"].add(root)
         per_root[root]["readonly_prompts"] += 1
-        if waits is not None and asked is not None and answered is not None:
-            waits.append((root, answered - asked))
+        if waits is not None:  # None: no decision timestamp, counted as an unmeasured prompt (never priced)
+            waits.append((root, answered - asked if asked is not None and answered is not None else None))
 
 
 _MISSING_PROGRAM = re.compile(
