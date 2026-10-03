@@ -105,13 +105,17 @@ def _main(argv: list[str] | None = None) -> None:
     report.add_argument("--until-ts", type=int, help="UTC 毫秒，不包含右端")
     report.add_argument("--scene", help="只分析指定任务场景")
     analytics = sub.add_parser("analytics", help="计算有覆盖说明的特征、聚类和二维坐标")
+    source = analytics.add_mutually_exclusive_group()
+    source.add_argument("--analysis-input", type=Path, help="main read_analysis 导出的 analysis-input-v1 JSON")
+    source.add_argument("--data-home", type=Path, help="main packages/data 的规范数据库目录，只读")
     analytics.add_argument("--output", type=Path, help="完整 JSON，仅建议保存在 .local 下")
-    analytics.add_argument("--display-timezone", default="UTC")
+    analytics.add_argument("--feature-output", type=Path, help="按 feature 族输出全部值、证据和 Markdown 索引")
+    analytics.add_argument("--display-timezone", help="默认沿用标准输入时区；旧数据库默认为 UTC")
     analytics.add_argument("--from-ts", type=int)
     analytics.add_argument("--until-ts", type=int)
     for flag in ("agent-id", "source-id", "project-id", "legacy-project-id", "model-id", "effort-raw", "root-session-uid", "exclude-session"):
         analytics.add_argument("--" + flag, action="append")
-    analytics.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=True)
+    analytics.add_argument("--include-children", action=argparse.BooleanOptionalAction, default=None)
     analytics.add_argument("--scene")
     analytics.add_argument("--no-text", action="store_true", help="只计算确定性测量，跳过文本表示")
     analytics.add_argument("--presentation", action="store_true", help="输出八个特征族到前端的确定性指标映射")
@@ -253,6 +257,77 @@ def _main(argv: list[str] | None = None) -> None:
         args.db = None
         args.home = args.output / "data"
         ingest(args.home, "codex", demo_home(args.output / "codex"))
+    if args.command == "analytics":
+        from ..analytics.canonical import canonical_bundle, input_scope
+        from ..analytics.inputs import Scope
+        from ..analytics.presentation.metrics import window_scope
+        from ..analytics.service import analyze_bundle, analyze_store
+        from ..data_access.store import CanonicalStore
+        try:
+            scope = Scope(display_timezone=args.display_timezone or "UTC", source_ids=args.source_id, project_ids=args.project_id,
+                          legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
+                          effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
+                          root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session or [],
+                          include_children=True if args.include_children is None else args.include_children, scene=args.scene,
+                          agent_ids=[] if args.agent_id == [""] else args.agent_id)
+            scope = window_scope(scope, args.window)
+            progress({"stage": "analytics"})
+            custom = (args.recommendation_catalog is not None or args.recommendation_family
+                      or args.recommendation_agent != "generic")
+            # A custom recommendation run replaces the default one: do not compute both.
+            if args.analysis_input:
+                data = json.loads(args.analysis_input.read_text(encoding="utf-8"))
+                options = {"display_timezone": args.display_timezone, "source_ids": args.source_id,
+                           "agent_ids": [] if args.agent_id == [""] else args.agent_id,
+                           "project_ids": args.project_id, "legacy_project_ids": args.legacy_project_id,
+                           "model_ids": args.model_id, "effort_raw": args.effort_raw,
+                           "from_ts": args.from_ts, "until_ts": args.until_ts,
+                           "root_session_uids": args.root_session_uid, "excluded_session_uids": args.exclude_session,
+                           "include_children": args.include_children, "scene": args.scene}
+                scope = input_scope(data, options)
+                if args.window:
+                    scope = input_scope(data, vars(window_scope(scope, args.window)))
+                result = analyze_bundle(canonical_bundle(data), scope, not (args.no_text or args.presentation),
+                                        with_recommendations=not custom)
+            else:
+                store = (CanonicalStore(args.data_home, max_events=args.max_events) if args.data_home else
+                         Store(args.db) if args.db else CanonicalStore(args.home, max_events=args.max_events))
+                result = analyze_store(store, scope, not (args.no_text or args.presentation),
+                                       with_recommendations=not custom)
+            if custom:
+                from ..recommend.service import recommend as recommend_resources
+                result["bottleneck_recommendations"] = recommend_resources(
+                    result, context={"agent": args.recommendation_agent}, family=args.recommendation_family,
+                    catalog_directory=args.recommendation_catalog)
+            if args.feature_output:
+                from ..analytics.export import export_families
+                export_families(result, args.feature_output)
+            if args.presentation:
+                from ..analytics.presentation import build_presentation
+                result = build_presentation(result)
+        except (ValueError, OSError) as exc:
+            parser.error(str(exc))
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
+        if args.presentation:
+            print(json.dumps({"schema_version": result["schema_version"], "scope": result["scope"],
+                              "sessions": result["overview"]["sessions"],
+                              "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
+            return
+        counts = result["overview"]["counts"]
+        print(f"主会话 {counts['main_sessions']}；确认真人消息 {counts['human_messages']}；来源未知 {counts['human_origin_unknown']}。")
+        print(f"工具调用 {result['effective_samples']['tools']}；可用文本会话 {result['effective_samples']['text_sessions']}；累计 token 不能冒充模型调用。")
+        if result["text"].get("status") == "excluded":
+            print("文本表示已按 --no-text 关闭，未运行文本聚类或新颖度计算。")
+        from .coverage import print_coverage
+        print_coverage(result["coverage_report"])
+        print(json.dumps({"clustering": result['text'].get('clustering'),
+                          "text_status": result['text'].get('status'),
+                          "coverage": {k: v['status'] for k, v in result['coverage'].items()},
+                          "coverage_report": result["coverage_report"],
+                          "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
+        return
     if args.db:
         store = Store(args.db)
     else:
@@ -296,55 +371,6 @@ def _main(argv: list[str] | None = None) -> None:
             parser.error(str(exc))
         print(terminal_report(product))
         print("离线图表：" + paths["report.html"])
-        return
-    if args.command == "analytics":
-        from ..analytics.inputs import Scope
-        from ..analytics.presentation.metrics import window_scope
-        from ..analytics.service import analyze_store
-        try:
-            scope = Scope(display_timezone=args.display_timezone, source_ids=args.source_id, project_ids=args.project_id,
-                          legacy_project_ids=args.legacy_project_id, model_ids=args.model_id,
-                          effort_raw=args.effort_raw, from_ts=args.from_ts, until_ts=args.until_ts,
-                          root_session_uids=args.root_session_uid, excluded_session_uids=args.exclude_session or [],
-                          include_children=args.include_children, scene=args.scene,
-                          agent_ids=[] if args.agent_id == [""] else args.agent_id)
-            scope = window_scope(scope, args.window)
-            progress({"stage": "analytics"})
-            custom = (args.recommendation_catalog is not None or args.recommendation_family
-                      or args.recommendation_agent != "generic")
-            # A custom recommendation run replaces the default one: do not compute both.
-            result = analyze_store(store, scope, not (args.no_text or args.presentation),
-                                   with_recommendations=not custom)
-            if custom:
-                from ..recommend.service import recommend as recommend_resources
-                result["bottleneck_recommendations"] = recommend_resources(
-                    result, context={"agent": args.recommendation_agent}, family=args.recommendation_family,
-                    catalog_directory=args.recommendation_catalog)
-            if args.presentation:
-                from ..analytics.presentation import build_presentation
-                result = build_presentation(result)
-        except ValueError as exc:
-            parser.error(str(exc))
-        if args.output:
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
-        if args.presentation:
-            print(json.dumps({"schema_version": result["schema_version"], "scope": result["scope"],
-                              "sessions": result["overview"]["sessions"],
-                              "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
-            return
-        counts = result["overview"]["counts"]
-        print(f"主会话 {counts['main_sessions']}；确认真人消息 {counts['human_messages']}；来源未知 {counts['human_origin_unknown']}。")
-        print(f"工具调用 {result['effective_samples']['tools']}；可用文本会话 {result['effective_samples']['text_sessions']}；累计 token 不能冒充模型调用。")
-        if result["text"].get("status") == "excluded":
-            print("文本表示已按 --no-text 关闭，未运行文本聚类或新颖度计算。")
-        from .coverage import print_coverage
-        print_coverage(result["coverage_report"])
-        print(json.dumps({"clustering": result['text'].get('clustering'),
-                          "text_status": result['text'].get('status'),
-                          "coverage": {k: v['status'] for k, v in result['coverage'].items()},
-                          "coverage_report": result["coverage_report"],
-                          "output": str(args.output.resolve()) if args.output else None}, ensure_ascii=False))
         return
     if args.command == "evidence":
         if hasattr(store, "evidence"):

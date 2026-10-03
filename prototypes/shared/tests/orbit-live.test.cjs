@@ -305,7 +305,7 @@ test('a persistent 503 projection_pending + Retry-After: 1 backs off (1, 2, 4 �
     t.long.length = 0; next.f();
   }
   assert.deepEqual(waits, [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000]);
-  assert.match(OrbitLive.ui.banner(C), /30 秒后重试/);
+  assert.match(OrbitLive.ui.banner(C), /正在整理数据/);
   // the import publishes: the parked retry is dropped and the resource refetches right away
   const before = gw.hits['/v1/uiview/sessions'];
   C.invalidate();
