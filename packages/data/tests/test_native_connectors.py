@@ -1692,3 +1692,119 @@ def test_hermes_tool_status_comes_from_explicit_result_fields(tmp_path):
             "t6": ("unknown", None),
         }
         assert_sound(store)
+
+
+def test_opencode_v1_message_and_part_full_path(tmp_path):
+    # V1 storage (sdk gen/types.gen.ts): message rows hold metadata and NamedError,
+    # part rows hold text/reasoning/tool/step-finish/agent/subtask content.
+    def message(id_, created, **data):
+        return sqlrow(
+            "message",
+            {"id": id_, "session_id": "s", "time_created": created, "data": canonical(data)},
+        )
+
+    def part(id_, message_id, created, **data):
+        return sqlrow(
+            "part",
+            {
+                "id": id_,
+                "message_id": message_id,
+                "session_id": "s",
+                "time_created": created,
+                "data": canonical(data),
+            },
+        )
+
+    def tool(status, start, end, **extra):
+        return {
+            "status": status,
+            "input": {"command": "pwd"},
+            "time": {"start": start, "end": end},
+            **extra,
+        }
+
+    records = [
+        sqlrow("session", {"id": "s", "directory": "/fixture", "title": "fixture"}),
+        message("m1", T, role="user", time={"created": T}),
+        message(
+            "m2",
+            T + 1,
+            role="assistant",
+            parentID="m1",
+            modelID="model",
+            providerID="provider",
+            path={"cwd": "/fixture"},
+            error={
+                "name": "APIError",
+                "data": {"message": "rate limited", "statusCode": 429, "isRetryable": True},
+            },
+        ),
+        part("p1", "m1", T, type="text", text="check the repo"),
+        part("p2", "m1", T, type="agent", name="explore"),
+        part("p3", "m2", T + 1, type="reasoning", text="thinking it over"),
+        part("p4", "m2", T + 2, type="text", text="Checking"),
+        part(
+            "p5",
+            "m2",
+            T + 3,
+            type="tool",
+            callID="c1",
+            tool="bash",
+            state=tool("completed", T + 3, T + 6, output="ok"),
+        ),
+        part(
+            "p6",
+            "m2",
+            T + 7,
+            type="tool",
+            callID="c2",
+            tool="bash",
+            state=tool("error", T + 7, T + 8, error="boom"),
+        ),
+        part(
+            "p7",
+            "m2",
+            T + 9,
+            type="subtask",
+            prompt="look around",
+            description="d",
+            agent="general",
+        ),
+        part(
+            "p8",
+            "m2",
+            T + 10,
+            type="step-finish",
+            reason="tool-calls",
+            cost=0.25,
+            tokens={"input": 8, "output": 4, "reasoning": 2, "cache": {"read": 3, "write": 0}},
+        ),
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "opencode", records, "opencode.db", "sqlite_rows")
+        store.rebuild()
+        events = rows(store, "event")
+        kinds = [e["kind"] for e in events]
+        tools = {
+            r["native_call_id"]: (r["status"], r["duration_ms"]) for r in rows(store, "tool_call")
+        }
+        assert tools == {"c1": ("completed", 3), "c2": ("failed", 1)}
+        (usage,) = rows(store, "model_call")
+        # opencode output excludes reasoning; canonical output includes it: 4 + 2.
+        assert (usage["output_tokens"], usage["reasoning_tokens"], usage["cost_usd"]) == (
+            6,
+            2,
+            0.25,
+        )
+        (error,) = [e for e in events if e["kind"] == "error"]
+        assert error["text"] == "rate limited"
+        assert json.loads(error["attrs"])["error_class"] == "APIError"
+        assert json.loads(error["attrs"])["status_code"] == 429
+        (spawn,) = [e for e in events if e["kind"] == "subagent.spawn"]
+        assert spawn["text"] == "look around"
+        assert json.loads(spawn["attrs"])["agent_name"] == "general"
+        assert "reasoning" in kinds
+        assert [e["text"] for e in events if e["kind"] == "message.assistant"] == ["Checking"]
+        assert len(rows(store, "v_human_message")) == 1
+        assert "unknown" not in kinds
+        assert_sound(store)
