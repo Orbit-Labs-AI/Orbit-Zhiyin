@@ -222,6 +222,37 @@ scene('30-persona', () => {
     });
   };
 
+  /* ---------- v18.5：徽章轨道移到表圈外、类型码不被盖 ---------- */
+  // 徽章原在 CP.PR 344（罗盘单位），正压在类型码环（外沿 r 381）上：b47.5 的 SIFT、b55 的 SIFV / SPMT / SPMV / DIMT 被盖。
+  // 轨道外扩到 BR 420（≈ 标签环外沿再外 33 px，徽章内沿 402 在表圈 392 之外），只改 CPS.pl（cpBadge → AGD 'compass'
+  // 编队与 40-recs 剥离起点都读它；pl: 0 时罗盘自带的徽章不画），b26.4 起 1.5 拍长缓动外扩（交入编队的 key 到 b27.94 才落定，
+  // 目标在混合中外移，点不跳）。三角（r 396–416）标着正被落定的类型：徽章公转经过三角方位时径向外跳 30（±14° cos²），
+  // 从三角外侧绕过，不盖高亮类型和三角
+  const BR = 420, BJ = 30, BW = 14;
+  const badgeOut = (b) => {
+    if (!CPS || !CPS.pl) return;
+    const k = E.inOut(lp(b, 26.4, 1.5)), tri = triAt(b), nd = E.out(lp(b, 27.8, .5));
+    CPS.pl = CPS.pl.map((q) => {
+      if (!q) return q;
+      const dx = q[0] - 400, dy = q[1] - 400, r0 = Math.hypot(dx, dy) || 1, d = Math.atan2(dx, -dy) * 180 / Math.PI, dt = Math.abs(cpDelta(tri, d));
+      const r = r0 + (BR - CP.PR) * k + (dt < BW ? BJ * nd * Math.cos(dt / BW * Math.PI / 2) ** 2 : 0);
+      return [400 + dx / r0 * r, 400 + dy / r0 * r, q[2]];
+    });
+  };
+  // 类型码层：离任一 Agent 点（AGD.pos 实时位置，含交入与 40-recs 剥离途中）28 px 以内的码淡到 .25（距离按点心到码的
+  // 外接框算，16 px 起到底）；三角下正被落定的高亮类型（em > 0 的扇区）不淡。drawCompass 每帧重写码的 opacity，所以不用还原
+  const LB = D0.lbl.map((x) => ({ x: x.p[0] * CP.K, y: x.p[1] * CP.K, w: x.w * CP.K, h: x.h * CP.K }));
+  const codeClear = (b) => {
+    const k = decks[2], C = k.C, tri = triAt(b), P = [0, 1, 2, 3, 4].map((i) => AGD.pos(i, b)).filter((p) => p && p.a > .05);
+    k.codes.forEach((el, t) => {
+      if (Math.abs(cpDelta(tri, typeDeg(CODES[t]))) < 17.5) return;
+      const L = LB[t], [sx, sy] = cpStage(L.x, L.y), hw = L.w * C.s, hh = L.h * C.s;
+      let m = 1;
+      P.forEach((p) => { const d = Math.hypot(Math.max(0, Math.abs(p.x - sx) - hw), Math.max(0, Math.abs(p.y - sy) - hh)); m = Math.min(m, lerp(.25, 1, clamp((d - 16) / 12))); });
+      if (m < 1) el.style.opacity = (+el.style.opacity * m).toFixed(3);
+    });
+  };
+
   /* ---------- 罗盘：每帧一次（b26.4–41.5 + XL；deck 2 自 CO + .8 透明，之前一直为 40-recs 剥离中的点提供出发位置） ---------- */
   drive(2, 26.4, 41.5 + XL, (p, b) => {
     const out = 1 - E.inOut(lp(b, CO - .6, 1.3)), keep = keepAt(b);   // 表盘、花随剥离慢慢退暗（与 deck 2 的淡出相乘）
@@ -237,6 +268,8 @@ scene('30-persona', () => {
       dial, core: E.out(lp(b, 27.0, .8)) * out, needle: E.out(lp(b, 27.8, .5)),
       codes: E.out(lp(b, 27.7, .5))   // H9：外框类型码等右侧的点穿过、翻平的标志淡到一半（b27.7）再淡入，b28.2 与标志淡完同时到齐
     });
+    badgeOut(b);
+    codeClear(b);
     hlDraw(b, keep, dial);
   });
 
