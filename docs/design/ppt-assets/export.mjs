@@ -24,8 +24,8 @@ else {
 const { chromium } = runtime;
 const allRoutes = [
   ['overview', '概览', '40-a1-overview.js'], ['persona', '协作人格', '41-a2-persona.js'],
-  ['sessions', '会话与轨迹', '42-a3-sessions.js'], ['tools', '工具调用', '43-a4-tools.js'],
-  ['projects', '项目习惯', '44-a5-projects.js'], ['sentiment', '情绪与语义', '45-a6-sentiment.js'],
+  ['sessions', '会话轨迹', '42-a3-sessions.js'], ['tools', '工具调用', '43-a4-tools.js'],
+  ['projects', '项目习惯', '44-a5-projects.js'], ['sentiment', '情绪语义', '45-a6-sentiment.js'],
   ['recs', '优化建议', '46-a7-recs.js'], ['library', '资源库', '47-a8-library.js'],
   ['studio', '生成工坊', '48-a9-studio.js'], ['l-home', 'Lite 概览', '39-lite-pages.js'],
   ['l-persona', 'Lite 协作画像', '39-lite-pages.js'], ['l-sessions', 'Lite 会话轨迹', '39-lite-pages.js'],

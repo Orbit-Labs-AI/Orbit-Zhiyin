@@ -122,7 +122,9 @@ def run(ctx: EvalContext) -> SuiteResult:
 
 
 def _job(svc, uids: list[str]) -> dict:
-    sub = svc.submit("facet.session", {"engine": "fake", "params": {"session_uids": uids}},
+    sub = svc.submit("facet.session", {"engine": "fake", "params": {"session_uids": uids},
+                                      "scope": {"start_ms": 1_700_000_000_000,
+                                                "end_ms": 1_700_000_000_000 + 2 * 86_400_000}},
                      waiter=True, skip_preview=True)
     done = svc.runner.done.get(sub["job_id"])
     if done is not None:

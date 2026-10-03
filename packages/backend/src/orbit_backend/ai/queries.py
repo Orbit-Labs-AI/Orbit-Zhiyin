@@ -30,13 +30,19 @@ _FIELDS = {
     "metric": {"type": "string", "enum": METRICS},
     "limit": {"type": "integer", "minimum": 1, "maximum": 20},
 }
+_FIELDS["scope"]["properties"]["excluded_session_uids"] = {
+    "type": "array", "maxItems": 5000, "uniqueItems": True,
+    "items": {"type": "string", "minLength": 1, "maxLength": 200}}
+_FIELDS["scope"]["properties"]["session_uids"] = {
+    "type": "array", "maxItems": 5000, "uniqueItems": True,
+    "items": {"type": "string", "minLength": 1, "maxLength": 200}}
 _ALLOWED = {
     "metrics": ["scope", "metric"],
     "sessions": ["scope", "session_uid", "q", "limit"],
     "problems": ["scope", "limit"],
     "candidates": ["scope", "limit"],
-    "evidence": ["session_uid", "q", "limit"],
-    "search": ["q", "limit"],
+    "evidence": ["scope", "session_uid", "q", "limit"],
+    "search": ["scope", "q", "limit"],
     "corrections": ["scope", "limit"],
     "projects": ["scope", "limit"],
     "tools": ["scope", "limit"],
@@ -94,7 +100,8 @@ def run(api: str, params: dict | None, *, reads, appdb=None, home=None) -> dict:
                 for p in problems[:limit] if isinstance(p, dict)]
     else:
         # Persisted exclusions (AN-16.1) apply to every whitelisted SQL query.
-        scope = {**scope, "_exclude": _excluded(appdb)}
+        scope = {**scope, "_exclude": sorted(set(_excluded(appdb)) |
+                                           set(scope.get("excluded_session_uids") or []))}
         with reads() as conn:
             rows = _SQL[api](conn, params, scope, limit, home, appdb)
     extra: dict = {}
@@ -137,7 +144,8 @@ def _excluded(appdb) -> list[str]:
 
 
 def _filters(scope: dict) -> dict:
-    return {"source_ids": scope.get("source_ids") or None, "exclude": scope.get("_exclude") or None}
+    return {"source_ids": scope.get("source_ids"), "exclude": scope.get("_exclude") or None,
+            "session_uids": scope.get("session_uids")}
 
 
 def _metrics(conn, params, scope, limit, home, appdb):
@@ -151,7 +159,8 @@ def _sessions(conn, params, scope, limit, home, appdb):
     start, end, pid = P.window(scope)
     where, args = P.window_sql(start, end, pid, home, **_filters(scope))
     if params.get("session_uid"):
-        where, args = "s.session_uid=?", [params["session_uid"]]
+        where += " AND s.session_uid=?"
+        args.append(params["session_uid"])
     if params.get("q"):
         where += " AND s.title LIKE ?"
         args.append(f"%{params['q']}%")
@@ -181,8 +190,12 @@ def _problems(conn, params, scope, limit, home, appdb):
 
 def _evidence(conn, params, scope, limit, home, appdb):
     if params.get("session_uid"):
-        rows = conn.execute("SELECT event_uid, session_uid, text FROM v_human_message WHERE session_uid=?"
-                            " ORDER BY seq LIMIT ?", (params["session_uid"], limit)).fetchall()
+        start, end, pid = P.window(scope)
+        where, args = P.window_sql(start, end, pid, home, **_filters(scope))
+        rows = conn.execute(
+            "SELECT event_uid, session_uid, text FROM v_human_message WHERE session_uid=? "
+            f"AND session_uid IN (SELECT s.session_uid FROM session s WHERE {where}) "
+            "ORDER BY seq LIMIT ?", [params["session_uid"], *args, limit]).fetchall()
         out = [{"event_uid": r[0], "session_uid": r[1], "kind": "human",
                 "text": privacy.direct_user_text(r[2] or "")[:300]} for r in rows]
         if params.get("q"):
@@ -194,7 +207,10 @@ def _evidence(conn, params, scope, limit, home, appdb):
 
 
 def _search(conn, params, scope, limit, home, appdb):
-    return [{**h, "text": h["text"][:300]} for h in P.fts_human(conn, params.get("q") or "", limit)]
+    start, end, pid = P.window(scope)
+    where, args = P.window_sql(start, end, pid, home, **_filters(scope))
+    return [{**h, "text": h["text"][:300]} for h in P.fts_human(
+        conn, params.get("q") or "", limit, session_where=where, session_params=args)]
 
 
 UNATTRIBUTED = "未归类"

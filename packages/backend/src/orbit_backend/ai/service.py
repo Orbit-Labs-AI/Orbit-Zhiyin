@@ -56,6 +56,34 @@ def fallback_pack(task: dict, req: dict) -> dict:
             "preview_digest": pack_digest(task["task_id"], task["prompt_version"], goal, sent)}
 
 
+def narrative_input_fingerprint(task: dict, pack: dict, scope: dict | None) -> str:
+    """Bind current evidence while ignoring sub-day drift of synthetic window labels.
+
+    Explicit bounds remain exact. Relative windows share an identity within one UTC day;
+    all actual statistics, evidence, candidate IDs and snippets remain in the digest.
+    """
+    scope = scope or {}
+    content = json.loads(canonical_json(pack.get("content") or {}))
+    relative = all(scope.get(k) is None for k in ("start_ms", "end_ms", "from_ts", "until_ts"))
+    day = now_ms() // 86_400_000 if relative else None
+    if relative:
+        for name in ("snapshot", "failures"):
+            item = content.get(name)
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("key", "")).split(":", 2)
+            if len(key) == 3 and key[0].isdigit() and key[1].isdigit():
+                item["key"] = [int(key[0]) // 86_400_000, int(key[1]) // 86_400_000, key[2]]
+            if name == "snapshot" and isinstance(item.get("window"), dict):
+                item["window"] = {k: v // 86_400_000 if isinstance(v, int) else v
+                                  for k, v in item["window"].items()}
+    return hashlib.sha256(canonical_json({
+        "task": task["task_id"], "prompt_version": task["prompt_version"],
+        "schema_version": task["schema_version"], "system": task["system"],
+        "relative_day": day, "content": content,
+    }).encode()).hexdigest()
+
+
 def _local_midnight_ms() -> int:
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     return int(today.timestamp() * 1000)
@@ -261,8 +289,10 @@ class AIService:
                 "(?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)",
                 (job_id, task_id, engine_id, slot, template, pack.get("goal", req.get("goal")),
                  pack.get("goal_source", req.get("goal_source")),
-                 json.dumps({**req, "_data": self._data_identity()}, ensure_ascii=False,
-                            default=str), pack.get("preview_digest"),
+                 json.dumps({**req, "_data": self._data_identity(),
+                             "_narrative_input_fingerprint": narrative_input_fingerprint(
+                                 task, pack, req.get("scope"))},
+                            ensure_ascii=False, default=str), pack.get("preview_digest"),
                  now_ms()))
         if waiter:
             self.runner.waiters.add(job_id)
@@ -406,8 +436,11 @@ class AIService:
 
     def narrative(self, kind: str, key: str | None = None, params: dict | None = None,
                   scope: dict | None = None) -> dict:
-        """Latest kept result of a narrate / cluster / classify task; else its L0 fallback
-        computed now (AI off, never run, or no result for ``key``)."""
+        """Reuse only a result whose selection and rebuilt input digest still match.
+
+        A result key names the subject, not its access/selection scope. Rebuilding the
+        original request also invalidates stale evidence after imports or exclusions.
+        """
         from .tasks_v1 import NARRATIVE_KINDS
 
         task_id = NARRATIVE_KINDS.get(kind)
@@ -415,17 +448,45 @@ class AIService:
             raise AIError(400, "unknown_kind", f"未知叙述类型：{kind}",
                           kinds=sorted(NARRATIVE_KINDS))
         task = self._task(task_id)
+        requested = {"params": params or {}, "scope": scope}
+        self._validate(task, requested)
+
+        def selection(value):
+            from ..features.scope import normalize
+
+            value = value or {}
+            normalized = normalize(value)
+            # Relative windows are also part of selection identity; preserve empty filters.
+            normalized["days"] = value.get("days", 30)
+            return canonical_json(normalized)
+
+        selected = selection(scope)
         with self.appdb.read() as db:
-            rows = db.execute("SELECT job_id, status, result, finished_at FROM ai_job WHERE "
+            rows = db.execute("SELECT job_id, status, result, finished_at, request, preview_digest FROM ai_job WHERE "
                               "task_id = ? AND status IN ('ok', 'fallback') AND result IS NOT NULL "
                               "ORDER BY finished_at DESC LIMIT 50", (task_id,)).fetchall()
         for row in rows:
             result = _loads(row["result"]) or {}
-            if key is None or result.get("key") == key:
+            if key is not None and result.get("key") != key:
+                continue
+            original = _loads(row["request"]) or {}
+            if selection(original.get("scope")) != selected:
+                continue
+            current_request = {**original, "scope": scope,
+                               "params": {**(original.get("params") or {}), **(params or {})}}
+            current = self._pack(task, current_request)
+            saved_fingerprint = original.get("_narrative_input_fingerprint")
+            matches = (narrative_input_fingerprint(task, current, scope) == saved_fingerprint
+                       if saved_fingerprint else bool(row["preview_digest"]) and
+                       current.get("preview_digest") == row["preview_digest"])
+            if matches:
                 return {"kind": kind, "task_id": task_id, "key": result.get("key"),
                         "status": row["status"], "source": result.get("source"),
                         "job_id": row["job_id"], "finished_at": row["finished_at"],
                         "result": result}
+            # An older result must not resurrect after the newest matching input goes stale.
+            # Bound work to one historical rebuild, even with fifty saved jobs.
+            break
         pack = self._pack(task, {"params": params or {}, "scope": scope})
         output = task["fallback"](pack, "no_job") if task["fallback"] else None
         if output is None:

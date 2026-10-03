@@ -9,6 +9,7 @@
 - check-installed.sh：构建 wheel 并在仓库外的临时环境验证安装。
 - check-data.sh：数据包构造验收；真实来源仅在显式参数启用时读取。
 - [check-preference.sh](check-preference.sh)：Preference／Instruction 构造回归；指定 `--db` 后追加只读本地快照诊断，参数与输出见 [Preference 本地验证](../docs/modules/analytics/preference.md#本地验证脚本)。
+- heavy.py：重负载命令的全机闸门（默认 2 个并发，`HEAVY_NAME=merge HEAVY_SLOTS=1` 用于串行合并），规则见根 `AGENTS.md`「合并门槛与本机并行」。
 - check-repository.py：只看 git 跟踪文件，核对文档本地链接、唯一 workspace 锁、旧目录残留，以及 docs 下文档是否能从 docs/README.md 导航到达。
 - check-benchmark.sh：对 `.local/backend-nine-hour` 下的本地数据运行时间切分推荐基准（`evals.benchmark.local`），需显式准备数据。
 - check-feature-diagnostics.sh：本地特征诊断（`evals.analytics.local_diagnostics`），只读显式指定的数据。

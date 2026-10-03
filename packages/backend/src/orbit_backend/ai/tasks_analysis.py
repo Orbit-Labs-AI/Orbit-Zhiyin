@@ -132,7 +132,7 @@ def check_facet(item: dict, payload: dict) -> tuple[dict, list[str]]:
     events = {m["event_uid"] for k in ("human_messages", "assistant_replies") for m in payload.get(k) or []}
     signals = {c["signal_id"]: c["event_uid"] for c in payload.get("candidates") or []}
     events |= set(signals.values())
-    kept = [c for c in item["candidates"] if c["signal_id"] in signals and c["event_uid"] in events]
+    kept = [c for c in item["candidates"] if signals.get(c["signal_id"]) == c["event_uid"] and c["event_uid"] in events]
     grounded = {c["friction_type"] for c in kept if c["friction_type"] != "none"}
     if (payload.get("row") or {}).get("tool_errors"):
         grounded.add("tool_env_failure")
@@ -391,7 +391,14 @@ def ask_run(ctx, pack: dict) -> dict:
     kept = []
     for q in plan.get("queries") or []:
         try:
-            kept.append({"api": q["api"], "params": queries.check(q.get("api"), q.get("params"))})
+            params = queries.check(q.get("api"), q.get("params"))
+            # Model planning cannot widen the selection confirmed by the user.
+            if "scope" in queries.SCHEMAS[q["api"]]["properties"] and pack.get("scope"):
+                params = {**params, "scope": {k: v for k, v in pack["scope"].items()
+                                             if k in queries._FIELDS["scope"]["properties"]}}
+            if "session_uid" in queries.SCHEMAS[q["api"]]["properties"] and ctx.params.get("session_uid"):
+                params = {**params, "session_uid": ctx.params["session_uid"]}
+            kept.append({"api": q["api"], "params": queries.check(q["api"], params)})
         except (ValueError, KeyError, TypeError) as error:
             ctx.log(f"丢弃越界查询：{error}")
     planned, kept, withheld = kept, [], set()
@@ -412,7 +419,8 @@ def ask_run(ctx, pack: dict) -> dict:
     results, refs, numbers = [], set(), set()
     home = getattr(ctx, "home", None) or (ctx.params or {}).get("home")
     for q in kept:
-        r = queries.run(q["api"], q["params"], reads=ctx.reads, appdb=None, home=home)
+        appdb = getattr(getattr(getattr(ctx, "runner", None), "svc", None), "appdb", None)
+        r = queries.run(q["api"], q["params"], reads=ctx.reads, appdb=appdb, home=home)
         results.append(r)
         refs |= {(x["kind"], x["id"]) for x in r["refs"]}
         numbers |= set(r["numbers"])

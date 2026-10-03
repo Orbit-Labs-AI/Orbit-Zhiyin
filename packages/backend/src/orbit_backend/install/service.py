@@ -275,7 +275,9 @@ class InstallService:
                 self.link_inventory()
         if self.jobs is not None:
             try:
-                self.jobs.submit("inventory", origin="install")
+                refresh = self.jobs.submit("inventory", origin="install")
+                if isinstance(refresh, dict) and refresh.get("status") in ("failed", "interrupted", "cancelled"):
+                    warnings.append("inventory_refresh_failed")
             except Exception:  # noqa: BLE001 - a refresh is best effort
                 warnings.append("inventory_refresh_failed")
         trust = any(by_idx.get(r["idx"], {}).get("requires_trust") for r in records)

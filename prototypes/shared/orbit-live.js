@@ -236,11 +236,13 @@ const OrbitLive = (function () {
       if (C.mode !== 'live') return Promise.resolve(r);
       if (r.loading) return r.loading;
       const prev = r.state;
+      const mutationVersion = r.mutationVersion || 0;
       r.dirty = false;
       if (r.data == null && r.state !== 'computing') r.state = 'loading';
       r.refreshing = true;
       if (r.retryTimer) { timers.clearTimeout(r.retryTimer); r.retryTimer = null; }
       r.loading = C.get(r.path, { scope: r.scope, query: r.query, waitMs: r.waitMs, signal }).then((res) => {
+        if ((r.mutationVersion || 0) !== mutationVersion) return;
         if (res.state === 'computing') { r.state = 'computing'; r.meta = Object.assign({}, r.meta || {}, res.meta || {}); r.computingSince = now(); }
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
         // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
@@ -248,6 +250,7 @@ const OrbitLive = (function () {
         C.failure = null; r.fails = 0; r.busy = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
+        if ((r.mutationVersion || 0) !== mutationVersion) return;
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
         if (isPending(e)) {
           // nothing published yet: keep the last data (stale) or read as computing; retry on Retry-After without a banner
