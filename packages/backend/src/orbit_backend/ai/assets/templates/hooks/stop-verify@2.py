@@ -1,7 +1,6 @@
-"""Orbit hook template verify-before-commit@1 (stdlib only). Usage: python3 verify-before-commit@1.py --config cfg.json < event.json
+"""Orbit hook template stop-verify@2 (stdlib only). Usage: python3 stop-verify@2.py --config cfg.json < event.json
 
-Blocks `git commit` when files were edited after the last successful verification
-command (any of `command_heads`).
+On Stop, blocks once when edits were made after the last successful verification command.
 Pure decision logic lives in `decide(event, config, state) -> (allow|warn|block, message)`;
 `_main()` only handles stdin, config and the per-session state file.
 """
@@ -12,7 +11,7 @@ import json
 import re
 import sys
 
-HOOK_ID = "verify-before-commit"
+HOOK_ID = "stop-verify"
 _TWO_WORD = {"git", "npm", "pnpm", "yarn", "uv", "cargo", "go", "make", "python", "python3", "npx", "bun"}
 
 
@@ -42,16 +41,17 @@ _EDITS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
 def decide(event: dict, config: dict, state: dict) -> tuple[str, str | None]:
     name, tool = event.get("hook_event_name"), event.get("tool_name")
-    command = (event.get("tool_input") or {}).get("command", "")
     if name == "PostToolUse":
+        command = (event.get("tool_input") or {}).get("command", "")
         if tool in _EDITS and not failed(event):
             state["dirty"] = True
         elif tool == "Bash" and not failed(event) and matches(command, config.get("command_heads")):
             state["dirty"] = False
         return "allow", None
-    if name == "PreToolUse" and tool == "Bash" and re.search(r"\bgit\s+commit\b", command or ""):
-        if state.get("dirty"):
-            return "block", config.get("message") or "提交前先运行一次验证命令。"
+    if name == "Stop" and state.get("dirty") and not event.get("stop_hook_active"):
+        if not state.get("blocked_once"):
+            state["blocked_once"] = True
+            return "block", config.get("message") or "还有未验证的修改，先运行验证命令再结束。"
     return "allow", None
 
 

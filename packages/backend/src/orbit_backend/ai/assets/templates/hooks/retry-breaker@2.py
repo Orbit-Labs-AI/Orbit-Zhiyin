@@ -1,4 +1,4 @@
-"""Orbit hook template retry-breaker@1 (stdlib only). Usage: python3 retry-breaker@1.py --config cfg.json < event.json
+"""Orbit hook template retry-breaker@2 (stdlib only). Usage: python3 retry-breaker@2.py --config cfg.json < event.json
 
 Counts consecutive failures of the same command head (PostToolUse) and blocks the
 next attempt (PreToolUse) once the count reaches `threshold`.

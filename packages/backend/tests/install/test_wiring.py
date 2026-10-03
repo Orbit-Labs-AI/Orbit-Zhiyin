@@ -212,17 +212,17 @@ def test_ai_hook_artifact_resolves_placeholders_and_symbolic_targets(setup):
     result = svc.apply(plan["plan_id"], preview["preview_digest"], disabled_targets=codex)
     home = svc.env.home
     hooks_dir = home / ".claude/hooks/orbit"
-    assert (hooks_dir / "retry-breaker@1.py").stat().st_mode & 0o111
-    assert json.loads((hooks_dir / "retry-breaker@1.config.json").read_text()) == slots
+    assert (hooks_dir / "retry-breaker@2.py").stat().st_mode & 0o111
+    assert json.loads((hooks_dir / "retry-breaker@2.config.json").read_text()) == slots
     settings = json.loads((home / ".claude/settings.json").read_text())
     entries = {event: settings["hooks"][event][0] for event in ("PreToolUse", "PostToolUse")}
     for entry in entries.values():
         command = entry["hooks"][0]["command"]
         assert entry["matcher"] == "Bash" and "{orbit.hooks}" not in command
-        assert f'"{hooks_dir}/retry-breaker@1.py" --config "{hooks_dir}/retry-breaker@1.config.json"' in command
+        assert f'"{hooks_dir}/retry-breaker@2.py" --config "{hooks_dir}/retry-breaker@2.config.json"' in command
     claude_settings = next(t for t in preview["targets"] if t["path"].endswith("settings.json"))
     assert any(r["op"] == "ai" for r in claude_settings["diff"]["lines"])  # matcher came from an AI slot
-    assert svc.revert(result["install_id"])["ok"] and not (hooks_dir / "retry-breaker@1.py").exists()
+    assert svc.revert(result["install_id"])["ok"] and not (hooks_dir / "retry-breaker@2.py").exists()
 
 
 def test_ai_skill_rule_and_command_artifacts_install(setup):

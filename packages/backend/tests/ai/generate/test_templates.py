@@ -30,7 +30,7 @@ def test_changed_template_without_version_bump_fails(tmp_path, monkeypatch):
         else:
             manifest = {k: v for k, v in json.loads(src.read_text()).items() if v["kind"] == "rule"}
             (tmp_path / entry).write_text(json.dumps(manifest))
-    (tmp_path / "rules" / "paragraph@1.md").write_text("tampered\n")
+    (tmp_path / "rules" / "paragraph@2.md").write_text("tampered\n")
     monkeypatch.setattr(templates, "ROOT", tmp_path)
     templates.load.cache_clear()
     try:

@@ -72,9 +72,9 @@ def test_kb_hook_uses_orbit_template_script(svc, fake_home):  # noqa: F811
     add(svc, "c-hook", card("retry-breaker"))
     plan, _, written = cycle(svc, "c-hook")
     assert plan["kind"] == "hook"
-    script = fake_home / ".claude/hooks/orbit/retry-breaker@1.py"
+    script = fake_home / ".claude/hooks/orbit/retry-breaker@2.py"
     assert str(script) in written and "HOOK_ID = \"retry-breaker\"" in written[str(script)]
-    config = json.loads(written[str(fake_home / ".claude/hooks/orbit/retry-breaker@1.config.json")])
+    config = json.loads(written[str(fake_home / ".claude/hooks/orbit/retry-breaker@2.config.json")])
     assert config["matcher"] == "Bash" and config["threshold"] == 3
     hooks = json.loads(written[str(fake_home / ".claude/settings.json")])["hooks"]
     assert set(hooks) == {"PreToolUse", "PostToolUse"}

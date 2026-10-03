@@ -40,7 +40,7 @@ def test_hook_settings_json_and_script_hash():
     assert len(settings) == 2 and all(f["action"] == "merge_json" for f in settings)
     for f in settings:
         snippet = json.loads(f["content"])
-        assert snippet[0]["hooks"][0]["command"].startswith('python3 "{orbit.hooks}/retry-breaker@1.py"')
+        assert snippet[0]["hooks"][0]["command"].startswith('python3 "{orbit.hooks}/retry-breaker@2.py"')
     assert json.loads(next(f for f in out["files"] if f["target"] == "codex.hooks")["content"])["hooks"]
     assert scan("hook", HOOK, out)["status"] == "ok"
 

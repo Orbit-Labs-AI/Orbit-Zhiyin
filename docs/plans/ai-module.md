@@ -316,9 +316,9 @@ RC-04 的 `priority` 是确定性的，AI 不改分数；它只回答两个人�
 
 | 产物 | template_id | 模型填的槽位（类型、上限） | 代码填的部分 | 落点（IN-01，与 `recommendation.md` §8.2 一致） | lint 要点 | 阶段 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 规则片段 AI-06.1 | `rules/paragraph@1` | `rules[] ≤ 5`，每条 ≤ 60 字的祈使句，必须「可验证」（含动作 + 条件或对象）；`title ≤ 12 字` | 标记块 `<!-- orbit:rule id=… evidence=… -->`、证据回链、`dimension` | Claude Code `~/.claude/CLAUDE.md`（用户层）或项目 `AGENTS.md` 块（并确保 `CLAUDE.md` 含 `@AGENTS.md`）；子目录 `.claude/rules/<id>.md`（`paths`）；Codex `~/.codex/AGENTS.md` | 与已有规则相似度 ≥ 0.8 判重复；与 `permissions.deny` / 已有「不要…」冲突判冲突；Claude 单文件 < 200 行、Codex 拼接 ≤ 32 KiB（`docs/research/landscape.md` RS-21）；不含路径用户名、密钥占位符 | MVP |
-| 粘合规则 AI-06.7（`generate.rule` 的 `glue` 变体） | `rules/paragraph@1`（`variant = glue`） | 同上，但每条规则必须出现 `uses_catalog_items[]` 里的一个条目名（「遇到 X 时使用 `<skill>`」） | `uses_catalog_items[] = 输入给的条目 ID`（gate 校验相等） | 同上 | 同上 + `uses_catalog_items` 越界即丢弃 | MVP |
-| Hook AI-06.3 | `hooks/retry-breaker@1`（← `tool_env_failure`）、`hooks/verify-before-commit@1`（← `missing_verification`，PreToolUse `git commit`）、`hooks/post-edit-check@1`（← `missing_verification` 格式 / 编译类、RC-06 #3；PostToolUse，matcher `Edit\|Write`）、`hooks/stop-verify@1`（← `missing_verification`，验证阶梯第二级；Stop 时自上次成功验证后有编辑就运行或提示验证命令）、`hooks/compaction-reminder@1`（← `context_loss`）、`hooks/scope-guard@1`（← `unsafe_operation`，见 `recommendation.md` 高风险操作一项） | `matcher`（闭集：`Bash\|Edit\|Write\|Task\|*`）、`threshold`（整数区间，如重复失败 2–5）、`message ≤ 120 字`、`command_heads[] ≤ 10`（只能从证据里出现过的 `command_head` 中选）；`post-edit-check` 的 `file_glob` 只能从证据扩展名中选，`command` 只能从该项目历史成功过的验证族 / formatter `command_head` 中选 | hook 事件名、`settings.json` 结构、脚本体（仓库自带，内容哈希固定）、退出码语义 | Claude Code `settings.json /hooks/<Event>` `merge_json` + 脚本 `~/Library/Application Support/Orbit/hooks/<template_id>@<version>.sh`；Codex `~/.codex/hooks.json` + 同一脚本（按哈希信任，标「已安装、未信任」）；pi 需 TS extension（v2） | JSON 合法；脚本哈希与模板一致（文件名带版本便于校验）；`message` 不含 shell 元字符；[hooks 文档](https://code.claude.com/docs/en/hooks) | MVP |
+| 规则片段 AI-06.1 | `rules/paragraph@2` | `rules[] ≤ 5`，每条 ≤ 60 字的祈使句，必须「可验证」（含动作 + 条件或对象）；`title ≤ 12 字` | 标记块 `<!-- orbit:rule id=… evidence=… -->`、证据回链、`dimension` | Claude Code `~/.claude/CLAUDE.md`（用户层）或项目 `AGENTS.md` 块（并确保 `CLAUDE.md` 含 `@AGENTS.md`）；子目录 `.claude/rules/<id>.md`（`paths`）；Codex `~/.codex/AGENTS.md` | 与已有规则相似度 ≥ 0.8 判重复；与 `permissions.deny` / 已有「不要…」冲突判冲突；Claude 单文件 < 200 行、Codex 拼接 ≤ 32 KiB（`docs/research/landscape.md` RS-21）；不含路径用户名、密钥占位符 | MVP |
+| 粘合规则 AI-06.7（`generate.rule` 的 `glue` 变体） | `rules/paragraph@2`（`variant = glue`） | 同上，但每条规则必须出现 `uses_catalog_items[]` 里的一个条目名（「遇到 X 时使用 `<skill>`」） | `uses_catalog_items[] = 输入给的条目 ID`（gate 校验相等） | 同上 | 同上 + `uses_catalog_items` 越界即丢弃 | MVP |
+| Hook AI-06.3 | `hooks/retry-breaker@2`（← `tool_env_failure`）、`hooks/verify-before-commit@2`（← `missing_verification`，PreToolUse `git commit`）、`hooks/post-edit-check@2`（← `missing_verification` 格式 / 编译类、RC-06 #3；PostToolUse，matcher `Edit\|Write`）、`hooks/stop-verify@2`（← `missing_verification`，验证阶梯第二级；Stop 时自上次成功验证后有编辑就运行或提示验证命令）、`hooks/compaction-reminder@2`（← `context_loss`）、`hooks/scope-guard@2`（← `unsafe_operation`，见 `recommendation.md` 高风险操作一项） | `matcher`（闭集：`Bash\|Edit\|Write\|Task\|*`）、`threshold`（整数区间，如重复失败 2–5）、`message ≤ 120 字`、`command_heads[] ≤ 10`（只能从证据里出现过的 `command_head` 中选）；`post-edit-check` 的 `file_glob` 只能从证据扩展名中选，`command` 只能从该项目历史成功过的验证族 / formatter `command_head` 中选 | hook 事件名、`settings.json` 结构、脚本体（仓库自带，内容哈希固定）、退出码语义 | Claude Code `settings.json /hooks/<Event>` `merge_json` + 脚本 `~/Library/Application Support/Orbit/hooks/<template_id>@<version>.sh`；Codex `~/.codex/hooks.json` + 同一脚本（按哈希信任，标「已安装、未信任」）；pi 需 TS extension（v2） | JSON 合法；脚本哈希与模板一致（文件名带版本便于校验）；`message` 不含 shell 元字符；[hooks 文档](https://code.claude.com/docs/en/hooks) | MVP |
 | SKILL.md AI-06.4 | `skills/procedure@1` | `name`（kebab，≤ 64）、`description ≤ 1024 字符`（含触发短语，取自用户原话）、`steps[] ≤ 8` 每条 ≤ 80 字、`dont[] ≤ 5`、`verify ≤ 80 字`、`allowed_tools[]`（闭集） | frontmatter、目录结构、`license`、来源与证据注释 | `~/.claude/skills/<name>/SKILL.md`；Codex `~/.agents/skills/<name>/`（Agent Skills 规范，[specification](https://agentskills.io/specification)） | 规范字段长度；`name` 不与已装清单冲突（A9-15）；只过自检 ①②，description 触发评测 v1（EV-06）；RC 侧仍「检索优先」（`recommendation.md` §5），只在无匹配种子条目时露出 | MVP（用户在 Lite「Agent 定制草稿」或 A9 选定目标与证据会话后触发） |
 | 子代理 AI-06.5 | `agents/reviewer@1` | `name`、`description ≤ 200 字`、`tools[]`（闭集，只读为默认）、`body` 四段（职责 / 输入 / 输出格式 / 禁止项，各 ≤ 120 字） | frontmatter、`model` 槽位、落点 | `~/.claude/agents/<name>.md`；其他 Agent 不可映射则列出 | 只读工具集；`body` 不含路径与密钥 | v1 |
 | slash command AI-06.6 | `commands/checklist@1` | `name`、`description ≤ 100 字`、`body ≤ 300 字`（可含 `$ARGUMENTS`）、`argument_hint ≤ 40 字` | frontmatter、落点 | `~/.claude/commands/<name>.md`；Codex / pi 作为 prompt 文件（落点待验证 AV12） | 与内置命令同名则拒绝 | v1 |
@@ -383,7 +383,7 @@ A4-03「找出可自动化的操作」是分析到推荐最直接的入口，MVP
 | --- | --- | --- | --- |
 | AN-04 `three_step_chains`（support ≥ 3 会话） | 重复命令序列 | RC-06 #4 `skill`（第 3 次）或 #9 `plugin`；无种子条目时露出「交给生成工坊」（AI-06.4） | 序列 + 会话数 + 候选卡入口 |
 | AN-05 `would_prompt` | 反复弹审批的只读命令族 | RC-06 #13 `permission_rule` / `builtin` | 命令族 + 次数 / 周 |
-| AN-05 `retry_loop` | 同参数重试段 | RC-06 #2 `hook`（`hooks/retry-breaker@1`） | 命令头 + 段数 |
+| AN-05 `retry_loop` | 同参数重试段 | RC-06 #2 `hook`（`hooks/retry-breaker@2`） | 命令头 + 段数 |
 | AN-11 `installed_unused` | 闲置 MCP / skill / 子代理 | RC-07 `removal` | 条目 + 天数 + 常驻 token |
 
 接口：`GET /v1/recommendations?surface=tools&kind=hook,skill,permission_rule,removal,builtin`（`recommendation.md` §9 新增 `surface / kind` 参数），返回的是已过 RC-03 闸门的候选，`refs = candidate_id`；AI 只在 v1 以 AI-12 `explain` 加一句说明。
@@ -584,7 +584,7 @@ ID 沿用契约 §2.5（AI-01…AI-11），细化为 `AI-xx.y`；AI-12 为本文
 | 卡 | AI 介入点（第 4 段） | 无 AI 时 | token |
 | --- | --- | --- | --- |
 | 只读命令自动放行（契约 §4.2） | 无必需的模型调用：前缀清单来自 DT-13 词表，说明句为模板句；可选 `narrate.overview` 在概览提到它时只能引用 `problem_id` 与计数 | 完全相同 | 0 |
-| 重复失败 → 熔断 hook（`hooks/retry-breaker@1`） | `generate.hook`（L3，≤ 10K）只填 `threshold ∈ [2,5]`、`message ≤ 120 字`、`command_heads ⊆ 证据命令头`；脚本体 = 仓库模板（哈希固定），写 `~/Library/Application Support/Orbit/hooks/retry-breaker@1.sh`；AI-07.1 lint → AI-07.2 扫描 → AI-07.3 回放（历史 `tool_call` 还原 stdin JSON，`false_block = 0`）；缓存键 `(candidate_id, evidence_hash, hooks/retry-breaker@1, prompt_version)` | `threshold = 2`、默认提示语，标「未个性化」 | 1 次 L3 ≈ 10K + 1K |
+| 重复失败 → 熔断 hook（`hooks/retry-breaker@2`） | `generate.hook`（L3，≤ 10K）只填 `threshold ∈ [2,5]`、`message ≤ 120 字`、`command_heads ⊆ 证据命令头`；脚本体 = 仓库模板（哈希固定），写 `~/Library/Application Support/Orbit/hooks/retry-breaker@2.sh`；AI-07.1 lint → AI-07.2 扫描 → AI-07.3 回放（历史 `tool_call` 还原 stdin JSON，`false_block = 0`）；缓存键 `(candidate_id, evidence_hash, hooks/retry-breaker@2, prompt_version)` | `threshold = 2`、默认提示语，标「未个性化」 | 1 次 L3 ≈ 10K + 1K |
 | 高频纠偏 → 规则片段（A6-03、A6-10、A3-18；Lite「优化建议 › 规则」） | 证据包按 §2.5「入口 → 证据包」：`phrases_top[]`（AN-17）前 4 条的 `evidence` + `problem_id`；`generate.rule`（L3，≤ 12K：≤ 5 条原话 + `existing_rules` + 模板）→ AI-07.1 lint（重复 / 冲突 / 长度）→ AI-07.2 扫描；`judge.rule_counterfactual` v1；证据入口跳 A3 时携带 `problem.evidence_session_uids`（作为 `root_session_uids`），不改用户已有筛选 | 模板默认句「我说『<原话>』时，请<维度动作>」 | 1 次 L3 ≈ 12K + 1K |
 
 ## 10. MVP 与迭代
@@ -690,7 +690,7 @@ A7-10「不适用」原因枚举与 A7 「AI 适配判断」芯片归 `recommend
 | AV8 | 超过 30,000 字符的合格会话占比 ≤ 5%，L0 压缩后 facet 质量不明显下降；回填「先抽有候选的会话」不使 `task_type` 分布失真 | 本机数据统计 + 标注集对比 | AI-03.1 是否默认开；回填顺序 |
 | AV9 | facet 各字段在 EV-02 标注集上 κ ≥ 0.6 | 200 会话两人标注（v1） | 哪些字段默认展示 |
 | AV10 | 「规则可验证」lint（祈使句 + 条件 / 对象）在中文上的误报率 < 20% | 50 条生成规则人工核 | AI-07.1 |
-| AV11 | hook stdin JSON 的字段随 Claude Code 版本变化时回放仍成立；`Stop` 事件能拿到自上次验证后的编辑清单 | 对照 hooks 文档与本机版本 | AI-07.3、`stop-verify@1` |
+| AV11 | hook stdin JSON 的字段随 Claude Code 版本变化时回放仍成立；`Stop` 事件能拿到自上次验证后的编辑清单 | 对照 hooks 文档与本机版本 | AI-07.3、`stop-verify@2` |
 | AV12 | Codex / pi 的 slash command 与 skills 落点语法 | 查源码与文档（契约 V6） | AI-06.4 / 06.6 |
 | AV13 | headless 单次调用 5–15 s；200 会话串行回填 ≤ 10 分钟 | 计时 | 首次回填体验 |
 | AV14 | `rerank.fit` 重排提升 HitRate@3 | EV-05 回放（v1） | AI-12 是否重排 |

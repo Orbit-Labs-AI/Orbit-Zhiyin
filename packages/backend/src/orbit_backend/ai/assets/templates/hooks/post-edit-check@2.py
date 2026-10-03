@@ -1,6 +1,6 @@
-"""Orbit hook template stop-verify@1 (stdlib only). Usage: python3 stop-verify@1.py --config cfg.json < event.json
+"""Orbit hook template post-edit-check@2 (stdlib only). Usage: python3 post-edit-check@2.py --config cfg.json < event.json
 
-On Stop, blocks once when edits were made after the last successful verification command.
+After an Edit/Write on a file matching `file_glob`, reminds the agent to run `command`.
 Pure decision logic lives in `decide(event, config, state) -> (allow|warn|block, message)`;
 `_main()` only handles stdin, config and the per-session state file.
 """
@@ -11,7 +11,7 @@ import json
 import re
 import sys
 
-HOOK_ID = "stop-verify"
+HOOK_ID = "post-edit-check"
 _TWO_WORD = {"git", "npm", "pnpm", "yarn", "uv", "cargo", "go", "make", "python", "python3", "npx", "bun"}
 
 
@@ -36,23 +36,21 @@ def matches(command: str, heads) -> bool:
     command = " ".join(str(command or "").split())
     return any(command == h or command.startswith(h + " ") for h in heads or [] if h)
 
-_EDITS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+_EDITS = {"Edit", "Write", "MultiEdit"}
 
 
 def decide(event: dict, config: dict, state: dict) -> tuple[str, str | None]:
-    name, tool = event.get("hook_event_name"), event.get("tool_name")
-    if name == "PostToolUse":
-        command = (event.get("tool_input") or {}).get("command", "")
-        if tool in _EDITS and not failed(event):
-            state["dirty"] = True
-        elif tool == "Bash" and not failed(event) and matches(command, config.get("command_heads")):
-            state["dirty"] = False
+    import fnmatch
+
+    if event.get("hook_event_name") != "PostToolUse" or event.get("tool_name") not in _EDITS:
         return "allow", None
-    if name == "Stop" and state.get("dirty") and not event.get("stop_hook_active"):
-        if not state.get("blocked_once"):
-            state["blocked_once"] = True
-            return "block", config.get("message") or "还有未验证的修改，先运行验证命令再结束。"
-    return "allow", None
+    path = str((event.get("tool_input") or {}).get("file_path") or "")
+    glob = config.get("file_glob") or "*"
+    if not (fnmatch.fnmatch(path, glob) or fnmatch.fnmatch(path.rsplit("/", 1)[-1], glob)):
+        return "allow", None
+    hint = config.get("message") or "改完记得验证。"
+    command = config.get("command")
+    return "warn", f"{hint}（{command}）" if command else hint
 
 
 def _main() -> int:

@@ -1,6 +1,6 @@
-"""Orbit hook template compaction-reminder@1 (stdlib only). Usage: python3 compaction-reminder@1.py --config cfg.json < event.json
+"""Orbit hook template scope-guard@2 (stdlib only). Usage: python3 scope-guard@2.py --config cfg.json < event.json
 
-Before context compaction, reminds the agent to write down goal, touched files and open checks.
+Blocks Bash commands that start with any configured prefix in `command_heads`.
 Pure decision logic lives in `decide(event, config, state) -> (allow|warn|block, message)`;
 `_main()` only handles stdin, config and the per-session state file.
 """
@@ -11,7 +11,7 @@ import json
 import re
 import sys
 
-HOOK_ID = "compaction-reminder"
+HOOK_ID = "scope-guard"
 _TWO_WORD = {"git", "npm", "pnpm", "yarn", "uv", "cargo", "go", "make", "python", "python3", "npx", "bun"}
 
 
@@ -38,8 +38,11 @@ def matches(command: str, heads) -> bool:
 
 
 def decide(event: dict, config: dict, state: dict) -> tuple[str, str | None]:
-    if event.get("hook_event_name") == "PreCompact":
-        return "warn", config.get("message") or "上下文即将压缩：先记下目标、已改文件和未完成的验证。"
+    if event.get("hook_event_name") != "PreToolUse" or event.get("tool_name") != "Bash":
+        return "allow", None
+    command = (event.get("tool_input") or {}).get("command", "")
+    if matches(command, config.get("command_heads")):
+        return "block", config.get("message") or "这个命令超出约定范围，先和用户确认。"
     return "allow", None
 
 

@@ -1894,7 +1894,7 @@
   ],
   "install": {
    "kb_rule": "project-build-hook",
-   "template": "post-edit-check@1",
+   "template": "post-edit-check@2",
    "hook": {
     "event": "PostToolUse",
     "command": "{build_command}",
@@ -2095,7 +2095,7 @@
   ],
   "install": {
    "kb_rule": "deploy-target-rule",
-   "template": "paragraph@1"
+   "template": "paragraph@2"
   },
   "features": [
    {

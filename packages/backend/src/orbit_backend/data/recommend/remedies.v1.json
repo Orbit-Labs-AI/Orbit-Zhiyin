@@ -649,7 +649,7 @@
         },
         "level": 2,
         "scope": "project",
-        "template": "post-edit-check@1",
+        "template": "post-edit-check@2",
         "slots": {
           "build_command": {
             "required": true
@@ -838,7 +838,7 @@
         },
         "level": 1,
         "scope": "project",
-        "template": "paragraph@1"
+        "template": "paragraph@2"
       },
       "benefit": {
         "unit": "次误部署",

@@ -1,9 +1,9 @@
 {
   "paragraph": {
-    "version": 1,
+    "version": 2,
     "kind": "rule",
-    "file": "rules/paragraph@1.md",
-    "sha256": "2da684387fd1ee47102fbcbe98b1e15d6a4ae9f307a6454ac6a7597f7fa2abe9",
+    "file": "rules/paragraph@2.md",
+    "sha256": "76a61df91895a373ea72f4ee496a7a76e6496987b9f2af184635069e10b08212",
     "defaults": {
       "title": "改完先验证",
       "rules": [
@@ -20,10 +20,10 @@
     "events": []
   },
   "retry-breaker": {
-    "version": 1,
+    "version": 2,
     "kind": "hook",
-    "file": "hooks/retry-breaker@1.py",
-    "sha256": "b445b6552b7a51a346f2319b19f427e45f6ab2508397239263f239248c7d960a",
+    "file": "hooks/retry-breaker@2.py",
+    "sha256": "1d4719529b39c223694ea29cca9e6e46ad7cb7f9cb9c3bfc0d47a814a7cc9c42",
     "defaults": {
       "matcher": "Bash",
       "threshold": 3,
@@ -42,10 +42,10 @@
     ]
   },
   "verify-before-commit": {
-    "version": 1,
+    "version": 2,
     "kind": "hook",
-    "file": "hooks/verify-before-commit@1.py",
-    "sha256": "d7867bfb3fc2983eb16e35414e9d5edfc083ef5b6ca013a163e33cd22321e6d3",
+    "file": "hooks/verify-before-commit@2.py",
+    "sha256": "97364d92c04b1fb08491014b2b066e748c96d79f1ea7ee25f38fdc52d7e9b8a9",
     "defaults": {
       "matcher": "Bash",
       "threshold": 2,
@@ -64,10 +64,10 @@
     ]
   },
   "post-edit-check": {
-    "version": 1,
+    "version": 2,
     "kind": "hook",
-    "file": "hooks/post-edit-check@1.py",
-    "sha256": "70236fcb28cd71e870a0fc6947afe5c96be5262a17a5ac1ecf2e74ca7bdfa765",
+    "file": "hooks/post-edit-check@2.py",
+    "sha256": "6e14492ebebbdbbe3fb6bece85f662c84d46dd3e896001f04ba5cbbb710148bc",
     "defaults": {
       "matcher": "Edit",
       "threshold": 2,
@@ -83,10 +83,10 @@
     ]
   },
   "stop-verify": {
-    "version": 1,
+    "version": 2,
     "kind": "hook",
-    "file": "hooks/stop-verify@1.py",
-    "sha256": "bb09288498c58f9dc7e8f490e6e43eb4e7c7f96e653ffbf26c21de43d0fa4f7c",
+    "file": "hooks/stop-verify@2.py",
+    "sha256": "77175e8112d3df08f7edcd5b73e6c77c41cd320ad76626a5d4e171a6dcd7f064",
     "defaults": {
       "matcher": "*",
       "threshold": 2,
@@ -105,10 +105,10 @@
     ]
   },
   "compaction-reminder": {
-    "version": 1,
+    "version": 2,
     "kind": "hook",
-    "file": "hooks/compaction-reminder@1.py",
-    "sha256": "369801bf1122bcab3c60b14d6fb4b1eb167f049d3b2d81ddd863b2470058b493",
+    "file": "hooks/compaction-reminder@2.py",
+    "sha256": "d7208bc3cfdbd2f559888d9d06dc5be66b732283026ccded6b719f45665c1edb",
     "defaults": {
       "matcher": "*",
       "threshold": 2,
@@ -123,10 +123,10 @@
     ]
   },
   "scope-guard": {
-    "version": 1,
+    "version": 2,
     "kind": "hook",
-    "file": "hooks/scope-guard@1.py",
-    "sha256": "412021d907e0744e3d62e331c487b956ca15214a483fab97110583c829ab934d",
+    "file": "hooks/scope-guard@2.py",
+    "sha256": "a6ce68317dc4e33562de928f37809371e781df6e4ccc03e77e5afee61e2c61a4",
     "defaults": {
       "matcher": "Bash",
       "threshold": 2,
