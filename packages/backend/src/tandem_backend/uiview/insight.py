@@ -16,11 +16,9 @@ RECS_REF = "/v1/recommendations?surface=A1"
 
 
 def lede(p: dict) -> str:
-    if p["ok"] and p["classified"]:
-        return f"你像一位{p['zh']}：{p['line']}"
     if p["ok"]:
-        return "四个维度里有的还落在 45–55 之间，协作画像暂不下结论。"
-    return f"样本不足：所选范围只有 {p['n']} 个会话，至少需要 30 个才给出协作画像。"
+        return f"你像一位{p['zh']}：{p['line']}" + (f"（{p['hint']}）" if p.get("hint") else "")
+    return "所选范围还没有会话，暂时无法给出协作画像。"
 
 
 def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:

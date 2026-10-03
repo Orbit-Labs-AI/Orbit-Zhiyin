@@ -134,24 +134,47 @@ LVN.loadOb = async function (ob) {
 function lvnSyncSrc(L) { OB.src = new Set(L.sources.filter((x) => L.sel.has(x.id)).map((x) => lvAgentOf(x.agent).id)); }
 
 /* ---- import: job frames → the four stages → Genesis ---- */
-const LVN_STAGES = [['backfill', '导入历史会话'], ['stats', '统计分析'], ['semantic', '语义分析'], ['persona', '协作画像']];
+const LVN_STAGES = OB_TEXT.stages;   // names / notes: OB_TEXT in 56-onboarding.js
 function lvnStages(L) {
   const base = {}; (L.stagesBase || []).forEach((x) => { base[x.id] = x; });
   return LVN_STAGES.map(([id, label]) => {
     const b = base[id] || {};
     const sem = id === 'semantic' && (!L.semantic || !L.semantic.enabled);
-    return { id, label: b.label || label, status: sem ? 'skipped' : 'pending', done: null, total: null, note: sem ? (L.semantic && L.semantic.note) || b.note || '仅统计模式：不调用模型' : null };
+    return { id, label: b.label || label, status: sem ? 'skipped' : 'pending', done: null, total: null, note: sem ? (L.semantic && L.semantic.note) || b.note || OB_TEXT.semanticOff : null };
   });
 }
 function lvnStage(L, id, patch) { const s = (L.stages || []).find((x) => x.id === id); if (s) Object.assign(s, patch); }
-function lvnDraw(ob) { if (OVL === 'ob' && OB === ob && ob.step === 1) drawOB(); }
+// A job frame only moves numbers: when the stage list keeps its shape (statuses, error, done) the open sheet is patched in
+// place (notes, counts, bar) instead of rebuilt, and the sidebar entry follows; a shape change redraws the sheet.
+function lvnShape(L) { return [L.err || '', L.done ? 1 : 0, L.starting ? 1 : 0, L.job ? L.job.status : '', (L.stages || []).map((x) => x.id + ':' + x.status).join(',')].join('|'); }
+function lvnPatch(L) {
+  const o = $('#overlay'); const box = o && o.querySelector('[data-ob="stages"]'); if (!box) return false;
+  (L.stages || []).forEach((x) => {
+    const row = box.querySelector('[data-stage="' + x.id + '"]'); if (!row) return;
+    const col = row.querySelector('.col'); let n = col && col.querySelector('.s');
+    if (x.note) { if (!n && col) { n = document.createElement('span'); n.className = 's'; col.appendChild(n); } if (n && n.textContent !== x.note) n.textContent = x.note; } else if (n) n.remove();
+    const c = row.lastElementChild; const t = x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? OB_TEXT.skipped : '';
+    if (c && c.textContent !== t) c.textContent = t;
+  });
+  const pr = L.job && L.job.progress || {}; const bar = o.querySelector('[data-ob="bar"]');
+  if (bar) bar.style.width = (pr.total ? Math.round(clamp(pr.completed / pr.total, 0, 1) * 100) : 4) + '%';
+  return true;
+}
+function lvnDraw(ob) {
+  const L = ob.live;
+  if (OVL === 'ob' && OB === ob && ob.step === 1) {
+    const sh = lvnShape(L);
+    if (sh !== L.shape || ob.drawn !== 1 || !lvnPatch(L)) { L.shape = sh; drawOB(); }
+  }
+  LVN.sidePatch();
+}
 function lvnJob(ob, job) {
   const L = ob.live; if (!job || !L.job || job.id !== L.job.id) return;
   L.job = Object.assign({}, L.job, job);
   const pr = L.job.progress || {}; const st = L.job.status;
-  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, note: pr.stage ? String(pr.stage) : st === 'queued' ? '排队中' : null });
+  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, note: OB_TEXT.stageNote(pr.stage) || (st === 'queued' ? OB_TEXT.queued : null) });
   else if (st === 'completed') { lvnStage(L, 'backfill', { status: 'done', done: pr.total != null ? pr.total : pr.completed, total: pr.total, note: null }); lvnAfter(ob); }
-  else { lvnStage(L, 'backfill', { status: 'failed', note: (L.job.error && (L.job.error.message || L.job.error)) || '导入失败' }); L.err = '导入没有完成：' + ((L.job.error && (L.job.error.message || L.job.error)) || st); lvnStop(L); }
+  else { lvnStage(L, 'backfill', { status: 'failed', note: (L.job.error && (L.job.error.message || L.job.error)) || OB_TEXT.failed }); L.err = '导入没有完成：' + ((L.job.error && (L.job.error.message || L.job.error)) || st); lvnStop(L); }
   lvnDraw(ob);
 }
 function lvnStop(L) { if (L.poll) clearInterval(L.poll); L.poll = null; if (L.off) L.off(); L.off = null; }
@@ -249,11 +272,18 @@ async function lvnAfter(ob) {
   TL.send('GET', '/v1/catalog/status').then((r) => {
     if (!((r && r.data) || {}).first_sync) return nudge();
   }, nudge).catch(() => { /* library keeps its seed rows */ });
-  if (OB !== ob || OVL !== 'ob') {   // 在后台继续: tell the user instead of playing Genesis
-    const p = per.p;
+  L.per = per;
+  if (OB !== ob || OVL !== 'ob') {   // 在后台继续: tell the user instead of playing Genesis; the sidebar entry reopens it
+    const p = per.p; L.done = true;
     notify({ t: '协作画像已生成', b: p.ok ? '你是 ' + p.code + '「' + p.zh + '」。点开看看四个维度和协作指纹。' : '会话已导入，样本还不够下结论。', a1: '查看画像', on1: () => go('persona') });
     render(); return;
   }
+  lvnPlay(ob);
+}
+// Genesis for a finished first run (directly, or later from the sidebar entry / 查看揭晓 after 在后台继续)
+function lvnPlay(ob) {
+  const per = ob.live.per; if (!per) return;
+  if (LVN.imp === ob) LVN.imp = null;   // the first run is over: the next 打开引导 starts a fresh one
   AG.forEach((a) => { if (OB.src.has(a.id)) S.srcOff.delete(a.id); else S.srcOff.add(a.id); });
   OB.revealP = per;
   const from = obSources();
@@ -266,7 +296,7 @@ LVN.obImport = async function () {
   if (L.err && L.job && L.job.status === 'completed') { L.rev0 = LV.rev; lvnAfter(ob); return; }
   const chosen = L.sources.filter((x) => L.sel.has(x.id));
   if (!chosen.length) return;
-  L.err = null; L.starting = true; L.after = false; L.stages = lvnStages(L); L.job = null; lvnStage(L, 'backfill', { status: 'running', note: '准备来源' });
+  L.err = null; L.starting = true; L.after = false; L.stages = lvnStages(L); L.job = null; lvnStage(L, 'backfill', { status: 'running', note: OB_TEXT.preparing });
   drawOB();
   try {
     await Promise.all(L.sources.filter((x) => x.status !== 'permission_denied' && !!x.enabled !== L.sel.has(x.id) && (L.sel.has(x.id) || x.enabled))
@@ -282,6 +312,7 @@ LVN.obImport = async function () {
     }
     if (!job || !job.id) throw new Error('本机服务没有返回导入任务');
     L.job = { id: job.id, status: job.status || 'queued', progress: job.progress || null };
+    LVN.imp = ob;
     lvnWatch(ob);
     lvnJob(ob, job);
   } catch (e) {
@@ -292,14 +323,66 @@ LVN.obImport = async function () {
 
 if (LV.live) {
   // onboarding gets its live state on open (also when re-entered from settings / help menu)
+  // Reopening (sidebar entry, help menu, settings) while a first run is in flight or ended in the background shows that run
+  // where it is — the stage view of the running import, its failure with 重试, or 查看揭晓 — and never posts a second job.
+  // An import started elsewhere (another window, before a reload) is attached to instead of started again.
   const baseOpenOb = openOnboarding;
   openOnboarding = function (step) {
+    const imp = LVN.imp, L0 = imp && imp.live;
+    if (L0 && (L0.starting || L0.after || L0.done || L0.err || (L0.job && LVN.ACTIVE.indexOf(L0.job.status) >= 0))) {
+      if (OVL === 'ob' && OB === imp) return;
+      closeModal(); closeDD(); closeOverlay();
+      OB = imp; OB.step = 1; OB.drawn = null; L0.shape = null; OVL = 'ob'; $('#overlay').hidden = false;
+      if (L0.job && !L0.after && !L0.done && LVN.ACTIVE.indexOf(L0.job.status) >= 0 && !L0.poll) lvnWatch(OB);
+      drawOB(); return;
+    }
     if (OB && OB.live) lvnStop(OB.live);
     baseOpenOb(step);
     if (!OB) return;
     OB.live = { state: 'loading', sources: [], sel: new Set(), job: null, stages: null, err: null, manual: { agent: 'auto', path: '' }, touched: false };
-    LVN.loadOb(OB);
+    const ob = OB;
+    LVN.loadOb(ob).then(() => LVN.attach(ob)).catch(() => { /* the list shows its own error */ });
   };
+  // an import job already running on the gateway (TL.job or GET /v1/app/jobs): show its stages instead of the source picker
+  LVN.attach = async function (ob) {
+    const L = ob.live; if (!L || L.job || L.starting || OB !== ob) return;
+    let job = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
+    if (!job) { const js = await lvnTry('/v1/app/jobs'); job = (Array.isArray(js) ? js : []).find((j) => j && j.kind === 'import' && LVN.ACTIVE.indexOf(j.status) >= 0) || null; }
+    if (!job || !job.id || OB !== ob || L.job || L.starting) return;
+    L.stages = lvnStages(L); L.rev0 = LV.rev; L.after = false;
+    L.job = { id: job.id, status: job.status || 'queued', progress: job.progress || null };
+    LVN.imp = ob; ob.step = 1;
+    lvnWatch(ob); lvnJob(ob, job);
+  };
+  // sidebar entry under the edition switch (both editions): import progress → 查看, then 重新打开引导 / 重试
+  LVN.bg = false;
+  LVN.sideState = function () {
+    const L = LVN.imp && LVN.imp.live, T = OB_TEXT.side;
+    const tj = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
+    const pct = (j) => { const pr = (j && j.progress) || {}; return pr.total ? ' ' + Math.round(clamp(pr.completed / pr.total, 0, 1) * 100) + '%' : ''; };
+    if (L && L.err) return { k: 'fail', t: T.fail, a: T.retry, ico: 'alert' };
+    if (L && L.done) return { k: 'done', t: T.done, a: '', ico: 'spark' };
+    if (L && L.after) return { k: 'run', t: T.analyze, a: T.view, ico: 'sync' };
+    if (L && (L.starting || (L.job && LVN.ACTIVE.indexOf(L.job.status) >= 0))) return { k: 'run', t: T.run + pct(L.job), a: T.view, ico: 'sync' };
+    if (tj) return { k: 'run', t: T.run + pct(tj), a: T.view, ico: 'sync' };
+    if (LVN.bg) return { k: 'done', t: T.done, a: '', ico: 'spark' };
+    if (LV.state === 'empty' && !ALL.length) return { k: 'start', t: T.start, a: '', ico: 'plus' };
+    return null;
+  };
+  LVN.sideHTML = function (x) {
+    return '<button type="button" class="sb-imp" data-side="import" data-k="' + x.k + '" data-act="obReopen" aria-label="' + esc(x.t + (x.a ? ' · ' + x.a : '')) + '">' +
+      '<span class="sb-imp-ic' + (x.k === 'run' ? ' spin-ic' : '') + '">' + ic(x.ico, 14) + '</span><span class="sb-imp-t">' + esc(x.t) + '</span>' + (x.a ? '<span class="sb-imp-a">' + esc(x.a) + ' ›</span>' : '') + '</button>';
+  };
+  SIDE_EXTRA = () => { if (ORBIT.native.surface) return ''; const x = LVN.sideState(); return x ? LVN.sideHTML(x) : ''; };
+  // patch the entry in place on a frame; only appearing / disappearing re-renders the sidebar
+  LVN.sidePatch = function () {
+    const side = $('#side'); if (!side || ORBIT.native.surface) return;
+    const x = LVN.sideState(), el = side.querySelector('[data-side="import"]');
+    if (!x && !el) return;
+    if (!x || !el) { renderSide(); return; }
+    const html = LVN.sideHTML(x); if (el.outerHTML !== html) el.outerHTML = html;
+  };
+  TL.on('event', (ev) => { if (ev && ev.name === 'job') LVN.sidePatch(); });
   // reveal (help menu, persona page 重播揭晓, onboarding「播放揭晓动画」) plays the server persona
   const baseReveal = openReveal;
   openReveal = function (opt) {
@@ -329,7 +412,11 @@ if (LV.live) {
       } catch (e) { L.err = e.message || '添加失败'; if (e.path) L.manual.path = e.path; }
       finally { L.adding = false; lvnDraw(ob); }
     },
-    obBgImport: () => { closeOverlay(); render(); toast('导入会在后台继续，完成后通知你'); }
+    obBgImport: () => { LVN.bg = true; closeOverlay(); render(); toast('导入会在后台继续，完成后通知你；侧栏顶部可以随时查看进度'); },
+    obReopen: () => openOnboarding(0),
+    obPlay: () => { if (OB && OB.live && OB.live.per) lvnPlay(OB); },
+    // 跳过 while the import runs = continue in the background (the job keeps going; the sidebar entry brings the sheet back)
+    obClose: (() => { const base = ACT.obClose; return (el, e) => { if (OB && OB.live && (OB.live.job || OB.live.starting)) LVN.bg = true; return base(el, e); }; })()
   });
   // first run: no projection yet, or no enabled source → onboarding opens by itself (main window only, once per load)
   if (!ORBIT.native.surface) setTimeout(() => {

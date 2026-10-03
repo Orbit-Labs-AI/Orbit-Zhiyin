@@ -1,9 +1,9 @@
 """Share-card payload (EXP-03/04): experimental persona with a hard sample-size gate.
 
 The card reads the A2 persona (``/v1/uiview/persona`` payload, ``uiview-persona-v0``), so the
-card and the page always show the same code. Gate: the persona is ``ok`` (≥ 30 sessions),
-no axis is ``insufficient`` (per-axis units and ≥ 10 active days, as on the page), and the
-code is settled (no ``?``). Rendering (PNG/SVG) belongs to the frontend.
+card and the page always show the same code. Gate: the persona is ``ok`` (≥ 1 session; the
+page always gives a full four-letter code, so ``unsettled_code`` only guards legacy payloads).
+Rendering (PNG/SVG) belongs to the frontend.
 
 ``persona_profile`` / ``gate`` / ``blocked_reason`` remain for the report's persona section
 (``presentation.profile`` four axes).

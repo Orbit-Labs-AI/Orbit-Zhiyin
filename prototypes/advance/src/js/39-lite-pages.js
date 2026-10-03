@@ -47,12 +47,12 @@ PAGES['l-home'] = () => {
   const pers = personaNow();
   // live: the L0 insight lede of /v1/uiview/overview (same scope) when it is there; the persona line otherwise
   const ins = LV.live && LV.ready('l-home') && LV.ov ? LV.ov.insight : null;
-  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + pers.n + ' 个会话，至少需要 30 个才给出协作画像。';
+  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。';
   const ev = st.n ? Math.round(st.verify) + '% 的会话要求验证 · ' + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + Math.round(st.ok) + '%' : '这段时间没有会话';
   const hero = '<div class="card pad l-hero"><div class="col l-lede"><div class="row" style="flex-wrap:wrap"><span class="aib">' + ic('spark', 11) + 'AI 解读</span><span class="cap">' + (LV.live ? esc(ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' +
     '<p class="serif l-say">' + esc(lede) + '</p><span class="cap mono l-ev">' + ev + '</span></div>' +
     (pers.ok ? '<button type="button" class="ov-code l-code" data-act="go" data-r="l-persona" aria-label="查看协作画像：' + pers.code + ' ' + pers.zh + '"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="serif ov-code-l" data-hero="code">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap;gap:8px"><span class="serif l-zh">' + pers.zh + '</span><span class="serif l-en">' + pers.en + '</span></span><span class="cap">查看协作画像 →</span></button>'
-      : '<div class="ov-code l-code"><span class="eb">协作画像</span><span class="serif ov-code-l" data-hero="code">????</span><span class="cap">再积累 ' + Math.max(0, 30 - pers.n) + ' 个会话后揭晓</span></div>') + '</div>';
+      : '<div class="ov-code l-code"><span class="eb">协作画像</span><span class="serif ov-code-l" data-hero="code">????</span><span class="cap">还没有会话 · 有 1 个会话即可揭晓</span></div>') + '</div>';
   const d = (cur, prev, o) => P ? Object.assign({ cur, prev }, o) : { text: S.range ? '无可比上期' : '全部历史 · 不比较', cls: '' };
   const tiles = [
     liteCount(VZ.kpi({ label: '会话', value: fmt(st.n), delta: d(st.n, P && P.n, { unit: 'pct', goodDown: false, fmt: 'int' }), act: 'go', attrs: ' data-r="l-sessions"' }), st.n),
@@ -78,10 +78,10 @@ PAGES['l-persona'] = () => {
   const L = personaScope(); const p = persona(L);
   if (p.pending) return liteBar('协作画像', rangeLabel() + ' · ' + L.length + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona">' + LV.pend(360) + LV.pend(220) + '</div></div>';
   if (!p.ok) {
-    return liteBar('协作画像', rangeLabel() + ' · ' + p.n + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona"><div class="card pe-low l-low"><div class="ov-code"><span class="serif ov-code-l" data-hero="code">????</span></div><div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">样本不足</span><p class="serif l-say" style="margin:0">所选范围只有 ' + p.n + ' 个会话，至少需要 30 个才给出协作画像。</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn p l-big" data-act="range" data-v="30">看近 30 天</button><button type="button" class="btn l-big" data-act="range" data-v="0">看全部历史</button></div></div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
+    return liteBar('协作画像', rangeLabel() + ' · ' + p.n + ' 个会话') + '<div class="content" id="content"><div class="lite l-persona"><div class="card pe-low l-low"><div class="ov-code"><span class="serif ov-code-l" data-hero="code">????</span></div><div class="col" style="gap:10px;flex:1;min-width:240px"><span class="eb">还没有会话</span><p class="serif l-say" style="margin:0">所选范围还没有会话，有 1 个会话就能给出协作画像。</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn p l-big" data-act="range" data-v="30">看近 30 天</button><button type="button" class="btn l-big" data-act="range" data-v="0">看全部历史</button></div></div></div>' + liteFoot([['persona', '在 Advance 中查看明细']]) + '</div></div>';
   }
   const tags = [0, 1, 2, 3].map((i) => axisView(p, i)).map((a) => '<span class="tag">' + a.name + ' ' + a.strong + '</span>').join('');
-  const hero = '<div class="card persona-hero l-phero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span></div>' +
+  const hero = '<div class="card persona-hero l-phero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code" aria-label="' + p.code + ' ' + p.zh + '">' + p.code.split('').map((ch) => '<span class="L serif">' + ch + '</span>').join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;flex-wrap:wrap"><span class="serif l-zh">' + p.zh + '</span><span class="serif l-en">' + p.en + '</span></div>' +
     '<p class="serif l-line">' + esc(p.line) + '</p><div class="row" style="flex-wrap:wrap;gap:6px"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + tags + '</div>' +
@@ -94,7 +94,7 @@ PAGES['l-persona'] = () => {
   const cm = peCurMonth();
   const months = peMonthKeys().map((k) => ({ k, m: LV.live ? +k.slice(5) : ({ jun: 6, jul: 7, aug: 8, sep: 9 })[k], p: persona(personaScope([PERIODS[k][0], PERIODS[k][1]])) }));
   const evo = '<div class="card pad l-evo"><div class="hd"><div class="grow"><span class="ct">演变</span><span class="cap">按月重算 · 点击在 Advance 中查看那个月</span></div>' + liteAdv('persona') + '</div><div class="evo">' +
-    months.map((m, i) => '<button type="button" data-act="litePeriod" data-v="' + m.k + '" class="' + (m.k === cm ? 'on' : '') + '"' + (m.k === cm ? ' aria-current="true"' : '') + '><span class="mono l-mm">' + m.m + ' 月' + (m.k === cm ? ' · 本月' : '') + '</span><span class="serif l-mc">' + (m.p.ok ? m.p.code : '—') + '</span><span class="l-mz">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div></div>';
+    months.map((m, i) => '<button type="button" data-act="litePeriod" data-v="' + m.k + '" class="' + (m.k === cm ? 'on' : '') + '"' + (m.k === cm ? ' aria-current="true"' : '') + '><span class="mono l-mm">' + m.m + ' 月' + (m.k === cm ? ' · 本月' : '') + '</span><span class="serif l-mc">' + (m.p.ok ? m.p.code : '—') + '</span><span class="l-mz">' + (m.p.ok ? m.p.zh : '暂无会话') + '</span></button>' + (i < 3 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div></div>';
   return liteBar('协作画像', 'n=' + p.n + ' · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + rangeLabel()) +
     '<div class="content" id="content"><div class="lite l-persona">' + hero + axes + evo + '</div></div>';
 };
