@@ -14,9 +14,5 @@
     "check:installed": "bash scripts/check-installed.sh",
     "check:docs": "uv run --no-sync python scripts/check-repository.py",
     "build": "uv build --all-packages && pnpm --filter @tandem/connectors build && pnpm --filter @tandem/prototype-advance build"
-  },
-  "devDependencies": {
-    "@fontsource-variable/jetbrains-mono": "^5.3.0",
-    "@fontsource-variable/source-serif-4": "^5.3.0"
   }
 }

@@ -8,7 +8,7 @@
 //   7. 时间线原语：密度泳道的桶数 ≤ 像素桶数且无逐事件刻度、关键时刻在窄宽度合并成簇、now 标记、range 收窄后窗外事件不画、只有阶段也有有效范围；
 //   8. minimap：拖视窗平移（位移 = 鼠标位移）、拖手柄缩放（另一端不动）、Home 复位并报告 null、↑ 缩小视窗；
 //   9. 其他：bar 的 hatch 斜纹与 <pattern>、diverging 的 deadband、mood 色阶 6 档、KPI 环比文案（▲▼ + 变化量 + 上期）；
-//  10. 视觉语言：刻度 / 数值 / KPI 环比用等宽字体（var(--mono)），名称与说明仍是 UI 无衬线；spec.head 输出 .eb / .ct / .cap 层级；
+//  10. 视觉语言：刻度 / 数值 / KPI 环比用 tabular 数字（var(--font-num)），与名称说明同为系统无衬线；spec.head 输出 .eb / .ct / .cap 层级；
 //  11. 动效：首次绘制 svg 带 vz-in（线描入、柱升起），重绘不再带；prefers-reduced-motion 下 computed animation-name 为 none；
 //  12. 回放：播放头可拖并吸附到事件、onPlayhead 回调；[ ] 逐事件；VZ.replay 走到末尾自动停且回放中未发生的事件隐藏；
 //      axisMode 'steps' 事件等距、刻度为整数步；⌘ / Ctrl + 滚轮以光标为锚缩放并通过 onView 同步 minimap 视窗，Home 复位。
@@ -346,12 +346,12 @@ test('kpi delta shows direction, magnitude and the previous value', async ({ pag
   await expect(page.locator('#content .vz-kpi').first().locator('.vz-kpi-d')).toContainText('上期');
 });
 
-test('ticks and values are monospace, names stay sans, and spec.head uses the card hierarchy', async ({ page }) => {
+test('ticks and values use tabular sans digits like names, and spec.head uses the card hierarchy', async ({ page }) => {
   await openGallery(page);
   await mountOne(page, 'bar-h', 720, { head: { eyebrow: '工具调用', title: 'Bash 占了 44% 的调用', sub: '近 30 天 · 调用次数', evidence: { label: '证据 →', act: 'vzNoop' } } });
-  const fonts = await page.evaluate(() => { const el = window.__vzInst.el; const f = (s) => getComputedStyle(el.querySelector(s)).fontFamily; return { ax: f('text.vz-ax'), val: f('text.vz-val'), cat: f('text.vz-cat'), kpi: getComputedStyle(document.querySelector('#content .vz-kpi-d')).fontFamily }; });
-  expect(fonts.ax).toMatch(/Mono/); expect(fonts.val).toMatch(/Mono/); expect(fonts.kpi).toMatch(/Mono/);
-  expect(fonts.cat).not.toMatch(/JetBrains/);
+  const fonts = await page.evaluate(() => { const el = window.__vzInst.el; const f = (s) => getComputedStyle(el.querySelector(s)).fontFamily; return { ax: f('text.vz-ax'), val: f('text.vz-val'), cat: f('text.vz-cat'), kpi: getComputedStyle(document.querySelector('#content .vz-kpi-d')).fontFamily, num: getComputedStyle(el.querySelector('text.vz-val')).fontVariantNumeric }; });
+  for (const f of [fonts.ax, fonts.val, fonts.kpi, fonts.cat]) { expect(f.split(',')[0].trim()).toBe('-apple-system'); expect(f).not.toMatch(/Mono|monospace/); }
+  expect(fonts.num).toContain('tabular-nums');
   const el = page.locator('#vzLab .vz[data-lab="bar-h"]');
   await expect(el.locator('.vz-head .eb')).toHaveText('工具调用');
   await expect(el.locator('.vz-head .ct')).toHaveText('Bash 占了 44% 的调用');

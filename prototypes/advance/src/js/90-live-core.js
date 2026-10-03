@@ -90,7 +90,7 @@ ORBIT.native = (function () {
       if (!post(type, payload)) { waits.delete(id); reject(Object.assign(new Error('no host'), { code: 'no_host' })); }
     });
   }
-  // tandem:command {cmd:'settings'|'palette'|'about'|'route'|'toggleEdition'|'refresh', route?}
+  // tandem:command {cmd:'settings'|'palette'|'about'|'keys'|'onboarding'|'reveal'|'report'|'share'|'csv'|'route'|'toggleEdition'|'refresh', route?}
   function onCommand(fn) { const h = (e) => fn((e && e.detail) || {}); window.addEventListener('tandem:command', h); return () => window.removeEventListener('tandem:command', h); }
   return { isNative: !!info, info, surface, post, request, onCommand, has: (f) => !!info && (info.features || []).indexOf(f) >= 0, hasHost: () => !!handler() };
 })();
