@@ -39,8 +39,8 @@ scene('05-light', () => {
         [125.7, 965, 740, 1550, .38], [131.7, 975, 728, 1600, 0]] }
   ];
   // v18.1 parallax: scripted [film beat, dur, dx, dy, ease], ≈ 1/3 of each foreground move in the same direction
-  // (A, B × 1, C × .6); the eased sum is an offset that stays (see the waypoint note below). Still no reads of scene objects.
-  const PAR = [[49.7, 1.4, -120, 0, 'inOut'], [85.9, 1.4, 40, 0, 'out'], [98.2, 1.2, -60, 40, 'inOut'], [106.1, 1.0, 0, -40, 'inOut']];
+  // (A, B × 1, C × .6; b98.2 dy −40: the trajectory card leaves upward and SKILL.md rises in); the eased sum is an offset that stays (see the waypoint note below). Still no reads of scene objects.
+  const PAR = [[49.7, 1.4, -120, 0, 'inOut'], [85.9, 1.4, 40, 0, 'out'], [98.2, 1.2, -60, -40, 'inOut'], [106.1, 1.0, 0, -40, 'inOut']];
   const par = (b) => PAR.reduce((a, [pb, du, x, y, ez]) => { const q = E[ez](clamp((b - pb) / du)); a[0] += x * q; a[1] += y * q; return a; }, [0, 0]);
 
   // ---- path: centripetal Catmull-Rom (Barry–Goldman) over [x, y, w, strength], knots from the x/y chord ** .5 (v18.1: at least 12, so a
