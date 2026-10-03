@@ -1,6 +1,6 @@
 # Orbit 宣传片
 
-约 60 秒（131.7 拍，132 BPM，1 拍 = 0.4545 秒，成片 ≈ 59.86 秒）、纯黑背景的 Orbit 产品宣传片（v18.3）。每轮打磨改了什么见 [STORYBOARD.md](STORYBOARD.md) 开头的「打磨记录（v18）」，点的形态见「v17.7」一节，现状与逐段关键拍见「现状」一节（再往后各节是历史记录），参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。拍号以 `scenes/*.js` 为准。
+约 60 秒（131.7 拍，132 BPM，1 拍 = 0.4545 秒，成片 ≈ 59.86 秒）、纯黑背景的 Orbit 产品宣传片（v18.4）。每轮打磨改了什么见 [STORYBOARD.md](STORYBOARD.md) 开头的「打磨记录（v18）」，点的形态见「v17.7」一节，现状与逐段关键拍见「现状」一节（再往后各节是历史记录），参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。拍号以 `scenes/*.js` 为准。
 
 全片只有一套 Agent 点：5 个 Agent 的圆形标志（`agBadge`，即 App 的 `agLogo`）从第一拍弹出，始终是一个紧凑的小组、也就是视线中心，一路变换编队，把各段连成一条线：簇 → 笔尖（∪ 弧）→ 窄弧 → 光标 → 窄弧 → R 420 圆环 → 标志外的倾斜轨道 → 字标下一行 → 罗盘外圈（随 Agent 曲线公转）→ 左侧短列 → 合并为一（骑播放头、当光标、当生成源）→ 螺旋放出成环 → 罗盘 → 圆环 → 笔头后的一串 → 图标下一行 → 标语下一小行。自 v17.7 起点还会变形（`AGD.morph`，12 种形态：dot caret pill tail bead petal bullet pin pointer spark head orb），每次变形都配一个画面元素，凡是点状形态 logo 都保持可认。另外几样由宣传片自己绘制：
 
@@ -50,7 +50,7 @@
 | `scenes/00-kit.js` | 共用的文字形式（`K.words`、`K.big`、`K.swap`、`K.blurIn`、`K.centerOut`、`K.decode`、`K.mark` 等）与 `hash01` |
 | `scenes/02-agents.js` | Agent 点层 AGD：`AGD.key(b, form, o)` 编队关键帧（ring / arc / column / orbit / compass / merge / row …）、`AGD.follow`、`AGD.chat` 输入框、`AGD.bubble` 气泡、`AGD.link` 连线、`AGD.pulse`、`AGD.glow`、`AGD.back` 点下方的绘制层、`AGD.pos` / `AGD.centroid` |
 | `scenes/03-wordmark.js` | 字标展开 helper（不注册场景）：`WORDMARK.place(pose)` 把 kit 第 0 帧对齐到 `orbitSVG` 的 ICON 姿态，`WORDMARK.svg(o)` 按转身进度 `v`、字母起落拍与 `offRate` / `color` 画进它自己插在 `#orbit` 之上的 `#wordmark` 层；帧加载完才启动脚本。20-orbit 与 60-close 共用 |
-| `scenes/05-light.js` / `light/` | 底层光影：三团颗粒渐变光体，各走各的连续轨迹，不读取任何场景对象；自 v18.1 起路点直接写成片拍（不再按 END 拉伸），1e 起 ring 光是外缘也渐隐的环带、圈住 R 420 点环与人格表盘（v18.2），强度按章节做明暗弧线，`.light` 带静态边缘衰减让画面往中心收，`PAR` 视差表随前景移动；片头字标段压暗到每团 ≤ .15，片尾曲线画起前长淡到纯黑并保持到最后一帧 |
+| `scenes/05-light.js` / `light/` | 底层光影：三团颗粒渐变光体，各走各的连续轨迹，不读取任何场景对象；自 v18.1 起路点直接写成片拍（不再按 END 拉伸），1e 起 ring 光是外缘也渐隐的环带、圈住 R 420 点环与人格表盘（v18.2），强度按章节做明暗弧线，`.light` 带静态边缘衰减让画面往中心收，`PAR` 视差表随前景移动、`DS` 尺度视差随推镜缩放（v18.4）；片头字标段压暗到每团 ≤ .15，片尾曲线画起前长淡到纯黑并保持到最后一帧 |
 | `scenes/10-intro.js` … `60-close.js` | 各段（见上表），各自用 `scene(name, fn)` 注册；只写自己拍段的关键帧，交接约定见 STORYBOARD.md |
 | `music.py` | 用 numpy/scipy 在同一拍网格上合成配乐（C 大调 / A 小调，vi–IV–I–V 循环；1b/1d 逐字按键声，点变形在独立 morph 总线上低于主 cue ≥ 10 dB），每个 cue 写在 `section('<场景>')` 里的场景拍，用同一张 `SHIFT` 表；输出 `out/soundtrack.wav` |
 | `render.mjs` | 在 Playwright 的虚拟时钟上逐帧截图，再用 ffmpeg 与配乐合成 MP4 |
