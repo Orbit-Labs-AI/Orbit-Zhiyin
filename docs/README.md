@@ -86,6 +86,11 @@
 | [分析与 AI 可靠性审计](audits/analysis-ai-reliability-2026-10-03.md) | 范围隔离、证据校验、专业分析模板和 UI 输入输出映射 |
 | [推荐与资源库可靠性审计](audits/recommendation-reliability-2026-10-03.md) | 多路召回、质量维度、目录扩充、AI 专家建议和评测边界 |
 | [历史 Skill 丢失根因](audits/history-skill-root-cause.md) | 12 条 history 的候选漏斗、Agent 过滤与名额消融 |
+| [历史技能学习正式结果](audits/history-skill-learning/RESULT_REPORT.md) | 冻结后四题三组对比、全部 task 与 verifier、版本和原始目录 |
+| [历史技能学习成本](audits/history-skill-learning/TOKEN_REPORT.md) | Online / adaptation tokens、tokens per success、实扣余额与全部尝试 |
+| [历史技能学习正面案例](audits/history-skill-learning/POSITIVE_REPORT.md) | 历史方法接通、约束遵循改善与局部 token 节省 |
+| [历史技能学习负面案例](audits/history-skill-learning/NEGATIVE_REPORT.md) | 成本退化、部分遵循、verifier 局限与未达成的目标 |
+| [历史技能学习注入审计](audits/history-skill-learning/INJECTION_REPORT.md) | 完整 funnel、候选证据、精确正文、activation 与实际使用 |
 | [端到端集成审计](audits/integration-reliability-2026-10-03.md) | 设置并发、问答范围、页面接线、交互证据与本轮验收 |
 | [向量规模审计](audits/catalog-vector-scale-2026-10-03.md) | 100K 构造基准、真实 E5 吞吐、分片物化与覆盖口径 |
 | [后端深度排查修复](audits/backend-debug-fixes-2026-10-04.md) | 12 项隐私、缓存、AI 控制、安装回滚与实时状态缺陷的修复和回归 |

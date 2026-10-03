@@ -43,3 +43,9 @@ python3 scripts/heavy.py uv run python -m evals.skill_learning.development audit
 ```bash
 uv run pytest -q evals/skill_learning/tests
 ```
+
+## 本轮结果与离线汇总
+
+正式四题运行冻结于 `2225b37cbcc3bde1608182bdccdcdf55a2bf1de5`：ours 4/4、LLM 4/4、vanilla 3/4，但 ours 比 LLM 多 69.71% online tokens。完整结果、成本、正负案例、注入正文与逐运行哈希见[五份报告入口](../../docs/audits/history-skill-learning/RESULT_REPORT.md)。这些 test 已暴露，后续不能重复充当新的 held-out。
+
+`python -m evals.skill_learning.report --root "$STUDY_ROOT"` 只聚合 `freeze.json` 的固定任务与 `cohorts/` 选定的完整供应商组，输出 `report-data.json`。它同时保留全部失败/中断尝试的 token ledger，未知用量保持下限；人工 `usage-review.json` 需要先经 `trace` 校验。该步骤不调用模型、不改实现、不挑选有利结果。

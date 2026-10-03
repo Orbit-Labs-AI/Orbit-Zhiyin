@@ -1,6 +1,6 @@
 # Orbit 历史技能学习与隔离评测
 
-状态：实施中；起点：`5ce95c83`；目标：用可追溯的通用推荐改进验证 held-out 效果。
+状态：本轮实施与冻结评测已完成；起点：`5ce95c83`。正式结果为 ours 4/4、LLM 4/4、vanilla 3/4；ours online tokens 比 LLM 高 69.71%，未达成全面领先。五份报告、精确资产与证据见[正式结果](../audits/history-skill-learning/RESULT_REPORT.md)。以下保留本轮预登记与实现约束。
 
 ## 实验边界
 
