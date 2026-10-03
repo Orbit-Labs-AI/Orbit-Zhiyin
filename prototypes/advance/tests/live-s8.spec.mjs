@@ -83,6 +83,24 @@ test('calm: without realtime the HUD stays hidden, the panel uses /v1/shell/popo
   expect(errors).toEqual([]);
 });
 
+test('opening line: the rule-template hint carries 「规则」, not the purple AI badge', async ({ page }) => {
+  ONLY();
+  const errors = collectErrors(page);
+  const pv = (basis) => { const o = fx('s8/popover.json'); o.opening = { text: '最近「FX 测试失败」出现得最多', refs: [], next: 'studio', basis }; return o; };
+  let basis = 'rule';
+  await setup(page, { 'GET /v1/analytics/realtime': { status: 404 }, 'GET /v1/shell/popover': () => pv(basis) });
+  await openLive(page, 'overview');
+  await expect.poll(() => page.evaluate(() => TLO.off)).toBe(true);
+  await page.evaluate(() => { S.pop = true; render(); });
+  const line = page.locator('#pop [data-tl="opening"]');
+  await expect(line).toContainText('FX 测试失败');
+  await expect(line).toHaveAttribute('data-basis', 'rule');
+  await expect(line.locator('.aib')).toHaveCount(0);
+  await expect(line.locator('.bdg')).toHaveText('规则');
+  expect(await line.evaluate((el) => el.style.background)).toBe('');
+  expect(errors).toEqual([]);
+});
+
 for (const sf of ['panel', 'hud', 'widgets']) {
   test('surface ' + sf + ': only that component, transparent, resizeSurface + openMain', async ({ page }) => {
     ONLY();
