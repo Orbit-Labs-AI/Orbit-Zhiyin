@@ -331,7 +331,7 @@ scene('40-recs', () => {
   // [x0, y0, k0, x1, y1, k1]: right column → centre (numerals 1.5×, the caption grows from .8 to 1)
   // v18.2: each numeral gets a 36 px Chinese label under it (协作时间 / Token 用量) instead of the mono label above it
   const POS = { tl: [1720, 535, 1, 940, 600, 1], tv: [1720, 450, 1, 940, 480, 1.5], kl: [1720, 785, 1, 1370, 600, 1],
-    kv: [1720, 700, 1, 1370, 480, 1.5], cap: [1720, 880, .75, 1155, 680, 1] };
+    kv: [1720, 700, 1, 1370, 480, 1.5], cap: [1704, 880, .72, 1155, 680, 1] };
   // the Token half lags .12 beat behind the time half, so the two numerals never pass over each other on the way in
   const place = (key, lag = 0) => { const m = mask(.18, 1, POX), [x0, y0, k0, x1, y1, k1] = POS[key]; return (el, tl, life, t) => {
     m(el, tl, life);
@@ -344,5 +344,5 @@ scene('40-recs', () => {
   txt(44.9, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1720, y: 450, align: 'c' }, { anim: place('tv'), tick: num('t') });
   txt(KB + .1, POUT, [['r4-l', 'Token 用量']], { x: 1720, y: 785, align: 'c' }, { anim: place('kl', .12) });
   txt(KB, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1720, y: 700, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
-  txt(45.35, POUT, [['lt r4-s', '预计可节省的占比 · 按真实轨迹估算']], { x: 1720, y: 880, align: 'c' }, { anim: place('cap', .2) });
+  txt(45.35, POUT, [['lt r4-s', '预计可节省的占比 · 按真实轨迹估算']], { x: 1704, y: 880, align: 'c' }, { anim: place('cap', .2) });
 });
