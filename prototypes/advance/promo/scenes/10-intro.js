@@ -13,6 +13,10 @@
    whole ≥ max(2, 1.2 + .18 / CJK char + .09 / Latin char) beats, a shot's big headline × 1.3: 「正在成为每个人的日常」
    3.94 (b2.66–6.6), 「用 AI Agent，」 5.1, 「从想法到交付」 ≈ 3.6, every bubble 2.0–2.6, 「We Are Redesigning」 3.45
    (b15.25–18.7), 「Everything」 2.9, the gloss 3.65 (b15.6–19.25).
+   v17.5 word-by-word rhythm (length unchanged): every word / phrase opens fast (.24 beat) and lands with a small settle
+   (1.07× → 1, blur 6 → 0 by +.4), then sits still until the next one, about half a beat apart: 「用」 b0.4 · 「AI Agent，」
+   0.72 · 「正在」 1.05 · 「成为」 1.5 · 「每个人的」 1.95 · 「日常」 stamp 2.3 (hit 2.6) · 「从想法」 T(5.2) · 「到交付」 +.35 · We / Are /
+   Redesigning / Everything on CB0 + 0 / .5 / 1.0 / 1.5; the pen and the caret step on in the gap after each landing.
    The five dots are one tight group the eye follows, and the content comes out of it:
    1a 用 AI Agent，/ 正在成为每个人的日常（b0–5.4）：a cluster (R 60) pops in the middle of the black and 「用 AI Agent，」
       floats up out of it; from b0.8 the dots are a ∪ pen under the headline, gliding under each word just before it wipes
@@ -49,8 +53,12 @@ scene('10-intro', () => {
   // unclipped from 1.3× to .97× (E.io, .3 beat — the hit) and settle back to 1 (E.io, .3 beat); opacity and blur only
   // ever go one way, so nothing flashes.
   const STAMP = (u) => (u < .3 ? lerp(1.3, .97, E.inOut(u / .3)) : lerp(.97, 1, E.inOut(clamp((u - .3) / .3))));
+  // v17.5 (word-by-word rhythm): a word now opens fast (o.dur, default .24 beat, E.out) and lands with a small settle —
+  // the glyphs come in at 1.07× out of a 6 px blur and come to rest at 1 by dur + .16 — then sit still (the block's slow
+  // push keeps going) for the rest of its half-beat slot before the next word: each word reads as one step.
+  const SET = .16;
   const wipe = (o) => (el, tl, life) => {
-    const ws = [...el.querySelectorAll('.w')], dur = o.dur ?? .45;
+    const ws = [...el.querySelectorAll('.w')], dur = o.dur ?? .24;
     if (!el._ww || !el._ww.some((v) => v > 0)) { ws.forEach((w) => { w.style.display = ''; w.style.width = ''; }); el._ww = ws.map((w) => w.offsetWidth); }
     ws.forEach((w, i) => {
       if (i === o.stamp) {
@@ -64,12 +72,14 @@ scene('10-intro', () => {
         w.style.transformOrigin = '50% 58%';
         return;
       }
-      const p = E.out(clamp((tl - BB(o.at[i])) / BB(dur)));
+      const u = (tl - BB(o.at[i])) / BEAT, p = E.out(clamp(u / dur)), z = E.out(clamp(u / (dur + SET)));
       w.style.display = p > 0 ? '' : 'none';
       w.style.width = p < 1 ? (el._ww[i] * p).toFixed(1) + 'px' : '';
       w.style.clipPath = p < 1 ? 'inset(-40% 0 -40% -20%)' : '';
       w.style.opacity = Math.min(1, p * 1.5).toFixed(3);
-      w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 5).toFixed(1) + 'px)' : 'none';
+      w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 6).toFixed(1) + 'px)' : 'none';
+      w.style.transform = z < .999 ? 'scale(' + lerp(1.07, 1, z).toFixed(4) + ')' : '';
+      w.style.transformOrigin = '50% 58%';
     });
     const q = E.inOut(clamp((tl - (life - BB(o.out))) / BB(o.out)));
     const sc = (o.fit ? Math.min(1, o.fit / Math.max(1, el.offsetWidth)) : 1) * (1 + (o.push || 0) * tl / life);
@@ -107,12 +117,13 @@ scene('10-intro', () => {
   // b4.8–5.4 — fade + blur, drifting up 60 px; until then both keep a slow push (+6 %). Whole headline readable
   // b2.66–4.8 (2.14 beats), the small line b1.5–4.8
   const up60 = (tl, life) => -60 * E.inOut(clamp((tl - (life - BB(.6))) / BB(.6)));
-  txt(0.4, T(5.4), [['lt in-s', '用 AI Agent，']], { x: 960, y: 430, align: 'c' }, {
-    anim: K.blurIn({ spread: .6, dur: .5, out: .6 }),
-    tick: (el, tl, life) => { el.style.transform = 'translate(-50%,-50%) translateY(' + (18 * (1 - E.out(clamp(tl / BB(.9)))) + up60(tl, life)).toFixed(1) + 'px) scale(' + (1 + .06 * tl / life).toFixed(4) + ')'; }
+  // v17.5: 「用」 then 「AI Agent，」 step in (b0.4 / 0.72, each landing with the settle), whole by b0.96
+  txt(0.4, T(5.4), [['lt in-s', '<span class="w">用 </span><span class="w">AI Agent，</span>']], { x: 960, y: 430, align: 'c' }, {
+    anim: wipe({ at: [0, .32], push: .06, up: 60, out: .6 }),
+    tick: (el, tl) => { el.style.transform += ' translateY(' + (18 * (1 - E.out(clamp(tl / BB(.9))))).toFixed(1) + 'px)'; }
   });
   const HEAD = ['hv sv in-big', '<span class="w">正在</span><span class="w">成为</span><span class="w">每个人的</span><span class="w in-hot">日常</span>'];
-  const HB0 = .5, HB1 = T(5.4), HAT = [.6, 1.02, 1.44, 1.86];
+  const HB0 = .5, HB1 = T(5.4), HAT = [.55, 1.0, 1.45, 1.8];      // v17.5: b1.05 / 1.5 / 1.95, 「日常」 stamps b2.3, hits b2.6
   txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: HAT, stamp: 3, fit: 1600, push: .06, up: 60, out: .6 }) });
   // T0′ the pen (b0.8–4.8): a ∪ arc (gap 56, sag −14, r 28) 112 px under the headline, centred under the newest word. A
   // centred line re-centres as a word grows, so word k sits at 960 + (width of the words before it) / 2 for its whole
@@ -124,7 +135,7 @@ scene('10-intro', () => {
     const W = headW(), p = sum(W, k);
     return 960 + p / 2 * Math.min(1, 1600 / sum(W, k + 1)) * (1 + .06 * clamp((b - HB0) / (HB1 - HB0)));
   };
-  const penX = (b) => glide(b, 960, [1, 2, 3].map((k) => [HB0 + HAT[k] - .5, HB0 + HAT[k] - .08, headC(k)]).concat([[3.2, T(4.4), 960]]));
+  const penX = (b) => glide(b, 960, [1, 2, 3].map((k) => [HB0 + HAT[k] - .26, HB0 + HAT[k] - .02, headC(k)]).concat([[3.2, T(4.4), 960]]));   // v17.5: steps in the gap after each word lands
   const penY = (b) => 652 - 60 * E.inOut(clamp((b - (HB1 - .6)) / .6));
   // front-loaded (smoothstep into a cubic ease-out, zero speed at both ends) so the cluster clears the type band
   // (y 480–600) while 「每天」 is still wiping in: at b1.0 the dots are ≈ 75 % of the way down
@@ -132,7 +143,7 @@ scene('10-intro', () => {
   AGD.key(0.8, 'arc', { cx: penX, cy: penY, gap: 56, sag: -14, r: 28, dur: .5, stag: .04, ease: PEN_E });
   // every dot breathes (1.06, .5 beats) as each word lands; under 「日常」 the pen gives a firmer press (1.1) on the hit,
   // b2.66; while the whole line is read it keeps breathing softly (1.04) about every .65 beat (new grid) until the exit
-  for (const k of [0, 1, 2]) for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[k] + .03 * i, 1.06, .5);
+  for (const k of [0, 1, 2]) for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[k] + .2 + .03 * i, 1.06, .5);   // v17.5: on each landing
   for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[3] + .3 + .02 * i, 1.1, .5);
   for (const b of [3.55, 4.2, 4.85, 5.5, 6.15]) for (let i = 0; i < 5; i++) AGD.pulse(i, b + .03 * i, 1.04, .5);
   // T1 (b4.8 → 5.96): the ∪ pen turns over into the ∩ arc in place (the centre moves 16 px) and opens to gap 112:
@@ -149,8 +160,9 @@ scene('10-intro', () => {
   // it shrinks back into the arc (b9.3–9.7), as the icons reach the halo
   const c = AGD.chat(T(5.2), T(9.7), { x: 960, y: 760, w: 980, from: AGD.centroid, to: AGD.centroid });
   // masked rise b5.3–6.3, slow push (+4 %); leaves b8.8–9.4, up ≈ 40 px, before the top icons cross y ≈ 316
-  txt(T(5.3), T(9.4), [['hv sv in-t1', '从想法到交付']], { x: 960, y: 250, align: 'c' },
-    { tick: (el, tl, life) => { el.style.transform = 'translate(-50%,-50%) scale(' + (1 + .04 * tl / life).toFixed(4) + ')'; } });
+  // v17.5: 「从想法」 / 「到交付」 step in (b7.0 / 7.35 film), whole by b7.59 (readable 3.6 as before)
+  txt(T(5.2), T(9.4), [['hv sv in-t1', '<span class="w">从想法</span><span class="w">到交付</span>']], { x: 960, y: 250, align: 'c' },
+    { anim: wipe({ at: [0, .35], push: .04, up: 40, out: .6 }) });
   // T2: every dot has one bubble slot, in two layers so nothing overlaps: lower (dy −r − 18, y ≈ 508–572) cc tail x 560 /
   // gm 960 / cp 1360; upper (dy −r − 104, y ≈ 404–468) cx 740 / ds 1180, with a stem down to the dot. A second bubble on
   // the same dot replaces the first (AGD's default: the old one shrinks into the dot as the new one pops); each stays
@@ -288,22 +300,22 @@ scene('10-intro', () => {
     const s = sum(w1W(), k + 1);
     return 960 + s / 2 * Math.min(1, 1150 / s) * (1 + .04 * clamp((b - CB0) / (CB1 - CB0))) + 52;
   };
-  const caretX = (b) => glide(b, w1R(0)(b), [[CB0 + CAT[1] - .5, CB0 + CAT[1] - .1, w1R(1)], [CB0 + CAT[2] - .5, CB0 + CAT[2] - .1, w1R(2)], [T(12.1), T(12.5), 1400]]);
+  const caretX = (b) => glide(b, w1R(0)(b), [[CB0 + CAT[1] - .26, CB0 + CAT[1] - .02, w1R(1)], [CB0 + CAT[2] - .26, CB0 + CAT[2] - .02, w1R(2)], [T(12.1), T(12.5), 1400]]);   // v17.5: steps after each word lands
   const caretY = (b) => glide(b, 470, [[T(11.95), T(12.3), 615]]);
   AGD.key(T(10.2), 'column', { x: caretX, y0: (b) => caretY(b) - 68, gap: 34, r: 16, dur: .55, stag: .03, arc: 20 });
   // the caret ripples (1.06, top to bottom) as each word lands and its icons are drawn in, then keeps breathing at rest
   // (the last ripple keeps v17.2's phase against the hand-off: .4 beat before it; 16.35 / 16.8 fill the b13.0 insert, new grid)
-  for (const w of [...[10.8, 11.3, 11.8, 12.3, 12.85].map(T), 16.35, 16.8, ...[13.35, 13.9, 14.4].map(T)]) for (let i = 0; i < 5; i++) AGD.pulse(i, w + .04 * i, 1.06, .5);
+  for (const w of [...[11.0, 11.5, 12.0, 12.5, 12.85].map(T), 16.35, 16.8, ...[13.35, 13.9, 14.4].map(T)]) for (let i = 0; i < 5; i++) AGD.pulse(i, w + .04 * i, 1.06, .5);
   // it leaves over b14.8–15.4 (.6, not .8): the lower dots rise across its 「ng」 on their way left (b15.0–15.3), so it is
   // under half opacity by b15.1 instead of .77
   txt(T(12.3), T(15.4), [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
-    { anim: wipe({ at: [0], dur: .5, push: .03, out: .6, spread: true }) });
+    { anim: wipe({ at: [0], dur: .26, push: .03, out: .6, spread: true }) });
   // the gloss (v17.2): 「人们正在用 Agent 重新设计一切」 fades in with 「Everything」 (v17.4: from b12.3, not 12.5; .3 beat, rising
   // 14 px out of a light blur, whole by b12.6) at y 728 under it, and leaves a touch after the English (b15.35–15.75, .4 beat,
   // gone before 15-redesign's box passes y 728) so it reads 3.65 beats; 15-redesign's first type (b15.8) is not under it
   txt(T(12.3), T(15.75), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 728, align: 'c' }, {
     anim: (el, tl, life) => {
-      const p = E.out(clamp(tl / BB(.3))), q = E.inOut(clamp((tl - (life - BB(.4))) / BB(.4)));
+      const p = E.out(clamp((tl - BB(.1)) / BB(.2))), q = E.inOut(clamp((tl - (life - BB(.4))) / BB(.4)));   // v17.5: .1 after Everything, whole by +.3 as before
       el.style.transform = 'translate(-50%,-50%) translateY(' + (14 * (1 - p) - 20 * q).toFixed(1) + 'px)';
       leave(el, p * (1 - q));
       if (p < .999 && q < .001) el.style.filter = 'blur(' + ((1 - p) * 5).toFixed(1) + 'px)';

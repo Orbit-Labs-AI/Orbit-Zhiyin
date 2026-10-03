@@ -11,6 +11,8 @@
       b19.7 起剩下的从最新到最旧缩回各自的点。
    1e So，我们做了一个 Assistant / Redesign / Agent Workflow / for everyone（v17.2 文案，b21.1–26.4）：弧展开成 R 420 圆环（H4，polar (960, 700)），环内三行字；b22.1 起虚线圆画进
       AGD.back，半径每帧取 cc 到 (960, 540) 的距离，所以 20-orbit 在（后移后的）b26.0 收紧圆环时它跟着收，b26.8–27.4 淡出。
+   v17.5 逐词节奏（总长不变）：每个词组快速进场（≈ .25 拍）后带一点缩放/模糊的落定再停半拍左右——「人与 Agent 的」b13.4 ·「交互本身，」13.85 ·
+   「也需要被」15.1 ·「重新定义」15.6（落在 15.9）；「So，」21.1 ·「我们做了一个」21.36 ·「Assistant」21.6（落在 21.84）；三行大字仍硬切，各带 .32 拍落定。
    b26.0 起圆环的 key 归 20-orbit；本场景只写 b11.8（H3，在 10-intro 段内，10-intro 不写 b11.8 之后的 key）与 b20.3 两个 key。 */
 'use strict';
 css(`
@@ -57,26 +59,46 @@ scene('15-redesign', () => {
   // further, so it speeds up as they crowd in, b13.85 → b17.3); line 3: 「也需要被」 rises (b15.1), then 「重新定义」
   // (orange) drops in last through the line's mask and settles (scale 1.06 → 1, no flash), landing (b16.5) among the
   // last bubbles and readable 3.6 beats before the exit (b20.1); line 2 reads 5.5 beats, 「但，」 6.9
+  // v17.5 word-by-word rhythm: every phrase steps in where it will stand — it opens fast (d beats, E.out) out of a
+  // 6 px blur and 24 px low, lands at s0× and settles to 1 by d + .16, then sits still (the lines' 6 px/beat drift goes
+  // on) until the next phrase: [beat in the line, d, s0] per .w
+  const step = (W, o = {}) => (el, tl, life) => {
+    el.querySelectorAll('.w').forEach((w, i) => {
+      if (!W[i]) return;                                                                    // null: another form owns it
+      const [a, d, s0] = W[i], u = (tl - BB(a)) / BEAT, p = E.out(clamp(u / d)), z = E.out(clamp(u / (d + .16)));
+      w.style.opacity = Math.min(1, p * 1.5).toFixed(3);
+      w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 6).toFixed(1) + 'px)' : 'none';
+      w.style.transform = z < .999 ? 'translateY(' + ((1 - p) * (o.dy ?? 24)).toFixed(1) + 'px) scale(' + lerp(s0, 1, z).toFixed(4) + ')' : '';
+      w.style.transformOrigin = '50% 58%';
+    });
+    leave(el, exitQ(tl, life, o.out ?? .6), true);
+  };
   txt(12.8, 20.7, [['rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
-    { anim: K.big({ scale: 2.2, dur: .4, out: .6, spread: true }), tick: drift(true) });
+    { anim: K.big({ scale: 2.0, dur: .32, out: .6, spread: true }), tick: drift(true) });
   for (let i = 0; i < 5; i++) AGD.pulse(i, 12.8, .9, .5);
   const markBy = (el, b) => {
     const p = BUB.reduce((s, u) => s + E.inOut(clamp((b - u.b0 + .25) / .4)), 0) / BUB.length;
     el.querySelectorAll('.mk').forEach((m) => { m.style.backgroundSize = (p * 100).toFixed(1) + '% .26em'; });
   };
-  txt(13.4, 20.7, [['hv sv rd-h', '人与 Agent 的<span class="mk rd-mk">交互本身</span>，']], { x: 960, y: 255, align: 'c' },
-    { inB: 1.2, outB: .6, tick: (el, tl, life, ts) => { drift()(el, tl, life, ts); markBy(el, ts / BEAT); } });
+  // v17.5: 「人与 Agent 的」 b13.4 → 「交互本身，」 b13.85 (whole by b14.1, was 14.6)
+  txt(13.4, 20.7, [['hv sv rd-h', '<span class="w">人与 Agent 的</span><span class="w"><span class="mk rd-mk">交互本身</span>，</span>']], { x: 960, y: 255, align: 'c' },
+    { anim: step([[0, .24, 1.07], [.45, .26, 1.08]]), tick: (el, tl, life, ts) => { drift(true)(el, tl, life, ts); markBy(el, ts / BEAT); } });
+  // v17.5: both halves are quick steps with the same settle — 「也需要被」 rises (E.out .26, b15.1), 「重新定义」 drops in
+  // half a beat later (.3, lands b15.9) and comes to rest from 1.1× (the punchline lands firmer)
   const fall = (o) => (el, tl, life) => {
     const [a, w] = el.querySelectorAll('.w'), q = exitQ(tl, life, o.out);
-    const p0 = E.expo(clamp(tl / BB(o.inB))), p1 = E.out(clamp((tl - BB(o.at)) / BB(o.dur)));
-    a.style.transform = 'translateY(' + ((1 - p0) * 130 - (1 - q) * 30).toFixed(2) + '%)';
+    const p0 = E.out(clamp(tl / BB(o.inB))), p1 = E.out(clamp((tl - BB(o.at)) / BB(o.dur)));
+    const z0 = E.out(clamp(tl / BB(o.inB + .16))), z1 = E.out(clamp((tl - BB(o.at)) / BB(o.dur + .2)));
+    a.style.transform = 'translateY(' + ((1 - p0) * 130 - (1 - q) * 30).toFixed(2) + '%) scale(' + lerp(1.06, 1, z0).toFixed(4) + ')';
+    a.style.filter = p0 < .999 ? 'blur(' + ((1 - p0) * 5).toFixed(1) + 'px)' : 'none';
     a.style.opacity = Math.min(1, p0 * 1.4).toFixed(3);
-    w.style.transform = 'translateY(' + (-(1 - p1) * 110 - (1 - q) * 30).toFixed(2) + '%) scale(' + lerp(1.06, 1, p1).toFixed(4) + ')';
+    w.style.transform = 'translateY(' + (-(1 - p1) * 110 - (1 - q) * 30).toFixed(2) + '%) scale(' + lerp(1.1, 1, z1).toFixed(4) + ')';
+    w.style.transformOrigin = '50% 58%';
     w.style.opacity = Math.min(1, p1 * 1.6).toFixed(3);
     leave(el, q, true);
   };
   txt(15.1, 20.7, [['hv sv rd-h', '<span class="w">也需要被</span><span class="w rd-or">重新定义</span>']], { x: 960, y: 370, align: 'c' },
-    { anim: fall({ inB: 1.2, at: .85, dur: .55, out: .6 }), tick: drift() });
+    { anim: fall({ inB: .26, at: .5, dur: .3, out: .6 }), tick: drift() });
 
   /* ---------- 1d 输入框 + 纠正气泡 ---------- */
   // typing ~.2–.3 beats a character; the box is never idle: the 4th one is typed but never sent (done b18.05, readable
@@ -160,10 +182,16 @@ scene('15-redesign', () => {
     el.style.transform = (own ? 'translate(-50%,-50%)' : el.style.transform) + add;     // K.words rewrites it every frame, K.big never
   };
   txt(21.1, 26.4, [['rd-cj', '<span class="w">So，</span><span class="w">我们做了一个 </span><span class="w">Assistant</span>']],
-    { x: 960, y: 362, align: 'c' }, { anim: K.big({ scale: 2.4, dur: .6, fly: .2, out: .6, spread: true }), tick: zoom(362, true) });
+    { x: 960, y: 362, align: 'c' }, { anim: K.all(K.big({ scale: 1.9, dur: .28, out: .6, spread: true }), step([null, [.26, .22, 1.07], [.5, .24, 1.12]], { dy: 18 })), tick: zoom(362, true) });
+  // v17.5: each big line still cuts in hard (K.words), then settles from 1.06× (.32 beat) before the next one
+  const settle = (el, tl) => el.querySelectorAll('.w').forEach((w) => {
+    const z = E.out(clamp(tl / BB(.32)));
+    w.style.transform = z < .999 ? 'scale(' + lerp(1.06, 1, z).toFixed(4) + ')' : '';
+    w.style.filter = z < .5 ? 'blur(' + ((1 - z * 2) * 3).toFixed(1) + 'px)' : 'none';
+  });
   // [beat, y, html, fit]
   for (const [b, y, h, fit] of [[21.9, 462, 'Redesign', 560], [22.3, 568, 'Agent Workflow', 620], [22.7, 674, 'for <b class="rd-or">everyone</b>', 600]]) {
     txt(b, 26.4, [['xl sv rd-xl', '<span class="w">' + h + '</span>']], { x: 960, y, align: 'c' },
-      { anim: K.words({ at: [0], fit, out: .6, spread: true }), tick: zoom(y) });
+      { anim: K.all(K.words({ at: [0], fit, out: .6, spread: true }), settle), tick: zoom(y) });
   }
 });
