@@ -161,3 +161,15 @@ def test_detail_install_paths_follow_the_support_matrix(tmp_path):
     assert paths["claude_code"]["project_path"] == ".claude/skills/pdf-tools/SKILL.md"
     assert set(paths) == {"claude_code", "codex", "opencode", "hermes", "dsh", "pi"}
     assert detail["support"]["kimi"]["support"] == "unknown"
+
+
+def test_declared_levels_win_and_agent_support_omits_unknown(tmp_path):
+    matrix = support_matrix("rule", ["claude_code", "codex"], declared={"claude_code": "native", "codex": "manual",
+                                                                       "generic": "native", "x": "bogus"})
+    assert matrix["codex"] == {"support": "manual", "basis": "declared_level", "evidence": "metadata.agent_support"}
+    assert "generic" not in matrix and "x" not in matrix
+    store = _store(tmp_path, [_item("kbish", summary="pdf helper",
+                                    metadata={**READ, "agent_support": {"claude_code": "native", "codex": "manual"}})])
+    row = search(store, MatchRequest(text="pdf"))["items"][0]
+    assert row["agent_support"]["codex"] == "manual" and row["agent_support"]["hermes"] == "native"
+    assert "kimi" not in row["agent_support"] and row["support"]["kimi"] == "unknown"

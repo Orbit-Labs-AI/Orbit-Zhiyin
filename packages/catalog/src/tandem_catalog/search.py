@@ -485,13 +485,17 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
         # Content quality scales the evidence (metadata-only rows lose up to 5%) but never creates it.
         relevance = max(0.0, evidence * (0.9 + 0.1 * quality) - penalty)
         agents = json.loads(row["agents"])
-        matrix = support_matrix(row["type"], agents, row["url"])
+        stored = json.loads(row["metadata"] or "{}")
+        declared = (stored.get("metadata") or {}).get("agent_support") if isinstance(stored, dict) else None
+        matrix = support_matrix(row["type"], agents, row["url"], declared=declared if isinstance(declared, dict) else None)
         candidates.append({"item_id": item_id, "type": row["type"], "name": row["name"], "summary": row["summary"],
                            "url": row["url"], "agents": agents, "license": row["license"],
                            # Provenance and compatibility the recommender gates on (source_verified,
                            # agent_supported): raw catalog values, never defaulted to "verified"/"native".
                            "verification": row["verification"], "body_policy": row["body_policy"],
                            "language": row["language"], "support": {a: m["support"] for a, m in matrix.items()},
+                           # Known levels only (unknown omitted), the shape tandem_backend reads.
+                           "agent_support": {a: m["support"] for a, m in matrix.items() if m["support"] != "unknown"},
                            "support_basis": matrix, "admission": index.admission(item_id, request.problem_type),
                            "difficulty": row["difficulty"], "last_seen": row["last_seen"], "version_id": row["latest_version"],
                            "content_hash": row["content_hash"], "score": relevance, "score_parts": {"routes": parts[item_id],

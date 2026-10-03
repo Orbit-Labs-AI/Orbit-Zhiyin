@@ -81,7 +81,11 @@ def resource_format(kind: str, url: str | None = None, agents=(), repo_path: str
     return None
 
 
-def support_matrix(kind: str, agents, url: str | None = None, repo_path: str | None = None) -> dict:
+LEVELS = ("native", "manual", "adaptation_required", "unsupported")
+
+
+def support_matrix(kind: str, agents, url: str | None = None, repo_path: str | None = None,
+                   declared: dict | None = None) -> dict:
     """agent -> {"support", "basis", "evidence"}; agents absent from the matrix are unknown.
 
     Listed agents are the source's declaration (``native``). Format inference adds agents whose
@@ -101,6 +105,10 @@ def support_matrix(kind: str, agents, url: str | None = None, repo_path: str | N
     if fmt == "claude_hooks":
         for agent, evidence in CLAUDE_HOOK_ADAPT.items():
             out.setdefault(agent, {"support": "adaptation_required", "basis": "format:claude_hooks", "evidence": evidence})
+    # A per-agent level the publisher states (Tandem KB metadata.agent_support) wins over inference.
+    for agent, level in (declared or {}).items():
+        if level in LEVELS and agent != "generic":
+            out[str(agent)] = {"support": level, "basis": "declared_level", "evidence": "metadata.agent_support"}
     return out
 
 

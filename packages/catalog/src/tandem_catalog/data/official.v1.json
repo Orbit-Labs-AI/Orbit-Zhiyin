@@ -192,7 +192,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "retry-breaker",
@@ -261,7 +265,11 @@
    "dim": "hook",
    "agent_support": {
     "claude_code": "native",
-    "codex": "adaptation_required"
+    "codex": "adaptation_required",
+    "opencode": "adaptation_required",
+    "pi": "adaptation_required",
+    "hermes": "adaptation_required",
+    "dsh": "adaptation_required"
    },
    "risk_level": "low",
    "cost": {
@@ -293,7 +301,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "systematic-debugging"
@@ -354,7 +366,11 @@
    "dim": "skill",
    "agent_support": {
     "claude_code": "manual",
-    "codex": "manual"
+    "codex": "manual",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -387,7 +403,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "env-quirks-rule",
@@ -443,7 +463,11 @@
    "dim": "rule",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -476,7 +500,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "verify-checklist",
@@ -532,7 +560,11 @@
    "dim": "rule",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -563,7 +595,11 @@
   "summary": "在会话结束前检查是否运行过测试，没有则提醒 Agent 补验证。",
   "official": true,
   "agents": [
-   "claude_code"
+   "claude_code",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "stop-verify-hook",
@@ -626,7 +662,11 @@
    "dim": "hook",
    "agent_support": {
     "claude_code": "native",
-    "codex": "unsupported"
+    "codex": "unsupported",
+    "opencode": "adaptation_required",
+    "pi": "adaptation_required",
+    "hermes": "adaptation_required",
+    "dsh": "adaptation_required"
    },
    "risk_level": "medium",
    "cost": {
@@ -657,7 +697,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "completion-contract",
@@ -713,7 +757,11 @@
    "dim": "rule",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -824,7 +872,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "repeated-instruction-rule",
@@ -880,7 +932,11 @@
    "dim": "rule",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -913,7 +969,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "humanizer-zh"
@@ -968,7 +1028,11 @@
    "dim": "skill",
    "agent_support": {
     "claude_code": "manual",
-    "codex": "manual"
+    "codex": "manual",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -1000,7 +1064,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "split-rules-file"
@@ -1057,7 +1125,11 @@
    "dim": "rule",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "medium",
    "cost": {
@@ -1088,7 +1160,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "trim-resident"
@@ -1137,7 +1213,11 @@
    "dim": "rule",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -1168,7 +1248,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "disable-unused"
@@ -1223,7 +1307,11 @@
    "dim": "mcp",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "manual",
+    "pi": "adaptation_required",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -1514,7 +1602,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "pr-review-cap",
@@ -1576,7 +1668,11 @@
    "dim": "skill",
    "agent_support": {
     "claude_code": "native",
-    "codex": "adaptation_required"
+    "codex": "adaptation_required",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
@@ -1700,7 +1796,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "readonly-reviewer-subagent",
@@ -1762,7 +1862,11 @@
    "dim": "agent",
    "agent_support": {
     "claude_code": "native",
-    "codex": "adaptation_required"
+    "codex": "adaptation_required",
+    "opencode": "adaptation_required",
+    "pi": "adaptation_required",
+    "hermes": "adaptation_required",
+    "dsh": "adaptation_required"
    },
    "risk_level": "low",
    "cost": {
@@ -1794,7 +1898,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "repeated-workflow-skill",
@@ -1858,7 +1966,11 @@
    "dim": "skill",
    "agent_support": {
     "claude_code": "native",
-    "codex": "adaptation_required"
+    "codex": "adaptation_required",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "medium",
    "cost": {
@@ -1890,7 +2002,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "project-build-hook",
@@ -1959,7 +2075,11 @@
    "dim": "hook",
    "agent_support": {
     "claude_code": "native",
-    "codex": "manual"
+    "codex": "manual",
+    "opencode": "adaptation_required",
+    "pi": "adaptation_required",
+    "hermes": "adaptation_required",
+    "dsh": "adaptation_required"
    },
    "risk_level": "medium",
    "cost": {
@@ -1991,7 +2111,10 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes"
   ],
   "install": {
    "kb_rule": "headless-poll"
@@ -2060,7 +2183,10 @@
    "dim": "flow",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "adaptation_required",
+    "pi": "adaptation_required",
+    "hermes": "adaptation_required"
    },
    "risk_level": "medium",
    "cost": {
@@ -2091,7 +2217,11 @@
   "official": true,
   "agents": [
    "claude_code",
-   "codex"
+   "codex",
+   "opencode",
+   "pi",
+   "hermes",
+   "dsh"
   ],
   "install": {
    "kb_rule": "deploy-target-rule",
@@ -2159,7 +2289,11 @@
    "dim": "rule",
    "agent_support": {
     "claude_code": "native",
-    "codex": "native"
+    "codex": "native",
+    "opencode": "manual",
+    "pi": "manual",
+    "hermes": "manual",
+    "dsh": "manual"
    },
    "risk_level": "low",
    "cost": {
