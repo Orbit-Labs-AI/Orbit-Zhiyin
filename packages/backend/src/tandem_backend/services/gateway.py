@@ -41,6 +41,7 @@ from .sections import HEAVY, LIGHT, rules_digest
 from .snapshots import SnapshotKey, SnapshotStore, scope_hash
 from .supervisor import Supervisor, SupervisorConfig
 
+log = logging.getLogger(__name__)
 PARENT_ENV = "TANDEM_PARENT_PID"
 HOURLY_SYNC_S = 3600.0  # sync_mode "hour"
 STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
@@ -200,6 +201,7 @@ class Gateway:
                                      self._published)
         self.jobs = JobService(self.state, self.supervisor.ingest, self._emit)
         self.supervisor.ingest.jobs = self.jobs
+        self.jobs.on_import_done = self._after_import
         self.prewarm_debounce_s, self.prewarm_mru = prewarm_debounce_s, prewarm_mru
         self.sync_interval_s = sync_interval_s
         self.hourly_sync_s = HOURLY_SYNC_S
@@ -282,6 +284,23 @@ class Gateway:
             "phase": entry.get("phase"), "counts": after["counts"],
             "sources": [entry.get("source_id")] if entry.get("source_id") else []})
         self.schedule_prewarm(heavy=entry.get("phase") not in ("head", "window"))
+
+    def _after_import(self, job: dict) -> None:
+        """Import finished with new data: queue AI facets for new sessions when the user turned
+        on ``settings.auto_facet_new`` (``ai.auto_facet_new`` checks the setting itself). Runs
+        off the ingest reader thread so the worker's next messages are not held up."""
+        if self.stopping.is_set():
+            return
+        threading.Thread(target=self.auto_facet, daemon=True, name="ai-auto-facet").start()
+
+    def auto_facet(self) -> dict | None:
+        from .. import ai
+
+        try:
+            return ai.auto_facet_new(self)
+        except Exception:  # noqa: BLE001 - optional background work; the import already succeeded
+            log.warning("auto facet after import failed", exc_info=True)
+            return None
 
     def schedule_prewarm(self, heavy: bool) -> None:
         """Debounced: consecutive batches trigger one prewarm after the last publish."""

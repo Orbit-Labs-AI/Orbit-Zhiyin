@@ -11,7 +11,7 @@ from synthetic import write_codex_tree
 
 from tandem_backend.services.events import EventBus
 from tandem_backend.services.ingest_plan import plan_batches
-from tandem_backend.services.jobs import AppState, JobConflict
+from tandem_backend.services.jobs import AppState, JobConflict, JobService
 from tandem_backend.services.snapshots import SnapshotKey, SnapshotStore, scope_hash
 from tandem_backend.services.worker_protocol import decode, encode
 
@@ -183,3 +183,26 @@ def test_app_state_half_written_tmp(tmp_path):
     temporary.write_text("{")
     blank = AppState(path)
     assert blank.state["settings"]["sync_mode"] == "off" and not temporary.exists()
+
+
+@pytest.mark.parametrize("status, fired", [("completed", 1), ("partial", 1), ("failed", 0)])
+def test_import_done_hook_fires_only_for_imports_with_data(tmp_path, codex_root, status, fired):
+    """Gateway binds on_import_done to the auto-facet trigger: it must run once per
+    completed/partial import, never for failed ones, and a failing hook must not fail the job."""
+    home = tmp_path / "home"
+    home.mkdir()
+    state = AppState(home / "app-state.json")
+    source = state.configure("codex", str(codex_root), True, home)
+    jobs = JobService(state, runner=None, publish=lambda *a, **k: 0)
+    calls: list[str] = []
+
+    def hook(job):
+        calls.append(job["id"])
+        raise RuntimeError("follow-up broke")
+
+    jobs.on_import_done = hook
+    job, _ = state.create_job("import", [source["id"]])
+    jobs.finished(job["id"], status, [], None)
+    assert len(calls) == fired and state.job(job["id"])["status"] == status
+    jobs.finished(job["id"], status, [], None)  # a late duplicate "done" is ignored
+    assert len(calls) == fired

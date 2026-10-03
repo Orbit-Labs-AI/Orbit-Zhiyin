@@ -109,3 +109,36 @@ def test_auto_facet_new_respects_setting_and_skips_faceted(client, monkeypatch):
         db.execute("UPDATE ai_facet SET status='failed' WHERE session_uid=?", (retry,))
     pending = set(auto.new_session_uids(gw, 50))
     assert retry in pending and not (faceted - {retry}) & pending
+
+
+def test_import_done_triggers_auto_facet_only_when_enabled(client, monkeypatch):
+    """Wiring: JobService.on_import_done → Gateway._after_import → ai.auto_facet_new."""
+    from tandem_backend.ai import auto
+
+    c, gw, _ = client
+    monkeypatch.setattr(auto, "WINDOW_DAYS", 100000)
+    assert gw.jobs.on_import_done == gw._after_import
+    import threading
+
+    seen: list = []
+    ran = threading.Event()
+
+    def record():
+        seen.append(type(gw).auto_facet(gw))
+        ran.set()
+
+    monkeypatch.setattr(gw, "auto_facet", record)
+
+    def trigger(job_id):
+        ran.clear()
+        gw._after_import({"id": job_id, "kind": "import"})
+        assert ran.wait(30)
+
+    trigger("job-1")
+    assert seen == [{"status": "skipped", "reason": "disabled"}]
+    with gw.appdb.read() as db:
+        assert db.execute("SELECT COUNT(*) FROM ai_job WHERE task_id='facet.session'").fetchone()[0] == 0
+    assert c.put("/v1/ai/consent", json={"settings": {"auto_facet_new": True}}).status_code == 200
+    trigger("job-2")
+    assert seen[-1]["status"] == "submitted" and seen[-1]["sessions"] > 0
+    assert _wait(c, seen[-1]["job_id"])["status"] == "ok"

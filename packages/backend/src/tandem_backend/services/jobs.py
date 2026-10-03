@@ -273,6 +273,9 @@ class JobService:
         self.publish = publish
         self.progress_interval_s = progress_interval_s
         self.progress_sent: dict[str, tuple[tuple, float]] = {}
+        # Called once per import job that finished with new data (completed / partial), on
+        # the worker reader thread; the gateway binds it to queue follow-up work.
+        self.on_import_done: Callable[[dict], None] | None = None
 
     def _event(self, job: dict) -> None:
         self.publish("job", "job", {k: job.get(k) for k in (
@@ -352,6 +355,11 @@ class JobService:
                     if source is not None:
                         source.update(last_import_at=now_ms(), last_result=result)
                 self.state.save()
+            if self.on_import_done is not None:
+                try:
+                    self.on_import_done(job)
+                except Exception:  # noqa: BLE001 - follow-up work never fails the job
+                    log.warning("import follow-up failed for %s", job_id, exc_info=True)
 
     def interrupted(self, job_id: str, code: str, message: str) -> None:
         self.progress_sent.pop(job_id, None)
