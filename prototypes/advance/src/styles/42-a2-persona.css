@@ -19,7 +19,6 @@
 .fp2 .fp-pls{transition:opacity .2s}
 .fp2 .fpd:hover circle{fill:var(--field)}
 .fp2 .fpd{transform-box:fill-box;transform-origin:center;animation:grow .25s ease-out both}
-.pe-fp-legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:11px;color:var(--ink-2);margin-top:4px}
 .pe-evo{margin-top:12px}
 .pe-ev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hair)}
 .pe-evi{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -39,7 +38,6 @@
 .fp2:hover .fp-bd{animation:fp-jit .9s ease-in-out infinite}
 @keyframes fp-jit{0%,100%{transform:rotate(0deg)}25%{transform:rotate(3deg)}50%{transform:rotate(-1.5deg)}75%{transform:rotate(-3deg)}}
 @media (prefers-reduced-motion:reduce){.fp2:hover .fp-bd{animation:none}}
-.pe-fp-legend .lnk{white-space:nowrap}
 /* hero polish: evolution months as one row of four, fingerprint + legend centred in the paper panel */
 .pe-evw{margin-top:24px}
 .pe-evrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:4px;align-items:center;max-width:520px}
@@ -47,9 +45,6 @@
 .pe-evrow button>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .persona-hero .fp-wrap{justify-content:center;padding:40px 12px 24px}
 .pe-fpc{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
-.pe-fp-legend{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:6px;justify-content:center;margin-top:0;max-width:360px;line-height:16px}
-.pe-fp-legend>svg{flex:none}
-.pe-fp-legend>.row{align-items:center}
 /* fit card: title on one line, scale note beneath; meta as two fixed lines (sample · CI / friction · completion) */
 .pe-fit-h{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
 .pe-fit-h .cap{font-size:11px}
@@ -58,7 +53,6 @@
 /* pass 2: hero line in display sans + three tabular facts; one-line footnotes; strengths / blind spots as aligned rows; fit name at 13 */
 .pe-line{margin:12px 0 0;max-width:580px;font:500 15px/1.55 var(--font-display);color:var(--ink-1);text-wrap:balance}
 .pe-line .btn{vertical-align:1px;margin-left:2px;font-family:var(--font-sans)}
-.pe-line .aib{margin-right:6px;vertical-align:2px;font-family:var(--font-sans);font-weight:500}
 .pe-facts{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12px;line-height:16px;color:var(--ink-3)}
 .pe-facts b{color:var(--ink-1);font-weight:600}
 .pe-foot{margin-top:8px;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

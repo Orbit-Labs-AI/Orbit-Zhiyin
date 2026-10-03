@@ -88,7 +88,7 @@ PAGES['l-persona'] = () => {
   const hero = '<div class="card persona-hero l-phero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code" aria-label="' + p.code + ' ' + p.zh + '">' + p.code.split('').map((ch) => '<span class="L serif">' + ch + '</span>').join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;flex-wrap:wrap"><span class="serif l-zh">' + p.zh + '</span><span class="serif l-en">' + p.en + '</span></div>' +
-    '<p class="serif l-line">' + esc(p.line) + '</p><div class="row" style="flex-wrap:wrap;gap:6px"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + tags + '</div>' +
+    '<p class="serif l-line">' + esc(p.line) + '</p><div class="row" style="flex-wrap:wrap;gap:6px">' + tags + '</div>' +
     '<div class="row l-acts"><button type="button" class="btn p l-big" data-act="reveal">' + ic('play', 13) + '播放揭晓</button><button type="button" class="btn l-big" data-act="share">' + ic('share', 14) + '导出分享卡</button></div></div>' +
     '<div class="fp-wrap l-fp" data-hero="fp">' + fp2SVG(L, p, 300, { labels: true }) + '</div></div>';
   const axes = '<div class="card pad l-axes"><div class="hd"><div class="grow"><span class="ct">四个维度</span><span class="cap">点的位置 = 你偏向哪一极 · 中线 50</span></div></div>' + [0, 1, 2, 3].map((i) => {
