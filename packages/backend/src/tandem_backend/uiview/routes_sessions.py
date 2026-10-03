@@ -69,7 +69,8 @@ def router(gw: Gateway, facts_provider: Callable[[], dict | None] | None = None)
         live, excluded = live_uids(), excluded_uids()
         rows = [{**r, "live": r["id"] in live, "excluded": r["id"] in excluded,
                  "out": "live" if r["id"] in live else
-                 (r["out"] if r["out"] != "live" else None)} for r in base]
+                 (r["out"] if r["out"] != "live" else None),
+                 "out_basis": "realtime" if r["id"] in live else r["out_basis"]} for r in base]
         return sessions.overlay(rows, facts_provider() if facts_provider else None)
 
     def search_uids(q: str) -> tuple[set[str] | None, bool]:

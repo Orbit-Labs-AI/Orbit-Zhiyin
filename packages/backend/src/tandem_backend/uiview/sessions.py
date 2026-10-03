@@ -216,9 +216,22 @@ def overlay(rows: list[dict], facts: dict[str, dict] | None) -> list[dict]:
     """Prefer P1 ``uiview_facts`` values (same field names) where they are present."""
     if not facts:
         return rows
-    return [{**r, **{k: v for k, v in (facts.get(r["id"]) or {}).items()
-                     if v is not None or k in ("errors", "corr", "tok", "out")}}
-            for r in rows]
+    return [_overlay_row(r, facts.get(r["id"]) or {}) for r in rows]
+
+
+def _overlay_row(row: dict, fact: dict) -> dict:
+    """Facts win, except liveness: the snapshot's ``out`` is stale for a running session.
+
+    A live row keeps ``out='live'``; a snapshot taken while the session was live (``out='live'``)
+    never marks a finished row live, so it keeps its own L1 estimate.
+    """
+    merged = {**row, **{k: v for k, v in fact.items()
+                        if v is not None or k in ("errors", "corr", "tok", "out")}}
+    if row.get("live"):
+        merged["out"], merged["out_basis"] = "live", "realtime"
+    elif merged.get("out") == "live":
+        merged["out"], merged["out_basis"] = row.get("out"), row.get("out_basis")
+    return merged
 
 
 def ticks(conn: sqlite3.Connection, rows: list[dict]) -> dict[str, dict]:

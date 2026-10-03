@@ -295,7 +295,10 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
         "started_at": started_at if started_at is not None else (t0 or None),
         "dur": facts.get("dur", round(active / 60_000, 1) if active is not None else None),
         "dur_basis": "active_estimate",
-        "out": facts.get("out", out), "out_basis": "estimate",
+        # Liveness beats the facts snapshot (taken before or after the session ran).
+        "out": "live" if live else (out if facts.get("out", out) == "live"
+                                    else facts.get("out", out)),
+        "out_basis": "realtime" if live else "estimate",
         "corr": facts.get("corr", corr), "corr_basis": "lexical_candidate",
         "live": live, "excluded": excluded,
         "resume": {"shell": first.get("shell"), "verified": first.get("verified", False),

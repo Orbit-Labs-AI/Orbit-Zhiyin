@@ -164,3 +164,59 @@ def test_list_build_is_fast(l1, n):
     rows = facts(l1)
     sessions.list_sessions(rows, now_ms=T0, tz=UTC)
     assert len(rows) == n and time.perf_counter() - started < 1.0
+
+
+def _facts_client(gateway, facts_rows):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from tandem_backend.services.gateway import install_error_handlers
+    from tandem_backend.uiview import routes_sessions
+
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(routes_sessions.router(gateway, facts_provider=lambda: facts_rows))
+    return TestClient(app)
+
+
+def test_live_row_keeps_live_outcome_over_facts_snapshot(gateway, l1):
+    """A facts snapshot taken earlier says 'ok'; the running session must stay 'live' (UT-02)."""
+    handwritten_cc(l1)
+
+    class Snap:
+        def latest(self):
+            return {"sessions": [{"session_uid": "cc-fix", "state": "running"}]}
+
+    gateway.realtime = Snap()
+    client = _facts_client(gateway, {"cc-fix": {"out": "ok", "corr": 5}})
+    row = client.get("/v1/uiview/sessions").json()["rows"][0]
+    assert (row["out"], row["out_basis"], row["live"]) == ("live", "realtime", True)
+    assert row["corr"] == 5  # other facts still win
+    assert client.get("/v1/uiview/sessions?outcome=live").json()["total"] == 1
+    assert client.get("/v1/uiview/sessions?outcome=ok").json()["total"] == 0
+    head = client.get("/v1/uiview/sessions/cc-fix").json()["header"]
+    assert (head["out"], head["out_basis"], head["live"]) == ("live", "realtime", True)
+
+
+def test_finished_row_ignores_live_out_from_stale_snapshot(gateway, l1):
+    """Snapshot built while running (out='live'); now finished: the L1 estimate stays."""
+    handwritten_cc(l1)
+    plain = _facts_client(gateway, {}).get("/v1/uiview/sessions").json()["rows"][0]
+    assert plain["live"] is False and plain["out"] != "live"
+    client = _facts_client(gateway, {"cc-fix": {"out": "live", "out_basis": "realtime"}})
+    row = client.get("/v1/uiview/sessions").json()["rows"][0]
+    assert (row["out"], row["out_basis"]) == (plain["out"], plain["out_basis"])
+    assert client.get("/v1/uiview/sessions?outcome=live").json()["total"] == 0
+    head = client.get("/v1/uiview/sessions/cc-fix").json()["header"]
+    assert head["out"] == plain["out"] and head["live"] is False
+
+
+def test_overlay_unit_rules():
+    rows = [{"id": "a", "out": "live", "out_basis": "realtime", "live": True},
+            {"id": "b", "out": "part", "out_basis": "estimate", "live": False},
+            {"id": "c", "out": "ok", "out_basis": "estimate", "live": False}]
+    got = {r["id"]: r for r in sessions.overlay(rows, {
+        "a": {"out": "fail"}, "b": {"out": "live"}, "c": {"out": None}})}
+    assert got["a"]["out"] == "live"
+    assert (got["b"]["out"], got["b"]["out_basis"]) == ("part", "estimate")
+    assert got["c"]["out"] is None  # facts explicitly unknown still win for finished rows
