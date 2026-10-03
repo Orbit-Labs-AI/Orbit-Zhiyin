@@ -1,0 +1,3 @@
+# 默认审查归属与 AGENTS.md 一致；合并和关闭仍须 yhyfhgs 明确决定。
+# CODEOWNERS 用于声明审查归属，不替代分支保护或访问权限。
+* @yhyfhgs
