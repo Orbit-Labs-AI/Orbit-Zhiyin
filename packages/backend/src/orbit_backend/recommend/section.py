@@ -459,9 +459,57 @@ def _ledger(conn, uids: str, root_of: dict, flags: dict, waits: list) -> dict:
         ops["readonly"][2] += min(max(0, wait), IDLE_CAP_MS)
     return {"tokens": total, "active_ms": sum(active.values()), "turns": turns,
             "requests": sum(by_agent.values()), "requests_by_agent": dict(sorted(by_agent.items())),
+            "turn_cost": _turn_costs(conn, uids, root_of, requests, IDLE_CAP_MS, HUMAN_WHERE),
             "ops": {name: {"n": n, "tokens": round(tok), "ms": round(ms),
                            **({"unmeasured": unmeasured[name]} if name in unmeasured else {})}
                     for name, (n, tok, ms) in ops.items()}}
+
+
+MAX_TURN_EVENTS = 2000  # per-turn rows kept for event-level pricing; per-session sums are always kept
+
+
+def _turn_costs(conn, uids: str, root_of: dict, requests: dict, cap: int, human_where: str) -> dict:
+    """Measured cost of each human turn (R10): a turn runs from one human message to the next in
+    its session tree and holds the tokens of the requests sent in that span and the capped event
+    gaps that end inside it (the gap before the next human message is still this turn's wait).
+    Work before the first human message belongs to no turn. Returns per-session sums
+    ``{root: [turns, tokens, ms]}`` and, for up to MAX_TURN_EVENTS turns, ``{event_uid: [tokens, ms]}``."""
+    import bisect
+
+    human = f"(CASE WHEN {human_where} THEN 1 ELSE 0 END)"
+    starts: dict[str, list] = defaultdict(list)
+    for root, uid, ts in conn.execute(
+            f"SELECT s.root_uid, e.event_uid, e.ts FROM event e JOIN session s ON s.session_uid = e.session_uid "
+            f"WHERE e.ts IS NOT NULL AND e.session_uid IN {UIDS} AND {human_where} ORDER BY e.ts", (uids,)):
+        starts[root_of.get(root, root)].append((ts, uid))
+    if not starts:
+        return {"by_session": {}, "by_event": {}}
+    cost = {root: [[0, 0] for _ in turns] for root, turns in starts.items()}
+    for root, gap_end, gap in conn.execute(
+            f"SELECT root, ts, MIN(COALESCE(gap, 0), ?) FROM (SELECT s.root_uid AS root, e.ts AS ts, {human} AS h, "
+            f"e.ts - LAG(e.ts) OVER (PARTITION BY s.root_uid ORDER BY e.ts) AS gap FROM event e JOIN session s "
+            f"ON s.session_uid = e.session_uid WHERE e.ts IS NOT NULL AND e.session_uid IN {UIDS}) WHERE gap > 0",
+            (cap, uids)):
+        root = root_of.get(root, root)
+        turns = starts.get(root)
+        if turns:  # a gap ending at the next human message is still the previous turn's
+            i = bisect.bisect_left(turns, (gap_end, "")) - 1
+            if i >= 0:
+                cost[root][i][1] += int(gap or 0)
+    for root, rows in requests.items():
+        turns = starts.get(root)
+        for ts, tokens in rows if turns else ():
+            i = bisect.bisect_right(turns, (ts, "\uffff")) - 1 if ts is not None else -1
+            if i >= 0:
+                cost[root][i][0] += tokens
+    by_session = {root: [len(rows), sum(r[0] for r in rows), sum(r[1] for r in rows)] for root, rows in cost.items()}
+    by_event = {}
+    for root, turns in starts.items():
+        for (_, uid), (tokens, ms) in zip(turns, cost[root], strict=True):
+            if len(by_event) >= MAX_TURN_EVENTS:
+                break
+            by_event[uid] = [tokens, ms]
+    return {"by_session": dict(sorted(by_session.items())), "by_event": by_event}
 
 
 def _attribute(calls: list, requests: list, cap: int, ops: dict, unmeasured: dict | None = None) -> None:

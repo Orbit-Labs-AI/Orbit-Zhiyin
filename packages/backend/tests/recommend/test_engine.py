@@ -345,3 +345,18 @@ def test_total_saving_matches_the_shared_cases():
     for case in cases:
         total = narrate.total_saving(case["saves"])
         assert total == pytest.approx(case["total"]), case["name"]
+
+
+def test_rework_turns_are_priced_by_their_own_measured_turns():
+    """R10: a correction cited on the cheap turn costs that turn, not all tokens ÷ all turns."""
+    turn_cost = {"by_session": {"a": [2, 1000, 20000], "b": [8, 9000, 180000]},
+                 "by_event": {"u1": [100, 2000], "u2": [900, 18000]}}
+    ledger = {**LEDGER, "turn_cost": turn_cost}
+    inp = {**LEDGER_INPUTS, "facts": {"trajectory": ledger}}
+    exact = problem(ptype="user_correction", key="user_correction", weekly_count=1)
+    exact["evidence"] = {"event_ids": ["u1"], "session_uids": ["a"]}
+    op, tokens, ms, note, _ = narrate._op_cost({"kind": "skill"}, {}, exact, ledger, 1.)
+    assert (op, tokens, ms) == ("turn", 100, 2000) and "证据里 1 轮" in note
+    by_session = {**exact, "evidence": {"event_ids": ["zz"], "session_uids": ["b"]}}
+    assert narrate._op_cost({"kind": "skill"}, {}, by_session, ledger, 2.)[1:3] == (2 * 9000 / 8, 2 * 180000 / 8)
+    assert "证据里 1 轮的实测成本" in ui_of(raw("kb:ro-allow", prob=exact), inp)["save"]["basis"]

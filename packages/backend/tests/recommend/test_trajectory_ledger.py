@@ -92,3 +92,12 @@ def test_readonly_prompt_without_a_recorded_wait_is_counted_not_priced_by_run_ti
     flags = {"a": (False, True), "c": (False, True)}
     ops = section._ledger(conn, json.dumps(["root", "sub"]), {"root": "root", "sub": "root"}, flags, [])["ops"]
     assert ops["readonly"] == {"n": 1, "tokens": 0, "ms": 2500, "unmeasured": 1}
+
+
+def test_each_human_turn_carries_its_own_measured_cost():
+    """R10: u1 (0) holds requests 1–3 and every gap up to u2, including the wait before u2;
+    u2 (20 000) holds request 4 and the last two gaps."""
+    conn = _store()
+    ledger = section._ledger(conn, json.dumps(["root", "sub"]), {"root": "root", "sub": "root"}, {}, [])
+    assert ledger["turn_cost"] == {"by_session": {"root": [2, 1000, 22000]},
+                                   "by_event": {"u1": [600, 20000], "u2": [400, 2000]}}
