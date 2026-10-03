@@ -27,7 +27,9 @@ PROBE_TTL = 24 * 3600
 FAILED_PROBE_TTL = 600  # a timed-out probe is retried sooner than a good one
 MEMO_TTL = 2.0
 PROJECT_LIMIT = 30
-COUNT_KINDS = ("skill", "mcp", "hook", "plugin", "rule", "scheduled_task")
+# Inventory types (orbit_data migration 015 split slash commands and subagent definitions out
+# of "skill"), so installed counts list them separately instead of inflating skills.
+COUNT_KINDS = ("skill", "mcp", "hook", "plugin", "rule", "scheduled_task", "command", "agent")
 CAPABILITIES = ("skills", "hooks", "mcp", "plugins", "subagents", "commands", "rules", "permission_rules")
 
 # agent -> (display name, binary name, default root relative to home)
@@ -53,7 +55,9 @@ SUPPORTED = {
     "dsh": {"skills", "rules"},
     "pi": {"skills", "mcp", "commands", "rules"},
     "hermes": {"skills", "rules"},
-    "opencode": {"skills", "mcp", "commands", "rules", "permission_rules"},
+    # OpenCode reads agent/*.md subagents (the inventory scans them); install stays unmappable
+    # through targets.py's opencode_subagent_format_differs row, which is checked first.
+    "opencode": {"skills", "mcp", "subagents", "commands", "rules", "permission_rules"},
 }
 # Minimum versions per capability. 待验证：数值取自各 Agent 更新日志的大致时间点，未实测。
 MIN_VERSIONS = {
@@ -222,15 +226,27 @@ def _vtuple(version: str) -> tuple[int, ...]:
     return tuple(int(x) for x in re.findall(r"\d+", version)[:3])
 
 
+def version_check(agent: str, capability: str) -> str:
+    """``known`` when a minimum version is recorded for this agent (a capability without its own
+    entry is baseline for that agent), ``unknown`` when none is recorded for the agent at all:
+    dsh / pi / hermes / opencode have no checked minimums, so a probed version proves nothing
+    and the UI must not present the capability as compatible."""
+    if (agent, capability) in MIN_VERSIONS or any(a == agent for a, _ in MIN_VERSIONS):
+        return "known"
+    return "unknown"
+
+
 def capabilities(agent: str, version: str | None) -> dict:
     supported = SUPPORTED.get(agent, set())
+    unknown = sorted(c for c in supported if version_check(agent, c) == "unknown")
     if not version:
-        return {**{c: c in supported for c in CAPABILITIES}, "basis": "assumed"}
+        return {**{c: c in supported for c in CAPABILITIES}, "basis": "assumed",
+                "version_unknown": unknown}
     caps = {}
     for c in CAPABILITIES:
         minimum = MIN_VERSIONS.get((agent, c))
         caps[c] = c in supported and (minimum is None or _vtuple(version) >= _vtuple(minimum))
-    return {**caps, "basis": "probed"}
+    return {**caps, "basis": "probed", "version_unknown": unknown}
 
 
 # ---- filesystem facts ---------------------------------------------------------------------
@@ -367,7 +383,7 @@ def _opencode(env: Env, root: Path) -> tuple[list, dict, list]:
     layers = [layer("opencode_json", cfg / "opencode.json", h), layer("opencode_jsonc", cfg / "opencode.jsonc", h),
               layer("agents_md", cfg / "AGENTS.md", h)]
     dirs = {"config": dir_info(cfg, h), "skills": dir_info(cfg / "skills", h, _skills),
-            "commands": dir_info(cfg / "commands", h)}
+            "commands": dir_info(cfg / "commands", h), "agents": dir_info(cfg / "agents", h)}
     return layers, dirs, []
 
 
@@ -431,7 +447,9 @@ def _size(value) -> int:
 
 def file_counts(agent: str, env: Env, root: Path, dirs: dict) -> dict:
     """Cheap counts from the agent's own config files when no inventory scan exists."""
-    counts = {**dict.fromkeys(COUNT_KINDS, 0), "skill": (dirs.get("skills") or {}).get("count", 0)}
+    counts = {**dict.fromkeys(COUNT_KINDS, 0), "skill": (dirs.get("skills") or {}).get("count", 0),
+              "command": (dirs.get("commands") or {}).get("count", 0),
+              "agent": (dirs.get("agents") or {}).get("count", 0)}
     if agent == "claude_code":
         hooks = _load(root / "settings.json").get("hooks")
         counts["hook"] = sum(_size(g.get("hooks")) for groups in (hooks.values() if isinstance(hooks, dict) else ())

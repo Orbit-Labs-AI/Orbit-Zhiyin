@@ -456,6 +456,9 @@ def follow_link(path: str | Path, home: Path) -> str | None:
 
 REASON_TEXT = {
     "agent_not_supported_v1": "这个 Agent 暂不支持自动安装。",
+    "collect_not_available": "Orbit 实时采集暂未支持这个 Agent，会话仍可通过导入获得。",
+    "codex_config_unparsable": "Codex 的 config.toml 无法解析，Orbit 不会改写；修正后重新预览。",
+    "codex_notify_in_use": "Codex 已配置 notify，Orbit 不会覆盖；如需实时采集请先移除现有 notify。",
     "kimi_unverified_no_source": "Kimi Code 的配置落点尚未核实，暂不自动写入。",
     "codex_custom_prompts_removed": "Codex 已不再读取自定义 prompts 目录，命令请改装为 Skill。",
     "mcp_transport_unsupported": "这个 Agent 不支持该 MCP 传输方式（SSE），未自动写入。",
@@ -538,8 +541,12 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
                   "oc_user": opencode_config_file(cfg) if agent == OC else "",
                   "oc_proj": opencode_config_file(project) if agent == OC and project else ""}
 
+        # "unknown": no checked minimum version for this agent, so it is not shown as compatible.
+        vcheck = ("unknown" if cap in (info.get("capabilities") or {}).get("version_unknown", ())
+                  else "known")
+
         def target(path: str, content, *, action=None, pointer=None, row=row, agent=agent, note=note,
-                   **extra) -> None:
+                   vcheck=vcheck, **extra) -> None:
             reason = check_path(path, env, env_info, project)
             shown = display(path, home)
             if reason == "symlink_escape" and (real := follow_link(path, home)):
@@ -556,6 +563,7 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
                  "write_mode": row.write_mode if act == "merge_json" else "set", "file_mode": None,
                  "block_id": f"orbit:{spec['id']}" if act in ("md_block", "toml_block") else None,
                  "requires_trust": row.requires_trust, "mappable": True, "reason": None, "note": note,
+                 "version_check": vcheck,
                  "group": None, "shared_layer": row.shared_layer or (project is not None and _inside(path, project)
                                                                      and row.scope != "local"), "kind": kind}
             t.update(extra)

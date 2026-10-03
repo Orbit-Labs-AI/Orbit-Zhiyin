@@ -26,7 +26,7 @@ from pathlib import Path
 
 from . import store
 from .env import display
-from .targets import check_path, render_hook_entry
+from .targets import check_path, reason_text, render_hook_entry
 
 SPEC_ID = "orbit-collect"
 SCRIPT_NAME = "orbit_collect.py"
@@ -102,7 +102,8 @@ def resolve_targets(spec: dict, env_info: dict, *, env=None) -> list[dict]:
         reason = check_path(path, env, env_info, None)
         row = {"idx": len(out), "agent": agent, "kind": "collect", "path": path}
         if reason:
-            out.append({**row, "mappable": False, "reason": f"path_policy:{reason}"})
+            out.append({**row, "mappable": False, "reason": f"path_policy:{reason}",
+                        "reason_text": reason_text(f"path_policy:{reason}")})
             return
         out.append({**row, "scope": "user", "display": display(path, home), "action": action, "pointer": pointer,
                     "content": content, "write_mode": write_mode if action == "merge_json" else "set",
@@ -112,37 +113,53 @@ def resolve_targets(spec: dict, env_info: dict, *, env=None) -> list[dict]:
 
     for agent in spec.get("agents") or []:
         info = infos.get(agent)
-        if agent not in ("claude_code", "codex") or not info or info.get("install_support") != "full":
+        lander = LANDERS.get(agent)
+        if not info or info.get("install_support") != "full":
+            reason = (info or {}).get("unsupported_reason") or "agent_not_supported_v1"
             out.append({"idx": len(out), "agent": agent, "kind": "collect", "mappable": False,
-                        "reason": "agent_not_supported_v1"})
+                        "reason": reason, "reason_text": reason_text(reason)})
+            continue
+        if lander is None:  # installable agent, but no collector of ours exists for it yet
+            out.append({"idx": len(out), "agent": agent, "kind": "collect", "mappable": False,
+                        "reason": "collect_not_available", "reason_text": reason_text("collect_not_available")})
             continue
         root = Path(info["root_abs"])
         script_path = str(root / "hooks" / "orbit" / SCRIPT_NAME)
         argv = [python, script_path]
-        base = " ".join(shlex.quote(a) for a in argv)
-        if agent == "claude_code":
-            add(agent, script_path, "create_file", script, file_mode=0o755)
-            hook_cmd = f"{base} hook --agent claude_code --out {shlex.quote(events)}"
-            for event, matcher in CLAUDE_EVENTS:
-                add(agent, str(root / "settings.json"), "merge_json",
-                    render_hook_entry({"matcher": matcher}, hook_cmd), pointer=f"/hooks/{event}")
-            patch, notes = _settings_patch(_read_json(root / "settings.json"),
-                                           f"{base} statusline --agent claude_code --out {shlex.quote(events)}")
-            if patch:
-                add(agent, str(root / "settings.json"), "merge_json", patch, pointer="", write_mode="set",
-                    note=",".join(notes) or None)
-        else:
-            config = _read_toml(root / "config.toml")
-            if config is None or "notify" in config:
-                out.append({"idx": len(out), "agent": agent, "kind": "collect", "mappable": False,
-                            "path": str(root / "config.toml"),
-                            "reason": "codex_config_unparsable" if config is None else "codex_notify_in_use"})
-                continue
-            add(agent, script_path, "create_file", script, file_mode=0o755)
-            notify = [*argv, "notify", "--agent", "codex", "--out", events]
-            body = "notify = [" + ", ".join(json.dumps(a, ensure_ascii=False) for a in notify) + "]"
-            add(agent, str(root / "config.toml"), "toml_block", body, position="top")
+        lander(add, out, agent, root, script, script_path, argv, events)
     return out
+
+
+def _land_claude(add, out, agent, root, script, script_path, argv, events) -> None:
+    base = " ".join(shlex.quote(a) for a in argv)
+    add(agent, script_path, "create_file", script, file_mode=0o755)
+    hook_cmd = f"{base} hook --agent claude_code --out {shlex.quote(events)}"
+    for event, matcher in CLAUDE_EVENTS:
+        add(agent, str(root / "settings.json"), "merge_json",
+            render_hook_entry({"matcher": matcher}, hook_cmd), pointer=f"/hooks/{event}")
+    patch, notes = _settings_patch(_read_json(root / "settings.json"),
+                                   f"{base} statusline --agent claude_code --out {shlex.quote(events)}")
+    if patch:
+        add(agent, str(root / "settings.json"), "merge_json", patch, pointer="", write_mode="set",
+            note=",".join(notes) or None)
+
+
+def _land_codex(add, out, agent, root, script, script_path, argv, events) -> None:
+    config = _read_toml(root / "config.toml")
+    if config is None or "notify" in config:
+        reason = "codex_config_unparsable" if config is None else "codex_notify_in_use"
+        out.append({"idx": len(out), "agent": agent, "kind": "collect", "mappable": False,
+                    "path": str(root / "config.toml"), "reason": reason, "reason_text": reason_text(reason)})
+        return
+    add(agent, script_path, "create_file", script, file_mode=0o755)
+    notify = [*argv, "notify", "--agent", "codex", "--out", events]
+    body = "notify = [" + ", ".join(json.dumps(a, ensure_ascii=False) for a in notify) + "]"
+    add(agent, str(root / "config.toml"), "toml_block", body, position="top")
+
+
+# Agents Orbit can land its collector in (the script's ``--agent`` modes). Every other agent gets
+# an unmappable row: its own unsupported_reason, or collect_not_available when it is installable.
+LANDERS = {"claude_code": _land_claude, "codex": _land_codex}
 
 
 def status(service) -> dict:

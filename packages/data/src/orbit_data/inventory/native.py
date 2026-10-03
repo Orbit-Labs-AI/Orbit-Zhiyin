@@ -67,10 +67,41 @@ def opencode(reader, root, *, config_only=False):
     skills(reader, root / "skills")
     skills(reader, root / "skill")
     rules(reader, root, ("AGENTS.md",))
+    opencode_markdown_components(reader, root)
     for directory in ("plugins", "plugin"):
         for path in reader.children(root / directory, ("plugin",)):
             if path.suffix in (".ts", ".js"):
                 reader.file(path, "plugin")
+
+
+def opencode_markdown_components(reader, root):
+    """OpenCode slash commands ``{command,commands}/**/*.md`` and agents ``{agent,agents}/**/*.md``.
+
+    Names follow upstream config/command.ts, agent.ts and entry-name.ts: the path relative to
+    the config dir with the folder prefix and extension removed (``git/commit`` for
+    ``command/git/commit.md``); the frontmatter does not rename them.
+    """
+    from pathlib import Path
+
+    for component, directories in (("command", ("command", "commands")), ("agent", ("agent", "agents"))):
+        for directory in directories:
+            base = root / directory
+            for path in reader.walk(base, (component,)):
+                if path.suffix != ".md":
+                    continue
+                raw = reader.read(path, (component,))
+                if raw is None:
+                    continue
+                name = path.relative_to(base).with_suffix("").as_posix()
+                reader.add(
+                    component,
+                    name,
+                    path,
+                    Path(directory, name).as_posix(),
+                    evidence="file",
+                    raw=raw,
+                    config={"component": component},
+                )
 
 
 def _pi_packages(reader, root, entries, settings_path):
