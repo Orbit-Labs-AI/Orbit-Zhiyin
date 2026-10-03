@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from tandem_data.contract import TITLE_PRIORITY
+from tandem_data.contract import TITLE_PRIORITY, TOKENS
 from tandem_data.coverage import dataset_coverage
 from tandem_data.inventory import read_inventory_connection
 from tandem_data.models import PRICE_TABLE_VERSION
@@ -108,6 +108,77 @@ def _without_external_text(connection, row, cache=None) -> dict:
 
 def _keys(values) -> str:
     return json.dumps(sorted(values))
+
+
+ANALYSIS_SESSION_KINDS = ("main", "subagent", "workflow_agent")
+
+
+def _excluded_trees(connection, candidates, scope) -> dict:
+    """Sessions in scope that the v_analysis_* views leave out, with their usage.
+
+    The views (migrations/001.sql) keep only main/subagent/workflow_agent sessions under
+    a main root with resolved lineage. Review, automation, import and auxiliary trees and
+    orphaned children are excluded, so totals built on the views undercount spend; this
+    states by how much. Each session is counted once under its first matching reason.
+    Token fields are None when no excluded call reported them (unknown, not zero).
+    """
+    where = [
+        "NOT (s.kind IN (SELECT value FROM json_each(:kinds)) AND root.kind='main'"
+        " AND s.lineage_unresolved=0)",
+        "s.session_uid NOT IN (SELECT value FROM json_each(:excluded))",
+        "s.root_uid NOT IN (SELECT value FROM json_each(:excluded))",
+    ]
+    params = {
+        "kinds": json.dumps(ANALYSIS_SESSION_KINDS),
+        "excluded": json.dumps(scope.excluded_session_uids),
+    }
+    if candidates is not None:
+        where.append("s.session_uid IN (SELECT value FROM json_each(:candidates))")
+        params["candidates"] = _keys(candidates)
+    if not scope.include_children:
+        where.append("s.session_uid=s.root_uid")
+    reasons = Counter()
+    uids = []
+    for row in connection.execute(
+        "SELECT s.session_uid,s.kind,s.lineage_unresolved,root.kind AS root_kind FROM session s"
+        " LEFT JOIN session root ON root.session_uid=s.root_uid WHERE " + " AND ".join(where),
+        params,
+    ):
+        uids.append(row["session_uid"])
+        if row["lineage_unresolved"]:
+            reasons["lineage_unresolved"] += 1
+        elif row["kind"] not in ANALYSIS_SESSION_KINDS:
+            reasons["kind_" + row["kind"]] += 1
+        else:
+            reasons["root_not_main"] += 1
+    window = []
+    call_params = {"uids": _keys(uids)}
+    for bound, operator in (("from_ts", ">="), ("until_ts", "<")):
+        value = getattr(scope, bound)
+        if value is not None:
+            window.append(f" AND ts {operator} :{bound}")
+            call_params[bound] = value
+    fields = (*TOKENS, "cost_usd")
+    totals = connection.execute(
+        "SELECT COUNT(*)," + ",".join(f"SUM({name})" for name in fields) + " FROM model_call"
+        " WHERE session_uid IN (SELECT value FROM json_each(:uids))" + "".join(window),
+        call_params,
+    ).fetchone()
+    # A coverage-v1 entry: rows are the excluded sessions, status 'excluded' when any are.
+    return {
+        **dataset_coverage(
+            len(uids),
+            excluded=bool(uids),
+            reason_counts={"excluded_" + code: n for code, n in sorted(reasons.items())},
+        ),
+        "model_calls": totals[0],
+        "tokens": {name: totals[i + 1] for i, name in enumerate(TOKENS)},
+        "cost_usd": totals[-1],
+    }
+
+
+def _share(part: int, whole: int) -> float | None:
+    return round(part / whole, 4) if whole else None
 
 
 def _ordered_calls(connection, view: str, table: str, where: str, params: dict) -> list[dict]:
@@ -758,6 +829,11 @@ def read_analysis(
             if quality != "native_id":
                 tool_reason_counts[pairing_reasons.get(quality, "ambiguous_tool_pairing")] += count
         source_agents = {source["agent"] for source in sources}
+        status_known = sum(
+            (session.get("status") or "unknown") != "unknown" for session in session_rows
+        )
+        unmapped_models = sum(model.get("model_resolution") == "unmapped" for model in models)
+        excluded_trees = _excluded_trees(connection, candidates, scope)
         inventory = read_inventory_connection(
             connection, until_ts=scope.until_ts, project_ids=scope.project_ids
         )
@@ -769,7 +845,13 @@ def read_analysis(
                 ),
                 "scans": scans,
             },
-            "sessions": dataset_coverage(len(session_rows)),
+            "sessions": {
+                **dataset_coverage(len(session_rows)),
+                # Share of sessions whose final status is known (not 'unknown').
+                "status_known_rows": status_known,
+                "status_known_share": _share(status_known, len(session_rows)),
+            },
+            "excluded_sessions": excluded_trees,
             "projects": dataset_coverage(len(project_rows)),
             "turns": dataset_coverage(len(turn_rows)),
             "events": {
@@ -799,6 +881,10 @@ def read_analysis(
                 "reason": "Hermes supplies cumulative snapshots rather than per-call usage"
                 if "hermes" in source_agents
                 else None,
+                # Calls whose raw model name is not in the model table: spellings of one
+                # model (e.g. "-latest" aliases) stay separate in per-model breakdowns.
+                "unmapped_model_rows": unmapped_models,
+                "unmapped_model_share": _share(unmapped_models, len(models)),
             },
             "usage_snapshot": dataset_coverage(len(snapshots)),
             "inventory": inventory["coverage"],
