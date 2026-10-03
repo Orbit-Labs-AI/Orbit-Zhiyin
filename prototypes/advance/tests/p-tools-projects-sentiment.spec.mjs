@@ -31,6 +31,7 @@ test('A4 tools: sorting, fail-only scope, expanded calls, matrix grid and failur
   await page.locator('[data-act="toggleMcp"][data-k="browser"]').click();
   const mcpTools = page.locator('[data-lv="mcp-tools"] .tt-mcp-t');
   await expect(mcpTools).toHaveCount(3);
+  await expect(page.locator('[data-lv="mcp-tools"] .tt-mcp-tnote')).toContainText('示例');   // demo 拆分是示例数据，如实标注
   const mcpSum = (await page.locator('[data-lv="mcp-tools"] .tt-mcp-tv').allTextContents()).reduce((a, t) => a + parseInt(t.replace(/,/g, ''), 10), 0);
   expect(String(mcpSum)).toBe((await page.locator('[data-mcp="browser"] .tt-mcp-v').textContent()).match(/^([\d,]+) 次/)[1].replace(/,/g, ''));
   await expect(page.locator('[data-mcp="browser"] .tt-mcp-n')).toHaveText('mcp·browser');

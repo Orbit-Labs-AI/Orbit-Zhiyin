@@ -12,7 +12,7 @@ function toolDaily(L, share, range) {
 }
 const TOOL_SHARE = {}; TOOLS.forEach((t) => { TOOL_SHARE[t[0]] = t[1] / 9860; });
 // F24: MCP 服务卡（Demo 与 live 共用）：服务名完整显示（可换行，不截断），有调用的服务可展开看其下每个工具的次数与失败率。
-// servers: [{ server, calls, err (null = 不计算), errWhy, extra, tag, tagHtml, removed, tools: [{ name, n, err, errWhy }] }]
+// servers: [{ server, calls, err (null = 不计算), errWhy, extra, tag, tagHtml, removed, tools: [{ name, n, err, errWhy }], toolsNote（展开列表下的说明，Demo 标「示例」） }]
 function ttMcpList(servers) {
   const T = S.tools; const pct = (v) => v == null ? '—' : f1(v * 100) + '%';
   return servers.map((x) => {
@@ -25,7 +25,7 @@ function ttMcpList(servers) {
     let h = '<div class="tt-mcp-s" data-mcp="' + esc(x.server) + '">' + head + (x.tagHtml || (x.tag ? '<span class="tag">' + x.tag + '</span>' : '')) + '</div>';
     if (open) {
       const mx = Math.max(1, ...x.tools.map((t) => t.n || 0));
-      h += '<div class="tt-mcp-tools" data-lv="mcp-tools">' + x.tools.map((t) => '<div class="tt-mcp-t"><span class="mono tt-mcp-tn">' + esc(t.name) + '</span><span class="tt-fail-bar"><i style="width:' + ((t.n || 0) / mx * 100).toFixed(1) + '%"></i></span><span class="mono tt-mcp-tv">' + fmt(t.n || 0) + ' 次 · 失败 ' + (t.err == null ? '<span data-tip="' + esc(t.errWhy || '状态未知，不计算错误率') + '">—</span>' : pct(t.err)) + '</span></div>').join('') + '</div>';
+      h += '<div class="tt-mcp-tools" data-lv="mcp-tools">' + x.tools.map((t) => '<div class="tt-mcp-t"><span class="mono tt-mcp-tn">' + esc(t.name) + '</span><span class="tt-fail-bar"><i style="width:' + ((t.n || 0) / mx * 100).toFixed(1) + '%"></i></span><span class="mono tt-mcp-tv">' + fmt(t.n || 0) + ' 次 · 失败 ' + (t.err == null ? '<span data-tip="' + esc(t.errWhy || '状态未知，不计算错误率') + '">—</span>' : pct(t.err)) + '</span></div>').join('') + (x.toolsNote ? '<div class="cap tt-mcp-tnote">' + esc(x.toolsNote) + '</div>' : '') + '</div>';
     }
     return h;
   }).join('');
@@ -82,7 +82,7 @@ PAGES.tools = () => {
   const fails = FAILS.map((f) => [f[0], f[1], Math.round(st.errors * f[1] / 100), f[2]]); const fmx = Math.max(1, ...fails.map((f) => f[1]));
   const mcpN = S.installed.has('remove-figma') ? 1 : 2;
   const br = all.find((r) => r.name === 'mcp·browser'); const brTools = br ? ttDemoMcpTools('browser', br.n) : []; const brFails = sum(brTools, (t) => t.fails);
-  const mcpDemo = [{ server: 'browser', calls: br ? br.n : 0, err: br && br.n ? brFails / br.n : null, tools: brTools, tag: '在用' },
+  const mcpDemo = [{ server: 'browser', calls: br ? br.n : 0, err: br && br.n ? brFails / br.n : null, tools: brTools, toolsNote: '各工具的份额与失败率为示例', tag: '在用' },
     S.installed.has('remove-figma') ? { server: 'figma', removed: true } : { server: 'figma', calls: 0, extra: ' · 常驻 ≈ 2.1k tokens', tools: [], tagHtml: '<button type="button" class="btn sm" data-act="install" data-id="remove-figma">移除</button>' }];
   const retries = RETRIES.map((r) => [r[0], Math.max(1, Math.round(r[1] * st.errors / 614)), r[2]]);
   const kpis = [

@@ -70,6 +70,7 @@ button.tt-mcp-h:hover,button.tt-mcp-h[aria-expanded="true"]{background:var(--bg)
 .tt-mcp-v{color:var(--ink-2);font-variant-numeric:tabular-nums}
 .tt-mcp-s .tag,.tt-mcp-s .btn{flex:none}
 .tt-mcp-tools{display:flex;flex-direction:column;gap:4px;margin:-2px 0 4px 18px;padding-left:10px;border-left:1px solid var(--hair)}
+.tt-mcp-tnote{margin-top:2px}
 .tt-mcp-t{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(40px,1fr) 116px;gap:8px;align-items:center;font-size:11px;min-height:20px}
 .tt-mcp-tn{overflow-wrap:anywhere;color:var(--ink-1)}
 .tt-mcp-tv{color:var(--ink-2);white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
