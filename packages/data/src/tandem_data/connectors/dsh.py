@@ -291,7 +291,8 @@ class DshMapper(BaseMapper):
                 for event in events:
                     event.kind, event.actor = "context.compaction", "harness"
             for event in events:
-                event.attrs["error_class"] = payload.get("error", {}).get("code")
+                error = payload.get("error")
+                event.attrs["error_class"] = error.get("code") if isinstance(error, dict) else None
             return Mapping(events)
         if typ in ("request/header", "request/context", "model/selection"):
             config = payload.get("header", {}).get("config", payload)
@@ -327,6 +328,32 @@ class DshMapper(BaseMapper):
                     )
                 ]
             )
+        if typ == "llm/retry":
+            failure = payload.get("failure")
+            failure = failure if isinstance(failure, dict) else {}
+            message = failure.get("message")
+            return Mapping(
+                [
+                    self.make(
+                        record,
+                        "error",
+                        typ,
+                        text=message if isinstance(message, str) else None,
+                        attrs={
+                            "error_class": failure.get("code"),
+                            "retry_id": payload.get("retryId"),
+                            "attempt": payload.get("retry"),
+                            "max_retries": payload.get("maxRetries"),
+                            "delay_ms": payload.get("delayMs"),
+                            "provider": payload.get("provider")
+                            if isinstance(payload.get("provider"), str)
+                            else None,
+                            "recoverable": True,
+                        },
+                        ext=payload,
+                    )
+                ]
+            )
         kinds = {
             "approval/asked": "permission.request",
             "approval/decided": "permission.decision",
@@ -339,8 +366,10 @@ class DshMapper(BaseMapper):
             "approval/policy": "setting.change",
             "permission/preset": "setting.change",
             "agent-preset/selected": "setting.change",
-            "llm/retry": "error",
-            "llm/retry-started": "error",
+            # One retry writes `llm/retry` (failure + backoff) then `llm/retry-started`
+            # (the re-issued request). Only the former is an error; the latter is
+            # loop state, so a recovered retry counts once in error totals.
+            "llm/retry-started": "ui.state",
             "agent/inbox/spliced": "queue",
             "command/run": "context.inject",
             "command/done": "context.inject",

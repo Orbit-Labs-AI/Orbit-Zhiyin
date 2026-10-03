@@ -1358,3 +1358,60 @@ def test_claude_metadata_comes_from_later_records_when_first_line_lacks_cwd(tmp_
         assert session["client"] == "cli"
         assert session["project_id"] is not None
         assert {t["project_id"] for t in rows(store, "turn")} <= {session["project_id"]}
+
+
+@pytest.mark.parametrize("retries", [1, 3])
+def test_dsh_each_retry_is_one_error_with_backoff_attrs(tmp_path, retries):
+    # Shape copied from a real dsh log: `llm/retry` carries the failure and backoff,
+    # `llm/retry-started` (same retryId) only marks the re-issued request.
+    records = [
+        {"type": "session", "version": 4, "id": "s", "createdAt": T, "cwd": "/fixture"},
+        {"type": "turn/start", "seq": 0, "time": T, "data": {"turn": 1}},
+    ]
+    seq = 1
+    for attempt in range(1, retries + 1):
+        retry_id = f"r{attempt}"
+        records += [
+            {
+                "type": "llm/retry",
+                "seq": seq,
+                "time": T + seq,
+                "data": {
+                    "retryId": retry_id,
+                    "turn": 1,
+                    "step": 1,
+                    "provider": "kimi-coding",
+                    "mode": "normal",
+                    "retry": attempt,
+                    "maxRetries": 5,
+                    "delayMs": 457.5,
+                    "failure": {"message": "429 overloaded", "code": "RATE_LIMIT"},
+                },
+            },
+            {
+                "type": "llm/retry-started",
+                "seq": seq + 1,
+                "time": T + seq + 1,
+                "data": {"retryId": retry_id, "turn": 1, "step": 1, "retry": attempt},
+            },
+        ]
+        seq += 2
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "dsh", records)
+        store.rebuild()
+        errors = [
+            (r["text"], json.loads(r["attrs"]))
+            for r in rows(store, "event")
+            if r["kind"] == "error"
+        ]
+        assert len(errors) == retries
+        assert [a["attempt"] for _, a in errors] == list(range(1, retries + 1))
+        for text, attrs in errors:
+            assert text == "429 overloaded"
+            assert attrs["error_class"] == "RATE_LIMIT"
+            assert attrs["max_retries"] == 5
+            assert attrs["delay_ms"] == 457.5
+            assert attrs["recoverable"] is True
+        started = [r for r in rows(store, "event") if r["kind"] == "ui.state"]
+        assert len(started) == retries
+        assert_sound(store)
