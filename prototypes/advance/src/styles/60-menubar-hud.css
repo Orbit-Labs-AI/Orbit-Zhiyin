@@ -47,3 +47,5 @@
 @keyframes slideout{to{opacity:0;transform:translateX(24px)}}
 /* App 图标：Orbit 标志，暖白底 + 石板灰（图标本身不随深浅色变化，所以在这里把 --orbit 固定为浅色值） */
 .appicon{--orbit:#5f6b6f;width:32px;height:32px;border-radius:22.46%;overflow:hidden;background:#f5f4f0;box-shadow:inset 0 0 0 .5px rgba(23,24,27,.14),0 1px 2px rgba(20,22,26,.12);display:grid;place-items:center;flex:none}
+/* 菜单栏面板的会话行：圆点 / 标题 / 时刻之间收紧到 6px，标题多留 4px 再省略 */
+.pop .sec.row[data-act=popSess]{gap:6px}

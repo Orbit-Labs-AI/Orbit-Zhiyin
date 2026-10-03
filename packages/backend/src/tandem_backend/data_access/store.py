@@ -5,7 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from tandem_data.analysis_input import AnalysisScope, decoded, read_analysis
-from tandem_data.query import current_projection
+from tandem_data.query import published_projection
 from tandem_data.store import readonly_connection
 
 from ..models import Event, utc_time
@@ -136,9 +136,10 @@ class CanonicalStore:
 
     @contextmanager
     def connect(self):
+        """Query-only read of the published snapshot (also while newer captures wait)."""
         with readonly_connection(self.path) as connection:
             connection.execute("BEGIN")
-            current_projection(connection)
+            published_projection(connection)
             yield connection
 
     def read_bundle(self, scope=None, *, include_native=True, external_text=True):

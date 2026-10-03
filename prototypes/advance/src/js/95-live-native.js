@@ -158,11 +158,12 @@ function lvnPatch(L) {
     const row = box.querySelector('[data-stage="' + x.id + '"]'); if (!row) return;
     const col = row.querySelector('.col'); let n = col && col.querySelector('.s');
     if (x.note) { if (!n && col) { n = document.createElement('span'); n.className = 's'; col.appendChild(n); } if (n && n.textContent !== x.note) n.textContent = x.note; } else if (n) n.remove();
-    const c = row.lastElementChild; const t = x.total ? fmt(x.done || 0) + ' / ' + fmt(x.total) : x.status === 'skipped' ? OB_TEXT.skipped : '';
+    const c = row.lastElementChild; const t = OB_TEXT.count(x);
     if (c && c.textContent !== t) c.textContent = t;
   });
   const pr = L.job && L.job.progress || {}; const bar = o.querySelector('[data-ob="bar"]');
-  if (bar) bar.style.width = (pr.total ? Math.round(clamp(pr.completed / pr.total, 0, 1) * 100) : 4) + '%';
+  const ratio = OB_TEXT.ratio(pr);
+  if (bar) bar.style.width = (ratio != null ? Math.round(ratio * 100) : 4) + '%';
   return true;
 }
 function lvnDraw(ob) {
@@ -177,8 +178,9 @@ function lvnJob(ob, job) {
   const L = ob.live; if (!job || !L.job || job.id !== L.job.id) return;
   L.job = Object.assign({}, L.job, job);
   const pr = L.job.progress || {}; const st = L.job.status;
-  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, note: OB_TEXT.stageNote(pr.stage) || (st === 'queued' ? OB_TEXT.queued : null) });
-  else if (st === 'completed') { lvnStage(L, 'backfill', { status: 'done', done: pr.total != null ? pr.total : pr.completed, total: pr.total, note: null }); lvnAfter(ob); }
+  if (LVN.ACTIVE.indexOf(st) >= 0) lvnStage(L, 'backfill', { status: 'running', done: pr.completed != null ? pr.completed : null, total: pr.total != null ? pr.total : null, unit: pr.unit || null, note: OB_TEXT.stageNote(pr) || (st === 'queued' ? OB_TEXT.queued : null) });
+  // partial: published, with records that could not be parsed or files kept at their last version (results[] says which)
+  else if (st === 'completed' || st === 'partial') { lvnStage(L, 'backfill', { status: 'done', done: pr.total != null ? pr.total : pr.completed, total: pr.total, note: st === 'partial' ? OB_TEXT.partial : null }); lvnAfter(ob); }
   else { lvnStage(L, 'backfill', { status: 'failed', note: (L.job.error && (L.job.error.message || L.job.error)) || OB_TEXT.failed }); L.err = '导入没有完成：' + ((L.job.error && (L.job.error.message || L.job.error)) || st); lvnStop(L); }
   lvnDraw(ob);
 }
@@ -298,7 +300,7 @@ function lvnPlay(ob) {
 LVN.obImport = async function () {
   const ob = OB; const L = ob && ob.live; if (!L || L.starting || (L.job && !L.err)) return;
   // 重试 after a completed import whose analysis failed: only redo the analysis half
-  if (L.err && L.job && L.job.status === 'completed') { L.rev0 = LV.rev; lvnAfter(ob); return; }
+  if (L.err && L.job && (L.job.status === 'completed' || L.job.status === 'partial')) { L.rev0 = LV.rev; lvnAfter(ob); return; }
   const chosen = L.sources.filter((x) => L.sel.has(x.id));
   if (!chosen.length) return;
   L.err = null; L.starting = true; L.after = false; L.stages = lvnStages(L); L.job = null; lvnStage(L, 'backfill', { status: 'running', note: OB_TEXT.preparing });
@@ -351,8 +353,10 @@ if (LV.live) {
   // an import job already running on the gateway (TL.job or GET /v1/app/jobs): show its stages instead of the source picker
   LVN.attach = async function (ob) {
     const L = ob.live; if (!L || L.job || L.starting || OB !== ob) return;
-    let job = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
-    if (!job) { const js = await lvnTry('/v1/app/jobs'); job = (Array.isArray(js) ? js : []).find((j) => j && j.kind === 'import' && LVN.ACTIVE.indexOf(j.status) >= 0) || null; }
+    // a background sync (origin 'sync', sync_mode live / hour) is not the first run: it never takes over the stage view
+    const userImport = (j) => !!j && j.kind === 'import' && j.origin !== 'sync' && LVN.ACTIVE.indexOf(j.status) >= 0;
+    let job = userImport(TL.job) ? TL.job : null;
+    if (!job) { const js = await lvnTry('/v1/app/jobs'); job = (Array.isArray(js) ? js : []).find(userImport) || null; }
     if (!job || !job.id || OB !== ob || L.job || L.starting) return;
     L.stages = lvnStages(L); L.rev0 = LV.rev; L.after = false;
     L.job = { id: job.id, status: job.status || 'queued', progress: job.progress || null };
@@ -363,8 +367,9 @@ if (LV.live) {
   LVN.bg = false;
   LVN.sideState = function () {
     const L = LVN.imp && LVN.imp.live, T = OB_TEXT.side;
-    const tj = TL.job && TL.job.kind === 'import' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
-    const pct = (j) => { const pr = (j && j.progress) || {}; return pr.total ? ' ' + Math.round(clamp(pr.completed / pr.total, 0, 1) * 100) + '%' : ''; };
+    // background syncs show in the page strip (后台同步 …) only; the entry is for imports the user started
+    const tj = TL.job && TL.job.kind === 'import' && TL.job.origin !== 'sync' && LVN.ACTIVE.indexOf(TL.job.status) >= 0 ? TL.job : null;
+    const pct = (j) => { const r = OB_TEXT.ratio((j && j.progress) || {}); return r != null ? ' ' + Math.round(r * 100) + '%' : ''; };
     if (L && L.err) return { k: 'fail', t: T.fail, a: T.retry, ico: 'alert' };
     if (L && L.done) return { k: 'done', t: T.done, a: '', ico: 'spark' };
     if (L && L.after) return { k: 'run', t: T.analyze, a: T.view, ico: 'sync' };
