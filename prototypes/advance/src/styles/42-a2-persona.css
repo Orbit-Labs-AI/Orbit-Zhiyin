@@ -1,14 +1,18 @@
-/* A2 persona: low-sample relax chips, fingerprint v2 Orbit compass (bezel ticks / smooth five-layer orbit band + hour hit areas + Agent planets / rhythm band / type flower whose lead petal points at the collaboration centre), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 Orbit compass on a transparent face (hairline bezel / per-Agent aurora ribbons around 16 type sectors + type hit areas + Agent logo badges / type flower whose lead petal points at your type), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
-/* 小时热区叠在轨道环带上，本身透明：悬停 / 聚焦时罩一层浅色，选中时描边，其余小时罩一层纸色（等价于原来的 .dim 变淡） */
+/* 16 个类型热区叠在轨道上，本身透明：悬停 / 聚焦时罩一层很淡的墨色，选中时细描边；选中一型时整条轨道变淡（.fp-orbw），
+   只有该型扇区里的那一段（.fp-focus）保持原样——不再给其它扇区罩纸色，表盘始终没有底色 */
 .fp2 .fps path{transition:fill .15s,fill-opacity .15s}
 .fp2 .fps{cursor:pointer;outline:none}
-.fp2 .fps.dim path:first-child{fill:var(--surface);fill-opacity:.62}
-.fp2 .fps:hover path:first-child,.fp2 .fps:focus-visible path:first-child{fill:var(--field)}
-.fp2 .fps.sel path:first-child{fill:var(--field);stroke:var(--ink-1);stroke-width:1.5}
+.fp2 .fps:hover path:first-child,.fp2 .fps:focus-visible path:first-child{fill:var(--field);fill-opacity:.6}
+.fp2 .fps.sel path:first-child{fill:transparent}
 .fp2 .fps:focus-visible path:first-child{stroke:var(--focus);stroke-width:2}
+.fp2 .fp-orbw{transition:opacity .2s}
+.fp2.fp-sel :is(.fp-orbw,.fp-pls){opacity:.28}
+.fp2 .fp-pls{transition:opacity .2s}
+.fp2 .fpd:hover circle{fill:var(--field)}
 .fp2 .fpd{transform-box:fill-box;transform-origin:center;animation:grow .25s ease-out both}
 .pe-fp-legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:11px;color:var(--ink-2);margin-top:4px}
 .pe-evo{margin-top:12px}
@@ -63,8 +67,7 @@
 .pe-fit-t b{font-variant-numeric:tabular-nums}
 /* mid widths: the three cards wrap 2 + 1 — the fit card takes the full row instead of leaving half of it empty */
 @container main (max-width:799px){.pe-three>:nth-child(3){grid-column:1/-1}}
-/* 行星：画在 00 上方的轨道上，按 --pa（该 Agent 的协作重心）转到位；入场时 WAAPI 从 0° 转到 --pa */
+/* Agent 徽章：画在 12 点方向的轨道外，按 --pa（该 Agent 会话最多的类型）转到位，标志反向转回保持正立；入场时 WAAPI 从 0° 转到 --pa */
 .fp2 .fp-pl{transform:rotate(var(--pa,0deg));transform-origin:200px 200px;transform-box:view-box}
-.fp2 .fp-pl .fp-pd{transition:r .15s}
+.fp2 .fp-pl .fp-pd{transform:rotate(calc(-1 * var(--pa,0deg)));transform-origin:center;transform-box:fill-box}
 .fp2 .fp-pl[data-tf]{cursor:default}
-.fp2 .fp-pl[data-tf]:hover .fp-pd{r:5.6}

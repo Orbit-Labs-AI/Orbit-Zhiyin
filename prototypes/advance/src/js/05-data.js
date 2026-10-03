@@ -177,7 +177,22 @@ function genSessions() {
     s.tok = Math.round(s.tools * (11 + (hash(s.id) & 7)) * 1000 + s.msgs * 4000);
     delete s.lam;
   });
+  demoLean(all);
   return all;
+}
+// 示例会话的四维倾向（只供画像页罗盘把每个会话归到它偏向的类型，不参与其它任何统计）：按会话 id 的哈希单独取随机数，
+// 不动 genSessions 的随机序列，其它页面的数字不变。类型权重让外圈多峰、四个方位都有起伏，你的类型 DIMV 最高；
+// 各 Agent 略偏向几种类型（Codex 偏委托求证、Gemini 偏即兴掌舵、DeepSeek 偏规划多线、Copilot 偏规划专注），色带的占比因此随方位变化。live 会话不带这个字段。
+const LEAN_W = { DIMV: 10, DIMT: 2.5, DIFT: 1.2, DIFV: 5, DPFV: 2, DPFT: 1, DPMT: 2, DPMV: 6, SPMV: 3, SPMT: 1, SPFT: 7, SPFV: 2, SIFV: 1.2, SIFT: 7, SIMT: 1.2, SIMV: 4 };
+const LEAN_AG = { cc: { DIMV: 1.4, SIMV: 1.3 }, cx: { DIFV: 2.6, DPFV: 1.5 }, gm: { SIFT: 2.6, SIMV: 1.6 }, ds: { DPMV: 2.4, DPMT: 2 }, cp: { SPFT: 3, SPFV: 2 } };
+function demoLean(all) {
+  all.forEach((s) => {
+    const r = rng(hash(s.id + ':lean')), tilt = LEAN_AG[s.a] || {}, w = {};
+    for (const k in LEAN_W) w[k] = LEAN_W[k] * (tilt[k] || 1);
+    const code = pickW(r, w), v = {};
+    ['D', 'I', 'M', 'V'].forEach((k, i) => { const x = 60 + r() * 32; v[k] = Math.round(code[i] === k ? x : 100 - x); });
+    s.lean = v;
+  });
 }
 const ALL = genSessions();
 const BYID = {}; ALL.forEach((s) => { BYID[s.id] = s; });

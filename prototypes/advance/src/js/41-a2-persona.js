@@ -54,10 +54,11 @@ const fpTypeIdx = (code) => FP_TYPES.indexOf(code);
 const fpTypeDeg = (code) => (Math.max(0, fpTypeIdx(code)) + 0.5) * 22.5;
 // 单个会话的四个维度（与 persona() 同一口径，只看这一个会话和它所在的那一天）：
 //   live 带单位计数时：D = 委托轮次占比、V = 验证轮次占比、I = 开场是否即兴、M = 当天是否多线（≥ 2 个 Agent 或会话时间重叠）
-//   示例数据：D 由该会话的自主比算，I / V 取所属项目的特征，M 由当天的会话数与 Agent 数算
+//   示例数据：用会话自带的 lean（四维倾向）；没有时 D 由该会话的自主比算，I / V 取所属项目的特征，M 由当天的会话数与 Agent 数算
 function fpSessV(s, dd) {
   let D, I, M, V;
-  if (s.dn != null) {
+  if (s.lean) ({ D, I, M, V } = s.lean);   // 示例数据：会话自带的四维倾向（05-data.js），只供这里归类；live 会话没有这个字段
+  else if (s.dn != null) {
     D = s.dn ? (s.dk || 0) / s.dn * 100 : 50; V = s.dn ? (s.vk || 0) / s.dn * 100 : 50;
     I = s.op == null ? 50 : s.op === 0 ? 75 : 25; M = dd.multi ? 75 : 25;
   } else {
@@ -90,96 +91,130 @@ function fpClassify(L) {
   });
   return { by, byT };
 }
-// 轨道：每个会话在它的方位上放一个高斯核（σ = 7°），按 Agent 分别累加成密度；总密度经 0.65 次方压缩成起伏高度 H（低处也看得见），
-// 每个 Agent 按它在该方位的占比分得 H 的一段，自下而上叠成一层层平滑曲线。每 2° 采样。
-// 徽章：每个有会话的 Agent 一枚，停在它自己密度最高的方位上、轨道峰线外侧 PG 处；彼此太近时往外或往里错开。
+// 轨道（学宣传片的极光）：每个会话在它的方位上放一个高斯核（σ = 8°），按 Agent 分别累加成密度；总密度经 0.8 次方压缩成起伏
+// 高度 H（低处也看得见），每个 Agent 按它在该方位的占比分得 H 的一段，自下而上叠成几条嵌套的细曲线——两条线之间的色带越宽，
+// 该方位上这个 Agent 的会话占比越高。每 2.5° 采样，画成闭合的 Catmull-Rom 曲线。
+// 徽章：每个有会话的 Agent 一枚 Agent 标志，停在它会话最多的那一型的方位、轨道外缘之外；与别的徽章或四个方位字相碰时沿轨道错开。
+const FP_N = 144;
+const fpPt = (r, deg) => { const a = deg * Math.PI / 180; return [200 + r * Math.sin(a), 200 - r * Math.cos(a)]; };
 function fpOrbit(L, cls) {
-  const N = 180, SIG = 7, idx = AG.map(() => []), dens = AG.map(() => new Float64Array(N + 1));
+  const N = FP_N, SIG = 8, idx = AG.map(() => []), dens = AG.map(() => new Float64Array(N + 1));
   L.forEach((s) => { const i = AG.findIndex((a) => a.id === s.a); if (i >= 0) idx[i].push(cls.by[s.id].a); });
   idx.forEach((as, i) => { for (let k = 0; k <= N; k++) { const th = k / N * 360; let v = 0; as.forEach((a) => { const d = ((th - a) % 360 + 540) % 360 - 180; v += Math.exp(-d * d / (2 * SIG * SIG)); }); dens[i][k] = v; } });
   const tot = Array.from({ length: N + 1 }, (_, k) => dens.reduce((x, d) => x + d[k], 0)), mx = Math.max(1e-9, ...tot);
-  const H = tot.map((v) => 2 + (FPG.RH - 2) * Math.pow(v / mx, 0.65));
+  const H = tot.map((v) => 3 + (FPG.RH - 3) * Math.pow(v / mx, 0.8));
   const cum = new Array(N + 1).fill(0), layers = [];
   AG.forEach((ag, i) => {
     const inner = cum.slice();
     for (let k = 0; k <= N; k++) cum[k] += tot[k] > 1e-9 ? H[k] * dens[i][k] / tot[k] : (i === 0 ? H[k] : 0);
     layers.push({ a: ag, inner, outer: cum.slice(), n: idx[i].length });
   });
-  const f = (q) => q;
+  const hAt = (deg) => H[Math.round((((deg % 360) + 360) % 360) / 360 * N)];
   const planets = AG.map((ag, i) => {
     const n = idx[i].length; if (!n) return null;
-    let k = 0; for (let j = 1; j < N; j++) if (dens[i][j] > dens[i][k]) k = j;
-    const deg = +(k / N * 360).toFixed(1), t = Math.floor(deg / 22.5) % 16;
-    return { a: ag, n, k: cls.byT[t].filter((s) => s.a === ag.id).length, t, code: FP_TYPES[t], deg, r: Math.min(184, FPG.R0 + 1 + H[k] + FPG.PG) };
+    const c = cls.byT.map((xs) => xs.filter((s) => s.a === ag.id).length); let t = 0; c.forEach((x, k) => { if (x > c[t]) t = k; });
+    return { a: ag, n, k: c[t], t, code: FP_TYPES[t], deg: t * 22.5 + 11.25, r: 0 };
   }).filter(Boolean);
-  const xy = (x) => [Math.sin(x.deg * Math.PI / 180) * x.r, -Math.cos(x.deg * Math.PI / 180) * x.r];
-  planets.slice().sort((a, b) => b.n - a.n).forEach((x, i, arr) => {
-    const base = x.r; for (const dr of [0, 23, -23, 46, -46]) { x.r = Math.min(186, base + dr); const p0 = xy(x); if (!arr.slice(0, i).some((y) => { const q = xy(y); return Math.hypot(p0[0] - q[0], p0[1] - q[1]) < 23; })) break; }
+  // 由多到少放置：先试本型中线，再在本扇区内左右挪（±7°），仍挤就往外一圈；与四个方位字（177）保持距离
+  const BR = 10.5, xy = (x) => fpPt(x.r, x.deg), placed = [];
+  const lbls = FP_POLES.map((q) => fpPt(177, q[0]));
+  planets.slice().sort((a, b) => b.n - a.n).forEach((x) => {
+    const c0 = x.deg; let ok = false;
+    for (const dr of [0, 14, 28]) {
+      for (const dd of [0, -6, 6, -9, 9]) {
+        x.deg = c0 + dd; x.r = Math.min(184, FPG.R0 + 1 + hAt(x.deg) + FPG.PG + dr); const p0 = xy(x);
+        if (placed.every((y) => { const q = xy(y); return Math.hypot(p0[0] - q[0], p0[1] - q[1]) >= BR * 2 + 2; }) && lbls.every((q) => Math.hypot(p0[0] - q[0], p0[1] - q[1]) >= 22)) { ok = true; break; }
+      }
+      if (ok) break;
+    }
+    x.deg = +(((x.deg % 360) + 360) % 360).toFixed(1); placed.push(x);
   });
   return { layers, planets, H };
 }
+// 闭合的 Catmull-Rom 曲线（样本首尾相同），rev 时反向；head 为 'M' 或 'L'
+function fpCR(edge, rev, head) {
+  const N = edge.length - 1, P = []; for (let s = 0; s < N; s++) P.push(fpPt(FPG.R0 + 1 + edge[s], s / N * 360));
+  if (rev) P.reverse();
+  const n = P.length, g = (i) => P[(i + n) % n], f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
+  let d = (head || 'M') + f(P[0]);
+  for (let i = 0; i < n; i++) {
+    const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2);
+    d += 'C' + f([p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6]) + ' ' + f([p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6]) + ' ' + f(p2);
+  }
+  return d;
+}
 // 一层的外缘曲线（等高线）
-function fpEdgeD(edge) {
-  const N = edge.length - 1, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
-  for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f(pt(200, FPG.R0 + 1 + edge[s], s / N * Math.PI * 2));
-  return d + 'Z';
-}
+const fpEdgeD = (edge) => fpCR(edge, false, 'M') + 'Z';
 // 一层的色带：外缘顺时针，内缘逆时针收口
-function fpLayerD(ly) {
-  const N = ly.outer.length - 1, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
-  for (let s = 0; s <= N; s++) d += (s ? 'L' : 'M') + f(pt(200, FPG.R0 + 1 + ly.outer[s], s / N * Math.PI * 2));
-  for (let s = N; s >= 0; s--) d += 'L' + f(pt(200, FPG.R0 + 1 + ly.inner[s], s / N * Math.PI * 2));
-  return d + 'Z';
-}
-// 暖纸底上的轨道用低饱和的 Agent 色：识别色与暖灰混合（填充更淡、线稍深），徽章同用
+const fpLayerD = (ly) => fpCR(ly.outer, false, 'M') + fpCR(ly.inner, true, 'L') + 'Z';
+// 暖纸底上的轨道用低饱和的 Agent 色：识别色只占三成左右，其余是主题里的暖灰（--h2 填充、--h4 细线），亮暗两套主题都沉稳
 const fpMute = (c, k) => 'color-mix(in oklab, ' + c + ' ' + (k || 46) + '%, var(--h3))';
-// 协作指纹 · Orbit 罗盘：外框是 16 型（四个方位只标 即兴 / 委托 / 规划 / 掌舵，你的类型有 --orbit 基准三角）；轨道是每个会话
-// 按自己四个维度落到的方位的密度（每个 Agent 一层平滑曲线），上有 16 个透明的类型热区（选中展开该型的会话点）与 Agent 标志徽章；
-// 内盘是协作人格的花（16 型各一朵），整朵花旋转（--hd），石板色领瓣指向你的类型。环带的 .fp-sweep 遮罩与徽章的 --pa 留给入场动画。
+const fpFill = (c) => 'color-mix(in oklab, ' + c + ' 30%, var(--h2))';
+const fpLine = (c) => 'color-mix(in oklab, ' + c + ' 38%, var(--h4))';
+// 协作指纹 · Orbit 罗盘：表盘没有底色，直接落在页面纸面上。外框是一圈细线与 64 道刻度（16 型的分界稍长），四个方位只标
+// 即兴 / 委托 / 规划 / 掌舵，你的类型有 --orbit 基准三角；轨道是每个会话按自己四个维度落到的方位的密度（每个 Agent 一条
+// 色带 + 一条细线），上有 16 个透明的类型热区（选中展开该型会话的 Agent 标志）与 Agent 标志徽章；内盘是协作人格的花，
+// 整朵花旋转（--hd），领瓣指向你的类型。环带的 .fp-sweep 遮罩与徽章的 --pa 留给入场动画。
 function fp2SVG(L, p, size, opt) {
   opt = opt || {}; const C = 200; const R0 = FPG.R0, RH = FPG.RH, RR = FPG.RR; const sm = size < 340; const uid = 'fpm' + (++FP_UID);
   const cls = fpClassify(L), byT = cls.byT, orb = fpOrbit(L, cls);
   const code = bloomCode(p), mine = fpTypeIdx(code), hd = mine >= 0 ? (mine + 0.5) * 22.5 : 0;
   CUR.fp = { byT, cls, n: L.length, pl: orb.planets, H: orb.H };
   const f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
-  const sector = (r0, r1, a0, a1) => { const p0 = pt(C, r0, a0), p1 = pt(C, r1, a0), p2 = pt(C, r1, a1), p3 = pt(C, r0, a1); return 'M' + f(p0) + 'L' + f(p1) + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + f(p2) + 'L' + f(p3) + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + f(p0) + 'Z'; };
-  const sel = S.persona.fpType;
-  // 轨道：每个 Agent 一层，层内铺一层很淡的低饱和 Agent 色（色带越宽，该方位上该 Agent 的占比越高），外缘一条稍深的细线；
-  // 最外缘下面垫一道很淡的宽线当作极光的光晕。遮罩 .fp-sweep 从 12 点顺时针展开
-  const lys = orb.layers.filter((ly) => ly.n), top = lys[lys.length - 1];
-  const band5 = '<g class="fp-orb" mask="url(#' + uid + ')">' + (top ? '<path class="fp-crest" d="' + fpEdgeD(top.outer) + '" fill="none" stroke="var(--ink-1)" stroke-opacity=".05" stroke-width="9" stroke-linejoin="round"/>' : '') +
-    lys.map((ly) => '<path class="fpo" data-a="' + ly.a.id + '" d="' + fpLayerD(ly) + '" fill="' + fpMute(ly.a.c, 42) + '" fill-opacity=".36"/>').join('') +
-    lys.map((ly) => '<path class="fpc" data-a="' + ly.a.id + '" d="' + fpEdgeD(ly.outer) + '" fill="none" stroke="' + fpMute(ly.a.c, 62) + '" stroke-width="1.15" stroke-linejoin="round"/>').join('') + '</g>';
-  // 16 个透明的类型热区：悬停提示该型按 Agent 的会话数，点击展开会话点；选中时其余类型罩一层纸色
+  const sector = (r0, r1, d0, d1) => { const p0 = fpPt(r0, d0), p1 = fpPt(r1, d0), p2 = fpPt(r1, d1), p3 = fpPt(r0, d1); return 'M' + f(p0) + 'L' + f(p1) + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + f(p2) + 'L' + f(p3) + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + f(p0) + 'Z'; };
+  const sel = opt.interactive ? S.persona.fpType : null, RO = R0 + RH + 6;   // 只有可交互的表盘（画像页）展开选中的类型；Lite / Genesis 的表盘不带选中态
+  // 轨道：每个 Agent 一条色带（低饱和，向内渐隐，像极光的身体）+ 外缘一条细线（像宣传片里嵌套的极光细线）。没有底盘与光晕
+  const lys = orb.layers.filter((ly) => ly.n);
+  const orbG = '<g class="fp-orbw"><g class="fp-orb" id="' + uid + 'o" mask="url(#' + uid + ')"><g class="fp-body" mask="url(#' + uid + 'f)">' +
+    lys.map((ly) => '<path class="fpo" data-a="' + ly.a.id + '" d="' + fpLayerD(ly) + '" fill="' + fpFill(ly.a.c) + '"/>').join('') + '</g>' +
+    lys.map((ly) => '<path class="fpc" data-a="' + ly.a.id + '" d="' + fpEdgeD(ly.outer) + '" fill="none" stroke="' + fpLine(ly.a.c) + '" stroke-width=".9" stroke-linejoin="round"/>').join('') + '</g></g>';
+  // 选中一型：整条轨道变淡，只把该型扇区里的那一段按原样再画一遍
+  const focus = sel != null ? '<g class="fp-focus" clip-path="url(#' + uid + 'c)"><use href="#' + uid + 'o"/></g>' : '';
+  // 16 个透明的类型热区：悬停提示该型按 Agent 的会话数，点击展开会话
   let ring = '';
   byT.forEach((xs, t) => {
-    const a0 = t * 22.5 * Math.PI / 180, a1 = (t + 1) * 22.5 * Math.PI / 180; const on = sel == null || sel === t;
-    ring += '<g class="fps' + (sel === t ? ' sel' : '') + (!on ? ' dim' : '') + '" data-t="' + t + '"' + (opt.interactive ? ' data-tf="fpt|' + t + '" data-act="fpType" tabindex="0" role="button" aria-label="' + FP_TYPES[t] + ' ' + TYPES[FP_TYPES[t]][0] + ' · ' + xs.length + ' 个会话"' : '') + '><path d="' + sector(R0, R0 + RH + 4, a0, a1) + '" fill="transparent"/></g>';
+    const on = sel == null || sel === t;
+    ring += '<g class="fps' + (sel === t ? ' sel' : '') + (!on ? ' dim' : '') + '" data-t="' + t + '"' + (opt.interactive ? ' data-tf="fpt|' + t + '" data-act="fpType" tabindex="0" role="button" aria-label="' + FP_TYPES[t] + ' ' + TYPES[FP_TYPES[t]][0] + ' · ' + xs.length + ' 个会话"' : '') + '><path d="' + sector(R0, RO, t * 22.5, (t + 1) * 22.5) + '" fill="transparent"/></g>';
   });
-  // 选中的类型：展开它的会话点（按方位排序后在扇区里铺开，半径 = 偏离 50 的平均程度：越靠外越典型），这时才能悬停到单个会话
+  // 选中的类型：该型的每个会话画成它那个 Agent 的小标志，按 Agent、再按方位排好，从内向外一排排铺满扇区；可悬停、点开
   let dots = '';
-  if (sel != null && byT[sel]) { const xs = byT[sel].slice().sort((x, y) => cls.by[x.id].a - cls.by[y.id].a); dots = xs.map((s, i) => { const a = (sel + 0.06 + 0.88 * (i + 0.5) / xs.length) * 22.5 * Math.PI / 180; const q = pt(C, R0 + 5 + clamp(cls.by[s.id].strong / 40, 0, 1) * (RH - 10), a); return '<circle class="fpd" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.4" fill="' + fpMute(agent(s.a).c, 72) + '" stroke="var(--surface)" stroke-width="1.2"' + (opt.interactive ? ' data-tf="sess|' + s.id + '" data-act="openSession" data-id="' + s.id + '" style="cursor:pointer"' : '') + '/>'; }).join(''); }
-  // 徽章：画在 (200, 200 − r)，外层按 --pa（该 Agent 密度最高的方位）旋转到位；Agent 标志 + 浅色光晕
-  const planets = '<g class="fp-pls">' + orb.planets.map((x) => '<g class="fp-pl" data-a="' + x.a.id + '" data-pa="' + x.deg + '" style="--pa:' + x.deg + 'deg"' + (opt.interactive ? ' data-tf="fpp|' + x.a.id + '"' : '') + '><circle cx="200" cy="' + (C - x.r).toFixed(1) + '" r="13.5" fill="' + fpMute(x.a.c, 50) + '" fill-opacity=".16"/><g class="fp-pd">' + agLogo(x.a.id, 200, +(C - x.r).toFixed(1), 9.5, fpMute(x.a.c, 74)) + '</g></g>').join('') + '</g>';
-  // 外框：一圈细线 + 128 道刻度（每型 8 道；型与型的分界稍长，四个方位最长），四个方位各一个字；外侧基准三角（--orbit）指向你的类型
-  const tk = ['', '', '']; for (let i = 0; i < 128; i++) { const w = i % 32 === 0 ? 2 : i % 8 === 0 ? 1 : 0; const a = i * 2.8125 * Math.PI / 180; tk[w] += 'M' + f(pt(C, 196, a)) + 'L' + f(pt(C, [192.5, 189, 185][w], a)); }
-  const lbl = FP_POLES.map((x) => { const q = pt(C, sm ? 174 : 177, x[0] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (sm ? 14 : 11.5) + '" font-weight="600" fill="var(--ink-2)" paint-order="stroke" stroke="var(--surface)" stroke-width="4">' + x[1] + '</text>'; }).join('');
+  if (sel != null && byT[sel]) {
+    const ord = (s) => AG.findIndex((a) => a.id === s.a);
+    const xs = byT[sel].slice().sort((x, y) => ord(x) - ord(y) || cls.by[x.id].a - cls.by[y.id].a), GAP = 8.4;
+    let i = 0, r = R0 + 8;
+    while (i < xs.length) {
+      const span = 22.5 - 3, cap = Math.max(1, Math.floor(r * span * Math.PI / 180 / GAP)), row = xs.slice(i, i + cap);
+      row.forEach((s, j) => {
+        const q = fpPt(r, sel * 22.5 + 1.5 + span * (j + 0.5) / row.length), c = fpLine(agent(s.a).c);
+        dots += '<g class="fpd" data-a="' + s.a + '"' + (opt.interactive ? ' data-tf="sess|' + s.id + '" data-act="openSession" data-id="' + s.id + '" style="cursor:pointer"' : '') + '><circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.9" fill="var(--bg)"/>' + agGlyph(s.a, q[0], q[1], 6.6, c) + '</g>';
+      });
+      i += row.length; r += GAP;
+    }
+  }
+  // 徽章：画在 (200, 200 − r)，外层按 --pa 旋转到位，标志本身反向转回保持正立；纸色圆底 + 低饱和细环 + 标志
+  const planets = '<g class="fp-pls">' + orb.planets.map((x) => '<g class="fp-pl" data-a="' + x.a.id + '" data-pa="' + x.deg + '" style="--pa:' + x.deg + 'deg"' + (opt.interactive ? ' data-tf="fpp|' + x.a.id + '"' : '') + '><g class="fp-pd">' + agLogo(x.a.id, 200, +(C - x.r).toFixed(1), 9.5, fpLine(x.a.c), 'var(--bg)') + '</g></g>').join('') + '</g>';
+  // 外框：一圈细线 + 64 道刻度（每型 4 道，型与型的分界稍长，四个方位最长），四个方位各一个字；外侧基准三角（--orbit）指向你的类型
+  const tk = ['', '', '']; for (let i = 0; i < 64; i++) { const w = i % 16 === 0 ? 2 : i % 4 === 0 ? 1 : 0; tk[w] += 'M' + f(fpPt(196, i * 5.625)) + 'L' + f(fpPt([193, 190, 186][w], i * 5.625)); }
+  const lbl = FP_POLES.map((x) => { const q = fpPt(sm ? 173 : 177, x[0]); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (sm ? 14 : 11.5) + '" font-weight="600" fill="var(--ink-2)">' + x[1] + '</text>'; }).join('');
   // 内盘：协作人格的花。.fp-flower（Genesis 淡入）› .fp-bloom（--hd 旋转，Genesis 逐帧写）› .fp-bd（入场晃动、悬停轻颤）›
-  // .fp-back 后排 / .fp-front 领瓣、前排、花蕊与圆点（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
+  // .fp-back 后排 / .fp-front 领瓣、前排与花心（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
   const g = bloom(p, C, RR), un = !p.ok || (p.code || '').includes('?'), ink = un ? 'var(--ink-3)' : 'var(--ink-1)';
   const lay = bloomParts(g, C, C, { ink, gray: 'var(--h2)', lead: un ? 'var(--ink-4)' : 'var(--orbit)', bg: 'var(--bg)', hw: 1.4 });
   const flower = '<g class="fp-flower" data-code="' + (p.code || code) + '"><g class="fp-bloom" data-hd="' + hd + '" style="--hd:' + hd + 'deg"><title>你的类型 ' + code + ' ' + (TYPES[code] ? TYPES[code][0] : '') + '</title><g class="fp-bd">' +
     (lay.back ? '<g class="fp-pw fp-back">' + lay.back + '</g>' : '') + '<g class="fp-pw fp-front">' + lay.front + '</g></g></g><g class="fp-heart">' + lay.heart + '</g></g>';
   const tn = TYPES[code];
-  return '<svg class="fp2" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 16 种类型，右半是委托、左半是掌舵、上半是即兴、下半是规划；外圈是每个会话按它自己的四个维度落到的方位，按 Agent 分层；Agent 标志停在各自会话最集中的方位；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，领瓣指向你的类型" style="overflow:visible;max-width:100%;height:auto">' +
-    '<defs><mask id="' + uid + '" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle class="fp-sweep" cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="#fff" stroke-width="' + (RH + 30) + '" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="0" transform="rotate(-90 200 200)"/></mask></defs>' +
-    '<g class="fp-base"><circle cx="200" cy="200" r="196" fill="var(--surface)" stroke="var(--ink-3)" stroke-width=".9"/>' +
-    '<path class="fp-tk" d="' + tk[0] + '" stroke="var(--ink-4)" stroke-width=".7"/><path class="fp-tk" d="' + tk[1] + '" stroke="var(--ink-3)" stroke-width="1"/><path class="fp-tk" d="' + tk[2] + '" stroke="var(--ink-1)" stroke-width="1.4"/>' +
+  return '<svg class="fp2' + (sel != null ? ' fp-sel' : '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 16 种类型，右半是委托、左半是掌舵、上半是即兴、下半是规划；外圈是每个会话按它自己的四个维度落到的方位，按 Agent 分层，色带越宽占比越高；Agent 标志停在各自会话最多的类型；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，领瓣指向你的类型" style="overflow:visible;max-width:100%;height:auto">' +
+    '<defs><mask id="' + uid + '" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle class="fp-sweep" cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="#fff" stroke-width="' + (RH + 30) + '" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="0" transform="rotate(-90 200 200)"/></mask>' +
+    '<radialGradient id="' + uid + 'g" cx="200" cy="200" r="' + (R0 + RH + 2) + '" gradientUnits="userSpaceOnUse"><stop offset="' + (R0 / (R0 + RH + 2)).toFixed(3) + '" stop-color="#fff" stop-opacity="0"/><stop offset="' + ((R0 + RH * 0.4) / (R0 + RH + 2)).toFixed(3) + '" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity=".95"/></radialGradient>' +
+    '<mask id="' + uid + 'f" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle cx="200" cy="200" r="' + (R0 + RH + 4) + '" fill="url(#' + uid + 'g)"/></mask>' +
+    (sel != null ? '<clipPath id="' + uid + 'c"><path d="' + sector(R0 - 2, RO + 2, sel * 22.5, (sel + 1) * 22.5) + '"/></clipPath>' : '') + '</defs>' +
+    '<g class="fp-base"><circle cx="200" cy="200" r="196" fill="none" stroke="var(--ink-4)" stroke-width=".8"/>' +
+    '<path class="fp-tk" d="' + tk[0] + '" stroke="var(--ink-4)" stroke-width=".6"/><path class="fp-tk" d="' + tk[1] + '" stroke="var(--ink-4)" stroke-width=".9"/><path class="fp-tk" d="' + tk[2] + '" stroke="var(--ink-2)" stroke-width="1.2"/>' +
     '<path class="fp-n0" d="M200 2L195 -8L205 -8Z" fill="var(--orbit)" transform="rotate(' + hd + ' 200 200)"/></g>' +
     '<g class="fp-hours">' + lbl + '</g>' +
     '<g class="fp-band"><circle cx="200" cy="200" r="' + (R0 + 1) + '" fill="none" stroke="var(--line)"/></g>' +
-    band5 + '<g class="ring">' + ring + '</g><g class="dots">' + dots + '</g>' + planets +
-    '<g class="fp-core"><circle cx="200" cy="200" r="90" fill="var(--bg)" stroke="var(--line)"/></g>' +
+    orbG + focus + '<g class="ring">' + ring + '</g><g class="dots">' + dots + '</g>' + planets +
+    '<g class="fp-core"></g>' +
     flower + '</svg>';
 }
 const fpPct = (n, all) => Math.round(n / Math.max(1, all) * 100) + '%';
