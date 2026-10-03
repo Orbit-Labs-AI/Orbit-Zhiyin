@@ -1,7 +1,8 @@
 /* ============ live: native shell + first run (slice 7) ============
    Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
    (22-window.js nativeWin), host menu commands (tandem:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
-   toggleEdition / refresh).
+   toggleEdition / refresh / page {n} / sidebar / hud / undo / find / back / mainAction / chartTable / reindex); the page sends
+   menuState {sidebar, pages} so the host titles 显示 / 隐藏侧边栏 and the 前往 menu.
    Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
    /v1/shell/onboarding (+ /v1/app/discovery) with estimates, 添加文件夹 = LVN.addSource() (native chooseFolder, browser: the
    path field) → POST /v1/app/sources; 开始分析 aligns the sources, PATCHes recent_days and POSTs an import job; job frames
@@ -21,8 +22,40 @@ LVN.refresh = function () {
   TL.invalidate(); LV.loadSpine(); TL.changed();
   toast('正在刷新');
 };
+// a shortcut the page itself just handled (85-keyboard.js kbDid) also fired the host menu item: act once
+const LVN_KB = { sidebar: 1, hud: 1, share: 1, report: 1, undo: 1, find: 1, mainAction: 1, back: 1, page: 1, chartTable: 1 };
+// the host asks before routing Edit › 撤销 here: an undoable install, and no text field that owns ⌘Z
+LVN.canUndo = function () {
+  const a = document.activeElement; const tag = ((a && a.tagName) || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || (a && a.isContentEditable)) return false;
+  return typeof LAST_INSTALL !== 'undefined' && !!LAST_INSTALL && typeof instDone === 'function' && !!instDone(LAST_INSTALL);
+};
+// menu titles that follow page state (显示 › 显示 / 隐藏侧边栏): sent to the host whenever they change
+LVN.menuState = function () {
+  if (!ORBIT.native.isNative || ORBIT.native.surface) return;
+  const st = { sidebar: !!S.side, pages: navRoutes().slice(0, 9).map((r) => r[1]) };
+  const k = JSON.stringify(st); if (LVN.lastMenu === k) return;
+  LVN.lastMenu = k; ORBIT.native.post('menuState', st);
+};
+function lvnChartTable() {
+  if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); }
+  else toast('图表 ↔ 表格只在概览页可用');
+}
 LVN.command = function (d) {
   const cmd = d && d.cmd; if (!cmd) return;
+  if (LVN_KB[cmd] && typeof KB_DID !== 'undefined' && KB_DID[cmd] && Date.now() - KB_DID[cmd] < 600) return;
+  if (cmd === 'page') {   // 前往 › page n (⌘1–9) of the edition in use
+    const r = navRoutes()[(+d.n || 0) - 1]; if (!r) return;
+    if (OVL) closeOverlay(); closeModal(); S.winGone = false; go(r[0]); return;
+  }
+  if (cmd === 'sidebar') { toggleSide(); return; }
+  if (cmd === 'hud') { toggleHud(); return; }
+  if (cmd === 'undo') { undoInstall(); return; }
+  if (cmd === 'find') { findCmd(); return; }
+  if (cmd === 'back') { goBack(); return; }
+  if (cmd === 'mainAction') { mainAction(); return; }
+  if (cmd === 'chartTable') { lvnChartTable(); return; }
+  if (cmd === 'reindex') { reindex(); return; }
   if (cmd === 'settings') { closeModal(); openSettings(d.tab || undefined); }
   else if (cmd === 'palette') { closeModal(); openPalette(); }
   else if (cmd === 'about') { closeModal(); openAbout(); }
@@ -42,6 +75,13 @@ LVN.command = function (d) {
   }
 };
 ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.error('tandem:command', e); } });
+if (ORBIT.native.isNative && !ORBIT.native.surface) {
+  const lvnBaseSide = toggleSide;
+  toggleSide = function () { const r = lvnBaseSide.apply(this, arguments); LVN.menuState(); return r; };
+  const lvnBaseRender = render;   // edition switches change the 前往 titles
+  render = function () { const r = lvnBaseRender.apply(this, arguments); LVN.menuState(); return r; };
+  setTimeout(() => LVN.menuState(), 0);
+}
 
 /* ---- sources ---- */
 const LVN_PATHS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, 'codex'], [/gemini/i, 'gemini'], [/copilot/i, 'copilot'],

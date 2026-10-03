@@ -99,6 +99,25 @@ final class WebHost {
     init(surface: Surface, webView: WKWebView) { self.surface = surface; self.webView = webView }
 }
 
+/// The page's web view: the default WebKit context menu (重新载入, 返回, 检查元素…) is not Orbit's; only text editing
+/// items (拷贝 / 粘贴 / 查询…) stay, plus 拷贝链接 on a link.
+final class OrbitWebView: WKWebView {
+    static let keep: Set<String> = ["WKMenuItemIdentifierCopy", "WKMenuItemIdentifierCut", "WKMenuItemIdentifierPaste",
+                                    "WKMenuItemIdentifierLookUp", "WKMenuItemIdentifierSearchWeb", "WKMenuItemIdentifierShareMenu",
+                                    "WKMenuItemIdentifierSpellingMenu", "WKMenuItemIdentifierCopyLink",
+                                    "WKMenuItemIdentifierTranslate", "WKMenuItemIdentifierSpeechMenu"]
+    override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        for item in menu.items.reversed() {
+            let id = item.identifier?.rawValue ?? ""
+            if item.isSeparatorItem || OrbitWebView.keep.contains(id) { continue }
+            menu.removeItem(item)
+        }
+        while let first = menu.items.first, first.isSeparatorItem { menu.removeItem(first) }
+        while let last = menu.items.last, last.isSeparatorItem { menu.removeItem(last) }
+        super.willOpenMenu(menu, with: event)
+    }
+}
+
 /// Borderless floating panel (HUD, widgets): may take key for text input without activating
 /// Orbit; drag with ⌘ held, or by the top 12 pt strip, to move it (the page fills the rest).
 final class FloatingPanel: NSPanel {
@@ -251,7 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.userContentController.add(bridge, name: "tandem")
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = OrbitWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.setValue(false, forKey: "drawsBackground")  // No white flash; surfaces stay transparent.
@@ -334,7 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
         let editItem = NSMenuItem(); main.addItem(editItem)
         let edit = NSMenu(title: "编辑"); editItem.submenu = edit
-        edit.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "撤销", action: #selector(undoAction(_:)), keyEquivalent: "z").target = self
         let redo = edit.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
@@ -342,15 +361,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                                      ("全选", "selectAll:", "a")] {
             edit.addItem(withTitle: title, action: Selector((action)), keyEquivalent: key)
         }
+        edit.addItem(.separator())
+        edit.addItem(command("查找", "find", key: "f"))
 
         let viewItem = NSMenuItem(); main.addItem(viewItem)
         let view = NSMenu(title: "显示"); viewItem.submenu = view
         view.addItem(command("命令面板", "palette", key: "k"))
         view.addItem(command("切换 Lite / Advance", "toggleEdition", key: "l", mods: [.command, .control]))
+        view.addItem(command("隐藏侧边栏", "sidebar", key: "s", mods: [.command, .control]))  // title follows menuState
+        view.addItem(command("图表 / 表格", "chartTable", key: "t"))
         view.addItem(.separator())
         view.addItem(command("刷新", "refresh", key: "r"))
         let reload = view.addItem(withTitle: "重新载入页面", action: #selector(reloadPage(_:)), keyEquivalent: "r")
         reload.keyEquivalentModifierMask = [.command, .shift]
+
+        // 前往: the edition's pages (⌘1–9, titles from the page's menuState), back and the page's main action.
+        let goItem = NSMenuItem(); main.addItem(goItem)
+        let go = NSMenu(title: "前往"); goItem.submenu = go
+        for n in 1...9 { go.addItem(pageItem(n)) }
+        go.addItem(.separator())
+        go.addItem(command("返回", "back", key: "["))
+        go.addItem(command("当前页主操作", "mainAction", key: "\r"))
+        goMenu = go
+        applyPageTitles()
 
         let windowItem = NSMenuItem(); main.addItem(windowItem)
         let win = NSMenu(title: "窗口"); windowItem.submenu = win
@@ -381,6 +414,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         NSApp.mainMenu = main
     }
 
+    static let defaultPages = ["概览", "协作画像", "会话轨迹", "优化建议", "", "", "", "", ""]  // Lite, the App's first edition
+    var pageTitles: [String] = AppDelegate.defaultPages
+    var sidebarVisible = true
+    weak var goMenu: NSMenu?
+
+    func pageItem(_ n: Int) -> NSMenuItem {
+        let item = NSMenuItem(title: "页面 \(n)", action: #selector(sendCommand(_:)), keyEquivalent: String(n))
+        item.keyEquivalentModifierMask = .command
+        item.representedObject = ["cmd": "page", "n": n] as [String: Any]
+        item.target = self
+        item.tag = n
+        return item
+    }
+
+    /// Page titles of the edition in use; pages the edition does not have are hidden (Lite has four).
+    func applyPageTitles() {
+        guard let go = goMenu else { return }
+        for item in go.items where item.tag >= 1 && item.tag <= 9 {
+            let title = item.tag <= pageTitles.count ? pageTitles[item.tag - 1] : ""
+            item.title = title.isEmpty ? "页面 \(item.tag)" : title
+            item.isHidden = title.isEmpty
+        }
+    }
+
+    /// {type: "menuState", sidebar: Bool, pages: [String]} from the main window's page.
+    func updateMenuState(_ body: [String: Any]) {
+        if let side = body["sidebar"] as? Bool { sidebarVisible = side }
+        if let pages = body["pages"] as? [String] { pageTitles = Array(pages.prefix(9)); applyPageTitles() }
+    }
+
+    /// Edit › 撤销: the page's undo-install when it has one and no text field owns ⌘Z; otherwise the responder chain.
+    @objc func undoAction(_ sender: Any?) {
+        let key = NSApp.keyWindow
+        guard key === window, let main = hosts[.main], main.loaded else {
+            NSApp.sendAction(Selector(("undo:")), to: nil, from: sender); return
+        }
+        main.webView.evaluateJavaScript("typeof LVN !== 'undefined' && !!LVN.canUndo && LVN.canUndo()") { [weak self] result, _ in
+            if (result as? Bool) == true { self?.dispatch("tandem:command", ["cmd": "undo"], to: main) }
+            else { NSApp.sendAction(Selector(("undo:")), to: nil, from: sender) }
+        }
+    }
+
     func command(_ title: String, _ cmd: String, key: String = "", mods: NSEvent.ModifierFlags = .command) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: #selector(sendCommand(_:)), keyEquivalent: key)
         item.keyEquivalentModifierMask = mods
@@ -391,9 +466,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     /// Menu commands go to the main window's page as tandem:command.
     @objc func sendCommand(_ sender: NSMenuItem) {
-        guard let cmd = sender.representedObject as? String else { return }
+        let detail: [String: Any]
+        if let cmd = sender.representedObject as? String { detail = ["cmd": cmd] }
+        else if let object = sender.representedObject as? [String: Any], object["cmd"] is String { detail = object }
+        else { return }
         showMain(nil)
-        dispatch("tandem:command", ["cmd": cmd], to: hosts[.main])
+        dispatch("tandem:command", detail, to: hosts[.main])
     }
 
     @objc func reloadPage(_ sender: Any?) {
@@ -431,6 +509,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(toggleHUD(_:)) { item.state = hudPanel?.isVisible == true ? .on : .off }
         if item.action == #selector(toggleWidgets(_:)) { item.state = widgetsPanel?.isVisible == true ? .on : .off }
+        if item.action == #selector(sendCommand(_:)), item.representedObject as? String == "sidebar" {
+            item.title = sidebarVisible ? "隐藏侧边栏" : "显示侧边栏"
+        }
         return true
     }
 
@@ -666,6 +747,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             // Show the HUD once onboarding finishes, unless the user has already hidden it.
             if UserDefaults.standard.object(forKey: "hudVisible") == nil { setPanel(.hud, visible: true) }
         case "dragRegions": if host.surface == .main { window.updateRegions(body) }
+        case "menuState": if host.surface == .main { updateMenuState(body) }
         case "resizeSurface":
             if let height = (body["height"] as? NSNumber)?.doubleValue { resizeSurface(host, height: height) }
         default: break

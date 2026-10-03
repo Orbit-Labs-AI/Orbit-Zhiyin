@@ -37,6 +37,8 @@ def menu_shortcuts(source: str) -> list[tuple[str, str, frozenset[str]]]:
         var, title, key = m.group(1), m.group(2), m.group(3)
         if key:
             items.append((title, key.lower(), _mods(masks.get(var) if var else None)))
+    if "pageItem(n)" in body:  # 前往 › ⌘1–9, built in a loop
+        items += [(f"页面 {n}", str(n), frozenset({"command"})) for n in range(1, 10)]
     return items
 
 
