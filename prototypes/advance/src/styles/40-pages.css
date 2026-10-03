@@ -73,3 +73,6 @@
 .range-note{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;color:var(--ink-2);font-size:13px}
 .range-widen{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
 .range-note .range-widen{margin-top:0}
+/* sidebar agent with no sessions in the selected range */
+.nav .ag.idle{color:var(--ink-3)}
+.nav .ag.idle .dot{opacity:.55}

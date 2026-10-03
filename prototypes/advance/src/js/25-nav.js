@@ -96,9 +96,17 @@ function renderWtop() {
 /* sidebar building blocks, shared by both editions (Advance shows every group, Lite the same groups with fewer pages) */
 const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
 const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '">' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
+// sidebar agents (B): 未接入 (never imported: source off and no sessions at all) vs 停用 (imported, then turned off in settings);
+// an agent with no sessions in the selected range fades (.idle) instead of looking like a filter choice
+function agentState(a) { return S.srcOff.has(a.id) ? (a.all ? 'off' : 'none') : 'on'; }
 function sideAgents() {
   const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
-  return AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
+  return AG.map((a) => {
+    const st = agentState(a), off = st !== 'on', n = off ? 0 : agCount(a.id);
+    const dim = !off && !S.agents.has(a.id), idle = !off && !dim && !n;
+    const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' : (idle ? rangeLabel() + '内没有会话 · ' : '') + '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选';
+    return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + tip + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>';
+  }).join('');
 }
 function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
 function renderSide() {
@@ -144,7 +152,7 @@ function filterRow(right) {
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
     '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>' + rangeWidenNote();
 }
-function agentLegendItems() { return AG.map((a) => ({ t: a.name, v: a.id, on: S.agents.has(a.id) })); }
+function agentLegendItems() { return AG.map((a) => { const st = agentState(a); return { t: a.name, v: a.id, on: S.agents.has(a.id), k: st === 'none' ? '未接入' : st === 'off' ? '停用' : String(sel({ noExtra: true, agent: a.id }).length) }; }); }
 // range widening (A): the selected range has no sessions while a wider one has some (e.g. a first import of only older
 // sessions) → offer 扩大到 90 天 / 看全部历史. Advance pages get it under the filter row, Lite (no filter row) in empty().
 function rangeWider() {

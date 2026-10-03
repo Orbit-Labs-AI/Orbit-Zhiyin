@@ -30,7 +30,7 @@ Object.assign(ACT, {
   range: (el) => { S.range = +el.dataset.v; render(); },
   agentToggle: (el, e) => {
     const id = el.dataset.a;
-    if (S.srcOff.has(id)) { toast(agent(id).name + ' 已在设置中停用，先到「设置 › 数据源」启用', { act: '打开设置', onAct: () => openSettings('sources') }); return; }
+    if (S.srcOff.has(id)) { toast(agent(id).name + (agent(id).all ? ' 已在设置中停用' : ' 还没有接入') + '，先到「设置 › 数据源」启用', { act: '打开设置', onAct: () => openSettings('sources') }); return; }
     if (e.altKey) { if (S.agents.has(id) && S.agents.size > 1) S.agents.delete(id); else S.agents.add(id); }
     else if (S.agents.size === 1 && S.agents.has(id)) AG.forEach((a) => S.agents.add(a.id));
     else { S.agents.clear(); S.agents.add(id); }

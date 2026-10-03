@@ -51,3 +51,22 @@ test('G: page text is selectable, controls are not', async ({ page }) => {
   });
   expect(us[0]).toBe('text'); expect(us[1]).toBe('none'); expect(us[2]).toBe('text'); expect(us[3]).toBe('none');
 });
+
+test('B: never-imported agents read 未接入, turned-off ones 停用, idle ones fade; menu rows carry counts', async ({ page }) => {
+  const errors = collectErrors(page);
+  await stubGateway(page, 'core');
+  await openLive(page, 'overview');
+  await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  const ids = await page.evaluate(() => {
+    const a0 = AG[0]; const ghost = Object.assign({}, AG[AG.length - 1], { id: 'ghost', name: 'Ghost Agent', all: 0 });
+    AG.push(ghost); AGI.ghost = ghost; S.srcOff = new Set(['ghost', AG[1].id]); render();
+    return [a0.id, AG[1].id];
+  });
+  await expect(page.locator('.nav .ag[data-a="ghost"] .ct')).toHaveText('未接入');
+  await expect(page.locator('.nav .ag[data-a="' + ids[1] + '"] .ct')).toHaveText('停用');
+  await page.locator('.frow [data-act="agentMenu"]').click();
+  const ks = await page.locator('#dd button .k').allTextContents();
+  expect(ks).toContain('未接入');
+  expect(ks.some((k) => /^\d+$/.test(k))).toBe(true);
+  expect(errors).toEqual([]);
+});
