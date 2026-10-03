@@ -1,7 +1,8 @@
 /* A3 会话与轨迹（js/42-a3-sessions.js）。时间线本体由 VZ 画（36-viz.css），这里只放页面布局、VZ 之外补画的上下文 / 相对时间轴、
    事件检视面板、关键时刻联动与列表的截断提示。颜色只走 token：强调色（墨色）表示选中 / 视窗 / 上下文；语义色只给失败、纠偏、情绪。 */
 .tl-card{container-type:inline-size}
-.tl-grid{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:4px 16px;align-items:start}
+/* 选择器带上 .tl-card：live 模式 06-live-client.js 注入的通用 .tl-grid（auto-fit 网格）同名，不能盖过这里，否则时间线被挤成半宽 */
+.tl-card .tl-grid{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:4px 16px;align-items:start}
 .tl-sum{margin:-2px 0 8px;font-variant-numeric:tabular-nums}
 .tl-main{min-width:0;display:flex;flex-direction:column;gap:4px}
 .tl-ov{min-height:28px}
@@ -58,7 +59,7 @@
 .tl-ibtn{margin-top:auto;padding-top:6px;flex-wrap:wrap;gap:6px}
 .tl-ibtn .seg button{padding:0 7px}
 @container (max-width:860px){
-  .tl-grid{grid-template-columns:minmax(0,1fr)}
+  .tl-card .tl-grid{grid-template-columns:minmax(0,1fr)}
   .tl-insp{border-left:0;border-top:1px solid var(--hair);padding:10px 0 0;margin-top:6px}
   .tl-ibtn{margin-top:0}
   .tl-legend>.tl-hint{margin-left:0}

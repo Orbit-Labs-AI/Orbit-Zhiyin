@@ -223,6 +223,9 @@ test('F25: digest card reads the detail events; template insight is labelled 规
   await page.evaluate(() => { const s = BYID[S.sess.sel]; const e = traj(s).ev.find((x) => x.wait > 0); tlPick(s, { id: e.id }); });
   await expect(page.locator('#tlInsp')).toContainText('等你批准 1 分钟');
   await expect(page.locator('#tlInsp')).toContainText('你批准了');
+  // the live client's generic .tl-grid style must not squeeze the A3 timeline: below 860px the inspector drops under it
+  const w = await page.evaluate(() => ({ card: document.querySelector('.tl-card').clientWidth, main: document.querySelector('.tl-main').getBoundingClientRect().width }));
+  if (w.card < 860) expect(w.main).toBeGreaterThan(w.card * 0.8); else expect(w.main).toBeGreaterThan(w.card - 300);
   // insight card: rule template → 规则 tag, no AI badge
   const ins = page.locator('.tl-two .card').nth(1);
   await expect(ins.locator('.aib')).toHaveCount(0);
