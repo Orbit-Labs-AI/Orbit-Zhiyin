@@ -1,9 +1,9 @@
-/* 30-persona 3（b26.4–42.2；v17.3 读字加长 1.8 拍，见下方 XL） — STORYBOARD.md v17「3」与「转场关键帧」H9–H11.
+/* 30-persona 3（b26.4–45.4；v17.3 / v17.4 读字共加长 5.0 拍，见下方 XL） — STORYBOARD.md v17「3」与「转场关键帧」H9–H11.
    罗盘在翻平的标志下成形（刻度 → 描边光从标志尾端出发 → 轨道层随扫描展开 → 花苞边转边减速落在你的类型并绽开）
    → 标题「引入协作人格分析」→ 罗盘左移 → 右侧竖向滚动列（R1–R7），条目经过中心线 y 540 时罗盘做对应反应
    → 揭晓块减速到中心线后慢漂（不停住）→ 列上移淡出、罗盘缩小淡出。
    本场景拥有 deck 2（b26.4 直接设定相机，drawCompass 每帧调用，pl: 0）与 b26.4 的 AGD compass key；标志归 20-orbit
-   （到 b28.2），CO（旧 b39.4 + XL = b41.2）的 column key 归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass
+   （到 b28.2），CO（旧 b39.4 + XL = b44.4）的 column key 归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass
    一直调到 b41.5 + XL，deck 2 自 CO + .85 起已透明）。 */
 scene('30-persona', () => {
   css(`
@@ -60,13 +60,17 @@ scene('30-persona', () => {
   // ① 左移从 b30.9 推到 b31.4（+.5），标题 / 强调行读到 b31.8 才退场；② R1 先以慢漂进场、再 1.2 拍加速到匀速（+.3）；
   // ③ 揭晓块到中心线后多漂 1.0 拍再退场（含优势 / 盲点两行的进场）。旧 b39.2 及以后的退场与交接全部晚 XL
   // （40-recs 的 column key 由集成方用 SHIFT 推后同样的拍数）。
-  const XL = 1.8, EX = 39.2 + XL, CO = 39.4 + XL;          // EX：滚动列退场；CO：罗盘退场 = 交给 40-recs 的拍
-  const MV = 31.4, MVD = 1.4;
+  // v17.4 读字（每行 ≥ max(2.0, 1.2 + .18 / 汉字 + .09 / 拉丁字母) 拍，标题 ×1.3）再加长 3.2 拍（XL 1.8 → 5.0）：
+  // ① 罗盘成形后标题 / 强调行停留：左移 b31.4 → 32.8（+1.4，标题 b29.45 起到左移约 3.35 拍，期间慢推 + 外圈慢转）；
+  // ② R1 先慢漂 .9 拍（+.4）；③ 匀速 V 150 → 130、清晰带加宽到中心线下 170 / 上 310px（R2–R5 过线间隔 1.05 → 1.21 拍）；
+  // ④ 揭晓块到中心线后读到 EX = T6 + 3.0（原 + 2.2）。
+  const XL = 5.0, EX = 39.2 + XL, CO = 39.4 + XL;          // EX：滚动列退场；CO：罗盘退场 = 交给 40-recs 的拍
+  const MV = 32.8, MVD = 1.4;
   // 罗盘中心 (400, 400) → 舞台 (960, 540)，s .86：描边光半径 381 × .86 = 328 = 俯视标志外圈 R；描边光与标志 b28.4 前收完，b29.5 起才慢推
   // 相机几何在 HB 先就位（仍透明），compass key 从 HB 起读 cpBadge 就是最终的舞台坐标；b26.4 才显示 deck 2
   tween(2, HB, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0 });
   tween(2, 26.4, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
-  tween(2, 29.5, MV - 29.5, { s: .875 }, E.sine);
+  tween(2, 29.5, MV - 29.5, { s: .88 }, E.sine);
   tween(2, MV, MVD, { ax: 600, ay: 560, s: .78 }, E.inOut);
   tween(2, MV + MVD, CO - MV - MVD, { s: .81 }, E.sine);
   // v17.1 T10：缩小淡出时中心同拍左移 600 → 480，表盘朝 40-recs 的点列（x 330）收去，像被点带走
@@ -87,10 +91,10 @@ scene('30-persona', () => {
   /* ---------- 滚动列的时间（R1–R6 过中心线的拍）与罗盘反应 ---------- */
   // v17.3：列 C0 淡入时 R1 在中心线下 25px 以慢漂 VR 进场，TR0 过线后 RU 拍内按余弦加速到匀速 V，
   // 匀速滚过 R2–R5（相距 GAP，每条 1.05 拍），SLOW 起平滑减速到慢漂 VR，T6 揭晓块到中心线后继续慢漂，不停住
-  const V = 150, VR = 50, GAP = 157.5;                     // px / beat；条目间距 px
-  const C0 = MV + .8, TR0 = C0 + .5, RU = 1.2, YR = RU * (V + VR) / 2;
-  const TR = [0, 1, 2, 3, 4].map((k) => (k ? TR0 + RU + (GAP * k - YR) / V : TR0));   // b32.7 / 34.15 / 35.2 / 36.25 / 37.3
-  const SLOW = TR[4] + .7, T6 = SLOW + .8;                 // b38.0 / 38.8
+  const V = 130, VR = 50, GAP = 157.5;                     // px / beat；条目间距 px
+  const C0 = MV + .8, TR0 = C0 + .9, RU = 1.2, YR = RU * (V + VR) / 2;
+  const TR = [0, 1, 2, 3, 4].map((k) => (k ? TR0 + RU + (GAP * k - YR) / V : TR0));   // b34.5 / 36.08 / 37.29 / 38.5 / 39.72
+  const SLOW = TR[4] + .7, T6 = SLOW + .8;                 // b40.42 / 41.22
   // 4 个维度依次排除不符的一半扇区（16 → 8 → 4 → 2 → 1）
   const axQ = (k, b) => E.inOut(lp(b, TR[k + 1] - .1, .6));
   const keepAt = (b) => CODES.map((c) => { let v = 1; for (let k = 0; k < 4; k++) if (c[k] !== ME.code[k]) v *= 1 - axQ(k, b); return v; });
@@ -99,7 +103,7 @@ scene('30-persona', () => {
   // 从罗盘上 x 最大的徽章（相机只平移缩放、rz 0，所以按方位 sin 最大取下标，左移全程不变）连到右列中心线左端
   // (1100, 540)：白 30%（连线自带 stroke-opacity .7，.43 × .7），1.5px，长出 .5 拍，pulse 1，收回 .4 拍。
   // 拍号跟 R1：V2 写的 b32.2–33.6 对应排速前 R1 在 b33.0 过线；排速后 R1 在 TR[0]（b32.3）过线，
-  // 所以照同样的相对关系写成线在 R1 过线前 .2 拍长满、过线后 .2 拍开始收回（v17.3：R1 b32.7 过线 → b32.0 → 32.5 长满 → 32.9–33.3 收回）。
+  // 所以照同样的相对关系写成线在 R1 过线前 .2 拍长满、过线后 .2 拍开始收回（v17.4：R1 b34.5 过线 → b33.8 → 34.3 长满 → 34.7–35.1 收回）。
   const T9I = D0.sets.base.pl.reduce((m, d, i) => (d != null && (m < 0 || Math.sin(d * Math.PI / 180) > Math.sin(D0.sets.base.pl[m] * Math.PI / 180)) ? i : m), -1);
   if (T9I >= 0) AGD.link(TR[0] - .7, TR[0] + .6, T9I, [1100, 540], { color: 'rgba(255,255,255,.43)', width: 1.5, draw: .5, out: .4, pulse: 1 });
   // 表圈上 16 个扇区的亮弧（罗盘坐标，跟着相机走）：R1 依次闪亮一遍；之后仍可能的扇区微亮，最后你的扇区留橙色
@@ -150,7 +154,7 @@ scene('30-persona', () => {
     })
   });
   // 标题与强调行：在场时各自慢慢离开罗盘（标题连同眉题上漂 12px、强调行下漂 10px，配合罗盘慢推），左移开始 .4 拍后
-  // （MV + .4 = b31.8，罗盘才移出 10%）退场：标题 b29.35–31.8 完整可读 2.45 拍，强调行提前到 b29.1 起解码（步长 .04），b29.65–31.8 约 2.15 拍
+  // （MV + .4 = b33.2，罗盘才移出 10%）退场：标题 b29.45–33.2 完整可读 3.75 拍，强调行 b29.1 起解码（步长 .04），b29.85–33.2 约 3.35 拍
   const drift = (px) => (el, tl, life) => { el.style.transform = 'translate(-50%,calc(-50% + ' + (px * clamp(tl / life)).toFixed(1) + 'px))'; };
   txt(29.0, MV + 1.0, [['hv sv pe72', '引入协作人格分析']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
   txt(29.1, MV + 1.0, [['lt pe44 pe-or', '精准识别你的交互特征']], { x: 960, y: 975, align: 'c' }, { anim: K.all(K.decode({ step: .04, dur: .5, out: .6, spread: true }), drift(10)) });
@@ -193,7 +197,7 @@ scene('30-persona', () => {
     ...(BLIND ? [{ y: P6 + 314, fy: P6, r7: 1, html: '<span class="pe-r7"><span class="ic" style="color:#f3b25c">⚠</span><span class="m">盲点</span>' + BLIND + '</span>' }] : [])
   ];
   // 揭晓块的进场（相对 T6）：类型码 T6 − .8（居中向外显影），中文名 T6 − .55，一句话 T6 − .4（解码），
-  // 优势 / 盲点 T6 + .05 / + .25 依次上浮淡入（原来只是糊着滚进来，读不到）；都读到 EX = T6 + 2.2
+  // 优势 / 盲点 T6 + .05 / + .25 依次上浮淡入（原来只是糊着滚进来，读不到）；都读到 EX = T6 + 3.0
   const codeIn = K.centerOut({ step: .15, dur: .55, out: 0 }), lineIn = K.decode({ step: .04, dur: .45, out: 0, from: .3 });
   txt(C0, 40.3 + XL, [['', '']], { x: 0, y: 0 }, {
     anim: (el, tl, life, t) => {
@@ -210,17 +214,17 @@ scene('30-persona', () => {
         let y = 540 + it.y - Y;
         if (y < -200 || y > 1280) { node.style.visibility = 'hidden'; return; }
         node.style.visibility = '';
-        // v17.3 清晰带：中心线下 110px（将到）到上 230px（刚读过）之间不模糊，只按距离微暗（中心 1 → 带边 .7）；
-        // 带外才变糊变暗。匀速 V 时每条完整可读约 2.3 拍（含 ≤ 1px 的轻糊约 2.9 拍），中心那条仍最亮
-        const dd = s > 0 ? Math.max(0, s - 110) : Math.max(0, -s - 230), bl = 6 * dd / 300;
+        // v17.4 清晰带：中心线下 170px（将到）到上 310px（刚读过）之间不模糊，只按距离微暗（中心 1 → 带边 .7）；
+        // 带外才变糊变暗。匀速 V 130 时每条完整可读约 3.7 拍，中心那条仍最亮
+        const dd = s > 0 ? Math.max(0, s - 170) : Math.max(0, -s - 310), bl = 6 * dd / 300;
         let a = clamp(1 - .3 * Math.min(Math.abs(s), 200) / 200 - .45 * dd / 300);
-        if (it.fy == null) a *= 1 - .6 * E.inOut(lp(b, T6 - .3, 1.0));      // 揭晓时前面的条目退暗，让出视线
+        if (it.fy == null) a *= 1 - .6 * E.inOut(lp(b, T6, 1.0));           // 揭晓时前面的条目退暗，让出视线（R5 的字母牌先读满 2 拍）
         if (it.r7 != null) { const q = E.out(lp(b, T6 + .05 + .2 * it.r7, .5)); a *= q; y += (1 - q) * 18; }
         node.style.transform = 'translateY(' + (y - 1).toFixed(1) + 'px) translateY(-50%)';
         node.style.opacity = a.toFixed(3);
         node.style.filter = bl > .05 ? 'blur(' + bl.toFixed(2) + 'px)' : 'none';
         if (it.k != null) {                                // 维度：选中的一极亮、另一极 30%；字母牌滚到这一位字母
-          const k = it.k, tk = TR[k + 1], q = E.inOut(lp(b, tk - .2, .5)), on = pole(k);
+          const k = it.k, tk = TR[k + 1] - .2, q = E.inOut(lp(b, tk - .15, .5)), on = pole(k);   // 字母牌在过线前 .2 拍落定
           node.querySelector('.pL').style.color = 'rgba(255,255,255,' + lerp(.72, on === 'L' ? 1 : .3, q).toFixed(3) + ')';
           node.querySelector('.pR').style.color = 'rgba(255,255,255,' + lerp(.72, on === 'R' ? 1 : .3, q).toFixed(3) + ')';
           const tgt = FLAP.indexOf(ME.code[k]), u = clamp((tk - b) / 1.5), pos = (((tgt - 8 * u * u) % 8) + 8) % 8;
