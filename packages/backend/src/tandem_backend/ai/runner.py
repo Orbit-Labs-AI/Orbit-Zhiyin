@@ -28,7 +28,8 @@ log = logging.getLogger(__name__)
 LOG_LINES = 200
 JOB_RETENTION_MS = 90 * 86400 * 1000
 CACHE_ROWS = 2000
-NO_RETRY = ("not_logged_in", "budget_exceeded", "timeout")
+# truncated/refused: the same request would hit the same max_tokens / safety decline again.
+NO_RETRY = ("not_logged_in", "budget_exceeded", "timeout", "truncated", "refused")
 
 
 def now_ms() -> int:
