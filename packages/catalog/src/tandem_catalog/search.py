@@ -6,6 +6,7 @@ semantic route scans an fp16 matrix exactly.
 """
 
 import json
+import math
 import sqlite3
 import threading
 from collections import OrderedDict, defaultdict
@@ -16,9 +17,15 @@ from .contracts import Feature, MatchRequest, canonical_json
 from .features import lexical_tokens
 from .vectors import blocked_scores, normalize_vectors
 
-RANKING_VERSION = "hybrid-rrf60-mmr80-v3"
+RANKING_VERSION = "hybrid-bm25f-abs-mmr80-v4"
 ROUTE_WEIGHTS = {"remedy": 1.5, "feature": 1.2, "lexical": 1.0, "semantic": 2.0}
-STOP_WORDS = set("的 和 为 是 在 与 及 了 把 中 从 到 用 做 对 将 并 要 如何 是否 以及 进行 帮助 and or the of to a in for with on at by an as is".split())
+# Han function words, Lucene's EnglishAnalyzer default stop set (a an and are as at be but by for
+# if in into is it no not of on or such that the their then there these they this to was will with),
+# plus conversational query filler (pronouns, question words, modal verbs, "help" mirroring 帮助).
+STOP_WORDS = set("的 和 为 是 在 与 及 了 把 中 从 到 用 做 对 将 并 要 如何 是否 以及 进行 帮助 我 你 我们 怎么 一下 "
+                 "a an and are as at be but by for if in into is it no not of on or such that the their then there "
+                 "these they this to was will with i me my you your we our its those how what why when which who "
+                 "do does did can could should would please help".split())
 QUERY_ALIASES = {
     "调试": "debug debugging", "排错": "debugging", "根因": "root cause", "重试": "retry",
     "论文": "paper scientific", "引用": "citation citations", "无障碍": "accessibility",
@@ -26,8 +33,28 @@ QUERY_ALIASES = {
     "测试": "testing", "优化": "optimization", "验证": "verification",
 }
 MAX_TOKENS = 24
-MIN_K = 400
-MAX_K = 8000
+# BM25 parameters. k1=1.2 is the standard default (Robertson & Zaragoza 2009, "The Probabilistic
+# Relevance Framework: BM25 and Beyond", §3.4: k1 in [1.2, 2.0]). b=0 (no length normalisation):
+# documents are chunks already windowed to <=1200 characters (features.chunks), the passage-level
+# alternative to length normalisation, and resource_chunk stores no token counts to normalise by.
+LEXICAL_K1 = 1.2
+# BM25F field weight of the resource name over the chunk text; same 4:1 ratio the original
+# bm25(chunk_fts, 4.0, 1.0) call asked for. A name hit alone saturates to 4/(1.2+4)=0.77.
+TITLE_WEIGHT = 4.0
+# multilingual-e5 cosine scores concentrate in [0.7, 1.0] because of the 0.01 InfoNCE temperature
+# (intfloat/multilingual-e5-small model card, FAQ 3); below 0.7 carries no relevance signal.
+SEMANTIC_FLOOR = 0.7
+# Free-text hits below this absolute strength are dropped unless a structured feature also hit.
+# Calibrated on the bundled 1277-item seed (see tests/test_retrieval.py golden set): a query of
+# generic words ("use the file") peaks at 0.14, single rare-term body hits sit at >= 0.25.
+MIN_TEXT_RELEVANCE = 0.2
+# Pseudo-chunks without the term added to N (an additive prior on document frequency). A small
+# catalog (a local-only library, a fresh install before the seed) has too few chunks for df to
+# separate "generic" from "shared by these few items"; with the bundled seed (7.9k chunks) the
+# prior changes idf by < 0.15 nats for every df, so large-library ranking is unaffected.
+IDF_PRIOR_DOCS = 1000
+# Items rescored with exact term counts (chunk text is recomputed, ~1 ms per cached item).
+RERANK = 40
 _QUERY_CACHE: OrderedDict = OrderedDict()
 _QUERY_LOCK = threading.Lock()
 
@@ -84,45 +111,120 @@ def remember_queries(encoder, texts: list[str], vectors: np.ndarray) -> None:
             _QUERY_CACHE.popitem(last=False)
 
 
-def match_expression(text: str, prefix: bool = False) -> str | None:
-    # Bilingual lexical expansion keeps offline search useful. It does not create
-    # inferred profile features or promote broad topic matches into a separate route.
+def query_terms(text: str, prefix: bool = False) -> list[tuple[str, bool]]:
+    """(token, is_prefix) pairs: own tokens + bilingual expansion, stop words removed, capped."""
     own = [t for t in dict.fromkeys(lexical_tokens(text)) if t not in STOP_WORDS]
     expanded = " ".join(value for key, value in QUERY_ALIASES.items() if key in text)
     tokens = list(dict.fromkeys(own + [t for t in lexical_tokens(expanded) if t not in STOP_WORDS]))[:MAX_TOKENS]
-    if not tokens:
-        return None
     stem = next((t for t in reversed(own) if len(t) >= 3 and t in tokens), None) if prefix else None
-    return " OR ".join('"' + t.replace('"', '""') + '"' + ("*" if t == stem else "") for t in tokens)
+    return [(t, t == stem) for t in tokens]
 
 
-def _lexical(conn, index, mask, text, limit, prefix):
-    match = match_expression(text, prefix)
-    if not match:
+def _fts_term(token: str, is_prefix: bool) -> str:
+    return '"' + token.replace('"', '""') + '"' + ("*" if is_prefix else "")
+
+
+def match_expression(text: str, prefix: bool = False) -> str | None:
+    # Bilingual lexical expansion keeps offline search useful. It does not create
+    # inferred profile features or promote broad topic matches into a separate route.
+    terms = query_terms(text, prefix)
+    return " OR ".join(_fts_term(t, p) for t, p in terms) if terms else None
+
+
+def idf(n_docs: int, df: int) -> float:
+    """BM25 idf with the +1 inside the log (Lucene form), never negative for common terms."""
+    return math.log(1 + (n_docs - df + 0.5) / (df + 0.5))
+
+
+def _tf(tokens: list[str], term: str, is_prefix: bool) -> int:
+    return sum(1 for t in tokens if t.startswith(term)) if is_prefix else tokens.count(term)
+
+
+def _lexical(store, conn, index, mask, text, limit, prefix):
+    """BM25F over chunks: FTS5 recalls the candidate set, ranking is computed here.
+
+    ``chunk_fts`` is ``detail=column``, where SQLite's ``bm25()`` has no term positions and
+    returns 0 for every row, so FTS order collapsed to rowid. Here FTS only answers "which
+    chunks contain t" (per column) which yields df(t); scoring is
+      raw = Σ_t idf(t) · tf~/(k1 + tf~),  tf~ = TITLE_WEIGHT·tf_title + tf_body
+    (Robertson & Zaragoza 2009, BM25F with b=0, see LEXICAL_B). Stage 1 assumes tf=1 per
+    field that contains t; the best ``RERANK`` items are rescored with exact term counts
+    recomputed from ``store.chunk_texts`` (the FTS table is contentless).
+    The absolute score divides by the same sum with every matched in-vocabulary term at its
+    best case (idf of df=1, tf→∞): it only depends on the item and corpus, not on which
+    other items happened to be candidates.
+    """
+    terms = query_terms(text, prefix)
+    if not terms:
         return [], {}
-    k = max(limit * 4, MIN_K)
-    while True:
-        try:
-            rows = conn.execute("SELECT rowid,bm25(chunk_fts,4.0,1.0) AS s FROM chunk_fts WHERE chunk_fts MATCH ? "
-                                "ORDER BY s,rowid LIMIT ?", (match, k)).fetchall()
-        except sqlite3.OperationalError:
-            # An FTS syntax edge must cost only this route, not the feature/remedy/semantic recall.
-            return None, {}
-        owners = index.items_of([r[0] for r in rows])
-        hits, passages = [], {}
-        for (rowid, score), owner in zip(rows, owners, strict=True):
-            if owner < 0 or not mask[owner]:
-                continue
-            item_id = index.ids[owner]
-            if item_id in passages:
-                continue
-            hits.append((item_id, -score))
-            passages[item_id] = rowid
-            if len(hits) >= limit:
-                break
-        if len(hits) >= limit or len(rows) < k or k >= MAX_K:
-            return hits, passages
-        k *= 2
+    n_docs = int((index.chunk_item >= 0).sum()) + IDF_PRIOR_DOCS
+    body_hits, title_hits, weights = defaultdict(set), defaultdict(set), {}
+    try:
+        for term, is_prefix in terms:
+            fts = _fts_term(term, is_prefix)
+            rows = [r[0] for r in conn.execute("SELECT rowid FROM chunk_fts WHERE chunk_fts MATCH ?", (fts,))]
+            if not rows:
+                continue  # Out-of-vocabulary tokens (typos, CJK filler bigrams) say nothing about any item.
+            weights[(term, is_prefix)] = idf(n_docs, len(rows))
+            titled = {r[0] for r in conn.execute("SELECT rowid FROM chunk_fts WHERE chunk_fts MATCH ?",
+                                                 ("{title} : " + fts,))}
+            for rowid in titled:
+                title_hits[rowid].add((term, is_prefix))
+            # Title and content share one FTS row: a titled row may or may not also hold t in its
+            # text, so stage 1 counts it as a title hit only; stage 2 recounts both fields.
+            for rowid in rows:
+                if rowid not in titled:
+                    body_hits[rowid].add((term, is_prefix))
+    except sqlite3.OperationalError:
+        # An FTS syntax edge must cost only this route, not the feature/remedy/semantic recall.
+        return None, {}
+    if not weights:
+        return [], {}
+    ceiling = idf(n_docs, 1) * len(weights)
+    rowids = np.fromiter(set(body_hits) | set(title_hits), dtype=np.int64)
+    owners = index.items_of(rowids).tolist()
+    # The name is a field of the item, not of one chunk: FTS stores it on ordinal 0 only, so
+    # collect title terms per item first and pair them with every candidate passage.
+    item_title = defaultdict(set)
+    for rowid, owner in zip(rowids.tolist(), owners, strict=True):
+        if rowid in title_hits and owner >= 0:
+            item_title[owner] |= title_hits[rowid]
+    best = {}
+    for rowid, owner in zip(rowids.tolist(), owners, strict=True):
+        if owner < 0 or not mask[owner]:
+            continue
+        titled, body = item_title.get(owner, set()), body_hits.get(rowid, set())
+        raw = 0.0
+        for key in titled | body:
+            tf = (TITLE_WEIGHT if key in titled else 0) + (1 if key in body else 0)
+            raw += weights[key] * tf / (LEXICAL_K1 + tf)
+        item_id = index.ids[owner]
+        if item_id not in best or (raw, -rowid) > (best[item_id][0], -best[item_id][1]):
+            best[item_id] = (raw, rowid)
+    ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], kv[0]))[:max(limit, RERANK)]
+    rescored = []
+    for position, (item_id, (raw, rowid)) in enumerate(ranked):
+        if position < RERANK:
+            raw = _exact_bm25(store, conn, index, item_id, rowid, weights) or raw
+        rescored.append((item_id, raw, rowid))
+    rescored.sort(key=lambda r: (-r[1], r[0]))
+    hits = [(item_id, raw / ceiling) for item_id, raw, _ in rescored[:limit]]
+    return hits, {item_id: rowid for item_id, _, rowid in rescored[:limit]}
+
+
+def _exact_bm25(store, conn, index, item_id, rowid, weights) -> float | None:
+    ordinal = int(index.chunk_ordinal[rowid]) if 0 <= rowid < len(index.chunk_ordinal) else -1
+    texts = store.chunk_texts(conn, item_id)
+    if not 0 <= ordinal < len(texts):
+        return None
+    row = conn.execute("SELECT name FROM catalog_item WHERE item_id=?", (item_id,)).fetchone()
+    title = lexical_tokens(row["name"]) if row is not None else []
+    body = lexical_tokens(texts[ordinal])
+    raw = 0.0
+    for (term, is_prefix), weight in weights.items():
+        tf = TITLE_WEIGHT * _tf(title, term, is_prefix) + _tf(body, term, is_prefix)
+        raw += weight * tf / (LEXICAL_K1 + tf)
+    return raw
 
 
 def _features(index, mask, features, limit, curated_only=False):
@@ -235,7 +337,7 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
         mask = index.mask(request, conn)
         routes, passages = {}, {}
         routes["feature"], wanted = _features(index, mask, query_features, request.per_route)
-        routes["lexical"], passages = _lexical(conn, index, mask, text, request.per_route, request.prefix)
+        routes["lexical"], passages = _lexical(store, conn, index, mask, text, request.per_route, request.prefix)
         if routes["lexical"] is None:
             routes["lexical"] = []
             response["degraded"] = ["lexical:OperationalError"]
@@ -261,14 +363,26 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
     return response
 
 
+def route_strength(route: str, raw: float) -> float:
+    """Absolute [0, 1] evidence of one route; never relative to the other candidates.
+
+    lexical: BM25F over its query ceiling (see ``_lexical``). feature / remedy: weighted share
+    of the requested features the item carries (Σ w·min(1, weight) / Σ w). semantic: cosine
+    rescaled from SEMANTIC_FLOOR to 1.
+    """
+    if route == "semantic":
+        return min(1.0, max(0.0, (raw - SEMANTIC_FLOOR) / (1 - SEMANTIC_FLOOR)))
+    return min(1.0, max(0.0, raw))
+
+
 def _rank(store, conn, index, request, routes, passage_rows, wanted, query_features):
     parts, fusion = defaultdict(dict), defaultdict(float)
-    max_rrf = sum(ROUTE_WEIGHTS[r] / 61 for r, hits in routes.items() if hits)
     for route, hits in routes.items():
         for rank, (item_id, score) in enumerate(hits, 1):
             contribution = ROUTE_WEIGHTS[route] / (60 + rank)
             fusion[item_id] += contribution
-            parts[item_id][route] = {"rank": rank, "raw_score": score, "rrf_contribution": contribution}
+            parts[item_id][route] = {"rank": rank, "raw_score": score, "strength": route_strength(route, score),
+                                     "rrf_contribution": contribution}
     if not fusion:
         return []
     ids = sorted(fusion)
@@ -283,18 +397,26 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
         row = rows.get(item_id)
         if row is None:  # Deleted between the index snapshot and this read.
             continue
-        rrf = fusion[item_id]
+        strengths = {route: part["strength"] for route, part in parts[item_id].items()}
+        structured = strengths.get("feature", 0.0) > 0 or strengths.get("remedy", 0.0) > 0
+        text = max(strengths.get("lexical", 0.0), strengths.get("semantic", 0.0))
+        if not structured and text < MIN_TEXT_RELEVANCE:
+            continue  # A weak free-text hit is noise, not a low-ranked answer.
+        # Noisy-OR: independent routes agreeing raise confidence; one strong route suffices.
+        evidence = 1.0 - math.prod(1.0 - v for v in strengths.values())
         coverage = parts[item_id].get("feature", {}).get("raw_score", 0.0)
         quality = 1.0 if row["body_policy"] == "licensed" else 0.5
         risk = json.loads(row["risk"])
         penalty = min(0.1, len(risk) * 0.02)
-        relevance = max(0.0, 0.75 * rrf / max_rrf + 0.15 * coverage + 0.1 * quality - penalty)
+        # Content quality scales the evidence (metadata-only rows lose up to 5%) but never creates it.
+        relevance = max(0.0, evidence * (0.9 + 0.1 * quality) - penalty)
         position = index.pos.get(item_id)
         candidates.append({"item_id": item_id, "type": row["type"], "name": row["name"], "summary": row["summary"],
                            "url": row["url"], "agents": json.loads(row["agents"]), "license": row["license"],
                            "difficulty": row["difficulty"], "last_seen": row["last_seen"], "version_id": row["latest_version"],
                            "content_hash": row["content_hash"], "score": relevance, "score_parts": {"routes": parts[item_id],
-                           "rrf_normalized": rrf / max_rrf, "feature_coverage": coverage, "content_quality": quality, "risk_penalty": penalty},
+                           "evidence": evidence, "rrf": fusion[item_id], "feature_coverage": coverage,
+                           "content_quality": quality, "risk_penalty": penalty},
                            "matched_features": matched.get(item_id, []), "risk": risk, "risk_level": row["risk_level"],
                            "passage": passage_rows.get(item_id),
                            "evidence_ids": request.evidence_ids, "profile_evidence_ids": request.profile_evidence_ids,
@@ -322,7 +444,8 @@ def _mmr(candidates, limit):
     redundancy = {c["item_id"]: 0.0 for c in candidates}
     remaining = list(candidates)
     while remaining and len(selected) < limit:
-        best = min(remaining, key=lambda c: (-(0.8 * c["score"] - 0.2 * redundancy[c["item_id"]]), c["item_id"]))
+        best = min(remaining, key=lambda c: (-(0.8 * c["score"] - 0.2 * redundancy[c["item_id"]]),
+                                               -c["score_parts"]["rrf"], c["item_id"]))
         remaining.remove(best)
         if best["content_hash"] in seen_hashes:
             continue

@@ -27,7 +27,8 @@ def test_lexical_and_list_latency_smoke(tmp_path):
     timings = []
     for n in range(60):
         start = time.perf_counter()
-        assert search(store, MatchRequest(text=f"{WORDS[n % len(WORDS)]} {WORDS[(n + 3) % len(WORDS)]}"))["items"]
+        # Every WORD is in every document (no discriminating power); the number names one item.
+        assert search(store, MatchRequest(text=f"{WORDS[n % len(WORDS)]} helper {n * 17}"))["items"]
         timings.append(time.perf_counter() - start)
     p95 = statistics.quantiles(timings, n=20)[-1] * 1000
     assert p95 < 100 * 5, p95
