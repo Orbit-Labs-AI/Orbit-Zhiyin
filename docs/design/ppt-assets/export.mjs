@@ -34,14 +34,14 @@ const allRoutes = [
 const routes = args.includes('--shared-only') ? [] : allRoutes.filter(r => !opt('--routes', '') || opt('--routes', '').split(',').includes(r[0]));
 const titleOverrides = {
   overview: ['AI 解读', '会话数量', '协作时长', '用户消息', '自主比', '摩擦率', '会话结果', 'Agent 使用趋势', '协作人格摘要', '活跃节律', '工具调用 Top 6', '本周建议'],
-  persona: ['协作人格与罗盘', '四个维度', '优势与盲点', '与 Agent 的契合度'],
+  persona: ['协作人格之花与轨道', '四个维度', '优势与盲点', '与 Agent 的契合度'],
   sessions: ['会话列表', '会话概要', '会话轨迹', '关键时刻', '会话启示'],
   tools: ['工具调用数量', '工具错误率', '审批数量', '子代理派发', '工具明细', '调用链矩阵', '失败原因', '审批负担', 'MCP 服务'],
   projects: ['项目列表', '跨项目对比', '项目概要', '项目与整体对比', 'Agent 分工', '识别到的工作流', '规则与配置覆盖'],
   sentiment: ['情绪分布与纠偏', '摩擦分类', '语义主题', '高频反馈语', '情绪的前因'],
   studio: ['新建生成任务', '生成进度与预览', '自检'],
   'l-home': ['协作画像摘要', '会话数量', '协作时长', '摩擦率', '完成率', '本周最值得做的事'],
-  'l-persona': ['协作画像与罗盘', '四个维度', '人格演变'],
+  'l-persona': ['协作人格之花与轨道', '四个维度', '人格演变'],
   'l-sessions': ['最近会话列表', '会话概要', '用户消息', '工具调用', '工具错误', '会话时长', '关键步骤'],
 };
 const assets = [], errors = [], coverage = [];
@@ -194,7 +194,7 @@ try {
         const name = titleOverrides[route]?.[card.index] || card.title;
         await capture(page.locator(`[data-export-id="${card.index}"]`), { id, title: name, kind: 'components', theme, route, edition, source, selector: card.originalId ? '#' + card.originalId : `#content .card (top-level index ${card.index})`, usage: title + '中的独立组件' });
       }
-      if (route === 'persona') await capture(page.locator('.pe-fpc > svg').first(), { id: 'persona-compass', title: '人格罗盘 · 独立透明图形', kind: 'components', theme, route, edition, source, selector: '.pe-fpc > svg', usage: '适合放大展示或与路演文字并排排版' }, false);
+      if (route === 'persona') await capture(page.locator('.pe-fpc > svg').first(), { id: 'persona-compass', title: '协作人格之花与轨道 · 独立透明图形', kind: 'components', theme, route, edition, source, selector: '.pe-fpc > svg', usage: '适合放大展示或与路演文字并排排版' }, false);
       console.log(`${theme} ${route}: ${cards.length} components + window`);
     }
     if (opt('--routes', '')) continue;
@@ -233,7 +233,7 @@ try {
     await capture(page.locator('#modal'), { id: 'command-palette', title: '命令面板', kind: 'flows', theme, edition: 'Shared', source: 'prototypes/advance/src/js/52-palette.js', selector: '#modal' }, false);
     await page.evaluate(t => { closeModal(); S.shareDark = t === 'dark'; openShare(); }, theme);
     await capture(page.locator('#modal'), { id: 'share-dialog', title: '分享卡预览', kind: 'flows', theme, edition: 'Shared', source: 'prototypes/advance/src/js/55-exports.js', selector: '#modal' });
-    await capture(page.locator('.sharecard'), { id: 'persona-share-card', title: '人格分享卡', kind: 'components', theme, edition: 'Shared', source: 'prototypes/advance/src/js/55-exports.js', selector: '.sharecard', usage: '单独展示人格代码、罗盘与维度' });
+    await capture(page.locator('.sharecard'), { id: 'persona-share-card', title: '人格分享卡', kind: 'components', theme, edition: 'Shared', source: 'prototypes/advance/src/js/55-exports.js', selector: '.sharecard', usage: '单独展示人格代码、人格之花与维度' });
     await page.evaluate(() => closeModal());
     for (const [step, name] of [[0, '首次启动欢迎'], [1, '选择会话来源'], [3, '人格揭晓']]) {
       await page.evaluate(step => openOnboarding(step), step);
