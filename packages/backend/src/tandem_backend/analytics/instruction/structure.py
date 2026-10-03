@@ -5,7 +5,7 @@ import re
 from .text import instruction_text
 
 CONSTRAINT = re.compile(r"必须|不要|只能|要求|\b(?:must|do not|don't|only|require)\b", re.I)
-FILE = re.compile(r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(py|ts|tsx|js|jsx|tex|md|json|yaml|yml|rs|go|java|cpp|c|h|sh|html|css|ipynb)\b", re.I)
+FILE = re.compile(r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(py|ts|tsx|js|jsx|tex|md|json|yaml|yml|rs|go|java|cpp|c|h|sh|html|css|ipynb|swift|kt|rb|php|toml|sql|txt|csv)\b", re.I)
 
 
 def structure(e):

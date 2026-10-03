@@ -1,6 +1,7 @@
 """Real-data calibration (recs-B12 / B10 / B11): problem bars per scope, inventory confidence,
 benefit-0 cards and tool-dict groups. All synthetic."""
 
+import pytest
 from test_engine import INPUTS, MEMORY, fake_recall, raw
 from test_recommend_problems import inputs, signal
 
@@ -92,5 +93,74 @@ def test_merge_keeps_the_primary_problem_type():
         return {"evidence": {"session_uids": ["a"], "signal_ids": [], "counts": {"sessions": 1}}, "problem": prob}
 
     merged = multi._merge("k", {"catalog": {"k": payload("tool_env_failure", .04)},
-                                "dense": {"k": payload("installed_unused", .58)}})
+                                "hashed_lexical": {"k": payload("installed_unused", .58)}})
     assert merged["problem"]["type"] == "tool_env_failure"
+
+
+def _independent_wilson_lo(k, n, z=1.96):
+    # Wilson (1927) score interval lower bound, written out here independently of problems.wilson_lo
+    p = k / n
+    return (p + z * z / (2 * n) - z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** .5)) / (1 + z * z / n)
+
+
+@pytest.mark.parametrize(("n", "bar", "min_k"), [(60, .05, 7), (200, .0273861, 11), (400, .0193649, 14)])
+def test_relaxed_wilson_bar_minimum_k_table(n, bar, min_k):
+    from tandem_backend.recommend.problems import min_wilson_lo
+
+    # bar = .05 · √(60/n) above n = 60 (floor .01): √.3 = .547723, √.15 = .387298
+    assert min_wilson_lo(n) == pytest.approx(bar, abs=1e-6)
+    assert _independent_wilson_lo(min_k, n) >= bar > _independent_wilson_lo(min_k - 1, n)
+    assert problems.wilson_lo(min_k, n) == pytest.approx(_independent_wilson_lo(min_k, n), abs=1e-9)
+    assert min_wilson_lo(10 ** 6) == .01  # floor
+
+
+def test_signal_without_metric_counts_evidence_not_one():
+    sig = {"signal_id": "s1", "rule_id": "identical_retries", "reason": "r", "metrics": [],
+           "scope": {"root_session_uid": "r1"},
+           "evidence": [{"kind": "event", "session_uid": "r1", "id": "e1"},
+                        {"kind": "event", "session_uid": "r1", "id": "e2"}]}
+    bare = {**sig, "signal_id": "s2", "evidence": [], "scope": {"root_session_uid": "r2"}}
+    out = problems.build(inputs(signals=[sig, bare], sessions={"main": 10, "weeks": 2}))[0]
+    assert out["weekly_count"] == 1.0  # (2 evidence events + 0) / 2 weeks — no +1 per bare signal
+    assert out["vars"]["count_basis"] == "evidence"
+
+
+def test_short_window_uses_actual_days():
+    from tandem_backend.recommend.problems import observed_weeks
+
+    assert observed_weeks({"weeks": .5}) == .5
+    assert observed_weeks({"first_ts": "2026-09-01T00:00:00Z", "last_ts": "2026-09-04T12:00:00Z"}) == .5
+    assert observed_weeks({"weeks": .01}) == pytest.approx(1 / 7)  # never below one day
+    assert observed_weeks({}) == 1.
+    sig = [{"signal_id": f"s{i}", "rule_id": "identical_retries", "reason": "r",
+            "metrics": [{"value": 1}], "scope": {"root_session_uid": f"r{i}"},
+            "evidence": [{"session_uid": f"r{i}", "id": f"e{i}"}]} for i in range(3)]
+    out = problems.build(inputs(signals=sig, sessions={"main": 10, "weeks": .5}))[0]
+    assert out["weekly_count"] == 6.0  # 3 events in half a week, not 3 (old max(1, weeks))
+
+
+@pytest.mark.parametrize(("current", "last", "changed"), [
+    (8, None, False), (10, 10, False), (11, 10, False), (12, 10, True), (8, 10, True), (9, 10, False),
+    (1, 0, True), (0, 0, False)])
+def test_evidence_changed_twenty_percent(current, last, changed):
+    from tandem_backend.recommend.ranking.gates import evidence_changed
+
+    # |current − last| / max(last, 1) ≥ .2 ; session counts are integers: 12 vs 10 → .2, 11 vs 10 → .1
+    assert evidence_changed(current, last) is changed
+
+
+def _days(k, n):
+    return [{"session_uid": f"d{i}", "task_types": ["a", "b", "c"] if i < k else ["a"]} for i in range(n)]
+
+
+@pytest.mark.parametrize(("k", "n", "recurs"), [
+    (2, 5, False),     # k < MIN_SESSIONS even though share .4
+    (3, 10, True),     # share .30 ≥ MIXED_SHARE
+    (3, 20, True),     # share .15, Wilson lo .05237 ≥ .05
+    (3, 21, False),    # share .143, Wilson lo .04981 < .05
+    (3, 100, False)])  # share .03, Wilson lo .01025
+def test_mixed_recurs_boundaries(k, n, recurs):
+    from tandem_backend.recommend.recall import templates
+
+    data = {"sessions": {"main": n, "weeks": 4}, "facts": {"session_days": _days(k, n)}}
+    assert templates._mixed_recurs(data) is recurs

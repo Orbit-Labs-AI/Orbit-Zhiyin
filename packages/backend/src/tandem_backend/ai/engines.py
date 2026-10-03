@@ -62,7 +62,7 @@ class EngineResult:
     cost_usd: float | None = None
     cost_source: str = "unknown"  # reported | price_table | unknown
     latency_ms: int = 0
-    error: str | None = None  # timeout|cancelled|budget_exceeded|not_logged_in|schema_invalid|engine_error
+    error: str | None = None  # timeout|cancelled|budget_exceeded|not_logged_in|schema_invalid|engine_error|truncated|refused
     detail: str | None = None
 
 
@@ -321,15 +321,18 @@ class CodexEngine:
             kind = event.get("type")
             if kind == "turn.completed":
                 u = event.get("usage") or {}
-                usage["input"] += u.get("input_tokens") or 0
-                usage["cache_read"] += u.get("cached_input_tokens") or 0
+                # OpenAI-style usage: input_tokens *includes* cached_input_tokens; store the
+                # uncached remainder so input/cache_read are disjoint like the Anthropic fields.
+                cached = u.get("cached_input_tokens") or 0
+                usage["input"] += max(0, (u.get("input_tokens") or 0) - cached)
+                usage["cache_read"] += cached
                 usage["cache_write"] += u.get("cache_write_input_tokens") or 0
                 usage["output"] += u.get("output_tokens") or 0
             elif kind in ("error", "turn.failed"):
                 message = event.get("message") or (event.get("error") or {}).get("message")
                 errors.append(str(message or kind))
         result.usage = usage
-        cost = prices.estimate(usage["input"], usage["output"], result.model_id)
+        cost = prices.cost(usage, result.model_id)
         if cost is not None:
             result.cost_usd, result.cost_source = cost, "price_table"
         try:
@@ -348,25 +351,113 @@ class CodexEngine:
         return result
 
 
+# -- Anthropic Messages API ---------------------------------------------------------------
+# Request shape follows the Claude API reference (claude-api skill, cached 2026-09-25):
+# * Forced ``tool_choice`` (``any``/``tool``) returns HTTP 400 on claude-sonnet-5-5,
+#   claude-opus-5-5 and claude-fable-5-1, so JSON is requested through structured outputs
+#   (``output_config.format`` = json_schema). Schemas that structured outputs cannot express
+#   (``additionalProperties`` other than false) fall back to an ``emit`` tool with
+#   ``tool_choice: auto`` and a prompt line naming the tool; the runner validates either way.
+# * Those models always think (adaptive) and thinking tokens count against ``max_tokens``, so
+#   the visible-output budget gets THINKING_HEADROOM on top. Non-streaming requests should stay
+#   around 16k max_tokens (SDK guidance); out budgets here are <= 2k, so 2k + 8k stays under it.
+# * Effort is explicit (Opus 5.5 defaults to medium, Sonnet 5.5 to high): cheap slot -> low
+#   (classification/short answers), main slot -> medium (the documented cost-saving step-down).
+#   Haiku 4.5 / Sonnet 4.5 reject ``effort`` and get none.
+# * ``stop_reason`` max_tokens / refusal are explicit errors (``truncated`` / ``refused``), never
+#   a half-parsed payload. 429 / 529 / 5xx are retried a bounded number of times.
+THINKING_HEADROOM = 8000
+EFFORT = {"cheap": "low", "main": "medium"}
+RETRY_STATUS = (429, 500, 502, 503, 504, 529)
+API_RETRIES = 2  # SDK default max_retries
+RETRY_BASE_S, RETRY_MAX_S = 1.0, 8.0
+_UNSUPPORTED_KEYS = ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+                     "minLength", "maxLength", "maxItems", "uniqueItems", "$schema")
+_sleep = time.sleep  # patched in tests
+
+
+def _always_thinks(model: str) -> bool:
+    return any(model.startswith(p) for p in ("claude-opus-5", "claude-sonnet-5", "claude-fable-5",
+                                              "claude-mythos-5"))
+
+
+def _supports_effort(model: str) -> bool:
+    return not any(model.startswith(p) for p in ("claude-haiku", "claude-sonnet-4-5", "claude-3"))
+
+
+def strict_schema(schema) -> dict | None:
+    """A copy of ``schema`` that structured outputs accepts, or ``None`` when it cannot be
+    expressed (open objects). Dropped constraints are still enforced by the runner's validator."""
+    def walk(node):
+        if isinstance(node, list):
+            return [walk(n) for n in node]
+        if not isinstance(node, dict):
+            return node
+        out = {k: walk(v) for k, v in node.items() if k not in _UNSUPPORTED_KEYS}
+        if out.get("minItems", 0) > 1:
+            out.pop("minItems")
+        if out.get("type") == "object" or "properties" in out:
+            extra = out.get("additionalProperties", False)
+            if extra is not False:
+                raise ValueError("open object")
+            out["additionalProperties"] = False
+        return out
+    try:
+        return walk(schema)
+    except ValueError:
+        return None
+
+
 class ApiKeyEngine:
-    """Direct Messages API with a forced ``emit`` tool; registered only when
-    ``ANTHROPIC_API_KEY`` is set. The key is read per call and never stored or logged."""
+    """Direct Messages API with structured outputs; registered only when ``ANTHROPIC_API_KEY``
+    is set. The key is read per call and never stored or logged."""
 
     id, name = "api_key", "Anthropic API"
 
     def __init__(self, home: Path):
         self.home = Path(home)
 
+    @staticmethod
+    def body(req: EngineRequest, model: str) -> dict:
+        body = {"model": model, "system": req.system,
+                "max_tokens": req.max_tokens + (THINKING_HEADROOM if _always_thinks(model) else 0),
+                "messages": [{"role": "user", "content": req.prompt}]}
+        config: dict = {}
+        if _supports_effort(model):
+            config["effort"] = EFFORT.get(req.slot, "low")
+        schema = strict_schema(req.schema)
+        if schema is not None:
+            config["format"] = {"type": "json_schema", "schema": schema}
+        else:
+            body["tools"] = [{"name": "emit", "description": "Return the result.",
+                              "input_schema": req.schema}]
+            body["tool_choice"] = {"type": "auto"}
+            body["messages"][0]["content"] = req.prompt + "\n\nReturn the result by calling the emit tool once."
+        if config:
+            body["output_config"] = config
+        return body
+
+    def _post(self, request: urllib.request.Request, req: EngineRequest) -> dict:
+        for attempt in range(API_RETRIES + 1):
+            try:
+                with urllib.request.urlopen(request, timeout=req.timeout_s) as response:
+                    return json.loads(response.read())
+            except urllib.error.HTTPError as error:
+                if error.code not in RETRY_STATUS or attempt == API_RETRIES or req.cancel.is_set():
+                    raise
+                try:
+                    wait = float(error.headers.get("retry-after") or 0) if error.headers else 0.0
+                except ValueError:
+                    wait = 0.0
+                _sleep(min(RETRY_MAX_S, max(wait, RETRY_BASE_S * 2 ** attempt)))
+        raise AssertionError("unreachable")
+
     def call(self, req: EngineRequest) -> EngineResult:
         key = os.environ.get("ANTHROPIC_API_KEY")
         if not key:
             return EngineResult(error="not_logged_in")
         model = req.model or API_MODELS.get(req.slot, API_MODELS["cheap"])
-        body = {"model": model, "max_tokens": req.max_tokens, "system": req.system,
-                "messages": [{"role": "user", "content": req.prompt}],
-                "tools": [{"name": "emit", "description": "Return the result.",
-                           "input_schema": req.schema}],
-                "tool_choice": {"type": "tool", "name": "emit"}}
+        body = self.body(req, model)
         request = urllib.request.Request(
             API_URL, data=json.dumps(body).encode(), method="POST",
             headers={"x-api-key": key, "anthropic-version": "2023-06-01",
@@ -377,14 +468,15 @@ class ApiKeyEngine:
             result.error = "cancelled"
             return result
         try:
-            with urllib.request.urlopen(request, timeout=req.timeout_s) as response:
-                data = json.loads(response.read())
+            data = self._post(request, req)
         except urllib.error.HTTPError as error:
             result.error = "not_logged_in" if error.code in (401, 403) else "engine_error"
             result.detail = f"http {error.code}"
             return result
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as error:
-            result.error = "timeout" if isinstance(error, TimeoutError) else "engine_error"
+            timed_out = isinstance(error, TimeoutError) or isinstance(
+                getattr(error, "reason", None), TimeoutError)
+            result.error = "timeout" if timed_out else "engine_error"
             result.detail = type(error).__name__
             return result
         finally:
@@ -398,15 +490,30 @@ class ApiKeyEngine:
                         "cache_read": usage.get("cache_read_input_tokens") or 0,
                         "cache_write": usage.get("cache_creation_input_tokens") or 0,
                         "output": usage.get("output_tokens") or 0}
-        cost = prices.estimate(result.usage["input"] + result.usage["cache_write"],
-                               result.usage["output"], result.model_id)
+        cost = prices.cost(result.usage, result.model_id)
         if cost is not None:
             result.cost_usd, result.cost_source = cost, "price_table"
-        block = next((b for b in data.get("content") or [] if b.get("type") == "tool_use"), None)
-        if block is None or not isinstance(block.get("input"), dict):
+        stop = data.get("stop_reason")
+        if stop in ("max_tokens", "refusal"):
+            result.error = "truncated" if stop == "max_tokens" else "refused"
+            details = data.get("stop_details") or {}
+            result.detail = f"stop_reason={stop}" + (f" category={details.get('category')}"
+                                                      if details.get("category") else "")
+            return result
+        blocks = data.get("content") or []
+        if "tools" in body:
+            block = next((b for b in blocks if b.get("type") == "tool_use"), None)
+            output = block.get("input") if block else None
+        else:
+            text = "".join(b.get("text") or "" for b in blocks if b.get("type") == "text")
+            try:
+                output = json.loads(text)
+            except ValueError:
+                output = None
+        if not isinstance(output, dict):
             result.error = "schema_invalid"
             return result
-        result.output = block["input"]
+        result.output = output
         return result
 
 

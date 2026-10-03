@@ -2,7 +2,7 @@
 
 import re
 
-TAXONOMY_VERSION = "task-taxonomy-v2.1"
+TAXONOMY_VERSION = "task-taxonomy-v2.2"
 DOMAIN_LABELS = {
     "software": "软件工程", "mathematics": "数学", "data_analysis": "数据工作",
     "writing": "写作与文档", "design": "设计", "education": "教育与学习",
@@ -10,9 +10,18 @@ DOMAIN_LABELS = {
 # Broad labels remain API-compatible. Ambiguous words (matrix, test, report, UI,
 # proof) are not sufficient to establish a specialized subdomain by themselves.
 DOMAINS = {
-    "software": r"代码|后端|前端|函数|接口|脚本|程序|软件|\b(?:code|api|backend|frontend|python|typescript|bug)\b",
+    # v2.2: everyday repository/tooling vocabulary (audit B8: PR/依赖/Swift/review requests had no domain).
+    "software": r"代码|后端|前端|函数|接口|脚本|程序|软件|仓库|分支|依赖|编译|解析器|按钮|登录页|代码审查"
+                r"|特性开关|特征开关|功能开关"
+                r"|模块|重构|构建"
+                r"|\b(?:code|api|backend|frontend|python|typescript|bug)\b"
+                # ASCII-only boundaries: \b fails between CJK and Latin ("这个PR合并").
+                r"|(?<![A-Za-z0-9])(?:javascript|git|commits?|prs?|pull\s+requests?|merge\s+requests?"
+                r"|repo(?:sitory)?|branch(?:es)?|dependenc(?:y|ies)|compile[rsd]?|swift(?:ui)?|rust|kotlin"
+                r"|java|node(?:\.js)?|npm|pnpm|diff|ci|parser|build|feature\s+flags?)(?![A-Za-z0-9])",
     "mathematics": r"数学|定理|积分|微分(?!谱|截面)|线性代数|\b(?:mathematics|math|theorem|calculus)\b",
-    "data_analysis": r"数据分析|数据集|统计|聚类|特征|\b(?:analytics|dataset|statistics|clustering)\b",
+    # Bare 特征 is ambiguous (特征开关 = feature flag); 特征工程/特征提取 stay in data.machine_learning.
+    "data_analysis": r"数据分析|数据集|统计|聚类|\b(?:analytics|dataset|statistics|clustering)\b",
     "writing": r"文档|报告|文章|讲义|教程|\b(?:document|report|readme|essay|tutorial)\b",
     "design": r"界面|排版|配色|海报|\b(?:design|layout|poster|ui)\b",
     "education": r"批改|作业|试卷|学号|讲义|\b(?:grading|homework|exam)\b",
@@ -59,10 +68,12 @@ DOMAIN_DETAILS = {
 
 TASK_TYPES = {
     "research": r"调研|检索|搜索|查找|\b(?:research|search|investigate)\b",
-    "create": r"编写|撰写|创建|生成|实现|开发|(?:^|请|再|然后|现在)写|(?:请|帮我|需要你|希望你)\s*(?:给|为)[^，,。.!！？?\n]{1,24}写|\b(?:write|create|implement|build)\b",
+    # "build" is a noun in "why the build fails": only the imperative / "build a|me|new ..." form creates.
+    "create": r"编写|撰写|创建|生成|实现|开发|增加|添加|新增|(?:^|请|再|然后|现在)写|(?:请|帮我|需要你|希望你)\s*(?:给|为)[^，,。.!！？?\n]{1,24}写"
+              r"|\b(?:write|create|implement|add)\b|^(?:please\s+)?build\b|\bbuild\s+(?:a|an|me|us|new|out|up)\b",
     "modify": r"修改|改写|调整|重构|完善|优化|去除|删除|\b(?:modify|revise|refactor|update|remove|delete|optimi[sz]e)\b",
     "debug": r"修复|排查|调试|\b(?:fix|debug|troubleshoot)\b",
-    "test": r"测试(?!字段|数据|报告|题|卷|成绩|分数|用例|结果)|验证|验收|\b(?:test(?!\s+(?:report|results?|data|cases?|scores?)\b)|verify|validate)\b",
+    "test": r"测试(?!字段|数据|报告|题|卷|成绩|分数|用例|结果)|验证|验收|\b(?:tests?(?!\s+(?:report|results?|data|cases?|scores?)\b)|verify|validate)\b",
     "explain": r"解释|讲解|说明|介绍(?!信)|推导|证明|\b(?:explain|describe|introduce|derive|prove)\b",
     "analyze": r"分析|统计|可视化|\b(?:analy[sz]e|visuali[sz]e|count)\b",
     "design": r"设计|\bdesign\b",
@@ -70,6 +81,9 @@ TASK_TYPES = {
     "summarize": r"总结|概括|归纳|\bsummari[sz]e\b",
     "grade": r"批改|评分|\b(?:grade|grading)\b",
     "publish": r"上传|发布|部署|\b(?:upload|publish|deploy)\b",
+    "review": r"审查|评审|审阅|代码审查|\b(?:review|code\s+review)\b",
+    "configure": r"配置|安装|设置(?!了)|\b(?:configure|install|set\s+up|setup)\b",
+    "git": r"提交代码|合并(?:分支|代码|PR)|(?:PR|分支).{0,4}合并|推送(?:到|代码)?|变基|\b(?:commit|merge|push|rebase|cherry-pick)\b",
 }
 
 

@@ -2,7 +2,7 @@
 
 import hashlib
 
-from ..problems import MIN_SESSIONS, MIN_WILSON_LO, wilson_lo
+from ..problems import MIN_SESSIONS, MIN_WILSON_LO, observed_weeks, wilson_lo
 from .kb_route import from_rule
 
 MIXED_TASKS, MIXED_SHARE = 3, .3
@@ -44,7 +44,7 @@ def _mixed_recurs(inputs: dict) -> bool:
 def _mixed_problem(inputs: dict) -> dict:
     """Problem-shaped evidence for the template when no correction problem backs it."""
     roots, n = _mixed_roots(inputs)
-    k, weeks = len(roots), max(1., float((inputs.get("sessions") or {}).get("weeks") or 1))
+    k, weeks = len(roots), observed_weeks(inputs.get("sessions") or {})
     lo, weekly = wilson_lo(k, n), round(k / weeks, 2)
     key = "mixed_sessions:tasks"
     return {

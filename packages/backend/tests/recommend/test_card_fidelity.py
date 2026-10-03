@@ -85,14 +85,15 @@ def test_save_tok_n(slate):
         if not cand.get("problem"):
             continue
         ui = cand["ui"]
-        assert ui["save"]["min_month"] > 0 or ui["tok"] < 0, cand["rec_key"]
-        assert re.match(r"^≈ ", ui["save"]["label"]), ui["save"]
-        assert ui["save"]["low"] <= ui["save"]["min_month"] <= ui["save"]["high"]
+        # The bundled KB carries no unit_minutes source yet: no card may show a minutes figure.
+        assert (ui["save"]["min_month"], ui["save"]["label"]) in ((None, "未估算"), (0, "—")), (cand["rec_key"], ui["save"])
+        assert ui["save"]["low"] in (None, 0) and ui["save"]["high"] in (None, 0)
         assert ui["n"] == [cand["problem"]["denominator"], None] and isinstance(ui["tok"], int)
     removal = [c for c in _shown(slate) if c["kind"] == "removal"]
     assert removal and all(c["ui"]["tok"] < 0 and c["ui"]["gain"].endswith("常驻 token") for c in removal)
-    allow = next(c for c in _shown(slate) if c["rec_key"] == "kb:readonly-allowlist")
-    assert allow["ui"]["save"]["basis"].startswith("近 4.2 周共 36 次审批 × 每次 0.5 分钟 × 生效率 0.9")
+    assert all("时间代价未实测" in c["ui"]["save"]["basis"] for c in removal)
+    catalog = [c for c in slate["candidates"] if (c.get("source") or {}).get("origin") == "catalog" and c.get("ui")]
+    assert all(c["ui"]["save"]["min_month"] is None for c in catalog)
 
 
 def test_gain_is_monthly(slate):

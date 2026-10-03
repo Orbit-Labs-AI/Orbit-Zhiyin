@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-LEXICON_VERSION = "zh-en-lexicon-v1"
+LEXICON_VERSION = "zh-en-lexicon-v2"
 
 # Conditional / example / reported speech: the statement is not the user's own verdict.
 HYPOTHETICAL = re.compile(
@@ -50,6 +50,15 @@ CORRECTION_RULES: tuple[tuple[str, str], ...] = (
         r"|\b(?:revert|undo|roll ?back) (?:that|this|it|your|the (?:last )?change)\w*",
     ),
     (
+        # Short whole-clause rejections ("错了", "重来", "不行，重来", "不是这样的"). Bounded on
+        # both sides so "哪里错了？", "算错了吗" or "这样不行的话" do not fire; a question mark
+        # after the term is a question, not a verdict.
+        "short_rejection",
+        r"(?:^|(?<=[，。！；,;!\s]))(?:(?:你|这|这个|又)?(?:错了|弄错了)|重来|重新来|不行"
+        r"|不是这样(?:的|子)?)(?=$|[，。！；,;!\s])"
+        r"|^\s*(?:no,? )?not like that\b",
+    ),
+    (
         "overdone",
         r"(?:不要|不用|别|没必要)(?:那么|这么|过度)|过度(?:修复|设计|优化)|太(?:复杂|啰嗦|冗长)了"
         r"|\btoo (?:verbose|complicated|complex|long|much)\b|\bover-?engineer\w*",
@@ -60,8 +69,8 @@ CORRECTION_EXTRA = re.compile(
 )
 # Loose prefilter equivalent for callers that screen messages before full parsing.
 CORRECTION_EXTRA_HINT = re.compile(
-    r"还是|又|怎么|换|试|不是|说|错|坏|别|不要|不用|没必要|过度|太|不许|不准|撤|回滚|还原|意思"
-    r"|still|again|different|another|not what|not right|said|told|broke|misunderstood|meant|too |over"
+    r"还是|又|怎么|换|试|不是|说|错|坏|别|不要|不用|没必要|过度|太|不许|不准|撤|回滚|还原|意思|重来|重新来|不行"
+    r"|not like that|still|again|different|another|not what|not right|said|told|broke|misunderstood|meant|too |over"
     r"|ignored|missed|touch|chang|modif|edit|delet|revert|undo|roll",
     re.I,
 )
@@ -80,6 +89,10 @@ def correction_hits(text: str) -> list[dict]:
 # Explicit emotion: short exclamations / first-person statements, searched per clause.
 NEGATIVE_EMOTION = re.compile(
     r"烦死了|好烦|真烦|太烦|崩溃了?|无语|气死|受不了|心累|太慢了|浪费(?:我的)?时间|离谱|服了"
+    # Giving up / exasperated repetition. "算了" only clause-final ("算了一下" is arithmetic);
+    # "第几次" only with a closing 了 ("第几次迭代" is a neutral question).
+    r"|算了吧?(?=$|[，,。！!；;\s~～])|怎么又(?:错|失败|报错|坏|不行)|又(?:错|失败|报错)了"
+    r"|第(?:几|[0-9一二三四五六七八九十]+)(?:次|遍)了"
     r"|\b(?:ugh|argh|wtf|ffs)\b|\bcome on\b|\b(?:so|really|very|this is|that'?s) "
     r"(?:annoying|frustrating|ridiculous|painful|useless)\b"
     r"|\bI'?m (?:so |really |getting )?(?:annoyed|frustrated|tired of|sick of|fed up)\b"

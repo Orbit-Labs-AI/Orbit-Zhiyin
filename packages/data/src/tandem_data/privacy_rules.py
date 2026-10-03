@@ -52,7 +52,7 @@ RULES: tuple[dict, ...] = (
         "category": "credential",
         "scope": "text",
         "marker": "<redacted:api_key>",
-        "description": "已知格式的密钥：sk-/sk-proj-/sk-ant-、GitHub ghp_/gho_/ghu_/ghs_/ghr_、github_pat_、AWS AKIA。",
+        "description": "已知格式的密钥：sk-/sk-proj-/sk-ant-、GitHub ghp_/gho_/ghu_/ghs_/ghr_、github_pat_、AWS AKIA、Google AIza、Slack xoxa-/xoxb-/xoxp-/xoxr-/xoxs-、Stripe sk_live_/sk_test_/rk_live_/rk_test_、Hugging Face hf_、npm_、GitLab glpat-。",
         "example": "key sk-proj-ABCDEFGHIJKLMNOP1234",
     },
     {
@@ -60,7 +60,7 @@ RULES: tuple[dict, ...] = (
         "category": "credential",
         "scope": "text",
         "marker": "<redacted:token>",
-        "description": "Bearer 后 12 位以上的令牌。",
+        "description": "Bearer 后 12 位以上的令牌；正文中三段 base64url 的 JWT（eyJ….eyJ….…）。",
         "example": "use Bearer abcdefghijklmnop.qrstu",
     },
     {

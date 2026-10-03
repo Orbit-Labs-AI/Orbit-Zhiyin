@@ -48,7 +48,8 @@ def test_actual_feature_ids_are_joined_and_single_pole_axes_abstain():
     assert profile["axes"]["verification"]["score"] is None
     assert profile["axes"]["verification"]["direction"] is None
     assert profile["axes"]["orchestration"]["score"] is None
-    assert profile["code"] is None
+    assert "code" not in profile
+    assert profile["typing"]["produces_type_code"] is False
 
 
 def test_monthly_view_caps_long_histories_without_changing_overall_observations():
@@ -111,7 +112,6 @@ def test_conditional_and_truncated_instructions_do_not_score():
     truncated = _event("直接完成报告", uid="truncated", sid="s2", task_id="t2", text_truncated=True)
     profile = build_profile(_analysis([conditional, truncated]))
     assert profile["axes"]["delegation"]["score"] is None
-    assert profile["code"] is None
 
 
 def test_partial_replacement_does_not_resurrect_previously_complete_instruction():
@@ -131,12 +131,11 @@ def test_partial_replacement_does_not_resurrect_previously_complete_instruction(
 
 def test_type_needs_support_and_does_not_impute_other_poles():
     events = [_event("直接完成报告", uid=f"t{i}", task_id=f"native-{i}",
-                     sid=f"s{i % 2}", seq=i) for i in range(5)]
+                     sid=f"s{i % 2}", seq=i) for i in range(25)]
     profile = build_profile(_analysis(events))
     assert profile["axes"]["delegation"]["direction"] == "D"
     assert profile["axes"]["planning"]["direction"] is None
     assert profile["axes"]["verification"]["direction"] is None
-    assert profile["code"] is None
     # No checks observed is not evidence for acceleration.
     assert profile["axes"]["verification"]["observed_score"] is None
 
@@ -234,7 +233,7 @@ def test_unavailable_sources_have_null_values_and_no_invented_type():
     profile = build_profile({"scope": {"display_timezone": "UTC"},
                              "tasks": {"records": None}, "instruction": {"records": None},
                              "preferences": {"records": None}})
-    assert profile["code"] is None
+    assert "code" not in profile
     assert profile["coverage"]["task_n"] is None
     assert profile["task_distribution"]["task_count"] is None
     assert profile["preferences"]["summary"]["record_count"] is None
@@ -271,7 +270,75 @@ def test_chinese_planning_and_verification_requests_are_observed():
               enumerate(["先出一个方案给我看", "请你先调研一下再动手", "请你再次确认，没有问题后提交",
                          "确保所有图表数据一致", "please make a plan"])]
     axes = build_profile(_analysis(events))["axes"]
-    # discuss_first is observed but only plan_first votes on the planning pole.
-    assert axes["planning"]["effective_task_n"] == 2
+    # plan_first ×2 and discuss_first ×1 all vote for the planning pole.
+    assert axes["planning"]["effective_task_n"] == 3
+    assert axes["planning"]["high_pole_task_n"] == 3
     assert axes["verification"]["effective_task_n"] == 2
-    assert axes["planning"]["observed_score"] is None  # single-pole: signal_rate only
+    assert axes["verification"]["observed_score"] is None  # single-pole: signal_rate only
+
+
+def _direct_tasks(k, n):
+    """k of n tasks say "直接完成报告" (explicit), the rest "先询问我" (ask_first)."""
+    return [_event("直接完成报告" if i < k else "先询问我。编写报告", uid=f"d{i}",
+                   task_id=f"t{i}", sid=f"s{i % 2}", seq=i) for i in range(n)]
+
+
+def test_direction_requires_wilson_interval_beyond_threshold():
+    # 4/5: mean 0.8 but Wilson 95% ≈ [0.376, 0.964] crosses 0.6 → no direction.
+    small = build_profile(_analysis(_direct_tasks(4, 5)))["axes"]["delegation"]
+    assert small["observed_mean"] == 0.8 and small["score"] == 0.8
+    assert small["observed_mean_ci"] == [0.3755, 0.9638]
+    assert small["direction"] is None
+    assert "interval_crosses_direction_threshold" in small["missing_reasons"]
+    # 20/25: mean 0.8, Wilson ≈ [0.609, 0.911] lies above 0.6 → D.
+    large = build_profile(_analysis(_direct_tasks(20, 25)))["axes"]["delegation"]
+    assert large["observed_mean_ci"] == [0.6087, 0.9114]
+    assert large["direction"] == "D"
+    # Mirror: 5/25 explicit → mean 0.2, interval [0.0886, 0.3913] below 0.4 → C.
+    low = build_profile(_analysis(_direct_tasks(5, 25)))["axes"]["delegation"]
+    assert low["direction"] == "C"
+
+
+def test_scoped_authorisation_is_counted_separately_not_as_neutral_vote():
+    events = _direct_tasks(5, 5)
+    events += [_event("只修改 README", uid=f"sc{i}", task_id=f"sc{i}", sid="s0", seq=10 + i)
+               for i in range(3)]
+    axis = build_profile(_analysis(events))["axes"]["delegation"]
+    assert axis["scoped_task_n"] == 3
+    assert axis["effective_task_n"] == 5  # scoped tasks do not vote
+    assert axis["observed_mean"] == 1.0  # would be 5/8+1.5/8≈0.81 with a 0.5 vote
+
+
+def test_execute_first_votes_for_the_exploration_pole():
+    events = [_event("直接执行", uid=f"x{i}", task_id=f"t{i}", sid=f"s{i % 2}", seq=i)
+              for i in range(25)]
+    axis = build_profile(_analysis(events))["axes"]["planning"]
+    assert axis["effective_task_n"] == 25 and axis["high_pole_task_n"] == 0
+    assert axis["observed_mean"] == 0
+    assert axis["direction"] == "E"
+
+
+def test_real_profile_through_reveal_reports_designed_reason_not_a_type():
+    """Integration: a real build_profile output fed to shell.reveal.compose. The profile
+    path never yields a type (orchestration is not extracted), and compose must say so
+    with an explicit reason instead of a half-imputed code."""
+    from tandem_backend.shell import reveal
+
+    events = []
+    for i in range(40):
+        text = ("直接完成报告。先给方案。请运行测试" if i % 2 else
+                "先询问我。编写报告。请运行测试")
+        events.append(_event(text, uid=f"r{i}", task_id=f"t{i}", sid=f"s{i % 4}", seq=i))
+    profile = build_profile(_analysis(events))
+    assert profile["typing"] == {"produces_type_code": False, "type_authority": "uiview-persona-v0",
+                                 "reason": "orchestration_not_extracted_and_verification_single_pole"}
+    assert profile["axes"]["delegation"]["effective_task_n"] == 40
+    assert profile["axes"]["planning"]["effective_task_n"] == 20
+    assert profile["axes"]["orchestration"]["effective_task_n"] == 0
+    overview = {"overview": {"activity_rhythm": {"active_days": 30}}}
+    payload = reveal.compose(profile, overview, types={})
+    assert payload["ok"] is False
+    assert payload["reason"] == "insufficient_data"
+    gate = {r["axis"]: r["n_units"] for r in payload["gate"]["axes"]}
+    assert gate["M"] == 0  # the orchestration axis is the designed blocker
+    assert payload["type"] is None
