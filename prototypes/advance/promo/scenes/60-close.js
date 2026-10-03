@@ -1,33 +1,33 @@
-/* 60-close 6–7（b69.4–88） — STORYBOARD.md v17「6」「7」与「转场关键帧」H13–H17、M6–M9.
+/* 60-close 6–7（b68.9–88） — STORYBOARD.md v17「6」「7」与「转场关键帧」H13–H17、M6–M9.
    合并点散开，收拢罗盘（= R 300 圆环）在它们身后从左侧画出 → 展开成罗盘（你的类型的花）→ 再收回圆环 →
    圆环平着长出螺旋（与 2.2 同一个镜头）→ 立起成 45° Orbit 标志 → 标志上移缩小、点沿圆环两侧滑到底部排成一行 →
    「Orbit」+「An Assistant Redesign for everyone & every agent」→ 一起淡出到全黑。
-   本场景拥有：deck 2（b69.4 起）、标志 markAt M6–M9、AGD 的 b69.4 / 77.0 / 86.2 三个 key、片尾文字。 */
+   本场景拥有：deck 2（b68.9 起）、标志 markAt M6–M9、AGD 的 b68.9 / 77.0 / 86.2 三个 key、片尾文字。 */
 scene('60-close', () => {
   END = 88;
   const PC = [960, 540];
 
   /* ---------- deck 2：收拢罗盘 = 圆环 → 罗盘 → 圆环（H13–H15） ---------- */
-  // b69.4 直接设定：罗盘中心 (400, 400) → 舞台 (960, 540)，s 1，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）
-  tween(2, 69.4, 0, { x: 400, y: 400, s: 1, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
+  // b68.9 直接设定（H13 提前 0.5 拍：工坊卡还在缩小淡出时合并点就开始散开，b69.2–69.7 不再只剩一个静止的点）：罗盘中心 (400, 400) → 舞台 (960, 540)，s 1，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）
+  tween(2, 68.9, 0, { x: 400, y: 400, s: 1, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
   tween(2, 74.8, 1.0, { o: 0 }, E.inOut);                     // 6.4：螺旋长出时罗盘环淡出（drawCompass 继续到 b79）
   let degMe = null;
   // drawCompass 每帧调用到 b79（AGD 的 compass 编队要读点位，直到 row 在 b78.84 落定）；一切都是 b 的纯函数
-  drive(2, 69.4, 79.0, (p, b) => {
+  drive(2, 68.9, 79.0, (p, b) => {
     if (degMe == null) { const D = compassData(); degMe = D.mineIdx >= 0 ? D.mineIdx * 22.5 + 11.25 : 11.25; }
     const open = E.inOut(lp(b, 71.2, 1.6)), fold = E.inOut(lp(b, 73.2, 1.2));
     const on = E.inOut(lp(b, 71.6, 1.2)) * (1 - fold);        // dial / core：b71.6–72.8 出现，b73.2–74.4 淡出
     drawCompass({
       collapse: 1 - open + fold, dial: on, core: on, pl: 0,
       spin: (b - 72) * .5,                                     // K0：6 段独立取，b72 全开时 5 个点均匀分布
-      sweep: E.inOut(lp(b, 69.8, 1.4)), sweepFrom: 270,        // 圆环从点飞来的左侧开始画出
+      sweep: E.inOut(lp(b, 69.3, 1.8)), sweepFrom: 270,        // 圆环从点飞来的左侧开始画出
       mine: 1, deg: degMe, grow: lerp(.34, 1, E.out(lp(b, 71.6, 1.2))), needle: 1
     });
   });
 
   /* ---------- Agent 点（H13 / H16 / H17） ---------- */
-  // H13：合并点从 (220, 540) 散开，直线放射（arc 50，不用 polar）落到 R 300 圆环上，b71.32 落定，之后骑在罗盘外圈
-  AGD.key(69.4, 'compass', { dur: 1.6, stag: .08, arc: 50 });
+  // H13：合并点从 (220, 540) 散开，直线放射（arc 50，不用 polar）落到 R 300 圆环上，b71.12 落定（圆环 b71.1 画完，b71.2 起展开，不多停），之后骑在罗盘外圈
+  AGD.key(68.9, 'compass', { dur: 1.9, stag: .08, arc: 50 });
   // H16 / 7.1：沿圆环两侧滑到底部、收成一行（cc 在右），b78.84 落定，字出现前已就位
   AGD.key(77.0, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: [4, 3, 2, 1, 0], dur: 1.6, stag: .06, polar: PC });
   // 7.4：定格时极小的漂移（2px，不随节拍）

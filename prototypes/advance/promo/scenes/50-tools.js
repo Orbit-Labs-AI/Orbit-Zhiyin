@@ -1,7 +1,7 @@
 /* 50-tools 5（b55.0–70.0） — STORYBOARD.md v17「5 会话轨迹 + 生成工坊」.
    5.1 竖列的 5 个点合并为一（AGD merge 220, 540）→ 5.2–5.3 会话轨迹卡（deck 0）播放头走过 5 个阶段，合并点细线连到卡 →
    5.4 传送带换成生成工坊（deck 1）→ 5.5 光标点「开始生成」→ 5.6 SKILL.md 一行行写出，合并点（cc 在上）到运行卡的线变亮、
-   流动 → 5.7 工坊卡缩小轻转淡出。b69.4 起 60-close 从合并点展开。
+   流动 → 5.7 工坊卡缩小轻转淡出。b68.9 起 60-close 从合并点展开（与工坊卡淡出重叠）。
    旧镜头（.mt-ph 胶囊、播放头、DIAG 传送带）来自 git show 78841089^:prototypes/advance/promo/scenes/50-montage.js。
    生成过程用 App 自己的 studioStep / refreshStudio，但按成片拍逐帧推进（App 自带的定时器约 8 秒跑完，这里压到 b63.35–67.6）。 */
 scene('50-tools', () => {
@@ -123,6 +123,7 @@ scene('50-tools', () => {
   AGD.link(63.4, 68.3, 0, runEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .35, out: .3 });
   AGD.glow(0, 63.4, 67.6, 1);
   AGD.pulse(0, 63.3, 1.06, .5);
-  // 5.7 out: shrink, slight turn, fade (deck 1 is clear by b69.2); the copy leaves at b68.4 (txt above)
-  tween(1, 68.2, 1.0, () => { const C = decks[1].C; return { s: C.s * .8, rz: C.rz - 8, o: 0, bl: 8, y: C.y + 360 / C.s, ay: C.ay + 360 }; }, E.in);   // about the cards' middle, not the top anchor
+  // 5.7 out: shrink, slight turn, fade (deck 1 is clear by b69.1); the copy leaves at b68.4 (txt above)
+  // E.inOut: E.in left the cards at o .5 at b69.0 and cut them to 0 within .2 beat; now they are nearly clear by b68.9, when the dots start to fan out (H13)
+  tween(1, 68.1, 1.0, () => { const C = decks[1].C; return { s: C.s * .8, rz: C.rz - 8, o: 0, bl: 8, y: C.y + 360 / C.s, ay: C.ay + 360 }; }, E.inOut);   // about the cards' middle, not the top anchor
 });
