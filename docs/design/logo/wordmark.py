@@ -112,12 +112,20 @@ class Wordmark:
         dot = p["i_dot"] * w / 2
         contours += disc((x, xtop - p["i_dot_gap"] * H - dot), dot)
         right = x + max(h, dot)
-        # t：竖干 + 横笔（以竖干为中心）
+        # t：竖干 + 横笔（以竖干为中心）+ 底部圆弧收尾（t_hook = 圆弧半径 × x 字高，0 为直干）
         x = right + sp["i_t"] + p["t_bar"] * xh / 2
-        contours += capsule((x, base - th + h), (x, base - h), w)
         bar = p["t_bar"] * xh / 2
+        hook = p.get("t_hook", 0) * xh
+        if hook:
+            ct = (x + hook, base - h - hook)
+            contours += capsule((x, base - th + h), (x, ct[1]), w)
+            end = math.radians(p.get("t_hook_end", 60))
+            contours += arc_band(ct, hook, end, math.pi, w)
+            right = max(x + bar, ct[0] + hook * math.cos(end) + h)
+        else:
+            contours += capsule((x, base - th + h), (x, base - h), w)
+            right = x + bar
         contours += capsule((x - bar + h, xtop + h), (x + bar - h, xtop + h), w)
-        right = x + bar
 
         self.contours = contours
         self.box = (x0, min(y0, base - asc), right, max(y1, base))
