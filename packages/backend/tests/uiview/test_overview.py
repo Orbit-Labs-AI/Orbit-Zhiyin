@@ -178,13 +178,16 @@ def test_insight_names_the_scope_regenerate_posts():
     # Stable across rebuilds (the read-back must find the job it posted).
     assert overview.build(_with_rev(3), {**base, "range": 0}, TODAY)["insight"]["ai_scope"] == \
         everything["insight"]["ai_scope"]
-    assert overview.build(_with_rev(3), {**base, "agents": ["codex", "claude_code"]},
+    assert overview.build(_with_rev(3), {**base, "agents": ["codex"]},
                           TODAY)["insight"]["ai_scope"] == \
-        {"days": 7, "project_id": None, "agent_ids": ["claude_code", "codex"]}
+        {"days": 7, "project_id": None, "agent_ids": ["codex"]}
+    # Every known Agent selected is the unfiltered view: same scope, no second paid narrative.
+    assert overview.build(_with_rev(3), {**base, "agents": ["codex", "claude_code"]},
+                          TODAY)["insight"]["ai_scope"] == {"days": 7, "project_id": None}
     assert overview.build(_with_rev(3), {**base, "project": "p1"}, TODAY)["insight"]["ai_scope"] == \
         {"days": 7, "project_id": "p1"}
     assert overview.build(_with_rev(3), {**base, "agents": []}, TODAY)["insight"]["ai_scope"] is None
     assert overview.build(_with_rev(3), {**base, "topic": "bugfix"}, TODAY)["insight"]["ai_scope"] \
         is None
-    assert {"days": 7, "project_id": None, "agent_ids": ["claude_code", "codex"]} in seen
+    assert {"days": 7, "project_id": None, "agent_ids": ["codex"]} in seen
     card.set_ai_provider(None)
