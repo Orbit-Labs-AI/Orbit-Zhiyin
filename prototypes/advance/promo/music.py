@@ -1,4 +1,4 @@
-"""Soundtrack for the Orbit promo (v17.7), synthesised from scratch on the film's beat grid (132 BPM).
+"""Soundtrack for the Orbit promo (v18.1), synthesised from scratch on the film's beat grid (132 BPM).
 
     uv run --with numpy --with scipy python promo/music.py   ->  promo/out/soundtrack.wav
 
@@ -19,8 +19,11 @@ SHIFT-aware: every cue below is written in its scene file's own beats inside `se
 timeline, the groove spans and the pad-level points all add SHIFT[scene] (the same table as promo.js). Chords change
 on whole or half film beats where an event lands and pads crossfade across every change, so a cue that moves a little
 still sits on the right harmony; the groove is laid on the absolute film grid from per-section spans (a later span wins
-an overlap, a gap < 4 beats left by a SHIFT is bridged, except the pre-drop breath BREATH before 「So，」). END is the
-close's own END (CLOSE_END) + SHIFT of 60-close; the fade runs over its last 1.8 beats (FADE0 = TURN0 + 11.2).
+an overlap, a gap < 4 beats left by a SHIFT is bridged, except the 1-beat BREATHS before 「So，」, DIMV and the recs payoff). END is the
+close's own END (CLOSE_END) + SHIFT of 60-close; the groove stops at FADE0 = TURN0 + 11.2 and the last Cadd9 + motif C ring out.
+v18.1: one `lead` voice carries the motif M = E5 G5 A5 | E5 (from the AG badges) through all seven segments, the same
+7-note letter phrase E G A C | A G E sounds at both wordmark moments; HITS put the groove kick ON every big picture hit
+(kick / clap / open hat within ±.3 beat dropped); HATS_OFF lets the typing keys act as the hats.
 """
 import os
 import wave
@@ -33,7 +36,9 @@ BPM = 132
 BEAT = 60 / BPM
 # = SHIFT in promo.js: each scene plays this many beats later (the integrator fills these in; all cues follow)
 SHIFT = {'10-intro': 0, '15-redesign': 6.9, '20-orbit': 11.3, '30-persona': 16.9, '40-recs': 22.9, '50-tools': 30.9, '60-close': 36.9}
-CLOSE_END = 81.8 + 13.0       # scenes/60-close.js: END = TURN0 + 13.0 with TURN0 = 81.8 (its own beats) = 94.8
+TURN0 = 81.0                  # scenes/60-close.js TURN0 (v18.1: 81.8 -> 81.0); every close cue after it follows
+CLOSE_END = TURN0 + 13.0      # = END of 60-close in its own beats (94.0)
+FADE0 = TURN0 + 11.2          # the groove stops here; the last Cadd9 and motif note ring out into the fade
 END = CLOSE_END + SHIFT['60-close']   # film beats: 131.7 = 59.86 s, must stay < 60 s
 TAIL = 1.0                     # seconds of silence after END, so the mux never cuts a sample short
 N = int((END * BEAT + TAIL) * SR)
@@ -121,6 +126,18 @@ PCS = {k: sorted({m % 12 for m in v[0]}) for k, v in CH.items()}
 PROG = []        # (film beat, chord), filled per section
 PADLVL = []      # (film beat, gain, cutoff) automation points for the pad layer
 GROOVE = []      # (film b0, film b1, params) spans, a later one wins an overlap
+HITS = []        # film beats of the big picture hits: the groove drops its kick / clap / open hat within ±.3 beat and kicks ON the hit
+BREATHS = []     # (film b0, film b1): deliberate 1-beat drops before a peak (no groove, never bridged)
+HATS_OFF = []    # (film b0, film b1): the typing passages, where the keystrokes are the hats
+EXT = {'Am': {2}, 'F': {7, 2}, 'C': {9}, 'G': {9}, 'C+': {9}, 'F/C': {7}, 'Am+': {2}}   # lead-safe colour tones (9ths / 6ths)
+
+
+def hits(*bs):
+    HITS.extend(b + SH for b in bs)
+
+
+def breath(b0, b1):
+    BREATHS.append((b0 + SH, b1 + SH))
 
 
 def chords(*pairs):
@@ -146,6 +163,13 @@ def q(m, b):
     return min((m + d for d in range(-6, 7) if (m + d) % 12 in pcs), key=lambda x: (abs(x - m), x))
 
 
+def lq(m, b):
+    """Lead quantiser: chord tones plus the chord's safe 9th / 6th, so the motif E G A C keeps its shape over every chord."""
+    ch = chord_f(b + SH)
+    pcs = set(PCS[ch]) | EXT.get(ch, set())
+    return min((m + d for d in range(-6, 7) if (m + d) % 12 in pcs), key=lambda x: (abs(x - m), x))
+
+
 def tone(b, k, base=72):
     """k-th chord tone at/above `base` for scene beat b (k may exceed the chord size: wraps up an octave)."""
     pcs = PCS[chord_f(b + SH)]
@@ -160,8 +184,8 @@ def tone(b, k, base=72):
 # ---------------- instruments ----------------
 def kick(d=0.5, punch=1.0):
     t = tt(d)
-    f = 46 + 110 * np.exp(-t * 38) * punch
-    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 6.5)
+    f = 52 + 110 * np.exp(-t * 38) * punch
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 8.5)
     click = hp(noise(d), 3000) * np.exp(-t * 400) * 0.25
     return np.tanh((body + click) * 1.5)
 
@@ -199,7 +223,7 @@ def pluck(m, d=0.4):
 
 def bass_note(m, d):
     t = tt(d)
-    s = saw(midi(m), t, (-5, 5), phases=(0, .25)) + 0.6 * np.sin(2 * np.pi * midi(m) * t)
+    s = saw(midi(m), t, (-5, 5), phases=(0, .25)) + 0.3 * np.sin(2 * np.pi * midi(m) * t)
     env = np.minimum(1, t * 300) * np.exp(-t * 2.2) * np.clip((d - t) * 60, 0, 1)
     return lp(s, 480, 4) * env
 
@@ -222,7 +246,7 @@ def boom(d=3.0, f0=58, f1=28):
     f = f1 + (f0 - f1) * np.exp(-t * 3)
     body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 1.3)
     hit = lp(noise(d), 700) * np.exp(-t * 9) * 0.6
-    return np.tanh((body + hit) * 1.3)
+    return hp(np.tanh((body + hit) * 1.3), 38)
 
 
 def crash(d=2.5):
@@ -285,6 +309,29 @@ def bell(m, d=2.4):
     return s * np.minimum(1, t * 300)
 
 
+def lead(m, d=0.6, cutoff=3000):
+    """The one melodic voice: sine + .3 triangle + a little 2nd/3rd harmonic (so laptops carry it), 15 ms attack, 5 Hz / 6 cent vibrato."""
+    t = tt(d + 0.35)
+    vib = 2 ** (6 / 1200 * np.sin(2 * np.pi * 5 * t) * np.clip(t / 0.25, 0, 1))
+    ph = np.cumsum(midi(m) * vib) / SR
+    tri = 2 * np.abs(2 * (ph % 1) - 1) - 1
+    s = np.sin(2 * np.pi * ph) + 0.3 * tri + 0.22 * np.sin(4 * np.pi * ph) + 0.08 * np.sin(6 * np.pi * ph)
+    env = np.minimum(1, t / 0.015) * np.exp(-t * 0.9) * np.clip((d + 0.35 - t) / 0.35, 0, 1) ** 2
+    return lp(s, cutoff) * env
+
+
+M = (76, 79, 81, 76)            # the motif, from the AG badges: E5 G5 A5 (held) E5
+M_T = (0, 0.5, 1.0, 2.0)        # onsets in beats; A is held
+
+
+def motif(b, gain, notes=M, times=M_T, scale=1.0, octave=0, held=None, cutoff=3000, pan=0.1):
+    """Play a motif phrase on the lead (scene beats); each note quantised by lq(), durations run to the next onset."""
+    for k, (m, o) in enumerate(zip(notes, times, strict=True)):
+        bk = b + o * scale
+        nxt = (times[k + 1] - o) * scale if k + 1 < len(times) else (held or 1.5)
+        put(lead(lq(m + 12 * octave, bk), nxt * BEAT, cutoff), bk, gain, pan, to='lead')
+
+
 def settle(g=1.0):
     """A word steps in and settles: a soft unpitched click with a small low body."""
     t = tt(0.1)
@@ -337,14 +384,14 @@ def keystroke(bright=1.0, full=0.0):
     return click * 0.8 + thump
 
 
-def keys(K, gain=0.2, pan=-0.1):
+def keys(K, gain=0.45, pan=-0.1):
     """A keystroke on every beat in K, each a little different in level, brightness and timing (≤ 8 ms)."""
     for b in K:
         jit = (rng.random() - 0.5) * 2 * 0.008 / BEAT
         put(keystroke(0.8 + 0.4 * rng.random()), b + jit, gain * (0.7 + 0.5 * rng.random()), pan + 0.1 * (rng.random() - 0.5), to='keys')
 
 
-def send_key(b, gain=0.26, pan=-0.1):
+def send_key(b, gain=0.58, pan=-0.1):
     put(keystroke(0.9, 1.0), b, gain, pan, to='keys')
 
 
@@ -394,6 +441,7 @@ def peak(b, ch, gain=1.0, crash_gain=1.0):
 
 
 AG = (64, 67, 69, 72, 76)   # the five Agent badges cc / cx / gm / ds / cp: E G A C E (Am7 / Cadd9 tones)
+LETTERS = (76, 79, 81, 84, 81, 79, 76)   # the 7-letter phrase E G A C | A G E, the same at both wordmark moments
 
 
 def words(beats, gain, pan=0.0):
@@ -404,8 +452,8 @@ def words(beats, gain, pan=0.0):
 
 # ================= 10-intro: 1a 用 AI Agent，正在成为每个人的日常 (b0–6.6) · 1b 从想法到交付 (b7–11.8) · 1c We Are Redesigning Everything
 section('10-intro')
-chords((0, 'Am'), (7, 'F'), (11.25, 'C'), (13.5, 'G'))
-padlvl(0, 0.24, 800)
+chords((0, 'Am'), (7, 'F'), (11.25, 'C'), (13.5, 'Am'), (15.3, 'C'), (17.0, 'G'))   # We Are Redesigning on Am7, Everything on I
+padlvl(0, 0.30, 800)
 padlvl(6.0, 0.22, 1000)
 padlvl(7.0, 0.15, 1300)
 padlvl(13.2, 0.15, 1600)
@@ -418,11 +466,19 @@ words((1.1, 1.5, 1.95), 0.1)                                                # �
 put(kick(0.3, 0.7), 2.6, 0.3, to='kick')                                    # 「日常」 stamps in (b2.3) and hits (b2.6)
 put(blip(tone(2.6, 2, 64), 0.8), 2.6, 0.06, 0.1, to='verbsend')
 for b_ in (3.55, 4.2, 4.85, 5.5, 6.15):                                     # the pen breathes while the line is read
-    put(kick(0.25, 0.3), b_, 0.1, to='kick')
     put(shaker(), b_ + 0.02, 0.05, 0.4)
+for k, b_ in enumerate((3.5, 4, 5, 6, 6.5)):                                 # a filtered pulse from b3.5 builds into b7
+    put(lp(kick(0.3, 0.4), 400), b_, 0.12 + 0.02 * k, to='kick')
+put(lp(saw(midi(45), tt(3.6 * BEAT), (-6, 6)), 260) * np.clip(tt(3.6 * BEAT) / 0.4, 0, 1) * np.clip((3.6 * BEAT - tt(3.6 * BEAT)) / 0.1, 0, 1),
+    3.5, 0.3, to='duck')                                                    # a sustained A under it
+put(riser(1.5 * BEAT, 300, 3000), 5.5, 0.1, to='verbsend')
+motif(3.5, 0.03, held=2.0, cutoff=2400)                                     # the motif's first, soft statement
 put(swell(0.6 * BEAT), 6.0, 0.26)
 put(whoosh(0.8 * BEAT), 6.6, 0.12, -0.2)                                    # the lines leave, the pen turns over (∪ → ∩)
-groove(7.0, 13.2, clap_on=False, lvl=0.66)                                  # light four on the floor
+groove(7.0, 9.0, clap_on=False, lvl=0.5)                                    # light four on the floor, building
+groove(9.0, 13.2, clap_on=False, lvl=0.66)
+HATS_OFF.append((7.2, 10.8))                                                # the keys are the hats while 1b is typed
+hits(11.35, 13.8, 14.3, 14.8, 15.3)
 put(puff(0.8), 7.0, 0.04, 0.0, to='verbsend')                               # the box grows out of the dots
 words((7.0, 7.35), 0.06)                                                    # 「从想法」「到交付」
 K1 = type_on(7.2, '做一个记账 App', 31)                                       # typed key by key (typeOn), b7.2–9.16
@@ -441,7 +497,8 @@ shimmer(11.6, 1.0, 8, 0.025)                                                # th
 put(whoosh(0.6 * BEAT), 13.2, 0.1, 0.3)                                     # the arc folds into the caret
 groove(13.2, 18.7, lvl=0.82)
 for k, b_ in enumerate((13.8, 14.3, 14.8, 15.3)):                           # We / Are / Redesigning / Everything
-    put(stab(tuple(tone(b_, j, 60) for j in range(3)) + (tone(b_, k, 67),), 0.7 if k < 3 else 1.4), b_, 0.17 + 0.02 * k, -0.15 + 0.1 * k, to='verbsend')
+    put(stab(tuple(tone(b_, j, 60) for j in range(3)) + (q(M[0] + (0, 3, 5, 8)[k], b_),), 0.7 if k < 3 else 1.4), b_, 0.17 + 0.02 * k, -0.15 + 0.1 * k, to='verbsend')
+    put(lead(q(M[0] + (0, 3, 5, 8)[k], b_), (0.5 if k < 3 else 1.6) * BEAT), b_, 0.05, 0.0, to='lead')   # top voice = the motif, one step up on C6
     put(settle(), b_ + 0.03, 0.06, -0.15 + 0.1 * k)
 put(boom(1.6, 46, 30), 15.3, 0.12, to='verbsend')                           # 「Everything」 + the gloss land
 put(crash(2.0), 15.3, 0.14, 0.25)
@@ -461,6 +518,9 @@ padlvl(20.35, 0.10, 2400)
 padlvl(21.1, 0.20, 2600)
 padlvl(25.8, 0.18, 2200)
 groove(11.8, 20.35, style='half', lvl=0.82, bed=0.24)
+HATS_OFF.append((12.95 + SH, 17.95 + SH))                                   # the keys are the hats while 1d is typed
+hits(12.8, 15.9, 21.9, 22.3, 22.7)
+motif(13.1, 0.035, notes=(81, 79, 76, 74), times=(0, 2, 4, 6), held=2.0, cutoff=1800)   # 1d answers: A G E D, one per 2 beats
 put(puff(0.8), 12.6, 0.04, 0.0, to='verbsend')                              # the box grows out of the dots
 put(kick(0.35, 0.6), 12.8, 0.22, to='kick')                                 # 「但，」 lands alone, the dots flinch
 put(stab(tuple(tone(12.8, j, 57) for j in range(3)), 0.9), 12.8, 0.08, 0.0, to='verbsend')
@@ -479,8 +539,10 @@ pops((17.88, 18.21, 18.76, 19.05, 19.3, 19.53, 19.7, 19.75), 0.03, 0.7)     # th
 put(riser(2.6 * BEAT, 300, 6000), 18.5, 0.24, to='verbsend')                # into the drop
 put(whoosh(0.6 * BEAT), 20.1, 0.07, 0.2)                                    # the lines leave, the box sinks, the ring opens
 put(swell(0.6 * BEAT), 20.5, 0.4)
-BREATH = (20.35 + SH, 21.1 + SH)                                            # the pre-drop breath (film b27.25–28): no groove
+breath(20.35, 21.1)                                                         # the pre-drop breath (film b27.25–28): no groove
 peak(21.1, 'C+', 1.0)                                                       # 「So，」 — first peak (film b28)
+motif(21.1, 0.07, notes=M[:3], times=M_T[:3], held=1.0)  # the full motif on the lift, again at film b30, held to b32
+motif(23.1, 0.07, held=1.5)
 words((21.36,), 0.06)                                                       # 「我们做了一个」
 put(pluck(tone(21.6, 3, 72), 0.6), 21.6, 0.08, 0.2, to='verbsend')          # 「Assistant」 (lands b21.84)
 for k, b_ in enumerate((21.9, 22.3, 22.7)):                                 # Redesign / Agent Workflow / for everyone (hard cuts)
@@ -501,13 +563,15 @@ put(swell(0.6 * BEAT), 21.4, 0.2)                                           # th
 groove(21.6, 24.6, clap_on=False, lvl=0.84)
 arp(22.2, 24.6, 0.5, 0.07, base=69, span=6, accel=0.25)                     # the spiral grows and rises, the spin speeds up
 put(riser(1.3 * BEAT, 400, 3000), 23.3, 0.08, to='verbsend')                # it stands up into the 45° icon
+hits(24.6)
 put(boom(2.0, 46, 30), 24.6, 0.18, to='verbsend')                           # the icon stands (b24.6) and turns at once
 put(bell(tone(24.6, 0, 84), 2.6), 24.6, 0.09, 0.0, to='verbsend')
 put(whoosh(2.2 * BEAT), 24.6, 0.1, -0.2)                                    # the kit turn (×1.5, 2.2 beats), the O slides left
 groove(24.6, 29.5, style='half', lvl=0.8, bed=0.2)                          # half time while the wordmark reads
 for k in range(7):                                                          # 「rbit·知音」 rise one by one (b26.25 + .242 k)
     b_ = 26.25 + 0.242 * k
-    put(bell(tone(b_, k, 72), 1.6), b_, 0.05 - 0.003 * k, -0.45 + 0.15 * k, to='verbsend')
+    put(bell(lq(LETTERS[k], b_), 1.6), b_, 0.05 - 0.003 * k, -0.45 + 0.15 * k, to='verbsend')
+    put(lead(lq(LETTERS[k], b_), (0.242 if k < 6 else 1.5) * BEAT), b_, 0.035, 0.0, to='lead')
 put(bell(tone(26.7, 0, 60), 2.4), 26.7, 0.05, 0.0, to='verbsend')           # 「你的 AI 协作复盘助手」 floats in (b26.7)
 shimmer(26.7, 0.8, 6, 0.02)
 for k in range(7):                                                          # the letters retract, last first (b29.5, ×1.5)
@@ -527,7 +591,13 @@ for k in range(16):                                                         # th
     put(tick(), 26.5 + 1.2 * k / 16, 0.03, -0.6 + 0.08 * k)
 groove(26.4, 28.1, style='half', clap_on=False, lvl=0.84)
 put(swell(0.6 * BEAT), 27.5, 0.32)
-groove(28.1, 45.4, lvl=0.96, arp16=True)                                    # full groove from film b45
+groove(28.1, 40.4, style='half', lvl=0.84, arp16=True, bed=0.2)           # half time while the type is worked out
+breath(40.4, 41.42)                                                         # one beat of air before DIMV
+groove(41.42, 45.4, lvl=1.0, arp16=True)                                    # then the full groove on the reveal
+hits(35.88, 37.09, 38.30, 39.52, 41.42)
+for b_ in (29.1, 33.1, 37.1):                                               # the motif augmented, one note per beat
+    motif(b_, 0.05, times=(0, 1, 2, 3), held=1.0)
+put(lead(lq(84, 41.42), 2.0 * BEAT), 41.42, 0.06, 0.0, to='lead')           # and its C lands on DIMV
 put(crash(2.0), 28.1, 0.12, -0.2)
 roll(28.6, 5, 0.06, 0.25, 64, 1.2)                                          # the bud slows and lands (b29.6)
 words((29.0,), 0.07)                                                        # 「引入协作人格分析」
@@ -544,9 +614,7 @@ for k, tk in enumerate((35.88, 37.09, 38.30, 39.52)):                       # ea
 for s, L in ((35.58, 2.1), (37.68, 2.0), (39.68, 2.0)):                     # SIFT → DIFT → DIMT → DIMV, petal by petal:
     roll(s + 0.14 * L + 0.08, 5, 0.05, 0.11 * L, 60, 2.0, soft=True)        # each change a gentle rolled chord
 put(swell(0.6 * BEAT), 40.8, 0.3)
-put(boom(2.4, 50, 30), 41.42, 0.2, to='verbsend')                           # reveal: DIMV from the centre out (b41.42)
-put(stab(tuple(tone(41.42, j, 64) for j in range(4)), 1.4), 41.42, 0.14, to='verbsend')
-put(crash(2.0), 41.42, 0.1, 0.2)
+peak(41.42, 'C', 0.9, 0.6)                                                  # reveal: DIMV from the centre out (b41.42), a full peak
 words((41.67, 41.82), 0.05, 0.3)                                            # 指挥家 The Conductor · its one-liner
 for k, b_ in enumerate((42.27, 42.47)):                                     # 优势 / 盲点 rise in
     put(blip(tone(b_, 2 + k, 76), 0.4), b_, 0.035, 0.35, to='verbsend')
@@ -554,12 +622,13 @@ put(whoosh(1.1 * BEAT), 45.0, 0.1, 0.3)                                     # th
 
 # ================= 40-recs: peel into the column, intro card, six recommendations + two counters (b38.5–63.1) — peak on the last
 section('40-recs')
-chords((39.1, 'F'), (43.1, 'G'), (45.1, 'Am'), (49.1, 'F'), (53.1, 'C'), (57.1, 'G'), (61.1, 'Am+'))   # film 62 … 84: V → deceptive Am9
+chords((39.1, 'F'), (43.1, 'G'), (45.1, 'Am'), (49.1, 'F'), (53.1, 'C'), (57.1, 'G'), (62.2, 'Am+'))   # film 62 … 85.1: V → deceptive Am9 on the payoff
 padlvl(38.5, 0.17, 2000)
 padlvl(40.0, 0.16, 1900)
 padlvl(45.1, 0.17, 2200)
 padlvl(57.1, 0.18, 2600)
-padlvl(61.1, 0.20, 2600)
+padlvl(61.2, 0.15, 2000)
+padlvl(62.2, 0.21, 2700)
 for k in range(5):                                                          # the badges peel off the rim row by row (b38.5 + .14 k)
     b_ = 38.5 + 0.14 * k
     put(blip(tone(b_, 4 - k, 72), 0.4), b_, 0.045, -0.4 + 0.2 * k, to='verbsend')
@@ -579,11 +648,18 @@ EV = [45.0, 47.5, 50.5, 53.5, 56.5, 59.5]                                   # en
 for n, e in enumerate(EV):
     put(whoosh(0.5 * BEAT), e - 0.4, 0.04, -0.5)                            # the links draw to the card (air, no pitch)
     if n < 5:
-        put(pluck(tone(e, (0, 2, 1, 3, 2)[n], 72), 0.6), e, 0.09, -0.2, to='verbsend')
+        put(pluck(lq(AG[n] + 12, e), 0.6), e, 0.09, -0.2, to='verbsend')           # the entries spell the motif: E G A C E
+        put(lead(lq(AG[n] + 12, e), 1.2 * BEAT), e, 0.03, 0.0, to='lead')
     counter(e - 0.1, 1.2)
-groove(45.1, 63.1, lvl=0.98, arp16=True)
-put(swell(0.5 * BEAT), 60.6, 0.3)
-peak(61.1, 'Am+', 0.95, 0.6)                                                # Thinking reaches the centre (film b84)
+for k, (g0, g1) in enumerate(zip([45.1] + EV[1:], EV[1:] + [61.2], strict=True)):   # the groove grows one step per card
+    groove(g0, g1, lvl=0.82 * 1.06 ** k, arp16=True)
+breath(61.2, 62.2)                                                          # one beat of air, then the payoff
+groove(62.2, 63.1, lvl=1.0, arp16=True)
+hits(*EV, 62.2)
+put(swell(0.9 * BEAT), 61.3, 0.32)
+peak(62.2, 'Am+', 1.0, 0.7)                                                 # the payoff: centred % counters + 提高效率 (film b85.1)
+put(lead(lq(81, 62.2), 2.5 * BEAT), 62.2, 0.07, 0.0, to='lead')             # the motif's A on the peak
+counter(62.2, 0.8, 8, 0.05)
 put(whoosh(1.1 * BEAT), 61.9, 0.12, 0.2)                                    # the column speeds up and leaves
 
 # ================= 50-tools: merge, session trajectory, studio (b55.0–75.2)
@@ -597,7 +673,10 @@ padlvl(68.8, 0.17, 2000)
 padlvl(73.75, 0.18, 2200)
 put(whoosh(1.4 * BEAT, down=True), 55.0, 0.24, 0.0)                         # five dots merge into one
 groove(55.0, 75.2, style='half', lvl=0.82, arp16=True, bed=0.2)             # half time under the trajectory and studio
-for k, b_ in enumerate((55.6, 57.8, 60.0, 62.3)):                           # phase pills pop on the playhead: 探索 / 规划 / 实施 / 部署
+hits(55.0, 55.4, 65.0, 68.8, 73.75)
+motif(55.1, 0.045, octave=-1, scale=2.0, held=2.0, cutoff=2400)             # the motif an octave down, half speed
+motif(63.1, 0.045, octave=-1, scale=2.0, held=2.5, cutoff=2400)
+for k, b_ in enumerate((55.4, 57.8, 60.0, 62.3)):                           # phase pills pop on the playhead: 探索 / 规划 / 实施 / 部署
     put(pluck(tone(b_, (0, 1, 2, 0)[k], 72 if k < 3 else 64), 0.5), b_, 0.06, -0.3 + 0.15 * k, to='verbsend')
     put(puff(), b_, 0.03, -0.3 + 0.15 * k, to='verbsend')
 put(swell(1.2 * BEAT), 62.65, 0.08)                                         # 连续失败 4 次: the critical glow
@@ -617,15 +696,16 @@ put(whoosh(1.1 * BEAT), 74.1, 0.1, 0.2)                                     # th
 
 # ================= 60-close: ring → compass → ring → the curve is drawn → 45° icon → wordmark → tagline → fade (b69.2–94.8)
 section('60-close')
-chords((69.1, 'F'), (71.1, 'Am'), (75.6, 'F'), (78.6, 'G'), (82.1, 'C+'), (85.6, 'F/C'), (87.1, 'C+'))   # IV → V → I onto the wordmark
+chords((69.1, 'F'), (71.1, 'Am'), (75.6, 'F'), (78.6, 'G'), (TURN0 + 0.3, 'C+'), (TURN0 + 3.8, 'F/C'), (TURN0 + 5.3, 'C+'))   # IV → V → I onto the wordmark
 padlvl(69.2, 0.17, 1700)
 padlvl(71.04, 0.18, 2000)
 padlvl(75.6, 0.15, 1500)
 padlvl(78.6, 0.18, 2100)
-padlvl(81.8, 0.19, 2300)
-padlvl(82.1, 0.22, 2400)
-padlvl(85.6, 0.20, 2000)
-padlvl(87.1, 0.21, 2200)
+padlvl(TURN0, 0.19, 2300)
+padlvl(TURN0 + 0.3, 0.22, 2400)
+padlvl(TURN0 + 3.8, 0.20, 2000)
+padlvl(TURN0 + 5.3, 0.22, 2300)
+padlvl(FADE0, 0.24, 2300)
 put(whoosh(1.0 * BEAT), 69.2, 0.12, -0.2)                                   # the merged dot spirals out
 shimmer(69.4, 1.6, 12, 0.03)                                                # the ring draws on behind the dots
 groove(69.2, 75.4, style='half', clap_on=False, lvl=0.72, bed=0.2)
@@ -639,22 +719,30 @@ put(sweep_pad(tuple(m + 12 for m in CH['F'][0]), 3.0 * BEAT, 0.4 * BEAT), 75.6, 
 arp(75.6, 78.6, 0.5, 0.055, base=67, span=6, accel=0.25)                    # (b75.6–78.6): a rising swell following the stroke
 put(riser(3.0 * BEAT, 300, 5000), 75.6, 0.14, to='verbsend')
 put(whoosh(1.6 * BEAT), 78.6, 0.1, -0.2)                                    # it turns and tilts into the 45° icon
+hits(80.2, TURN0 + 2.475, TURN0 + 4.0 - 0.1, TURN0 + 5.4 - 0.1)            # icon stands · letters · tagline · agent (film 117.1 / 120.4 / 121.9 / 123.3)
 put(boom(2.4, 48, 28), 80.2, 0.2, to='verbsend')                            # the icon stands (b80.2)
 put(stab(tuple(tone(80.2, j, 62) for j in range(4)), 1.6), 80.2, 0.1, to='verbsend')
-groove(80.2, 82.1, style='half', clap_on=False, lvl=0.7, bed=0.18)          # it breathes in the centre
-put(swell(0.9 * BEAT), 81.2, 0.36)
-peak(82.1, 'C+', 0.95, 0.8)                                                 # the kit reveal turn (b81.8) — third peak (film b119)
-groove(82.1, CLOSE_END, lvl=0.74, arp16=True, bed=0.18)                     # the groove runs under the end card to the fade
-for k in range(7):                                                          # 「rbit·知音」 rise (b84.275 + .242 k)
-    b_ = 84.275 + 0.242 * k
-    put(bell(tone(b_, k, 72), 1.4), b_, 0.045 - 0.002 * k, -0.45 + 0.15 * k, to='verbsend')
-for k in range(7):                                                          # An Assistant Redesign for everyone & every (b85.8 + .2 k)
-    b_ = 85.8 + 0.2 * k
-    put(blip(tone(b_, k % 4, 72), 0.3), b_, 0.03, -0.45 + 0.15 * k, to='verbsend')
-for i, m in enumerate(AG):                                                  # 「agent」 (b87.2): the dots glow left to right
-    b_ = 87.2 + 0.16 * i
-    put(blip(q(m + 12, b_), 0.7), b_, 0.1, -0.6 + 0.3 * i, to='verbsend')
-FADE = (END - 1.8, END)                                                     # FADE0 = TURN0 + 11.2: everything decays to 0 by END
+groove(80.2, TURN0 + 0.3, style='half', clap_on=False, lvl=0.7, bed=0.18)  # it breathes in the centre
+put(swell(0.9 * BEAT), TURN0 - 0.6, 0.36)
+peak(TURN0 + 0.3, 'C+', 0.95, 0.8)                                          # the kit reveal turn (TURN0) — third peak
+groove(TURN0 + 0.3, FADE0, lvl=0.74, arp16=True, bed=0.18)                  # the groove runs under the end card and stops at FADE0
+for k in range(7):                                                          # 「rbit·知音」 rise (LET0 + .242 k): the same phrase as 20-orbit
+    b_ = TURN0 + 2.475 + 0.242 * k
+    put(bell(lq(LETTERS[k], b_), 1.4), b_, 0.045 - 0.002 * k, -0.45 + 0.15 * k, to='verbsend')
+    put(lead(lq(LETTERS[k], b_), (0.242 if k < 6 else 1.2) * BEAT), b_, 0.035, 0.0, to='lead')
+TAG0 = TURN0 + 4.0
+for k in range(7):                                                          # An Assistant Redesign for everyone & every (TAG0 + .2 k)
+    b_ = TAG0 + 0.2 * k
+    put(blip(tone(b_, k % 4, 72), 0.3), b_, 0.02, -0.45 + 0.15 * k, to='verbsend')
+motif(TAG0, 0.05, notes=M[:3], times=M_T[:3], held=0.4)                     # the tagline starts the motif …
+CLOSE_AG = (76, 79, 81, 76, 84)                                             # … and the 「agent」 dots (TAG0 + 1.4) finish it, resolving on C
+for i, m in enumerate(CLOSE_AG):
+    b_ = TAG0 + 1.4 + 0.16 * i
+    put(blip(lq(m, b_), 0.7 if i < 4 else 3.0), b_, 0.1, -0.6 + 0.3 * i, to='verbsend')
+put(lead(lq(84, TAG0 + 2.04), 5.5 * BEAT), TAG0 + 2.04, 0.05, 0.0, to='lead')   # the last motif note rings out over the fade
+put(bell(lq(84, TAG0 + 2.04), 6.0), TAG0 + 2.04, 0.04, 0.1, to='verbsend')
+put(sweep_pad(tuple(m + 12 for m in CH['C'][0]), 5.0 * BEAT, 2.5 * BEAT), TAG0 + 3.0, 0.035, to='verbsend')   # soft swell under the push-in
+FADE = (FADE0 + SH, END)                                                    # FADE0 = TURN0 + 11.2: everything decays to 0 by END
 
 
 # ================= v17.7 Agent-dot morphs: soft cues on the 'morph' bus (scene beats per section), ≥ 10 dB under the lead
@@ -733,18 +821,17 @@ section('60-close')
 mcues([(69.2, 'low')] + [(69.5 + 0.06 * k, 'air') for k in (0, 2, 4)]
       + [(71.95, 'bell')] + [(72.64 + 0.12 * k, 'air') for k in range(5)]
       + [(75.55, 'pluck'), (78.6, 'bell'), (79.1, 'air')]
-      + [(84.275 + 0.2 * k, 'air') for k in range(5)]
-      + [(87.2 + 0.16 * k, 'air') for k in range(5)]
-      + [(93.0, 'low')])
+      + [(TURN0 + 2.475 + 0.2 * k, 'air') for k in range(5)]
+      + [(TURN0 + 5.4 + 0.16 * k, 'air') for k in range(5)]
+      + [(TURN0 + 11.2, 'low')])
 
 
 # ---------------- render the grid layers: groove, pads ----------------
 def render_groove():
     spans = [list(g) for g in GROOVE]                   # definition order: a later span wins an overlap
     by_start = sorted(spans, key=lambda s: s[0])
-    breath = BREATH
     for cur, nxt in zip(by_start[:-1], by_start[1:], strict=True):   # bridge a small gap a SHIFT leaves between sections
-        if 0 < nxt[0] - cur[1] < 4 and not breath[0] <= cur[1] <= breath[1]:
+        if 0 < nxt[0] - cur[1] < 4 and not any(b0 - 1e-6 <= cur[1] <= b1 + 1e-6 for b0, b1 in BREATHS):
             cur[1] = nxt[0]
     lo = min(s[0] for s in spans)
     hi = max(s[1] for s in spans)
@@ -756,19 +843,28 @@ def render_groove():
             if s[0] - 1e-9 <= b < s[1] - 1e-9:
                 own = s[2]
         owner.append(own)
+    hits_ = np.array(sorted(HITS))
+    for h in hits_:                                      # the kick follows the picture: ON each hit, so the duck follows too
+        j = int(np.searchsorted(steps, h + 1e-9)) - 1     # the step the hit falls in
+        p = owner[j] if 0 <= j < len(owner) else None
+        if p is not None and p['kick_on']:
+            putf(kick(0.4, 0.8), h, 0.6 * p['lvl'], to='kick')
     for bi, p in zip(steps, owner, strict=True):
         if p is None:
             continue
         lvl, ph, frac = p['lvl'], bi % 4, bi % 1
+        near = len(hits_) and np.min(np.abs(hits_ - bi)) <= 0.3 + 1e-6
+        typing = any(b0 <= bi < b1 for b0, b1 in HATS_OFF)
         kicks = (0, 1, 2, 3) if p['style'] == 'four' else (0, 2.5)
         claps = (1, 3) if p['style'] == 'four' else (2,)
-        if p['kick_on'] and any(abs(ph - k) < 1e-6 for k in kicks):
+        if p['kick_on'] and not near and any(abs(ph - k) < 1e-6 for k in kicks):
             putf(kick(), bi, (0.85 if p['style'] == 'four' else 0.72) * lvl, to='kick')
-        if p['clap_on'] and any(abs(ph - k) < 1e-6 for k in claps):
+        if p['clap_on'] and not near and any(abs(ph - k) < 1e-6 for k in claps):
             putf(clap(), bi, 0.42 * lvl, 0.0, to='verbsend')
-        if p['hats']:
+        if p['hats'] and not typing:
             if abs(frac - .5) < 1e-6:
-                putf(hat(True), bi, 0.32 * lvl, 0.25)
+                if not near:
+                    putf(hat(True), bi, 0.32 * lvl, 0.25)
             else:
                 putf(hat(False), bi, (0.24 if frac == 0 else 0.15) * lvl, -0.3)
         ch = chord_f(bi)
@@ -831,8 +927,22 @@ ir = rng.standard_normal(len(ir_t)) * np.exp(-ir_t * 2.6)
 ir = lp(ir, 5500)
 ir /= np.sqrt(np.sum(ir ** 2))
 
-out_l = bus('dry')[0] + bus('keys')[0] + bus('morph')[0] + bus('kick')[0] + bus('verbsend')[0] + (bus('duck')[0] + bus('duckverb')[0]) * duck
-out_r = bus('dry')[1] + bus('keys')[1] + bus('morph')[1] + bus('kick')[1] + bus('verbsend')[1] + (bus('duck')[1] + bus('duckverb')[1]) * duck
+ld_l, ld_r = bus('lead')
+dly = at(0.375)
+echo_l, echo_r = np.zeros(N), np.zeros(N)
+src = (ld_l + ld_r) * 0.5
+for k in range(1, 5):                                    # ping-pong: odd repeats left, even right, -9 dB each step
+    seg = np.zeros(N)
+    seg[k * dly:] = src[:N - k * dly] * 10 ** (-9 * k / 20)
+    seg = lp(seg, 3500)
+    if k % 2:
+        echo_l += seg
+    else:
+        echo_r += seg
+bus('verbsend')
+BUS['verbsend'] = (BUS['verbsend'][0] + ld_l * 0.35 + echo_l, BUS['verbsend'][1] + ld_r * 0.35 + echo_r)
+out_l = bus('dry')[0] + ld_l * 0.65 + bus('keys')[0] + bus('morph')[0] + bus('kick')[0] + bus('verbsend')[0] + (bus('duck')[0] + bus('duckverb')[0]) * duck
+out_r = bus('dry')[1] + ld_r * 0.65 + bus('keys')[1] + bus('morph')[1] + bus('kick')[1] + bus('verbsend')[1] + (bus('duck')[1] + bus('duckverb')[1]) * duck
 send_l = bus('verbsend')[0] + bus('duckverb')[0] * duck * 0.6 + bus('morph')[0] * 0.5
 send_r = bus('verbsend')[1] + bus('duckverb')[1] * duck * 0.6 + bus('morph')[1] * 0.5
 out_l += signal.fftconvolve(send_l, ir)[:N] * 0.3
@@ -846,6 +956,7 @@ for b0, b1, b2, b3, fc in LPF:                      # low-pass automation: zero-
     sos = signal.butter(2, fc, 'low', fs=SR, output='sos')
     mix = mix * (1 - 0.8 * w) + signal.sosfiltfilt(sos, mix) * 0.8 * w
 mix = hp(mix, 25)
+mix = mix + (10 ** (-4 / 20) - 1) * lp(mix, 70, 2)    # master low shelf: -4 dB below ~70 Hz
 norm = 1 / (np.max(np.abs(mix)) + 1e-9)
 mix *= norm
 mix = np.tanh(mix * 1.6) / np.tanh(1.6)
