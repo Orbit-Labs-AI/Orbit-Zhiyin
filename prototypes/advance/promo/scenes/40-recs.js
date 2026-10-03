@@ -58,9 +58,9 @@ scene('40-recs', () => {
 
   /* ---------- 5a three cards drop under a fixed headline (b54.8–66.4) ---------- */
   const IDS = ['paper-audit', 'acceptance', RB];
-  const LAND = [57.0, 62.0, 67.0], HOLD = 4.4, DROP = .6;                  // card i: drops from LAND − DROP, leaves at LAND + HOLD
+  const LAND = [57.0, 61.3, 65.6], HOLD = 3.7, DROP = .6;                  // card i: drops from LAND − DROP, leaves at LAND + HOLD
   // later beats move with the longer card holds (A), the longer install sheet (B), applied state (C) and before/after (D)
-  const dA = 4.0, dB = dA + 1.5, dC = dB + 1, dD = dC + 2;
+  const dA = 2.2, dB = dA + 1, dC = dB + .6, dD = dC + 1.4;
   const CARDBOX = [960, 690, 1760, 440];
   let BASE = {}, SAVE = [0, 0, 0], FR = null;
   at(54.8, () => {

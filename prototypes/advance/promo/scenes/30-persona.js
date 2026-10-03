@@ -26,9 +26,9 @@ scene('30-persona', () => {
   const OFF = 11.25, MOVE = 3.6, RAMP = .22;
   const typeDeg = (code) => (CODES.indexOf(code) + .5) * 22.5;
   // [code, beat it arrives (fully open), bearing]; it leaves a stop MOVE beats before the next arrival
-  const STOPS = [['SIMT', 33.9, typeDeg('SIMT')], ['DPMV', 41.9, typeDeg('DPMV') + 360], ['DIMV', 49.9, typeDeg('DIMV') + 720]];
+  const STOPS = [['SIMT', 33.9, typeDeg('SIMT')], ['DPMV', 40.9, typeDeg('DPMV') + 360], ['DIMV', 47.9, typeDeg('DIMV') + 720]];
   // later beats of this scene move with the longer browse (X), the longer reveal (Y) and the longer strengths card (Z)
-  const X = STOPS[2][1] - 43.4, Y = X + 2, Z = Y + 1.5;
+  const X = STOPS[2][1] - 43.4, Y = X + 1.5, Z = Y + 1;
   // 0..1 progress with an even speed between two short eased ramps (velocity: a trapezoid)
   const even = (u) => { const r = RAMP, v = 1 / (1 - r); if (u <= 0) return 0; if (u >= 1) return 1; if (u < r) return v * u * u / (2 * r); if (u > 1 - r) return 1 - v * (1 - u) * (1 - u) / (2 * r); return v * (u - r / 2); };
   // 4b: before the browse the closed bud runs once round at an even speed (from 210° back to 210°), revealing the band
@@ -52,6 +52,10 @@ scene('30-persona', () => {
     return { deg: STOPS[STOPS.length - 1][2], k: STOPS.length - 1, open: 1, twist: 0 };
   }
   const needleAt = (b) => (b < SW0 ? needle4b(b) + OFF : browse(b).deg);
+  // the Agent layers turn with the flower: a slow drift, plus one even turn (each layer by its own CP.SPIN × SPINK)
+  // exactly while the petals fold and open, so the whole dial changes with the type
+  const SPINK = 14;
+  const spinAt = (b) => .12 * (b - 27) + SPINK * (even(lp(b, STOPS[0][1] - 1.8, 1.8)) + STOPS.slice(1).reduce((v, x) => v + even(lp(b, x[1] - MOVE, MOVE)), 0));
 
   const D0 = compassData(), ME = D0.me, STR = 'DIMV'.split('').map((x, i) => axisOf(ME.v, i));
 
@@ -176,7 +180,7 @@ scene('30-persona', () => {
     drawCompass({
       deg, mine: E.inOut(lp(b, 44 + X, 1.4)), grow: w ? w.open : 0, fi: w ? CODES.indexOf(STOPS[w.k][0]) : null, twist: w ? w.twist : 0, wave: w && w.wave,
       sweep: b < 30 ? clamp((needle4b(b) + 510) / 360) : 1, sweepFrom: 210 + OFF,
-      orbit: (b - 27) * 28 + deg * .3, spin: b - 27, settle: E.inOut(lp(b, 44.8 + X, 1.6)),
+      orbit: (b - 27) * 28 + deg * .3, spin: spinAt(b), settle: E.inOut(lp(b, 44.8 + X, 1.6)),
       needle: E.out(lp(b, 26.9, .5)), core: E.out(lp(b, 26.7, 1)), dial: E.out(lp(b, 25.7, .9)),
       ticks: E.inOut(lp(b, 26.4, 1.2)), trace: lp(b, 26.4, 1.2), traceA: 1 - E.out(lp(b, 27.5, .5))
     });
@@ -202,6 +206,25 @@ scene('30-persona', () => {
     }
     return pos % 8;
   };
+  // the name on its own letterboard: each character cell rolls (same even speed) through a few other type-name
+  // characters to the next name's character, cell c passing 5 + c of them, so the cells stop left to right
+  const NSTEP = .18, NPOOL = [...new Set(Object.values(D0.TYPES).map((t) => t[0]).join('').split(''))];
+  const nameOf = (i) => [...D0.TYPES[STOPS[i][0]][0]];
+  const nameStrip = (i, c) => {                           // switch i (1, 2): cell c's characters, from the old name to the new
+    const fill = Array.from({ length: 5 + c }, (_, j) => NPOOL[Math.floor(hash01(i * 7 + c, 40 + j) * NPOOL.length)]);
+    return [nameOf(i - 1)[c] || '', ...fill, nameOf(i)[c] || ''];
+  };
+  function nameFlap(x, c, b) {
+    let i = 0; for (let s = 1; s < STOPS.length; s++) if (b >= STOPS[s][1] - MOVE + .1) i = s;
+    const strip = i ? nameStrip(i, c) : [nameOf(0)[c] || ''], key = i + ':' + c;
+    if (x.dataset.key !== key) { x.dataset.key = key; x.innerHTML = strip.map((ch) => '<i>' + (ch || '&nbsp;') + '</i>').join(''); }
+    const pos = i ? Math.min(strip.length - 1, (b - (STOPS[i][1] - MOVE + .1)) / NSTEP) : 0;
+    x.style.transform = 'translateY(' + (-pos * 1.2).toFixed(4) + 'em)';
+  }
+  css(`.ln>span.pe-nb{display:inline-flex}
+.pe-nc{display:inline-block;width:1em;height:1.2em;overflow:hidden;position:relative;vertical-align:top}
+.pe-ns{position:absolute;left:0;top:0;width:100%;display:flex;flex-direction:column;will-change:transform}
+.pe-ns i{display:block;height:1.2em;line-height:1.2em;text-align:center;font-style:normal;background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent}`);
   const stopAt = (b) => { let k = 0; for (let i = 1; i < STOPS.length; i++) if (b >= STOPS[i][1] - MOVE / 2) k = i; return k; };
   const swapQ = (b) => { for (let i = 1; i < STOPS.length; i++) { const m = STOPS[i][1] - MOVE / 2; if (Math.abs(b - m) < .6) return Math.abs(b - m) / .6; } return 1; };
   const drum = FLAP + FLAP[0];
@@ -212,13 +235,14 @@ scene('30-persona', () => {
 .pe-fs i{display:block;height:1.2em;line-height:1.2em;text-align:center;font-style:normal;color:var(--acc)}
 .pe-code.pe-fl{letter-spacing:0}
 .pe-sw2{display:inline-block;will-change:opacity,filter}`);
-  txt(STOPS[0][1] - .35, STOPS[2][1] + 1.4, [['lt dim', '16 种之一'], ['hv sv', '<span class="pe-sw2 pe-nm"></span>'], ['pe-code pe-fl', '<span class="pe-flap">' + flapHTML + '</span>'], ['lt', '<span class="pe-sw2 pe-ol"></span>']], { x: 150, y: 530 }, {
+  txt(STOPS[0][1] - .35, STOPS[2][1] + 1.4, [['lt dim', '16 种之一'], ['hv', '<span class="pe-nb">' + [0, 1, 2, 3].map((c) => '<span class="pe-nc"><span class="pe-ns" data-c="' + c + '"></span></span>').join('') + '</span>'], ['pe-code pe-fl', '<span class="pe-flap">' + flapHTML + '</span>'], ['lt', '<span class="pe-sw2 pe-ol"></span>']], { x: 150, y: 530 }, {
     st: .08, inB: .6, outB: .5,
     tick: (el, tl, life, t) => {
       const b = t / BEAT, k = stopAt(b), T = D0.TYPES[STOPS[k][0]], q = swapQ(b);
-      const nm = el.querySelector('.pe-nm'), ol = el.querySelector('.pe-ol');
-      if (nm && nm.dataset.k !== String(k)) { nm.dataset.k = String(k); nm.textContent = T[0]; ol.textContent = T[2].split('，')[0]; }
-      for (const x of [nm, ol]) if (x) { x.style.opacity = q.toFixed(3); x.style.filter = q < .98 ? 'blur(' + ((1 - q) * 8).toFixed(1) + 'px)' : 'none'; }
+      const ol = el.querySelector('.pe-ol');
+      if (ol && ol.dataset.k !== String(k)) { ol.dataset.k = String(k); ol.textContent = T[2].split('，')[0]; }
+      if (ol) { ol.style.opacity = q.toFixed(3); ol.style.filter = q < .98 ? 'blur(' + ((1 - q) * 8).toFixed(1) + 'px)' : 'none'; }
+      el.querySelectorAll('.pe-ns').forEach((x) => nameFlap(x, +x.dataset.c, b));
       el.querySelectorAll('.pe-fs').forEach((x) => { x.style.transform = 'translateY(' + (-flapPos(b, +x.dataset.c) * 1.2).toFixed(4) + 'em)'; });
     }
   });
@@ -309,19 +333,19 @@ scene('30-persona', () => {
   tag(1, 54.6 + Y, 60.4 + Z, swGroup(0, 2), 'left', [['lt', '看清优势']], { at: .5, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
   tag(1, 55.9 + Y, 60.4 + Z, swGroup(3, 5), 'left', [['lt pe-or', '也看清盲点'], ['lt pe-or', '每个都有解法']], { at: .5, gap: 34, anim: K.all(mask(.14, .9, .5), anchor0) });
   clickAt(1, 59.6 + Z, recLnk, () => {}, { bloom: 'var(--a1)' });
-  portal(0, 59.7 + Z, 1.6, () => elXY(1, recLnk), 2300, E.in, .6, 'rgba(226,96,43,.95)');
+  portal(0, 59.7 + Z, 1.3, () => elXY(1, recLnk), 2300, E.in, .6, 'rgba(226,96,43,.95)');
   // the door cuts through decks 1 and 2 as well (they sit above deck 0), and they drift forward and blur away
   let PC = null;
   every(59.1 + Z, 61.5 + Z, (p, b) => {
     if (!PC) PC = elXY(1, recLnk);
-    const q = clamp((b - 59.7 - Z) / 1.6), r = 2300 * E.in(q);
+    const q = clamp((b - 59.7 - Z) / 1.3), r = 2300 * E.in(q);
     for (const h of ['#hole1', '#hole2']) {
-      const el = $(h), m = b < 59.7 + Z || b >= 61.45 + Z ? '' : 'radial-gradient(circle at ' + PC[0].toFixed(1) + 'px ' + PC[1].toFixed(1) + 'px,transparent ' + r.toFixed(1) + 'px,#000 ' + (r + 2).toFixed(1) + 'px)';
+      const el = $(h), m = b < 59.7 + Z || b >= 61.15 + Z ? '' : 'radial-gradient(circle at ' + PC[0].toFixed(1) + 'px ' + PC[1].toFixed(1) + 'px,transparent ' + r.toFixed(1) + 'px,#000 ' + (r + 2).toFixed(1) + 'px)';
       el.style.maskImage = m; el.style.webkitMaskImage = m;
     }
   });
-  tween(1, 59.8 + Z, 1.55, () => ({ s: decks[1].C.s * 1.12, bl: 10, o: 0 }), E.in);
-  tween(2, 59.8 + Z, 1.55, () => ({ s: decks[2].C.s * 1.1, bl: 10, o: 0 }), E.in);
+  tween(1, 59.8 + Z, 1.25, () => ({ s: decks[1].C.s * 1.12, bl: 10, o: 0 }), E.in);
+  tween(2, 59.8 + Z, 1.25, () => ({ s: decks[2].C.s * 1.1, bl: 10, o: 0 }), E.in);
   // leave deck 1 tidy for whoever uses it next
   at(61.6 + Z, () => { const D = decks[1].D, c = swCard(D); if (c) c.style.clipPath = ''; D.querySelectorAll('.pe-sw .pe-swr, .pe-sw .pe-swsep').forEach((r) => { r.style.opacity = ''; r.style.transform = ''; }); });
 });
