@@ -79,3 +79,32 @@ Prompt / workflow 使用产品已有片段；未填写的槽位和只有安装�
 
 针对计量与 verifier 转换的回归检查：
 `uv run pytest -q tests/regression/test_artificial_benchmark.py`。
+
+## 中断续跑
+
+`resume.py` 是单独冻结的续跑入口，不修改已冻结的原始执行器。
+用户明确要求换用 TokenDance 的三份预付额度时，可使用以下步骤。
+先等旧执行器退出，将三把 key 每行一把放进本机忽略的私有文件（权限 600）。
+
+```sh
+uv run python -m evals.artificial_benchmark.resume prepare --study /path/to/study
+uv run python -m evals.artificial_benchmark.resume preflight \
+  --study /path/to/study --key-file /private/path/keys.txt
+uv run python -m evals.artificial_benchmark.resume run \
+  --study /path/to/study --key-file /private/path/keys.txt
+```
+
+只重跑 API/基础设施中断的尝试；正常任务失败、正常完成但用量未知、达到原定时间或
+轮数上限的失败都保留。评分设施故障须先恢复评分，不能重复已完成的 agent 来挑选结果。
+原始中断轨迹按哈希归档，已知用量与未知用量分别保留；history 和 B/C 资产不会重新生成。
+按已完成组数优先补齐同一道题，平局沿用原随机顺序，最多同时运行该题的两组；
+三组齐全后才进入下一题。临时限流或其他服务错误停止调度，预付余额耗尽才使用其他 key。
+
+新服务使用 `https://tokendance.space/gateway/v1`、`kimi-k3` 和 `reasoning_effort=max`。
+原始 `kimi-coding` 仅保留为冻结执行器的本地凭据命名空间，不代表仍请求旧服务。
+`resume_pi.py` 在每次启动前把单一模型写入 Pi 支持的 `models.json`，随后 exec 原版 Pi；
+仅写动态 catalog 缓存不足以注册新模型。preflight 还检查实际事件里的协议、模型 ID 和 max 档位。
+OpenAI 协议回传 `reasoning_content` 与工具调用；通过独立 preflight 确认四种容器工具和用量。
+模型配置、原/新服务、调度顺序和代码哈希写进 `resume/amendment.json`；
+逐次服务配置写进报告，服务切换后的汇总不能宣称 API 条件完全一致。
+人民币消耗以平台余额接口为准，Pi 内置模型价格估算不作账单依据。
