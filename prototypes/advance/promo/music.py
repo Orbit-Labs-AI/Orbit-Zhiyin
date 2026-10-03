@@ -731,6 +731,8 @@ put(whoosh(1.1 * BEAT), 63.4, 0.12, 0.2)                                    # th
 put(stab(tuple(tone(63.4, j, 55) for j in range(4)), 1.4), 63.4, 0.1, 0.0, to='verbsend')   # V under the held A (the 9th), resolving to Am at film b86.8
 put(settle(0.9), 59.7, 0.07, 0.15)                                          # 提高效率 wipes in orange (PO + .1)
 put(puff(0.8), 63.2, 0.045, -0.5, to='verbsend')                            # and closes into a stack (b63.2)
+put(tick(1.2), 63.175, 0.06, -0.5)                                         # v18.4 sync: the stack closes as the orb morph starts (scene 63.15–63.2, film b86.05–86.1)
+put(tick(1.3), 63.35, 0.08, 0.0)                                            # v18.4 sync: the five-badge orb face forms (film b86.25)
 put(tick(1.0), 63.8, 0.04, -0.5)                                            # the stack hands on to the merge (b63.8)
 
 # ================= 50-tools: merge, session trajectory, studio (b55.0–75.2)
@@ -750,7 +752,7 @@ groove(73.75, 75.2, style='half', lvl=0.86, arp16=True, bed=0.2)            # �
 peak(73.75, 'C', 0.8, 0.5)                                                  # the second core feature's peak: done ✓ (film b105.45)
 padlvl(73.75, 0.21, 2600)
 put(swell(0.8 * BEAT), 55.2, 0.12)                                          # the orb grows into the card (film b86.9–87.7), no hit
-put(lp(swell(0.5 * BEAT), 6000) + 0.5 * bp(swell(0.5 * BEAT), 300, 900), 67.15, 0.16, 0.0)   # v18.4 the cards are drawn into the orb (film b98.85–99.35): a reverse, suck-in swell
+put(lp(swell(0.46 * BEAT), 6000) + 0.5 * bp(swell(0.46 * BEAT), 300, 900), 67.15, 0.16, 0.0)   # v18.4 the cards are drawn into the orb (film b98.85–99.35): a reverse, suck-in swell that cuts just before the b67.65 pluck
 put(pluck(tone(68.1, 2, 72), 0.5), 68.1, 0.08, 0.1, to='verbsend')         # 开始生成 pops out (film b99.8)
 put(tick(1.3), 68.1, 0.07, 0.1)
 hits(55.0, 55.4, 65.0, 68.8, 73.75)
@@ -767,8 +769,9 @@ for j, g in enumerate((0.08, 0.05)):                                        # �
 put(puff(), 65.0, 0.03, 0.3, to='verbsend')
 put(whoosh(1.4 * BEAT), 67.0, 0.1, -0.3)                                    # trajectory out, studio in (b67.1 / 67.3)
 put(tick(1.0), 67.25, 0.05, -0.3)                                           # v18.3: the old accent leaves (b67.25)
-put(settle(0.8), 67.57, 0.06, 0.1)                                          # 「04 · 生成工坊」 rises in (b67.57)
+put(settle(1.0), 67.61, 0.08, 0.1)                                          # v18.4 one landing for 「04 · 生成工坊」 (b67.57), 开始生成 growing (67.6) and the card in the orb (67.65)
 put(puff(0.9), 67.75, 0.04, 0.3, to='verbsend')                             # the new accent comes in (b67.75)
+put(tick(1.3), 67.75, 0.15, 0.3)                                            # v18.4 sync: a click so the accent's entry has an attack
 put(whoosh(0.7 * BEAT), 68.2, 0.05, 0.1)                                   # the camera pushes in on 开始生成 (b68.2)
 arp(68.5, 68.8, 0.1, 0.05, base=72, span=3)                                 # the .3-beat hover: a rising up-beat into the press
 put(press(), 68.8, 0.22, 0.2)
