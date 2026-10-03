@@ -188,8 +188,9 @@ def test_pushdown_rows_match_former_full_scans(home, scope):
         # Without a cutoff the reader must not alter the stored rows (beyond the joined agent).
         # (beyond the joined agent and the call's tool_call_file operations).
         assert all(t["file_ops"] == [] for t in data["tool_calls"])
-        assert [{k: v for k, v in t.items() if k != "file_ops"}
-                for t in data["tool_calls"]] == expected_tools
+        assert [
+            {k: v for k, v in t.items() if k != "file_ops"} for t in data["tool_calls"]
+        ] == expected_tools
         assert data["sessions"] == expected_sessions
     else:
         for tool, stored in zip(data["tool_calls"], expected_tools, strict=True):
@@ -282,5 +283,9 @@ def test_tool_calls_carry_their_reported_file_operations(tmp_path):
         home = store.home
     tools = {t["call_uid"]: t for t in read_analysis(home, AnalysisScope("UTC"))["tool_calls"]}
     ops = [t["file_ops"] for t in tools.values() if t["file_ops"]]
-    assert ops == [[{"path": "src/a.py", "op": "update", "quality": "reported"},
-                    {"path": "src/b.py", "op": "add", "quality": "reported"}]]
+    assert ops == [
+        [
+            {"path": "src/a.py", "op": "update", "quality": "reported"},
+            {"path": "src/b.py", "op": "add", "quality": "reported"},
+        ]
+    ]

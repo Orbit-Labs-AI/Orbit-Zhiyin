@@ -744,9 +744,7 @@ class AnalysisHistory:
                 pass
         return total
 
-    def vacuum_if_sparse(
-        self, *, min_bytes: int = 256 * 1024 * 1024, ratio: float = 0.25
-    ) -> bool:
+    def vacuum_if_sparse(self, *, min_bytes: int = 256 * 1024 * 1024, ratio: float = 0.25) -> bool:
         """VACUUM when more than ``ratio`` of a large file is free pages (after pruning).
 
         Pages freed by pruning are only reused, never returned: at one half the real home

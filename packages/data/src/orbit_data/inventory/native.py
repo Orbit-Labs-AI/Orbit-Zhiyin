@@ -83,7 +83,10 @@ def opencode_markdown_components(reader, root):
     """
     from pathlib import Path
 
-    for component, directories in (("command", ("command", "commands")), ("agent", ("agent", "agents"))):
+    for component, directories in (
+        ("command", ("command", "commands")),
+        ("agent", ("agent", "agents")),
+    ):
         for directory in directories:
             base = root / directory
             for path in reader.walk(base, (component,)):

@@ -138,14 +138,18 @@ def test_coverage_summary_matches_the_analysis_disclosure(tmp_path):
         store.db.execute(
             "UPDATE session SET status='completed' WHERE session_uid=?", (uid(store, "main1"),)
         )
-        store.db.execute("UPDATE model_call SET cost_usd=0.3 WHERE session_uid=?",
-                         (uid(store, "main1"),))
-        store.db.execute("UPDATE model_call SET cost_usd=0.1 WHERE session_uid=?",
-                         (uid(store, "rev"),))
+        store.db.execute(
+            "UPDATE model_call SET cost_usd=0.3 WHERE session_uid=?", (uid(store, "main1"),)
+        )
+        store.db.execute(
+            "UPDATE model_call SET cost_usd=0.1 WHERE session_uid=?", (uid(store, "rev"),)
+        )
     full = read_analysis(tmp_path / "data", AnalysisScope("UTC"))["coverage"]
     with readonly_connection(tmp_path / "data" / "orbit.db") as connection:
         summary = coverage_summary(connection)
-    assert summary["sessions"]["status_known_share"] == full["sessions"]["status_known_share"] == 0.5
+    assert (
+        summary["sessions"]["status_known_share"] == full["sessions"]["status_known_share"] == 0.5
+    )
     assert summary["model_call"]["unmapped_model_share"] == 0.5
     assert summary["excluded_sessions"]["reason_counts"] == {"excluded_kind_review": 1}
     # 0.1 of 0.4 priced spend sits in the excluded review tree.

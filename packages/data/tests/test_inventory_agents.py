@@ -553,8 +553,12 @@ def test_opencode_commands_and_agents_use_upstream_path_names(tmp_path):
     assert result["coverage"]["command"]["status"] == "available"
     assert result["coverage"]["agent"]["status"] == "available"
     names = {(i["type"], i["name"]) for i in data["items"] if i["type"] in ("command", "agent")}
-    assert names == {("command", "git/commit"), ("command", "review"),
-                     ("agent", "planner"), ("agent", "nested/fixer")}
+    assert names == {
+        ("command", "git/commit"),
+        ("command", "review"),
+        ("agent", "planner"),
+        ("agent", "nested/fixer"),
+    }
     assert "SECRET-TEMPLATE" not in dump and "SECRET-PROMPT" not in dump
 
 

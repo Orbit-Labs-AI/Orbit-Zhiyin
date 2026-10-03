@@ -108,11 +108,18 @@ DAY = 24 * 3600 * 1000
 
 
 def _section(history: AnalysisHistory, key: str, fp: str, at: int, rows: int = 0) -> None:
-    history.put_sections(key, fp, {"sessions": {"rows": rows}},
-                         {"sessions": [(f"s{i}", {"i": i}) for i in range(rows)]})
+    history.put_sections(
+        key,
+        fp,
+        {"sessions": {"rows": rows}},
+        {"sessions": [(f"s{i}", {"i": i}) for i in range(rows)]},
+    )
     with history.connect() as db:
-        db.execute("UPDATE analysis_section SET created_at=?, last_hit_at=? WHERE request_key=?"
-                   " AND input_fp=?", (at, at, key, fp))
+        db.execute(
+            "UPDATE analysis_section SET created_at=?, last_hit_at=? WHERE request_key=?"
+            " AND input_fp=?",
+            (at, at, key, fp),
+        )
 
 
 def _left(history: AnalysisHistory, table: str, columns: str) -> set:
@@ -169,8 +176,11 @@ def test_filtered_session_row_classes_no_computation_used_for_a_day_are_dropped(
     with history.connect() as db:
         db.execute("UPDATE session_result SET computed_at=?", (now - 3 * DAY,))
         # The filtered scope still in use stored a row today (the tree that changed).
-        db.execute("UPDATE session_result SET computed_at=? WHERE scope_class='f:project'"
-                   " AND root_session_uid='r2'", (now - 1000,))
+        db.execute(
+            "UPDATE session_result SET computed_at=? WHERE scope_class='f:project'"
+            " AND root_session_uid='r2'",
+            (now - 1000,),
+        )
     stats = history.prune(algo_version="algo", now=now)
     assert stats["idle_session_results"] == 2
     assert _left(history, "session_result", "scope_class") == {("full",), ("f:project",)}
