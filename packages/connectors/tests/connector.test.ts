@@ -504,3 +504,13 @@ test('events carry only index data in ext; the native record is reachable throug
   assert.ok(rows.length>0);
   for (const row of rows) { assert.deepEqual(JSON.parse(String(row.ext)),{native_type:row.native_type}); assert.ok(row.body); }
 }));
+test('format_drift compares against the field union: a missing optional field is silent, a new field or type change reports',async()=>sandbox(async s=>{
+  const item=(ordinal:number,extra:Record<string,unknown>)=>jsonLine('event_msg',{type:'item_completed',turn_id:'t1',item:{type:'AgentMessage',id:`a${ordinal}`,content:[{type:'Text',text:'x'}],...extra}},ordinal);
+  const drift=()=>scalar(s,"SELECT count(*) n FROM diagnostic WHERE code='format_drift'");
+  await writeFile(s.file,jsonLine('session_meta',{id:'drift',cli_version:'0.1.0'},0)+item(1,{phase:'commentary',memory_citation:null})+item(2,{}));
+  await s.connector.ingest(); assert.equal(drift(),0);
+  await appendFile(s.file,item(3,{phase:'final_answer'})+item(4,{memory_citation:'m'})); await s.connector.ingest(); assert.equal(drift(),0);
+  await appendFile(s.file,item(5,{brand_new:true})); await s.connector.ingest(); assert.equal(drift(),1);
+  await appendFile(s.file,item(6,{phase:{nested:true}})); await s.connector.ingest(); assert.equal(drift(),2);
+  assert.match(String(s.store.db.prepare("SELECT message FROM diagnostic WHERE code='format_drift' AND message LIKE '%->%'").get()?.message),/item\.phase string -> object/);
+}));
