@@ -1,7 +1,7 @@
 # Orbit 宣传片
 
 约 55 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../orbit-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
-- **人格罗盘**：与 App 的指南针表盘共用几何，并接入 App 的数据。
+- **人格罗盘**：宣传片自己的罗盘（外框 + 玫瑰 + 指针 + 光带），几何取自 App 0.0.3 及之前的指南针表盘并接入 App 的数据；0.0.4 的 App 表盘已改为旋转对称的人格之花、每个 Agent 一条曲线与外框类型码，宣传片尚未同步，见 [Demo 说明](../../../docs/design/demo.md)。
 - **Orbit 标志**：用和 `docs/design/logo` spiral 变体相同的锥形螺旋实时生成。
 
 全片回答开场的两个问题：
