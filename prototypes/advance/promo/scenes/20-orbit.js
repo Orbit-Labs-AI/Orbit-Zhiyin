@@ -2,8 +2,11 @@
    v17.4 产品介绍收紧（本场景 −2.4 拍，起点不变）：长出 1.3 拍（b22.2 起）、立起 1.3 拍（b23.3 起，与长出重叠 .2），字标转身 b24.6；
    字标下加一行「你的 AI 协作复盘助手」（b27.5 起，可读 ≈ 2.6 拍），b30.3 收字（kit 收回 ×1.5 速）、O 转回 b30.8–32.5（1.7 拍），
    翻平 1.3 拍 b32.5–33.8（= TOP，描边光交接），淡完 b34.6；compass key b32.1（原 b34.5 − 2.4）。下面旧拍号的说明按此平移。
+   v17.7 去掉「于是，我们做了……」（本场景 −.8 拍，起点与交入 / 交出的形状不变）：45° 标志立稳即按 kit reveal 转身，转身 ×1.5 速
+   （2.2 拍，与收回同速），字母 b26.25 起、b28.6 齐，副标题 b26.7 起（可读 3 拍），b29.5 收字、O 转回 b30.0–31.7，
+   翻平 b31.7–33.0，淡完 b33.8；compass key b31.3；点 b25.2 离开轨道排成一行。
    圆环收紧加速 → 环自己长成俯视螺旋（尾端落在虚线圆上）→ 立起成 45° Orbit 标志（ICON），点落到标志外的倾斜轨道
-   → 字标段（v17.3）：「于是，我们做了……」（银色，省略号的点逐个出现）随标志出现；标志按 logo kit 的 reveal 绕自身轴转一圈
+   → 字标段（v17.3，v17.7 起不再有引导句）：标志按 logo kit 的 reveal 绕自身轴转一圈
      成为字标的 O，「rbit·知音」逐字升起，齐全可读 1.55 拍（加上最后两字升起约 1.9 拍）（字标一直慢推、点在字标下方排成一行缓缓舒展，不静止），
      然后字母倒序收回、O 转回标志（回到 ICON 姿态，慢推续上）
    → 翻平、放大、顺时针转半圈，尾端停在罗盘描边光起点 (960, 212) → 光离开时淡出。
@@ -16,19 +19,16 @@
    不碰 deck 2（归 30-persona）、不画虚线圆（归 15-redesign）。compass key 按交接表由接手方 30-persona 写；它没写时这里补上（见下）。 */
 'use strict';
 css(`
-.k .wm-l{font-size:60px;font-weight:400;letter-spacing:.02em}
-.k .wm-l .ln{display:inline-block}
-.k .wm-l .ln>span{background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent}
-.k .wm-l .ln+.ln>span{width:.34em;text-align:center}
 .k .ln.wm-s{font-size:44px;font-weight:300;color:rgba(255,255,255,.76);letter-spacing:.08em}
 `);
 scene('20-orbit', () => {
   const PC = [960, 540], MYSH = SH;
   // 字标段（场景拍）
   const GROW0 = 22.2, GROW = 1.3, RISE0 = 23.3, RISE = 1.3;
-  const WS = RISE0 + RISE, T = WORDMARK.T, ON = WS + .75 * T, OFF = WS + 5.7, BACK0 = OFF + .5, BACKD = 1.7, BACK1 = BACK0 + BACKD;
+  // 转身 TT = kit 的 ×1.5 速（2.2 拍，与收回同速）；字母照 kit 在转身 75 % 处起、110 ms 错开 / 各 420 ms；收字 OFF 在字母起后 3.25 拍
+  const WS = RISE0 + RISE, TT = WORDMARK.T / 1.5, ON = WS + .75 * TT, OFF = ON + 3.25, BACK0 = OFF + .5, BACKD = 1.7, BACK1 = BACK0 + BACKD;
   const ADD = BACK1 - (WS + .6);                             // 慢推：字标段之后按「没有字标段」的时间续上
-  const FLIP0 = BACK1, FLIP1 = FLIP0 + 1.3, FADE1 = FLIP1 + .8, CK = FLIP1 - 1.7;   // CK b32.1：点比翻平早 .4 拍起步
+  const FLIP0 = BACK1, FLIP1 = FLIP0 + 1.3, FADE1 = FLIP1 + .8, CK = FLIP1 - 1.7;   // CK b31.3：点比翻平早 .4 拍起步
 
   /* ---------- Agent 点（K1 相位链：228 → 294 → compass key 时 Φ 与原来相同，只晚 ADD 拍） ---------- */
   // 2.1 / H5：圆环 R 420 → 300 收紧、5 → 30°/拍 加速（ph = 旧环在 b21.6 的角度 207 + 5·4.2 = 228，刚体、不倒转）
@@ -37,8 +37,9 @@ scene('20-orbit', () => {
   const OB = { cx: 960, cy: 552, rx: 368, ry: 69, spin: 25.4, r: 18 };
   AGD.key(RISE0, 'orbit', { ...OB, ph: 228 + 30 * (RISE0 - 21.6), dur: RISE, ease: E.sine, stag: 0, polar: PC });
   // 字标段：标志转身时点离开轨道（按 x 排序，不交叉），在字标与副标题下方排成一小行；读字时这一行缓缓上移、点距慢慢舒展（不静止）
-  const ROW = WS + 1.3;
-  AGD.key(ROW, 'row', { cx: 960, y: (b) => 812 - 3 * Math.max(0, b - ROW), gap: (b) => 60 + 1.4 * Math.max(0, b - ROW), r: 15, order: 'x', dur: 1.8, ease: E.sine, stag: .06 });
+  // （b25.2 起 1.6 拍：副标题 b26.7 浮现前点已越过它的那一行）
+  const ROW = WS + .6;
+  AGD.key(ROW, 'row', { cx: 960, y: (b) => 812 - 3 * Math.max(0, b - ROW), gap: (b) => 60 + 1.4 * Math.max(0, b - ROW), r: 15, order: 'x', dur: 1.6, ease: E.sine, stag: .06 });
   // 收字时点先回到轨道（polar 沿椭圆参数）；相位使 CK 交给 compass 时每个点的位置与原来（轨道 key 后 1.9 拍）完全一样
   const RET = BACK0 - .3;
   AGD.key(RET, 'orbit', { ...OB, ph: 294 + OB.spin * (RET - CK + 1.9), dur: 1.6, ease: E.sine, stag: .04, polar: PC });
@@ -78,30 +79,14 @@ scene('20-orbit', () => {
     if (!WORDMARK.F) return icon(b);                         // frames missing: keep the icon (no wordmark)
     P0 = P0 || WORDMARK.place(icon(WS)); P1 = P1 || WORDMARK.place(icon(BACK1));
     let v, at;
-    if (b < BACK0) { v = E.inOut(lp(b, WS, T)); at = mixP(P0, readAt(b), v); }
+    if (b < BACK0) { v = E.inOut(lp(b, WS, TT)); at = mixP(P0, readAt(b), v); }
     else { const e = E.inOut(lp(b, BACK0, BACKD)); v = 1 - e; at = mixP(readAt(b), P1, e); }
     WORDMARK.add(WORDMARK.svg({ a: 1, cx: at.cx, cy: at.cy, k: at.k, v, b, on: ON, off: OFF, offRate: 1.5 }));
     return null;
   });
-  // 「于是，我们做了……」：银色 60px，标志立稳前浮现（b24.9），省略号六个点从 b25.6 起每 .22 拍出现一个；整行每拍上移 4px，
-  // 与字母一起在 b31.7 起离开（.8 拍，上移、模糊）
-  const L0 = WS - .4, L1 = OFF + .8, DOT0 = WS + .3;
-  txt(L0, L1, [['wm-l', ['于是，我们做了', '·', '·', '·', '·', '·', '·']]], { x: 960, y: 250, align: 'c' }, {
-    anim: (el, tl, life, ts) => {
-      const b = ts / BEAT, q = E.inOut(clamp((life - tl) / BB(.8)));
-      el.style.transform = 'translate(-50%,-50%) translateY(' + (-4 * (b - L0)).toFixed(1) + 'px)';
-      el.querySelectorAll('.ln>span').forEach((s, i) => {
-        const p = i === 0 ? E.expo(clamp(tl / BB(1))) : E.out(clamp((b - DOT0 - (i - 1) * .22) / .3));
-        s.style.transform = 'translateY(' + ((1 - p) * (i === 0 ? 130 : 40) - (1 - q) * 30).toFixed(2) + '%)';
-        s.style.opacity = (Math.min(1, p * 1.4) * q).toFixed(3);
-        s.style.filter = q < .999 ? 'blur(' + ((1 - q) * 8).toFixed(1) + 'px)' : 'none';
-      });
-    }
-  });
-
-  // 副标题「你的 AI 协作复盘助手」（pitch deck）：字标字母升起后接着浮现（b27.5），在字标下方，每拍上移 3px 与点行同步；
-  // 比上一行晚 .2 拍离开（b30.5 起 .8 拍），可读 ≈ 2.6 拍 ≈ 1.2 s
-  const S0 = WS + 2.9, S1 = OFF + 1.0, SUB = mask(.18, 1, .8);
+  // 副标题「你的 AI 协作复盘助手」（pitch deck）：字标字母升起后接着浮现（b26.7），在字标下方，每拍上移 3px 与点行同步；
+  // 比收字晚 .2 拍离开（b29.7 起 .8 拍），可读 ≈ 3 拍 ≈ 1.4 s
+  const S0 = ON + .45, S1 = OFF + 1.0, SUB = mask(.18, 1, .8);
   txt(S0, S1, [['wm-s', '你的 AI 协作复盘助手']], { x: 960, y: 706, align: 'c' }, {
     anim: (el, tl, life, ts) => { SUB(el, tl, life); el.style.transform = 'translate(-50%,-50%) translateY(' + (-3 * (ts / BEAT - S0)).toFixed(1) + 'px)'; }
   });
