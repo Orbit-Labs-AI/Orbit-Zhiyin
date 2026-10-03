@@ -351,3 +351,13 @@ def test_routes_respect_exclusion_and_source_range(db, home, monkeypatch):
         assert n == base["/v1/uiview/sentiment"][0] - 2
     finally:
         appdb.close()
+
+
+def test_coverage_agents_read_and_unscanned_follow_inventory():
+    cov = {x["type"]: x for x in P.coverage([], "p1", ["claude_code", "opencode", "pi"])}
+    # OpenCode reads agent/*.md subagents and the inventory scans them.
+    assert "opencode" in cov["subagent"]["agents_read"]
+    assert "opencode" not in cov["subagent"]["agents_unscanned"]
+    # Pi reads prompts as commands, but the inventory does not scan them yet: 未扫描, not 未配置.
+    assert "pi" in cov["command"]["agents_read"] and cov["command"]["agents_unscanned"] == ["pi"]
+    assert cov["skill"]["agents_unscanned"] == []

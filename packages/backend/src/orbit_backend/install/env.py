@@ -55,7 +55,9 @@ SUPPORTED = {
     "dsh": {"skills", "rules"},
     "pi": {"skills", "mcp", "commands", "rules"},
     "hermes": {"skills", "rules"},
-    "opencode": {"skills", "mcp", "commands", "rules", "permission_rules"},
+    # OpenCode reads agent/*.md subagents (the inventory scans them); install stays unmappable
+    # through targets.py's opencode_subagent_format_differs row, which is checked first.
+    "opencode": {"skills", "mcp", "subagents", "commands", "rules", "permission_rules"},
 }
 # Minimum versions per capability. 待验证：数值取自各 Agent 更新日志的大致时间点，未实测。
 MIN_VERSIONS = {

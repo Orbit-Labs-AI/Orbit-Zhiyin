@@ -12,6 +12,8 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from orbit_data.inventory.adapters import SUPPORTED as INVENTORY_SUPPORTED
+
 from ..ai.pack import VERIFY_RE
 from ..analytics.features import LANG
 from ..analytics.outcome_subjective.extraction import classify_feedback
@@ -436,9 +438,12 @@ def coverage(items, pid, agents) -> list[dict]:
         cap = CAPABILITY_OF[kind]
         agents_read = sorted(a for a in agents if capabilities(a, None).get(cap))
         inv_type = INVENTORY_TYPE.get(kind, kind)
+        # Agents that read this type but whose inventory adapter does not scan it (e.g. Pi
+        # prompts): their cell is 未扫描, never 未配置.
+        unscanned = [a for a in agents_read if inv_type not in INVENTORY_SUPPORTED.get(a, ())]
         if items is None:
             out.append({"type": kind, "inventory_type": inv_type, "configured": None,
-                        "detail": "未扫描", "agents_read": agents_read})
+                        "detail": "未扫描", "agents_read": agents_read, "agents_unscanned": agents_read})
             continue
         # Disabled entries (e.g. Codex prompts it no longer loads) are not configuration.
         mine = [i for i in items if i.get("type") == inv_type and i.get("enabled") != 0]
@@ -446,7 +451,7 @@ def coverage(items, pid, agents) -> list[dict]:
         glob = sum(1 for i in mine if i.get("scope") != "project")
         out.append({"type": kind, "inventory_type": inv_type, "configured": bool(local or glob),
                     "detail": f"项目 {local} · 全局 {glob}", "project": local, "global": glob,
-                    "agents_read": agents_read})
+                    "agents_read": agents_read, "agents_unscanned": unscanned})
     return out
 
 
