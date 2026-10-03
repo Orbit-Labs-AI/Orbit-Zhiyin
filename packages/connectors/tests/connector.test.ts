@@ -438,3 +438,31 @@ test('a redaction upgrade re-cleans cached L1 and republishes L2 without touchin
     assert.deepEqual(await readRawRecord(upgraded,String(row.record_uid)),original);
   } finally {upgraded.close();}
 }));
+
+test('exact thread_token_usage is the session snapshot; its last value equals the sum of model calls across turns and counter resets',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture('usage-reset'));await s.connector.ingest();
+  // Hand-computed from the fixture: fresh input = input - cached - cache_write per response.
+  // r1 (1000-400) + r2 (2000-1500) + r3 (500-0) = 1600; cached 400+1500+0; output 100+200+50; reasoning 20+50+0.
+  const calls=s.store.db.prepare('SELECT sum(input_tokens) i,sum(cache_read_tokens) c,sum(output_tokens) o,sum(reasoning_tokens) r,count(*) n FROM model_call').get()!;
+  assert.deepEqual([calls.n,calls.i,calls.c,calls.o,calls.r],[3,1600,1900,350,70]);
+  assert.equal(scalar(s,'SELECT count(DISTINCT snapshot_key) n FROM usage_snapshot'),1);
+  assert.equal(scalar(s,'SELECT count(*) n FROM usage_snapshot'),3);
+  const last=s.store.db.prepare('SELECT input_tokens i,cache_read_tokens c,output_tokens o,reasoning_tokens r FROM usage_snapshot ORDER BY observation_seq DESC LIMIT 1').get()!;
+  assert.deepEqual([last.i,last.c,last.o,last.r],[calls.i,calls.c,calls.o,calls.r]);
+  // The legacy token_count total fell from 3000 to 500 in turn t2; it must not produce a competing snapshot.
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='model.usage' AND json_extract(attrs,'$.counter_cycle') LIKE 'thread_total%'"),0);
+}));
+test('legacy token_count totals that fall open a new counter cycle marked reset',async()=>sandbox(async s=>{
+  const total=(input:number,output:number)=>({total_token_usage:{input_tokens:input,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:output,total_tokens:input+output},model_context_window:200000});
+  await writeFile(s.file,jsonLine('session_meta',{id:'legacy-reset'},0)+jsonLine('event_msg',{type:'token_count',info:total(1000,100)},1)+
+    jsonLine('event_msg',{type:'token_count',info:total(3000,300)},2)+jsonLine('event_msg',{type:'token_count',info:total(500,50)},3)+
+    jsonLine('event_msg',{type:'token_count',info:total(800,80)},4));
+  await s.connector.ingest();
+  const rows=s.store.db.prepare('SELECT snapshot_key k,input_tokens i,observation_seq q FROM usage_snapshot ORDER BY observation_seq').all();
+  assert.deepEqual(rows.map(row=>row.i),[1000,3000,500,800]);
+  assert.equal(rows[0]!.k,rows[1]!.k);assert.equal(rows[2]!.k,rows[3]!.k);assert.notEqual(rows[1]!.k,rows[2]!.k);
+  const resets=s.store.db.prepare("SELECT json_extract(attrs,'$.reset') reset FROM event WHERE kind='model.usage' ORDER BY seq").all().map(row=>row.reset);
+  assert.deepEqual(resets,[null,null,1,null]);
+  // Session total = last value of each cycle: 3000 + 800.
+  assert.equal(scalar(s,'SELECT sum(i) n FROM (SELECT max(input_tokens) i FROM usage_snapshot GROUP BY snapshot_key)'),3800);
+}));

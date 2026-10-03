@@ -71,6 +71,10 @@ interface Context {
   recordSettings: Map<string,Obj>;
   legacyRequestByRecord: Map<string,string>;
   snapshotByRecord: Map<string,string>;
+  /** True when the session carries per-response token_usage_record rows (exact accounting). */
+  hasExactUsage: boolean;
+  /** Counter cycle of each legacy token_count total; a new cycle starts when the native total falls. */
+  snapshotCycleByRecord: Map<string,{cycle:number,reset:boolean}>;
 }
 const nonNull = (value: Record<string,Json|undefined>): Obj => Object.fromEntries(Object.entries(value).filter(([,v])=>v!==null&&v!==undefined)) as Obj;
 function bodyOf(row: RawRecord): Obj { return row.body ? object(JSON.parse(row.body)) : {}; }
@@ -128,6 +132,20 @@ function usageAttrs(usage: Obj, settings: Obj, ctx: Context, request: string, ac
     output_tokens:token(usage.output_tokens),reasoning_tokens:token(usage.reasoning_output_tokens),
     accounting,estimated:ctx.kind==='import',native_usage:usage,reported:usage,usage_scope:'call',measurement:'delta',coverage:'self',
     request_key:[ctx.source,ctx.session,request],purpose:ctx.kind==='review'?'review':ctx.kind==='subagent'?'subagent':ctx.kind==='auxiliary'?'auxiliary':'main'};
+}
+/** Context-window saturation placeholder emitted by old Codex builds; it is not usage. */
+function syntheticTotal(info: Obj): boolean {
+  const total=object(info.total_token_usage);
+  return number(total.total_tokens)===number(info.model_context_window) && (number(total.input_tokens)??0)===0 && (number(total.output_tokens)??0)===0;
+}
+function snapshotAttrs(usage: Obj, ctx: Context, counter: string, cycle: {cycle:number,reset:boolean}|null): Obj {
+  const attrs=usageAttrs(usage,{},ctx,'snapshot','snapshot');
+  delete attrs.request_key; attrs.request_id=null; attrs.usage_scope='session_snapshot'; attrs.measurement='cumulative';
+  attrs.snapshot_key=uid(ctx.source,ctx.session,'session_snapshot','unknown_model',string(ctx.meta.model_provider),counter,...(cycle&&cycle.cycle>0?[cycle.cycle]:[]));
+  attrs.counter_cycle=cycle?`${counter}:${cycle.cycle}`:counter;
+  if (cycle?.reset) attrs.reset=true;
+  attrs.model=null;attrs.model_raw=null;attrs.effort=null;attrs.effort_raw=null;attrs.coverage='self';
+  return attrs;
 }
 function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
   const body = bodyOf(row), p = object(body.payload), type = string(body.type) ?? '', subtype = string(p.type) ?? '';
@@ -202,6 +220,10 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
     const request = string(p.response_id) ?? row.record_uid;
     const attrs=usageAttrs(object(p.usage),settings,ctx,request,'exact');attrs.request_id=string(p.response_id);
     emit('model.usage','harness',null,attrs,`usage:${request}`,40,string(p.response_id));
+    // thread_token_usage is the native running total of this thread; unlike token_count's
+    // total_token_usage it does not restart inside a session, so it is the authoritative snapshot.
+    const thread=object(p.thread_token_usage);
+    if (Object.keys(thread).length) emit('model.usage','harness',null,snapshotAttrs(thread,ctx,'thread_token_usage',null),`thread-usage:${request}`,40);
   } else if (type === 'response_item') {
     const id = string(p.id), call = string(p.call_id) ?? id ?? row.record_uid;
     if (subtype === 'message') {
@@ -238,15 +260,14 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
     else if (subtype==='agent_reasoning' || subtype==='agent_reasoning_raw_content') emit('reasoning','assistant',string(p.text),{encrypted:false},`reasoning:${string(p.id) ?? row.record_uid}`,20,string(p.id));
     else if (subtype==='token_count') {
       const info = object(p.info), total = object(info.total_token_usage), last = object(info.last_token_usage);
-      const synthetic = number(total.total_tokens)===number(info.model_context_window) && (number(total.input_tokens)??0)===0 && (number(total.output_tokens)??0)===0;
+      const synthetic = syntheticTotal(info);
       const request=ctx.legacyRequestByRecord.get(row.record_uid);
       if (Object.keys(last).length && !synthetic && request) emit('model.usage','harness',null,usageAttrs(last,settings,ctx,request,'legacy'),`legacy-usage:${request}`,10);
-      if (Object.keys(total).length && !synthetic) {
-        const snapshotKey=uid(ctx.source,ctx.session,'session_snapshot','unknown_model',string(ctx.meta.model_provider),'thread_total');
-        const attrs=usageAttrs(total,{},ctx,row.record_uid,'snapshot');
-        delete attrs.request_key; attrs.request_id=null; attrs.snapshot_key=snapshotKey; attrs.usage_scope='session_snapshot';attrs.measurement='cumulative';
-        attrs.model=null;attrs.model_raw=null;attrs.effort=null;attrs.effort_raw=null;attrs.coverage='self';
-        emit('model.usage','harness',null,attrs,ctx.snapshotByRecord.get(row.record_uid)??`snapshot:${row.record_uid}`,20);
+      // Legacy totals only when no exact thread_token_usage exists: total_token_usage restarts inside
+      // a session (resume/compaction), so each restart opens a new counter cycle and snapshot_key.
+      if (Object.keys(total).length && !synthetic && !ctx.hasExactUsage) {
+        const cycle=ctx.snapshotCycleByRecord.get(row.record_uid)??{cycle:0,reset:false};
+        emit('model.usage','harness',null,snapshotAttrs(total,ctx,'thread_total',cycle),ctx.snapshotByRecord.get(row.record_uid)??`snapshot:${row.record_uid}`,20);
       }
       if (p.rate_limits) {
         const limits = object(p.rate_limits);
@@ -314,11 +335,11 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
 function rebuildSession(store: ConnectorStore, source: string, session: string): void {
   const native=session.split(':').slice(2).join(':');
   let meta: Obj={}, index: Obj={}, imported: Obj={}, edge: Obj={};
-  const ctx: Context={source,session,native,kind:'main',meta,uiIds:new Set(),uiMessages:new Map(),exactByTurn:new Map(),fileMeta:new Map(),settings:new Map(),wrapperByTurn:new Map(),recordSettings:new Map(),legacyRequestByRecord:new Map(),snapshotByRecord:new Map()};
+  const ctx: Context={source,session,native,kind:'main',meta,uiIds:new Set(),uiMessages:new Map(),exactByTurn:new Map(),fileMeta:new Map(),settings:new Map(),wrapperByTurn:new Map(),recordSettings:new Map(),legacyRequestByRecord:new Map(),snapshotByRecord:new Map(),hasExactUsage:false,snapshotCycleByRecord:new Map()};
   const currentSettings=new Map<string,Obj>();
   const latestResponse=new Map<string,string>();
   const usedLegacy=new Set<string>();
-  let lastSnapshot:string|null=null,snapshotIdentity:string|null=null;
+  let lastSnapshot:string|null=null,snapshotIdentity:string|null=null,previousTotal:Obj|null=null,cycle=0;
   const titleRows: RawRecord[]=[];
   for(const row of store.records(session)){
     const body=bodyOf(row),p=object(body.payload);
@@ -352,12 +373,21 @@ function rebuildSession(store: ConnectorStore, source: string, session: string):
       const responseItem=string(p.id)??string(p.call_id); if (responseItem) latestResponse.set(row.file_id,responseItem);
     }
     if (type==='event_msg' && p.type==='token_count') {
+      const info=object(p.info),totalUsage=object(info.total_token_usage);
+      if (Object.keys(totalUsage).length && !syntheticTotal(info)) {
+        // A fall in any reported running counter means the native total restarted.
+        const fell=previousTotal!==null&&['input_tokens','output_tokens','total_tokens'].some(field=>{
+          const before=number(previousTotal![field]),after=number(totalUsage[field]);return before!==null&&after!==null&&after<before;});
+        if (fell) cycle++;
+        ctx.snapshotCycleByRecord.set(row.record_uid,{cycle,reset:fell});previousTotal=totalUsage;
+      }
       const identity=latestResponse.get(row.file_id);
       const total=stableJson(object(object(p.info).total_token_usage));
       if (identity && !usedLegacy.has(`${identity}:${total}`)) {ctx.legacyRequestByRecord.set(row.record_uid,identity);usedLegacy.add(`${identity}:${total}`);}
       if (lastSnapshot!==total) {snapshotIdentity=`snapshot:${row.record_uid}`;lastSnapshot=total;}
       if (snapshotIdentity) ctx.snapshotByRecord.set(row.record_uid,snapshotIdentity);
     }
+    if (type==='token_usage_record') ctx.hasExactUsage=true;
     if (type==='token_usage_record') ctx.exactByTurn.set(row.turn_native_id ?? '',`usage:${string(p.response_id) ?? row.record_uid}`);
     if (type==='event_msg' && p.type==='item_completed') {
       const item=object(p.item), id=string(item.id);
