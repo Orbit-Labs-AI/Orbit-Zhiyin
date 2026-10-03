@@ -22,7 +22,7 @@
 .modal.wide{width:min(820px,var(--sheet-max-w,calc(100% - 80px)))}
 .modal.full{width:min(980px,var(--sheet-max-w,calc(100% - 80px)))}
 .modal .mh{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 0}
-.modal .mh h2{margin:0;font:600 17px/22px var(--serif);flex:1;min-width:0}
+.modal .mh h2{margin:0;font:600 17px/22px var(--font-display);flex:1;min-width:0}
 .modal .mh .mx{flex:none;width:22px;height:22px;color:var(--ink-3)}
 .modal .mb{padding:14px 20px}
 .modal .mf{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:12px 20px 18px;flex-wrap:wrap}

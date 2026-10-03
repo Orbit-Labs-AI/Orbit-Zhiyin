@@ -8,14 +8,14 @@
 .vz-plot{position:relative;outline:none;border-radius:8px;touch-action:pan-y}
 .vz-plot:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 /* Type: ticks and numbers are monospace (same as the live demo's .chart text and .eb eyebrows); names, notes and axis titles stay in the UI sans. */
-.vz svg.vz-svg{display:block;max-width:100%;overflow:visible;font:11px var(--sans)}
-.vz-svg text{font-size:11px;font-family:var(--sans);fill:var(--ink-3);font-variant-numeric:tabular-nums;user-select:none}
-.vz-svg .vz-ax{font-size:11px;font-family:var(--mono);fill:var(--ink-3)}
+.vz svg.vz-svg{display:block;max-width:100%;overflow:visible;font:11px var(--font-sans)}
+.vz-svg text{font-size:11px;font-family:var(--font-sans);fill:var(--ink-3);font-variant-numeric:tabular-nums;user-select:none}
+.vz-svg .vz-ax{font-size:11px;font-family:var(--font-num);fill:var(--ink-3)}
 .vz-svg .vz-major{fill:var(--ink-2);font-weight:500}
 .vz-svg .vz-axl{font-size:11px;fill:var(--ink-3)}
 .vz-svg .vz-cat{font-size:12px;fill:var(--ink-2)}
 .vz-svg .vz-strong{fill:var(--ink-1);font-weight:600}
-.vz-svg .vz-val{font-size:11px;font-family:var(--mono);fill:var(--ink-1);font-weight:600}
+.vz-svg .vz-val{font-size:11px;font-family:var(--font-num);fill:var(--ink-1);font-weight:600}
 .vz-svg .vz-val.vz-good{fill:var(--good)}
 .vz-svg .vz-val.vz-bad{fill:var(--crit)}
 .vz-svg .vz-note{font-size:11px;fill:var(--ink-2)}
@@ -24,8 +24,8 @@
 .vz-svg .vz-callout{fill:var(--ink-1)}
 .vz-svg .vz-nlbl{fill:var(--ink-1)}
 .vz-svg .vz-span-lbl{font-size:11px;fill:var(--ink-1)}
-.vz-svg .vz-inbar{font-size:10px;font-family:var(--mono);font-weight:600;fill:#fff}
-.vz-svg .vz-cv{font-size:10px;font-family:var(--mono);font-weight:600;fill:var(--ink-1)}
+.vz-svg .vz-inbar{font-size:10px;font-family:var(--font-num);font-weight:600;fill:#fff}
+.vz-svg .vz-cv{font-size:10px;font-family:var(--font-num);font-weight:600;fill:var(--ink-1)}
 .vz-svg .vz-cv.on{fill:var(--bg)}
 .vz-svg .vz-ct-svg{font-size:12px;font-weight:600;fill:var(--ink-1)}
 .vz-grid{stroke:var(--hair);stroke-width:1;fill:none}
@@ -103,7 +103,7 @@
 .vz-dim{opacity:.15}
 .vz-marker line{stroke:var(--ink-4);stroke-width:1;stroke-dasharray:2 2}
 .vz-marker rect,.vz-marker circle{fill:var(--ink-1);stroke:none}
-.vz-marker text{fill:var(--surface);font-size:10px;font-weight:700;font-family:var(--mono)}
+.vz-marker text{fill:var(--surface);font-size:10px;font-weight:700;font-family:var(--font-num)}
 .vz-marker.vz-hot line{stroke:var(--vz-accent);stroke-dasharray:none}
 .vz-marker.alert rect,.vz-marker.alert circle{fill:var(--vz-corr)}
 .vz-marker.alert text{fill:#fff}
@@ -131,14 +131,14 @@
 .vz-sw{width:10px;height:10px;border-radius:2px;background:var(--c);flex:none}
 .vz-sw.line{width:12px;height:2px;border-radius:1px}
 .vz-sw.dot{border-radius:50%}
-.vz-lgv{font-family:var(--mono);font-size:11px;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.vz-lgv{font-family:var(--font-num);font-size:11px;color:var(--ink-1);font-variant-numeric:tabular-nums}
 .vz-tip{position:absolute;z-index:5;pointer-events:none;min-width:120px;max-width:260px;padding:7px 9px;border-radius:8px;background:var(--raised);color:var(--ink-1);box-shadow:var(--sh-pop);font-size:12px;line-height:1.4}
 .vz-th{display:flex;justify-content:space-between;gap:10px;font-weight:600;margin-bottom:3px;white-space:nowrap}
-.vz-th span{color:var(--ink-3);font-weight:400;font-family:var(--mono);font-size:11px}
+.vz-th span{color:var(--ink-3);font-weight:400;font-family:var(--font-num);font-size:11px}
 .vz-tr{display:flex;align-items:center;gap:6px;min-height:18px;min-width:0}
 .vz-tk{width:12px;height:2px;border-radius:1px;background:var(--c);flex:none}
 .vz-tk.rect{width:10px;height:10px;border-radius:2px}
-.vz-tv{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-1);white-space:nowrap}
+.vz-tv{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-1);white-space:nowrap}
 .vz-tn{color:var(--ink-3);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vz-empty{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink-3);font-size:12px;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:left}
 .vz-empty-ic{stroke:var(--ink-4);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
@@ -162,7 +162,7 @@
 .vz-kpi .v{font-size:26px;line-height:30px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:normal}
 .vz-kpi-u{font-size:13px;color:var(--ink-3)}
 .vz-kpi .v{font-variant-numeric:tabular-nums}
-.vz-kpi-d{font:600 11px/16px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-2)}
+.vz-kpi-d{font:600 11px/16px var(--font-num);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-2)}
 .vz-kpi-d.vz-good{color:var(--good)}
 .vz-kpi-d.vz-bad{color:var(--crit)}
 .vz-tbl{margin-top:2px;max-height:360px;overflow:auto}

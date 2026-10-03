@@ -22,7 +22,7 @@
 /* 散点：残差竖线与 A / B 标记 */
 .pj-res{stroke:var(--c);stroke-width:1.5;stroke-opacity:.85}
 .pj-ring{fill:none;stroke:var(--ink-1);stroke-width:2}
-.vz-svg .pj-ab{font:700 10px var(--mono);fill:var(--surface)}
+.vz-svg .pj-ab{font:700 10px var(--font-num);fill:var(--surface)}
 .vz-svg .pj-ab.ring{fill:var(--ink-1);paint-order:stroke;stroke:var(--surface);stroke-width:3px}
 /* 此项目 vs 基准：成对条 + Δ */
 .pj-key{width:10px;height:8px;border-radius:2px;display:inline-block}

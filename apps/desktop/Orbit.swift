@@ -10,7 +10,7 @@ import WebKit
 let appVersion = "0.0.2"
 let bundleID = "ai.actionmesh.orbit"
 let nativeFeatures = ["window", "chooseFolder", "save", "openExternal", "reveal", "notify", "openMain",
-                      "resizeSurface", "onboarded", "commands", "surface:panel", "surface:hud", "surface:widgets"]
+                      "resizeSurface", "onboarded", "commands", "prefs", "surface:panel", "surface:hud", "surface:widgets"]
 
 func dataHome() -> URL {
     if let home = ProcessInfo.processInfo.environment["TANDEM_HOME"], !home.isEmpty {
@@ -39,6 +39,44 @@ func jsonLiteral(_ value: Any) -> String {
     guard let data = try? JSONSerialization.data(withJSONObject: value),
           let json = String(data: data, encoding: .utf8) else { return "null" }
     return json
+}
+
+/// UI preferences shared by every surface (the web views' own storage is non-persistent and the gateway port
+/// changes every launch): <data home>/ui-prefs.json, injected as window.__ORBIT_PREFS__ at document start.
+/// The page sends {type: "prefs", set: {key: value | null}}; keys merge (null deletes), the file is written
+/// atomically, a corrupt or oversized file starts empty, and a merge that would exceed maxBytes is dropped.
+final class UIPrefs {
+    static let maxBytes = 256 * 1024
+    let url: URL
+    private(set) var values: [String: Any] = [:]
+
+    init(home: URL) {
+        url = home.appendingPathComponent("ui-prefs.json")
+        if let data = try? Data(contentsOf: url), data.count <= UIPrefs.maxBytes,
+           let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] { values = object }
+    }
+
+    /// Returns the accepted changes, or nil when nothing changed or the result would be too large.
+    func merge(_ changes: [String: Any]) -> [String: Any]? {
+        var next = values
+        var accepted: [String: Any] = [:]
+        for (key, value) in changes where !key.isEmpty && key.count <= 128 {
+            if value is NSNull { next.removeValue(forKey: key) }
+            else if JSONSerialization.isValidJSONObject([value]) { next[key] = value }
+            else { continue }
+            accepted[key] = value
+        }
+        guard !accepted.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: next, options: [.sortedKeys]),
+              data.count <= UIPrefs.maxBytes else { return nil }
+        values = next
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+        if (try? data.write(to: url, options: .atomic)) != nil {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        }
+        return accepted
+    }
 }
 
 enum Surface: String { case main, panel, hud, widgets }
@@ -76,11 +114,74 @@ final class FloatingPanel: NSPanel {
     }
 }
 
+/// Main window: the page fills the whole frame (transparent title bar), so the host decides where a press moves the window.
+/// A ring 3–8 pt inside every edge (the outer 3 pt stay with the system's resize) and the title-bar strip drag the window;
+/// the page reports rects that must keep their clicks (buttons, fields, scroll bars) and extra blank rects that should
+/// drag (page header, sidebar top) through the "dragRegions" bridge message. Double-click in the title area follows the
+/// system "double-click a window's title bar" setting. Full screen keeps every event for the page.
+final class MainWindow: NSWindow {
+    static let edgeOuter: CGFloat = 3, edgeInner: CGFloat = 8, titleBand: CGFloat = 38
+    var noDragRects: [NSRect] = []  // page coordinates (top-left origin, CSS px = points)
+    var dragRects: [NSRect] = []
+    weak var dragView: NSView?
+
+    func updateRegions(_ body: [String: Any]) {
+        func rects(_ key: String) -> [NSRect] {
+            ((body[key] as? [Any]) ?? []).prefix(400).compactMap { raw in
+                guard let a = raw as? [NSNumber], a.count == 4 else { return nil }
+                let r = NSRect(x: a[0].doubleValue, y: a[1].doubleValue, width: a[2].doubleValue, height: a[3].doubleValue)
+                return r.width > 0 && r.height > 0 && r.width.isFinite && r.height.isFinite ? r : nil
+            }
+        }
+        noDragRects = rects("noDrag")
+        dragRects = rects("drag")
+    }
+
+    /// nil = leave the event alone; true = title area (double-click applies), false = edge ring only.
+    func dragZone(_ event: NSEvent) -> Bool? {
+        guard !styleMask.contains(.fullScreen), let content = contentView, let view = dragView else { return nil }
+        // Traffic lights and any other title-bar control sit above the page: never take their clicks.
+        guard let hit = content.superview?.hitTest(event.locationInWindow) ?? content.hitTest(event.locationInWindow),
+              hit === view || hit.isDescendant(of: view) else { return nil }
+        let size = content.bounds.size
+        let p = NSPoint(x: event.locationInWindow.x, y: size.height - event.locationInWindow.y)
+        let edge = min(p.x, p.y, size.width - p.x, size.height - p.y)
+        if edge < Self.edgeOuter { return nil }
+        if noDragRects.contains(where: { $0.contains(p) }) { return nil }
+        if p.y <= Self.titleBand || dragRects.contains(where: { $0.contains(p) }) { return true }
+        return edge <= Self.edgeInner ? false : nil
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown, event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+           let title = dragZone(event) {
+            if event.clickCount == 2 {
+                if title { titleDoubleClick() }
+                return
+            }
+            performDrag(with: event)
+            return
+        }
+        super.sendEvent(event)
+    }
+
+    func titleDoubleClick() {
+        let defaults = UserDefaults.standard
+        let action = defaults.string(forKey: "AppleActionOnDoubleClick")
+            ?? (defaults.bool(forKey: "AppleMiniaturizeOnDoubleClick") ? "Minimize" : "Maximize")
+        switch action {
+        case "Minimize": performMiniaturize(nil)
+        case "None": break
+        default: performZoom(nil)  // "Maximize" and "Fill" (macOS 15) both zoom.
+        }
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate,
     NSPopoverDelegate, NSMenuItemValidation, UNUserNotificationCenterDelegate
 {
     let home = dataHome()
-    var window: NSWindow!
+    var window: MainWindow!
     var hosts: [Surface: WebHost] = [:]
     var statusItem: NSStatusItem?
     var popover: NSPopover?
@@ -103,7 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         buildMenu()
         token = randomToken()
         let main = makeHost(.main)
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1320, height: 860),
+        window = MainWindow(contentRect: NSRect(x: 0, y: 0, width: 1320, height: 860),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "Orbit"
@@ -114,6 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.backgroundColor = NSColor(red: 0xf5 / 255, green: 0xf4 / 255, blue: 0xf0 / 255, alpha: 1)
         window.minSize = NSSize(width: 960, height: 640)
         window.contentView = main.webView
+        window.dragView = main.webView
         window.delegate = self
         window.center()
         window.setFrameAutosaveName("OrbitMainWindow")  // Remembers size and position.
@@ -175,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func bootstrapScript(_ origin: URL) -> String {
         let native: [String: Any] = ["v": 1, "app": appVersion, "platform": "macos", "features": nativeFeatures]
         return "window.__TANDEM_TOKEN__ = \(jsString(token)); window.__TANDEM_ENDPOINT__ = \(jsString(endpoint(origin)));" +
-            " window.__ORBIT_NATIVE__ = \(jsonLiteral(native));"
+            " window.__ORBIT_NATIVE__ = \(jsonLiteral(native)); window.__ORBIT_PREFS__ = \(jsonLiteral(prefs.values));"
     }
 
     /// Installs the document-start bootstrap and loads the page, or (after a helper restart)
@@ -210,12 +312,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         app.addItem(.separator())
         app.addItem(command("设置…", "settings", key: ","))
         app.addItem(.separator())
+        let servicesItem = app.addItem(withTitle: "服务", action: nil, keyEquivalent: "")
+        let services = NSMenu(title: "服务"); servicesItem.submenu = services
+        NSApp.servicesMenu = services
+        app.addItem(.separator())
         app.addItem(withTitle: "隐藏 Orbit", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let others = app.addItem(withTitle: "隐藏其他", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         others.keyEquivalentModifierMask = [.command, .option]
         app.addItem(withTitle: "全部显示", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         app.addItem(.separator())
         app.addItem(withTitle: "退出 Orbit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        // 文件: the demo's file menu (exports + close); exports open the page's export sheets.
+        let fileItem = NSMenuItem(); main.addItem(fileItem)
+        let file = NSMenu(title: "文件"); fileItem.submenu = file
+        file.addItem(command("导出报告…", "report", key: "e", mods: [.command, .shift]))
+        file.addItem(command("导出分享卡…", "share", key: "s", mods: [.command, .shift]))
+        file.addItem(command("导出工具明细 CSV…", "csv"))
+        file.addItem(.separator())
+        file.addItem(withTitle: "关闭窗口", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
 
         let editItem = NSMenuItem(); main.addItem(editItem)
         let edit = NSMenu(title: "编辑"); editItem.submenu = edit
@@ -249,7 +364,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         hud.keyEquivalentModifierMask = [.command, .option]
         let widgets = win.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "w")
         widgets.keyEquivalentModifierMask = [.command, .option]
+        win.addItem(.separator())
+        win.addItem(withTitle: "前置全部窗口", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         NSApp.windowsMenu = win
+
+        // 帮助: setting helpMenu gives the system search field at the top of this menu.
+        let helpItem = NSMenuItem(); main.addItem(helpItem)
+        let help = NSMenu(title: "帮助"); helpItem.submenu = help
+        help.addItem(command("键盘快捷键", "keys", key: "?"))
+        help.addItem(command("重新打开导入向导", "onboarding"))
+        help.addItem(command("播放人格揭晓", "reveal"))
+        help.addItem(.separator())
+        help.addItem(command("关于 Orbit", "about"))
+        NSApp.helpMenu = help
         NSApp.mainMenu = main
     }
 
@@ -497,6 +624,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
     }
 
+    lazy var prefs = UIPrefs(home: home)
+
+    /// Saves a surface's changed preference keys, passes them to the other surfaces and refreshes every
+    /// document-start bootstrap so a reload sees the current values.
+    func savePrefs(_ body: [String: Any], from host: WebHost) {
+        guard let changes = body["set"] as? [String: Any], let accepted = prefs.merge(changes) else { return }
+        for other in hosts.values where other !== host { dispatch("tandem:prefs", ["set": accepted], to: other) }
+        guard let origin = origin else { return }
+        for each in hosts.values where each.loaded {
+            let controller = each.webView.configuration.userContentController
+            controller.removeAllUserScripts()
+            controller.addUserScript(WKUserScript(source: bootstrapScript(origin), injectionTime: .atDocumentStart,
+                                                  forMainFrameOnly: true))
+        }
+    }
+
     /// The one message handler for every web view: only the gateway's own pages may call it.
     func receive(_ message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let origin = origin, let host = host(of: message.webView),
@@ -516,10 +659,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             }
         case "notify": notify(body)
+        case "prefs": savePrefs(body, from: host)
         case "openMain": openMain(route: body["route"] as? String)
         case "onboarded":
             // Show the HUD once onboarding finishes, unless the user has already hidden it.
             if UserDefaults.standard.object(forKey: "hudVisible") == nil { setPanel(.hud, visible: true) }
+        case "dragRegions": if host.surface == .main { window.updateRegions(body) }
         case "resizeSurface":
             if let height = (body["height"] as? NSNumber)?.doubleValue { resizeSurface(host, height: height) }
         default: break
