@@ -1415,3 +1415,152 @@ def test_dsh_each_retry_is_one_error_with_backoff_attrs(tmp_path, retries):
         started = [r for r in rows(store, "event") if r["kind"] == "ui.state"]
         assert len(started) == retries
         assert_sound(store)
+
+
+def test_claude_real_format_titles_cost_state_system_and_attachments(tmp_path):
+    # Shapes copied (and anonymised) from real Claude Code 2.1.x transcripts.
+    common = {"sessionId": "s1", "cwd": "/fixture", "version": "2.1.284", "entrypoint": "cli"}
+    records = [
+        {**common, "type": "user", "uuid": "u", "timestamp": ISO, "message": {"content": "hi"}},
+        {
+            **common,
+            "type": "user",
+            "uuid": "c",
+            "timestamp": ISO,
+            "origin": {"kind": "coordinator"},
+            "message": {"role": "user", "content": "The coordinator sent a message"},
+        },
+        {"type": "ai-title", "aiTitle": "Review lists", "sessionId": "s1"},
+        {"type": "agent-name", "agentName": "bug fixing run", "sessionId": "s1"},
+        {
+            "type": "cost-state",
+            "sessionId": "s1",
+            "totalCostUSD": 37.5,
+            "totalAPIDuration": 7180539,
+            "totalAPIDurationWithoutRetries": 6905320,
+            "totalToolDuration": 2818547,
+            "totalLinesAdded": 2504,
+            "totalLinesRemoved": 418,
+            "totalDuration": 43040575,
+            "startTime": T,
+            "modelUsage": {
+                "claude-fixture": {
+                    "inputTokens": 3052,
+                    "outputTokens": 405802,
+                    "thinkingTokens": 166512,
+                    "cacheReadInputTokens": 1000,
+                    "cacheCreationInputTokens": 766,
+                    "webSearchRequests": 2,
+                    "costUSD": 37.5,
+                }
+            },
+            "hasUnknownModelCost": False,
+        },
+        {
+            **common,
+            "type": "system",
+            "subtype": "away_summary",
+            "uuid": "s-away",
+            "timestamp": ISO,
+            "content": "You asked how predicates are produced.",
+        },
+        {
+            **common,
+            "type": "system",
+            "subtype": "local_command",
+            "uuid": "s-cmd",
+            "timestamp": ISO,
+            "level": "info",
+            "content": "<local-command-stdout>Found 6 items</local-command-stdout>",
+            "commandRun": {"command": "import", "args": "codex --dry-run"},
+        },
+        {"type": "launched"},
+    ]
+    attachments = [
+        {"type": "skill_listing", "names": ["surge", "zsxq"], "skillCount": 2, "content": "-"},
+        {"type": "invoked_skills", "skills": [{"name": "dataviz", "path": "bundled:dataviz"}]},
+        {
+            "type": "hook_success",
+            "hookName": "SessionStart:startup",
+            "hookEvent": "SessionStart",
+            "content": "# rules",
+        },
+        {"type": "mcp_instructions_delta", "addedNames": ["hf"], "removedNames": []},
+        {"type": "date", "content": "2026-10-02"},
+    ]
+    for i, attachment in enumerate(attachments):
+        records.append(
+            {
+                **common,
+                "type": "attachment",
+                "uuid": f"at{i}",
+                "timestamp": ISO,
+                "attachment": attachment,
+            }
+        )
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records, path="projects/-fixture/s1.jsonl")
+        store.rebuild()
+        events = [{**r, "attrs": json.loads(r["attrs"])} for r in rows(store, "event")]
+
+        titles = {
+            e["attrs"]["title_source"]: e["text"] for e in events if e["kind"] == "session.title"
+        }
+        assert titles == {"ai": "Review lists", "agent_name": "bug fixing run"}
+
+        (usage,) = [e for e in events if e["kind"] == "model.usage"]
+        assert usage["attrs"]["reasoning_tokens"] == 166512
+        assert usage["attrs"]["output_tokens"] == 405802
+        assert usage["attrs"]["web_search_requests"] == 2
+        assert usage["attrs"]["session_totals"] == {
+            "total_cost_usd": 37.5,
+            "has_unknown_model_cost": False,
+            "api_duration_ms": 7180539,
+            "api_duration_without_retries_ms": 6905320,
+            "tool_duration_ms": 2818547,
+            "wall_duration_ms": 43040575,
+            "lines_added": 2504,
+            "lines_removed": 418,
+        }
+
+        # session.meta is only the header; system notices are ui.state with their subtype.
+        assert sum(e["kind"] == "session.meta" for e in events) == 1
+        notices = {
+            e["attrs"]["system_subtype"]: e
+            for e in events
+            if e["kind"] == "ui.state" and "system_subtype" in e["attrs"]
+        }
+        assert set(notices) == {"away_summary", "local_command"}
+        assert notices["away_summary"]["text"] == "You asked how predicates are produced."
+        assert notices["local_command"]["attrs"]["command"] == "import"
+
+        (coordinator,) = [e for e in events if e["text"] == "The coordinator sent a message"]
+        assert coordinator["attrs"]["origin"] == "peer"
+
+        injected = {
+            e["attrs"]["attachment_type"]: e["attrs"]
+            for e in events
+            if e["kind"] == "context.inject" and "attachment_type" in e["attrs"]
+        }
+        assert {k: v["context_type"] for k, v in injected.items()} == {
+            "skill_listing": "skill_listing",
+            "invoked_skills": "skill_invocation",
+            "hook_success": "hook_output",
+            "mcp_instructions_delta": "mcp_instructions",
+            "date": "date",
+        }
+        assert injected["skill_listing"]["skill_names"] == ["surge", "zsxq"]
+        assert injected["invoked_skills"]["skill_names"] == ["dataviz"]
+        assert injected["hook_success"]["hook_event"] == "SessionStart"
+        assert injected["hook_success"]["hook_name"] == "SessionStart:startup"
+        assert injected["mcp_instructions_delta"]["mcp_added"] == ["hf"]
+
+        ledger = {
+            r["disposition"]
+            for r in store.db.execute(
+                "SELECT disposition FROM raw_record WHERE native_type='launched'"
+            )
+        }
+        assert ledger == {"ignored"}
+        assert not [e for e in events if e["kind"] == "unknown"]
+        assert_sound(store)
