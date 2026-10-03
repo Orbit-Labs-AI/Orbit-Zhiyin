@@ -86,8 +86,12 @@ class Orbit:
     def _fit_view(self) -> None:
         pts = [self._project(*self._space(k / self.m)[0]) for k in range(self.m + 1)]
         xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-        self.scale = (self.size - 2 * self.pad) / max(max(xs) - min(xs), max(ys) - min(ys))
-        self.cx, self.cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        fit = self.spec["view"].get("fit")  # 动效帧：沿用给定的缩放与中心（绕轴旋转时大小不随朝向跳动）
+        if fit:
+            self.scale, self.cx, self.cy = fit
+        else:
+            self.scale = (self.size - 2 * self.pad) / max(max(xs) - min(xs), max(ys) - min(ys))
+            self.cx, self.cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
         h = self.size / 2
         self._samples = [(h + (x - self.cx) * self.scale, h + (y - self.cy) * self.scale, z) for x, y, z in pts]
 

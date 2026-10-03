@@ -49,33 +49,45 @@
     }
   },
   "wordmark": {
-    "note": "长度以字高 H（标志墨迹高度减去上下溢出）为单位；stroke 为设计单位；O 为同一螺旋在 o_pitch 视角下的投影（其余参数与标志相同）",
+    "note": "全名 Orbit·知音。O 为同一螺旋在 o_pitch 视角下的投影；rbit、间隔点（中文「·」）与知音取自开源字体（OFL），只做等比缩放与排列。长度以字高 H（O 墨迹高度减去上下溢出）为单位",
     "o_pitch": 75,
     "overshoot": 0.015,
-    "stroke": 22,
-    "x_height": 0.6,
+    "glyphs": "wordmark-glyphs.json",
+    "fonts": {
+      "latin": {
+        "family": "Josefin Sans",
+        "weight": 400,
+        "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/josefinsans/JosefinSans%5Bwght%5D.ttf"
+      },
+      "cjk": {
+        "family": "Noto Sans SC",
+        "weight": 600,
+        "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf"
+      }
+    },
     "ascender": 1.0,
-    "t_height": 0.8,
-    "r_shoulder": 0.5,
-    "r_arm_end": 320,
-    "i_dot": 1.5,
-    "i_dot_gap": 0.1,
-    "t_bar": 0.46,
-    "t_hook": 0.2,
-    "t_hook_end": 50,
+    "tracking": 0.0,
     "spacing": {
-      "O_r": 0.2,
-      "r_b": 0.12,
-      "b_i": 0.13,
-      "i_t": 0.1
+      "O_r": 0.16,
+      "t_dot": 0.3,
+      "dot_cjk": 0.3
+    },
+    "cjk": {
+      "height": 0.86,
+      "note": "知音墨迹高度 = H × height，墨迹底边与 rbit 基线对齐"
+    },
+    "dot": {
+      "height": 0.38,
+      "note": "中文间隔点取 cjk 字体的「·」字形，与知音同比例缩放；圆心在基线上方 height × H"
     }
   },
   "motion": {
-    "note": "点击标志：视角 pitch 由 view.pitch 转到 wordmark.o_pitch，同时移到字标 O 的位置，随后 rbit 依次出现；再点击按相反顺序收回",
-    "frames": 49,
+    "note": "点击标志：视角 pitch 由 view.pitch 转到 wordmark.o_pitch，同时绕螺旋自身的轴旋转 spin 度（整圈，首尾朝向不变）并移到字标 O 的位置，随后 rbit·知音依次出现；再点击按相反顺序收回",
+    "frames": 121,
+    "spin": 360,
     "tolerance": 0.05,
     "digits": 1,
-    "turn_ms": 900,
+    "turn_ms": 1500,
     "letter_delay_ms": 110,
     "letter_ms": 420
   },
@@ -85,6 +97,7 @@
     "night_tile": "#000000",
     "night_ink": "#ffffff",
     "black": "#000000",
-    "white": "#ffffff"
+    "white": "#ffffff",
+    "night_word": "#d6c7a1"
   }
 }
