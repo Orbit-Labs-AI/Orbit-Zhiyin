@@ -1564,3 +1564,68 @@ def test_claude_real_format_titles_cost_state_system_and_attachments(tmp_path):
         assert ledger == {"ignored"}
         assert not [e for e in events if e["kind"] == "unknown"]
         assert_sound(store)
+
+
+def test_pi_error_and_aborted_stop_reasons_end_turns(tmp_path):
+    # Assistant shapes copied from real pi logs (provider error, user abort).
+    def assistant(id_, parent, stop, error, cost):
+        return {
+            "type": "message",
+            "id": id_,
+            "parentId": parent,
+            "timestamp": ISO,
+            "message": {
+                "role": "assistant",
+                "content": [],
+                "api": "openai-responses",
+                "provider": "openai",
+                "model": "fixture",
+                "usage": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0,
+                    "totalTokens": 0,
+                    "cost": cost,
+                },
+                "stopReason": stop,
+                "timestamp": T,
+                "errorMessage": error,
+            },
+        }
+
+    records = [
+        {"type": "session", "id": "s", "version": 3, "timestamp": ISO, "cwd": "/fixture"},
+        {
+            "type": "message",
+            "id": "u1",
+            "timestamp": ISO,
+            "message": {"role": "user", "content": "a"},
+        },
+        assistant("a1", "u1", "error", "OpenAI API error (400): model not supported", None),
+        {
+            "type": "message",
+            "id": "u2",
+            "parentId": "a1",
+            "timestamp": ISO,
+            "message": {"role": "user", "content": "b"},
+        },
+        assistant("a2", "u2", "aborted", "Operation aborted", {"total": 0}),
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "pi", records)
+        store.rebuild()
+        events = rows(store, "event")
+        errors = [e for e in events if e["kind"] == "error"]
+        assert [e["text"] for e in errors] == ["OpenAI API error (400): model not supported"]
+        ends = [json.loads(e["attrs"]) for e in events if e["kind"] == "turn.end"]
+        assert [(a["status"], a["reason"]) for a in ends] == [
+            ("failed", "OpenAI API error (400): model not supported"),
+            ("interrupted", "Operation aborted"),
+        ]
+        assert sorted(t["status"] for t in rows(store, "turn")) == ["failed", "interrupted"]
+        costs = [
+            json.loads(e["attrs"]).get("cost_usd") for e in events if e["kind"] == "model.usage"
+        ]
+        assert costs == [None, 0]
+        assert_sound(store)
