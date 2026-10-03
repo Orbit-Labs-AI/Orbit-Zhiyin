@@ -24,7 +24,7 @@ const E = {
   sine: (p) => -(Math.cos(Math.PI * p) - 1) / 2,
   expo: (p) => (p >= 1 ? 1 : 1 - Math.pow(2, -10 * p))
 };
-const stage = $('#stage'), fxEl = $('#fx'), glowEl = $('#glow');
+const stage = $('#stage'), fxEl = $('#fx');
 
 /* ---------- the two app copies ("decks") and their cameras ---------- */
 // x,y: the app point (frame px) put at screen point (ax, ay); s: zoom; rx/ry/rz: tilt around (ax, ay); z: dolly;
@@ -161,9 +161,6 @@ function applyFx(t) {
     if (f.el) { const ts = t - f.sh * BEAT; f.anim(f.el, t - t0, t1 - t0, ts); if (f.tick) f.tick(f.el, t - t0, t1 - t0, ts); }
   }
 }
-let glow = { b: null, from: 0, to: 0, v: 0, dur: 2 };
-function glowAt(b, v, dur = 2) { const g = b + SH; at(b, () => { glow = { b: g, from: glow.v, to: v, v: glow.v, dur }; }); }
-function applyGlow(t) { if (glow.b == null) return; glow.v = lerp(glow.from, glow.to, E.inOut(clamp((t / BEAT - glow.b) / glow.dur))); glowEl.style.opacity = glow.v.toFixed(3); }
 
 /* ---------- app control ---------- */
 const cues = [];
@@ -188,7 +185,6 @@ function solo(d, sel) {
     el.classList.add('promo-solo');
   }
 }
-const byText = (sel, text) => (D) => [...D.querySelectorAll(sel)].find((e) => e.textContent.includes(text));
 const PROMO_CSS = 'html,body,.desk{background:transparent!important}.desk .wall{display:none!important}.tip{display:none!important}' +
   'html body *{visibility:hidden!important}html body .promo-solo,html body .promo-solo *{visibility:visible!important}' +
   'html body .promo-solo:not(svg){box-shadow:0 0 0 .5px rgba(255,255,255,.14),0 30px 90px rgba(0,0,0,.55)!important}' +
@@ -211,45 +207,6 @@ function applyDrives(t) {
 }
 const SVGNS = 'http://www.w3.org/2000/svg';
 const lp = (b, b0, dur) => clamp((b - b0) / dur);          // local progress of a staggered item
-
-// odometer digits: every digit is a strip 0-9 ×3 that rolls up and settles on its value
-function odo(v) {
-  return String(v).split('').map((c) => (/\d/.test(c) ? '<span class="dg" data-d="' + c + '"><span class="st">' + '0123456789'.repeat(3).split('').join('<br>') + '</span></span>' : '<span class="sep">' + c + '</span>')).join('');
-}
-function rollOdo(el, b, b0, dur) {
-  el.querySelectorAll('.dg').forEach((g, i, all) => {
-    const d = +g.dataset.d, q = E.quart(lp(b, b0 + (all.length - 1 - i) * .12, dur));
-    g.firstChild.style.transform = 'translateY(' + (-(20 + d) * q).toFixed(3) + 'em)';
-  });
-}
-
-// trend chart: column i grows from the baseline, one after another
-function growBars(svg, b, b0, gap, dur) {
-  svg.querySelectorAll('path.vz-bar').forEach((p) => {
-    const q = E.quart(lp(b, b0 + +p.dataset.i * gap, dur));
-    p.style.animation = 'none'; p.style.transformBox = 'view-box'; p.style.transformOrigin = '0px 168px';
-    p.style.transform = q >= 1 ? '' : 'scaleY(' + q.toFixed(4) + ')';
-  });
-}
-// a chart drawn forward by a clip that slides from x0 to the head (svg units); sel = what the clip covers
-function clipTo(svg, x0, head, sel) {
-  let cp = svg.querySelector('#promoClip');
-  if (!cp) {
-    cp = document.createElementNS(SVGNS, 'clipPath'); cp.id = 'promoClip';
-    const r = document.createElementNS(SVGNS, 'rect'); r.setAttribute('y', '-40'); r.setAttribute('height', '600'); r.setAttribute('x', String(x0 - 8));
-    cp.appendChild(r); svg.appendChild(cp);
-    svg.querySelectorAll(sel).forEach((e) => { e.style.animation = 'none'; e.setAttribute('clip-path', 'url(#promoClip)'); });
-  }
-  cp.firstChild.setAttribute('width', String(Math.max(0, head - x0 + 8)));
-}
-// rect bars of a chart rise from their baseline as the head passes them
-function riseRects(svg, head, base) {
-  svg.querySelectorAll('rect.vz-bar').forEach((r) => {
-    const x = +r.getAttribute('x'), k = clamp((head - x) / 40);
-    r.style.animation = 'none'; r.style.transformBox = 'view-box'; r.style.transformOrigin = '0px ' + base + 'px';
-    r.style.transform = k >= 1 ? '' : 'scaleY(' + E.out(k).toFixed(4) + ')';
-  });
-}
 
 /* ---------- tags: text attached to a component, inside its copy of the app ----------
    A tag lives in the deck's rig, so it tilts, turns and slides with the component it describes; it is anchored to one
@@ -292,7 +249,6 @@ function applyTags(t) {
 const CP = { C: 400, K: 2, R0: 200, RH: 116, RR: 160, CORE: 180, BUD: .34, SPIN: [9, 6.5, 4.5, 3, 1.8] };   // SPIN: deg / beat per Agent layer
 const cpt = (r, deg) => [CP.C + r * Math.sin(deg * Math.PI / 180), CP.C - r * Math.cos(deg * Math.PI / 180)];
 const f2 = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
-function axisOf(v, i) { const ax = CPD.AXES[i], val = v[ax.k], pos = ax.k !== 'I' ? 100 - val : val; return { strong: Math.max(val, 100 - val), letter: pos < 50 ? ax.L : ax.R }; }
 const CODES = Array.from({ length: 16 }, (_, i) => { const g = i ^ (i >> 1); return ['DS', 'IP', 'MF', 'VT'].map((p, k) => p[(g >> (3 - k)) & 1]).join(''); });   // = the app's FP_TYPES; CODES[0] = DIMV
 const AGC = ['var(--a1)', 'var(--a2)', 'var(--a3)', 'var(--a4)', 'var(--a5)'];
 const cpMute = (c, k) => 'color-mix(in oklab, ' + c + ' ' + k + '%, #5d6066)';          // the app's fpMute, against a dark grey
@@ -628,7 +584,6 @@ function script() { for (const s of SCENES) { SH = SHIFT[s.name] || 0; try { s.f
 // styles a scene needs for its own type or overlays
 function css(text) { const st = document.createElement('style'); st.textContent = text; document.head.appendChild(st); }
 const L = 160, R = 1760;
-function split2(s) { const i = s.indexOf('，', 6); return i > 0 ? [s.slice(0, i + 1), s.slice(i + 1)] : [s]; }
 function smallest(D, sel, text) { return [...D.querySelectorAll(sel)].filter((e) => e.textContent.includes(text)).sort((a, b) => a.textContent.length - b.textContent.length)[0]; }
 
 /* ---------- clock & frame loop ---------- */
@@ -647,7 +602,7 @@ function step(tt) {
   stage.scrollLeft = stage.scrollTop = 0; document.documentElement.scrollLeft = document.documentElement.scrollTop = 0; document.body.scrollLeft = document.body.scrollTop = 0;
   applyDrives(t); applyCams(t); applyCursors(t); applyTags(t); orbitAt(t / BEAT);
   if (typeof applyAgents === 'function') applyAgents(t);  // scenes/02-agents.js: after the cameras and the mark (it reads deck 2's camera)
-  applyFx(t); applyGlow(t);
+  applyFx(t);
 }
 // Pin every CSS animation/transition (here and in both app copies) to the virtual clock: each one is paused and its
 // currentTime set from the moment it was first seen; finished ones are finished explicitly so the end events still fire.
