@@ -7,6 +7,9 @@ Two outputs share one seeded plan:
 * ``generate_bundle(sessions, seed)`` returns an ``analysis-input-v1`` dict shaped like the
   canonical reader (``tandem_data.analysis_input.read_analysis``) output, including
   ``statistical_members`` so ``analyze_bundle`` takes the canonical selection path.
+* ``generate_bundle_with_truth(sessions, seed)`` returns the same bundle plus ``truth``: the
+  quantities the generator injected (counted at injection time, not derived by analysis), so
+  tests can compare analysis results against an independent oracle.
 * ``build_canonical_home(home, sessions, seed)`` writes fictional Codex-format JSONL under
   three source roots and imports them through the public ingest path into ``tandem.db``,
   so ``read_analysis`` can be measured on a real canonical database.
@@ -118,6 +121,21 @@ class _Session:
 
 def generate_bundle(sessions: int = 200, seed: int = 7) -> dict:
     """Return a canonical-shaped analysis-input-v1 dict; identical for equal arguments."""
+    return generate_bundle_with_truth(sessions, seed)[0]
+
+
+TRUTH_KEYS = (
+    "sessions", "main_sessions", "subagent_sessions", "projects", "turns", "interrupted_turns",
+    "human_messages", "subagent_prompts", "request_messages", "correction_messages", "preference_messages",
+    "feedback_messages", "tool_calls", "failed_tool_calls", "model_calls", "total_tokens",
+)
+
+
+def generate_bundle_with_truth(sessions: int = 200, seed: int = 7) -> tuple[dict, dict]:
+    """``(bundle, truth)``. ``total_tokens`` follows the analysis token semantics: uncached
+    input + cache read + cache write + output (reasoning is already inside output)."""
+    truth = dict.fromkeys(TRUTH_KEYS, 0)
+    used_projects: set[str] = set()
     rng = random.Random(seed)
     bundle = {
         "input_contract": "analysis-input-v1",
@@ -144,8 +162,13 @@ def generate_bundle(sessions: int = 200, seed: int = 7) -> dict:
         "tool_calls": [],
         "model_calls": [],
     }
+    bundle["_truth"] = truth
     for index in range(sessions):
         _main_session(bundle, rng, index)
+        used_projects.add(bundle["sessions"][-1 if index % 5 else -2]["project_id"])
+    del bundle["_truth"]
+    truth["projects"] = len(used_projects)
+    truth["sessions"] = truth["main_sessions"] + truth["subagent_sessions"]
     bundle["sample_boundary"] = {
         "sources": [
             {
@@ -164,7 +187,7 @@ def generate_bundle(sessions: int = 200, seed: int = 7) -> dict:
         name: {"status": "available", "rows": count} for name, count in rows.items()
     }
     bundle["statistical_members"] = {"event_uids": [e["event_uid"] for e in bundle["events"]]}
-    return bundle
+    return bundle, truth
 
 
 def _session_row(uid, index, project, source, ts, kind="main", parent=None):
@@ -194,6 +217,7 @@ def _main_session(bundle, rng, index):
     start = BASE_TS + index * 3_600_000 + rng.randrange(600_000)
     row = _session_row(uid, index, project, source, start)
     bundle["sessions"].append(row)
+    bundle["_truth"]["main_sessions"] += 1
     session = _Session(bundle, uid, start)
     model, effort = MODELS[rng.randrange(len(MODELS))]
     session.event("session.meta", "harness", kind="main", cwd=row["cwd"])
@@ -208,13 +232,19 @@ def _turn(bundle, rng, session, row, turn_index, model, effort):
     turn_uid = _uid("turn", session.uid, turn_index)
     session.turn = turn_uid
     first_seq = session.seq
-    if turn_index == 0:
-        pool = REQUESTS
-    else:
-        pool = (REQUESTS, CORRECTIONS, PREFERENCES, FEEDBACK)[rng.randrange(4)]
+    pools = (("request_messages", REQUESTS), ("correction_messages", CORRECTIONS),
+             ("preference_messages", PREFERENCES), ("feedback_messages", FEEDBACK))
+    pool_name, pool = pools[0] if turn_index == 0 else pools[rng.randrange(4)]
     trigger = session.event(
         "message.user", "human", text=pool[rng.randrange(len(pool))], origin="human"
     )
+    truth = bundle["_truth"]
+    truth["turns"] += 1
+    if row["kind"] == "main":
+        truth["human_messages"] += 1
+        truth[pool_name] += 1
+    else:  # a parent agent's prompt to its child: not a human message
+        truth["subagent_prompts"] += 1
     status = "completed"
     previous_args = None
     for call_index in range(rng.randint(1, 4)):
@@ -236,12 +266,15 @@ def _turn(bundle, rng, session, row, turn_index, model, effort):
     if rng.random() < 0.1:
         session.event("turn.interrupted", "human", reason="user_cancel")
         status = "interrupted"
+        truth["interrupted_turns"] += 1
     else:
         session.event(
             "message.assistant", "assistant", text=ASSISTANT[rng.randrange(len(ASSISTANT))]
         )
     usage = session.event("model.usage", "harness", model=model, effort=effort)
     tokens = rng.randint(2_000, 40_000)
+    truth["model_calls"] += 1
+    truth["total_tokens"] += tokens + tokens // 4 + 0 + tokens // 10
     bundle["model_calls"].append(
         {
             "call_uid": _uid("model_call", usage),
@@ -302,6 +335,8 @@ def _tool_pair(bundle, session, row, kind, args, failed, call_index):
         "tool.call", "assistant", call_id=call_id, name=name, category=kind, command_head=head
     )
     started = session.ts
+    bundle["_truth"]["tool_calls"] += 1
+    bundle["_truth"]["failed_tool_calls"] += int(failed)
     result = session.event(
         "tool.result",
         "tool",
@@ -358,6 +393,7 @@ def _subagent(bundle, rng, parent, parent_row, index, model, effort):
     )
     parent.event("subagent.spawn", "assistant", child_session_uid=child_uid)
     bundle["sessions"].append(child_row)
+    bundle["_truth"]["subagent_sessions"] += 1
     child = _Session(bundle, child_uid, parent.ts)
     child.event("session.meta", "harness", kind="subagent", cwd=child_row["cwd"])
     _turn(bundle, rng, child, child_row, 0, model, effort)

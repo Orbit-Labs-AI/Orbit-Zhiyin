@@ -16,7 +16,6 @@ from tandem_backend.recommend.service import recommend
 @pytest.fixture
 def replay(monkeypatch):
     root = Path(__file__).resolve().parents[2]
-    monkeypatch.syspath_prepend(str(root))
     oracle = importlib.import_module("evals.analytics.robustness_invariants")
     synthetic = importlib.import_module("benchmarks.analytics.synthetic")
     bundle = AnalysisInputBundle.from_dict(synthetic.generate_bundle(20, 7))
@@ -98,7 +97,6 @@ def test_relational_oracle_rejects_corruption(replay, damage, expected):
 
 
 def test_native_comparison_excludes_only_last_scan_time_and_batch_size(monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
     runner = importlib.import_module("evals.analytics.robustness_native")
     left = {name: [] for name in runner.CORE_SECTIONS}
     left["sessions"] = [
@@ -128,7 +126,6 @@ def test_native_comparison_excludes_only_last_scan_time_and_batch_size(monkeypat
 
 
 def test_failed_replay_records_failure_and_never_overwrites_existing_run(tmp_path, monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
     runner = importlib.import_module("evals.analytics.robustness")
     monkeypatch.setattr(runner, "ROOT", tmp_path)
     output = tmp_path / ".local/run"

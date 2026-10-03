@@ -1,7 +1,12 @@
-"""Timing boundary: recommend only, using synthetic copies of reviewed metadata."""
+"""Timing and memory boundary: recommend only, using synthetic copies of reviewed metadata.
+
+Timings come from untraced runs; the Python heap peak (``tracemalloc``) comes from one extra
+traced run per size, because tracing slows allocation-heavy code and would skew the timings.
+"""
 
 import statistics
 import time
+import tracemalloc
 from copy import deepcopy
 
 from tandem_backend.recommend.service import recommend
@@ -18,6 +23,13 @@ def benchmark(analysis, items, context):
             start = time.perf_counter()
             recommend(analysis, catalog=catalog, context=context)
             timings.append((time.perf_counter() - start) * 1000)
+        tracemalloc.start()
+        try:
+            recommend(analysis, catalog=catalog, context=context)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
         rows.append({"items": size, "runs": repeats, "median_ms": round(statistics.median(timings), 2),
-                     "max_ms": round(max(timings), 2), "dataset": "synthetic repetitions of 4 reviewed metadata records"})
+                     "max_ms": round(max(timings), 2), "peak_traced_kib": round(peak / 1024, 1),
+                     "dataset": "synthetic repetitions of 4 reviewed metadata records"})
     return rows

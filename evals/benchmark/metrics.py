@@ -65,11 +65,34 @@ def validate_records(samples, records):
     return issues
 
 
+# Registered default budgets (tokens per task, recommendation tokens included). Single source
+# for metrics, prepare, score and local; a study may register its own in common_execution.
+DEFAULT_TOKEN_BUDGETS = (5000, 10000, 20000)
+
+
+def action_sweep_budget(config) -> int:
+    """Budget at which every plausible action is swept for regret / top-k.
+
+    Taken from ``common_execution.action_sweep_budget`` when registered, otherwise the (lower) median
+    of the registered ``token_budgets`` (the middle budget: the sweep is one budget, chosen as
+    the central registered condition rather than the most or least constrained one). It must
+    be one of the registered budgets, otherwise sweep runs could never be paired with them.
+    """
+    budgets = sorted(config.get("token_budgets") or DEFAULT_TOKEN_BUDGETS)
+    budget = config.get("action_sweep_budget", budgets[(len(budgets) - 1) // 2])
+    if isinstance(budget, bool) or not isinstance(budget, int) or budget not in budgets:
+        raise ValueError(f"action_sweep_budget {budget!r} is not a registered token budget {budgets}")
+    return budget
+
+
+DEFAULT_ACTION_SWEEP_BUDGET = action_sweep_budget({"token_budgets": DEFAULT_TOKEN_BUDGETS})
+
+
 def forward_utility(
     samples: list[TemporalSample],
     records: list[ExecutionRecord],
     *,
-    budgets=(5000, 10000, 20000),
+    budgets=DEFAULT_TOKEN_BUDGETS,
     seeds=(0,),
 ):
     issues = validate_records(samples, records)
@@ -181,7 +204,8 @@ def forward_utility(
 
 
 def recommendation_quality(
-    samples, records, rankings, plausible_actions, *, token_budget=10000, seed=0, top_k=3
+    samples, records, rankings, plausible_actions, *, token_budget=DEFAULT_ACTION_SWEEP_BUDGET, seed=0,
+    top_k=3
 ):
     if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k < 1:
         raise ValueError("top_k must be positive")
