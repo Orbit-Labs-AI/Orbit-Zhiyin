@@ -18,7 +18,8 @@ from orbit_data.store import readonly_connection
 
 # Bumped when read_analysis returns different values for the same database; analysis
 # caches key on it. 1.1: undated session metadata stays visible under until_ts.
-READER_VERSION = "analysis-input-reader-1.1"
+# 1.2: tool calls carry ``file_ops`` from tool_call_file.
+READER_VERSION = "analysis-input-reader-1.2"
 
 
 @dataclass(frozen=True)
@@ -528,6 +529,20 @@ def read_analysis(
             )
             if row["call_event_uid"] in members or row["result_event_uid"] in members
         ]
+        # Per-file operations reported by the call's arguments (``tool_call_file``): a shell
+        # or patch call that names written files counts as an edit for verification facts.
+        file_ops: dict[str, list[dict]] = {}
+        if tools:
+            for call_uid, path, op, quality in connection.execute(
+                "SELECT call_uid, path, op, quality FROM tool_call_file"
+                " WHERE call_uid IN (SELECT value FROM json_each(:calls)) ORDER BY call_uid, path",
+                {"calls": json.dumps([tool["call_uid"] for tool in tools])},
+            ):
+                file_ops.setdefault(call_uid, []).append(
+                    {"path": path, "op": op, "quality": quality}
+                )
+        for tool in tools:
+            tool["file_ops"] = file_ops.get(tool["call_uid"], [])
         # A later result must not leak status/exit code into a historical snapshot.
         event_lookup = {}
         for event in events:
