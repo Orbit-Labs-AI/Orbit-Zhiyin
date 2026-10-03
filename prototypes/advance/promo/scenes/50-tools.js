@@ -62,13 +62,17 @@ scene('50-tools', () => {
   // carried that far down-right of the button while the pointer forms (b67.4–68.65) and eased back out as it becomes the
   // generator (b69.0–69.6): continuous, the hand-off positions are unchanged
   const PTR = [27, 50.9], ptrE = (b) => io(b, 67.4, 1.25) - io(b, 69.0, .6);
+  // b69.0–69.6 button → generator: a straight line would cut across the run card's step list, so x leads (the dot runs
+  // left along the header, lifted over the card's top edge) and y follows once it is past the card's left edge
+  const toGen = (b) => { const P = btnXY(b), Q = genXY(), ex = io(b, 69.0, .45), ey = io(b, 69.2, .4);
+    return [lerp(P[0], Q[0], ex), lerp(P[1], Q[1], ey) - 80 * E.inOut(clamp(ex * 3)) * (1 - ey)]; };
   let MB = -1, MP = MERGE;                                  // per-frame memo: the live params are read 5× a frame
   const mergeXY = (b) => {
     if (b === MB) return MP; MB = b; if (b < 74.1) G0 = null;
     const q = b < 56.8 ? MERGE : b >= 75.2 ? HOME
       : b < 67.4 ? toRide(b)
       : b < 68.95 ? mix(rideXY(b), btnXY(b), io(b, 67.4, 1.25))
-      : b < 74.1 ? mix(btnXY(b), genXY(), io(b, 69.0, .6))
+      : b < 74.1 ? toGen(b)
       : backXY(b);
     const e = b >= 67.4 && b < 69.6 ? ptrE(b) : 0;
     return MP = e ? [q[0] + PTR[0] * e, q[1] + PTR[1] * e] : q;
@@ -157,13 +161,22 @@ scene('50-tools', () => {
   });
   // 开始生成 lives in the task card (left column, not shown): until the click it is moved onto the run card's header, where
   // the app puts the 停止 button once the run starts (re-applied every frame: the app re-renders #main)
+  // position: fixed — a translate left it inside the task card, whose overflow: auto clipped it away (it was never seen)
+  let BN = null;                                            // the button's own size, measured once in its row
+  const BTN0 = ['position', 'left', 'top', 'width', 'height', 'zIndex', 'margin', 'transition', 'transform'];
   const placeBtn = () => {
     const D = decks[1].D, b = startBtn(D), rc = runCard(D); if (!b || !rc) return;
-    b.style.transition = 'none'; b.style.transform = ''; const r = b.getBoundingClientRect(), c = rc.getBoundingClientRect();
-    b.style.transition = 'none'; b.style.position = 'relative'; b.style.zIndex = '3'; b.style.transform = 'translate(' + (c.right - 18 - r.right).toFixed(1) + 'px,' + (c.top + 16 - r.top).toFixed(1) + 'px)';
+    if (!BN || b.style.position !== 'fixed') { BTN0.forEach((k) => { b.style[k] = ''; }); const r = b.getBoundingClientRect(); if (!BN && r.width) BN = [r.width, r.height]; }
+    if (!BN) return;
+    const c = rc.getBoundingClientRect();
+    Object.assign(b.style, { transition: 'none', position: 'fixed', zIndex: '3', margin: '0', width: BN[0] + 'px', height: BN[1] + 'px',
+      left: (c.right - 18 - BN[0]).toFixed(1) + 'px', top: (c.top + 16).toFixed(1) + 'px' });
+    b.classList.add('promo-solo');
   };
-  drive(1, 56.15, 69.05, placeBtn);
-  at(69.05, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); b.style.transform = ''; } });
+  // after the press the app's own 停止 takes its place in the header: the (now disabled) button fades out .15–.3 beat after
+  // the click, then goes back to the task card unseen
+  drive(1, 56.15, 69.05, (p, b) => { placeBtn(); const el = startBtn(decks[1].D); if (el) el.style.opacity = (1 - clamp((b - 68.95) / .1)).toFixed(3); });
+  at(69.05, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); BTN0.forEach((k) => { b.style[k] = ''; }); b.style.opacity = ''; } });
   // box [1100, 640, 1300, 600]: top edge y 340 and width kept; the cards then grow down into the free space below the box
   // (to y ≤ 1065 when done) instead of being shrunk to fit their final height into 600 px. The anchor sits 362 px below the
   // top edge (≈ the cards' middle when done), so the slow push below and the exit both scale about the middle
