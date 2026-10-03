@@ -90,5 +90,16 @@ test('HUD surface reports a width that fits the pill (the panel shrinks to it, n
   const pill = await page.locator('#hud > .pill').boundingBox();
   expect(last.width).toBeGreaterThanOrEqual(Math.ceil(pill.width));
   expect(last.width).toBeLessThanOrEqual(Math.ceil(pill.width) + 24);
+  // F22: the pill's shadow (0 4px 12px → 8 above, 12 beside, 16 below) fits inside the reported box, so the panel edge
+  // never clips it into a visible rectangle
+  const fit = await page.evaluate(() => {
+    const hud = document.querySelector('#hud').getBoundingClientRect(), p = document.querySelector('#hud > .pill');
+    const r = p.getBoundingClientRect();
+    return { top: r.top - hud.top, right: hud.right - r.right, bottom: hud.top + window.__nativeMsgs.filter((m) => m.type === 'resizeSurface').pop().height - r.bottom, shadow: getComputedStyle(p).boxShadow };
+  });
+  expect(fit.top).toBeGreaterThanOrEqual(8);
+  expect(fit.right).toBeGreaterThanOrEqual(12);
+  expect(fit.bottom).toBeGreaterThanOrEqual(16);
+  expect(fit.shadow).toContain('0px 4px 12px');
   await ctx.close();
 });

@@ -32,6 +32,7 @@ function tloOpen(uid) {
 }
 
 /* ---------- surfaces: ?surface=panel | hud | widgets ---------- */
+const HUD_PAD = { t: 8, x: 12, b: 16 };   // HUD surface padding = room for the pill / card shadow (0 4px 12px)
 (function surfaces() {
   const sf = ORBIT.native.surface; if (!sf) return;
   document.body.classList.add('native', 'surface', 'surface-' + sf);
@@ -42,7 +43,10 @@ function tloOpen(uid) {
     'body.surface .desk>.wall,body.surface #mbar,body.surface #win,body.surface #set,body.surface .desk>:is(#pop,#hud,#widgets):not(' + keep + '){display:none!important}' +
     'body.surface ' + keep + '{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;margin:0}' +
     'body.surface-panel #pop{width:100%;max-height:none;border-radius:12px;animation:none}' +
-    'body.surface-hud #hud{align-items:flex-end!important;flex-direction:column!important;padding:4px}' +
+    // the panel is exactly the HUD box: the padding holds the whole shadow (8 top, 12 sides, 16 bottom), so the window edge never
+    // clips it into a grey rectangle around the pill (F22); the shadow is a tighter version of the in-window one for that reason
+    'body.surface-hud #hud{align-items:flex-end!important;flex-direction:column!important;padding:' + HUD_PAD.t + 'px ' + HUD_PAD.x + 'px ' + HUD_PAD.b + 'px}' +
+    'body.surface-hud #hud>:is(.pill,.hcard){box-shadow:0 4px 12px rgba(0,0,0,.26),inset 0 0 0 .5px rgba(255,255,255,.12)}' +
     // intrinsic widths (not viewport-relative): the reported width must not shrink with the panel it resizes
     'body.surface-hud #hud>.pill{width:max-content;max-width:500px}body.surface-hud .hcard{width:380px}' +
     'body.surface-widgets #widgets{width:364px;padding:8px}';
@@ -54,9 +58,10 @@ function tloOpen(uid) {
   function report() {
     const e = el(); if (!e) return;
     const r = e.getBoundingClientRect();
-    const h = Math.ceil(e.hidden ? 0 : r.height + (sf === 'panel' ? 0 : 8));
+    // HUD: #hud's own box (its padding already holds the shadow); widgets: + 8 below for the last card's shadow
+    const h = Math.ceil(e.hidden ? 0 : r.height + (sf === 'widgets' ? 8 : 0));
     let w = 0;
-    if (sf === 'hud' && !e.hidden) w = Math.ceil(Math.max(0, ...Array.from(e.children).map((k) => k.getBoundingClientRect().width)) + 16);
+    if (sf === 'hud' && !e.hidden) w = Math.ceil(Math.max(0, ...Array.from(e.children).map((k) => k.getBoundingClientRect().width)) + 2 * HUD_PAD.x);
     if (h !== lastH || w !== lastW) { lastH = h; lastW = w; ORBIT.native.post('resizeSurface', w ? { height: h, width: w } : { height: h }); }
   }
   hudPlace = function () { /* the host window is the position */ };

@@ -1,6 +1,6 @@
 /* ============ live: native shell + first run (slice 7) ============
    Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
-   (22-window.js nativeWin), host menu commands (orbit:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
+   (22-window.js nativeWin), host menu commands (orbit:command → settings / palette / about / keys / onboarding / reveal / report / share / route /
    toggleEdition / refresh / page {n} / sidebar / hud / undo / find / back / mainAction / chartTable / reindex); the page sends
    menuState {sidebar, pages} so the host titles 显示 / 隐藏侧边栏 and the 前往 menu.
    Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
@@ -64,7 +64,6 @@ LVN.command = function (d) {
   else if (cmd === 'reveal') { closeModal(); openReveal(); }
   else if (cmd === 'report') { closeModal(); openReport(); }
   else if (cmd === 'share') { closeModal(); openShare(); }
-  else if (cmd === 'csv') { closeModal(); openCSV(); }
   else if (cmd === 'toggleEdition') edToggle();
   else if (cmd === 'refresh') LVN.refresh();
   else if (cmd === 'route') {

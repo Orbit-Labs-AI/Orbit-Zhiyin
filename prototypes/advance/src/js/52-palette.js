@@ -15,7 +15,7 @@ function palActions() {
     { t: S.ed === 'lite' ? '切换到 Advance（完整明细）' : '切换到 Lite（只看结论）', icon: 'grid', run: () => edToggle() },
     { t: (S.widgets ? '隐藏' : '显示') + '桌面小组件', icon: 'grid', run: () => { S.widgets = !S.widgets; render(); } },
     { t: '播放人格揭晓', icon: 'persona', run: () => openReveal() },
-    { t: '播放首次启动', icon: 'spark', run: () => openOnboarding(0) },
+    { t: '用户引导（播放首次启动）', icon: 'spark', run: () => openOnboarding(0) },
     { t: '清除所有筛选', icon: 'filter', run: () => ACT.clearAllFilters() },
     { t: '部署相关会话', icon: 'sessions', run: () => { S.topic = 'design'; S.sess.q = '部署'; go('sessions'); } },
     { t: '键盘快捷键', k: '?', icon: 'info', run: () => openKeys() }
