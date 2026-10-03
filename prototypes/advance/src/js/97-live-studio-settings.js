@@ -435,8 +435,10 @@ if (TL.mode === 'live') {
   // 隐私: rules from GET /v1/privacy/rules; the test box asks POST /v1/privacy/preview (nothing stored)
   ruleRows = function () {
     const d = TL.resource(R.rules).data; if (!d || !d.rules) return [];
-    return d.rules.map((r) => ({ k: r.id, label: esc(r.label) + (r.locked ? ' <span class="cap" style="font-size:11px">始终开启</span>' : ''), ph: r.placeholder || '', on: !!r.enabled, locked: !!r.locked }));
+    return d.rules.map((r) => ({ k: r.id, label: esc(r.label) + (r.locked ? ' <span class="cap" style="font-size:11px">始终开启</span>' : ''), ph: tlsPh(r), on: !!r.enabled, locked: !!r.locked }));
   };
+  // home_user replaces /Users/<name> with「~」: a lone ~ in the mono column reads as a dash, so it shows what it stands for
+  function tlsPh(r) { const ph = r.placeholder || ''; return /user/i.test(r.id || '') && ph.length <= 1 ? '[user] → ' + (ph || '~') : ph || (/user/i.test(r.id || '') ? '[user]' : ''); }
   redact = function (text) {
     const d = TL.resource(R.rules).data; if (!d) return { n: 0, html: esc(text) };
     const p = TLS.rd; if (!p || p.text !== text) { tlsPreviewRules(text); return { n: p ? p.n : 0, html: p ? p.html : esc(text) }; }
