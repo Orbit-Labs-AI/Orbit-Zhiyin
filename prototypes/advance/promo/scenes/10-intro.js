@@ -2,9 +2,9 @@
    「V2 T0–T3′」「V4」, v17「1a」「1b」「1c」.
    The opening is one causal chain (v17.2): 用 AI Agent，正在成为每个人的日常 → 从想法到交付 (the picture of it) → We Are
    Redesigning Everything / 人们正在用 Agent 重新设计一切 → (15-redesign) 但，交互本身也需要被重新定义 → So … Assistant.
-   Pacing (v17 pace pass): every change is slow enough to follow — words wipe in over .45 beat, typing runs ≈ 8.5
-   characters a beat, bubbles rise out of their dot over .6 beat, icons fly 1 beat — and nothing freezes: the type keeps
-   a slow push, bubbles float, the dots drift / breathe and the halo turns.
+   Pacing (v17 pace pass): every change is slow enough to follow — words wipe in over .45 beat, typing runs ≈ 4
+   characters a beat (v17.7, one key at a time), bubbles rise out of their dot over .6 beat, icons fly 1 beat — and
+   nothing freezes: the type keeps a slow push, bubbles float, the dots drift / breathe and the halo turns.
    Readability (v17.3, +3 beats: 1.2 at b3.3, .8 at b8.9, 1.0 at b13.0 — the old b11.8 hand-off became b14.8).
    v17.4, +3.9 more: the beats in the code and in the comments below stay on the v17.3 grid and go through T() — +1.8 at
    b4.4 (1a's read), +.6 at b6.4 (1b, before the first send), +.6 at b9.8 (1b, the icons spin on the halo while the last
@@ -23,7 +23,7 @@
       in; 「日常」 (orange) comes last and settles like a stamp (b2.36, lands on b2.66); the pen drifts back to the centre
       (b3.2–4.4) and rises with the line's exit (b4.8–5.4).
    1b 从想法到交付（b5.2–10.8）：the pen turns over into the narrow ∩ arc (b4.8); the input box grows out of the dots (b5.2)
-      and shrinks back into them (b9.3–9.7); 3 typed sends + each dot's own prompt, one bubble slot per dot in two layers;
+      and shrinks back into them (b9.3–9.7); 2 typed sends + each dot's own prompt, one bubble slot per dot in two layers;
       b8.95 (after the last send) 12 App icons spray from the dots and the box along arcs (1 beat) onto the halo (960, 520,
       rx 760, ry 380).
    1c We Are Redesigning Everything（b10.6–15.75）：the arc folds into a caret (b10.2) that leads the type word by word, then
@@ -31,7 +31,28 @@
       icons slowly turn outward and shrink to .7, b14.7 they fly out along the radius. b12.3 (with 「Everything」) the gloss
       「人们正在用 Agent 重新设计一切」 fades in under it. The b14.8 AGD key (caret → arc; 15-redesign's b11.8, v17.4: film
       b18.7 under SHIFT +6.9) belongs to 15-redesign; this scene writes no key after b10.2.
-   The icons are drawn in #agdBack (AGD.back, under the Agent dots), so they burst from behind the dots and the box. */
+   The icons are drawn in #agdBack (AGD.back, under the Agent dots), so they burst from behind the dots and the box.
+   v17.7 typing (length unchanged): every prompt typed into a box (1b here, 1d in 15-redesign) goes in one character at a
+   time at a human pace (typeOn below); 1b types two prompts (记账 App, 路演稿) and 「生成产品官网」 is ds's own bubble. */
+/* typeOn(c, k0, text, seed) → the scene beats of its characters: the k-th character of text appears in AGD.chat box c
+   at K[k] (K[0] = k0, then .22–.28 beat apart, jitter from hash01(k, seed)) — the caret stays solid while it types and
+   blinks once the line is whole. AGD's c.type() types evenly over dur; an every() drive re-times that record each frame
+   (a pure function of the beat) so the shown count follows K. Shared with 15-redesign (scene files load in name order). */
+function typeOn(c, k0, text, seed) {
+  const n = [...text].length, K = [k0], s0 = k0 - .01;
+  for (let k = 1; k < n; k++) K.push(K[k - 1] + .22 + .06 * hash01(k, seed));
+  // a sentinel send long before the film: AGD toggles the box's placeholder grey with `!ty || (sd && …)`, which is
+  // undefined (a bare toggle, flipping grey / white on every key) until the box's first real send
+  if (!c.sends.length) c.sends.push({ b: -99, i: 0 });
+  c.type(s0, text, K[n - 1] - s0);
+  const rec = c.types[c.types.length - 1];
+  // shown = floor(n · (b − s0) / dur): dur = n·e / (m + .5) shows exactly m (< n keeps the caret solid); whole → .001
+  every(s0, K[n - 1] + .01, (p, b) => {
+    const m = K.filter((v) => v <= b + 1e-6).length, e = b - s0;
+    if (m >= n) rec.dur = .001; else if (e > 0) rec.dur = n * e / (m + .5);
+  });
+  return K;
+}
 scene('10-intro', () => {
   css(`
 .ln.lt.in-s{font-size:46px;color:rgba(255,255,255,.74)}
@@ -171,24 +192,28 @@ scene('10-intro', () => {
   const BR = AGD.P.arcB.r, SLOT = [[-176, -BR - 18], [-108, -BR - 104, true], [0, -BR - 18], [108, -BR - 104, true], [176, -BR - 18]];
   const rise = (b0, base) => (b) => base + 26 * (1 - E.out(clamp((b - b0) / .6))) - 5 * Math.max(0, b - b0);
   const slot = (i, b0, o = {}) => ({ dx: SLOT[i][0], dy: rise(b0, SLOT[i][1]), stem: !!SLOT[i][2], ...o });
-  // typing ≈ 8.5 characters a beat (the first, over the b6.4 insert, ≈ 5.6); each prompt sits whole for .15 beat
-  // (caret blinking) before its send. A dot that carries a send hosts at most one earlier, short prompt, so every bubble
-  // gets its full reading time (whole from pop + .25 to its replacement / retract, new grid): 爬虫 7.8–9.8 (2.0), 图标
-  // 8.1–10.2 (2.1), 数据看板 8.35–10.65 (2.3), 记账 App 9.3–11.7 (2.4), 会议纪要 9.55–11.95 (2.4), 路演稿 10.05–12.65
-  // (2.6), 小游戏 10.45–12.8 (2.35), 产品官网 10.9–13.2 (2.3)
-  c.type(T(5.35), '做一个记账 App', 1.6); c.send(T(6.5), 0, slot(0, T(6.65), { until: T(9.5) }));
-  c.type(T(6.55), '写份路演稿', .55); c.send(T(7.25), 1, slot(1, T(7.4), { until: T(9.85) }));
-  c.type(T(7.3), '生成产品官网', .65); c.send(T(8.1), 3, slot(3, T(8.25), { until: T(10.4) }));
-  // the dots' own prompts (kind 'ask'); everything still up retracts in turn b9.3–10.4 after the icons burst (the last,
-  // on ds, as the caret fold starts)
+  // v17.7 (new grid): two prompts typed one character at a time (typeOn, ≈ .25 beat each, the caret solid while it
+  // types) — 「做一个记账 App」 b7.2–9.16 (the box still growing under the first key), sent .22 after the last key;
+  // 「写份路演稿」 from .17 after that send, b9.55–10.54, sent b10.76 (pops b10.91, .44 before the icons burst). 「生成产品
+  // 官网」 is no longer typed: it is ds's own bubble. A dot that carries a send hosts at most one earlier, short prompt,
+  // so every bubble gets its full reading time (whole from pop + .25 to its replacement / retract): 爬虫 7.8–9.8 (2.0),
+  // 图标 8.1–10.2 (2.1), 数据看板 8.35–10.1 (1.75), 会议纪要 9.05–11.95 (2.9), 记账 App 9.78–11.8 (2.0), 产品官网
+  // 10.35–13.2 (2.85), 小游戏 10.7–12.8 (2.1), 路演稿 11.16–13.05 (1.9)
+  const K1 = typeOn(c, 7.2, '做一个记账 App', 31), S1 = K1[K1.length - 1] + .22;
+  c.send(S1, 0, slot(0, S1 + .15, { until: 12.0 }));
+  const K2 = typeOn(c, S1 + .17, '写份路演稿', 32), S2 = K2[K2.length - 1] + .22;
+  c.send(S2, 1, slot(1, S2 + .15, { until: 13.25 }));
+  // the dots' own prompts (kind 'ask'); everything still up retracts in turn b12.0–13.4 after the icons burst (the
+  // last, on ds, as the caret fold starts)
   AGD.bubble(1, T(5.75), T(7.6), '写个爬虫', slot(1, T(5.75)));
   AGD.bubble(2, T(6.05), T(8.0), '画一套图标', slot(2, T(6.05)));
   AGD.bubble(3, T(6.3), T(8.45), '做个数据看板', slot(3, T(6.3)));
-  AGD.bubble(4, T(6.9), T(9.75), '整理会议纪要', slot(4, T(6.9)));
-  AGD.bubble(2, T(7.8), T(10.0), '做个小游戏', slot(2, T(7.8)));
-  // each dot glows and breathes as a bubble leaves it
-  for (const [i, b0] of [[1, 5.75], [2, 6.05], [3, 6.3], [0, 6.65], [4, 6.9], [1, 7.4], [2, 7.8], [3, 8.25]]) {
-    const b = T(b0); AGD.glow(i, b, b + .6, .8); AGD.pulse(i, b, 1.08, .5);
+  AGD.bubble(4, 8.8, T(9.75), '整理会议纪要', slot(4, 8.8));                    // new grid
+  AGD.bubble(3, 10.1, T(10.4), '生成产品官网', slot(3, 10.1));                  // new grid
+  AGD.bubble(2, 10.45, T(10.0), '做个小游戏', slot(2, 10.45));                  // new grid
+  // each dot glows and breathes as a bubble leaves it (new grid)
+  for (const [i, b] of [[1, T(5.75)], [2, T(6.05)], [3, T(6.3)], [4, 8.8], [0, S1 + .15], [3, 10.1], [2, 10.45], [1, S2 + .15]]) {
+    AGD.glow(i, b, b + .6, .8); AGD.pulse(i, b, 1.08, .5);
   }
 
   /* ---------- 1b.3 – 1c: the App icons ---------- */
@@ -209,7 +234,7 @@ scene('10-intro', () => {
     'M0-17l15 8v17l-15 8-15-8v-17z M-15-9l15 8 15-8 M0-1v17'                                                     // cube
   ];
   const ORDER = [0, 4, 7, 2, 9, 1, 8, 3, 10, 5, 11, 6];          // which glyph sits at ring slot k
-  // B0 = first launch (b8.95, .7 beat after the last send pops), FL = flight beats; the ring phase is referenced to b8.6
+  // B0 = first launch (b8.95, v17.7: .44 beat after the last send pops), FL = flight beats; the ring phase is referenced to b8.6
   // (PH0, v17.2's b6.6 + 2), so the halo stands at the same angles at each event as before the v17.3 shift
   const HC = [960, 520], HRX = 760, HRY = 380, SPIN = 4, B0 = T(8.95), FL = 1.0, PH0 = T(8.6);
   const SRC = [2, 3, 3, 4, 4, 5, 5, 0, 0, 1, 1, 2];              // slot k sprays from dot i (5 = the input box), nearest bearing

@@ -101,12 +101,14 @@ scene('15-redesign', () => {
     { anim: fall({ inB: .26, at: .5, dur: .3, out: .6 }), tick: drift() });
 
   /* ---------- 1d 输入框 + 纠正气泡 ---------- */
-  // typing ~.2–.3 beats a character; the box is never idle: the 4th one is typed but never sent (done b18.05, readable
-  // 2.05 beats, the box sinks with it at b20.1)
+  // v17.7: typed one character at a time (10-intro's typeOn: .22–.28 beat a key, hash01 jitter, the caret solid while
+  // it types), each line whole ≈ .2–.25 beat before its send (same send beats as before): 请你修改 b12.95–13.75 (sent
+  // 13.95) · fix 14.55–15.02 (15.26) · 请你继续 15.8–16.54 (16.78); the box is never idle: the 4th one is typed but
+  // never sent (17.15–17.93, readable 2.17 beats, the box sinks with it at b20.1)
   // the box grows out of the dots' centroid ((960, ≈570) at b12.6, the arc still landing) down to (960, 880) by b13.2,
   // and shrinks back into it over b20.1–20.5
   const c = AGD.chat(12.6, 20.5, { x: 960, y: 880, w: 980, from: AGD.centroid, to: AGD.centroid });
-  c.type(13.0, '请你修改', .8); c.type(14.13, 'fix', .8); c.type(15.43, '请你继续', 1.06); c.type(16.9, '看清需求', 1.15);
+  typeOn(c, 12.95, '请你修改', 41); typeOn(c, 14.55, 'fix', 42); typeOn(c, 15.8, '请你继续', 43); typeOn(c, 17.15, '看清需求', 44);
   // every correction bubble: [dot, b0, text, send beat | null]; sent ones pop at send + .15 (AGD.chat). Ten bubbles, two
   // per dot, gaps shrinking from .55 to .19 beats (v17.4: the v17.3 stream from b14.1 slowed × 1.3 more, so every one
   // can be read). T5 layers: cx / ds (UP) hang above their dots, a newer one replacing the older (AGD's replace; while
