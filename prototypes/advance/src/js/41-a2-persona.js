@@ -18,18 +18,22 @@ function peAxisRows(p, prev) {
 }
 // 维度证据的计数单位（live 的 axes[].unit）：写成人能读懂的「112 轮对话」，不写 n=112（F15）
 const peUnits = (n, unit) => fmt(n) + ' ' + (({ turn: '轮对话', session: '个会话', session_opening: '个会话开场', active_day: '个活跃日' })[unit] || '个样本');
+// V 轴证据用 V 分数自己的单位：你在消息里要求验证的轮次占全部轮次（axes.V 的 k_units / n_units），措辞与后端
+// persona.v_ask_txt 一致；会话级的 st.verify（要求或运行了验证）把 Agent 自跑的测试也算进去，不能放在 V 轴下面（F19）
+function peVAsk(p) { const a = (p.axes || []).find((x) => x.k === 'V'); return a && a.n_units ? Math.round(a.k_units / a.n_units * 100) : null; }
+const peVTxt = (p) => { const v = peVAsk(p); return v == null ? '验证情况未知' : '你要求验证的轮次占 ' + v + '%'; };
 // 每轴证据微型图：D 每会话消息数分布、P/I 项目按结构度排序的时长、M 每日会话数分布、V 项目按求证度排序的时长
 function peEvidence(L, st, p, i) {
   if (LV.live) {   // live: the server's per-axis evidence (unit counts the client cannot see until G1)
     const ax = (p.axes || [])[i]; const e = ax && ax.evidence;
-    return e ? { txt: e.txt, vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax && ax.n_units != null ? peUnits(ax.n_units, ax.unit) : '—', vals: [0], lbl: '暂无证据' };
+    return e ? { txt: e.txt + (e.detail ? ' · ' + e.detail : ''), vals: e.vals && e.vals.length ? e.vals : [0], lbl: e.lbl + (e.projects && e.projects.length ? ' · ' + e.projects.join(' / ') : '') } : { txt: ax && ax.n_units != null ? peUnits(ax.n_units, ax.unit) : '—', vals: [0], lbl: '暂无证据' };
   }
   const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.min(n - 1, Math.floor(v / max * n))]++; }); return out; };
   const byProj = (key) => PJ.slice().sort((a, b) => a[key] - b[key]).map((pj) => sum(L.filter((s) => s.p === pj.id), (s) => s.dur) / 60);
   if (i === 0) return { txt: '每会话 ' + f1(st.per) + ' 条消息 · 每轮 ' + f1(st.auto) + ' 步', vals: hist(L.map((s) => s.msgs), 10, 20), lbl: '消息数 0 → 20+ 的会话数' };
   if (i === 1) return { txt: '规划型项目占 ' + Math.round(sum(L.filter((s) => PJI[s.p].I < 50), (s) => s.dur) / (st.hours * 60 || 1) * 100) + '% 时长', vals: byProj('I'), lbl: '项目时长 · 规划型 → 即兴型' };
   if (i === 2) { const by = {}; L.forEach((s) => { by[s.d] = (by[s.d] || 0) + 1; }); return { txt: '日均 ' + f1(p.avgS) + ' 会话 · 同日 ' + f1(p.avgA) + ' Agent', vals: hist(Object.values(by), 8, 8), lbl: '每日会话数 1 → 8+ 的天数' }; }
-  return { txt: pctKnown(st.verify, st.verKnown) + ' 要求验证 · 完成 ' + pctKnown(st.ok, st.okKnown), vals: byProj('V'), lbl: '项目时长 · 信任型 → 求证型' };
+  return { txt: peVTxt(p) + ' · 完成 ' + pctKnown(st.ok, st.okKnown), vals: byProj('V'), lbl: '项目时长 · 信任型 → 求证型' };
 }
 // 样本不足时：放宽哪个筛选能补到多少（只看人格口径里的三个条件：Agent、项目、周期）
 function peRelax(w) {
@@ -286,7 +290,7 @@ PAGES.persona = () => {
     '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · ' + fmt(p.n) + ' 个会话</span>' + peScopeTag(per) + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
-    '<p class="pe-line">' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p>' + (typeof perAiBlock === 'function' ? perAiBlock(p, st) : '') + '<div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + autoTxt(st) + '</b> 步自主 / 轮</span><span><b>' + pctKnown(st.verify, st.verKnown) + '</b> 要求验证</span></div>' +
+    '<p class="pe-line">' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p>' + (typeof perAiBlock === 'function' ? perAiBlock(p, st) : '') + '<div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + autoTxt(st) + '</b> 步自主 / 轮</span><span><b>' + (peVAsk(p) == null ? '—' : peVAsk(p) + '%') + '</b> 轮次你要求验证</span></div>' +
     '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px">' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>' +
     (note ? '<div class="cap" style="margin-top:8px;font-size:11px" title="人格只按时间、Agent 与项目计算，和侧栏、报告一致">' + esc(note) + '</div>' : '') +
     // 演变：月份码 + 四轴折线（评审 A2-V06）
@@ -300,7 +304,7 @@ PAGES.persona = () => {
     '<div class="pe-ev">' + evos.map((e, i) => { const a = axisView(p, i); return '<div class="pe-evi" title="' + esc(e.lbl) + '"><span class="row" style="justify-content:space-between;gap:6px"><span class="mono pe-evl">' + a.ax.dim + ' · ' + a.letter + '</span>' + VZ.spark(e.vals, { bars: true, w: 72, h: 20, color: 'var(--h3)', last: 'var(--h3)', label: e.lbl }) + '</span><span class="pe-evt">' + esc(e.txt) + '</span></div>'; }).join('') + '</div>' +
     '<div class="cap pe-foot" title="中线为 50；条偏向哪一侧就取哪一极，恰好 50 归高值一极">细刻度 = ' + (S.persona.vs === 'pop' ? '全体用户均值（示例）' : prev && prev.ok ? '上个月' : '无可比时段') + ' · 中线 50 为分界</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">优势与盲点</span></div></div><div class="col pe-sw">' +
-    (LV.live ? (p.strengths || []).map((x) => [x.text, '强度 ' + x.strong + ' · ' + peUnits(x.n_units, ((p.axes || []).find((a) => a.k === x.k) || {}).unit), true]) : [['整段委托', '每轮自主 ' + f1(st.auto) + ' 步', p.v.D >= 50], ['验收严格', Math.round(st.verify) + '% 要求验证', p.v.V >= 50], ['节奏稳定', '日均 ' + f1(p.avgS) + ' 个会话', true]]).filter((x) => x[2]).map((x) => '<div class="pe-swr">' + ic('okc', 14, 'color:var(--good)') + '<b>' + x[0] + '</b><span class="m">' + x[1] + '</span></div>').join('') +
+    (LV.live ? (p.strengths || []).map((x) => [x.text, '强度 ' + x.strong + ' · ' + peUnits(x.n_units, ((p.axes || []).find((a) => a.k === x.k) || {}).unit), true]) : [['整段委托', '每轮自主 ' + f1(st.auto) + ' 步', p.v.D >= 50], ['验收严格', peVTxt(p), p.v.V >= 50], ['节奏稳定', '日均 ' + f1(p.avgS) + ' 个会话', true]]).filter((x) => x[2]).map((x) => '<div class="pe-swr">' + ic('okc', 14, 'color:var(--good)') + '<b>' + x[0] + '</b><span class="m">' + x[1] + '</span></div>').join('') +
     '<div class="pe-swsep"></div>' +
     (conts.length ? conts.map((c) => '<div class="pe-swr">' + ic('alert', 14, 'color:var(--crit)') + '<b title="' + esc(c[0]) + '">' + c[0] + '</b><span class="m">出现在 ' + c[1] + ' 个会话</span>' + (LV.live ? '<button type="button" class="lnk" data-act="go" data-r="recs">建议 →</button>' : '<button type="button" class="lnk" data-act="openRec" data-id="' + recFor[c[0]] + '">建议 →</button>') + '</div>').join('') : '<span class="cap">这段时间没有明显盲点。</span>') + '</div></div>' +
     // 契合度：中性条 + 透明度随 n + 95% 区间（评审 A2-V07）；来源停用的 Agent 不可点（BUG-49）

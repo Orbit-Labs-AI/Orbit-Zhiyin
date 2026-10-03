@@ -48,7 +48,7 @@ test('unknown outcome / verify never shows as 0 % or 完成', async ({ page }) =
   // A2 persona: facts line, V-axis evidence and the per-agent fit rows never read 0 % / 完成 0%
   await page.evaluate(() => edSet('advance', 'persona'));
   await expect(page.locator('#main .pe-facts')).toBeVisible();
-  await expect(page.locator('#main .pe-facts')).toContainText('— 要求验证');
+  await expect(page.locator('#main .pe-facts')).toContainText('— 轮次你要求验证');
   await expect(page.locator('#main')).not.toContainText('0% 要求验证');
   await expect(page.locator('#main')).not.toContainText('0% 会话要求或运行了验证');
   await expect(page.locator('#main')).not.toContainText('完成 0%');

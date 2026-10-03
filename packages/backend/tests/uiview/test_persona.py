@@ -232,7 +232,8 @@ def test_evidence_hand_computed_with_projectless_bucket_and_missing_msgs():
     aux = {"r1": {"open": 1, "turns": [[1, 1], [1, 0]]},
            "r2": {"open": 0, "turns": [[1, 0]]},
            "r3": {"open": 1, "turns": []}}
-    p = {"axes": [{"k": "I", "n_units": 3, "k_units": 1}]}
+    # V headline in the axis's own unit (turns you asked to verify), not the session verify %.
+    p = {"axes": [{"k": "I", "n_units": 3, "k_units": 1}, {"k": "V", "n_units": 8, "k_units": 1}]}
     ev = persona.evidence(rows, aux, p, {"verify": 50.0, "verify_n": 2},
                           {"p1": {"id": "p1", "name": "Alpha"}})
     # Messages known for r1, r3, r4: (4+6+10)/3 = 6.7 per session. Steps per message only
@@ -246,7 +247,7 @@ def test_evidence_hand_computed_with_projectless_bucket_and_missing_msgs():
     # Structured openings: no-project bucket 1/2 = 50%, p1 1/1 = 100%.
     assert ev["I"]["vals"] == [50, 100] and ev["I"]["projects"][1] == "Alpha"
     # Verification turns: no-project 0/1, p1 1/2.
-    assert ev["V"]["vals"] == [0, 50] and ev["V"]["txt"] == "50% 会话要求或运行了验证"
+    assert ev["V"]["vals"] == [0, 50] and ev["V"]["txt"] == "你要求验证的轮次占 13%"  # 1/8 = 12.5 → half-up 13
     assert ev["M"]["txt"] == "日均 2.0 个会话 · 同日 1.0 个 Agent"  # 4 rows over 2 days
     none = persona.evidence([{"id": "x", "d": "2026-09-01", "p": None, "msgs": None}], {},
                             {"axes": [{"k": "I", "n_units": 0, "k_units": 0}]},

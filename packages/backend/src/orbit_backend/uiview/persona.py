@@ -240,6 +240,15 @@ def _by_ratio(item: tuple[float, str | None]) -> tuple[float, bool, str]:
     return item[0], item[1] is None, item[1] or ""
 
 
+def v_ask_txt(ax: dict) -> str:
+    """V evidence headline in the axis's own unit (``lvEvidence`` / ``peVTxt`` in the App use
+    the same wording): the share of human turns where you asked for verification."""
+    n = ax.get("n_units") or 0
+    if not n:
+        return "验证情况未知"
+    return f"你要求验证的轮次占 {int(jsround(ax['k_units'] / n * 100))}%"
+
+
 def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> dict:
     by_day = Counter(r["d"] for r in rows)
     agents_per_day = defaultdict(set)
@@ -275,7 +284,6 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
     auto = sum(r["steps"] for r in stepped) / stepped_msgs if stepped_msgs else None
     d_txt = ("消息数未知" if per is None else f"每会话 {per:.1f} 条消息" +
              (f" · 单轮平均 {auto:.1f} 步" if auto is not None else ""))
-    verify = st.get("verify")
     # Who asked for the verification turns: the user (instruction) or the agent on its own.
     # Snapshots built before the split carry [steps, verify] only and stay unknown here.
     split = [t for r in rows for t in (aux.get(r["id"]) or {}).get("turns") or []
@@ -294,12 +302,13 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
               "projects": [derive.project_name(projects, pid) for _, pid in plan]},
         "M": {"txt": f"日均 {avg_s:.1f} 个会话 · 同日 {avg_a:.1f} 个 Agent",
               "vals": _hist(list(by_day.values()), 8, 8), "lbl": "每日会话数 1 → 8+ 的天数"},
-        "V": {"txt": ("验证情况未知" if verify is None
-                      else f"{round(verify)}% 会话要求或运行了验证"),
+        # Same unit as the V score: turns where you asked for verification (axes V k/n), not
+        # the session-level ``verify`` (asked for *or* ran), which also counts agent-run tests.
+        "V": {"txt": v_ask_txt(axes.get("V") or {}),
               "verify_n": st.get("verify_n"),
               "requested_turns": asked, "agent_only_turns": ran,
               "detail": None if asked is None else
-              f"用户要求验证 {asked} 轮 · 仅 Agent 自行运行 {ran} 轮",
+              f"你要求验证 {asked} 轮 · 仅 Agent 自行运行 {ran} 轮",
               "vals": [round(v * 100) for v, _ in check], "lbl": "项目验证轮次占比 · 低 → 高",
               "projects": [derive.project_name(projects, pid) for _, pid in check]},
     }

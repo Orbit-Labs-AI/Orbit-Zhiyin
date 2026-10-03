@@ -59,7 +59,7 @@ function lvEvidence(L, p, st) {
     D: { txt: st.msgs ? '每会话 ' + f1(st.per) + ' 条消息 · 单轮平均 ' + f1(st.auto) + ' 步' : '会话里没有你发出的消息', vals: hist(L.map((s) => s.msgs || 0), 10, 20), lbl: '消息数 0 → 20+ 的会话数' },
     I: { txt: '结构化开场占 ' + Math.round((openN - ax.I.k_units) / openN * 100) + '%', vals: plan.map((x) => Math.round(x[0] * 100)), lbl: '项目结构化开场占比 · 低 → 高', projects: plan.map((x) => pname(x[1])) },
     M: { txt: '日均 ' + f1(avgS) + ' 个会话 · 同日 ' + f1(avgA) + ' 个 Agent', vals: hist(days.map((xs) => xs.length), 8, 8), lbl: '每日会话数 1 → 8+ 的天数' },
-    V: { txt: st.verKnown ? Math.round(st.verify) + '% 会话要求或运行了验证' : '会话里还没有验证信号', vals: check.map((x) => Math.round(x[0] * 100)), lbl: '项目验证轮次占比 · 低 → 高', projects: check.map((x) => pname(x[1])) },
+    V: { txt: peVTxt(p), vals: check.map((x) => Math.round(x[0] * 100)), lbl: '项目验证轮次占比 · 低 → 高', projects: check.map((x) => pname(x[1])) },
   };
 }
 
