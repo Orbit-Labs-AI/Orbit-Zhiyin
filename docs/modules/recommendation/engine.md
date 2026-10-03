@@ -41,7 +41,17 @@ engine v2 流程：`recall/multi.recall_all`（`problems.build` 把信号与 SQL
 - `utility ≤ 0` 的候选被 engine 标记为 `net_non_positive` 拦下，slate 里有 rank 的卡 utility 全部 > 0。12 个原回放 case 的 top1 priority 由旧公式的 0–2.02（其中 4 个为 0 且 net 为负）变为 15.1–58.0（中位约 22.9）。
 - 收益 B：有问题证据时 `1 − exp(−每周次数 × 单次分钟 / 30)`；单次分钟未知时按事件频次（`benefit_basis = frequency_only`）；精简卡按 `1 − exp(−常驻 tokens / 2000)`，与添加 tokens 的成本同一换算（`units.CONTEXT_TOKENS_PER_UNIT`）。
 
-节省时间（`narrate._save`）：只有 KB 规则的 `benefit.unit_minutes_source` 写明出处时才显示分钟，口径与 `benefit.py` 相同：观测周次数 × 4.345 × 单次分钟 × 改善比例，low/high 为 Beta 先验约 90% 区间的情景边界，不是置信区间，也不扣除未知的配置成本。catalog / generative / model 卡与精简卡一律显示「未估算」。
+节省比例（`narrate._save`）：只按当前范围的真实轨迹给百分比，不折算小时。分析层 `recommend_inputs` 的 `facts.trajectory`（`section._ledger`）沿用 App 的口径统计总 token（输入 + 缓存读写 + 输出）、协作时长（会话树事件间隔，每段封顶 5 分钟）与用户轮次，并把每个会话树的时间间隔与请求 token 分摊到具体工具调用：间隔归正在运行或等待模型读取结果的调用，请求的 token 归它读取的那些调用结果，都按人数均分；汇总成全部调用、失败调用、只读审批等待三类的实测成本（审批只计等待时间、不计 token；Codex 取 permission request → decision 的间隔）。
+
+| 问题类型 | 对应操作 | 每次的成本 |
+| --- | --- | --- |
+| `permission_friction` | 只读审批等待 | 实测等待，token 为 0 |
+| `tool_env_failure`、`buggy_output`、`late_build_failure` | 失败的工具调用（含失败的测试与构建） | 失败调用的平均 token 与时间；没有计时数据时按平均工具调用近似 |
+| `polling`、`repeated_workflow` | 工具调用（重复流程 × 步数） | 平均工具调用 |
+| `resident_cost`、`installed_unused`（精简卡） | 常驻上下文 | 常驻 tokens × 对应 Agent 的请求数；时间未实测 |
+| 其余（纠偏、重复说明、压缩、review 轮次等） | 返工轮次 | 一轮用户对话的平均 token 与时间 |
+
+对应操作占比 = 观测窗口内的次数 × 每次成本 ÷ 总 token / 总协作时长（不超过该类操作的实测总量）；预计节省 = 占比 × 生效率（Beta 先验均值），区间取先验约 90% 范围，是情景边界而不是置信区间，也不扣除未知的配置成本。`ui.save` 给出 `time_pct`、`token_pct`、两者的区间、`share`（占比）、`effect`、`op`、`key` 与中文 `basis`；`ui.gain` 是同一组百分比的标题（如「省时 1.5% · 省 token 0%」），`ui.tok_pct` 是卡片自身常驻上下文占全部 token 的比例。同一问题的替代方案共用 `key`，界面合计时每个问题只取最大值。没有问题证据的 catalog / model 卡和还没有轨迹账本的旧快照显示「未估算」。
 
 来源与兼容：catalog 条目只有 `verification` 为 `repository_and_skill_read` / `repository_and_source_read` 时视为已核验；资源库的 `agents` 列表只作提示，未给出支持矩阵时各 agent 为 unknown（门禁给 needs_context）。只有 Claude Code 与 Codex 有已知落地路径，其他 agent 的 `path_hint` 为空，卡片改为手动方案。
 

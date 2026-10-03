@@ -21,7 +21,7 @@ function askAnswer(ctx, i) {
       const dl = ra.map((r, k) => [r.p.name, r.st.hours - rb[k].st.hours]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0];
       return '和上一个同样长度的周期相比：\n\n· 会话 ' + P.n + ' → ' + st.n + '（' + pct(st.n, P.n) + '）\n· 协作时长 ' + f1(P.hours) + 'h → ' + f1(st.hours) + 'h\n· 摩擦率 ' + f1(P.fric) + '% → ' + f1(st.fric) + '%\n\n变化最大的是「' + dl[0] + '」：协作时长' + (dl[1] >= 0 ? '多了 ' : '少了 ') + f1(Math.abs(dl[1])) + ' 小时。' + (st.fric > P.fric ? '摩擦率在上升，主要来自「' + (fr[0] ? fr[0][0] : '—') + '」。' : '摩擦率在下降，最近加的规则可能起了作用。');
     }
-    if (i === 1) { const r = recs[0]; return r ? '先做「' + r.title + '」。\n\n理由：' + r.why + '它属于' + LEVELS[r.lvl] + '，预计 ' + r.gain + '。\n\n做完之后再看「' + (recs[1] ? recs[1].title : '—') + '」。两条加起来不到 10 分钟。' : '当前可见的建议都已经处理了。7 天后到「效果追踪」看结果。'; }
+    if (i === 1) { const r = recs[0]; return r ? '先做「' + r.title + '」。\n\n理由：' + r.why + '它属于' + LEVELS[r.lvl] + '，预计' + recGain(r) + '。\n\n做完之后再看「' + (recs[1] ? recs[1].title : '—') + '」。两条加起来不到 10 分钟。' : '当前可见的建议都已经处理了。7 天后到「效果追踪」看结果。'; }
     return '摩擦率 = 纠偏与不满消息 ÷ 你的消息 = ' + fmt(st.corr) + ' ÷ ' + fmt(st.msgs) + ' = ' + f1(st.fric) + '%。\n\n' + (fr.length ? '最常见的是「' + fr[0][0] + '」（' + fr[0][1] + ' 个会话）' + (fr[1] ? '和「' + fr[1][0] + '」（' + fr[1][1] + ' 个）' : '') + '。这两类都能用规则前置：写进 AGENTS.md 后，Agent 会先遵守，而不是等你提醒。' : '这段时间没有记录到摩擦。');
   }
   if (ctx === 'persona') {
@@ -32,7 +32,7 @@ function askAnswer(ctx, i) {
     return '你的盲点主要在「' + (fr[0] ? fr[0][0] : '—') + '」' + (fr[1] ? '和「' + fr[1][0] + '」' : '') + '。\n\n建议：\n· ' + (fr[0] && FRIC_RULE[fr[0][0]] ? FRIC_RULE[fr[0][0]] : '在首条消息里写清完成条件') + '\n· ' + recs.slice(0, 2).map((r) => r.title).join('\n· ');
   }
   if (ctx === 'recs') {
-    if (i === 0) return '按「预计收益 ÷ 投入」排序：\n\n' + recs.slice().sort((a, b) => a.lvl - b.lvl).slice(0, 5).map((r, k) => (k + 1) + '. ' + r.title + '（' + LEVELS[r.lvl] + ' · ' + r.gain + '）').join('\n') + '\n\nL1、L2 的几条加起来不到 15 分钟，先做这些。';
+    if (i === 0) return '按「预计收益 ÷ 投入」排序：\n\n' + recs.slice().sort((a, b) => a.lvl - b.lvl).slice(0, 5).map((r, k) => (k + 1) + '. ' + r.title + '（' + LEVELS[r.lvl] + ' · ' + recGain(r) + '）').join('\n') + '\n\nL1、L2 的几条加起来不到 15 分钟，先做这些。';
     if (i === 1) return '可以一起装：\n· 只读命令自动放行 + 重复失败熔断：都写在 settings.json，但字段不同，互不影响\n· PR 收尾 + 验收清单：都是 Skill，触发条件不同\n\n不建议同时启用：\n· 降低思考等级 + 无人值守任务：无人值守时更需要高思考等级';
     return '还可以考虑（这些不在你的数据里，属于推测）：\n· 为 latentskill 建一个「投稿前检查」工作流：页数、匿名化、引用格式一次查完\n· 把每天的 team-hub 审核做成定时的无人值守任务\n· 给 Surge 规则的发布加一步 dry-run，先看差异再上传';
   }

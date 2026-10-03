@@ -52,10 +52,10 @@ test('KPI numbers count up from 0 on enter and from the previous value on re-ren
   expect(mid).toBeGreaterThan(Number(t2));
   await expect.poll(() => kpiDone(page)).toBe(true);
   expect((await first.textContent()).replace(/,/g, '')).toBe(t2);
-  // decimals and suffixes survive: recs savings (≈ 6.1 h) and project hours (12.3h)
+  // decimals and suffixes survive: recs savings (4.3%) and project hours (12.3h)
   await go(page, 'recs');
   await expect.poll(() => kpiDone(page)).toBe(true);
-  expect(await page.locator('.rc-save b').first().textContent()).toMatch(/^≈ [\d.]+ (h|min)$/);
+  expect(await page.locator('.rc-save b').first().textContent()).toMatch(/^\d+(\.\d)?%$/);
   await go(page, 'projects');
   await expect.poll(() => kpiDone(page)).toBe(true);
   expect(await page.locator('.pj-tbl td[data-count]').nth(1).textContent()).toMatch(/^\d+\.\dh$/);

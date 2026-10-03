@@ -62,7 +62,7 @@
         "lvl": 1,
         "aud": 0,
         "title": "只读命令自动放行",
-        "gain": "−48 次审批 / 月",
+        "gain": "省时 1.0% · 省 token 0%",
         "why": "合成样本：12 个会话里手动批准了只读命令。",
         "ev": "12 个会话",
         "evq": {
@@ -106,7 +106,29 @@
             null,
             "%"
           ]
-        ]
+        ],
+        "save": {
+          "time_pct": 0.99,
+          "token_pct": 0.0,
+          "time_range": [
+            0.83,
+            1.1
+          ],
+          "token_range": [
+            0.0,
+            0.0
+          ],
+          "share": {
+            "time": 1.1,
+            "token": 0.0
+          },
+          "effect": 0.9,
+          "op": "readonly",
+          "key": "permission_friction",
+          "label": "省时 1.0% · 省 token 0%",
+          "basis": "只读审批等待：近 4.0 周 48 次审批（逐次实测），在全部轨迹里占时间 1.1%、token 0% × 生效率 0.9（先验，区间 0.75–1.00）"
+        },
+        "tok_pct": 0.0
       }
     },
     {
@@ -160,7 +182,7 @@
         "lvl": 2,
         "aud": 1,
         "title": "长会话交接摘要",
-        "gain": "6 个会话出现",
+        "gain": "省时 0.6% · 省 token 3.1%",
         "why": "合成样本：6 个长会话在上下文压缩后重复读取同一批文件。",
         "ev": "6 个会话",
         "evq": {
@@ -196,7 +218,29 @@
             null,
             "次"
           ]
-        ]
+        ],
+        "save": {
+          "time_pct": 0.6,
+          "token_pct": 3.1,
+          "time_range": [
+            0.3,
+            0.9
+          ],
+          "token_range": [
+            1.6,
+            4.6
+          ],
+          "share": {
+            "time": 1.0,
+            "token": 5.2
+          },
+          "effect": 0.6,
+          "op": "turn",
+          "key": "context_loss",
+          "label": "省时 0.6% · 省 token 3.1%",
+          "basis": "返工轮次：近 4.0 周 6 次重复说明（每次约一轮返工），在全部轨迹里占时间 1.0%、token 5.2% × 生效率 0.6（先验，区间 0.30–0.90）"
+        },
+        "tok_pct": 0.0
       }
     },
     {
@@ -275,7 +319,20 @@
           "复制片段",
           "粘贴到 AGENTS.md"
         ],
-        "track": []
+        "track": [],
+        "save": {
+          "time_pct": null,
+          "token_pct": null,
+          "time_range": null,
+          "token_range": null,
+          "share": null,
+          "effect": null,
+          "op": null,
+          "key": null,
+          "label": "未估算",
+          "basis": "没有对应的问题证据，轨迹里找不到可折算的操作"
+        },
+        "tok_pct": 0.0
       }
     }
   ],
