@@ -16,7 +16,7 @@ def test_unlabelled_codex_logs_yield_cards(client_factory, tmp_path, monkeypatch
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
     codex = write_friction_codex(home / ".codex")
-    client, _ = client_factory(home / "tandem-home")
+    client, _ = client_factory(home / "orbit-home")
     source = add_codex(client, codex)
     assert wait_job(client, run_job(client, "import", [source])["id"])["status"] == "completed"
     assert wait_job(client, run_job(client, "inventory", [source])["id"])["status"] == "completed"

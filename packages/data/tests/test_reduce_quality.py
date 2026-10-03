@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.connectors.codex import output_status
-from tandem_data.contract import canonical
-from tandem_data.models import PRICE_TABLE_VERSION, canonical_model, cost_usd
-from tandem_data.shell import command_head
-from tandem_data.store import Store
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.connectors.codex import output_status
+from orbit_data.contract import canonical
+from orbit_data.models import PRICE_TABLE_VERSION, canonical_model, cost_usd
+from orbit_data.shell import command_head
+from orbit_data.store import Store
 
 
 def capture(store, agent, root, rows, filename="fixture.jsonl"):

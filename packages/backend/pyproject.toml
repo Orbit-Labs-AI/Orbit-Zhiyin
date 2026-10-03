@@ -3,15 +3,15 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tandem-backend"
+name = "orbit-backend"
 version = "0.13.6"
 description = "Local multi-agent L0-L3 data pipeline and evidence-backed analysis"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "tandem-data==0.2.0",
-    "tandem-catalog==0.1.0",
+    "orbit-data==0.2.0",
+    "orbit-catalog==0.1.0",
     "fastapi==0.115.12",
     "pydantic==2.11.7",
     "uvicorn==0.34.3",
@@ -22,19 +22,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-embeddings = ["tandem-catalog[embeddings]==0.1.0"]
+embeddings = ["orbit-catalog[embeddings]==0.1.0"]
 dev = ["pytest==8.4.1", "httpx==0.28.1", "ruff==0.12.2"]
 
 [project.scripts]
-tandem = "tandem_backend.cli:main"
-tandem-helper = "tandem_backend.services.__main__:main"
+orbit = "orbit_backend.cli:main"
+orbit-helper = "orbit_backend.services.__main__:main"
 
 [tool.uv.sources]
-tandem-data = { workspace = true }
-tandem-catalog = { workspace = true }
+orbit-data = { workspace = true }
+orbit-catalog = { workspace = true }
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-tandem_backend = ["data/*.json", "data/recommend/*.json", "appdb/schema/*.sql", "install/assets/*.py", "ai/assets/templates/*.json", "ai/assets/templates/*/*"]
+orbit_backend = ["data/*.json", "data/recommend/*.json", "appdb/schema/*.sql", "install/assets/*.py", "ai/assets/templates/*.json", "ai/assets/templates/*/*"]

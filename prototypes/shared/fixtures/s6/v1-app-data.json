@@ -3,12 +3,12 @@
  "total_bytes": 52007337,
  "components": [
   {
-   "id": "tandem_db",
+   "id": "orbit_db",
    "label": "规范数据库",
    "bytes": 34091008,
    "rebuildable": true,
    "hint": "从 Agent 日志重新导入可重建",
-   "path": "/fx/fx-homes/full/tandem.db"
+   "path": "/fx/fx-homes/full/orbit.db"
   },
   {
    "id": "raw",
@@ -76,7 +76,7 @@
   }
  ],
  "will_delete": [
-  "tandem_db",
+  "orbit_db",
   "raw",
   "app_db",
   "catalog_db",
@@ -95,5 +95,5 @@
  "jobs_active": 0,
  "pending": false,
  "confirm_word": "清除",
- "note": "清除后需要重启 Tandem；已安装到 Agent 的组件不会被撤销，请先在安装台账中撤销。"
+ "note": "清除后需要重启 Orbit；已安装到 Agent 的组件不会被撤销，请先在安装台账中撤销。"
 }

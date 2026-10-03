@@ -8,7 +8,7 @@
 
 推荐输入是用户分析出的具体问题和项目特征。外部资源不能只保存名称和链接，还需要可追溯的说明、适用条件、能力特征、正文分块以及语义表示。检索给出相关候选和匹配依据，实际收益仍须通过安装后对照验证。
 
-`packages/catalog/src/tandem_catalog` 独立于 `tandem_backend` 的分析实现，拥有 `catalog.db`；不打开、更不写入 `tandem.db` 或 `analysis.db`。与最新主干共用 Python 3.13、根目录 `uv.lock` 和 `packages/data`；已有 Python 本地服务向 Mac App 提供接口，Swift Package 封装异步调用。当前仓库没有可集成的原生 App target，所以不另建整套 UI。
+`packages/catalog/src/orbit_catalog` 独立于 `orbit_backend` 的分析实现，拥有 `catalog.db`；不打开、更不写入 `orbit.db` 或 `analysis.db`。与最新主干共用 Python 3.13、根目录 `uv.lock` 和 `packages/data`；已有 Python 本地服务向 Mac App 提供接口，Swift Package 封装异步调用。当前仓库没有可集成的原生 App target，所以不另建整套 UI。
 
 ```mermaid
 flowchart LR
@@ -32,7 +32,7 @@ flowchart LR
 
 ## 数据库与索引
 
-实际 DDL 统一放在 [`packages/data/src/tandem_data/migrations/catalog/`](../../../packages/data/src/tandem_data/migrations/catalog/)，字段字典为 [`catalog-v1.schema.json`](../../../packages/data/src/tandem_data/schemas/catalog-v1.schema.json)。这一子目录只用于独立的 `catalog.db`，不会被 canonical 会话库的顶层迁移加载。使用 SQLite WAL、外键、STRICT 表、FTS5；`application_id = 0x54434C47`、`user_version = 2`。v1 的 FTS rowid 由 `catalog/002.sql` 原子迁移；FTS 删除按 rowid 查找，避免对大目录反复扫描。打开其他模块的数据库或未来版本会明确失败。
+实际 DDL 统一放在 [`packages/data/src/orbit_data/migrations/catalog/`](../../../packages/data/src/orbit_data/migrations/catalog/)，字段字典为 [`catalog-v1.schema.json`](../../../packages/data/src/orbit_data/schemas/catalog-v1.schema.json)。这一子目录只用于独立的 `catalog.db`，不会被 canonical 会话库的顶层迁移加载。使用 SQLite WAL、外键、STRICT 表、FTS5；`application_id = 0x54434C47`、`user_version = 2`。v1 的 FTS rowid 由 `catalog/002.sql` 原子迁移；FTS 删除按 rowid 查找，避免对大目录反复扫描。打开其他模块的数据库或未来版本会明确失败。
 
 | 表 | 粒度与作用 | 主要索引 |
 | --- | --- | --- |
@@ -106,17 +106,17 @@ A8 资源库需要搜索、类型/来源/兼容性筛选、已安装排除、资
 | `service.py / api.py / cli.py` | 后台任务、本机 API、CLI；进度句柄可丢失，数据 checkpoint 保存在 SQLite |
 | `packages/catalog-macos` | Swift actor、Codable 契约、任务等待/取消、loopback 限制与拒绝重定向 |
 
-所有命令在仓库根目录运行。`--home` 默认 `$TANDEM_HOME`，未设置时为 `~/Library/Application Support/Tandem`。开发验证推荐显式用 `.local/catalog`，不会读取用户会话。
+所有命令在仓库根目录运行。`--home` 默认 `$ORBIT_HOME`，未设置时为 `~/Library/Application Support/Orbit`。开发验证推荐显式用 `.local/catalog`，不会读取用户会话。
 
 ```sh
 uv sync --locked --all-packages --dev
-uv run tandem-catalog --home .local/catalog init
-uv run tandem-catalog --home .local/catalog sync --source tandem-seeds
+uv run orbit-catalog --home .local/catalog init
+uv run orbit-catalog --home .local/catalog sync --source orbit-seeds
 # 公共来源：首次全量，后续按来源周期增量。GitHub 有 GITHUB_TOKEN 时使用认证配额。
-uv run tandem-catalog --home .local/catalog sync
-uv run tandem-catalog --home .local/catalog status
-uv run tandem-catalog --home .local/catalog verify
-uv run tandem-catalog --home .local/catalog search '定位测试反复失败的根因' --type skill
+uv run orbit-catalog --home .local/catalog sync
+uv run orbit-catalog --home .local/catalog status
+uv run orbit-catalog --home .local/catalog verify
+uv run orbit-catalog --home .local/catalog search '定位测试反复失败的根因' --type skill
 ```
 
 默认开启内置种子及 8 个公开来源：Anthropic Skills、Claude 官方插件、OpenAI Plugins、awesome-copilot、官方 MCP Registry、models.dev、LiteLLM、SWE-bench。Gemini/ClawHub 适配器可通过 `init --sources <SourceSpec 数组.json>` 显式登记；其他平台不声称已经接入。
@@ -127,17 +127,17 @@ uv run tandem-catalog --home .local/catalog search '定位测试反复失败的�
 uv sync --locked --all-packages --dev --extra embeddings
 hf download intfloat/multilingual-e5-small onnx/model.onnx onnx/tokenizer.json \
   --revision 614241f622f53c4eeff9890bdc4f31cfecc418b3 --local-dir .local/models/e5-small
-uv run --extra embeddings tandem-catalog --home .local/catalog --model-dir .local/models/e5-small embed
-uv run --extra embeddings tandem-catalog --home .local/catalog --model-dir .local/models/e5-small search '定位测试反复失败的根因' --type skill
-uv run --extra embeddings tandem-catalog --home .local/catalog --model-dir .local/models/e5-small serve --port 8766
+uv run --extra embeddings orbit-catalog --home .local/catalog --model-dir .local/models/e5-small embed
+uv run --extra embeddings orbit-catalog --home .local/catalog --model-dir .local/models/e5-small search '定位测试反复失败的根因' --type skill
+uv run --extra embeddings orbit-catalog --home .local/catalog --model-dir .local/models/e5-small serve --port 8766
 ```
 
 App 可以使用 `embed --max-chunks 256` 或对应 API 控制每次后台工作的大小；当前块的缺失向量自动成为下一批任务。优先索引 Skill 等解法资源及其元数据，再处理正文、MCP 与模型信息。长期暂停后仍可恢复。`rebuild` 只从已保存的归一记录更新特征/分块投影；规范化器解析规则变更需要重新采集源版本。历史版本和模型空间保留，当前版本没有自动清理历史的策略。
 
-主后端也挂载同样的 `/v1/catalog/*` 路由，默认与 canonical `tandem.db` 共用 App home，使用独立 `catalog.db`。下面显式使用旧会话库的兼容模式：
+主后端也挂载同样的 `/v1/catalog/*` 路由，默认与 canonical `orbit.db` 共用 App home，使用独立 `catalog.db`。下面显式使用旧会话库的兼容模式：
 
 ```sh
-uv run --extra embeddings tandem --db .local/tandem.sqlite --catalog-db .local/catalog/catalog.db \
+uv run --extra embeddings orbit --db .local/orbit.sqlite --catalog-db .local/catalog/catalog.db \
   --catalog-model-dir .local/models/e5-small serve
 ```
 
@@ -181,20 +181,20 @@ uv run ruff format --check packages/data/src packages/data/tests
 uv run pytest -q
 uv run pytest -q packages/data/tests
 uv build --all-packages
-uv run tandem demo
-uv run tandem evaluate
+uv run orbit demo
+uv run orbit evaluate
 swift test --package-path packages/catalog-macos
 # 可选真实模型集成；默认测试不会联网下载权重。
-TANDEM_TEST_E5_DIR=.local/models/e5-small uv run --extra embeddings pytest -q packages/catalog/tests/test_real_embeddings.py
+ORBIT_TEST_E5_DIR=.local/models/e5-small uv run --extra embeddings pytest -q packages/catalog/tests/test_real_embeddings.py
 # DDL 变更后更新独立目录库字典；canonical 字典按项目 AGENTS.md 的命令生成。
-uv run python -m tandem_catalog.schema_export --output packages/data/src/tandem_data/schemas/catalog-v1.schema.json
+uv run python -m orbit_catalog.schema_export --output packages/data/src/orbit_data/schemas/catalog-v1.schema.json
 ```
 
 覆盖迁移、只读并发、失败回滚、多来源保留、空增量、checkpoint 重入、删除、内容许可、版本/向量一致性、模型空间隔离、中文 FTS、过滤前置、语义独立召回、推荐证据闸门、API 和 Swift 错误/取消/重定向边界。真实 E5 测试使用独立的三条英文资源与三条中文查询，验证跨语言通路；这不是生产相关性 benchmark。
 
 初次验证发现旧锁定的 SciPy 1.15.3 macOS wheel 无法加载（Mach-O `__thread_bss` offset 错误）；合入最新主干后已使用主干的 `scipy>=1.16,<2` 约束和统一 `uv.lock`，不保留旧的 requirements 锁文件。
 
-最新主干的推荐接收层已经提供 `tandem_backend.recommend.sources.normalize.catalog_resource()`，可接收本模块详情中的 `resource` 字典并转成 `RecommendationItem` 草稿。来源核验和语义相似度不会绕过该层的能力审核与兼容性检查。此实现提供目录库的多路检索及既有瓶颈适配；主干推荐服务的 task/trigger/capability 三个 dense 扩展空间仍需通过其专用接口接入，不能把单一元数据向量伪装成三个独立空间。
+最新主干的推荐接收层已经提供 `orbit_backend.recommend.sources.normalize.catalog_resource()`，可接收本模块详情中的 `resource` 字典并转成 `RecommendationItem` 草稿。来源核验和语义相似度不会绕过该层的能力审核与兼容性检查。此实现提供目录库的多路检索及既有瓶颈适配；主干推荐服务的 task/trigger/capability 三个 dense 扩展空间仍需通过其专用接口接入，不能把单一元数据向量伪装成三个独立空间。
 
 还保留以下明确边界：未知许可证和超过 250 KB 的正文只保留元数据/链接并标覆盖状态；外部插件指针不递归执行或下载安装器；模型与 benchmark 的别名尚未跨来源强行合并；当前没有安装执行、装后收益计算、跨用户数据或学习排序；原生 App target 尚不存在，交付的是可编译的 Swift 接入模块。
 

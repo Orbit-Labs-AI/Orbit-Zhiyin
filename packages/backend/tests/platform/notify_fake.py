@@ -9,12 +9,12 @@ from types import SimpleNamespace
 
 import pytest
 
-import tandem_backend.platform.notify  # noqa: F401
-from tandem_backend.appdb import AppDB
-from tandem_backend.services.events import EventBus
-from tandem_backend.services.jobs import AppState, JobConflict
+import orbit_backend.platform.notify  # noqa: F401
+from orbit_backend.appdb import AppDB
+from orbit_backend.services.events import EventBus
+from orbit_backend.services.jobs import AppState, JobConflict
 
-notify = sys.modules["tandem_backend.platform.notify"]  # package attr `notify` is a function
+notify = sys.modules["orbit_backend.platform.notify"]  # package attr `notify` is a function
 
 
 class Clock:

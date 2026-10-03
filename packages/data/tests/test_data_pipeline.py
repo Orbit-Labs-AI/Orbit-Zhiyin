@@ -1,10 +1,10 @@
 import pytest
 import zstandard
 
-from tandem_data.connectors import MAPPERS
-from tandem_data.connectors.base import BaseMapper, Mapping
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data.connectors import MAPPERS
+from orbit_data.connectors.base import BaseMapper, Mapping
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
 
 def capture(store, agent, root, rows, filename="fixture.jsonl", format_name="jsonl"):
@@ -282,8 +282,8 @@ def test_rebuild_is_atomic_when_connector_contract_breaks(tmp_path, monkeypatch)
         assert store.verify()["integrity"] == "ok"
 
 
-def test_tandem_ai_sessions_are_excluded(tmp_path):
-    from tandem_data.pipeline import TANDEM_AI_MARKER
+def test_orbit_ai_sessions_are_excluded(tmp_path):
+    from orbit_data.pipeline import ORBIT_AI_MARKER
 
     with Store(tmp_path / "data") as store:
         marked = claude_rows()
@@ -292,7 +292,7 @@ def test_tandem_ai_sessions_are_excluded(tmp_path):
             row["uuid"] = "m-" + row["uuid"]
             if "parentUuid" in row:
                 row["parentUuid"] = "m-" + row["parentUuid"]
-        marked[0]["message"]["content"] = f"{TANDEM_AI_MARKER} task=facet.session job=aj_1]\nhi"
+        marked[0]["message"]["content"] = f"{ORBIT_AI_MARKER} task=facet.session job=aj_1]\nhi"
         in_cwd = claude_rows()
         for row in in_cwd:
             row["sessionId"] = "session-cwd"
@@ -305,7 +305,7 @@ def test_tandem_ai_sessions_are_excluded(tmp_path):
         assert natives == ["session-a"] and result["sessions"] == 1
         assert (
             store.db.execute(
-                "SELECT COUNT(*) FROM raw_record WHERE json_extract(note,'$.reason')='tandem_ai_session'"
+                "SELECT COUNT(*) FROM raw_record WHERE json_extract(note,'$.reason')='orbit_ai_session'"
             ).fetchone()[0]
             > 0
         )

@@ -15,9 +15,9 @@ from pathlib import Path
 
 from benchmarks.recommendation import benchmark
 
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 from .demo import synthetic_bundle
 

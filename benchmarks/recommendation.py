@@ -4,7 +4,7 @@ import statistics
 import time
 from copy import deepcopy
 
-from tandem_backend.recommend.service import recommend
+from orbit_backend.recommend.service import recommend
 
 
 def benchmark(analysis, items, context):

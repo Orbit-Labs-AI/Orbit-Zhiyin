@@ -3,7 +3,7 @@
 from conftest import NOW
 from fastapi.testclient import TestClient
 
-from tandem_backend.services.gateway import Gateway
+from orbit_backend.services.gateway import Gateway
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 
@@ -18,7 +18,7 @@ def client(world):
 
 
 def test_search_and_linked_routes(world):
-    world.project("p1", "Tandem 前端")
+    world.project("p1", "Orbit 前端")
     world.session("s1", project="p1", title="修复登录页面", started=NOW)
     world.message("s1", "登录页面报错")
     world.call("s1", skill="pdf-tools")

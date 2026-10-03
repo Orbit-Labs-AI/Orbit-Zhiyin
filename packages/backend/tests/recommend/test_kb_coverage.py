@@ -10,9 +10,9 @@ from collections import Counter
 import pytest
 from fact_db_kb import build as build_db
 
-from tandem_backend.recommend import engine, kb, narrate, problems, section
-from tandem_backend.recommend.recall import generative, kb_route, models
-from tandem_backend.recommend.recall.multi import recall_all
+from orbit_backend.recommend import engine, kb, narrate, problems, section
+from orbit_backend.recommend.recall import generative, kb_route, models
+from orbit_backend.recommend.recall.multi import recall_all
 
 NEW_RULES = ("pr-review-cap", "worktree-isolation", "readonly-reviewer-subagent", "repeated-workflow-skill",
              "project-build-hook", "headless-poll", "deploy-target-rule", "codex-effort-medium")

@@ -10,14 +10,14 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from tandem_catalog import risk
-from tandem_catalog.contracts import SourceSpec, normalize_license
-from tandem_catalog.network import HttpClient
-from tandem_catalog.sources import default_sources
-from tandem_catalog.sources.github import GitHubConnector, file_kind
-from tandem_catalog.sources.structured import StructuredConnector, namespace_author
-from tandem_catalog.store import CatalogStore
-from tandem_catalog.sync import CatalogSync
+from orbit_catalog import risk
+from orbit_catalog.contracts import SourceSpec, normalize_license
+from orbit_catalog.network import HttpClient
+from orbit_catalog.sources import default_sources
+from orbit_catalog.sources.github import GitHubConnector, file_kind
+from orbit_catalog.sources.structured import StructuredConnector, namespace_author
+from orbit_catalog.store import CatalogStore
+from orbit_catalog.sync import CatalogSync
 
 FIXTURES = Path(__file__).parent / "fixtures" / "library"
 MCP_URL = "https://registry.modelcontextprotocol.io/v0.1/servers"
@@ -95,7 +95,7 @@ def test_hook_named_after_plugin_with_install_payload_per_event():
     plugin = items["plugins/hookify/.claude-plugin/plugin.json"]
     assert {pre.item_id, hooks["Stop"].item_id} <= set(plugin.components)
     assert plugin.install == {"marketplace": "example-market", "name": "hookify"}
-    plan = pytest.importorskip("tandem_backend.install.plan")
+    plan = pytest.importorskip("orbit_backend.install.plan")
     item = plan.catalog_item({"resource": pre.model_dump()})
     assert item["kind"] == "hook" and item["install"]["hook"]["event"] == "PreToolUse"
 
@@ -113,7 +113,7 @@ def test_plugin_mcp_json_becomes_installable_mcp_servers():
     assert servers["docs"].install["mcp"] == {"name": "docs", "transport": "http", "url": "https://mcp.example.com/mcp"}
     plugin = items["plugins/db/.claude-plugin/plugin.json"]
     assert {pg.item_id, servers["docs"].item_id} <= set(plugin.components)
-    plan = pytest.importorskip("tandem_backend.install.plan")
+    plan = pytest.importorskip("orbit_backend.install.plan")
     assert plan.catalog_item({"resource": pg.model_dump()})["install"]["mcp"]["command"] == "npx"
 
 

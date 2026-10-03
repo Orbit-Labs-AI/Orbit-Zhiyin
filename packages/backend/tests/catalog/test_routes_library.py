@@ -8,7 +8,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.services.gateway import Gateway
+from orbit_backend.services.gateway import Gateway
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 LOCAL = {"kind": "skill", "name": "Retry triage", "summary": "generated", "body": "# Steps\nRe-run flaky pytest cases.",
@@ -26,7 +26,7 @@ PROFILE = {"n_sessions": 12,
 def client(tmp_path, monkeypatch):
     def no_network(*args, **kwargs):
         raise AssertionError("catalog tests must not reach the network")
-    monkeypatch.setattr("tandem_catalog.network.HttpClient.get", no_network)
+    monkeypatch.setattr("orbit_catalog.network.HttpClient.get", no_network)
     gateway = Gateway(tmp_path / "home", discovery=lambda: [], prewarm_debounce_s=3600.0)
     yield TestClient(gateway.app(token=TOKEN, port=8765), base_url="http://127.0.0.1:8765",
                      headers={"Authorization": f"Bearer {TOKEN}"})
@@ -43,7 +43,7 @@ def wait_job(client, job_id):
 
 @pytest.fixture
 def seeded(client):
-    job = client.post("/v1/catalog/sync", json={"source_ids": ["tandem-seeds"]}).json()
+    job = client.post("/v1/catalog/sync", json={"source_ids": ["orbit-seeds"]}).json()
     assert wait_job(client, job["job_id"])["status"] == "completed"
     local = client.post("/v1/catalog/local", json=LOCAL).json()
     return client, local["item_id"]
@@ -51,16 +51,16 @@ def seeded(client):
 
 @pytest.fixture
 def with_features(monkeypatch, seeded):
-    from tandem_backend import features
+    from orbit_backend import features
     client, local_id = seeded
     calls = []
     monkeypatch.setattr(features, "current", lambda: object())
     monkeypatch.setattr(features, "profile", lambda scope=None, **kw: calls.append(scope) or PROFILE)
     linked = {"items": [{"inv_id": "i1", "agent": "codex", "scope": "user", "status": "active",
-                         "tandem_installed": True,
+                         "orbit_installed": True,
                          "catalog": {"item_id": local_id, "method": "ledger", "confidence": 1.0}},
                         {"inv_id": "i2", "agent": "claude_code", "scope": "user", "status": "unused",
-                         "tandem_installed": False, "catalog": None}]}
+                         "orbit_installed": False, "catalog": None}]}
     monkeypatch.setattr(features, "linked_inventory", lambda *a, **k: linked)
     return client, local_id, calls
 
@@ -74,7 +74,7 @@ def test_library_for_tab_returns_parts_reasons_and_installed(with_features):
     assert body["weights"] == {"feature_overlap": 0.5, "friction": 0.3, "trust": 0.2}
     assert body["profile_basis"]["ok"] and body["profile_basis"]["n_sessions"] == 12
     assert body["profile_basis"]["window_days"] == 30 and body["profile_basis"]["scope_hash"]
-    assert body["installed_summary"] == {"tandem": 1, "manual": 1}
+    assert body["installed_summary"] == {"orbit": 1, "manual": 1}
     items = body["items"]
     assert items and [i["m"] for i in items] == sorted((i["m"] for i in items), reverse=True)
     assert all(0 <= v <= 1 for i in items for v in i["parts"].values())
@@ -92,7 +92,7 @@ def test_library_for_tab_returns_parts_reasons_and_installed(with_features):
 
 
 def test_library_without_profile_is_not_personal(seeded, monkeypatch):
-    from tandem_backend import features
+    from orbit_backend import features
     client, _ = seeded
     monkeypatch.setattr(features, "current", lambda: None)
     body = client.get("/v1/catalog/library", params={"limit": 50}).json()

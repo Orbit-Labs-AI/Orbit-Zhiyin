@@ -14,23 +14,24 @@ from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
-from tandem_data.store import readonly_connection
+from orbit_data import legacy
+from orbit_data.store import readonly_connection
 
-from tandem_backend.analytics.common import semantic_messages
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.instruction import (
+from orbit_backend.analytics.common import semantic_messages
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.instruction import (
     INSTRUCTION_VERSION,
     extract_instruction_constraints,
 )
-from tandem_backend.analytics.preference import (
+from orbit_backend.analytics.preference import (
     PREFERENCE_EVIDENCE_VERSION,
     PREFERENCE_VERSION,
     build_preference_evidence,
     extract_explicit_preferences,
     summarize_preference_evidence,
 )
-from tandem_backend.analytics.task import segment_tasks
-from tandem_backend.models import stable_id
+from orbit_backend.analytics.task import segment_tasks
+from orbit_backend.models import stable_id
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -61,8 +62,8 @@ def read_snapshot(database, scope, max_messages=100_000):
     with readonly_connection(database) as connection:
         connection.execute("BEGIN")
         manifest = connection.execute("SELECT * FROM schema_manifest").fetchone()
-        if manifest is None or manifest["contract_id"] != "tandem-session-v1":
-            raise ValueError("Expected canonical tandem-session-v1; staging and legacy ledgers are unsupported")
+        if manifest is None or manifest["contract_id"] not in ("orbit-session-v1", legacy.CONTRACT_ID):
+            raise ValueError("Expected canonical orbit-session-v1; staging and legacy ledgers are unsupported")
         events = [dict(row) for row in connection.execute(query, params)]
         if len(events) > max_messages:
             raise ValueError("Message limit exceeded; narrow the time/project filters or raise --max-messages")

@@ -7,10 +7,10 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.evalrun import registry
-from tandem_backend.evalrun.contract import Check, SuiteResult
-from tandem_backend.services.gateway import Gateway
-from tandem_backend.services.supervisor import SupervisorConfig
+from orbit_backend.evalrun import registry
+from orbit_backend.evalrun.contract import Check, SuiteResult
+from orbit_backend.services.gateway import Gateway
+from orbit_backend.services.supervisor import SupervisorConfig
 
 from .conftest import FAKES, make_suite
 
@@ -28,10 +28,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     suites = {**FAKES, "slow": _slow}
     for suite_id, run in suites.items():
-        monkeypatch.setitem(sys.modules, f"tandem_backend.evalrun.suites.{suite_id}", make_suite(suite_id, run))
+        monkeypatch.setitem(sys.modules, f"orbit_backend.evalrun.suites.{suite_id}", make_suite(suite_id, run))
     monkeypatch.setattr(registry, "ids", lambda: sorted(suites))
     config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0, backoff_s=(0.1, 0.2), tick_s=0.05)
-    gateway = Gateway(tmp_path / "tandem", config=config, discovery=lambda: [], prewarm_debounce_s=3600.0)
+    gateway = Gateway(tmp_path / "orbit", config=config, discovery=lambda: [], prewarm_debounce_s=3600.0)
     app = gateway.app(token=TOKEN, port=8765)
     with TestClient(app, base_url="http://127.0.0.1:8765",
                     headers={"Authorization": f"Bearer {TOKEN}"}) as c:

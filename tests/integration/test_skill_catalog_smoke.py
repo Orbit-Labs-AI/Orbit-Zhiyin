@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from tandem_catalog.contracts import Page, Record, Resource
-from tandem_catalog.service import CatalogService
+from orbit_catalog.contracts import Page, Record, Resource
+from orbit_catalog.service import CatalogService
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def test_offline_export_uses_selected_skills_without_promoting_source_claims(tmp
     def no_network(*args, **kwargs):
         raise AssertionError("Offline smoke must not fetch")
 
-    monkeypatch.setattr("tandem_catalog.network.HttpClient.get", no_network)
+    monkeypatch.setattr("orbit_catalog.network.HttpClient.get", no_network)
     result = skill_smoke(tmp_path, ["anthropic-skills"], query="pytest")
     assert result["skill_count"] == result["accepted_drafts"] == result["search_hits"] == 1
     assert result["recommendation_count"] == 0
@@ -55,7 +55,7 @@ def test_offline_export_uses_selected_skills_without_promoting_source_claims(tmp
 @pytest.mark.parametrize("status", ["failed", "paused"])
 def test_incomplete_fetch_cannot_be_reported_as_success(tmp_path, monkeypatch, status, skill_smoke):
     seed(tmp_path)
-    monkeypatch.setattr("tandem_catalog.sync.CatalogSync.sync", lambda *a, **kw: [
+    monkeypatch.setattr("orbit_catalog.sync.CatalogSync.sync", lambda *a, **kw: [
         {"source_id": "anthropic-skills", "status": status},
     ])
     with pytest.raises(ValueError, match="failed or paused"):

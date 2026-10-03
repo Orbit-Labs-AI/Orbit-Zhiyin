@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from tandem_backend.sessionops import resume
+from orbit_backend.sessionops import resume
 
 NOW = 1_800_000_000_000
 CWD = "/tmp/my proj/it's"
@@ -58,14 +58,14 @@ def test_disabled_reasons():
     assert active["disabled_reason"] == "running"
 
 
-def test_resume_endpoint(tandem, client):
-    tandem.session("s1", cwd=CWD)
-    tandem.event("s1", ts=int(time.time() * 1000))
-    tandem.session("s2", agent="gemini")
-    tandem.session("s3", agent="opencode")
-    tandem.session("s4", agent="pi")
-    tandem.raw_file("s4", "pi", "2026/s4.jsonl")
-    tandem.session("s5", agent="hermes", cwd=None)
+def test_resume_endpoint(orbit, client):
+    orbit.session("s1", cwd=CWD)
+    orbit.event("s1", ts=int(time.time() * 1000))
+    orbit.session("s2", agent="gemini")
+    orbit.session("s3", agent="opencode")
+    orbit.session("s4", agent="pi")
+    orbit.raw_file("s4", "pi", "2026/s4.jsonl")
+    orbit.session("s5", agent="hermes", cwd=None)
     body = client.get("/v1/sessions/s1/resume").json()
     assert body["running"] and body["disabled_reason"] == "running"
     assert body["native_id"] == "native-s1" and body["cwd"] == CWD
@@ -73,7 +73,7 @@ def test_resume_endpoint(tandem, client):
     opencode = client.get("/v1/sessions/s3/resume").json()
     assert opencode["available"] and opencode["commands"][0]["argv"] == ["opencode", "--session", "native-s3"]
     pi = client.get("/v1/sessions/s4/resume").json()
-    assert pi["available"] and pi["commands"][0]["argv"][-1] == str(tandem.roots / "pi" / "2026/s4.jsonl")
+    assert pi["available"] and pi["commands"][0]["argv"][-1] == str(orbit.roots / "pi" / "2026/s4.jsonl")
     assert client.get("/v1/sessions/s5/resume").json()["commands"][0]["argv"] == ["hermes", "--resume",
                                                                                 "native-s5"]
     assert client.get("/v1/sessions/zz/resume").status_code == 404

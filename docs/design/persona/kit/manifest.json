@@ -2,7 +2,7 @@
   "product": "Orbit",
   "generator": "docs/design/persona/export.mjs",
   "sourceCommit": "0b8c73b534f5c71addee346064efc96418e203dd",
-  "source": "prototypes/advance/tandem-demo.html（花：src/js/35-visuals.js；表盘：src/js/41-a2-persona.js；类型名：src/js/05-data.js）",
+  "source": "prototypes/advance/orbit-demo.html（花：src/js/35-visuals.js；表盘：src/js/41-a2-persona.js；类型名：src/js/05-data.js）",
   "base": "docs/design/persona/kit/（file 相对此目录）",
   "data": "表盘为 Demo 示例数据（画像页默认「近 90 天」），不代表真实统计",
   "colors": {

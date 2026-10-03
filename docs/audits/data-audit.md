@@ -1,6 +1,6 @@
 # 本地数据模块（DT）审计：完成度、导入性能与优化任务包
 
-> 审计基线：分支 `feat/yhyfhgs-dev`（`747b0da`，含最新 main `0459c8f`）。范围为 `packages/data`（`tandem_data`）、`packages/connectors`（TS 连接器与 staging 库），以及 `packages/catalog` 中与本地清单有关的部分。
+> 审计基线：分支 `feat/yhyfhgs-dev`（`747b0da`，含最新 main `0459c8f`）。范围为 `packages/data`（`orbit_data`）、`packages/connectors`（TS 连接器与 staging 库），以及 `packages/catalog` 中与本地清单有关的部分。
 > 功能口径以 `docs/plans/feature-map.md` §6.1（DT 29 项）、§5 / `feature-map.csv`（UI→后端链）和 §6.10（缺口对照）为准。
 > 性能数字全部来自构造数据（脚本见附录），没有读取或导入本机真实会话。数字是本机一次测量，**不构成性能承诺**。测量机器：Apple Silicon 14 核、48 GB 内存、Python 3.13.15、SQLite（Python 自带）。
 
@@ -177,7 +177,7 @@ TS 连接器（只有 Codex）已经实现真正的追加增量：按 inode、si
 | 项目 | 大小 |
 | --- | --- |
 | 源文件 | 349 MB |
-| **tandem.db（checkpoint 后）** | **2,822 MB（8.1 倍）** |
+| **orbit.db（checkpoint 后）** | **2,822 MB（8.1 倍）** |
 | `event` 表 | 1,022 MB（text 194 + attrs 262 + ext 145 MB，其余是标识符） |
 | `raw_record` / `event_context` / `record_event` 及其索引 | 199 / 100 / 85+93 MB |
 | 每行事件的标识符（`event_uid` 70 字符 sha256 等）均值 | **454 B/行**，在 8 个索引和 4 张子表中重复 |
@@ -246,7 +246,7 @@ TS 连接器（只有 Codex）已经实现真正的追加增量：按 inode、si
 
 1. 一次发现全部 Agent 的输入，按 mtime 倒序排列。
 2. **首批**按会话分组（同一会话的主文件、subagent 与 meta 文件同批）后取最新的组，满足任一条件即截止：已满 200 个会话、下一组早于最近 7 天、源文件累计超过 6 MB（`FIRST_BATCH_BYTES`）；至少包含最新一组。首批 capture → 闭包投影 → 发布，UI 立即可用。
-3. 其余文件不再按固定文件数切分，而是**每个来源一批**（按该来源最新剩余会话的先后排序），每个来源只再整体投影一次；每批在同一写事务内 capture 并发布，支持取消、暂停（DT-02.1）和进度回调。规则见 `tandem_data.scheduler.plan_batches`。
+3. 其余文件不再按固定文件数切分，而是**每个来源一批**（按该来源最新剩余会话的先后排序），每个来源只再整体投影一次；每批在同一写事务内 capture 并发布，支持取消、暂停（DT-02.1）和进度回调。规则见 `orbit_data.scheduler.plan_batches`。
 4. 补全期间 `source_scan.selection='progressive'`，coverage 标为 partial，与 `fix/analysis-coverage-status` 的覆盖契约对齐。
 5. 首导时可以先停 FTS 触发器，补全完成后统一 `rebuild`。代价是补全期间检索结果不全，需要给出 coverage 提示。
 
@@ -328,7 +328,7 @@ TS 连接器（只有 Codex）已经实现真正的追加增量：按 inode、si
 文件清单与验收标准见返回的结构化任务列表。各包的公共约束：
 
 - 不读取本机真实会话；
-- 只用 `tandem_data` 现有依赖，新增依赖须经负责人同意；
+- 只用 `orbit_data` 现有依赖，新增依赖须经负责人同意；
 - 提交前运行仓库根目录 `pnpm check` 中 data / backend 相关的子集，即 `uv run pytest -q packages/data/tests`，(a) 另跑 `packages/backend/tests`；
 - 修改 DDL 后按 AGENTS.md 运行 `schema_export` 更新 `tables-v1.schema.json`（只有 (c) 改 DDL）。
 
@@ -343,5 +343,5 @@ python3 gen.py full 2000 15                               # 3 × 2000 会话，�
 uv run python bench.py full h_full                        # 分阶段耗时、表体积、无变化重扫、单文件追加
 uv run python exp.py med h_exp pragma,novalidate,nofts,fkidx   # 变体对比
 uv run python uiq.py h_full                               # UI 查询耗时
-uv run --with fastjsonschema python valbench.py h_med/tandem.db
+uv run --with fastjsonschema python valbench.py h_med/orbit.db
 ```

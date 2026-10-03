@@ -1,5 +1,5 @@
 // Orbit 人格素材：16 型协作人格之花、16 型总览图、画像页表盘（协作人格之花与轨道），浅色 / 深色，写出 kit/manifest.json。
-// 只导出、不绘制：在构建好的 prototypes/advance/tandem-demo.html 里调用原型自己的 typeP()、bloom()、bloomParts() 与画像页
+// 只导出、不绘制：在构建好的 prototypes/advance/orbit-demo.html 里调用原型自己的 typeP()、bloom()、bloomParts() 与画像页
 // （fp2SVG 画的表盘），把 CSS 变量解析成具体颜色。原型改了花或表盘，重新运行即可。
 // 用法（仓库根目录，先 node prototypes/advance/build.mjs）：
 //   node docs/design/persona/export.mjs                 写入 docs/design/persona/kit/
@@ -30,7 +30,7 @@ const ROUNDED = '/System/Library/Fonts/SFNSRounded.ttf';
 try {
   execFileSync(process.execPath, [path.join(root, 'prototypes/advance/build.mjs'), '--check'], { cwd: root, stdio: 'pipe' });
 } catch {
-  console.error('prototypes/advance/tandem-demo.html 与 src/ 不一致：先运行 node prototypes/advance/build.mjs');
+  console.error('prototypes/advance/orbit-demo.html 与 src/ 不一致：先运行 node prototypes/advance/build.mjs');
   process.exit(1);
 }
 
@@ -221,7 +221,7 @@ try {
     Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
     document.startViewTransition = undefined;
   });
-  await page.goto(pathToFileURL(path.join(root, 'prototypes/advance/tandem-demo.html')).href);
+  await page.goto(pathToFileURL(path.join(root, 'prototypes/advance/orbit-demo.html')).href);
   await page.waitForFunction(() => typeof bloom === 'function' && typeof bloomParts === 'function' && typeof typeP === 'function' && typeof fp2SVG === 'function');
   if (await page.evaluate(() => LV.live)) throw new Error('需要示例数据模式（LV.live 应为 false）');
   await page.addStyleTag({ content: '#notes,#tip,#toast{display:none!important}' });
@@ -296,7 +296,7 @@ try {
   files.sort((a, b) => a.file.localeCompare(b.file, 'en', { numeric: true }));
   await fs.writeFile(path.join(out, 'manifest.json'), JSON.stringify({
     product: 'Orbit', generator: 'docs/design/persona/export.mjs', sourceCommit,
-    source: 'prototypes/advance/tandem-demo.html（花：src/js/35-visuals.js；表盘：src/js/41-a2-persona.js；类型名：src/js/05-data.js）',
+    source: 'prototypes/advance/orbit-demo.html（花：src/js/35-visuals.js；表盘：src/js/41-a2-persona.js；类型名：src/js/05-data.js）',
     base: 'docs/design/persona/kit/（file 相对此目录）',
     data: '表盘为 Demo 示例数据（画像页默认「近 90 天」），不代表真实统计',
     colors,

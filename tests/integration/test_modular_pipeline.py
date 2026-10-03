@@ -9,18 +9,18 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from tandem_data import SCHEMA_VERSION
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data import SCHEMA_VERSION
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import analyze_store
-from tandem_backend.api import create_app
-from tandem_backend.cli import demo_home, main
-from tandem_backend.data_access.ingest import ingest, ingest_staging, maintain
-from tandem_backend.data_access.store import CanonicalStore, ReportSnapshot
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import analyze_store
+from orbit_backend.api import create_app
+from orbit_backend.cli import demo_home, main
+from orbit_backend.data_access.ingest import ingest, ingest_staging, maintain
+from orbit_backend.data_access.store import CanonicalStore, ReportSnapshot
 
 
 @pytest.fixture
@@ -35,19 +35,19 @@ def test_default_import_publishes_layers_without_using_mvp_parser(tmp_path, monk
     hashes = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob("*.jsonl")}
 
     def forbidden(*args, **kwargs):
-        raise AssertionError("native parsing must belong to tandem_data")
+        raise AssertionError("native parsing must belong to orbit_data")
 
-    monkeypatch.setattr("tandem_backend.legacy.store.parse_rollout", forbidden)
+    monkeypatch.setattr("orbit_backend.legacy.store.parse_rollout", forbidden)
     main(["--home", str(home), "import", "--codex-home", str(root)])
     result = json.loads(capsys.readouterr().out)
     assert result["import"]["changed"] == 3
     assert result["stored"]["tables"]["source_revision"] == 3
-    assert not (home / "tandem.sqlite").exists()
+    assert not (home / "orbit.sqlite").exists()
     assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in hashes.items())
     assert ingest(home, "codex", root)["import"]["changed"] == 0
     assert maintain(home, "verify")["unparsed"] == 0
     result = analyze_store(CanonicalStore(home), with_text=False)
-    assert result["versions"]["storage"] == "tandem-session-v1"
+    assert result["versions"]["storage"] == "orbit-session-v1"
     assert result["overview"]["counts"]["main_sessions"] == 3
     assert result["overview"]["counts"]["human_messages"] == 5
     for entity in ("sessions", "projects", "turns"):
@@ -143,8 +143,8 @@ def test_no_implicit_legacy_database_or_raw_acquisition_on_read(tmp_path):
 def test_reader_serves_the_published_projection_until_rebuilt(data):
     """A capture that is not published yet never mixes into analysis: readers keep reading
     the published run (strict readers refuse), and the rebuild publishes the new facts."""
-    from tandem_data.query import current_projection
-    from tandem_data.store import readonly_connection
+    from orbit_data.query import current_projection
+    from orbit_data.store import readonly_connection
 
     home, root = data
     before = analyze_store(CanonicalStore(home), with_text=False)["analysis_digest"]
@@ -155,7 +155,7 @@ def test_reader_serves_the_published_projection_until_rebuilt(data):
                                     "payload": {"type": "user_message", "message": "new prompt"}}) + "\n")
         ImportService(store).import_source(ImportRequest("codex", root, rebuild=False))
     assert analyze_store(CanonicalStore(home), with_text=False)["analysis_digest"] == before
-    with readonly_connection(home / "tandem.db") as db, pytest.raises(ValueError, match="pending"):
+    with readonly_connection(home / "orbit.db") as db, pytest.raises(ValueError, match="pending"):
         current_projection(db)
     ingest(home, "codex", root)
     assert analyze_store(CanonicalStore(home), with_text=False)["analysis_digest"] != before
@@ -254,7 +254,7 @@ def test_cli_interrupt_has_actionable_message_not_traceback(monkeypatch, capsys)
     def cancel(*args, **kwargs):
         raise KeyboardInterrupt
 
-    monkeypatch.setattr("tandem_backend.data_access.ingest.maintain", cancel)
+    monkeypatch.setattr("orbit_backend.data_access.ingest.maintain", cancel)
     with pytest.raises(SystemExit) as error:
         main(["rebuild"])
     assert error.value.code == 130
@@ -287,7 +287,7 @@ def test_report_time_scope_uses_same_canonical_selector_as_analytics(data):
 
 
 def test_over_budget_read_rejects_before_decoding_event_payloads(data, monkeypatch):
-    import tandem_data.analysis_input as reader
+    import orbit_data.analysis_input as reader
 
     original = reader.decoded
 
@@ -311,7 +311,7 @@ def test_projection_probes_each_project_once_but_refreshes_next_run(tmp_path, mo
         probes.append((path, args))
         return None
 
-    monkeypatch.setattr("tandem_data.reduce._git", git_probe)
+    monkeypatch.setattr("orbit_data.reduce._git", git_probe)
     ingest(home, "codex", root)
     assert len(probes) == 1
     maintain(home, "rebuild")
@@ -320,12 +320,12 @@ def test_projection_probes_each_project_once_but_refreshes_next_run(tmp_path, mo
 
 
 def test_recorded_git_remote_needs_no_local_git_probe(tmp_path, monkeypatch):
-    from tandem_data.reduce import project_for
+    from orbit_data.reduce import project_for
 
     def forbidden(*args):
         raise AssertionError("known remote identity needs no Git subprocess")
 
-    monkeypatch.setattr("tandem_data.reduce._git", forbidden)
+    monkeypatch.setattr("orbit_data.reduce._git", forbidden)
     with Store(tmp_path / "data") as store:
         pid = project_for(store, str(tmp_path), "https://example.com/team/repo.git")
         row = store.db.execute("SELECT * FROM project WHERE project_id=?", (pid,)).fetchone()

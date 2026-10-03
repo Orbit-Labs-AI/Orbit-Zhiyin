@@ -48,10 +48,10 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| [`analytics/context.py`](../../../packages/backend/src/tandem_backend/analytics/context.py) | 同一次请求只选择一次数据，为会话建立索引，并复用相同范围的执行族计算。 |
-| [`analytics/semantic.py`](../../../packages/backend/src/tandem_backend/analytics/semantic.py) | 一次提取任务、偏好和要求，保留各自的证据与会话索引。 |
-| [`analytics/service.py`](../../../packages/backend/src/tandem_backend/analytics/service.py) | 分别组装会话、项目和总体结果，保留旧字段与兼容入口。 |
-| [`analytics/products/`](../../../packages/backend/src/tandem_backend/analytics/products/) | 按工具、反馈、轨迹、趋势和结果卡组合八族特征，独立于推荐。 |
+| [`analytics/context.py`](../../../packages/backend/src/orbit_backend/analytics/context.py) | 同一次请求只选择一次数据，为会话建立索引，并复用相同范围的执行族计算。 |
+| [`analytics/semantic.py`](../../../packages/backend/src/orbit_backend/analytics/semantic.py) | 一次提取任务、偏好和要求，保留各自的证据与会话索引。 |
+| [`analytics/service.py`](../../../packages/backend/src/orbit_backend/analytics/service.py) | 分别组装会话、项目和总体结果，保留旧字段与兼容入口。 |
+| [`analytics/products/`](../../../packages/backend/src/orbit_backend/analytics/products/) | 按工具、反馈、轨迹、趋势和结果卡组合八族特征，独立于推荐。 |
 | [`validate_analysis_products.py`](../../../evals/analytics/products.py) | 完成显式导入、数据完整性核验、组合检查、API 对照和报告导出。 |
 
 新的公共函数有类型和简短 docstring；计算、组织与渲染分别维护。各族规则保持原目录归属，组合层复用它们，不复制另一套工具成功或验收判断。缓存只存在于单次请求，不会在导入新记录后误用旧结果。
@@ -116,7 +116,7 @@ uv run python scripts/validate_analysis_products.py \
 复用已有统一数据库生成报告，不再导入：
 
 ```sh
-uv run tandem --home /实际的Orbit数据目录 analysis-report \
+uv run orbit --home /实际的Orbit数据目录 analysis-report \
   --display-timezone Asia/Shanghai --output .local/ui-report
 ```
 

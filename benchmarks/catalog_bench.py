@@ -22,12 +22,12 @@ from pathlib import Path
 
 import numpy as np
 
-from tandem_catalog import query
-from tandem_catalog.contracts import Feature, MatchRequest, Page, Record, Resource, SourceSpec
-from tandem_catalog.features import lexical_tokens
-from tandem_catalog.search import _semantic, search
-from tandem_catalog.store import CatalogStore
-from tandem_catalog.vectors import index_embeddings
+from orbit_catalog import query
+from orbit_catalog.contracts import Feature, MatchRequest, Page, Record, Resource, SourceSpec
+from orbit_catalog.features import lexical_tokens
+from orbit_catalog.search import _semantic, search
+from orbit_catalog.store import CatalogStore
+from orbit_catalog.vectors import index_embeddings
 
 KINDS = ["skill", "plugin", "marketplace", "mcp_server", "hook", "subagent", "command", "rule", "workflow",
          "guide", "output_style", "lsp_server"]

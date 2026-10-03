@@ -1,6 +1,6 @@
 """Round-5 uiview wiring: every ``/v1/uiview/*`` route on the real gateway app, facts aux
 units / mood / Kimi name, facet + ``agents=`` filters on tools / projects / sentiment, and the
-share card reading the A2 persona payload. Synthetic tandem.db under tmp_path only."""
+share card reading the A2 persona payload. Synthetic orbit.db under tmp_path only."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
+from orbit_data import MAPPER_VERSION, REDUCER_VERSION
 
-from tandem_backend.exporting import sharecard
-from tandem_backend.services.gateway import Gateway
-from tandem_backend.services.sections import SECTIONS, rules_digest
-from tandem_backend.services.snapshots import SnapshotKey, scope_hash
-from tandem_backend.services.supervisor import SupervisorConfig
-from tandem_backend.sessionops import exclusion
-from tandem_backend.uiview import a4a6_common, facts, fetch, persona
+from orbit_backend.exporting import sharecard
+from orbit_backend.services.gateway import Gateway
+from orbit_backend.services.sections import SECTIONS, rules_digest
+from orbit_backend.services.snapshots import SnapshotKey, scope_hash
+from orbit_backend.services.supervisor import SupervisorConfig
+from orbit_backend.sessionops import exclusion
+from orbit_backend.uiview import a4a6_common, facts, fetch, persona
 
-from .a4a6_ps_fixture import HOUR, T0, Tandem, ro
+from .a4a6_ps_fixture import HOUR, T0, Orbit, ro
 from .synth import TODAY, analysed
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
@@ -60,7 +60,7 @@ def test_kimi_agent_name():
 
 
 def test_mood_is_session_balance(tmp_path):
-    t = Tandem(tmp_path)
+    t = Orbit(tmp_path)
     for uid in ("m1", "m2", "m3"):
         t.session(uid)
     t.human("m1", "我很开心", ts=T0)
@@ -76,7 +76,7 @@ def test_mood_is_session_balance(tmp_path):
 
 # -- real gateway --------------------------------------------------------------------------
 
-def seed(t: Tandem) -> None:
+def seed(t: Orbit) -> None:
     t.db.execute("INSERT INTO projection_run VALUES (1, 1, ?, ?, 0, 0, 0)",
                  (MAPPER_VERSION, REDUCER_VERSION))
     for pid in ("p1", "p2"):
@@ -102,7 +102,7 @@ def fact_row(i: int) -> dict:
 def gw(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
-    t = Tandem(home)
+    t = Orbit(home)
     seed(t)
     t.close()
     config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0, tick_s=0.05)
@@ -240,16 +240,16 @@ def _client(home):
 
 
 def test_empty_home_lists_answer_200_with_the_populated_shape(gw, tmp_path, monkeypatch):
-    """Before the first import (no tandem.db) lists and summaries are an empty state:
+    """Before the first import (no orbit.db) lists and summaries are an empty state:
     200 with the same keys as with data, plus freshness ``none``; ids are 404."""
     monkeypatch.setenv("HOME", str(tmp_path / "user-home"))
     empty_gw, client = _client(tmp_path / "empty-home")
     try:
-        assert not (tmp_path / "empty-home" / "tandem.db").exists()
+        assert not (tmp_path / "empty-home" / "orbit.db").exists()
         for path in EMPTY_LISTS:
             r = client.get(path)
             assert r.status_code == 200 and r.json() == [], (path, r.status_code, r.text[:200])
-            assert r.headers["x-tandem-freshness"] == "none"
+            assert r.headers["x-orbit-freshness"] == "none"
         assert client.get("/v1/sessions").headers["x-total-count"] == "0"
         for path in EMPTY_DICTS:
             r = client.get(path)
@@ -270,11 +270,11 @@ def test_empty_home_lists_answer_200_with_the_populated_shape(gw, tmp_path, monk
         for path in BY_ID:
             r = client.get(path)
             assert r.status_code == 404 and r.json()["error"]["code"] == "not_found", path
-        assert not (tmp_path / "empty-home" / "tandem.db").exists()  # reads never create it
+        assert not (tmp_path / "empty-home" / "orbit.db").exists()  # reads never create it
 
-        # tandem.db exists but nothing is published yet (first import still publishing):
+        # orbit.db exists but nothing is published yet (first import still publishing):
         # transient, so still a retryable 503 and never the earlier empty body as stale.
-        from tandem_data.store import Store
+        from orbit_data.store import Store
 
         with Store(tmp_path / "empty-home"):
             pass

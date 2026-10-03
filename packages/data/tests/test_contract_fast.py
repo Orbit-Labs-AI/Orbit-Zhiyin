@@ -16,9 +16,9 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from tandem_data import contract
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
+from orbit_data import contract
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
 
 REPO = Path(__file__).resolve().parents[3]
 if str(REPO) not in sys.path:
@@ -27,7 +27,7 @@ if str(REPO) not in sys.path:
 from benchmarks.data.synthetic import generate  # noqa: E402
 
 SCHEMA = Draft202012Validator(
-    json.loads(files("tandem_data").joinpath("schemas/event-v1.schema.json").read_text())
+    json.loads(files("orbit_data").joinpath("schemas/event-v1.schema.json").read_text())
 )
 ODD_VALUES = [
     None, True, False, 0, 1, -1, 2, 1.0, 0.5, -0.5, float("nan"), "", "x", "missing",
@@ -47,7 +47,7 @@ def envelopes(tmp_path_factory):
     with pytest.MonkeyPatch.context() as patch:
         base = tmp_path_factory.mktemp("fastcheck")
         patch.setenv("HOME", str(base / "home"))
-        patch.setattr("tandem_data.pipeline.validate_event", record)
+        patch.setattr("orbit_data.pipeline.validate_event", record)
         out = base / "synthetic"
         manifest = generate(out, "small")
         with Store(base / "data") as store:

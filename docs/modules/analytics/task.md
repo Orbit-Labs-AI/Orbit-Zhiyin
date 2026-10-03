@@ -1,6 +1,6 @@
 # Task：任务内容与证据边界
 
-这组特征回答“用户在做什么，一个任务从哪里开始，哪些消息属于同一目标”。实现位于 `packages/backend/src/tandem_backend/analytics/task/`，通过 `/v1/analytics/tasks` 与 `tandem analytics` 接入；会话详情新增 `task_ids`、`preference_ids` 供前端关联。
+这组特征回答“用户在做什么，一个任务从哪里开始，哪些消息属于同一目标”。实现位于 `packages/backend/src/orbit_backend/analytics/task/`，通过 `/v1/analytics/tasks` 与 `orbit analytics` 接入；会话详情新增 `task_ids`、`preference_ids` 供前端关联。
 
 已完成模板要求的领域、类型、标题、目标、产物、边界和关联会话，以及额外的目标版本记录。提取是可回看的规则候选，不是经过人工确认的语义真值。原有 TF-IDF／SVD／DBSCAN／PCA 实现移入 `task/representation.py`，旧 `analytics.text` 导入仍兼容；聚类坐标和 novelty 继续表示文本关系，不代表任务类别或创新程度。
 

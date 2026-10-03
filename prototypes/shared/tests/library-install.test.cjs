@@ -1,10 +1,10 @@
-// Unit tests for the library-install section of the shared live adapter (C.li in prototypes/shared/tandem-live.js).
+// Unit tests for the library-install section of the shared live adapter (C.li in prototypes/shared/orbit-live.js).
 // Responses come from the synthetic fixtures in ../fixtures/library-install; nothing talks to a real gateway.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const TandemLive = require('../tandem-live.js');
+const OrbitLive = require('../orbit-live.js');
 
 const FX = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'library-install', name + '.json'), 'utf8'));
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -20,8 +20,8 @@ function gateway(routes) {
   };
   return { fetch, calls };
 }
-const live = (gw) => TandemLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 'tok', fetch: gw.fetch, win: {} });
-const H = TandemLive.create({ mode: 'mock', win: {} }).li.helpers;
+const live = (gw) => OrbitLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 'tok', fetch: gw.fetch, win: {} });
+const H = OrbitLive.create({ mode: 'mock', win: {} }).li.helpers;
 
 test('list requests: tabs map to sort / origin, kinds repeat, search uses /v1/catalog/search, cursor pages', () => {
   assert.deepEqual(H.liListRequest({ tab: 'hot', kind: '全部' }), { path: '/v1/catalog/items', query: { sort: 'installs', order: 'desc', limit: 30 } });
@@ -132,6 +132,6 @@ test('send: offline becomes status 0 (degraded); other errors keep code and deta
   await assert.rejects(C.li.state(), (e) => e.status === 0 && e.code === 'offline' && C.li.degraded(e));
   const C2 = live(gateway({ 'POST /v1/install/apply': () => json({ error: { code: 'risk_blocked', message: '风险过高', detail: { level: 'dangerous' } } }, 403) }));
   await assert.rejects(C2.li.apply({ plan: { plan_id: 'p' }, preview: { preview_digest: 'd' }, sel: {} }), (e) => e.status === 403 && e.code === 'risk_blocked' && e.detail.level === 'dangerous' && !C2.li.degraded(e));
-  const M = TandemLive.create({ mode: 'mock', win: {} });
+  const M = OrbitLive.create({ mode: 'mock', win: {} });
   await assert.rejects(M.li.items({}), (e) => e.code === 'mock_mode');
 });

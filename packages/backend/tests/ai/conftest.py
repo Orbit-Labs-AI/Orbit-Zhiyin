@@ -14,11 +14,11 @@ from types import SimpleNamespace
 import pytest
 from ai_support import ANSWER, answer_task  # noqa: F401
 
-from tandem_backend.ai import engines, registry
-from tandem_backend.ai.engines import FakeEngine
-from tandem_backend.ai.service import AIService, service
-from tandem_backend.appdb import AppDB
-from tandem_backend.services.events import EventBus
+from orbit_backend.ai import engines, registry
+from orbit_backend.ai.engines import FakeEngine
+from orbit_backend.ai.service import AIService, service
+from orbit_backend.appdb import AppDB
+from orbit_backend.services.events import EventBus
 
 BIN = Path(__file__).parent / "bin"
 @pytest.fixture
@@ -70,7 +70,7 @@ def fake_cli(ai_env):
 
 @pytest.fixture
 def ai_gw(ai_env):
-    home = ai_env.tmp / "tandem"
+    home = ai_env.tmp / "orbit"
     gw = SimpleNamespace(home=home, appdb=AppDB(home / "app.db"), bus=EventBus(), reads=None)
     yield gw
     if getattr(gw, "_ai", None) is not None:

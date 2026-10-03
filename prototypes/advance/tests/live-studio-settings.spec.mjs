@@ -1,5 +1,5 @@
 // Live bindings for A9 生成工坊, 问本地 Agent, settings (分析 / 隐私 / 数据源 / 通知 / 关于) and notify frames
-// (src/js/97-live-studio-settings.js). Fixture mode: page.route plays the gateway on http://tandem.test with the synthetic
+// (src/js/97-live-studio-settings.js). Fixture mode: page.route plays the gateway on http://orbit.test with the synthetic
 // files in prototypes/shared/fixtures (+ studio-settings/). Sibling of live-adapter.spec.mjs, kept separate so the three
 // binding branches do not edit the same spec.
 //  1. studio      engines, context preview (budget from the gateway), job stages → artifact lines + checks, history
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
-const ADV_FILE = path.join(ROOT, 'advance', 'tandem-demo.html');
+const ADV_FILE = path.join(ROOT, 'advance', 'orbit-demo.html');
 const FX = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'shared', 'fixtures', name + '.json'), 'utf8'));
 const SS = (name) => FX('studio-settings/' + name);
 const ONLY = (name) => test.skip(test.info().project.name !== name, 'runs once, at the default size');
@@ -40,7 +40,7 @@ function collectErrors(page, allow) {
 async function gateway(page, opts = {}) {
   const state = Object.assign({ ai: true, platform: true, job: 'progress', queue: [], seen: [], jobPolls: 0 }, opts);
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await page.route(/^http:\/\/tandem\.test\//, async (route) => {
+  await page.route(/^http:\/\/orbit\.test\//, async (route) => {
     const req = route.request(); const u = new URL(req.url()); const m = req.method(); const p = u.pathname;
     let body = null; try { body = req.postData() ? JSON.parse(req.postData()) : null; } catch (e) { body = null; }
     state.seen.push({ m, path: p, search: u.search, body });
@@ -80,7 +80,7 @@ test('studio live: engines, context preview, job stages, artifact lines and chec
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   const gw = await gateway(page);
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.evaluate(() => go('studio'));
   await expect(page.locator('#content')).toContainText('已检测：Claude Code · Codex · Gemini CLI（不可用）');
   await expect(page.locator('#content .st-ctx')).toContainText(['相关会话摘要 · 12 个', '摩擦统计', '需要授权 · 关键时刻前后']);
@@ -108,7 +108,7 @@ test('studio live: stop cancels the job; consent_required stops the run with the
   ONLY('mac-14');
   const errors = collectErrors(page, (t) => /status of (404|403)/.test(t));
   const gw = await gateway(page, { job: 'stuck' });
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.evaluate(() => go('studio'));
   await expect(page.locator('#stTok')).toContainText('上限 16.0k');
   await page.locator('#studioGoal').fill('合并前收尾：最多两轮 review');   // live has no prefilled goal
@@ -129,7 +129,7 @@ test('degrade: without AI and platform routes the studio says so (no demo flow) 
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   await gateway(page, { ai: false, platform: false });
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.evaluate(() => go('studio'));
   await expect(page.locator('#content')).toContainText('已检测：本地服务暂不提供生成接口');
   await page.locator('#studioGoal').fill('合并前收尾：最多两轮 review');   // live has no prefilled goal
@@ -149,11 +149,11 @@ test('settings live: storage, collection pause, notify policy / preset / snooze 
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   const gw = await gateway(page);
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.evaluate(() => openSettings('privacy'));
   await expect(page.locator('#set [data-tl="storage"]')).toContainText('快照缓存');
   await expect(page.locator('#set')).toContainText('150 MB');
-  await expect(page.locator('#set')).toContainText('~/.tandem-fixture');
+  await expect(page.locator('#set')).toContainText('~/.orbit-fixture');
   // 数据源 › 暂停采集
   await page.evaluate(() => { S.setTab = 'sources'; renderSet(); });
   const pause = page.locator('#set [data-act="setPause"]');
@@ -161,8 +161,11 @@ test('settings live: storage, collection pause, notify policy / preset / snooze 
   await pause.click();
   await expect(pause).toHaveAttribute('aria-checked', 'true');
   await expect.poll(() => sent(gw, 'POST', '/v1/platform/collection/pause').length).toBe(1);
+  await expect(page.locator('#side .sb-foot .pv')).toHaveAttribute('data-st', 'off');   // sidebar indicator: gray, 采集已暂停
+  await expect(page.locator('#side .sb-foot .pv')).toContainText('采集已暂停');
   await pause.click();
   await expect.poll(() => sent(gw, 'POST', '/v1/platform/collection/resume').length).toBe(1);
+  await expect(page.locator('#side .sb-foot .pv')).not.toContainText('采集已暂停');
   await expect(page.locator('#toast')).toContainText('正在补采');
   // 通知: matrix from the policy (done → hud only), one cell → PUT, preset → ?preset=all, mute → snooze, test → POST
   await page.evaluate(() => { S.setTab = 'notify'; renderSet(); });
@@ -207,7 +210,7 @@ test('notify frames: banner + menu-bar badge, attention list, collection paused 
   const errors = collectErrors(page, allow404);
   const gw = await gateway(page);
   gw.queue.push(SS('notify-frames').frames);
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await expect(page.locator('#notes')).toContainText('FX 等你确认');
   // 「稍后」acks the notification with a one-hour snooze (dispatched directly: the banner auto-hides after 7 s)
   await page.locator('#notes .nt').filter({ hasText: 'FX 等你确认' }).locator('[data-act="noteAct"][data-k="2"]').dispatchEvent('click');
@@ -223,7 +226,7 @@ test('ask live: presets from the gateway, a preset answer and a free question vi
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   const gw = await gateway(page);
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.evaluate(() => openAsk('overview'));
   const chips = page.locator('#modal [data-tl="ask-presets"] [data-act="askPick"]');
   await expect(chips).toHaveText(['FX 预置问题一？', 'FX 预置问题二？', 'FX 预置问题三？']);
@@ -243,7 +246,7 @@ test('regressions: no demo goal, readable pack preview, deduped sources with ~ p
   const errors = collectErrors(page, allow404);
   const rules = { rules: [{ id: 'secrets', label: '密钥、令牌与带认证的地址', placeholder: '[密钥已隐藏]', enabled: true, locked: true }, { id: 'email', label: '邮箱地址', placeholder: '[email]', enabled: true, locked: false }] };
   await gateway(page, { extra: { 'POST /v1/ai/preview': SS('ai-preview-pack'), 'GET /v1/app/discovery': SS('discovery-dup'), 'GET /v1/privacy/rules': rules, 'GET /v1/app/tool_map': FX('s6/v1-app-tool_map') } });
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   // B15: the demo's prefilled goal and its「来自 A7 建议」caption never show in live
   await page.evaluate(() => go('studio'));
   await expect(page.locator('#studioGoal')).toHaveValue('');
@@ -295,7 +298,7 @@ test('R4-05 / R4-16: the typed goal is packed and sized honestly; 授权对象 u
     return { task_id: 'generate.skill', engine: 'claude_code', items, total_tokens: items.reduce((a, x) => a + x.tokens, 0), input_budget: 12000, over_budget: false, redaction_hits: 0, preview_digest: 'sha256:fx-' + goal.length, payload: {}, stages: ['pack'] };
   };
   const gw = await gateway(page, { extra: { 'POST /v1/ai/preview': pack } });
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.evaluate(() => openSettings('analysis'));
   await expect(page.locator('#set [data-tl="ai-cap"]')).toContainText('授权对象：Claude Code');
   await expect(page.locator('#set [data-tl="ai-cap"]')).not.toContainText('claude_code');

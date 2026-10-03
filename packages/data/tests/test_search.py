@@ -2,11 +2,11 @@ import time
 
 import pytest
 
-from tandem_data.contract import canonical
-from tandem_data.search import SearchScope, search, snippet
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store, readonly_connection
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.contract import canonical
+from orbit_data.search import SearchScope, search, snippet
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store, readonly_connection
+from orbit_data.validation.fixtures import create_sources
 
 SECRET = "sk-ant-" + "A1b2C3d4E5f6G7h8J9k0"
 T0 = 1_790_000_000_000
@@ -212,10 +212,10 @@ def test_event_search_table_is_preferred_when_present(built, tmp_path):
 
     copy = tmp_path / "copy"
     copy.mkdir()
-    with readonly_connection(home / "tandem.db") as source:
+    with readonly_connection(home / "orbit.db") as source:
         import sqlite3
 
-        target = sqlite3.connect(copy / "tandem.db")
+        target = sqlite3.connect(copy / "orbit.db")
         source.backup(target)
         # Simulate a pre-008 library: no trigram table, only event_fts (unicode61, 001.sql).
         target.executescript(

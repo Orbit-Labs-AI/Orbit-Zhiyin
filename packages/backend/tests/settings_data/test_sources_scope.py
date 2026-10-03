@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from tandem_backend.appdata import sources_scope
-from tandem_backend.services.routes_analytics import analytics_scope
-from tandem_backend.services.snapshots import scope_hash
+from orbit_backend.appdata import sources_scope
+from orbit_backend.services.routes_analytics import analytics_scope
+from orbit_backend.services.snapshots import scope_hash
 
 
 def scope(**kw):

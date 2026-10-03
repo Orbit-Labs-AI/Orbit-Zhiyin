@@ -60,7 +60,7 @@ test('J06/B04: an idle analysis worker raises no banner; degraded / restarting s
 
 test('B03: a facts 500 is a failed read with real counts, not connecting with mock defaults', async ({ page }) => {
   await stubGateway(page, 'core', { 'GET /v1/uiview/facts': { status: 500 } });
-  await page.goto('http://tandem.test/app?live=1#overview');
+  await page.goto('http://orbit.test/app?live=1#overview');
   await expect.poll(() => page.evaluate(() => LV.state), { timeout: 10_000 }).toBe('error');
   await expect(page.locator('[data-tl="strip"] [data-tl="error"]')).toContainText('读取失败');
   await expect(page.locator('[data-tl="connecting"]')).toHaveCount(0);

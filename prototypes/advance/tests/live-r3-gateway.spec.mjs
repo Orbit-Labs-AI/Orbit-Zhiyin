@@ -1,6 +1,6 @@
 // Round 3 (change 1): click through A1..A6, Lite and the palette against a REAL synthetic gateway and assert that no
 // /v1 request is rejected as invalid (422 = an undeclared query parameter such as agent / weekday / hour / q on
-// /v1/analytics/*). Skipped without LIVE_GATEWAY + TANDEM_TOKEN (fixture runs cover the rendering).
+// /v1/analytics/*). Skipped without LIVE_GATEWAY + ORBIT_TOKEN (fixture runs cover the rendering).
 import { test, expect } from '@playwright/test';
 import { stubGateway, openLive, PASS } from './live-helpers.mjs';
 

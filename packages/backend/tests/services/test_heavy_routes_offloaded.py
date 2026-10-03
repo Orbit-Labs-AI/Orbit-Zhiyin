@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 from conftest import add_codex, bus_events, fast_config, run_job, wait_for, wait_job
 
-from tandem_backend.services.worker_protocol import DEBUG_DELAY_ENV
+from orbit_backend.services.worker_protocol import DEBUG_DELAY_ENV
 
 ROUTES = [
     ("statistics", "get", "/v1/analytics/statistics", {}, "statistics"),
@@ -35,11 +35,11 @@ def _forbid_in_process(monkeypatch):
     def boom(*_, **__):
         raise AssertionError("heavy analysis ran inside the gateway process")
 
-    import tandem_backend.analytics.products as products
-    import tandem_backend.analytics.products.service as product_service
-    import tandem_backend.analytics.service as service
-    import tandem_backend.api.routes as legacy_routes
-    import tandem_backend.application.reports as reports
+    import orbit_backend.analytics.products as products
+    import orbit_backend.analytics.products.service as product_service
+    import orbit_backend.analytics.service as service
+    import orbit_backend.api.routes as legacy_routes
+    import orbit_backend.application.reports as reports
 
     monkeypatch.setattr(service, "analyze_store", boom)
     monkeypatch.setattr(products, "analyze_product_store", boom)

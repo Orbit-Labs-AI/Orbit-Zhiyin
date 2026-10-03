@@ -37,7 +37,7 @@ def test_platform_endpoints(gateway_client, tmp_path):
     assert client.put("/v1/platform/flags", json={"nope": True}).status_code == 422
 
     storage = client.get("/v1/platform/storage").json()
-    assert {c["id"] for c in storage["components"]} >= {"tandem_db", "app_db", "logs"}
+    assert {c["id"] for c in storage["components"]} >= {"orbit_db", "app_db", "logs"}
 
     status = client.get("/v1/platform/maintenance").json()
     assert status["wal_checkpoint"]["interval_s"] == 300
@@ -94,8 +94,8 @@ def test_recommend_settings_route(gateway_client):
 
 
 def test_close_releases_area_services(tmp_path):
-    from tandem_backend import features
-    from tandem_backend.services.gateway import Gateway
+    from orbit_backend import features
+    from orbit_backend.services.gateway import Gateway
 
     gateway = Gateway(tmp_path / "gw", discovery=lambda: [])
     closed = []

@@ -68,7 +68,7 @@ def test_concurrent_reads_during_import_never_fail(live_server, codex_root):
         response = client.get("/v1/sessions", params={"limit": 50})
         durations.append(time.perf_counter() - started)
         results.append((response.status_code, response.headers.get("retry-after"),
-                        response.headers.get("x-tandem-freshness")))
+                        response.headers.get("x-orbit-freshness")))
 
     def burst(count, results, durations):
         threads = []

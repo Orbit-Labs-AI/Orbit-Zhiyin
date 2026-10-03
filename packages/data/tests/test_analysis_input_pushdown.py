@@ -7,10 +7,10 @@ from contextlib import contextmanager
 
 import pytest
 
-from tandem_data import analysis_input
-from tandem_data.analysis_input import AnalysisScope, decoded, model_call_row, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.store import Store, readonly_connection
+from orbit_data import analysis_input
+from orbit_data.analysis_input import AnalysisScope, decoded, model_call_row, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.store import Store, readonly_connection
 
 
 def session_rows(n: int, base: int) -> list[dict]:
@@ -125,13 +125,13 @@ def build(tmp_path, sessions: int):
 
 def full_scan(home, query, keep, decode=decoded):
     """The former reader: decode every row, filter in Python, keep native scan order."""
-    with readonly_connection(home / "tandem.db") as connection:
+    with readonly_connection(home / "orbit.db") as connection:
         return [decode(row) for row in connection.execute(query) if keep(row)]
 
 
 def legacy_approval_visible(home, call_uid, until_ts):
     """The former per-call approval query: the last decision by seq governs."""
-    with readonly_connection(home / "tandem.db") as connection:
+    with readonly_connection(home / "orbit.db") as connection:
         decisions = connection.execute(
             "SELECT e.* FROM tool_call_event c JOIN event e USING(event_uid)"
             " WHERE c.call_uid=? AND c.role='permission.decision' ORDER BY e.seq",
@@ -252,7 +252,7 @@ def test_undated_title_survives_a_bounded_scope(tmp_path):
         store.capture_stream(source, "s1.jsonl", [(canonical(r) + "\n").encode() for r in rows])
         store.rebuild()
         home = store.home
-    with readonly_connection(home / "tandem.db") as connection:
+    with readonly_connection(home / "orbit.db") as connection:
         assert (
             connection.execute("SELECT ts FROM event WHERE kind='session.title'").fetchone()[0]
             is None

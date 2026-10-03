@@ -1,8 +1,8 @@
 """EV-13 suite: clean run passes; a revert that writes nothing fails the roundtrip check."""
 
-from tandem_backend.evalrun.contract import EvalContext
-from tandem_backend.evalrun.suites import install_roundtrip as suite
-from tandem_backend.install import service
+from orbit_backend.evalrun.contract import EvalContext
+from orbit_backend.evalrun.suites import install_roundtrip as suite
+from orbit_backend.install import service
 
 
 def test_clean_matrix_passes(tmp_path):

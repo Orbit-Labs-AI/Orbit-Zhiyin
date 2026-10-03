@@ -1,13 +1,13 @@
-"""Gateway-level `/v1/install` routes over a tmp Tandem home and a fabricated agent home."""
+"""Gateway-level `/v1/install` routes over a tmp Orbit home and a fabricated agent home."""
 
 import json
 
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend import install
-from tandem_backend.services.gateway import Gateway
-from tandem_backend.services.supervisor import SupervisorConfig
+from orbit_backend import install
+from orbit_backend.services.gateway import Gateway
+from orbit_backend.services.supervisor import SupervisorConfig
 
 from .test_fetch import COMMIT, FakeFetcher
 
@@ -21,7 +21,7 @@ SKILL = {"id": "foo-skill", "kind": "skill", "name": "foo", "url": "https://gith
 @pytest.fixture
 def client(tmp_path, env):
     config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0, backoff_s=(0.1, 0.2), tick_s=0.05)
-    gateway = Gateway(tmp_path / "tandem", config=config, discovery=lambda: [], prewarm_debounce_s=3600.0)
+    gateway = Gateway(tmp_path / "orbit", config=config, discovery=lambda: [], prewarm_debounce_s=3600.0)
     app = gateway.app(token=TOKEN, port=8765)
     svc = install.get_default_service()
     assert svc is gateway.install
@@ -75,7 +75,7 @@ def test_plan_preview_apply_revert_flow(client, fake_home):
     applied = applied.json()
     assert applied["state"] == "installed" and applied["undo_until_ms"] and len(applied["written"]) == 1
     assert applied["written"][0]["backup_path"]
-    assert not (fake_home / ".codex/rules/tandem-ro-git.rules").exists()
+    assert not (fake_home / ".codex/rules/orbit-ro-git.rules").exists()
     iid = applied["install_id"]
 
     assert c.get("/v1/install/state").json()["items"][0]["install_id"] == iid

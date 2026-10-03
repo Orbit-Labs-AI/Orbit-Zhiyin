@@ -14,14 +14,14 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import add_codex, wait_for, wait_job
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
 from synthetic import write_codex_tree
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
 
-from tandem_backend.services.gateway import Gateway, sync_wait
-from tandem_backend.services.jobs import AppState
-from tandem_backend.services.supervisor import IngestRunner, SupervisorConfig
-from tandem_backend.services.worker_ingest import IngestWorker, remove_stale_spills
+from orbit_backend.services.gateway import Gateway, sync_wait
+from orbit_backend.services.jobs import AppState
+from orbit_backend.services.supervisor import IngestRunner, SupervisorConfig
+from orbit_backend.services.worker_ingest import IngestWorker, remove_stale_spills
 
 
 def test_pending_capture_serves_the_published_snapshot(client_factory, tmp_path):
@@ -39,8 +39,8 @@ def test_pending_capture_serves_the_published_snapshot(client_factory, tmp_path)
     # v0.0.2: 503 projection_pending (the overview showed 0 sessions) unless this exact URL
     # had been answered before.
     assert page.status_code == 200, page.text
-    assert page.headers["x-tandem-freshness"] == "stale"
-    assert page.headers["x-tandem-projection"] == "pending"
+    assert page.headers["x-orbit-freshness"] == "stale"
+    assert page.headers["x-orbit-projection"] == "pending"
     assert page.headers["x-total-count"] == "6"
     status = client.get("/v1/status").json()
     # v0.0.2: "ready", whatever the reads answered.
@@ -221,7 +221,7 @@ def test_import_without_sources_reindexes_every_enabled_source(client_factory, c
 
 
 def test_progress_frames_carry_origin_and_every_new_source(tmp_path):
-    from tandem_backend.services.jobs import JobService
+    from orbit_backend.services.jobs import JobService
 
     state = AppState(tmp_path / "app-state.json")
     root = tmp_path / "codex"
@@ -245,10 +245,10 @@ def test_progress_frames_carry_origin_and_every_new_source(tmp_path):
 
 
 def test_freshness_reload_never_moves_the_published_revision_back(tmp_path, monkeypatch):
-    from tandem_backend.services import worker_ingest
-    from tandem_backend.services.gateway import Revisions
+    from orbit_backend.services import worker_ingest
+    from orbit_backend.services.gateway import Revisions
 
-    (tmp_path / "tandem.db").write_bytes(b"")
+    (tmp_path / "orbit.db").write_bytes(b"")
     revisions = Revisions()
     revisions.update(data_rev=7, counts={"sessions": 3}, freshness={"projection": "ready"})
     stale = {"data_rev": 6, "inventory_rev": 0, "counts": {"sessions": 2},

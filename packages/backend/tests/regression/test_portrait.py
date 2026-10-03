@@ -4,17 +4,17 @@ import json
 
 import pytest
 
-from tandem_backend.analysis import analyze
-from tandem_backend.analysis_reports import (
+from orbit_backend.analysis import analyze
+from orbit_backend.analysis_reports import (
     bottlenecks_markdown,
     cli_summary,
     process_markdown,
     profile_markdown,
 )
-from tandem_backend.cli import main
-from tandem_backend.pipeline_eval import _write_case
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store, import_codex
+from orbit_backend.cli import main
+from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store, import_codex
 
 
 def fixture_store(tmp_path):
@@ -144,8 +144,8 @@ def test_profile_headline_follows_coverage_instead_of_a_demo_dimension(tmp_path)
 
 
 def _dims(text):
-    from tandem_backend.feedback import signals
-    from tandem_backend.models import Event
+    from orbit_backend.feedback import signals
+    from orbit_backend.models import Event
 
     return {s.dimension for s in signals([Event("e", "s", 1, "user_message", None, text=text)])}
 
@@ -173,15 +173,15 @@ def test_english_discussion_or_negation_is_not_a_requirement(text, dimension):
 
 
 def test_signals_carry_bumped_rule_version():
-    from tandem_backend.feedback import signals
-    from tandem_backend.models import Event
+    from orbit_backend.feedback import signals
+    from orbit_backend.models import Event
 
     [signal] = signals([Event("e", "s", 1, "user_message", None, text="Please keep it concise.")])
     assert signal.rule_version == "rules-v14"
 
 
 def test_unexplained_terms_use_generic_shapes_not_one_corpus():
-    from tandem_backend.profiling.bottlenecks import unexplained_terms
+    from orbit_backend.profiling.bottlenecks import unexplained_terms
 
     # Common engineering acronyms are not jargon; JS in a front-end reply is ordinary.
     assert unexplained_terms("用 JS 调 API 返回 JSON，再在 UI 和 CLI 里显示。") == []
@@ -194,7 +194,7 @@ def test_unexplained_terms_use_generic_shapes_not_one_corpus():
 
 
 def test_scene_of_has_no_course_or_project_names():
-    from tandem_backend.feedback import scene_of
+    from orbit_backend.feedback import scene_of
 
     assert scene_of("帮我看看 SPADE 的进度") != "math_explanation"
     assert scene_of("请证明这个定理") == "math_explanation"

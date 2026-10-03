@@ -8,9 +8,9 @@ from statistics import median
 
 from evals.analytics.fixtures import synthetic_events
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.outcome_subjective import analyze_subjective_outcomes
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.outcome_subjective import analyze_subjective_outcomes
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def performance(sizes, repeats):

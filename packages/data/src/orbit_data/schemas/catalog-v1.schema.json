@@ -1,0 +1,1039 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Orbit catalog rows v1",
+  "x-database-schema-version": 3,
+  "$defs": {
+    "benchmark_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "canonical_model_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "model_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "harness": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "benchmark": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "benchmark_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "score": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-sql-type": "REAL"
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "measured_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "source_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "result": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "item_id",
+        "canonical_model_id",
+        "model_id",
+        "effort",
+        "harness",
+        "benchmark",
+        "benchmark_version",
+        "score",
+        "unit",
+        "measured_at",
+        "source_id",
+        "result"
+      ],
+      "x-ddl": "CREATE TABLE benchmark_result (\n item_id TEXT PRIMARY KEY REFERENCES catalog_item, canonical_model_id TEXT NOT NULL,\n model_id TEXT NOT NULL, effort TEXT, harness TEXT, benchmark TEXT NOT NULL,\n benchmark_version TEXT, score REAL, unit TEXT, measured_at TEXT, source_id TEXT,\n result TEXT NOT NULL\n) STRICT",
+      "x-foreign-keys": [
+        {
+          "table": "catalog_item",
+          "from": "item_id",
+          "to": null
+        }
+      ]
+    },
+    "blob": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sha": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "codec": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "size": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "data": {
+          "type": "string",
+          "x-sql-type": "BLOB",
+          "contentEncoding": "base64"
+        }
+      },
+      "required": [
+        "sha",
+        "codec",
+        "size",
+        "data"
+      ],
+      "x-ddl": "CREATE TABLE blob (\n sha TEXT PRIMARY KEY, codec INTEGER NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL\n) STRICT",
+      "x-foreign-keys": []
+    },
+    "catalog_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "type": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "name": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "name_key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "summary": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "url": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "agents": {
+          "type": "array",
+          "x-sql-type": "TEXT"
+        },
+        "language": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "difficulty": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "official": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "origin": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'remote'"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "installs": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "stars": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "updated_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "risk": {
+          "type": "array",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'[]'"
+        },
+        "risk_level": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "canonical_of": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "listable": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "body_policy": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "verification": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "body_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "latest_version": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "content_hash": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "metadata": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "first_seen": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "last_seen": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "required": [
+        "item_id",
+        "type",
+        "name",
+        "name_key",
+        "summary",
+        "url",
+        "status",
+        "license",
+        "agents",
+        "language",
+        "difficulty",
+        "official",
+        "origin",
+        "author",
+        "version",
+        "installs",
+        "stars",
+        "updated_at",
+        "risk",
+        "risk_level",
+        "canonical_of",
+        "listable",
+        "body_policy",
+        "verification",
+        "body_len",
+        "latest_version",
+        "content_hash",
+        "metadata",
+        "first_seen",
+        "last_seen"
+      ],
+      "x-ddl": "CREATE TABLE catalog_item (\n item_id TEXT PRIMARY KEY, type TEXT NOT NULL, name TEXT NOT NULL, name_key TEXT NOT NULL,\n summary TEXT NOT NULL, url TEXT NOT NULL, status TEXT NOT NULL, license TEXT, agents TEXT NOT NULL,\n language TEXT NOT NULL, difficulty INTEGER NOT NULL, official INTEGER NOT NULL,\n origin TEXT NOT NULL DEFAULT 'remote', author TEXT, version TEXT,\n installs INTEGER NOT NULL DEFAULT 0, stars INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL,\n risk TEXT NOT NULL DEFAULT '[]', risk_level INTEGER NOT NULL DEFAULT 0, canonical_of TEXT,\n listable INTEGER NOT NULL DEFAULT 0, body_policy TEXT NOT NULL, verification TEXT,\n body_len INTEGER NOT NULL DEFAULT 0, latest_version TEXT NOT NULL, content_hash TEXT NOT NULL,\n metadata TEXT NOT NULL, first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL\n) STRICT",
+      "x-foreign-keys": []
+    },
+    "catalog_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "value": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "x-ddl": "CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID, STRICT",
+      "x-foreign-keys": []
+    },
+    "catalog_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "spec": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "enabled": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "priority": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "watermark": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "completed_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "next_due_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "failures": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "source_id",
+        "spec",
+        "enabled",
+        "priority",
+        "revision",
+        "watermark",
+        "completed_at",
+        "next_due_at",
+        "failures",
+        "error"
+      ],
+      "x-ddl": "CREATE TABLE catalog_source (\n source_id TEXT PRIMARY KEY, spec TEXT NOT NULL, enabled INTEGER NOT NULL,\n priority INTEGER NOT NULL, revision TEXT, watermark TEXT, completed_at INTEGER,\n next_due_at INTEGER NOT NULL DEFAULT 0, failures INTEGER NOT NULL DEFAULT 0, error TEXT\n) STRICT",
+      "x-foreign-keys": []
+    },
+    "embedding_cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model_key": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "text_hash": {
+          "type": "string",
+          "x-sql-type": "BLOB",
+          "contentEncoding": "base64"
+        },
+        "dimensions": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "vector": {
+          "type": "string",
+          "x-sql-type": "BLOB",
+          "contentEncoding": "base64"
+        }
+      },
+      "required": [
+        "model_key",
+        "text_hash",
+        "dimensions",
+        "vector"
+      ],
+      "x-ddl": "CREATE TABLE embedding_cache (\n model_key INTEGER NOT NULL REFERENCES embedding_model, text_hash BLOB NOT NULL,\n dimensions INTEGER NOT NULL, vector BLOB NOT NULL,\n PRIMARY KEY(model_key, text_hash), CHECK(length(vector) = dimensions * 2)\n) STRICT",
+      "x-foreign-keys": [
+        {
+          "table": "embedding_model",
+          "from": "model_key",
+          "to": null
+        }
+      ]
+    },
+    "embedding_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model_key": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "model_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "dimensions": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "descriptor": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "created_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "required": [
+        "model_key",
+        "model_id",
+        "dimensions",
+        "descriptor",
+        "created_at"
+      ],
+      "x-ddl": "CREATE TABLE embedding_model (\n model_key INTEGER PRIMARY KEY, model_id TEXT NOT NULL UNIQUE, dimensions INTEGER NOT NULL,\n descriptor TEXT NOT NULL, created_at INTEGER NOT NULL\n) STRICT",
+      "x-foreign-keys": []
+    },
+    "item_agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "item_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "agent",
+        "item_id"
+      ],
+      "x-ddl": "CREATE TABLE item_agent (agent TEXT NOT NULL, item_id TEXT NOT NULL, PRIMARY KEY(agent, item_id)) WITHOUT ROWID, STRICT",
+      "x-foreign-keys": []
+    },
+    "item_component": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "parent_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "child_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "parent_id",
+        "child_id"
+      ],
+      "x-ddl": "CREATE TABLE item_component (\n parent_id TEXT NOT NULL, child_id TEXT NOT NULL, PRIMARY KEY(parent_id, child_id)\n) WITHOUT ROWID, STRICT",
+      "x-foreign-keys": []
+    },
+    "item_feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "feature": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "value": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "weight": {
+          "type": "number",
+          "x-sql-type": "REAL"
+        },
+        "origin": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "evidence": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "item_id",
+        "feature",
+        "value",
+        "weight",
+        "origin",
+        "evidence"
+      ],
+      "x-ddl": "CREATE TABLE item_feature (\n item_id TEXT NOT NULL, feature TEXT NOT NULL, value TEXT NOT NULL, weight REAL NOT NULL,\n origin TEXT NOT NULL, evidence TEXT NOT NULL, PRIMARY KEY(item_id, feature, value, origin)\n) WITHOUT ROWID, STRICT",
+      "x-foreign-keys": []
+    },
+    "item_relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "a": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "b": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "relation": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "relation"
+      ],
+      "x-ddl": "CREATE TABLE item_relation (\n a TEXT NOT NULL, b TEXT NOT NULL, relation TEXT NOT NULL, PRIMARY KEY(a, b, relation)\n) WITHOUT ROWID, STRICT",
+      "x-foreign-keys": []
+    },
+    "item_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "native_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "item_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "seen_run": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "fetched_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "res_sha": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "body_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "raw_sha": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "has_path": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "required": [
+        "source_id",
+        "native_id",
+        "item_id",
+        "status",
+        "seen_run",
+        "fetched_at",
+        "res_sha",
+        "body_sha",
+        "raw_sha",
+        "has_path"
+      ],
+      "x-ddl": "CREATE TABLE item_source (\n source_id TEXT NOT NULL REFERENCES catalog_source, native_id TEXT NOT NULL,\n item_id TEXT NOT NULL, status TEXT NOT NULL, seen_run TEXT NOT NULL, fetched_at INTEGER NOT NULL,\n res_sha TEXT NOT NULL, body_sha TEXT, raw_sha TEXT NOT NULL, has_path INTEGER NOT NULL,\n PRIMARY KEY(source_id, native_id)\n) WITHOUT ROWID, STRICT",
+      "x-foreign-keys": [
+        {
+          "table": "catalog_source",
+          "from": "source_id",
+          "to": null
+        }
+      ]
+    },
+    "item_version": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "item_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "content_hash": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "commit_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "doc_sha": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "body_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "size": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "created_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "required": [
+        "version_id",
+        "item_id",
+        "content_hash",
+        "version",
+        "commit_sha",
+        "doc_sha",
+        "body_sha",
+        "size",
+        "created_at"
+      ],
+      "x-ddl": "CREATE TABLE item_version (\n version_id TEXT PRIMARY KEY, item_id TEXT NOT NULL, content_hash TEXT NOT NULL,\n version TEXT, commit_sha TEXT, doc_sha TEXT NOT NULL, body_sha TEXT,\n size INTEGER NOT NULL, created_at INTEGER NOT NULL\n) STRICT",
+      "x-foreign-keys": []
+    },
+    "model_info": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "canonical_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "provider": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "model_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "family": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "aliases": {
+          "type": "array",
+          "x-sql-type": "TEXT"
+        },
+        "context_window": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "max_output": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "input_per_mtok": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-sql-type": "REAL"
+        },
+        "output_per_mtok": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-sql-type": "REAL"
+        },
+        "cache_read_per_mtok": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-sql-type": "REAL"
+        },
+        "reasoning": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "tool_call": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "modalities": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "knowledge_cutoff": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "source_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "specification": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "item_id",
+        "canonical_id",
+        "provider",
+        "model_id",
+        "family",
+        "aliases",
+        "context_window",
+        "max_output",
+        "input_per_mtok",
+        "output_per_mtok",
+        "cache_read_per_mtok",
+        "reasoning",
+        "tool_call",
+        "modalities",
+        "knowledge_cutoff",
+        "source_id",
+        "specification"
+      ],
+      "x-ddl": "CREATE TABLE model_info (\n item_id TEXT PRIMARY KEY REFERENCES catalog_item, canonical_id TEXT NOT NULL,\n provider TEXT NOT NULL, model_id TEXT NOT NULL, family TEXT, aliases TEXT NOT NULL,\n context_window INTEGER, max_output INTEGER, input_per_mtok REAL, output_per_mtok REAL,\n cache_read_per_mtok REAL, reasoning INTEGER, tool_call INTEGER, modalities TEXT NOT NULL,\n knowledge_cutoff TEXT, source_id TEXT, specification TEXT NOT NULL\n) STRICT",
+      "x-foreign-keys": [
+        {
+          "table": "catalog_item",
+          "from": "item_id",
+          "to": null
+        }
+      ]
+    },
+    "resource_chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "ordinal": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "chunk_rowid": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "field": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "heading": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "text_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "BLOB",
+          "contentEncoding": "base64"
+        },
+        "embed": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "required": [
+        "item_id",
+        "ordinal",
+        "chunk_rowid",
+        "field",
+        "heading",
+        "text_hash",
+        "embed"
+      ],
+      "x-ddl": "CREATE TABLE resource_chunk (\n item_id TEXT NOT NULL, ordinal INTEGER NOT NULL, chunk_rowid INTEGER NOT NULL, field TEXT NOT NULL,\n heading TEXT NOT NULL, text_hash BLOB, embed INTEGER NOT NULL, PRIMARY KEY(item_id, ordinal)\n) WITHOUT ROWID, STRICT",
+      "x-foreign-keys": []
+    },
+    "sync_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "mode": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'full'"
+        },
+        "checkpoint": {
+          "type": "object",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'{}'"
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "watermark": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "started_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "finished_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "seen": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "changed": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "retired": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        }
+      },
+      "required": [
+        "run_id",
+        "source_id",
+        "status",
+        "mode",
+        "checkpoint",
+        "revision",
+        "watermark",
+        "started_at",
+        "finished_at",
+        "seen",
+        "changed",
+        "retired",
+        "error"
+      ],
+      "x-ddl": "CREATE TABLE sync_run (\n run_id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES catalog_source,\n status TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'full', checkpoint TEXT NOT NULL DEFAULT '{}',\n revision TEXT, watermark TEXT, started_at INTEGER NOT NULL, finished_at INTEGER,\n seen INTEGER NOT NULL DEFAULT 0, changed INTEGER NOT NULL DEFAULT 0,\n retired INTEGER NOT NULL DEFAULT 0, error TEXT\n) STRICT",
+      "x-foreign-keys": [
+        {
+          "table": "catalog_source",
+          "from": "source_id",
+          "to": null
+        }
+      ]
+    },
+    "sync_stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "native_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "resource": {
+          "type": "string",
+          "x-sql-type": "BLOB",
+          "contentEncoding": "base64"
+        },
+        "raw": {
+          "type": "string",
+          "x-sql-type": "BLOB",
+          "contentEncoding": "base64"
+        }
+      },
+      "required": [
+        "run_id",
+        "native_id",
+        "resource",
+        "raw"
+      ],
+      "x-ddl": "CREATE TABLE sync_stage (\n run_id TEXT NOT NULL REFERENCES sync_run ON DELETE CASCADE, native_id TEXT NOT NULL,\n resource BLOB NOT NULL, raw BLOB NOT NULL, PRIMARY KEY(run_id, native_id)\n) WITHOUT ROWID, STRICT",
+      "x-foreign-keys": [
+        {
+          "table": "sync_run",
+          "from": "run_id",
+          "to": null
+        }
+      ]
+    }
+  },
+  "description": "Separate catalog.db. Decode JSON text columns; blob.data is zlib (codec 1) or raw (codec 0); embedding_cache.vector is little-endian float16; encode BLOBs as base64 for JSON transport."
+}

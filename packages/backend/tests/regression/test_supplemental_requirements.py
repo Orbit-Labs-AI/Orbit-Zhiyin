@@ -2,11 +2,11 @@
 
 import json
 
-from tandem_backend.analysis import analyze
-from tandem_backend.narrative import explain
-from tandem_backend.pipeline_eval import evidence_checks
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.narrative import explain
+from orbit_backend.pipeline_eval import evidence_checks
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store, import_codex
 
 
 def run(tmp_path, steps):

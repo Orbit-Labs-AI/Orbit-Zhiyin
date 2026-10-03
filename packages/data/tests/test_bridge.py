@@ -6,9 +6,9 @@ import sqlite3
 import pytest
 import zstandard
 
-from tandem_data.bridge import import_connector
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data.bridge import import_connector
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
 SCHEMA = (
     "CREATE TABLE source(source_id TEXT,agent TEXT,root_path TEXT,label TEXT);"
@@ -41,7 +41,7 @@ def staging(tmp_path, chunks, records, *, status="active", drop=None):
     home = tmp_path / "staging"
     (home / "raw").mkdir(parents=True, exist_ok=True)
     root = tmp_path / "source"
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         db.executescript(SCHEMA)
         db.execute("INSERT INTO source VALUES('src','codex',?,NULL)", (str(root),))
         db.execute(

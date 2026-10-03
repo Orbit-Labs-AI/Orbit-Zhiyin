@@ -99,7 +99,7 @@ for (const sf of ['panel', 'hud', 'widgets']) {
   test('collection paused (surface ' + sf + '): 采集已暂停 with 恢复采集 → POST resume', async ({ page }) => {
     const errors = collectErrors(page);
     const gw = await pausedGateway(page, { native: NATIVE });
-    await page.goto('http://tandem.test/app?live=1&surface=' + sf);
+    await page.goto('http://orbit.test/app?live=1&surface=' + sf);
     await expect.poll(() => page.evaluate(() => LV.state), { timeout: 10_000 }).not.toBe('connecting');
     const keep = { panel: '#pop', hud: '#hud', widgets: '#widgets' }[sf];
     await expect(page.locator(keep)).toContainText('采集已暂停');

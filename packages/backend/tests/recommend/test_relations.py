@@ -1,4 +1,4 @@
-from tandem_backend.recommend.relations import relations
+from orbit_backend.recommend.relations import relations
 
 
 def c(key, kind, pid="p1", ptype="tool_env_failure", **kw):

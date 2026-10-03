@@ -26,7 +26,7 @@
     "adds": 3,
     "dels": 1
   },
-  "backup_dir": "~/Library/Application Support/Tandem/backups/fx",
+  "backup_dir": "~/Library/Application Support/Orbit/backups/fx",
   "targets": [
     {
       "idx": 0,

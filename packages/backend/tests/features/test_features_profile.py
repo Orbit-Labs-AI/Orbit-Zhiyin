@@ -1,6 +1,6 @@
 import math
 
-from tandem_backend.features.profile import hash_vector
+from orbit_backend.features.profile import hash_vector
 
 
 def test_profile_weights_and_scope(seeded, make_service):
@@ -74,6 +74,6 @@ def test_centroid_deterministic(seeded, make_service):
     assert max(abs(x - y) for x, y in zip(first, again, strict=True)) < 1e-6
 
 
-def test_profile_without_tandem(home, make_service):
+def test_profile_without_orbit(home, make_service):
     body = make_service().profile()
     assert body["n_sessions"] == 0 and body["tags"] == [] and body["centroid"] is None

@@ -18,8 +18,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from synthetic import write_codex_tree  # noqa: E402
 
-from tandem_backend.services.gateway import Gateway  # noqa: E402
-from tandem_backend.services.supervisor import SupervisorConfig  # noqa: E402
+from orbit_backend.services.gateway import Gateway  # noqa: E402
+from orbit_backend.services.supervisor import SupervisorConfig  # noqa: E402
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -196,7 +196,7 @@ ALL_TIME = {"days": 0}
 def _reset_exclusion_provider():
     """Every gateway registers the process-wide exclusion provider; exclusion.merged is
     fail-closed, so a provider left over from an earlier test's closed app.db must not leak."""
-    from tandem_backend.sessionops import exclusion
+    from orbit_backend.sessionops import exclusion
 
     exclusion.set_provider(None)
     yield

@@ -1,6 +1,6 @@
 # Orbit 人格素材
 
-协作人格的视觉素材：16 型协作人格之花、16 型总览图，以及画像页的表盘（协作人格之花与轨道）。全部由 [`export.mjs`](export.mjs) 从现行 [Orbit 单文件原型](../../../prototypes/advance/tandem-demo.html) 导出：脚本在页面里调用原型自己的 `typeP()`、`bloom()`、`bloomParts()` 与画像页表盘，只导出、不重画，原型改了就重新导出。类型名取自 `05-data.js` 的 `TYPES`。
+协作人格的视觉素材：16 型协作人格之花、16 型总览图，以及画像页的表盘（协作人格之花与轨道）。全部由 [`export.mjs`](export.mjs) 从现行 [Orbit 单文件原型](../../../prototypes/advance/orbit-demo.html) 导出：脚本在页面里调用原型自己的 `typeP()`、`bloom()`、`bloomParts()` 与画像页表盘，只导出、不重画，原型改了就重新导出。类型名取自 `05-data.js` 的 `TYPES`。
 
 [`kit/manifest.json`](kit/manifest.json) 记录每个文件的尺寸、主题、类型码与字节数，以及导出时的完整提交 SHA 和两套主题解析出的颜色。
 
@@ -80,4 +80,4 @@ node docs/design/persona/export.mjs --check        # 只比对：导出到临时
 node docs/design/persona/export.mjs --out output/playwright/persona-kit   # 写到别处（相对仓库根）
 ```
 
-脚本先确认 `tandem-demo.html` 与 `src/` 一致，再以示例数据模式打开页面，等表盘入场动画结束后导出，页面脚本出错即失败。`PLAYWRIGHT_CHANNEL=chrome` 可改用本机 Chrome，`PLAYWRIGHT_MODULE` 可指定别的 Playwright 模块。Chromium 不认 `ui-rounded`，macOS 上脚本会把系统自带的 SF Pro Rounded 注册给页面，让总览图的类型码与 App 一致；其他系统会退回无衬线字体并给出提示。同一提交在同一台机器上重复导出，文件逐字节不变；`--check` 只比对 SVG（PNG 会随字体与浏览器版本略有差异）。
+脚本先确认 `orbit-demo.html` 与 `src/` 一致，再以示例数据模式打开页面，等表盘入场动画结束后导出，页面脚本出错即失败。`PLAYWRIGHT_CHANNEL=chrome` 可改用本机 Chrome，`PLAYWRIGHT_MODULE` 可指定别的 Playwright 模块。Chromium 不认 `ui-rounded`，macOS 上脚本会把系统自带的 SF Pro Rounded 注册给页面，让总览图的类型码与 App 一致；其他系统会退回无衬线字体并给出提示。同一提交在同一台机器上重复导出，文件逐字节不变；`--check` 只比对 SVG（PNG 会随字体与浏览器版本略有差异）。

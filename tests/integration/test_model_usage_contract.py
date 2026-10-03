@@ -4,13 +4,13 @@ import json
 import sqlite3
 from importlib.resources import files
 
-from tandem_data import SCHEMA_VERSION
-from tandem_data.analysis_input import AnalysisScope, model_call_row, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data import SCHEMA_VERSION
+from orbit_data.analysis_input import AnalysisScope, model_call_row, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
-from tandem_backend.analytics.cost_time import usage
-from tandem_backend.analytics.inputs import Scope
+from orbit_backend.analytics.cost_time import usage
+from orbit_backend.analytics.inputs import Scope
 
 
 def test_native_and_observed_boundaries_are_used_but_unknown_is_diagnosed(tmp_path):
@@ -48,9 +48,9 @@ def test_native_and_observed_boundaries_are_used_but_unknown_is_diagnosed(tmp_pa
 def test_v6_upgrade_backfills_quality_from_evidence_and_preserves_identity(tmp_path):
     home = tmp_path / "old"
     home.mkdir()
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         for version in range(1, 7):
-            db.executescript(files("tandem_data").joinpath(f"migrations/{version:03}.sql").read_text())
+            db.executescript(files("orbit_data").joinpath(f"migrations/{version:03}.sql").read_text())
         db.execute("PRAGMA foreign_keys=OFF")
         for index, (request_id, boundary, _quality) in enumerate([
                 ("native", None, "reported"), (None, "changed_cumulative_usage", "observed"),

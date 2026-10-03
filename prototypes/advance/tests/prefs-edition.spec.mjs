@@ -16,7 +16,7 @@ async function launch(browser, prefs, o) {
     window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.2', platform: 'macos', features };
     window.__ORBIT_PREFS__ = p;
     window.__nativeMsgs = [];
-    window.webkit = { messageHandlers: { tandem: { postMessage: (m) => window.__nativeMsgs.push(JSON.parse(JSON.stringify(m))) } } };
+    window.webkit = { messageHandlers: { orbit: { postMessage: (m) => window.__nativeMsgs.push(JSON.parse(JSON.stringify(m))) } } };
   }, [prefs, o.features || ['window', 'prefs']]);
   await page.goto(URL0 + (o.query || ''));
   await page.waitForFunction((surf) => typeof S !== 'undefined' && (surf || !!document.querySelector('#content')), !!o.query);
@@ -69,8 +69,8 @@ test('store.set posts merged keys; null deletes; other surfaces never write the 
   expect(last.range).toBe(30);
   expect(last.theme).toBeNull();
   expect(r.out.theme).toBeUndefined();
-  // another surface's change arrives as tandem:prefs and updates this page's copy
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('tandem:prefs', { detail: { set: { wgSize: 'l' } } })));
+  // another surface's change arrives as orbit:prefs and updates this page's copy
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('orbit:prefs', { detail: { set: { wgSize: 'l' } } })));
   expect(await page.evaluate(() => store.get('wgSize', 'm'))).toBe('l');
   await ctx.close();
 
@@ -86,6 +86,6 @@ test('browser (no prefs feature) keeps localStorage, Advance and no native posts
   expect(await page.evaluate(() => [store.native, S.ed, S.route])).toEqual([false, 'advance', 'overview']);
   await page.evaluate(() => { store.set('range', 7); go('tools'); });
   await sleep(250);
-  expect(await page.evaluate(() => [window.__nativeMsgs.filter((m) => m.type === 'prefs').length, localStorage.getItem('tandem-demo:range')])).toEqual([0, '7']);
+  expect(await page.evaluate(() => [window.__nativeMsgs.filter((m) => m.type === 'prefs').length, localStorage.getItem('orbit-demo:range')])).toEqual([0, '7']);
   await ctx.close();
 });

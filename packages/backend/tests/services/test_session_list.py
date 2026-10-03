@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 
 def imported_home(tmp_path):
@@ -21,7 +21,7 @@ def test_sessions_report_model_kind_and_filter(tmp_path, client_factory):
     home = imported_home(tmp_path)
     import sqlite3
 
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         # The fixtures only hold main sessions; mark one as a review run.
         db.execute(
             "UPDATE session SET kind='review' WHERE session_uid="
@@ -54,7 +54,7 @@ def test_projects_hide_empty_and_disambiguate_names(tmp_path, client_factory):
     home = imported_home(tmp_path)
     import sqlite3
 
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         used = db.execute(
             "SELECT p.project_id, p.name FROM project p JOIN session s USING(project_id)"
             " GROUP BY p.project_id ORDER BY p.project_id LIMIT 1"

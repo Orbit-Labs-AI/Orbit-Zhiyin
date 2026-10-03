@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from tandem_backend.analytics.interaction import analyze_interaction
+from orbit_backend.analytics.interaction import analyze_interaction
 
 
 def annotation(**values):

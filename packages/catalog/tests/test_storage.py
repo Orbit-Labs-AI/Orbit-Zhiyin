@@ -2,9 +2,9 @@ import sqlite3
 
 import pytest
 
-from tandem_catalog.contracts import Feature, Page, Record, Resource, SourceSpec
-from tandem_catalog.features import chunks, lexical_tokens
-from tandem_catalog.store import CatalogBusy, CatalogStore
+from orbit_catalog.contracts import Feature, Page, Record, Resource, SourceSpec
+from orbit_catalog.features import chunks, lexical_tokens
+from orbit_catalog.store import CatalogBusy, CatalogStore
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def test_schema_reopens_and_rejects_another_database(tmp_path):
     path = tmp_path / "catalog.db"
     CatalogStore(path)
     assert CatalogStore(path).stats()["items"] == 0
-    other = tmp_path / "tandem.db"
+    other = tmp_path / "orbit.db"
     with sqlite3.connect(other) as conn:
         conn.execute("CREATE TABLE sessions(id TEXT)")
     with pytest.raises(ValueError, match="not_a_catalog"):
@@ -152,8 +152,8 @@ def test_catalog_field_dictionary_matches_data_package_ddl():
     import json
     from importlib.resources import files
 
-    from tandem_catalog.schema_export import table_schemas
-    expected = json.loads(files("tandem_data").joinpath("schemas/catalog-v1.schema.json").read_text())
+    from orbit_catalog.schema_export import table_schemas
+    expected = json.loads(files("orbit_data").joinpath("schemas/catalog-v1.schema.json").read_text())
     assert expected == table_schemas()
 
 
@@ -238,7 +238,7 @@ def test_duplicate_content_elects_canonical_and_reelects_on_removal(store):
      ["external_tools", "needs_secret"], 2),
 ])
 def test_static_risk_estimate(kwargs, flags, level):
-    from tandem_catalog.risk import assess
+    from orbit_catalog.risk import assess
     resource = Resource(item_id="r", name="r", url="u", **{"type": "skill", **kwargs})
     assert assess(resource) == (flags, level)
 
@@ -276,7 +276,7 @@ def test_known_resources_and_vacuum(store):
 
 
 def _features_of(name="tool", summary="", body=""):
-    from tandem_catalog.features import extract
+    from orbit_catalog.features import extract
     resource = Resource(item_id="f", type="skill", name=name, summary=summary, body=body, url="https://example.org")
     return {(f.feature, f.value): f.weight for f in extract(resource)}
 

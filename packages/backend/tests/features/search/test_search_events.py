@@ -7,14 +7,14 @@ The v8 store is the synthetic fixture store with the event-index section of the 
 import sys
 from pathlib import Path
 
+import orbit_data
 import pytest
-import tandem_data
 from conftest import DAY, NOW
 
-from tandem_backend.features.search import PER_SOURCE, search
-from tandem_backend.features.search_index import SearchIndex
+from orbit_backend.features.search import PER_SOURCE, search
+from orbit_backend.features.search_index import SearchIndex
 
-MIGRATION = Path(tandem_data.__file__).parent / "migrations" / "008.sql"
+MIGRATION = Path(orbit_data.__file__).parent / "migrations" / "008.sql"
 
 
 def to_v8(world):
@@ -28,7 +28,7 @@ def to_v8(world):
 @pytest.fixture
 def v8(world):
     to_v8(world)
-    world.project("p1", "Tandem 前端")
+    world.project("p1", "Orbit 前端")
     world.project("p2", "billing-api")
     world.session("s1", project="p1", title="修复登录页面的样式问题", started=NOW - DAY)
     world.session("s2", source="s-codex", project="p2", title="Refactor login flow",

@@ -1,7 +1,7 @@
 """Judge displayed text while retaining fact checks and contextual trial limits."""
 
-from tandem_backend.evaluation import evaluate_text
-from tandem_backend.recommend import trial_method
+from orbit_backend.evaluation import evaluate_text
+from orbit_backend.recommend import trial_method
 
 
 def test_link_destinations_and_collapsed_details_do_not_count_as_first_layer_overload():

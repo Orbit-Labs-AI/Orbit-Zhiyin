@@ -5,11 +5,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from signal_fixtures import Session, bundle, retry_session
 
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import analyze_context
-from tandem_backend.api.insights import build_router
-from tandem_backend.models import stable_id
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import analyze_context
+from orbit_backend.api.insights import build_router
+from orbit_backend.models import stable_id
 
 
 def corpus():
@@ -114,8 +114,8 @@ class _NoProjection:
 
 @pytest.fixture
 def gateway_client():
-    from tandem_backend.services.gateway import install_error_handlers
-    from tandem_backend.services.routes_analytics import router
+    from orbit_backend.services.gateway import install_error_handlers
+    from orbit_backend.services.routes_analytics import router
 
     app = FastAPI()
     install_error_handlers(app)
@@ -140,10 +140,10 @@ def test_get_routes_reject_unknown_target_agent(gateway_client, route):
 
 
 def test_targets_match_the_data_capability_matrix_and_analyzer_accepts_them():
-    from tandem_data.capabilities import MATRIX
+    from orbit_data.capabilities import MATRIX
 
-    from tandem_backend.analytics.recommendations.analyzer import recommend_bottlenecks
-    from tandem_backend.analytics.recommendations.catalog import TARGETS
+    from orbit_backend.analytics.recommendations.analyzer import recommend_bottlenecks
+    from orbit_backend.analytics.recommendations.catalog import TARGETS
 
     assert {"hermes", "kimi", "opencode", "dsh", "pi", "codex", "claude_code"} <= set(MATRIX)
     assert TARGETS == {"generic", *MATRIX}

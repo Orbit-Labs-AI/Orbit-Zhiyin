@@ -2,10 +2,10 @@ import json
 import threading
 from pathlib import Path
 
-from tandem_catalog.contracts import Page, Record, Resource, SourceSpec
-from tandem_catalog.network import FetchError, HttpClient
-from tandem_catalog.store import CatalogStore
-from tandem_catalog.sync import CatalogSync
+from orbit_catalog.contracts import Page, Record, Resource, SourceSpec
+from orbit_catalog.network import FetchError, HttpClient
+from orbit_catalog.store import CatalogStore
+from orbit_catalog.sync import CatalogSync
 
 from .test_network import FakeOpener, client
 from .test_storage import record
@@ -153,7 +153,7 @@ def test_benchmarks_resolve_against_models_imported_in_same_run(tmp_path):
 
 
 def run_cli(capsys, *argv):
-    from tandem_catalog.cli import main
+    from orbit_catalog.cli import main
     try:
         main(list(argv))
         code = 0

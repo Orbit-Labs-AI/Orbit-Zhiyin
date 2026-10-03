@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.presentation.diagnostics import build_diagnostics
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.presentation.diagnostics import build_diagnostics
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def _call(uid, *, sid="s", seq=1, name="shell", state="success"):

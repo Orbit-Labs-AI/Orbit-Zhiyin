@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
 
-from tandem_catalog.contracts import Feature, MatchRequest, Record, Resource, SourceSpec
-from tandem_catalog.search import search
-from tandem_catalog.store import CatalogStore
-from tandem_catalog.vectors import index_embeddings, normalize_vectors, register_model
+from orbit_catalog.contracts import Feature, MatchRequest, Record, Resource, SourceSpec
+from orbit_catalog.search import search
+from orbit_catalog.store import CatalogStore
+from orbit_catalog.vectors import index_embeddings, normalize_vectors, register_model
 
 from .test_storage import publish, record
 
@@ -152,7 +152,7 @@ def test_lexical_finds_filtered_item_behind_many_stronger_hits(store):
 
 
 def test_match_many_equals_individual_matches(tmp_path):
-    from tandem_catalog.service import CatalogService
+    from orbit_catalog.service import CatalogService
     service = CatalogService(tmp_path / "catalog.db", encoder=ToyEncoder())
     try:
         service.store.register([SourceSpec(source_id="primary", kind="bundle", url="bundled:test", priority=99)])
@@ -167,7 +167,7 @@ def test_match_many_equals_individual_matches(tmp_path):
 
 
 def test_fp16_scores_preserve_fp32_top10():
-    from tandem_catalog.vectors import blocked_scores
+    from orbit_catalog.vectors import blocked_scores
     rng = np.random.default_rng(7)
     matrix = normalize_vectors(rng.normal(size=(5000, 64)), 5000, 64)
     overlaps = []
@@ -189,7 +189,7 @@ def test_snake_case_query_matches_fts_split_not_phrase(store, text):
 
 
 def test_lexical_fts_error_degrades_only_that_route(store, monkeypatch):
-    import tandem_catalog.search as module
+    import orbit_catalog.search as module
     publish(store, [record("envfix", features=[Feature(feature="friction", value="tool_env", origin="curated")])])
     monkeypatch.setattr(module, "_fts_term", lambda term, is_prefix: '"a b"')  # phrase: unsupported here
     result = search(store, MatchRequest(text="tool env", features=[Feature(feature="friction", value="tool_env")]))
@@ -215,7 +215,7 @@ def _lexical_raw(result, item_id):
 def test_bm25f_absolute_score_matches_hand_computation(store):
     import math
 
-    from tandem_catalog.search import IDF_PRIOR_DOCS
+    from orbit_catalog.search import IDF_PRIOR_DOCS
     _animals(store)  # 4 items, one metadata chunk each: "name\nsummary"
     n = 4 + IDF_PRIOR_DOCS
     idf = lambda df: math.log(1 + (n - df + 0.5) / (df + 0.5))  # noqa: E731
@@ -273,7 +273,7 @@ def test_same_item_scores_identically_in_different_candidate_sets(store):
 
 @pytest.fixture(scope="module")
 def seeded(tmp_path_factory):
-    from tandem_catalog.service import CatalogService
+    from orbit_catalog.service import CatalogService
     service = CatalogService(tmp_path_factory.mktemp("seed") / "catalog.db")
     service.bootstrap()
     yield service
@@ -315,7 +315,7 @@ def test_mmr_does_not_treat_shared_agents_as_redundancy(store):
     by_score = sorted(items, key=lambda i: (-i["score"], -i["score_parts"]["rrf"], i["item_id"]))
     # Distinct names and repositories, same kind: every pair is 1/5 similar, so MMR keeps score order.
     assert [i["item_id"] for i in items] == [i["item_id"] for i in by_score]
-    from tandem_catalog.search import _similarity, redundancy_keys
+    from orbit_catalog.search import _similarity, redundancy_keys
     keys = {i: redundancy_keys({"url": f"https://github.com/{i}/repo", "name_key": i, "type": "skill"}) for i in "ab"}
     assert _similarity({"content_hash": "x", "_keys": keys["a"]}, {"content_hash": "y", "_keys": keys["b"]}) == 0.2
 
@@ -345,7 +345,7 @@ def test_seed_chinese_queries_reach_english_items_without_a_model(seeded, text):
 
 
 def test_han_expansion_is_one_concept_and_does_not_dilute(store):
-    from tandem_catalog.search import HAN_EXPANSIONS, query_concepts
+    from orbit_catalog.search import HAN_EXPANSIONS, query_concepts
     assert {"code review", "pull request"} <= HAN_EXPANSIONS["代码审查"]  # from VOCABULARY ("domain", "git.pr")
     assert len(query_concepts("代码审查")) == 1
     publish(store, [Record(native_id="r", resource=Resource(item_id="r", type="skill", name="reviewer",

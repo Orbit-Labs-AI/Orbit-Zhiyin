@@ -8,20 +8,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from tandem_data.cli import statistics
-from tandem_data.discovery import inputs
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.source_reader import SourceUnavailable
-from tandem_data.store import Store
+from orbit_data.cli import statistics
+from orbit_data.discovery import inputs
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.source_reader import SourceUnavailable
+from orbit_data.store import Store
 
 from evals.analytics.robustness_invariants import validate_result
-from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import analyze_store
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.contracts import RecommendationContext
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.diagnostics import diagnostics, terminal_text
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import analyze_store
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.contracts import RecommendationContext
+from orbit_backend.recommend.service import recommend
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CATALOG = Path(__file__).with_name("fixtures") / "reviewed-skills.json"

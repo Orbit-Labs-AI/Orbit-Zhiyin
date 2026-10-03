@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from tandem_backend.features.hub import QueryHub
+from orbit_backend.features.hub import QueryHub
 
 
 def test_gather_parallel_and_errors(seeded, make_service):
@@ -17,7 +17,7 @@ def test_late_attach(home, make_service, catalog, request):
     svc = make_service()
     assert svc.hub.attached() == set()
     assert svc.match({"vector": {"tool:browser": 1.0}}) == []
-    request.getfixturevalue("tandem")
+    request.getfixturevalue("orbit")
     catalog([("i1", "skill", ["claude_code"], "active", [("tool_kind", "browser", 1.0)])])
     assert svc.hub.attached() == {"t", "c"}
     assert svc.catalog_rev() == "0"
@@ -52,7 +52,7 @@ def test_match_scores(home, make_service, catalog):
 
 @pytest.mark.serial
 def test_hub_close(home, tmp_path):
-    from tandem_backend.appdb import AppDB
+    from orbit_backend.appdb import AppDB
 
     appdb = AppDB(home / "app.db")
     hub = QueryHub(home, appdb.path, workers=2)

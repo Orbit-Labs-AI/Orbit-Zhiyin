@@ -7,7 +7,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.services.gateway import Gateway
+from orbit_backend.services.gateway import Gateway
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 BASE = "http://127.0.0.1:8765"
@@ -19,7 +19,7 @@ LOCAL = {"kind": "skill", "name": "Retry triage", "summary": "generated", "body"
 def client(tmp_path, monkeypatch):
     def no_network(*args, **kwargs):
         raise AssertionError("catalog tests must not reach the network")
-    monkeypatch.setattr("tandem_catalog.network.HttpClient.get", no_network)
+    monkeypatch.setattr("orbit_catalog.network.HttpClient.get", no_network)
     gateway = Gateway(tmp_path / "home", discovery=lambda: [], prewarm_debounce_s=3600.0)
     # No lifespan: catalog routes do not need the supervisor or ingest worker.
     yield TestClient(gateway.app(token=TOKEN, port=8765), base_url=BASE, headers={"Authorization": f"Bearer {TOKEN}"})
@@ -35,7 +35,7 @@ def wait_job(client, job_id):
 
 
 def test_gateway_serves_catalog_reads_local_writes_and_sync(client, monkeypatch):
-    started = client.post("/v1/catalog/sync", json={"source_ids": ["tandem-seeds"]})
+    started = client.post("/v1/catalog/sync", json={"source_ids": ["orbit-seeds"]})
     assert started.status_code == 202
     assert wait_job(client, started.json()["job_id"])["status"] == "completed"
 
@@ -60,7 +60,7 @@ def test_gateway_serves_catalog_reads_local_writes_and_sync(client, monkeypatch)
 
 
 def test_cards_are_decorated_when_features_inventory_exists(client, monkeypatch):
-    from tandem_backend import features
+    from orbit_backend import features
     created = client.post("/v1/catalog/local", json=LOCAL).json()
     linked = {"items": [{"inv_id": "i1", "agent": "codex", "scope": "user", "status": "active",
                          "catalog": {"item_id": created["item_id"], "method": "ledger", "confidence": 1.0}},
@@ -81,8 +81,8 @@ def test_catalog_reads_answer_304_until_the_generation_moves(client):
 
 
 def test_sync_passes_concurrency_offline_and_reports_durations(client, monkeypatch):
-    from tandem_backend import platform
-    from tandem_catalog.sync import CatalogSync
+    from orbit_backend import platform
+    from orbit_catalog.sync import CatalogSync
     seen, recorded = {}, []
     original = CatalogSync.sync
 
@@ -91,7 +91,7 @@ def test_sync_passes_concurrency_offline_and_reports_durations(client, monkeypat
         return original(self, *args, **kwargs)
     monkeypatch.setattr(CatalogSync, "sync", spy)
     monkeypatch.setattr(platform, "record", lambda name, value=1.0, **tags: recorded.append((name, value, tags)))
-    started = client.post("/v1/catalog/sync", json={"source_ids": ["tandem-seeds"], "concurrency": 2, "force": True,
+    started = client.post("/v1/catalog/sync", json={"source_ids": ["orbit-seeds"], "concurrency": 2, "force": True,
                                                     "offline": True, "ttl": 600})
     job = wait_job(client, started.json()["job_id"])
     assert seen == {"concurrency": 2, "offline": True, "ttl": 600}

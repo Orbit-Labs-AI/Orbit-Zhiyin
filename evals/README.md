@@ -3,7 +3,7 @@
 从仓库根通过模块方式运行：
 
 ```sh
-uv run tandem evaluate
+uv run orbit evaluate
 uv run python -m evals.analytics.subjective_outcomes
 uv run python -m evals.analytics.instruction_real --help
 uv run python -m evals.analytics.semantic_history --help
@@ -12,7 +12,7 @@ uv run python -m evals.analytics.preference_local --help
 
 subjective_outcomes 默认只使用构造质量样本；真实历史必须同时明确提供 --real-db 和 --codex-home。其他真实数据工具也需显式输入路径。输出保留在忽略的 .local 下，不能提交真实会话。
 
-Preference 一键验证：`bash scripts/check-preference.sh`。指定 `--db /path/to/canonical/tandem.db` 后追加只读快照诊断；只运行快照诊断可用 `uv run --locked python -m evals.analytics.preference_local --db /path/to/canonical/tandem.db`。支持时间、项目与排除会话筛选，详见 [用法与输出](../docs/modules/analytics/preference.md#本地验证脚本)。不导入来源、不迁移旧库，也不以这个局部验证代替完整 API 验收。
+Preference 一键验证：`bash scripts/check-preference.sh`。指定 `--db /path/to/canonical/orbit.db` 后追加只读快照诊断；只运行快照诊断可用 `uv run --locked python -m evals.analytics.preference_local --db /path/to/canonical/orbit.db`。支持时间、项目与排除会话筛选，详见 [用法与输出](../docs/modules/analytics/preference.md#本地验证脚本)。不导入来源、不迁移旧库，也不以这个局部验证代替完整 API 验收。
 
 原来 subjective_outcomes 中的性能测试已拆到 [benchmarks](../benchmarks/README.md)。运行时 API 使用的评价函数与内置 JSON 样本仍随 backend wheel 分发，不能移到仓库工具后造成安装版本缺文件。
 
@@ -40,7 +40,7 @@ bash scripts/test-local-codex-recommend.sh
 
 `--latest 0` 导入全部允许的会话文件，`--codex-home /path/to/codex` 指定来源；`--context /path/to/context.json` 提供已确认的工具、权限和偏好，`--catalog /path/to/skills.json` 替换资源 envelope，`--from-ts / --until-ts` 用 UTC 毫秒选择分析范围。不会联网、安装或执行 Skill，也不会修改源日志。
 
-每次运行创建 `.local/codex-recommend/run-<时间>-<标识>/`，保存 `data/tandem.db`、selection / import / verify / analytics / recommendations / summary JSON 和 `report.md`。原生来源按当前数据层契约就地只读索引，不另存原始日志副本；后续回查证据仍依赖来源文件。真实结果只留在忽略目录。显式 `--output` 必须是新目录，避免旧会话混入新样本；仓库内输出必须位于 `.local`。
+每次运行创建 `.local/codex-recommend/run-<时间>-<标识>/`，保存 `data/orbit.db`、selection / import / verify / analytics / recommendations / summary JSON 和 `report.md`。原生来源按当前数据层契约就地只读索引，不另存原始日志副本；后续回查证据仍依赖来源文件。真实结果只留在忽略目录。显式 `--output` 必须是新目录，避免旧会话混入新样本；仓库内输出必须位于 `.local`。
 
 端到端工具同时保存八族／逐 Skill 诊断和 `invariants.json`：检查主会话真人分母、任务成员归属、推荐信号与证据回溯、时间可见性及未知环境。关系断裂时失败，不会标成链路完成。
 

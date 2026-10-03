@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from tandem_backend.analytics.outcome import analyze_outcome, extract_validation_runs
+from orbit_backend.analytics.outcome import analyze_outcome, extract_validation_runs
 
 SCOPE = {"project_id": "p", "artifact_uid": "app", "artifact_revision": "v1", "coverage": "full"}
 

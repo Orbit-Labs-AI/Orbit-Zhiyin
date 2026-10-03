@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const TandemLive = require('../tandem-live.js');
+const OrbitLive = require('../orbit-live.js');
 
 const FX = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'studio-settings', name + '.json'), 'utf8'));
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
@@ -26,7 +26,7 @@ function timers() {
   const long = [];
   return { long, setTimeout(f, ms) { if (ms >= 1000) { const t = { f, ms }; long.push(t); return t; } return setTimeout(f, ms); }, clearTimeout(t) { const i = long.indexOf(t); if (i >= 0) long.splice(i, 1); else clearTimeout(t); } };
 }
-const live = (gw) => TandemLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 'tok', fetch: gw.fetch, timers: timers(), win: {} });
+const live = (gw) => OrbitLive.create({ mode: 'live', endpoint: 'http://gw.test', token: 'tok', fetch: gw.fetch, timers: timers(), win: {} });
 function sse(frames) {
   return () => new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(frames.map((f) => 'id: ' + f.id + '\nevent: ' + f.event + '\ndata: ' + JSON.stringify(f.data) + '\n\n').join(''))); c.close(); } }), { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
 }
@@ -54,10 +54,10 @@ test('unavailable: 404 / 501 / 503 / network fall back to demo values; 4xx answe
   const gw = gateway({ 'GET /v1/ai/engines': () => json({ error: { code: 'not_available' } }, 501), 'GET /v1/platform/health': () => json({}, 503) });
   const C = live(gw);
   for (const p of ['/v1/ai/engines', '/v1/platform/health', '/v1/nope']) await assert.rejects(C.send('GET', p), (e) => C.unavailable(e));
-  const down = TandemLive.create({ mode: 'live', endpoint: 'http://gw.test', fetch: async () => { throw new TypeError('fetch failed'); }, timers: timers(), win: {} });
+  const down = OrbitLive.create({ mode: 'live', endpoint: 'http://gw.test', fetch: async () => { throw new TypeError('fetch failed'); }, timers: timers(), win: {} });
   await assert.rejects(down.send('GET', '/v1/ai/engines'), (e) => e.code === 'network' && down.unavailable(e));
   assert.equal(C.unavailable({ status: 409, code: 'preview_stale' }), false);
-  const mock = TandemLive.create({ mode: 'mock', win: {} });
+  const mock = OrbitLive.create({ mode: 'mock', win: {} });
   await assert.rejects(mock.send('GET', '/v1/ai/engines'), (e) => e.code === 'mock_mode');
 });
 
@@ -99,5 +99,5 @@ test('notify topic is requested; a collection service frame sets C.collection an
   assert.deepEqual(names, ['notification', 'attention', 'service']);
   assert.equal(C.collection, 'paused');
   assert.equal(C.services.collection, undefined);
-  assert.equal(TandemLive.ui.banner(C), '');
+  assert.equal(OrbitLive.ui.banner(C), '');
 });

@@ -1,13 +1,13 @@
-"""Agents keep writing their logs while Tandem imports them (synthetic sources only)."""
+"""Agents keep writing their logs while Orbit imports them (synthetic sources only)."""
 
 import json
 
 import pytest
 
-from tandem_data import parallel
-from tandem_data.contract import canonical
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
+from orbit_data import parallel
+from orbit_data.contract import canonical
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
 
 
 def line(session, text):
@@ -175,7 +175,7 @@ def test_live_capture_and_append_fast_path_share_one_byte_accounting(
 
 def test_progressive_batch_retries_when_a_file_is_rewritten_after_capture(tmp_path, monkeypatch):
     """The no-savepoint source rebuild aborts its batch; the retry recaptures and publishes."""
-    from tandem_data import scheduler
+    from orbit_data import scheduler
 
     root = tmp_path / "claude"
     stable, live = root / "projects/p/stable.jsonl", root / "projects/p/live.jsonl"

@@ -3,9 +3,9 @@
 import random
 import re
 
-from tandem_backend.analytics.text import representation
+from orbit_backend.analytics.text import representation
 
-BOILERPLATE = ("You are working in the tandem repository. Follow AGENTS.md, keep commits small "
+BOILERPLATE = ("You are working in the orbit repository. Follow AGENTS.md, keep commits small "
                "and run the checks before you finish.\n请用中文回复，并在结束前总结改动。")
 TOPICS = {
     "frontend": ["调整 CSS 布局", "button styles", "页面 响应式", "dark mode theme", "组件 样式",

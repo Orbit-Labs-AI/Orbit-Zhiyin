@@ -6,8 +6,8 @@ from importlib.resources import files
 
 import pytest
 
-from tandem_data.analysis_history import AnalysisHistory
-from tandem_data.schema_export import table_schemas
+from orbit_data.analysis_history import AnalysisHistory
+from orbit_data.schema_export import table_schemas
 
 
 def test_repeated_runs_keep_individual_requests_and_full_deduplicated_snapshots(tmp_path):
@@ -65,7 +65,7 @@ def test_threaded_runs_and_schema_export_are_consistent(tmp_path):
     assert len(set(ids)) == 12 and history.list_runs(status="completed")["total"] == 12
     assert [history.result(uid)["index"] for uid in ids] == list(range(12))
     schema = json.loads(
-        files("tandem_data").joinpath("schemas/analysis-history-v1.schema.json").read_text()
+        files("orbit_data").joinpath("schemas/analysis-history-v1.schema.json").read_text()
     )
     assert table_schemas("analysis") == schema
     assert set(schema["$defs"]) == {
@@ -117,7 +117,7 @@ def test_version_one_history_is_migrated_in_place(tmp_path):
     path = tmp_path / "analysis.sqlite"
     connection = sqlite3.connect(path)
     connection.executescript(
-        files("tandem_data").joinpath("migrations/analysis/001.sql").read_text()
+        files("orbit_data").joinpath("migrations/analysis/001.sql").read_text()
         + "\nPRAGMA user_version=1;"
     )
     connection.execute(

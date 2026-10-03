@@ -1,6 +1,6 @@
-from tandem_backend.bottlenecks import diagnose
-from tandem_backend.feedback import scene_of, signals
-from tandem_backend.models import Event
+from orbit_backend.bottlenecks import diagnose
+from orbit_backend.feedback import scene_of, signals
+from orbit_backend.models import Event
 
 
 def dimensions(text):

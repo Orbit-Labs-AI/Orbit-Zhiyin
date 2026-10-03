@@ -1,6 +1,6 @@
 # 数据与分析模块对照 UI 的后端缺口
 
-2026-10-02。核对基线：main `9eb18b4`，并计入本文所在分支的 [PR #35](https://github.com/ActionMesh-AI/Hackathon/pull/35) 索引式数据与原文轨迹实现（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），安装清单已随 PR #31 进入 main；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/tandem-benchmark-demo.html`、`docs/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
+2026-10-02。核对基线：main `9eb18b4`，并计入本文所在分支的 [PR #35](https://github.com/ActionMesh-AI/Hackathon/pull/35) 索引式数据与原文轨迹实现（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），安装清单已随 PR #31 进入 main；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/orbit-benchmark-demo.html`、`docs/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
 
 本文回答一个问题：**要让两版 UI 的每个页面和按钮接上真实数据与真实动作，数据模块和分析模块还差什么，另外还需要哪些后端程序。** 八个分析族各自的功能缺口已写在 [analysis-review.md](../plans/analysis-review.md)，本文不重复逐族展开，只在页面与横切能力里引用；数据获取的目标方案见 [data-acquisition.md](../plans/data-acquisition.md)，统计口径见 [analysis-inputs.md](../contracts/analysis-inputs.md)。
 
@@ -21,12 +21,12 @@
 
 | 能力 | 现状 |
 | --- | --- |
-| 会话导入 | 7 个 connector（`tandem_data/connectors/`）。来源目录只读，`--home` 不能放在来源目录内 |
+| 会话导入 | 7 个 connector（`orbit_data/connectors/`）。来源目录只读，`--home` 不能放在来源目录内 |
 | 存储 | L0 来源位置 / 版本 / 哈希索引（原生扫描不复制整份 session，旧归档兼容）→ L1 逐行记账（mapped / folded / replayed / duplicate / ignored / unparsed）→ L2 `event`（过 JSON Schema 校验）→ L3 `session / turn / tool_call / model_call / usage_snapshot / link / session_feature`。迁移在 `migrations/`，`user_version = 6` |
 | 增量 | Python 端按文件 stat 跳过；文件变了流式更新索引，L1 复用未变的行，L2/L3 按来源重建；归档移动 / 压缩替换按哈希保留记录身份，来源删除时保留已发布事实并标明缺口；`ImportService.watch` 是 2 秒轮询。TS 端只有 Codex，支持真正的 offset/inode 增量和 `fs.watch` 递归监听，经 `import-connector` 桥接进统一库 |
 | 安装清单 | `inventory/`（PR #31，已进 main）：skill / mcp / hook / plugin / rule / scheduled_task 六类，10 种目录布局；只存名称、路径、哈希与可空的 enabled，不存命令、env、正文 |
 | 脱敏 | `privacy.py`：密钥字段、认证头、私钥、常见 token 前缀、URL 凭据；L2 正文和字段不再按长度截断。原文留在来源，通过位置 / 主键与哈希校验按需读取 |
-| 对外接口 | `read_analysis(home, AnalysisScope)` 返回 `analysis-input-v1`；`event_page` 按 seq 游标分页；`trajectory_page` 返回含未知 / 忽略 / 重放记录的完整轨迹，`record_source` 打开原文；`tandem-data export` 导出 11 张表或视图 |
+| 对外接口 | `read_analysis(home, AnalysisScope)` 返回 `analysis-input-v1`；`event_page` 按 seq 游标分页；`trajectory_page` 返回含未知 / 忽略 / 重放记录的完整轨迹，`record_source` 打开原文；`orbit-data export` 导出 11 张表或视图 |
 
 ### 1.2 分析模块（`packages/backend`）
 
@@ -183,7 +183,7 @@ Lite 去掉了生成工坊、桌面小组件、悬浮组件、首次启动、人
 | G-D7 | MCP 常驻开销 | MCP 调用可统计，但工具 schema 的常驻 token 未采集 | 工具页"闲置 MCP"、已装未用 | 从会话初始化记录或配置读取 MCP 工具清单与描述长度，估算常驻 token，并标注为估算 |
 | G-D8 | 名称归一 | `model_alias` 表一直为空；没有跨 Agent 的工具名映射 | 设置·工具名映射表、轨迹泳道分类、工具页跨 Agent 合并 | 内置工具名 → 类别（read / edit / bash / web / sub / mcp）映射，用户覆盖存入 G-D10；模型别名同理 |
 | G-D9 | 全文搜索接口 | `event_fts`（FTS5）与触发器已建，但没有任何 MATCH 查询，CLI 与服务也没有搜索入口 | 命令面板、会话搜索、反馈语出处 | 在 `query.py` 增加按 Scope 过滤的 FTS 查询与高亮片段，供 G-B8 使用 |
-| G-D10 | 用户状态存储 | canonical 库是只读派生；排除的会话、停用的来源、标签改判、"不像我 / 不准确 / 不适用 / 不感兴趣"反馈、名称映射覆盖都无处存放 | 全局排除与恢复、设置、所有纠错入口 | 新建独立可写的应用状态库（与 `tandem.db` 分开，重建不丢）；分析读取时合并 |
+| G-D10 | 用户状态存储 | canonical 库是只读派生；排除的会话、停用的来源、标签改判、"不像我 / 不准确 / 不适用 / 不感兴趣"反馈、名称映射覆盖都无处存放 | 全局排除与恢复、设置、所有纠错入口 | 新建独立可写的应用状态库（与 `orbit.db` 分开，重建不丢）；分析读取时合并 |
 | G-D11 | 自定义来源 | 只有 7 个固定 connector | 设置·自定义来源（JSONL、SQLite、Markdown，沙盒下用安全书签授权） | 通用导入器：字段映射配置 → L2 事件；先做 JSONL |
 | G-D12 | 可配置脱敏 | `privacy.py` 规则固定；原生采集只保存索引，表内脱敏，显式原文访问不脱敏；旧归档仍兼容 | 设置·隐私（6 类规则开关、自定义正则、样例测试命中） | 规则可配置并版本化，变更后触发 L2 重建；UI 区分"分析表已脱敏"与"显式打开未脱敏来源"；保持新原生采集不复制整份 session |
 | G-D13 | 数据管理 | 有表级导出；没有存储占用统计、清除全部数据、导出全部 JSON | 设置·隐私 | 在服务层提供占用统计、带确认词的清除、全量 JSON 导出 |
@@ -226,7 +226,7 @@ Lite 去掉了生成工坊、桌面小组件、悬浮组件、首次启动、人
 
 | 编号 | 程序 | 现状 | 需要做什么 | 版本 |
 | --- | --- | --- | --- | --- |
-| G-B1 | 面向 App 的服务层 | `tandem serve` 启动 127.0.0.1:8765；端点按模块分散，旧新接口并存；无缓存；Scope 缺来源 / Agent 多选、主题、结果、摩擦、开始小时筛选 | 统一版本化接口与错误格式；Scope 补齐 UI 的全部筛选维度与手动排除；页面形状的聚合端点；快照接口供小组件和菜单栏读取；桌面 App 负责服务启停（module-map 中的未来 `apps/desktop`） | 两版 |
+| G-B1 | 面向 App 的服务层 | `orbit serve` 启动 127.0.0.1:8765；端点按模块分散，旧新接口并存；无缓存；Scope 缺来源 / Agent 多选、主题、结果、摩擦、开始小时筛选 | 统一版本化接口与错误格式；Scope 补齐 UI 的全部筛选维度与手动排除；页面形状的聚合端点；快照接口供小组件和菜单栏读取；桌面 App 负责服务启停（module-map 中的未来 `apps/desktop`） | 两版 |
 | G-B2 | LLM 执行层 | 无 | 引擎三档：仅统计 / 本机 Agent headless / Ollama；固定输入与闭集输出、缓存键、预算封顶、`FakeEngine` 测试替身；所有 AI 文案可降级为模板 | Advance；Lite 可只用"仅统计" |
 | G-B3 | 问本地 Agent | 无 | 按当前 Scope 打包统计与证据 → 流式回答 → 回答中的会话引用可跳转 → 转交生成工坊 | Advance |
 | G-B4 | 生成工坊 | 无 | 产物模板（Skill / Hook / 规则 / 子代理 / 工作流），模型只填有类型的槽位；上下文包与 token 估算；流式起草、可停止并保留草稿；自检（结构、与已装重名、危险命令扫描、用 3 个历史会话回放）；产物历史与"存入资源库" | Advance |
@@ -277,9 +277,9 @@ Lite 去掉了生成工坊、桌面小组件、悬浮组件、首次启动、人
 
 ## 11. 核对依据
 
-- 数据模块：`packages/data/src/tandem_data/`（`connectors/`、`store.py`、`pipeline.py`、`reduce.py`、`analysis_input.py`、`service.py`、`query.py`、`privacy.py`、`migrations/`）、`packages/connectors/src/`（`ingest.ts`、`watch.ts`、`normalize.ts`）；安装清单 `inventory/` 以 `feat/local-inventory` 为准。
-- 分析模块：`packages/backend/src/tandem_backend/`（`analytics/`、`profiling/`、`recommend/`、`reporting/`、`api/routes.py`、`data_access/store.py`）；资源目录 `packages/catalog/src/tandem_catalog/`。
-- UI：Advance `prototypes/advance/src/js/05-data.js`、`15-derive.js`、`40`–`48` 各页、`50`–`57` 浮层与流程、`60`–`62` 菜单栏 / HUD / 小组件、`70-sim.js`，以及 v1 画板标注；Lite `prototypes/lite/tandem-benchmark-demo.html` 与 `docs/design/lite-review.md`。
-- 关键结论的复核：全仓库没有模型调用；`event_fts` 只有建表与触发器，没有查询；数据包中没有 `attrs.interaction` 与 `attrs.acceptance` 的生产者；推荐的 7 个 family 目录 JSON 条目数均为 0；`tandem demo` 能跑通导入 → 画像 → 瓶颈 → 推荐。
+- 数据模块：`packages/data/src/orbit_data/`（`connectors/`、`store.py`、`pipeline.py`、`reduce.py`、`analysis_input.py`、`service.py`、`query.py`、`privacy.py`、`migrations/`）、`packages/connectors/src/`（`ingest.ts`、`watch.ts`、`normalize.ts`）；安装清单 `inventory/` 以 `feat/local-inventory` 为准。
+- 分析模块：`packages/backend/src/orbit_backend/`（`analytics/`、`profiling/`、`recommend/`、`reporting/`、`api/routes.py`、`data_access/store.py`）；资源目录 `packages/catalog/src/orbit_catalog/`。
+- UI：Advance `prototypes/advance/src/js/05-data.js`、`15-derive.js`、`40`–`48` 各页、`50`–`57` 浮层与流程、`60`–`62` 菜单栏 / HUD / 小组件、`70-sim.js`，以及 v1 画板标注；Lite `prototypes/lite/orbit-benchmark-demo.html` 与 `docs/design/lite-review.md`。
+- 关键结论的复核：全仓库没有模型调用；`event_fts` 只有建表与触发器，没有查询；数据包中没有 `attrs.interaction` 与 `attrs.acceptance` 的生产者；推荐的 7 个 family 目录 JSON 条目数均为 0；`orbit demo` 能跑通导入 → 画像 → 瓶颈 → 推荐。
 
 本文只做静态核对与差距梳理，没有修改代码或原型，也没有运行完整测试套件。

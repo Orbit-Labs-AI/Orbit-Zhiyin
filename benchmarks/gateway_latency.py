@@ -25,7 +25,7 @@ from pathlib import Path
 import httpx
 import uvicorn
 
-from tandem_backend.services.gateway import Gateway
+from orbit_backend.services.gateway import Gateway
 
 ROOT = Path(__file__).resolve().parents[1]
 TOKEN = "benchmark-token-0123456789abcdefghij"
@@ -34,7 +34,7 @@ THRESHOLDS_MS = {"status": 20, "session_page": 30, "snapshot_hit": 100, "not_mod
 
 def _synthetic():
     path = ROOT / "packages/backend/tests/services/synthetic.py"
-    spec = importlib.util.spec_from_file_location("tandem_synthetic", path)
+    spec = importlib.util.spec_from_file_location("orbit_synthetic", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -134,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--strict", action="store_true", help="exit 1 when a p95 budget fails")
     args = parser.parse_args(argv)
-    with tempfile.TemporaryDirectory(prefix="tandem-gateway-bench-") as directory:
+    with tempfile.TemporaryDirectory(prefix="orbit-gateway-bench-") as directory:
         results = run(args.sessions, args.repeats, Path(directory))
     checks = {name: {"p95_ms": results[name]["p95"], "budget_ms": budget,
                      "ok": results[name]["p95"] <= budget}

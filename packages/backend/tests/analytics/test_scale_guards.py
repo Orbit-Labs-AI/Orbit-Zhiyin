@@ -2,9 +2,9 @@
 
 import random
 
-from tandem_backend.analytics.common import human, task_uid
-from tandem_backend.analytics.interaction import features
-from tandem_backend.analytics.interaction.rules import EXECUTION_KINDS
+from orbit_backend.analytics.common import human, task_uid
+from orbit_backend.analytics.interaction import features
+from orbit_backend.analytics.interaction.rules import EXECUTION_KINDS
 
 
 def _reference(events, main_ids):

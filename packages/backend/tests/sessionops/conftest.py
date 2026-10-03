@@ -1,4 +1,4 @@
-"""Synthetic tandem.db + gateway under tmp_path; never touches the real HOME or agent dirs."""
+"""Synthetic orbit.db + gateway under tmp_path; never touches the real HOME or agent dirs."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
-from tandem_data.privacy import REDACTION_VERSION
-from tandem_data.store import Store
+from orbit_data import MAPPER_VERSION, REDUCER_VERSION
+from orbit_data.privacy import REDACTION_VERSION
+from orbit_data.store import Store
 
-from tandem_backend.services.gateway import Gateway
-from tandem_backend.services.supervisor import SupervisorConfig
-from tandem_backend.sessionops import exclusion
+from orbit_backend.services.gateway import Gateway
+from orbit_backend.services.supervisor import SupervisorConfig
+from orbit_backend.sessionops import exclusion
 
 T0 = 1_760_000_000_000
 TOKEN = "synthetic-test-token-0123456789abcdef"
@@ -22,12 +22,12 @@ WATERMARK = json.dumps({"projected_revision": 0, "revision": 0, "mapper_version"
                         "reducer_version": REDUCER_VERSION, "redaction_version": REDACTION_VERSION})
 
 
-class Tandem:
-    """Raw INSERTs over the real tandem.db schema (foreign keys off), published projection."""
+class Orbit:
+    """Raw INSERTs over the real orbit.db schema (foreign keys off), published projection."""
 
     def __init__(self, home: Path, roots: Path):
         Store(home).db.close()
-        self.db = sqlite3.connect(home / "tandem.db", isolation_level=None)
+        self.db = sqlite3.connect(home / "orbit.db", isolation_level=None)
         self.db.execute("PRAGMA foreign_keys = OFF")
         self.roots = roots
         self.n = 0
@@ -102,8 +102,8 @@ def home(tmp_path) -> Path:
 
 
 @pytest.fixture
-def tandem(home, tmp_path):
-    t = Tandem(home, tmp_path / "agents")
+def orbit(home, tmp_path):
+    t = Orbit(home, tmp_path / "agents")
     yield t
     t.db.close()
 

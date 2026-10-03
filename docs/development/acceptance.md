@@ -5,14 +5,14 @@
 在仓库根目录运行：
 
 ```sh
-.venv/bin/tandem demo --output .local/demo
-.venv/bin/tandem demo --output .local/demo --view profile
-.venv/bin/tandem demo --output .local/demo --view bottlenecks
-.venv/bin/tandem demo --output .local/demo --view process
-.venv/bin/tandem evaluate --output .local/evaluation.json
+.venv/bin/orbit demo --output .local/demo
+.venv/bin/orbit demo --output .local/demo --view profile
+.venv/bin/orbit demo --output .local/demo --view bottlenecks
+.venv/bin/orbit demo --output .local/demo --view process
+.venv/bin/orbit evaluate --output .local/evaluation.json
 ```
 
-先看终端的画像与瓶颈，再看推荐。`profile / bottlenecks / process` 的 JSON 与 Markdown 保存中间副产品，`report.md` 解释最后的建议。可运行 `tandem --db .local/demo/demo.sqlite evidence <证据ID>` 回看原记录。demo 使用虚构数据；自己的记录按 [README](../../README.md) 导入。真实数据与派生报告都留在 `.local/`。
+先看终端的画像与瓶颈，再看推荐。`profile / bottlenecks / process` 的 JSON 与 Markdown 保存中间副产品，`report.md` 解释最后的建议。可运行 `orbit --db .local/demo/demo.sqlite evidence <证据ID>` 回看原记录。demo 使用虚构数据；自己的记录按 [README](../../README.md) 导入。真实数据与派生报告都留在 `.local/`。
 
 验收时看四件事：
 

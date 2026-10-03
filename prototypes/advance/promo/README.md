@@ -1,6 +1,6 @@
 # Orbit 宣传片
 
-约 55 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../tandem-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
+约 55 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../orbit-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
 - **人格罗盘**：与 App 的指南针表盘共用几何，并接入 App 的数据。
 - **Orbit 标志**：用和 `docs/design/logo` spiral 变体相同的锥形螺旋实时生成。
 
@@ -24,7 +24,7 @@
 
 ```bash
 uv run --with numpy --with scipy python promo/music.py
-node build.mjs && node promo/render.mjs            # -> promo/out/tandem-promo.mp4
+node build.mjs && node promo/render.mjs            # -> promo/out/orbit-promo.mp4
 ```
 
 `render.mjs` 的参数：`--fps 60`、`--scale 2`（按 2× 渲染后缩放到 1080p）、`--from/--to <秒>`、`--frames <目录>`（输出 JPG 序列而不是 MP4）、`--only 16,20.5`（只截取这几拍的画面，用于快速出联系表）、`--debug`（打印镜头目标的位置）。环境变量 `PROMO_PAGE=<文件名>` 可以渲染同目录下的另一个页面（例如只加载某几个场景的测试页）。

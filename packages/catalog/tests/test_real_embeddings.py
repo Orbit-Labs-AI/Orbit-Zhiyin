@@ -4,17 +4,17 @@ import os
 
 import pytest
 
-from tandem_catalog.contracts import MatchRequest, Record, Resource, SourceSpec
-from tandem_catalog.search import search
-from tandem_catalog.store import CatalogStore
-from tandem_catalog.vectors import LocalE5Encoder, index_embeddings
+from orbit_catalog.contracts import MatchRequest, Record, Resource, SourceSpec
+from orbit_catalog.search import search
+from orbit_catalog.store import CatalogStore
+from orbit_catalog.vectors import LocalE5Encoder, index_embeddings
 
 from .test_storage import publish
 
 
-@pytest.mark.skipif(not os.environ.get("TANDEM_TEST_E5_DIR"), reason="local E5 snapshot not supplied")
+@pytest.mark.skipif(not os.environ.get("ORBIT_TEST_E5_DIR"), reason="local E5 snapshot not supplied")
 def test_local_multilingual_recall(tmp_path):
-    encoder = LocalE5Encoder(os.environ["TANDEM_TEST_E5_DIR"])
+    encoder = LocalE5Encoder(os.environ["ORBIT_TEST_E5_DIR"])
     store = CatalogStore(tmp_path / "catalog.db")
     store.register([SourceSpec(source_id="primary", kind="bundle", url="bundled:test")])
     documents = {
