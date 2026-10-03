@@ -192,7 +192,7 @@ test('live Lite library: catalog cards, detail and install (preview_stale re-con
   await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
   // B09: the official source label is Orbit's; B08: raw `agent: … command: …` index metadata never reaches a card
   await expect(lib).toContainText('Orbit 官方');
-  await expect(lib).not.toContainText('Orbit 官方');
+  await expect(lib).not.toContainText('Tandem 官方');  // orbit-rename: keep
   await expect(lib).not.toContainText(/(?:^|\s)(?:agent|command|dimension):\s/);
   await page.locator('[data-tl-item="fx:hook/retry-guard"] [data-act="li-detail"]').evaluate((el) => el.click());
   await expect(page.locator('#modal [data-tl="lib-readme"]')).toContainText('同一命令连续失败两次后暂停');

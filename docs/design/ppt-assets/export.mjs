@@ -255,7 +255,7 @@ try {
     await write(file, `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="#17181b" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="${esc(d)}"/></svg>`);
     assets.push({ id: 'icon-' + name, title: name, kind: 'icons', file, format: 'SVG', width: 96, height: 96, theme: 'light', source: 'prototypes/advance/src/js/00-utils.js', transparent: true });
   }
-  for (const name of ['orbit-mark.svg', 'orbit-mark-light.svg', 'orbit-icon.svg', 'orbit-icon.png', 'kit/app-icon/orbit-app-icon-night.svg', 'kit/mark/orbit-mark-white.svg']) {
+  for (const name of ['orbit-mark.svg', 'orbit-mark-light.svg', 'orbit-icon.svg', 'orbit-icon.png', 'kit/app-icon/orbit-app-icon-night.svg', 'kit/mark/orbit-mark-white.svg', 'kit/dock/png/orbit-dock-1024.png', 'kit/wordmark/orbit-wordmark-ink.svg', 'kit/wordmark/orbit-wordmark-night.svg']) {
     const source = 'docs/design/logo/' + name, file = 'brand/' + path.basename(name);
     await write(file, await fs.readFile(path.join(root, source)));
     assets.push({ id: path.basename(name).replace(/\./g, '-'), title: path.basename(name), kind: 'brand', source, file, format: path.extname(name).slice(1).toUpperCase(), theme: /light|night|white/.test(name) ? 'dark' : 'light', transparent: !name.includes('icon') });
