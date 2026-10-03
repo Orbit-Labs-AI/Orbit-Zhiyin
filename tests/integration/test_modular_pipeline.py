@@ -140,7 +140,12 @@ def test_no_implicit_legacy_database_or_raw_acquisition_on_read(tmp_path):
     assert not (tmp_path / "absent").exists()
 
 
-def test_reader_rejects_stale_projection_until_rebuilt(data):
+def test_reader_serves_the_published_projection_until_rebuilt(data):
+    """A capture that is not published yet never mixes into analysis: readers keep reading
+    the published run (strict readers refuse), and the rebuild publishes the new facts."""
+    from tandem_data.query import current_projection
+    from tandem_data.store import readonly_connection
+
     home, root = data
     before = analyze_store(CanonicalStore(home), with_text=False)["analysis_digest"]
     with Store(home) as store:
@@ -149,8 +154,9 @@ def test_reader_rejects_stale_projection_until_rebuilt(data):
             handle.write(json.dumps({"type": "event_msg", "timestamp": "2026-01-02T00:00:00Z",
                                     "payload": {"type": "user_message", "message": "new prompt"}}) + "\n")
         ImportService(store).import_source(ImportRequest("codex", root, rebuild=False))
-    with pytest.raises(ValueError, match="pending|incomplete"):
-        CanonicalStore(home).read_bundle()
+    assert analyze_store(CanonicalStore(home), with_text=False)["analysis_digest"] == before
+    with readonly_connection(home / "tandem.db") as db, pytest.raises(ValueError, match="pending"):
+        current_projection(db)
     ingest(home, "codex", root)
     assert analyze_store(CanonicalStore(home), with_text=False)["analysis_digest"] != before
 

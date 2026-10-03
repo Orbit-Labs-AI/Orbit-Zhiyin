@@ -29,13 +29,24 @@ from tandem_data.source_reader import SourceUnavailable, source_path
 CLOSURE_AGENTS = frozenset({"claude_code", "pi", "dsh"})
 MAX_CLOSURE_FRACTION = 0.3
 MAX_ESCALATIONS = 4
+# Captured but unpublished, or published by older versions; a revision already settled as
+# retained (its source changed under the projection) waits for its next capture instead.
 STALE_FILES = (
     "SELECT f.file_id,f.source_id FROM source_file f WHERE "
-    "COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) "
+    "(COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) "
     "OR COALESCE(json_extract(watermark,'$.mapper_version'),'')<>? "
     "OR COALESCE(json_extract(watermark,'$.reducer_version'),'')<>? "
-    "OR COALESCE(json_extract(watermark,'$.redaction_version'),'')<>?"
+    "OR COALESCE(json_extract(watermark,'$.redaction_version'),'')<>?) "
+    "AND NOT (COALESCE(json_extract(watermark,'$.retained_revision'),-1) = "
+    "COALESCE(json_extract(watermark,'$.revision'),0) "
+    "AND COALESCE(json_extract(watermark,'$.retained_versions'),'') = ?)"
 )
+
+
+def stale_params():
+    from tandem_data.query import projection_versions
+
+    return (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION, projection_versions())
 
 
 class ScopeEscalation(Exception):  # noqa: N818 - control flow inside one rebuild
@@ -165,9 +176,7 @@ class ClosureScope:
 
 def stale_files(db):
     stale = {}
-    for file_id, source_id in db.execute(
-        STALE_FILES, (MAPPER_VERSION, REDUCER_VERSION, REDACTION_VERSION)
-    ):
+    for file_id, source_id in db.execute(STALE_FILES, stale_params()):
         stale.setdefault(source_id, set()).add(file_id)
     return stale
 
@@ -253,15 +262,32 @@ def closure(store, source_id, files, extra_sessions=(), max_fraction=MAX_CLOSURE
 
 
 def project(store, *, workers, pool=None, progress=None, max_fraction=MAX_CLOSURE_FRACTION):
-    """Publish every stale file, preferring session closures over whole sources."""
-    from tandem_data.pipeline import rebuild, rebuild_retaining
+    """Publish every stale file, preferring session closures over whole sources.
+
+    Progress events carry which source is being projected (``projecting``: agent,
+    ``source_index``/``sources``) and whether it is a session ``closure`` or the whole
+    ``source``, so a job that publishes several sources reads as one pass per source.
+    """
+    from tandem_data.pipeline import rebuild, rebuild_retaining, settled_files
 
     stale = stale_files(store.db)
     result = None
+    report = progress or (lambda _: None)
+    agents = {row[0]: row[1] for row in store.db.execute("SELECT source_id,agent FROM source")}
     try:
         if not stale:
             return rebuild(store, source_ids=set(), progress=progress, workers=workers, pool=pool)
-        for source_id in sorted(stale):
+        for position, source_id in enumerate(sorted(stale), 1):
+            where = {
+                "projecting": agents.get(source_id),
+                "source_index": position,
+                "sources": len(stale),
+                "files_stale": len(stale[source_id]),
+            }
+
+            def tagged(kind, where=where):
+                return lambda update: report({**update, **where, "scope": kind})
+
             extra = set()
             for _ in range(MAX_ESCALATIONS):
                 scope = closure(store, source_id, stale[source_id], extra, max_fraction)
@@ -269,7 +295,7 @@ def project(store, *, workers, pool=None, progress=None, max_fraction=MAX_CLOSUR
                     break
                 try:
                     result = rebuild_retaining(
-                        store, scope=scope, progress=progress, workers=workers, pool=pool
+                        store, scope=scope, progress=tagged("closure"), workers=workers, pool=pool
                     )
                     # A file rewritten after capture widens the attempt to its source.
                     result["scope"] = (
@@ -288,18 +314,24 @@ def project(store, *, workers, pool=None, progress=None, max_fraction=MAX_CLOSUR
                     # Outside a batch, or a batch retried after a source changed under it:
                     # savepoint-backed attempts that retain a rewritten file's facts.
                     result = rebuild_retaining(
-                        store, source_ids={source_id}, progress=progress, workers=workers, pool=pool
+                        store,
+                        source_ids={source_id},
+                        progress=tagged("source"),
+                        workers=workers,
+                        pool=pool,
                     )
                 else:
                     # Fast path: no savepoint. A file rewritten after capture raises
                     # SourceUnavailable and aborts the batch; import_progressive retries it.
+                    # Revisions already settled as retained are retained from the start.
                     with _join_batch(store):
                         result = rebuild(
                             store,
                             source_ids={source_id},
-                            progress=progress,
+                            progress=tagged("source"),
                             workers=workers,
                             pool=pool,
+                            changed=frozenset(settled_files(store, {source_id})),
                         )
                 result["scope"] = {"kind": "source"}
         return result

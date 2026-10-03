@@ -93,6 +93,9 @@ class Stopper:
         self.rounds -= 1
         return self.rounds < 0
 
+    def is_set(self) -> bool:
+        return self.rounds < 0
+
 
 def run_sync_loop(gw, rounds: int) -> None:
     from tandem_backend.services.gateway import Gateway
