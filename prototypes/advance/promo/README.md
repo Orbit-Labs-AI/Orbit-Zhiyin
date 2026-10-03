@@ -1,20 +1,20 @@
 # Orbit 宣传片
 
-约 62.4 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../tandem-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
+约 56 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../tandem-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
 - **人格罗盘**：App 的 Orbit 表盘（`fp2SVG`：16 型扇区、按会话四维分布的 Agent 轨道与标志、人格之花），直接调用 App 的 `fpClassify` / `fpOrbit` / `bloom` / `typeP` / `agLogo` 绘制，App 改了表盘或花型，宣传片随之更新。
 - **Orbit 标志**：与 `docs/design/logo/orbit-spec.json` 同一条锥形螺旋、同一套线宽规则（近粗远细、两端渐细、交叉处断开，按 `orbit.py` 计算）实时生成，任何视角都是 App 图标曲线的整体等比缩放。标志与字标一律白色。片头：描出 45° 标志 → 原样播放 `docs/design/logo/kit/motion/orbit-reveal.html` 的展开帧（绕轴转一周、转为 O 并展开 rbit·知音）→ 字母收回，O 转为俯视螺旋并旋转下潜进入功能展示。片尾：罗盘轨道收成圆环 → 圆环倾倒成带 5 颗 Agent 行星的轨道 → 沿轨道长出螺旋 → 回到 45° 标志，下方只有标语，不再放字标。
 
 字体与 App 一致：SF Pro + PingFang SC、SF Mono，人格类型码用 SF Pro Rounded（`.tcode`）。
 
 全片回答开场的两个问题。文案只描述产品能力，不出现个人数据（会话数、Agent 数量、节省的小时数、维度分值等）；画面里的界面是 App 自带的示例数据。
-- **01 人格分析**：会话碎成粒子、按各自方位落进轨道 → 花苞随扫描转一圈后开花 → 在两个示例类型上各停约 2.1 秒（每次切换：旧花一瓣瓣收起、新花紧随其后一瓣瓣绽开，类型字母像翻牌一样匀速滚动到下一型）→ 落定「指挥家 DIMV」并停约 5 秒 → 优势与盲点；外圈每个 Agent 的轨道与标志从圆环上均匀分布的位置出发，按各自速度持续绕行。
+- **01 人格分析**：会话碎成粒子、按各自方位落进轨道 → 花苞随扫描转一圈后开花 → 在两个示例类型上各停约 1.5 秒（每次切换：旧花一瓣瓣收起、新花紧随其后一瓣瓣绽开，类型名称与字母都像字牌一样匀速滚动到下一型）→ 落定「指挥家 DIMV」并停约 5 秒 → 优势与盲点；外圈每个 Agent 的轨道与标志从圆环上均匀分布的位置出发，缓慢漂移，并随花瓣收起与绽开按各自速度同步转动。
 - **02 推荐 → 效率**：点盲点旁的「建议 →」→ Skill / Prompt / Hook 三张真实建议逐张落下、各停约 2.1 秒，上方预计省时随每张滚动 → 看清改动（约 3 秒）→ 下一步 / 确认写入 → 直接看前后对比（约 4 秒）→ 「把时间还给你自己」。
 随后直接进入收尾：罗盘的轨道收成圆环，倾倒成轨道、长出螺旋，回到 45° 标志。
 
 | 文件 | 作用 |
 | --- | --- |
 | `promo.html` / `promo.css` | 1920×1080 舞台：`#app0`/`#app1` 两份 App 与 `#cam2` 罗盘，各有一组 `.cam`/`.rig` 镜头；`#orbit` 画 Orbit 标志与行星；`#fx` 放文字 |
-| `promo.js` | 引擎（以拍为单位，124 BPM）：`shot()`/`tween()` 镜头、`txt()`/`tag()` 文字、`drive()`/`every()` 逐帧驱动、`clickAt()` 光标与点击 bloom、`drawCompass()` 罗盘、`orbitAt()` 标志、`stageXY()`/`elXY()` 屏幕坐标、虚拟时钟 |
+| `promo.js` | 引擎（以拍为单位，132 BPM）：`shot()`/`tween()` 镜头、`txt()`/`tag()` 文字、`drive()`/`every()` 逐帧驱动、`clickAt()` 光标与点击 bloom、`drawCompass()` 罗盘、`orbitAt()` 标志、`stageXY()`/`elXY()` 屏幕坐标、虚拟时钟 |
 | `scenes/00-kit.js` | 各场景共用的文字形式（`K.words`、`K.big`、`K.swap`、`K.blurIn`、`K.centerOut`、`K.scramble`、`K.decode`、`K.type`、`K.mark`、`K.strike`、`K.count`、`K.pop`）和圆形穿越门 `portal()` |
 | `scenes/10-open.js` … `60-close.js`（v12 起没有 50） | 各段落，各自用 `scene(name, fn)` 注册，按文件名顺序运行；拍段与交接约定见 STORYBOARD.md |
 | `STORYBOARD.md` | 逐镜与关键帧：拍号、秒数、组件、镜头与动效、文字形式、声音、交接 |
@@ -41,4 +41,4 @@ node build.mjs && node promo/render.mjs            # -> promo/out/tandem-promo.m
 
 ## 时间轴
 
-片头（`scenes/10-open.js`）用成片拍号；之后各场景仍按各自的拍号书写，由引擎按 `promo.js` 的 `SHIFT` 表整体后移（情绪与人格 +8，推荐 +22，收尾 +16）；人格与推荐段内部再用 X/Y/Z、dA–dD 偏移后段拍号，每个镜头、文字、驱动与点击都记住所属场景的后移量。`music.py` 用同一张表。`render.mjs --only` 的拍号是成片拍号。
+片头（`scenes/10-open.js`）用成片拍号；之后各场景仍按各自的拍号书写，由引擎按 `promo.js` 的 `SHIFT` 表整体后移（情绪与人格 +8，推荐 +19，收尾 +9.5）；人格与推荐段内部再用 X/Y/Z、dA–dD 偏移后段拍号，每个镜头、文字、驱动与点击都记住所属场景的后移量。`music.py` 用同一张表。`render.mjs --only` 的拍号是成片拍号。

@@ -19,10 +19,10 @@ import numpy as np
 from scipy import signal
 
 SR = 48000
-BPM = 124
+BPM = 132
 BEAT = 60 / BPM
 # = SHIFT in promo.js: each later scene plays this many beats later (wordmark reveal, longer persona / recs holds)
-SHIFT = {'20-sentiment': 8, '30-persona': 8, '40-recs': 22, '60-close': 16}
+SHIFT = {'20-sentiment': 8, '30-persona': 8, '40-recs': 19, '60-close': 9.5}
 SH = 0              # shift put() applies; set per section below
 END = 113 + SHIFT['60-close']   # film beats
 N = int((END * BEAT + 1.5) * SR)
@@ -392,17 +392,17 @@ for i in range(8):                                                  # particles 
     put(pluck(SCALE[8 + i % 6], 0.25), 27.4 + i * 0.18, 0.07, -0.6 + i * 0.17, to='verbsend')
 
 
-# 4c · the flower browses two example types and lands on yours (30-persona STOPS: 33.9 / 41.9 / 49.9, MOVE 3.6,
+# 4c · the flower browses two example types and lands on yours (30-persona STOPS: 33.9 / 40.9 / 47.9, MOVE 3.6,
 # every change the same even turn): no ticks; a soft swish as the petals spin closed, a bloom chord as the next opens.
 # Everything after the browse moves with it: X (browse), Y (reveal read), Z (strengths card read), as in the scene.
-X = 49.9 - 43.4
-Y = X + 2
-Z = Y + 1.5
+X = 47.9 - 43.4
+Y = X + 1.5
+Z = Y + 1
 groove(28.0, 44.0 + X, style='half', lvl=0.95)
 bed(27.0, 44.0 + X, 0.36)
 pads(28.0, 44.0 + X, 0.24, 1700)
 put(glide(330, 660, 4.5 * BEAT), 29.4, 0.06, to='verbsend')      # the closed bud keeps turning onto the first type
-for at_, ch in ((33.9, (57, 64, 69)), (41.9, (60, 64, 72)), (49.9, (57, 64, 69, 76))):
+for at_, ch in ((33.9, (57, 64, 69)), (40.9, (60, 64, 72)), (47.9, (57, 64, 69, 76))):
     if at_ > 34:
         put(whoosh(1.6 * BEAT), at_ - 3.6, 0.13, -0.2)              # petals spin closed (first half of the change)
     for i, n in enumerate(ch):                                      # bloom: a rolled chord as it opens
@@ -437,15 +437,15 @@ put(riser(1.8 * BEAT, 500, 5000), 59.6 + Z, 0.22, to='verbsend')
 
 SH = SHIFT['40-recs']
 # same offsets as scenes/40-recs.js: card holds (A), install sheet (B), applied (C), before / after (D)
-A = 4.0
-B = A + 1.5
-C = B + 1
-D = C + 2
-# 5a · three cards drop (40-recs LAND 57.0 / 62.0 / 67.0): a soft landing and a ripple while the estimate rolls
+A = 2.2
+B = A + 1
+C = B + 0.6
+D = C + 1.4
+# 5a · three cards drop (40-recs LAND 57.0 / 61.3 / 65.6): a soft landing and a ripple while the estimate rolls
 put(crash(2.0), 57.0, 0.26, -0.2)
 groove(57.0, 65.6 + A, arp=True, lvl=0.92)
 pads(57.0, 65.6 + A, 0.16)
-for i, at_ in enumerate((57.0, 62.0, 67.0)):
+for i, at_ in enumerate((57.0, 61.3, 65.6)):
     put(whoosh(0.5 * BEAT), at_ - 0.5, 0.12, 0.2)
     put(blip(PENT[i * 2 % 5] + 24, 0.5), at_, 0.16, -0.3 + i * 0.3, to='verbsend')
     for k in range(9):                                              # the number rolls
