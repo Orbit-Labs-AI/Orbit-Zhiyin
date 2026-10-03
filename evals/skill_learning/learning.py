@@ -9,6 +9,7 @@ import re
 import signal
 import subprocess
 import time
+import uuid
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -119,6 +120,11 @@ LLM_SCHEMA = {"type": "object", "additionalProperties": False,
 def learn(root, data, output, credentials, *, arm="ours", session_uids=None):
     from orbit_backend.ai import registry
 
+    selected = read(data.parent / "selection.json")
+    if not selected or any(source.get("split") != "history" for source in selected):
+        raise ValueError("Adaptation needs the explicit history-only pipeline selection")
+    if any(tree(Path(source["root"]) / "sessions") != source["files"] for source in selected):
+        raise ValueError("Selected training sessions changed after canonical import")
     output.mkdir(parents=True, exist_ok=False)
     study = read(root / "study.json")
     os.environ["ORBIT_CATALOG_AUTOSYNC"] = "0"
@@ -136,7 +142,7 @@ def learn(root, data, output, credentials, *, arm="ours", session_uids=None):
         registry.register({**registry.get("recommend.learn"), "task_id": task_id,
                            "system": LLM_SYSTEM, "schema": LLM_SCHEMA, "validate": None,
                            "finalize": None, "prompt_version": "direct-llm@1"})
-    token = "isolated-history-learning"
+    token = "orbit-study-" + uuid.uuid4().hex
     scope = {"days": 365}
     if session_uids is not None:
         scope["session_uids"] = session_uids
