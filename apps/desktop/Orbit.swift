@@ -220,6 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        NSWindow.allowsAutomaticWindowTabbing = false  // One main window: no 显示标签页栏 / 合并所有窗口 items.
+        rotateLogIfNeeded()
         buildMenu()
         token = randomToken()
         let main = makeHost(.main)
@@ -240,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.setFrameAutosaveName("OrbitMainWindow")  // Remembers size and position.
         resetFrameIfOffscreen(window)
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         if Bundle.main.bundleIdentifier != nil { UNUserNotificationCenter.current().delegate = self }
         buildStatusItem()
         // First launch keeps the HUD hidden until the page reports onboarding done ("onboarded").
@@ -275,6 +277,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         webView.uiDelegate = self
         webView.setValue(false, forKey: "drawsBackground")  // No white flash; surfaces stay transparent.
         webView.underPageBackgroundColor = .clear
+        // Web Inspector only on request (ORBIT_DEBUG_INSPECT=1): the shipped app does not expose its pages to Safari.
+        webView.isInspectable = ProcessInfo.processInfo.environment["ORBIT_DEBUG_INSPECT"] == "1"
         let host = WebHost(surface: surface, webView: webView)
         hosts[surface] = host
         if let origin = origin { load(host, origin) }
@@ -500,7 +504,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if window.isMiniaturized { window.deminiaturize(nil) }
         resetFrameIfOffscreen(window)
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
     }
 
     @objc func toggleHUD(_ sender: Any?) { setPanel(.hud, visible: !(hudPanel?.isVisible ?? false)) }
@@ -594,6 +598,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.isReleasedWhenClosed = false
+        panel.title = surface == .hud ? "Orbit HUD" : "Orbit 小组件"  // Mission Control, VoiceOver and the window list.
+        panel.setAccessibilityLabel(panel.title)
         panel.contentView = makeHost(surface).webView
         panel.setFrameAutosaveName(surface == .hud ? "OrbitHUD" : "OrbitWidgets")  // Remembers position.
         if surface == .widgets, panel.frame.width != AppDelegate.widgetsWidth {  // an older build saved 320 pt
@@ -634,6 +640,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             fatalError("SecRandomCopyBytes failed")
         }
         return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
+    static let logLimit: UInt64 = 5 * 1024 * 1024
+
+    /// desktop.log (the helper's stderr) is appended across launches: past 5 MB it moves to desktop.log.1 at launch.
+    func rotateLogIfNeeded() {
+        let log = home.appendingPathComponent("desktop.log")
+        guard let size = (try? FileManager.default.attributesOfItem(atPath: log.path))?[.size] as? UInt64,
+              size > AppDelegate.logLimit else { return }
+        let old = home.appendingPathComponent("desktop.log.1")
+        try? FileManager.default.removeItem(at: old)
+        try? FileManager.default.moveItem(at: log, to: old)
     }
 
     func startBackend() {
@@ -712,11 +730,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     // MARK: bridge (page -> host)
 
+    /// Saved folder bookmarks, one per path (older builds appended a copy on every choice); rewritten deduplicated.
     func restoreBookmarks() {
+        var kept: [Data] = []
+        var seen = Set<String>()
         for data in UserDefaults.standard.array(forKey: "sourceBookmarks") as? [Data] ?? [] {
             var stale = false
-            if let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, bookmarkDataIsStale: &stale),
-               url.startAccessingSecurityScopedResource() { bookmarks.append(url) }
+            guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, bookmarkDataIsStale: &stale),
+                  seen.insert(url.standardizedFileURL.path).inserted else { continue }
+            kept.append(data)
+            if url.startAccessingSecurityScopedResource() { bookmarks.append(url) }
+        }
+        UserDefaults.standard.set(kept, forKey: "sourceBookmarks")
+    }
+
+    func rememberBookmark(_ url: URL) {
+        let path = url.standardizedFileURL.path
+        guard let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil,
+                                                   relativeTo: nil) else { return }
+        var saved = (UserDefaults.standard.array(forKey: "sourceBookmarks") as? [Data] ?? []).filter { data in
+            var stale = false
+            let other = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, bookmarkDataIsStale: &stale)
+            return other?.standardizedFileURL.path != path
+        }
+        saved.append(bookmark)
+        UserDefaults.standard.set(saved, forKey: "sourceBookmarks")
+        if !bookmarks.contains(where: { $0.standardizedFileURL.path == path }), url.startAccessingSecurityScopedResource() {
+            bookmarks.append(url)
         }
     }
 
@@ -796,7 +836,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if host.surface == .main, window.isVisible {
             panel.beginSheetModal(for: window, completionHandler: done)
         } else {
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             panel.begin(completionHandler: done)
         }
     }
@@ -817,11 +857,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             guard response == .OK, let url = panel.url else {
                 self.dispatch("tandem:folder", ["id": id, "path": NSNull(), "cancelled": true], to: host); return
             }
-            if let bookmark = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
-                var saved = UserDefaults.standard.array(forKey: "sourceBookmarks") as? [Data] ?? []
-                saved.append(bookmark); UserDefaults.standard.set(saved, forKey: "sourceBookmarks")
-            }
-            if url.startAccessingSecurityScopedResource() { self.bookmarks.append(url) }
+            self.rememberBookmark(url)
             self.dispatch("tandem:folder", ["id": id, "path": url.path, "cancelled": false], to: host)
         }
     }
@@ -914,10 +950,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         return true
     }
 
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
+
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "打开 Orbit", action: #selector(showMain(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "显示 HUD", action: #selector(toggleHUD(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "").target = self
+        return menu
+    }
+
     // Closing the main window hides it; Orbit keeps running in the menu bar until ⌘Q.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    var quitConfirmed = false
+
+    /// ⌘Q during an import asks first. The job list comes from /v1/app/state with a 1.5 s limit: no answer (or an error)
+    /// quits as before, so a stuck helper can never hold the quit.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if !quitConfirmed, let origin = origin, backend?.isRunning == true {
+            var request = URLRequest(url: origin.appendingPathComponent("v1/app/state")); request.timeoutInterval = 1.5
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+                let state = data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+                let body = (state?["data"] as? [String: Any]) ?? state ?? [:]
+                let busy = ((body["jobs"] as? [[String: Any]]) ?? []).contains { job in
+                    ["queued", "pending", "running"].contains(job["status"] as? String ?? "")
+                        && ["import", "ingest", "backfill"].contains(job["kind"] as? String ?? "")
+                }
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    if busy && !self.confirmQuitDuringImport() { NSApp.reply(toApplicationShouldTerminate: false); return }
+                    self.quitConfirmed = true
+                    // .terminateLater: stopBackend replies itself once the helper has exited.
+                    if self.stopBackend() == .terminateNow { NSApp.reply(toApplicationShouldTerminate: true) }
+                }
+            }.resume()
+            return .terminateLater
+        }
+        return stopBackend()
+    }
+
+    func confirmQuitDuringImport() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "正在导入会话，确定退出 Orbit？"
+        alert.informativeText = "导入会中断，下次打开 Orbit 时显示为 interrupted，可以重新开始。"
+        alert.addButton(withTitle: "退出")
+        alert.addButton(withTitle: "取消")
+        NSApp.activate()
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Stops the helper; .terminateLater replies itself once the helper is gone.
+    func stopBackend() -> NSApplication.TerminateReply {
         stopping = true
         guard let process = backend, process.isRunning else { return .terminateNow }
         process.terminate()  // SIGTERM: the gateway stops workers and exits gracefully.
