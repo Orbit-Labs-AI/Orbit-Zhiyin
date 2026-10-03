@@ -21,7 +21,8 @@ EV = ("EV-13",)
 
 def _agents() -> tuple[str, ...]:
     """Every agent with install support (install/env.py FULL_SUPPORT), not a hand-kept list."""
-    from ...install.env import AGENTS as KNOWN, FULL_SUPPORT  # noqa: PLC0415
+    from ...install.env import AGENTS as KNOWN  # noqa: PLC0415
+    from ...install.env import FULL_SUPPORT
 
     return tuple(a for a in KNOWN if a in FULL_SUPPORT)
 
