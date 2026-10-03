@@ -76,15 +76,17 @@ def test_every_rule_states_a_minutes_source_or_why_not():
             assert "未估算原因：" in b.unit_minutes_note and "未校准" in b.unit_minutes_note, rule.id
 
 
-def test_unsourced_rule_card_shows_the_reason_not_minutes():
+def test_rule_card_never_turns_unit_minutes_into_minutes():
+    """unit_minutes only documents the rule; the card's saving is a share of the real trajectory
+    (#84): no ledger → 未估算, never a minutes figure built from the KB number."""
     from orbit_backend.recommend.narrate import _save
     rule = kb.by_id(kb.load()[0])["readonly-allowlist"]
     raw = {"unit_minutes": rule.benefit.unit_minutes, "unit_minutes_source": rule.benefit.unit_minutes_source,
            "unit_minutes_note": rule.benefit.unit_minutes_note, "prior": rule.benefit.prior.model_dump()}
-    cand = {"kind": "permission_rule", "problem": {"weekly_count": 10}}
+    cand = {"kind": "permission_rule", "problem": {"type": "permission_friction", "weekly_count": 10}}
     save = _save(cand, raw, {"sessions": {"weeks": 4}})
-    assert save["min_month"] is None and save["label"] == "未估算"
-    assert "approval_wait_ms" in save["basis"]
+    assert "min_month" not in save and save["time_pct"] is None and save["label"] == "未估算"
+    assert "分钟" not in save["basis"] and "小时" not in save["basis"]
 
 
 # Independent restatement of the mapping documented in remedies.v1.json ``agent_support_basis``:

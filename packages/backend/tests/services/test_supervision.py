@@ -108,7 +108,9 @@ def test_timeout_keeps_old_snapshot_and_opens_circuit(client_factory, codex_root
 
     # A manual recompute resets the circuit once the budget is sane again.
     config.light_timeout_s = 60
-    assert client.post("/v1/analytics/recompute", json={"sections": ["overview"]}
+    # Recompute the window this test reads (days=0): without days the overview recompute
+    # follows the GET fast path, which would refresh the 7-day window instead.
+    assert client.post("/v1/analytics/recompute", json={"sections": ["overview"], "scope": ALL_TIME}
                        ).status_code == 202
     wait_for(lambda: len(bus_events(gateway, "analysis.ready")) >= 2, 60, message="recovered")
     assert client.get("/v1/analytics/overview", params=ALL_TIME).json()["meta"]["freshness"] == "fresh"
