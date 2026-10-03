@@ -76,6 +76,9 @@ color-scheme:dark}
 html,body{height:100%}
 body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--font-sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable],pre,code,.code,.log,.ask-a,.tbl td,.sharecard{-webkit-user-select:text;user-select:text}
+/* page text (titles, paths, numbers, notes) stays copyable; controls, charts and drag areas keep none */
+.content{-webkit-user-select:text;user-select:text}
+.content :is(button,[role=button],[role=tab],[role=switch],[role=option],[draggable=true],.btn,.chip,.seg,.sw,label,svg,canvas){-webkit-user-select:none;user-select:none}
 button,input,textarea,select{font:inherit;color:inherit;margin:0;line-height:1.25}
 button{cursor:default}
 a{color:inherit}
