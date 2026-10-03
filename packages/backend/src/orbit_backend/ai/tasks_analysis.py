@@ -235,11 +235,25 @@ NARRATE_SYSTEM = (
     "你根据给定指标为用户写一段周期概览，先给结论。findings 依次写三段：做得好(scene=good)、卡在哪(scene=stuck)、"
     "立刻可做(scene=next)，每段 ≤60 字。所有数字必须原样来自输入；evidence_ids 只能用输入里出现的 "
     "session_uid / event_uid / problem_id / candidate_id / 指标名。不要使用「保证」「一定」「证明有效」。"
-    "卡在哪必须引用 problem_id 或错误类别；立刻可做只能引用输入里的 candidate_id。audience 固定 user。")
+    "卡在哪必须引用 problem_id 或错误类别；立刻可做只能引用输入里的 candidate_id。audience 固定 user。"
+    "<scope> 给出时，数据只覆盖其中的 Agent（agent_ids）与项目（project_id），不要推及其他 Agent 或项目。")
+
+
+SCOPE_KEYS = ("days", "start_ms", "end_ms", "project_id", "agent_ids")
+
+
+def narrate_scope(pack: dict) -> dict:
+    """The view an overview describes (window, project, agent subset). It is part of the
+    prompt, so the cache key and the input fingerprint differ per filter, and the model knows
+    the numbers cover only those agents / that project."""
+    scope = pack.get("scope") or {}
+    return {k: scope[k] for k in SCOPE_KEYS if scope.get(k) not in (None, "", [])}
 
 
 def narrate_prompt(pack: dict) -> str:
-    return "<input>\n" + compact(pack["content"]) + "\n</input>"
+    scope = narrate_scope(pack)
+    head = "<scope>\n" + compact(scope) + "\n</scope>\n" if scope else ""
+    return head + "<input>\n" + compact(pack["content"]) + "\n</input>"
 
 
 def _texts(output: dict) -> list[str]:
