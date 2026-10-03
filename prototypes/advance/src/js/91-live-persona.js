@@ -159,7 +159,9 @@ function lvpFetch(period, path, store) {
 LV.personaFor = function (period, L) {
   const e = lvpFetch(period, '/v1/uiview/persona', LVP.full);
   if (e.data) return lvShape(e.data, L);
-  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: true };
+  // the error itself goes along: projection_pending (first import not published yet) reads 正在整理数据…, not 取不到 (F08);
+  // it is refetched when the publish moves LV.rev
+  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: e.error || true };
   return { ok: false, classified: false, n: L ? L.length : 0, pending: true };
 };
 LV.reveal = function (period) { return lvpFetch(period, '/v1/uiview/persona/reveal', LVP.full); };

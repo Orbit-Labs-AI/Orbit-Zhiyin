@@ -11,10 +11,12 @@ setInterval(() => {
   }
 }, 1000);
 // the settings window and the first-run overlay rebuild themselves outside render() (live settings writes, job frames):
-// keep their scroll positions and the focused field across every rebuild (F03). A step change of the overlay starts at top.
+// keep their scroll positions and the focused field across every rebuild (F03). A tab change of the settings window and a
+// step change of the overlay start at top (the old tab's positions mean nothing in the new one).
 {
   const setBase = renderSet;
-  renderSet = function () { const keep = uiKeep($('#set')); const r = setBase.apply(this, arguments); keep(); return r; };
+  let setDrawn = null;   // the tab the window last showed (the tab buttons set S.setTab before they call renderSet)
+  renderSet = function () { const keep = uiKeep($('#set')); const r = setBase.apply(this, arguments); if (S.setTab === setDrawn) keep(); setDrawn = S.setTab; return r; };
   const obBase = drawOB;
   drawOB = function () { const was = OB && OB.drawn; const keep = uiKeep($('#overlay')); const r = obBase.apply(this, arguments); if (OB && OB.drawn === was) keep(); return r; };
 }

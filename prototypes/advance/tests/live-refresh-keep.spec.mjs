@@ -49,6 +49,16 @@ test('projection_pending while publishing: a calm 正在整理数据… line, qu
   await page.evaluate(() => { render(); renderSet(); });
   expect(await page.evaluate(() => document.querySelector('#set .body').scrollTop)).toBe(300);
   expect(await page.evaluate(() => document.querySelector('#content').scrollTop)).toBe(500);
+  // another tab opens at its top — the old tab's scroll does not carry over (only a redraw of the same tab keeps it)
+  const setTop = () => page.evaluate(() => document.querySelector('#set .body').scrollTop);
+  await page.locator('#set [data-act="setTab"][data-v="analysis"]').click();
+  await expect(page.locator('#set [data-act="setTab"][data-v="analysis"]')).toHaveAttribute('aria-selected', 'true');
+  expect(await setTop()).toBe(0);
+  await page.evaluate(() => { document.querySelector('#set .body').scrollTop = 120; });
+  await page.evaluate(() => renderSet());
+  expect(await setTop()).toBe(120);
+  await page.locator('#set [data-act="setTab"][data-v="sources"]').click();
+  expect(await setTop()).toBe(0);
   // a real failure still raises the error banner with 重试
   await page.evaluate(() => closeSettings && closeSettings());
   gw.set('GET /v1/uiview/sessions', { status: 500, body: { error: { code: 'internal', message: 'boom', retryable: true } } });
@@ -96,5 +106,18 @@ test('import running + pending reads: scroll and an open dropdown survive pollin
   expect(await page.evaluate(() => document.querySelector('#content').scrollTop)).toBe(350);
   await page.evaluate(() => render());
   expect(await page.evaluate(() => document.querySelector('#content').scrollTop)).toBe(350);
+  expect(errors).toEqual([]);
+});
+
+test('projection_pending on the overview and persona pages: the persona card reads 正在整理数据…, never 取不到', async ({ page }) => {
+  ONLY('mac-14');
+  const errors = collectErrors(page);
+  await stubGateway(page, ['core'], pendingAll());
+  for (const route of ['overview', 'persona']) {
+    await openLive(page, route);
+    await page.waitForTimeout(2500);   // several Retry-After rounds
+    await expect(page.locator('#content')).not.toContainText('画像暂时取不到');
+    await expect(page.locator('#content')).not.toContainText('服务暂时不可用');
+  }
   expect(errors).toEqual([]);
 });
