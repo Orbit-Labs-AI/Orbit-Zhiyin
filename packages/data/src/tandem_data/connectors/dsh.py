@@ -200,7 +200,8 @@ class DshMapper(BaseMapper):
             )
         if typ in ("assistant/message", "assistant/attempt"):
             message = payload.get("message", {})
-            source = message.get("source", {})
+            source = message.get("source")
+            source = source if isinstance(source, dict) else {}
             self.model, self.provider = (
                 source.get("model", self.model),
                 source.get("provider", self.provider),
@@ -239,7 +240,8 @@ class DshMapper(BaseMapper):
             )
         if typ in ("user/message", "system/message", "developer/message"):
             message = payload.get("message", payload)
-            source = message.get("source", {})
+            source = message.get("source")
+            source = source if isinstance(source, dict) else {}
             origin = source.get("kind")
             if origin == "plugin":
                 origin = source.get("plugin")

@@ -50,6 +50,14 @@ def decode_json(value, fallback=None):
     return value if value is not None else fallback
 
 
+def media_type(block: dict) -> str | None:
+    """Anthropic blocks nest {source: {media_type}}; pi puts mimeType on the block.
+    Some harnesses write source as a bare URL/path string, which carries no type."""
+    source = block.get("source")
+    value = source.get("media_type") if isinstance(source, dict) else block.get("mimeType")
+    return value if isinstance(value, str) else None
+
+
 class BaseMapper:
     def __init__(self, store, file_info):
         self.store = store
@@ -407,7 +415,7 @@ class BaseMapper:
                     attrs={
                         "content_type": typ,
                         "raw_content_path": path,
-                        "mime_type": block.get("source", {}).get("media_type"),
+                        "mime_type": media_type(block),
                         **block_attrs,
                     },
                 )

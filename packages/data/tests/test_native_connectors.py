@@ -1808,3 +1808,123 @@ def test_opencode_v1_message_and_part_full_path(tmp_path):
         assert len(rows(store, "v_human_message")) == 1
         assert "unknown" not in kinds
         assert_sound(store)
+
+
+def test_string_or_null_source_cost_and_error_do_not_abort_mapping(tmp_path):
+    with Store(tmp_path / "data") as store:
+        # Claude image block whose source is a bare string: no media type, event kept.
+        capture(
+            store,
+            tmp_path,
+            "claude_code",
+            [
+                {
+                    "type": "user",
+                    "uuid": "u",
+                    "sessionId": "c",
+                    "timestamp": ISO,
+                    "cwd": "/fixture",
+                    "message": {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "see"},
+                            {"type": "image", "source": "https://example.invalid/a.png"},
+                        ],
+                    },
+                }
+            ],
+            path="projects/-fixture/c.jsonl",
+        )
+        # pi usage.cost as a string and as null.
+        capture(
+            store,
+            tmp_path,
+            "pi",
+            [
+                {"type": "session", "id": "p", "version": 3, "timestamp": ISO, "cwd": "/fixture"},
+                {
+                    "type": "message",
+                    "id": "a1",
+                    "timestamp": ISO,
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": "x"}],
+                        "usage": {"input": 1, "output": 1, "cost": "0.1"},
+                        "stopReason": "stop",
+                    },
+                },
+                {
+                    "type": "usage",
+                    "id": "u1",
+                    "timestamp": ISO,
+                    "usage": {"input": 1, "output": 1, "cost": None},
+                },
+            ],
+            path="sessions/p.jsonl",
+        )
+        # dsh tool/result error as a string, assistant source as null.
+        capture(
+            store,
+            tmp_path,
+            "dsh",
+            [
+                {"type": "session", "version": 4, "id": "d", "createdAt": T, "cwd": "/fixture"},
+                {"type": "turn/start", "seq": 0, "time": T, "data": {"turn": 1}},
+                {
+                    "type": "assistant/message",
+                    "seq": 1,
+                    "time": T + 1,
+                    "data": {
+                        "turn": 1,
+                        "step": 1,
+                        "message": {
+                            "role": "assistant",
+                            "source": None,
+                            "content": [
+                                {"type": "tool-call", "id": "t", "name": "bash", "arguments": "{}"}
+                            ],
+                        },
+                    },
+                },
+                {
+                    "type": "tool/call",
+                    "seq": 2,
+                    "time": T + 2,
+                    "data": {
+                        "turn": 1,
+                        "step": 1,
+                        "callId": "t",
+                        "name": "bash",
+                        "arguments": "{}",
+                    },
+                },
+                {
+                    "type": "tool/result",
+                    "seq": 3,
+                    "time": T + 3,
+                    "data": {
+                        "turn": 1,
+                        "step": 1,
+                        "error": "spawn failed",
+                        "message": {
+                            "role": "tool",
+                            "toolCallId": "t",
+                            "isError": True,
+                            "content": [{"type": "text", "text": "spawn failed"}],
+                        },
+                    },
+                },
+            ],
+            path="sessions/d/session.jsonl",
+        )
+        store.rebuild()
+        events = [{**e, "attrs": json.loads(e["attrs"])} for e in rows(store, "event")]
+        (image,) = [e for e in events if e["attrs"].get("content_type") == "image"]
+        assert image["attrs"]["mime_type"] is None
+        costs = [e["attrs"]["cost_usd"] for e in events if e["kind"] == "model.usage"]
+        assert costs == [None, None]
+        (result,) = [e for e in events if e["kind"] == "tool.result"]
+        assert result["attrs"]["error_class"] is None
+        assert result["attrs"]["status"] == "failed"
+        assert not [e for e in events if e["kind"] == "unknown"]
+        assert_sound(store)
