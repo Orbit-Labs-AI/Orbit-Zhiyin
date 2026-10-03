@@ -9,7 +9,7 @@
    00 reference triangle on the persona compass.
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
-   Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono. */
+   Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono, plus --font-type (SF Pro Rounded) for persona type codes. */
 :root{
 --desk:#d9d5cc;--desk-2:#cbc6bb;--menubar:rgba(246,245,242,.88);
 --bg:#f5f4f0;--sb:rgba(236,235,229,.8);--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:rgba(251,250,248,.94);--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--sep:rgba(23,24,27,.1);
@@ -32,6 +32,7 @@
 --font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
 --font-num:var(--font-sans);
 --font-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace,"PingFang SC","Hiragino Sans GB";
+--font-type:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,"PingFang SC","Hiragino Sans GB",sans-serif;
 --side-w:240px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -84,6 +85,8 @@ svg{display:block}
    var(--font-mono) via .code-t and the selectors below. Class names are kept to avoid churn. */
 .mono{font-family:var(--font-num);font-variant-numeric:tabular-nums}
 .serif{font-family:var(--font-display);font-style:normal}
+/* persona type codes (DPMV …): rounded strokes echo the Orbit wordmark */
+.tcode{font-family:var(--font-type);font-weight:700;font-variant-numeric:normal}
 h1.serif,h2.serif,h3.serif{font-weight:600}
 .code-t,code,pre,kbd,samp,.tt-cmd,.lb-id,.sb-path,#srcPath{font-family:var(--font-mono);font-variant-numeric:normal}
 .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

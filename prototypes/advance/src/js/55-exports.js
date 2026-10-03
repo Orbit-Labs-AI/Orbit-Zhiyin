@@ -48,7 +48,7 @@ function shareCard(sp) {
   return '<div class="sharecard" style="background:' + C.bg + ';color:' + C.ink + '"><div style="position:relative;height:100%;padding:7cqw 7.5cqw 6.5cqw;display:flex;flex-direction:column">' +
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--font-num);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
     '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.minor + '" fill="' + C.mn + '"/><path d="' + g.major + '" fill="' + C.mj + '"/></svg>' +
-    '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:600 14cqw/.9 var(--font-display)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--font-num);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
+    '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:700 14cqw/.9 var(--font-type)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--font-num);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
     '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--font-display)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--font-display);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
     '<div style="margin-top:5cqw;font:500 4.6cqw/1.5 var(--font-display)">「' + esc(q[0]) + '<br>' + esc(q[1]) + '」</div>' +
     (nn ? '' : '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2cqw;margin-top:6cqw;padding-top:4cqw;border-top:1px solid ' + C.line + '">' + [[fmt(p.st.n), '会话'], [Math.round(p.st.hours) + 'h', '协作时长'], [nAg, 'Agent'], [f1(p.st.auto) + '×', '自主比']].map((x) => '<div><div style="font:600 5.4cqw/1.1 var(--font-num)">' + x[0] + '</div><div style="font-size:2.4cqw;color:' + C.ink3 + ';margin-top:.6cqw">' + x[1] + '</div></div>').join('') + '</div>') +
@@ -100,7 +100,7 @@ async function sharePNG(m, dark, noNum) {
   try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* fonts optional */ }
   const W = 1080, H = 1350, u = W / 100; const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const x = cv.getContext('2d'); const cs = getComputedStyle(document.documentElement);
-  const F = { serif: cs.getPropertyValue('--font-display').trim() || 'sans-serif', mono: cs.getPropertyValue('--font-num').trim() || 'sans-serif', sans: cs.getPropertyValue('--font-sans').trim() || 'sans-serif' };
+  const F = { type: cs.getPropertyValue('--font-type').trim() || 'sans-serif', serif: cs.getPropertyValue('--font-display').trim() || 'sans-serif', mono: cs.getPropertyValue('--font-num').trim() || 'sans-serif', sans: cs.getPropertyValue('--font-sans').trim() || 'sans-serif' };
   const C = dark ? { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' } : { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' };
   const L = 7.5 * u, R = W - 7.5 * u;
   const text = (t, px, py, font, col, align) => { x.font = font; x.fillStyle = col; x.textAlign = align || 'left'; x.fillText(t, px, py); };
@@ -115,8 +115,8 @@ async function sharePNG(m, dark, noNum) {
   }
   let cx = L; const by = 7 * u + 2.6 * u + 9 * u + 12.6 * u;
   m.axes.forEach((a) => {
-    x.font = '600 ' + 14 * u + 'px ' + F.serif; const w1 = x.measureText(a.L).width; x.font = 2.6 * u + 'px ' + F.sans; const w2 = x.measureText(a.name).width;
-    text(a.L, cx, by, '600 ' + 14 * u + 'px ' + F.serif, C.ink); text(a.name, cx, by + 3.8 * u, 2.6 * u + 'px ' + F.sans, C.ink2);
+    x.font = '700 ' + 14 * u + 'px ' + F.type; const w1 = x.measureText(a.L).width; x.font = 2.6 * u + 'px ' + F.sans; const w2 = x.measureText(a.name).width;
+    text(a.L, cx, by, '700 ' + 14 * u + 'px ' + F.type, C.ink); text(a.name, cx, by + 3.8 * u, 2.6 * u + 'px ' + F.sans, C.ink2);
     if (!noNum && a.strong) text(a.strong, cx, by + 7.2 * u, '600 ' + 2.4 * u + 'px ' + F.mono, C.ink3);
     cx += Math.max(w1, w2) + 3.4 * u;
   });
