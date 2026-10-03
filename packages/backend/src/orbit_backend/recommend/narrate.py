@@ -201,7 +201,8 @@ def save_label(time_pct: float | None, token_pct: float | None) -> str:
 
 def _unestimated(basis: str) -> dict:
     return {"time_pct": None, "token_pct": None, "time_range": None, "token_range": None,
-            "share": None, "effect": None, "op": None, "key": None, "label": UNESTIMATED, "basis": basis}
+            "share": None, "effect": None, "op": None, "key": None, "group": None, "cap": None,
+            "label": UNESTIMATED, "basis": basis}
 
 
 def _requests(ledger: dict, agents) -> int:
@@ -212,9 +213,11 @@ def _requests(ledger: dict, agents) -> int:
 
 
 def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -> tuple | None:
-    """(op class, tokens, ms, note) the problem's ``total`` occurrences cost in this scope's
+    """(op class, tokens, ms, note, pool) the problem's ``total`` occurrences cost in this scope's
     trajectory; ms None = not measured. Per-occurrence cost is the measured mean of the class,
-    capped at what the whole class (or the whole scope) cost."""
+    capped at what the whole class (or the whole scope) cost. ``pool`` is the class whose
+    measurements were actually used: an unmeasured class borrows the average tool call, and then
+    its cost (and so its cap in ``total_saving``) comes from the tool-call pool."""
     if cand.get("kind") == "removal" or problem.get("type") in REMOVAL_TYPES:
         values = {**((raw.get("explain_hints") or {}).get("vars") or {}), **(problem.get("vars") or {})}
         resident = _tokens(cand, raw)
@@ -223,11 +226,12 @@ def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -
             return None
         guess = "（估计）" if values.get("tokens_basis") == "estimate" else ""
         return "resident", min(resident * requests, ledger.get("tokens") or 0), None, \
-            f"每次请求常驻约 {resident} tokens{guess} × {requests} 次请求"
+            f"每次请求常驻约 {resident} tokens{guess} × {requests} 次请求", "resident"
     if total <= 0:
         return None
     name = OP_OF.get(problem.get("type"), "turn")
     steps = max(1, int((problem.get("vars") or {}).get("n_steps") or 1)) if problem.get("type") == "repeated_workflow" else 1
+    pool = name
     if name == "turn":
         n, tokens, ms = int(ledger.get("turns") or 0), ledger.get("tokens") or 0, ledger.get("active_ms") or 0
         note = "每次约一轮返工"
@@ -235,13 +239,13 @@ def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -
         cls = (ledger.get("ops") or {}).get(name) or {}
         note = "逐次实测"
         if not cls.get("n"):  # nothing of this class was timed: an average tool call stands in
-            cls, note = (ledger.get("ops") or {}).get("call") or {}, "按平均工具调用近似"
+            cls, note, pool = (ledger.get("ops") or {}).get("call") or {}, "按平均工具调用近似", "call"
         n, tokens, ms = int(cls.get("n") or 0), cls.get("tokens") or 0, cls.get("ms") or 0
     if n <= 0:
         return None
     count = total * steps
     op_tokens = 0 if name == "readonly" else min(count * tokens / n, tokens)
-    return name, op_tokens, min(count * ms / n, ms), note
+    return name, op_tokens, min(count * ms / n, ms), note, pool
 
 
 def _save(cand: dict, raw: dict, inputs: dict) -> dict:
@@ -266,10 +270,13 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
     cost = _op_cost(cand, raw, problem, ledger, total)
     if cost is None:
         return _unestimated("轨迹里没有可计量的对应操作")
-    op, op_tokens, op_ms, note = cost
+    op, op_tokens, op_ms, note, pool = cost
     tokens, active = ledger.get("tokens") or 0, ledger.get("active_ms") or 0
-    share_k = 100 * op_tokens / tokens if tokens > 0 else None
-    share_t = 100 * op_ms / active if op_ms is not None and active > 0 else None
+    share_k = min(100., 100 * op_tokens / tokens) if tokens > 0 else None
+    share_t = min(100., 100 * op_ms / active) if op_ms is not None and active > 0 else None
+    # the pool whose measurements priced the share bounds it; a card's own share always fits its cap
+    cap = _class_cap(pool, ledger)
+    cap = (max(cap[0], round(share_t or 0., 4)), max(cap[1], round(share_k or 0., 4)))
     prior = raw.get("prior") or {}
     alpha, beta = float(prior.get("alpha") or 1), float(prior.get("beta") or 1)
     p, (lo, hi) = alpha / (alpha + beta), beta_interval(alpha, beta)
@@ -290,7 +297,72 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
             "token_range": None if share_k is None else [scaled(share_k, lo), scaled(share_k, hi)],
             "share": {"time": scaled(share_t, 1), "token": scaled(share_k, 1)}, "effect": round(p, 3),
             "op": op, "key": problem.get("key") or problem.get("problem_id"),
+            "group": CAP_GROUP[pool], "cap": {"time": None if share_t is None else cap[0], "token": cap[1]},
             "label": save_label(time_pct, token_pct), "basis": basis}
+
+
+# Operation classes that draw on the same part of the trajectory: failed calls are tool calls, so
+# both are bounded by what all tool calls cost; approval waits, rework turns (bounded by all human
+# turns, i.e. the whole trajectory) and resident context are their own pools.
+CAP_GROUP = {"call": "call", "failed": "call", "readonly": "readonly", "turn": "turn", "resident": "resident"}
+
+
+def _class_cap(op: str, ledger: dict) -> tuple[float, float]:
+    """(time %, token %) the operation pool of ``op`` takes of the whole trajectory: the most any
+    number of problems on that pool can share between them (see ``total_saving``)."""
+    tokens, active = ledger.get("tokens") or 0, ledger.get("active_ms") or 0
+    group = CAP_GROUP[op]
+    if group in ("turn", "resident"):
+        return 100., 100.
+    cls = (ledger.get("ops") or {}).get(group) or {}
+
+    def pct(part, whole):
+        return round(min(100., 100 * (part or 0) / whole), 4) if whole > 0 else 0.
+    return pct(cls.get("ms"), active), pct(cls.get("tokens"), tokens)
+
+
+def total_saving(saves) -> dict | None:
+    """The combined expected saving of several cards, as shares of the trajectory, never above
+    what the operations involved really take.
+
+    Alternatives on one problem (same ``key``) count once, the best of them. Problems on one
+    operation pool (``group``) cannot together take more than the pool (``cap``): their shares
+    are scaled down in proportion when they overlap, and all pools together never exceed the
+    whole trajectory (100 %). Each card keeps its own effectiveness, so the total is the sum of
+    scaled share × effect. ``None`` when no card has a share. The App computes the same total
+    (prototypes/advance/src/js/46-a7-recs.js ``recTotal``)."""
+    best: dict = {}
+    for save in saves or ():
+        if not save:
+            continue
+        key = save.get("key") or id(save)
+        for field, pct_key in (("time", "time_pct"), ("token", "token_pct")):
+            pct = save.get(pct_key)
+            if pct is None:
+                continue
+            share = (save.get("share") or {}).get(field)
+            share = pct if share is None else share
+            cap = (save.get("cap") or {}).get(field)  # a pool holds at least the share it priced
+            entry = (pct, share, save.get("group") or save.get("op") or key, 100. if cap is None else max(cap, share))
+            if (key, field) not in best or pct > best[(key, field)][0]:
+                best[(key, field)] = entry
+    if not best:
+        return None
+    out = {}
+    for field in ("time", "token"):
+        rows = [v for (_key, f), v in best.items() if f == field]
+        if not rows:
+            out[field] = None
+            continue
+        pools: dict = {}
+        for _pct, share, group, cap in rows:
+            used, limit = pools.get(group, (0., 100.))
+            pools[group] = (used + share, min(limit, cap))
+        scale = {g: (min(1., limit / used) if used > 0 else 1.) for g, (used, limit) in pools.items()}
+        whole = sum(share * scale[group] for _pct, share, group, _cap in rows)
+        overall = min(1., 100. / whole) if whole > 0 else 1.
+        out[field] = round(sum(pct * scale[group] * overall for pct, _share, group, _cap in rows), 4)
+    return out
 
 
 def _unit_text(raw: dict, problem: dict) -> str:

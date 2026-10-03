@@ -31,12 +31,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from . import metrics
+
 STOPPED = frozenset(("failed", "error", "interrupted", "aborted", "cancelled", "rejected"))
 DONE = frozenset(("completed", "success", "succeeded"))
 REWORK_DENSITY = 1 / 3
 REWORK_MIN_CORR = 2
 TAIL_FAILED = 3
-FAILED_CALL = frozenset(("failed",))
+FAILED_CALL = metrics.TOOL_FAILED  # the failure class every page uses
 LABELS = {"ok": "完成", "part": "需返工", "fail": "疑似中断", "live": "进行中"}
 
 

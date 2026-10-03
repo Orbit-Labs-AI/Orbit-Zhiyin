@@ -6,7 +6,8 @@ table, the kind transition matrix, repeated-failure runs, failure reasons, appro
 waits, MCP servers (calls ∪ linked inventory) and sub-agent parallelism.
 
 Rules kept honest:
-- status: success|completed|ok → ok, failed|error → failed, anything else → unknown.
+- status: ``metrics.tool_state`` (ok / failed / stopped / unknown, shared with A1 and A3);
+  interrupted or refused calls are known results that are not failures.
   Error rates use known results only; text never decides success.
 - failure reasons: ``error_class`` first, else regex rules over the redacted result text.
 - resident tokens of an MCP server are only filled when inventory measured them.
@@ -32,6 +33,7 @@ from orbit_data.privacy import redact
 from ..features.vocab import command_info
 from ..sessionops.toolcalls import args_summary, tool_name_key
 from . import a4a6_common as common
+from . import metrics
 
 NAME = "tools"
 PARALLEL_WINDOW_MS = 5000  # 待验证: sub-agents started within 5 s of a batch's first one.
@@ -42,8 +44,8 @@ MAX_DAYS = 366
 MAX_RETRIES = 10
 CHUNK = 500
 
-OK = {"success", "completed", "ok"}
-FAILED = {"failed", "error"}
+OK = metrics.TOOL_OK
+FAILED = metrics.TOOL_FAILED
 NODES = ("read", "search", "edit", "shell", "subagent", "web")
 NODE_OF = {"file.read": "read", "search": "search", "file.edit": "edit", "file.write": "edit",
            "shell": "shell", "subagent": "subagent", "web.search": "web", "web.fetch": "web"}
@@ -76,11 +78,9 @@ WHERE {where}
 """
 
 
-STATE = {**dict.fromkeys(OK, "ok"), **dict.fromkeys(FAILED, "failed")}
-
-
 def norm_status(raw) -> str:
-    return STATE.get((raw or "").lower(), "unknown")
+    """``metrics.tool_state``: the same classes as A1 / A3 (interrupted = known, not failed)."""
+    return metrics.tool_state(raw)
 
 
 def node_of(kind: str | None) -> str:
@@ -121,7 +121,7 @@ def fetch_calls(conn, scope, *, agents=None, from_ts=None, until_ts=None) -> lis
     rows = []
     for values in cursor:
         row = dict(zip(names, values, strict=True))
-        row["state"] = STATE.get((row["status"] or "").lower(), "unknown")
+        row["state"] = metrics.tool_state(row["status"])
         rows.append(row)
     return rows
 
@@ -141,7 +141,7 @@ def _texts(conn, uids) -> dict[str, str]:
 
 def _counts(rows) -> dict:
     states = Counter(r["state"] for r in rows)
-    known = states["ok"] + states["failed"]
+    known = len(rows) - states["unknown"]
     return {"n": len(rows), "failed": states["failed"], "known": known,
             "unknown": len(rows) - known}
 

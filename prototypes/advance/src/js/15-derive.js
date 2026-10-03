@@ -49,28 +49,164 @@ function stats(L) {
   const okKnown = L.filter((s) => s.out === 'ok' || s.out === 'part' || s.out === 'fail').length, verKnown = L.filter((s) => s.verify != null).length;
   return { n, hours: mins / 60, msgs, tools, errors, corr, tok: sum(L, (s) => s.tok), auto: msgs ? (stepped ? steps / msgs : tools * 1.54 / msgs) : 0, fric: msgs ? corr / msgs * 100 : 0, per: n ? msgs / n : 0, verify: verKnown ? L.filter((s) => s.verify).length / verKnown * 100 : 0, verKnown, ok: okKnown ? L.filter((s) => s.out === 'ok').length / okKnown * 100 : 0, okKnown, err: tools ? errors / tools * 100 : 0 };
 }
-// 1 个会话即可出结论（0 个才是空态）；每个维度以 50 为界取一极，恰好 50 归高值一极（D / I / M / V），始终给完整 4 字母
+// ===== 协作人格 · 多信号口径（与 uiview/persona_signals.py 同一份锚点、权重与统计量；示例与 live 共用）=====
+// 每个维度综合多个信号：信号先经有界分段线性锚点映射到 0–100（高 = D / I / M / V 一极），再按权重加权平均；
+// 缺数据的信号退出、其余权重重新归一化。统计量全部可加（按会话 / 按天），任意 Agent 子集 = 各 Agent 统计量之和。
+// 1 个会话即可出结论（0 个才是空态）；每个维度以 50 为界取一极，恰好 50 归高值一极，始终给完整 4 字母。
 const PERSONA_SOFT_N = 30;
 const personaHint = (n) => (n > 0 && n < PERSONA_SOFT_N ? '基于 ' + n + ' 个会话，数据越多越准' : null);
+const PSTEP = 5, PZ = 1.96;
+// [key, axis, weight, kind, unit, anchors, label]
+const PSIG = [
+  ['steps', 'D', 0.50, 'ratio', 'turn', [[0, 5], [1, 95]], '单轮自主步数（≥ 5 步的轮次占比）'],
+  ['msgs', 'D', 0.25, 'mean', 'session', [[1, 80], [3, 65], [8, 50], [20, 25], [50, 10]], '每会话消息数（越少越委托）'],
+  ['stops', 'D', 0.25, 'ratio', 'turn', [[0, 65], [0.1, 50], [0.25, 25], [0.5, 8], [1, 5]], '打断与中止率（越高越掌舵）'],
+  ['struct', 'I', 0.35, 'ratio', 'session', [[0, 5], [1, 95]], '开场未写执行顺序 / 验收标准的占比'],
+  ['spec', 'I', 0.20, 'ratio', 'session', [[0, 60], [0.15, 45], [0.4, 20], [1, 5]], '开场引用规格 / 计划文件的占比（越高越规划）'],
+  ['length', 'I', 0.15, 'mean', 'session', [[0, 85], [20, 85], [80, 62], [200, 40], [600, 18], [1500, 10]], '首条消息长度（越长越规划）'],
+  ['redirect', 'I', 0.30, 'mean', 'session', [[0, 35], [0.1, 55], [0.25, 75], [0.5, 92], [1, 95]], '中途改向（纠偏消息占比）'],
+  ['parallel', 'M', 0.35, 'ratio', 'day', [[0, 5], [1, 95]], '同日 ≥ 2 个 Agent 或会话时间重叠的天数占比'],
+  ['per_day', 'M', 0.25, 'mean', 'day', [[1, 20], [2, 40], [3, 52], [5, 70], [10, 90]], '每日会话数'],
+  ['agents_day', 'M', 0.25, 'mean', 'day', [[1, 30], [2, 70], [3, 88], [5, 95]], '同日使用的 Agent 数'],
+  ['subagents', 'M', 0.15, 'ratio', 'session', [[0, 40], [0.1, 55], [0.3, 75], [0.6, 92], [1, 95]], '子代理并行度（≥ 2 个子代理同时运行的会话占比）'],
+  ['verify', 'V', 0.70, 'ratio', 'turn', [[0, 5], [1, 95]], '要求或运行测试 / 编译 / 检查的轮次占比'],
+  ['rework', 'V', 0.30, 'ratio', 'session', [[0, 40], [0.1, 60], [0.25, 80], [0.5, 95], [1, 95]], '回滚与重做率（有回滚 / 重做的会话占比）']
+];
+const PSIGK = {}; PSIG.forEach((x) => { PSIGK[x[0]] = x; });
+function pl(x, an) {
+  if (x <= an[0][0]) return an[0][1];
+  for (let i = 1; i < an.length; i++) if (x <= an[i][0]) { const [x0, y0] = an[i - 1], [x1, y1] = an[i]; return y0 + (y1 - y0) * (x - x0) / (x1 - x0); }
+  return an[an.length - 1][1];
+}
+// one session's contributions: ratio signals as (k, n) clusters, mean signals as a mapped score
+function psContrib(s) {
+  const r = {}, m = {};
+  if (s.dn) { r.steps = [s.dk || 0, s.dn]; r.verify = [s.vk || 0, s.dn]; }
+  if (s.kn) r.stops = [s.ik || 0, s.kn];
+  const oa = s.oa != null ? s.oa : s.op;   // 旧快照只有 op（开场是否结构化）
+  if (oa != null) r.struct = [oa ? 0 : 1, 1];
+  if (s.os != null) r.spec = [s.os ? 1 : 0, 1];
+  if (s.sc != null) r.subagents = [s.sc >= 2 ? 1 : 0, 1];
+  if (s.rb != null) r.rework = [s.rb ? 1 : 0, 1];
+  // live 行把未知的 msgs / corr 记成 0 供别处求和；这里取线上原值，未知就是未知（与后端一致）
+  const msgs = s.raw ? s.raw.msgs : s.msgs, corr = s.raw ? s.raw.corr : s.corr;
+  if (msgs) { m.msgs = pl(msgs, PSIGK.msgs[5]); if (msgs >= 2 && corr != null) m.redirect = pl(Math.min(1, corr / msgs), PSIGK.redirect[5]); }
+  if (s.ol != null) m.length = pl(s.ol, PSIGK.length[5]);
+  return { r, m };
+}
+const psEmpty = () => { const o = { n: 0, r: {}, m: {}, days: {} }; PSIG.forEach((x) => { if (x[3] === 'ratio') o.r[x[0]] = [0, 0, 0, 0, 0, 0]; else o.m[x[0]] = [0, 0, 0]; }); return o; };
+const psAddR = (a, k, n) => { a[0] += k; a[1] += n; a[2]++; a[3] += k * k; a[4] += k * n; a[5] += n * n; };
+const psAddM = (a, v) => { a[0] += v; a[1] += v * v; a[2]++; };
+// sufficient statistics of a session list (additive; per-day map {d: [sessions, agents, overlap]})
+function psSuff(L) {
+  const o = psEmpty(), by = {};
+  L.forEach((s) => {
+    const c = psContrib(s); o.n++;
+    for (const k in c.r) psAddR(o.r[k], c.r[k][0], c.r[k][1]);
+    for (const k in c.m) psAddM(o.m[k], c.m[k]);
+    if (s.d != null) (by[s.d] = by[s.d] || []).push(s);
+  });
+  for (const d in by) {
+    const xs = by[d], sp = xs.filter((s) => s.t0 != null && s.t1 != null).map((s) => [s.t0, s.t1]).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    let ov = 0, end = null; for (const [a, b] of sp) { if (end != null && a < end) { ov = 1; break; } end = end == null ? b : Math.max(end, b); }
+    o.days[d] = [xs.length, new Set(xs.map((s) => s.a)).size, ov];
+  }
+  return o;
+}
+// sum of blocks with disjoint agent sets (two agents on one day already make it multi-thread, so OR-ing overlap is exact)
+function psCombine(parts) {
+  const o = psEmpty();
+  parts.forEach((p) => {
+    o.n += p.n;
+    for (const k in o.r) o.r[k] = o.r[k].map((v, i) => v + p.r[k][i]);
+    for (const k in o.m) o.m[k] = o.m[k].map((v, i) => v + p.m[k][i]);
+    for (const d in p.days) { const c = o.days[d] = o.days[d] || [0, 0, 0]; c[0] += p.days[d][0]; c[1] += p.days[d][1]; c[2] = c[2] || p.days[d][2] ? 1 : 0; }
+  });
+  return o;
+}
+// one block per agent, cached by that agent's slice of the list (count + first / last id + data revision): toggling
+// other agents in the sidebar reuses the cached blocks and only sums them — nothing is precomputed per subset
+const PS_CACHE = new Map();
+function psByAgent(L) {
+  const g = {}; L.forEach((s) => { (g[s.a] = g[s.a] || []).push(s); });
+  const rev = typeof LV !== 'undefined' && LV.live ? LV.rev : 0, out = {};
+  if (PS_CACHE.size > 400) PS_CACHE.clear();
+  for (const a in g) {
+    const xs = g[a], key = rev + '|' + a + '|' + xs.length + '|' + xs[0].id + '|' + xs[xs.length - 1].id + '|' + xs.reduce((t, s) => (t * 31 + (typeof s.d === 'number' ? s.d : 0) + (s.msgs || 0) + (s.dn || 0)) % 1000000007, 7);
+    let b = PS_CACHE.get(key); if (!b) { b = psSuff(xs); PS_CACHE.set(key, b); }
+    out[a] = b;
+  }
+  return out;
+}
+function psWilson(p, n) {
+  if (n <= 0) return [0, 1];
+  const z = PZ, den = 1 + z * z / n, c = (p + z * z / (2 * n)) / den, h = z * Math.sqrt(Math.max(0, p * (1 - p) / n + z * z / (4 * n * n))) / den;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+}
+function psSignal(key, a) {
+  const [, , w, kind, unit, an, label] = PSIGK[key];
+  if (kind === 'ratio') {
+    const [k, n, m, kk, kn, nn] = a; if (n <= 0) return null;
+    const p = k / n, ss = kk - 2 * p * kn + p * p * nn;
+    const vr = m > 1 ? m / (m - 1) * Math.max(0, ss) / (n * n) : 0;
+    const ne = vr > 0 ? Math.min(n, p * (1 - p) / vr) : Math.min(n, m);
+    const [lo, hi] = psWilson(p, ne), x = pl(lo, an), y = pl(hi, an);
+    return { key, label, weight: w, unit, kind, raw: p, score: pl(p, an), lo: Math.min(x, y), hi: Math.max(x, y), n, ne };
+  }
+  const [sm, s2, m] = a; if (m <= 0) return null;
+  const mean = sm / m, sd = m > 1 ? Math.sqrt(Math.max(0, (s2 - m * mean * mean) / (m - 1))) : null, half = PZ * (sd != null ? sd / Math.sqrt(m) : 25);
+  return { key, label, weight: w, unit, kind, raw: null, score: mean, lo: Math.max(0, mean - half), hi: Math.min(100, mean + half), n: m, ne: m };
+}
+function psDays(o) {
+  const r = [0, 0, 0, 0, 0, 0], pd = [0, 0, 0], ad = [0, 0, 0];
+  Object.values(o.days).forEach(([n, ag, ov]) => { psAddR(r, ag >= 2 || ov ? 1 : 0, 1); psAddM(pd, pl(n, PSIGK.per_day[5])); psAddM(ad, pl(ag, PSIGK.agents_day[5])); });
+  return { parallel: r, per_day: pd, agents_day: ad };
+}
+const PS_HI = { D: ['D', 'S'], I: ['I', 'P'], M: ['M', 'F'], V: ['V', 'T'] };
+const PS_LR = { D: ['D 委托', '掌舵 S'], I: ['P 规划', '即兴 I'], M: ['M 多线', '专注 F'], V: ['V 求证', '信任 T'] };
+const PS_UNIT = { D: 'turn', I: 'session_opening', M: 'active_day', V: 'turn' };
+const PS_PRIMARY = { D: 'steps', I: 'struct', M: 'parallel', V: 'verify' };
+function psAxis(o, ax) {
+  const k = ax.k, dd = psDays(o);
+  const sigs = PSIG.filter((x) => x[1] === k).map((x) => psSignal(x[0], dd[x[0]] || (x[3] === 'ratio' ? o.r[x[0]] : o.m[x[0]]))).filter(Boolean);
+  let value = null, lo = 0, hi = 100, agree = null;
+  if (sigs.length) {
+    const W = sigs.reduce((t, x) => t + x.weight, 0);
+    value = sigs.reduce((t, x) => t + x.weight * x.score, 0) / W;
+    const se = Math.sqrt(sigs.reduce((t, x) => t + (x.weight * (x.hi - x.lo) / (2 * PZ)) ** 2, 0)) / W;
+    lo = Math.max(0, value - PZ * se); hi = Math.min(100, value + PZ * se);
+    const side = value >= 50; agree = sigs.reduce((t, x) => t + x.weight * (x.score === 50 ? 0.5 : (x.score >= 50) === side ? 1 : 0), 0) / W;
+  }
+  const r1 = (x) => Math.round(x * 10) / 10, prim = k === 'M' ? dd.parallel : o.r[PS_PRIMARY[k]];
+  const letter = (value == null ? 50 : value) >= 50 ? PS_HI[k][0] : PS_HI[k][1];
+  return { k, value: value == null ? null : r1(value), lo: r1(lo), hi: r1(hi), n_units: prim[1], k_units: prim[0], unit: PS_UNIT[k], letter,
+    state: value == null ? 'no_data' : 'settled', strong: value == null ? null : Math.round(Math.max(value, 100 - value)), left: PS_LR[k][0], right: PS_LR[k][1],
+    dim: ax.dim, q: ax.q, sig: sigs.length ? sigs.map((x) => x.label).join(' · ') : '暂无可用信号', agree: agree == null ? null : Math.round(agree * 100) / 100,
+    signals: sigs.map((x) => ({ key: x.key, label: x.label, weight: x.weight, score: r1(x.score), raw: x.raw, n: x.n, unit: x.unit })),
+    decided: value != null && (lo >= 55 || hi <= 45) };
+}
+// persona from sufficient statistics; conf from the session count, one level lower when the signals disagree
+function personaFromSuff(o) {
+  const n = o.n, days = Object.keys(o.days).length;
+  if (!n) return { ok: false, classified: false, n, days, conf: '低' };
+  const axes = AXES.map((ax) => psAxis(o, ax));
+  const ag = axes.filter((a) => a.agree != null), consistency = ag.length ? Math.round(ag.reduce((t, a) => t + a.agree, 0) / ag.length * 100) / 100 : null;
+  let lv = n >= 100 ? 2 : n >= PERSONA_SOFT_N ? 1 : 0; if (consistency != null && consistency < 0.7) lv = Math.max(0, lv - 1);
+  const code = axes.map((a) => a.letter).join(''), t = TYPES[code];
+  return { ok: true, classified: !!t, n, days, code, zh: t[0], en: t[1], line: t[2], hint: personaHint(n), consistency,
+    v: axes.reduce((m, a) => { m[a.k] = a.value == null ? 50 : a.value; return m; }, {}), axes, conf: ['低', '中', '高'][lv], decided_axes: axes.filter((a) => a.decided).length };
+}
+// a session list → persona: per-agent blocks of the list, summed (so an agent subset never needs its own pass)
+function personaCompose(L) { return personaFromSuff(psCombine(Object.values(psByAgent(L)))); }
 function persona(L, minN) {
   const n = L.length;
   if (!n) return { ok: false, classified: false, n };   // minN 只是「按项目」的标记（live 用它走项目画像），不再是门槛
+  const p = personaCompose(L);
   const st = stats(L);
-  const mins = st.hours * 60 || 1;
   const by = {}; L.forEach((s) => { (by[s.d] = by[s.d] || []).push(s); });
   const days = Object.values(by);
-  const avgS = n / days.length;
-  const avgA = days.reduce((a, l) => a + new Set(l.map((s) => s.a)).size, 0) / days.length;
-  const v = {
-    D: clamp(50 + (st.auto - 8) * 5.8, 4, 96),
-    I: clamp(sum(L, (s) => PJI[s.p].I * s.dur) / mins, 4, 96),
-    M: clamp(20 + 7 * avgS + 5 * avgA - 6, 4, 96),
-    V: clamp(sum(L, (s) => PJI[s.p].V * s.dur) / mins, 4, 96)
-  };
-  const pairs = [['D', 'S'], ['I', 'P'], ['M', 'F'], ['V', 'T']];
-  const code = ['D', 'I', 'M', 'V'].map((k, i) => v[k] >= 50 ? pairs[i][0] : pairs[i][1]).join('');
-  const t = TYPES[code];
-  return { ok: true, classified: !!t, n, v, code, zh: t[0], en: t[1], line: t[2], st, avgS, avgA, conf: n >= 100 ? '高' : n >= PERSONA_SOFT_N ? '中' : '低', hint: personaHint(n) };
+  p.st = st; p.avgS = n / days.length; p.avgA = days.reduce((a, l) => a + new Set(l.map((s) => s.a)).size, 0) / days.length;
+  return p;
 }
 function axisView(p, i) {
   const ax = AXES[i]; const val = p.v[ax.k];

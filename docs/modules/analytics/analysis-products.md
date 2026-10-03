@@ -147,7 +147,7 @@ uv run orbit --home /实际的Orbit数据目录 analysis-report \
 
 | 项目 | 当前处理与后续条件 |
 | --- | --- |
-| 四字母人格 | 本产品（`interaction_habits`、`profile_history`）只提供真实行为与月度证据，`type_code` 恒为 `null`。App 展示的 16 型由 `uiview.persona`（`uiview-persona-v0`，[profiling.md](profiling.md)）产生：1 个会话即出完整 4 字母，每轴按 50 分界，没有单位的轴按 50 计，只有四轴都无值才不揭晓；各轴分界是产品默认值，尚未经人群校准。 |
+| 四字母人格 | 本产品（`interaction_habits`、`profile_history`）只提供真实行为与月度证据，`type_code` 恒为 `null`。App 展示的 16 型由 `uiview.persona`（`uiview-persona-v1`，[profiling.md](profiling.md)）产生：1 个会话即出完整 4 字母，每轴按 50 分界，没有单位的轴按 50 计，只有四轴都无值才不揭晓；各轴分界是产品默认值，尚未经人群校准。 |
 | 配置覆盖 | 已透传主干配置清单及扫描诊断；未扫描时 `configuration.status=unavailable`，分析请求不自行扫描用户目录。 |
 | 上下文占用与额度 | `context_capacity.status=unavailable`；需来源给出明确占用、容量和额度窗口，不能由累计 Token 反推。 |
 | 实时推送 | 已提供最后观测状态；连续采集与推送需 App 调用已有 ImportService watch 并刷新分析，尚未新增 SSE 订阅。 |

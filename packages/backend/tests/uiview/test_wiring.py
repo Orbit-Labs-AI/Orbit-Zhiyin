@@ -17,6 +17,7 @@ from orbit_backend.services.snapshots import SnapshotKey, scope_hash
 from orbit_backend.services.supervisor import SupervisorConfig
 from orbit_backend.sessionops import exclusion
 from orbit_backend.uiview import a4a6_common, facts, fetch, persona
+from orbit_backend.uiview import persona_signals as sig
 
 from .a4a6_ps_fixture import HOUR, T0, Orbit, ro
 from .synth import TODAY, analysed
@@ -37,20 +38,23 @@ def test_wire_rows_carry_persona_units():
         r = by_id[uid]
         assert r["dn"] == len(a["turns"]) and r["op"] == a["open"]
         assert r["t0"] == a["t0"] and r["t1"] == a["t1"]
-    # The client can rebuild D / I / V on any subset from the row units alone.
+    # The client rebuilds the whole persona on any subset from the row units alone: the
+    # statistics of the wire rows equal those of facts rows + aux.
     subset = [r for r in body["rows"] if r["a"] == "codex"]
-    units = persona.units(subset, body["aux"])
     wired = [by_id[r["id"]] for r in subset]
-    assert units["D"] == (sum(r["dk"] for r in wired), sum(r["dn"] for r in wired))
-    assert units["V"] == (sum(r["vk"] for r in wired), sum(r["dn"] for r in wired))
-    opens = [r["op"] for r in wired if r["op"] is not None]
-    assert units["I"] == (opens.count(0), len(opens))
+    assert sig.suff(wired) == sig.suff(subset, body["aux"])
+    assert persona.persona_from(sig.suff(wired)) == persona.persona(subset, body["aux"])
 
 
 def test_aux_units_without_aux_are_null():
     assert facts.aux_units(None) == dict.fromkeys(facts.AUX_KEYS)
     assert facts.aux_units({"turns": [[5, 1], [4, 0], [9, 1]], "open": 1, "t0": 1, "t1": 2}) == \
-        {"dk": 2, "dn": 3, "vk": 2, "op": 1, "t0": 1, "t1": 2}
+        {"dk": 2, "dn": 3, "vk": 2, "op": 1, "t0": 1, "t1": 2, "ik": 0, "kn": 0, "ol": None,
+         "oa": None, "os": None, "sc": None, "rb": None}
+    six = facts.aux_units({"turns": [[5, 1, 0, 1, 1, 1], [1, 0, 0, 0, 0, 0]], "olen": 40,
+                           "oacc": 1, "ospec": 0, "sub": 2, "rb": 1})
+    assert (six["ik"], six["kn"], six["ol"], six["oa"], six["os"], six["sc"], six["rb"]) == \
+        (1, 1, 40, 1, 0, 2, 1)
 
 
 def test_kimi_agent_name():
@@ -117,16 +121,16 @@ def gw(tmp_path):
     gateway.close()
 
 
-def put_facts(gw, n: int = 6) -> None:
+def put_facts(gw, n: int = 6, tz: str | None = None) -> None:
     rev = gw.revisions.snapshot()
     assert rev["data_rev"] is not None
     rows = [fact_row(i) for i in range(n)]
     body = {"contract": facts.CONTRACT, "rows": rows,
             "aux": {r["id"]: {"t0": T0, "t1": T0 + 1, "turns": [[6, 1]], "open": 1, "tools": {}}
                     for r in rows},
-            "meta": {"display_timezone": "UTC"}, "agents": facts._agents(rows),
+            "meta": {"display_timezone": tz or "UTC"}, "agents": facts._agents(rows),
             "projects": [{"id": "p1", "name": "p1", "path": None, "n": 3}]}
-    key = SnapshotKey(fetch.SECTION, scope_hash(fetch.default_scope(), {}), rev["data_rev"],
+    key = SnapshotKey(fetch.SECTION, scope_hash(fetch.default_scope(tz), {}), rev["data_rev"],
                       rev["inventory_rev"], rules_digest())
     gw.snapshots.put(key, json.loads(json.dumps(body)))
 
@@ -211,6 +215,35 @@ def test_facets_and_agents_filter_a4a6_pages(gw):
                  ).json()["meta"]["n_sessions"] == 2
     assert c.get("/v1/uiview/sentiment", params={**window, "agents": "codex"}
                  ).json()["meta"]["n_sessions"] == 2
+
+
+def test_project_persona_reads_the_client_timezone_snapshot(gw):
+    """Facts are keyed by the client's display timezone (the overview request and the MRU
+    prewarm); a UTC-only lookup left every project persona pending for non-UTC users."""
+    put_facts(gw, tz="Asia/Shanghai")
+
+    def statuses(**params):
+        body = gw.client.get("/v1/uiview/projects", params=params).json()
+        return {p["project_id"]: p["persona"]["status"] for p in body["projects"]}
+
+    assert set(statuses().values()) == {"persona_pending"}  # no tz, empty MRU: UTC only
+    got = statuses(tz="Asia/Shanghai")
+    assert got and "persona_pending" not in got.values()
+    detail = gw.client.get("/v1/uiview/projects/p1", params={"tz": "Asia/Shanghai"}).json()
+    assert detail["header"]["persona"]["status"] != "persona_pending"
+    # Without a tz the lookup falls back to the MRU timezone, like gateway.prewarm.
+    gw.state.remember_scope({**fetch.default_scope("Asia/Shanghai")})
+    assert "persona_pending" not in statuses().values()
+
+
+def test_project_persona_not_built_from_a_narrower_snapshot(gw):
+    from orbit_backend.uiview import a4a6_projects
+
+    assert a4a6_projects.snapshot_covers(0, None) and not a4a6_projects.snapshot_covers(7, None)
+    now = 100 * 86_400_000
+    assert a4a6_projects.snapshot_covers(7, now - 6 * 86_400_000 - 3_600_000, now)
+    assert not a4a6_projects.snapshot_covers(7, now - 30 * 86_400_000, now)
+    assert a4a6_projects.facts_persona_lookup({"rows": [], "aux": {}}, basis_days=7) is None
 
 
 def test_facets_wait_for_facts(gw):

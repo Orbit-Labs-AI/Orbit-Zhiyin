@@ -244,7 +244,7 @@ test('empty spine and missing endpoints: owned routes render honest empty states
   expect(errors).toEqual([]);
 });
 
-test('G1 port: rows with unit counts compute the persona client-side (Wilson axes) without a server round trip', async ({ page }) => {
+test('G1 port: rows with unit counts compute the persona client-side (multi-signal axes) without a server round trip', async ({ page }) => {
   test.skip(!!PASS, 'synthetic rows');
   await stubGateway(page, 's1', routes());
   await openLive(page, 'overview');
@@ -266,5 +266,7 @@ test('G1 port: rows with unit counts compute the persona client-side (Wilson axe
   expect(p.ok).toBe(true);
   expect(p.code).toBe('DPMV');
   expect(p.zh).toBe('总设计师');
-  expect(p.axes).toEqual([['D', 'settled', 100], ['I', 'settled', 0], ['M', 'settled', 100], ['V', 'settled', 100]]);
+  // uiview-persona-v1 composite: D = (0.5·95 [steps 4/4] + 0.25·62 [4 msgs]) / 0.75 = 84; I = (0.35·5 [structured] + 0.3·35
+  // [no redirection]) / 0.65 = 18.8; M = (0.35·95 [two agents a day] + 0.25·40 [2 a day] + 0.25·70 [2 agents]) / 0.85 = 71.5; V = 95
+  expect(p.axes).toEqual([['D', 'settled', 84], ['I', 'settled', 18.8], ['M', 'settled', 71.5], ['V', 'settled', 95]]);
 });

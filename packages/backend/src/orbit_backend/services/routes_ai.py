@@ -50,6 +50,9 @@ class JobRequest(PreviewRequest):
     template: Literal["v1", "quick", "strict"] = "v1"
     preview_digest: str | None = None
     override: bool = False
+    # 「重新生成」: skip the result cache for this job (a new model call; the new output
+    # replaces the cached one). Default False keeps identical requests free.
+    fresh: bool = False
 
 
 class ConsentPatch(BaseModel):

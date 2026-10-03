@@ -424,7 +424,8 @@ LV.hydrate = function (spine) {
       dur: r.dur != null ? r.dur : r.span != null ? r.span : 0, msgs: r.msgs || 0, tools: r.tools || 0, errors: r.errors || 0, corr: r.corr || 0,
       steps: r.steps != null ? r.steps : null, out: r.out || null, live: !!r.live, verify: r.verify == null ? null : !!r.verify, mood: r.mood != null ? r.mood : null,
       topic: r.topic || 'other', fric: r.fric || null, tok: r.tok || 0, title: r.title || '（无标题）', model: r.model || null, effort: r.effort || null,
-      dk: r.dk, dn: r.dn, vk: r.vk, op: r.op, t0: r.t0, t1: r.t1, raw: r });
+      dk: r.dk, dn: r.dn, vk: r.vk, op: r.op, t0: r.t0, t1: r.t1,
+      ik: r.ik, kn: r.kn, ol: r.ol, oa: r.oa, os: r.os, sc: r.sc, rb: r.rb, raw: r });
   });
   ALLX.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi) || (x.id < y.id ? -1 : 1));
   ALL.length = 0; ALLX.forEach((s) => ALL.push(s));

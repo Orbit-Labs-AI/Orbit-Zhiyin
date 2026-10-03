@@ -3,7 +3,7 @@
 //  1 unknown outcome   facts with out / verify = null: Lite home 完成率 tile reads「—」(never 0 %), the evidence line has no
 //                      「0% 要求验证」; A1 outcome card says 完成 — and how many sessions have a result; the session lists
 //                      badge each row 结果未知 (not 完成)
-//  2 rule badges       live A1 / Lite home insight carries the neutral「规则」tag and no 重新生成; Lite session insight too
+//  2 rule badges       live A1 / Lite home insight carries the neutral「规则解读」tag (the button offers AI 生成, not 重新生成); Lite session insight carries「规则」
 import { test, expect } from '@playwright/test';
 import { stubGateway, openLive, collectErrors, fx } from './live-helpers.mjs';
 
@@ -57,11 +57,11 @@ test('rule-template insights carry the 规则 tag, not the AI badge', async ({ p
   await expect.poll(() => page.evaluate(() => !!(LV.ov && LV.ov.insight && LV.ov.insight.lede))).toBe(true);
   await page.evaluate(() => go('overview'));
   const ai = page.locator('#aiCard .ov-aih').first();
-  await expect(ai.locator('.tag')).toHaveText('规则');
+  await expect(ai.locator('[data-lv="ins-basis"]')).toHaveText('规则解读');
   await expect(ai.locator('.aib')).toHaveCount(0);
-  await expect(page.locator('#aiCard [data-act="regen"]')).toHaveCount(0);
+  await expect(page.locator('#aiCard [data-act="regen"]')).not.toContainText('重新生成');
   await page.evaluate(() => { go('overview'); edSet('lite'); });
-  await expect(page.locator('#main .l-hero .tag')).toHaveText('规则');
+  await expect(page.locator('#main .l-hero [data-lv="ins-basis"]')).toHaveText('规则解读');
   await expect(page.locator('#main .l-hero .aib')).toHaveCount(0);
   await page.evaluate(() => go('l-sessions'));
   await expect(page.locator('#main .l-ins .tag')).toHaveText('规则');
