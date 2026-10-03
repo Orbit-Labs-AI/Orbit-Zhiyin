@@ -46,7 +46,8 @@ def test_semantic_recall_is_independent_and_filtered_before_topk(store):
 
 
 def test_chinese_fts_and_source_filters_survive_query_operators(store):
-    publish(store, [record("a"), record("b", agents=["claude_code"])])
+    # Subagent files have no cross-agent open format, so a claude_code subagent stays claude_code only.
+    publish(store, [record("a"), record("b", agents=["claude_code"], type="subagent")])
     result = search(store, MatchRequest(text='重复失败 OR " :*', agents=["codex"], excluded_ids=["a"]))
     assert result["items"] == []
     assert search(store, MatchRequest(text="重复失败"))["items"]
@@ -144,7 +145,8 @@ def test_prefix_query_matches_partial_last_token(store):
 
 
 def test_lexical_finds_filtered_item_behind_many_stronger_hits(store):
-    rows = [record(f"p{n:03}", summary="retry retry retry wording", agents=["claude_code"]) for n in range(60)]
+    rows = [record(f"p{n:03}", summary="retry retry retry wording", agents=["claude_code"], type="subagent")
+            for n in range(60)]
     rows.append(record("only-codex", summary="retry once, among many other unrelated words here", agents=["codex"]))
     publish(store, rows)
     result = search(store, MatchRequest(text="retry", agents=["codex"], per_route=10))
