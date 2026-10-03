@@ -1,6 +1,6 @@
-"""Synthetic tandem.db + gateway for the A4–A6 adapters; tmp HOME only, never real agent dirs.
+"""Synthetic orbit.db + gateway for the A4–A6 adapters; tmp HOME only, never real agent dirs.
 
-``Tandem`` follows tests/sessionops/conftest.Tandem (raw INSERTs, foreign keys off) and adds
+``Orbit`` follows tests/sessionops/conftest.Orbit (raw INSERTs, foreign keys off) and adds
 the tool_call columns the adapters read: error_class, approval, approval_wait_ms,
 argument_digest, duration, mcp_server, sub-agent sessions and tool.result text.
 """
@@ -14,24 +14,24 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
-from tandem_data.store import Store
+from orbit_data import MAPPER_VERSION, REDUCER_VERSION
+from orbit_data.store import Store
 
-from tandem_backend.services import routes_sessionops, routes_uiview_a4a6
-from tandem_backend.services.gateway import Gateway, install_error_handlers
-from tandem_backend.services.supervisor import SupervisorConfig
-from tandem_backend.sessionops import exclusion
-from tandem_backend.uiview import a4a6_common
+from orbit_backend.services import routes_sessionops, routes_uiview_a4a6
+from orbit_backend.services.gateway import Gateway, install_error_handlers
+from orbit_backend.services.supervisor import SupervisorConfig
+from orbit_backend.sessionops import exclusion
+from orbit_backend.uiview import a4a6_common
 
 T0 = 1_760_000_000_000
 HOUR = 3_600_000
 DAY = 86_400_000
 
 
-class Tandem:
+class Orbit:
     def __init__(self, home: Path):
         Store(home).db.close()
-        self.db = sqlite3.connect(home / "tandem.db", isolation_level=None)
+        self.db = sqlite3.connect(home / "orbit.db", isolation_level=None)
         self.db.execute("PRAGMA foreign_keys = OFF")
         self.n = 0
         for agent in ("claude_code", "codex"):
@@ -95,7 +95,7 @@ CYCLE = (("Read", "file.read", None), ("Grep", "search", None), ("Edit", "file.e
          ("Task", "subagent", None))
 
 
-def build_standard(t: Tandem) -> dict:
+def build_standard(t: Orbit) -> dict:
     """40 main sessions / 566 calls: 30 claude_code (ok/failed), 10 codex (unknown status,
     approvals on shell), one MCP server ``pw``; three sub-agents of s00, one interrupted."""
     calls = 0
@@ -131,20 +131,20 @@ def home(tmp_path) -> Path:
 
 
 @pytest.fixture
-def tandem(home):
-    t = Tandem(home)
+def orbit(home):
+    t = Orbit(home)
     yield t
     t.db.close()
 
 
 @pytest.fixture
-def conn(tandem):
-    tandem.db.row_factory = sqlite3.Row
-    return tandem.db
+def conn(orbit):
+    orbit.db.row_factory = sqlite3.Row
+    return orbit.db
 
 
 @pytest.fixture
-def gateway(home, tandem):
+def gateway(home, orbit):
     config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0, tick_s=0.05)
     gw = Gateway(home, config=config, discovery=lambda: [], prewarm_debounce_s=3600.0)
     a4a6_common.CACHE.items.clear()

@@ -85,7 +85,7 @@ for (const kind of ['full', 'empty']) {
 test('strip: connecting before the gateway answers, computing on 202, then the 200 spine re-renders', async ({ page }) => {
   const errors = collectErrors(page);
   const gw = await stubGateway(page, 'core', { 'GET /v1/uiview/facts': { status: 202, body: fx('core/facts-computing.json') } });
-  await page.goto('http://tandem.test/app?live=1#overview');
+  await page.goto('http://orbit.test/app?live=1#overview');
   await expect(page.locator('[data-tl="strip"] [data-tl="computing"]')).toBeVisible();
   expect(await page.evaluate(() => [LV.state, ALL.length])).toEqual(['computing', 0]);
   gw.set('GET /v1/uiview/facts', FACTS);
@@ -110,11 +110,11 @@ test('strip: importing job frame shows progress; a data frame refetches the spin
 test('connecting: no gateway keeps the empty shell with 正在连接本机服务, never mock rows', async ({ page }) => {
   const errors = collectErrors(page);
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await page.addInitScript(() => { window.__TANDEM_ENDPOINT__ = 'http://tandem-down.test'; });
-  await page.route(/^http:\/\/tandem-down\.test\//, (r) => r.abort('connectionrefused'));
-  const html = (await import('node:fs')).readFileSync(new URL('../tandem-demo.html', import.meta.url), 'utf8');
-  await page.route('http://tandem.test/app?live=1', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }));
-  await page.goto('http://tandem.test/app?live=1');
+  await page.addInitScript(() => { window.__ORBIT_ENDPOINT__ = 'http://orbit-down.test'; });
+  await page.route(/^http:\/\/orbit-down\.test\//, (r) => r.abort('connectionrefused'));
+  const html = (await import('node:fs')).readFileSync(new URL('../orbit-demo.html', import.meta.url), 'utf8');
+  await page.route('http://orbit.test/app?live=1', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }));
+  await page.goto('http://orbit.test/app?live=1');
   await expect(page.locator('[data-tl="strip"] [data-tl="connecting"]')).toBeVisible();
   expect(await page.evaluate(() => [ALL.length, AG.length, LV.state])).toEqual([0, 0, 'connecting']);
   expect(await page.locator('#main').innerText()).not.toMatch(MOCK_MARKERS);
@@ -144,14 +144,14 @@ test('feeds: LV.feed applies once per new response before render; 404 leaves the
   expect(n).toEqual(['ready', 7, 2, false]);
 });
 
-test('native bridge: request ids correlate with tandem:* replies; one-way posts; legacy true flag counts as native', async ({ page }) => {
+test('native bridge: request ids correlate with orbit:* replies; one-way posts; legacy true flag counts as native', async ({ page }) => {
   await stubGateway(page, 'core', {}, { native: { v: 1, app: '0.0.1', platform: 'macos', features: ['chooseFolder', 'save'] } });
   await openLive(page);
   const r = await page.evaluate(async () => {
     const p = ORBIT.native.request('chooseFolder', { purpose: 'source', agent: 'codex' });
     const m = window.__nativeMsgs[window.__nativeMsgs.length - 1];
-    window.dispatchEvent(new CustomEvent('tandem:folder', { detail: { id: 'other', path: '/x', cancelled: false } }));
-    window.dispatchEvent(new CustomEvent('tandem:folder', { detail: { id: m.id, path: '~/Code', cancelled: false } }));
+    window.dispatchEvent(new CustomEvent('orbit:folder', { detail: { id: 'other', path: '/x', cancelled: false } }));
+    window.dispatchEvent(new CustomEvent('orbit:folder', { detail: { id: m.id, path: '~/Code', cancelled: false } }));
     const reply = await p;
     ORBIT.native.post('zoom');
     return { isNative: ORBIT.native.isNative, has: ORBIT.native.has('save'), msg: m, reply, last: window.__nativeMsgs[window.__nativeMsgs.length - 1] };

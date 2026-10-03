@@ -1,6 +1,6 @@
 # Orbit 路演组件素材
 
-从现行 [Orbit 单文件原型](../../../prototypes/advance/tandem-demo.html) 提取完整页面和独立组件，供后续制作路演 PPT。保持现有设计与示例数据，提供透明背景 PNG、原始品牌 SVG、图表 SVG、素材索引与来源记录。
+从现行 [Orbit 单文件原型](../../../prototypes/advance/orbit-demo.html) 提取完整页面和独立组件，供后续制作路演 PPT。保持现有设计与示例数据，提供透明背景 PNG、原始品牌 SVG、图表 SVG、素材索引与来源记录。
 
 首次整理基于 `main` 的 `2b817a44`（2026-10-03）。每次重新导出都会在素材包的 `manifest.json` 记录当次完整提交 SHA；素材不代表真实用户统计或性能测试结果。
 
@@ -28,7 +28,7 @@
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm --filter @tandem/prototype-advance exec playwright install chromium
+pnpm --filter @orbit/prototype-advance exec playwright install chromium
 node prototypes/advance/build.mjs --check
 node docs/design/ppt-assets/export.mjs
 ```

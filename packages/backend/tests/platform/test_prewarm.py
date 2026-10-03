@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import asdict
 from types import SimpleNamespace
 
-from tandem_backend.services.gateway import Gateway, Revisions
-from tandem_backend.services.routes_analytics import analytics_scope
-from tandem_backend.services.snapshots import scope_hash
+from orbit_backend.services.gateway import Gateway, Revisions
+from orbit_backend.services.routes_analytics import analytics_scope
+from orbit_backend.services.snapshots import scope_hash
 
 
 def fake(heavy: bool):
@@ -39,9 +39,9 @@ def test_prewarm_adds_recommend_inputs_on_heavy_pass():
 
 def test_prewarm_keys_include_persistent_exclusions_and_the_client_timezone():
     """Prewarm builds scopes like the routes do, so its snapshots are the ones requested."""
-    from tandem_backend.services import fastpath
-    from tandem_backend.sessionops import exclusion
-    from tandem_backend.uiview.fetch import SECTION as FACTS
+    from orbit_backend.services import fastpath
+    from orbit_backend.sessionops import exclusion
+    from orbit_backend.uiview.fetch import SECTION as FACTS
 
     exclusion.set_provider(lambda: ["s-excluded"])
     try:

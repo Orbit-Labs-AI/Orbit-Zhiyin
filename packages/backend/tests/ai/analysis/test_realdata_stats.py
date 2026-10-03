@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 from ai_analysis_fakectx import DAY, NOW
 
-from tandem_backend.ai import ask, queries
-from tandem_backend.ai import pack as P
+from orbit_backend.ai import ask, queries
+from orbit_backend.ai import pack as P
 
 HOUR = 3_600_000
 
@@ -26,14 +26,14 @@ def _metrics(tdb, home, days):
     return {r["metric"]: r for r in rows}
 
 
-def test_hours_are_the_union_of_overlapping_sessions(tdb, tandem_home):
+def test_hours_are_the_union_of_overlapping_sessions(tdb, orbit_home):
     # Three sessions opened within the same hour and left open for 24 h.
     for i in range(3):
         tdb.session(f"s{i}", start=NOW - DAY + i * 600_000, minutes=24 * 60, humans=["做个功能"])
     tdb.commit()
-    m = _metrics(tdb, tandem_home, 2)
+    m = _metrics(tdb, orbit_home, 2)
     assert m["hours"]["value"] == 24.0  # clipped at the window end, overlap counted once
-    projects = queries.run("projects", {"scope": {"days": 2}}, reads=tdb.reads, home=tandem_home)["rows"]
+    projects = queries.run("projects", {"scope": {"days": 2}}, reads=tdb.reads, home=orbit_home)["rows"]
     assert projects[0]["hours"] == 24.0 and projects[0]["sessions"] == 3
 
 
@@ -61,15 +61,15 @@ def test_correction_heuristic(text, verdict):
     assert P.is_correction(text) is verdict
 
 
-def test_correction_rate_ignores_copula_and_retries(tdb, tandem_home):
+def test_correction_rate_ignores_copula_and_retries(tdb, orbit_home):
     long_prompt = "请你实现这个功能，" + "注意这不是一个简单的任务，" * 40
     tdb.session("s1", humans=["做个功能", long_prompt, "Try again", "不对，回到上一版"])
     tdb.commit()
-    m = _metrics(tdb, tandem_home, 7)
+    m = _metrics(tdb, orbit_home, 7)
     assert m["human_messages"]["value"] == 4 and m["corrections"]["value"] == 1
 
 
-def test_metrics_pair_matches_two_single_windows(tdb, tandem_home):
+def test_metrics_pair_matches_two_single_windows(tdb, orbit_home):
     for i in range(4):
         tdb.session(f"c{i}", start=NOW - (i + 1) * DAY, humans=["做", "不对，重来"],
                     tools=[("Bash", "shell", "pytest", "failed", "exit"), ("Read", "read")])
@@ -86,68 +86,68 @@ def test_metrics_pair_matches_two_single_windows(tdb, tandem_home):
     assert prev["sessions"] == 4 and prev["corrections"] == 0
 
 
-def test_metrics_cache_sees_new_data(tdb, tandem_home):
+def test_metrics_cache_sees_new_data(tdb, orbit_home):
     tdb.session("a", humans=["做"])
     tdb.commit()
-    assert _metrics(tdb, tandem_home, 7)["sessions"]["value"] == 1
+    assert _metrics(tdb, orbit_home, 7)["sessions"]["value"] == 1
     tdb.session("b", humans=["做"])
     tdb.commit()
-    assert _metrics(tdb, tandem_home, 7)["sessions"]["value"] == 2
+    assert _metrics(tdb, orbit_home, 7)["sessions"]["value"] == 2
 
 
-def test_failure_rate_uses_known_statuses(tdb, tandem_home):
+def test_failure_rate_uses_known_statuses(tdb, orbit_home):
     tools = [("Edit", "edit", None, "failed", "x")] + [("Edit", "edit", None, "unknown")] * 9 + \
         [("Edit", "edit", None, "success")]
     tdb.session("s1", tools=tools)
     tdb.commit()
-    row = queries.run("tools", {}, reads=tdb.reads, home=tandem_home)["rows"][0]
+    row = queries.run("tools", {}, reads=tdb.reads, home=orbit_home)["rows"][0]
     assert row["calls"] == 11 and row["known_calls"] == 2 and row["failure_rate"] == 0.5
-    assert _metrics(tdb, tandem_home, 7)["tool_failure_rate"]["value"] == 0.5
+    assert _metrics(tdb, orbit_home, 7)["tool_failure_rate"]["value"] == 0.5
 
 
-def test_top_error_class_is_scoped_to_the_window(tdb, tandem_home):
+def test_top_error_class_is_scoped_to_the_window(tdb, orbit_home):
     tdb.session("old", start=NOW - 90 * DAY, tools=[("Bash", "shell", "x", "failed", "old_err")] * 5)
     tdb.session("new", tools=[("Bash", "shell", "x", "failed", "new_err")] * 2)
     tdb.commit()
-    row = queries.run("tools", {"scope": {"days": 7}}, reads=tdb.reads, home=tandem_home)["rows"][0]
+    row = queries.run("tools", {"scope": {"days": 7}}, reads=tdb.reads, home=orbit_home)["rows"][0]
     assert row["tool"] == "Bash" and row["failures"] == 2 and row["top_error_class"] == "new_err"
 
 
-def test_approvals_exclude_denied(tdb, tandem_home):
+def test_approvals_exclude_denied(tdb, orbit_home):
     tdb.session("s1", tools=[("Bash", "shell", "rm")] * 3)
     tdb.db.execute("UPDATE tool_call SET approval='allowed-once' WHERE call_uid='s1-c0'")
     tdb.db.execute("UPDATE tool_call SET approval='denied' WHERE call_uid IN ('s1-c1','s1-c2')")
     tdb.commit()
-    row = queries.run("tools", {}, reads=tdb.reads, home=tandem_home)["rows"][0]
+    row = queries.run("tools", {}, reads=tdb.reads, home=orbit_home)["rows"][0]
     assert row["approvals"] == 1 and row["denied"] == 2
-    answer = ask.preset_answer("tools", 1, reads=tdb.reads, home=tandem_home)["answer"]
+    answer = ask.preset_answer("tools", 1, reads=tdb.reads, home=orbit_home)["answer"]
     assert "1 次经你批准后执行，2 次被你拒绝" in answer
 
 
-def test_projects_report_unattributed_sessions_and_scope_tools(tdb, tandem_home):
+def test_projects_report_unattributed_sessions_and_scope_tools(tdb, orbit_home):
     tdb.session("a", project="p1", tools=[("Read", "read")] * 3)
     tdb.session("b", project=None, tools=[("Read", "read")] * 2)
     tdb.session("old", project="p1", start=NOW - 90 * DAY, tools=[("Read", "read")] * 50)
     tdb.commit()
     rows = {r["name"]: r for r in queries.run("projects", {"scope": {"days": 30}}, reads=tdb.reads,
-                                               home=tandem_home)["rows"]}
+                                               home=orbit_home)["rows"]}
     assert rows["alpha"]["tool_calls"] == 3  # the 90-day-old session is outside the window
     assert rows["未归类"]["unattributed"] and rows["未归类"]["sessions"] == 1
 
 
-def test_project_friction_needs_a_real_sample(tdb, tandem_home):
+def test_project_friction_needs_a_real_sample(tdb, orbit_home):
     small = [("Bash", "shell", "x", "failed", "e")] * 4 + [("Bash", "shell", "x")] * 31
     big = [("Bash", "shell", "x", "failed", "e")] * 70 + [("Bash", "shell", "x")] * 930
     tdb.session("small", project="p1", tools=small)
     tdb.session("big", project="p2", tools=big)
     tdb.commit()
-    answer = ask.preset_answer("projects", 1, reads=tdb.reads, home=tandem_home)["answer"]
+    answer = ask.preset_answer("projects", 1, reads=tdb.reads, home=orbit_home)["answer"]
     assert answer.startswith("「beta」")
     assert ask.wilson_lower(4, 35) < ask.wilson_lower(70, 1000)
 
 
-def test_correction_phrases_skip_retries(tdb, tandem_home):
+def test_correction_phrases_skip_retries(tdb, orbit_home):
     tdb.session("s1", humans=["Try again", "again", "不对，换个方法"])
     tdb.commit()
-    answer = ask.preset_answer("sentiment", 0, reads=tdb.reads, home=tandem_home)["answer"]
+    answer = ask.preset_answer("sentiment", 0, reads=tdb.reads, home=orbit_home)["answer"]
     assert "Try again" not in answer and "不对，换个方法" in answer

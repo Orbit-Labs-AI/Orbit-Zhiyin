@@ -3,14 +3,14 @@ import time
 from .conftest import HOUR
 
 
-def test_quota_endpoints(tandem, client):
+def test_quota_endpoints(orbit, client):
     now = int(time.time() * 1000)
-    tandem.session("c1", agent="codex", started=now - 2 * HOUR)
-    tandem.session("s1", agent="claude_code", started=now - 2 * HOUR)
-    tandem.limits("c1", ts=now - HOUR, windows={
+    orbit.session("c1", agent="codex", started=now - 2 * HOUR)
+    orbit.session("s1", agent="claude_code", started=now - 2 * HOUR)
+    orbit.limits("c1", ts=now - HOUR, windows={
         "primary": {"used_percent": 20, "window_minutes": 300, "resets_at": now // 1000 + 3600}})
-    tandem.model_call("s1", ts=now - HOUR, cost=0.5)
-    tandem.model_call("c1", ts=now - HOUR, model="gpt-5")
+    orbit.model_call("s1", ts=now - HOUR, cost=0.5)
+    orbit.model_call("c1", ts=now - HOUR, model="gpt-5")
 
     q = client.get("/v1/quota")
     assert q.status_code == 200

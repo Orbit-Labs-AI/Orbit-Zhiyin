@@ -8,10 +8,10 @@ import time
 import pytest
 from synthetic import write_codex_tree
 
-from tandem_backend.services.gateway import default_scope, next_sync_interval
-from tandem_backend.services.ingest_plan import plan_batches
-from tandem_backend.services.jobs import AppState
-from tandem_backend.services.worker_ingest import IngestWorker
+from orbit_backend.services.gateway import default_scope, next_sync_interval
+from orbit_backend.services.ingest_plan import plan_batches
+from orbit_backend.services.jobs import AppState
+from orbit_backend.services.worker_ingest import IngestWorker
 
 
 @pytest.mark.parametrize("values", [

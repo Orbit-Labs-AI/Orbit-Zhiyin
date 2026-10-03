@@ -1,5 +1,5 @@
-from tandem_backend import quota
-from tandem_backend.quota.windows import parse_windows
+from orbit_backend import quota
+from orbit_backend.quota.windows import parse_windows
 
 from .conftest import DAY, HOUR, NOW
 
@@ -19,14 +19,14 @@ def test_parse_windows_relative_and_absolute():
                    "resets_at": 61_000}]
 
 
-def test_usage_groups_and_unknown_buckets(tandem):
-    tandem.session("s1", agent="claude_code")
-    tandem.session("s2", agent="codex", project="p2")
-    tandem.model_call("s1", ts=NOW - HOUR, inp=100, out=50, cache_read=300, cost=0.01)
-    tandem.model_call("s1", ts=NOW - 2 * DAY, model="claude-opus-4-5", inp=10, out=5)
-    tandem.model_call("s2", ts=NOW - HOUR, model="gpt-5", inp=None, out=20, cost=0.02)
-    tandem.model_call("s2", ts=NOW - 40 * DAY, model="gpt-5")  # Outside 30 days.
-    with tandem.connect() as db:
+def test_usage_groups_and_unknown_buckets(orbit):
+    orbit.session("s1", agent="claude_code")
+    orbit.session("s2", agent="codex", project="p2")
+    orbit.model_call("s1", ts=NOW - HOUR, inp=100, out=50, cache_read=300, cost=0.01)
+    orbit.model_call("s1", ts=NOW - 2 * DAY, model="claude-opus-4-5", inp=10, out=5)
+    orbit.model_call("s2", ts=NOW - HOUR, model="gpt-5", inp=None, out=20, cost=0.02)
+    orbit.model_call("s2", ts=NOW - 40 * DAY, model="gpt-5")  # Outside 30 days.
+    with orbit.connect() as db:
         by_agent = quota.usage(db, group_by="agent", now_ms=NOW)
         by_model = quota.usage(db, group_by="model", now_ms=NOW)
         by_day = quota.usage(db, group_by="day", now_ms=NOW, excluded=["s2"])
@@ -44,18 +44,18 @@ def test_usage_groups_and_unknown_buckets(tandem):
     assert by_day["rows"][0]["day"] < by_day["rows"][1]["day"]
 
 
-def test_usage_empty_is_insufficient(tandem):
-    with tandem.connect() as db:
+def test_usage_empty_is_insufficient(orbit):
+    with orbit.connect() as db:
         out = quota.usage(db, group_by="day", now_ms=NOW)
     assert out["rows"] == [] and out["basis"] == "insufficient"
     assert out["totals"]["tokens_total"] == 0 and out["totals"]["cost_usd"] is None
 
 
-def test_codex_windows_latest_reset_and_stale(tandem):
-    tandem.session("c1", agent="codex")
-    tandem.limits("c1", ts=NOW - 3 * HOUR, windows=codex_limits(used5=10))
-    tandem.limits("c1", ts=NOW - HOUR, windows=codex_limits(used5=40))
-    with tandem.connect() as db:
+def test_codex_windows_latest_reset_and_stale(orbit):
+    orbit.session("c1", agent="codex")
+    orbit.limits("c1", ts=NOW - 3 * HOUR, windows=codex_limits(used5=10))
+    orbit.limits("c1", ts=NOW - HOUR, windows=codex_limits(used5=40))
+    with orbit.connect() as db:
         snap = quota.snapshot(db, NOW)
     five = next(w for w in snap["quota_window"] if w["window_kind"] == "five_hour")
     week = next(w for w in snap["quota_window"] if w["window_kind"] == "weekly")
@@ -67,32 +67,32 @@ def test_codex_windows_latest_reset_and_stale(tandem):
     gemini = next(a for a in snap["agents"] if a["agent"] == "gemini")
     assert gemini["status"] == "insufficient"
 
-    with tandem.connect() as db:  # After both resets: observed_reset with full headroom.
+    with orbit.connect() as db:  # After both resets: observed_reset with full headroom.
         later = quota.snapshot(db, NOW + 4 * DAY)
     assert {w["basis"] for w in later["quota_window"] if w["agent"] == "codex"} == {
         "observed_reset"}
 
 
-def test_codex_stale_without_reset_time_is_insufficient(tandem):
-    tandem.session("c1", agent="codex")
-    tandem.limits("c1", ts=NOW - 6 * HOUR,
+def test_codex_stale_without_reset_time_is_insufficient(orbit):
+    orbit.session("c1", agent="codex")
+    orbit.limits("c1", ts=NOW - 6 * HOUR,
                   windows={"primary": {"used_percent": 50, "window_minutes": 300}})
-    with tandem.connect() as db:
+    with orbit.connect() as db:
         snap = quota.snapshot(db, NOW)
     (w,) = [w for w in snap["quota_window"] if w["agent"] == "codex"]
     assert w["basis"] == "insufficient" and w["headroom"] is None
 
 
-def test_claude_estimate_needs_history_then_uses_peak(tandem):
-    tandem.session("s1", agent="claude_code")
-    tandem.model_call("s1", ts=NOW - HOUR, inp=100, out=100)
-    with tandem.connect() as db:
+def test_claude_estimate_needs_history_then_uses_peak(orbit):
+    orbit.session("s1", agent="claude_code")
+    orbit.model_call("s1", ts=NOW - HOUR, inp=100, out=100)
+    with orbit.connect() as db:
         short = quota.snapshot(db, NOW)
     five = next(w for w in short["quota_window"] if w["agent"] == "claude_code")
     assert five["basis"] == "insufficient" and five["active_tokens"] == 200
 
-    tandem.model_call("s1", ts=NOW - 20 * DAY, inp=500, out=300, cache_read=10_000)
-    with tandem.connect() as db:
+    orbit.model_call("s1", ts=NOW - 20 * DAY, inp=500, out=300, cache_read=10_000)
+    with orbit.connect() as db:
         snap = quota.snapshot(db, NOW)
     five, week = [w for w in snap["quota_window"] if w["agent"] == "claude_code"]
     assert five["basis"] == "estimated_peak" and five["peak_tokens"] == 800  # cache_read excluded.
@@ -100,17 +100,17 @@ def test_claude_estimate_needs_history_then_uses_peak(tandem):
     assert week["basis"] == "estimated_peak" and week["headroom"] == 0.75
 
 
-def test_advice_prefers_most_headroom_and_hints_model(tandem):
-    tandem.session("c1", agent="codex")
-    tandem.session("s1", agent="claude_code")
-    tandem.limits("c1", ts=NOW - HOUR, windows=codex_limits(used5=95, used_week=50))
-    tandem.model_call("c1", ts=NOW - HOUR, model="gpt-5-codex")
-    tandem.model_call("c1", ts=NOW - 2 * HOUR, model="gpt-5-codex")
-    tandem.model_call("c1", ts=NOW - 3 * HOUR, model="gpt-5-codex")
-    tandem.model_call("c1", ts=NOW - 4 * HOUR, model="gpt-5-mini")
-    tandem.model_call("s1", ts=NOW - HOUR, inp=100, out=100)
-    tandem.model_call("s1", ts=NOW - 20 * DAY, inp=500, out=300)
-    with tandem.connect() as db:
+def test_advice_prefers_most_headroom_and_hints_model(orbit):
+    orbit.session("c1", agent="codex")
+    orbit.session("s1", agent="claude_code")
+    orbit.limits("c1", ts=NOW - HOUR, windows=codex_limits(used5=95, used_week=50))
+    orbit.model_call("c1", ts=NOW - HOUR, model="gpt-5-codex")
+    orbit.model_call("c1", ts=NOW - 2 * HOUR, model="gpt-5-codex")
+    orbit.model_call("c1", ts=NOW - 3 * HOUR, model="gpt-5-codex")
+    orbit.model_call("c1", ts=NOW - 4 * HOUR, model="gpt-5-mini")
+    orbit.model_call("s1", ts=NOW - HOUR, inp=100, out=100)
+    orbit.model_call("s1", ts=NOW - 20 * DAY, inp=500, out=300)
+    with orbit.connect() as db:
         out = quota.advise(quota.snapshot(db, NOW), quota.model_mix(db, NOW))
     items = {i["agent"]: i for i in out["items"]}
     assert items["codex"]["verdict"] == "avoid"
@@ -123,26 +123,26 @@ def test_advice_prefers_most_headroom_and_hints_model(tandem):
     assert rec["confidence"] == "low"
 
 
-def test_advice_insufficient_without_data(tandem):
-    with tandem.connect() as db:
+def test_advice_insufficient_without_data(orbit):
+    with orbit.connect() as db:
         out = quota.advise(quota.snapshot(db, NOW), quota.model_mix(db, NOW))
     assert out["status"] == "insufficient" and out["recommendation"] is None
     assert all(i["verdict"] == "insufficient" for i in out["items"])
 
 
-def _claude_advice(tandem):
-    with tandem.connect() as db:
+def _claude_advice(orbit):
+    with orbit.connect() as db:
         snap = quota.snapshot(db, NOW)
         out = quota.advise(snap, quota.model_mix(db, NOW))
     windows = {w["window_kind"]: w for w in snap["quota_window"] if w["agent"] == "claude_code"}
     return windows, next(i for i in out["items"] if i["agent"] == "claude_code")
 
 
-def test_claude_current_window_above_peak_is_clamped_and_not_avoid(tandem):
-    tandem.session("s1", agent="claude_code")
-    tandem.model_call("s1", ts=NOW - 20 * DAY, inp=500, out=300)   # peak window: 800 tokens
-    tandem.model_call("s1", ts=NOW - HOUR, inp=1_000, out=1_000)    # now: 2 000 = 250 % of peak
-    windows, item = _claude_advice(tandem)
+def test_claude_current_window_above_peak_is_clamped_and_not_avoid(orbit):
+    orbit.session("s1", agent="claude_code")
+    orbit.model_call("s1", ts=NOW - 20 * DAY, inp=500, out=300)   # peak window: 800 tokens
+    orbit.model_call("s1", ts=NOW - HOUR, inp=1_000, out=1_000)    # now: 2 000 = 250 % of peak
+    windows, item = _claude_advice(orbit)
     five = windows["five_hour"]
     assert five["active_tokens"] == 2_000 and five["peak_tokens"] == 800
     assert five["used_percent"] == 100.0 and five["exceeds_peak"] is True and five["headroom"] == 0.0
@@ -151,27 +151,27 @@ def test_claude_current_window_above_peak_is_clamped_and_not_avoid(tandem):
     assert "超过你的历史峰值" in item["reason"] and "非真实额度" in item["reason"]
 
 
-def test_claude_tiny_peak_never_says_avoid(tandem):
-    tandem.session("s1", agent="claude_code")
-    tandem.model_call("s1", ts=NOW - 20 * DAY, inp=1, out=1)        # peak: 2 tokens
-    tandem.model_call("s1", ts=NOW - HOUR, inp=50_000, out=10_000)
-    windows, item = _claude_advice(tandem)
+def test_claude_tiny_peak_never_says_avoid(orbit):
+    orbit.session("s1", agent="claude_code")
+    orbit.model_call("s1", ts=NOW - 20 * DAY, inp=1, out=1)        # peak: 2 tokens
+    orbit.model_call("s1", ts=NOW - HOUR, inp=50_000, out=10_000)
+    windows, item = _claude_advice(orbit)
     assert windows["five_hour"]["peak_tokens"] == 2 and windows["five_hour"]["used_percent"] == 100.0
     assert item["verdict"] == "conserve"
 
 
-def test_claude_sparse_history(tandem):
-    tandem.session("s1", agent="claude_code")
+def test_claude_sparse_history(orbit):
+    orbit.session("s1", agent="claude_code")
     # Two calls 2 days apart: the 5 h estimate needs 3 days of history -> insufficient.
-    tandem.model_call("s1", ts=NOW - 2 * DAY, inp=100, out=0)
-    tandem.model_call("s1", ts=NOW - HOUR, inp=100, out=0)
-    windows, item = _claude_advice(tandem)
+    orbit.model_call("s1", ts=NOW - 2 * DAY, inp=100, out=0)
+    orbit.model_call("s1", ts=NOW - HOUR, inp=100, out=0)
+    windows, item = _claude_advice(orbit)
     assert windows["five_hour"]["basis"] == "insufficient" and windows["five_hour"]["exceeds_peak"] is None
     assert item["verdict"] == "insufficient"
     # One more call 4 days back: the 5 h window has a peak (100 tokens) from the older calls,
     # current 100 / peak 100 = 100 % with no excess; weekly still lacks 14 days of history.
-    tandem.model_call("s1", ts=NOW - 4 * DAY, inp=100, out=0)
-    windows, item = _claude_advice(tandem)
+    orbit.model_call("s1", ts=NOW - 4 * DAY, inp=100, out=0)
+    windows, item = _claude_advice(orbit)
     five, week = windows["five_hour"], windows["weekly"]
     assert five["basis"] == "estimated_peak" and five["peak_tokens"] == 100
     assert five["used_percent"] == 100.0 and five["exceeds_peak"] is False and five["headroom"] == 0.0

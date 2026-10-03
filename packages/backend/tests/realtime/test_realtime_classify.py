@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from tandem_backend.realtime import classify as c
-from tandem_backend.realtime.context_windows import lookup
-from tandem_backend.realtime.model import SessionTail, TailCall, TailEvent
+from orbit_backend.realtime import classify as c
+from orbit_backend.realtime.context_windows import lookup
+from orbit_backend.realtime.model import SessionTail, TailCall, TailEvent
 
 NOW = 1_800_000_000_000
 S = 1000

@@ -18,8 +18,8 @@ for sub in ("realtime", "services", "ai"):
     if str(TESTS / sub) not in sys.path:
         sys.path.insert(0, str(TESTS / sub))
 
-from tandem_backend.services.gateway import Gateway  # noqa: E402
-from tandem_backend.services.supervisor import SupervisorConfig  # noqa: E402
+from orbit_backend.services.gateway import Gateway  # noqa: E402
+from orbit_backend.services.supervisor import SupervisorConfig  # noqa: E402
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -52,7 +52,7 @@ def gateway_factory(tmp_path, isolated_home):
     def make(home: Path | None = None, started: bool = True, **options):
         options.setdefault("discovery", lambda: [])
         options.setdefault("prewarm_debounce_s", 3600.0)
-        gateway = Gateway(home or tmp_path / "tandem", config=fast_config(), **options)
+        gateway = Gateway(home or tmp_path / "orbit", config=fast_config(), **options)
         client = TestClient(gateway.app(token=TOKEN, port=PORT), base_url=BASE, headers=AUTH)
         if started:
             client.__enter__()
@@ -65,14 +65,14 @@ def gateway_factory(tmp_path, isolated_home):
             client.__exit__(None, None, None)
         else:
             gateway.close()
-    logging.getLogger("tandem").handlers.clear()
+    logging.getLogger("orbit").handlers.clear()
 
 
 @pytest.fixture(autouse=True)
 def _reset_exclusion_provider():
     """Every gateway registers the process-wide exclusion provider; exclusion.merged is
     fail-closed, so a provider left over from an earlier test's closed app.db must not leak."""
-    from tandem_backend.sessionops import exclusion
+    from orbit_backend.sessionops import exclusion
 
     exclusion.set_provider(None)
     yield

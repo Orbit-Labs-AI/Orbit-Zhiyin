@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from tandem_data.command_spec import command_spec
+from orbit_data.command_spec import command_spec
 
 
 @pytest.mark.parametrize(
@@ -15,7 +15,7 @@ from tandem_data.command_spec import command_spec
         ("uv run --locked --no-sync ruff check src", "lint"),
         ("cd packages/backend && uv run pytest tests", "test"),
         ("pnpm check", "check"),
-        ("pnpm --filter @tandem/connectors check", "check"),
+        ("pnpm --filter @orbit/connectors check", "check"),
         ("pnpm exec tsc --noEmit", "typecheck"),
         ("npm run test", "test"),
         ("swift test --package-path packages/catalog-macos", "test"),
@@ -77,9 +77,9 @@ def test_non_string_workdir_is_no_cwd(workdir):
 
 
 def test_malformed_workdir_does_not_fail_the_source_import(tmp_path):
-    from tandem_data.contract import canonical
-    from tandem_data.service import ImportRequest, ImportService
-    from tandem_data.store import Store
+    from orbit_data.contract import canonical
+    from orbit_data.service import ImportRequest, ImportService
+    from orbit_data.store import Store
 
     rollout = tmp_path / "codex/sessions/rollout-s.jsonl"
     rollout.parent.mkdir(parents=True)

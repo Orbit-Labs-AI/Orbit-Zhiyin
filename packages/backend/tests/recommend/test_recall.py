@@ -4,9 +4,9 @@ import math
 
 import pytest
 
-from tandem_backend.recommend.contracts import RecommendationItem, RecommendationState
-from tandem_backend.recommend.recall import context, dense, effect, rules, sparse
-from tandem_backend.recommend.recall.fusion import fuse
+from orbit_backend.recommend.contracts import RecommendationItem, RecommendationState
+from orbit_backend.recommend.recall import context, dense, effect, rules, sparse
+from orbit_backend.recommend.recall.fusion import fuse
 
 
 def item(uid, **values):

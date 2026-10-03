@@ -2,9 +2,9 @@
 
 import pytest
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.recommendations import recommend_bottlenecks
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.recommendations import recommend_bottlenecks
+from orbit_backend.analytics.service import analyze_bundle
 
 RULE_IDS = {
     "correction_density", "repeated_requirements", "identical_retries", "tool_failures",

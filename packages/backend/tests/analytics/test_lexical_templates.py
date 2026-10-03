@@ -1,7 +1,7 @@
 """a4a6-B11: a templated message repeated by an automation loop must not dominate phrases."""
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.products import build_products
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.products import build_products
 
 TEMPLATE = (
     "please run the nightly benchmark suite collect latency numbers compare against "

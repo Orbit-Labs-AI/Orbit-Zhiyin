@@ -141,7 +141,7 @@ pnpm check
 
 `pnpm check` 包括 TypeScript producer 构建、Python 全套、Swift 客户端、原型产物、文档链接和 wheel 安装后验收；原型未修改时不额外运行 UI 浏览器行为测试。
 
-修改数据库字段字典生成逻辑时，重新生成 `packages/data/src/tandem_data/schemas/tables-v1.schema.json` 并验证实际行；本轮不改变 DDL 或事件 schema。最新 workspace 的 `pnpm check` 统一执行 TypeScript connector 检查，再运行 Python 桥接回归，避免因缺少产物静默跳过。下表保留重构前验收的执行记录。
+修改数据库字段字典生成逻辑时，重新生成 `packages/data/src/orbit_data/schemas/tables-v1.schema.json` 并验证实际行；本轮不改变 DDL 或事件 schema。最新 workspace 的 `pnpm check` 统一执行 TypeScript connector 检查，再运行 Python 桥接回归，避免因缺少产物静默跳过。下表保留重构前验收的执行记录。
 
 2026-10-02 本轮实际执行结果：
 
@@ -152,8 +152,8 @@ pnpm check
 | 后端完整测试 | 1,078 passed；现有 Starlette 弃用警告 1 条 |
 | 数据包完整测试 | 180 passed |
 | Workspace 全包构建 | 通过 |
-| `tandem demo` | 通过 |
-| `tandem evaluate` | readability 8/8、pipeline 34/34、probe 12/12；human acceptance 仍为 pending |
+| `orbit demo` | 通过 |
+| `orbit evaluate` | readability 8/8、pipeline 34/34、probe 12/12；human acceptance 仍为 pending |
 | `git diff --check` | 通过 |
 
 其中本轮新增 50 项数据验收测试和 2 项分析透传／时间范围测试。所有新增用例均正常运行，没有使用 skip 或 xfail 掩盖失败。本表是本轮执行记录，后续版本须重新运行相应检查，不能把旧结果当成新版本认证。

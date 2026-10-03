@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | Python 模块测试 | packages/backend/tests、packages/data/tests、packages/catalog/tests | uv run pytest -q 对应目录 |
 | 历史兼容回归 | backend/tests/regression | 保留原来的行为边界；后续新增测试按所属模块归类 |
-| TypeScript 模块测试 | packages/connectors/tests | pnpm --filter @tandem/connectors check |
+| TypeScript 模块测试 | packages/connectors/tests | pnpm --filter @orbit/connectors check |
 | 跨包与跨语言 | tests/integration | pnpm check:integration |
 | 服务流程 | tests/e2e | 随 check / check:integration 运行 |
 | 分析结果等价性 | tests/regression | 随 pnpm check 运行；见下文「性能与等价性」 |
@@ -27,7 +27,7 @@
 ## UI 测试
 
 ```sh
-pnpm --filter @tandem/prototype-advance exec playwright install chromium
+pnpm --filter @orbit/prototype-advance exec playwright install chromium
 pnpm check:ui
 pnpm check:ui --project=mac-14
 ```
@@ -42,7 +42,7 @@ pnpm check:ui --project=mac-14
 
 ## 性能与等价性
 
-分析的性能改动以两件工具对照：`benchmarks/analytics/synthetic.py` 用固定种子生成完全虚构的输入（12 项目、3 来源，含中英请求、纠偏、偏好、反馈、工具失败与重复参数、审批、压缩、中断、模型调用与子代理），也可经公开 ingest 写入临时 `tandem.db`。
+分析的性能改动以两件工具对照：`benchmarks/analytics/synthetic.py` 用固定种子生成完全虚构的输入（12 项目、3 来源，含中英请求、纠偏、偏好、反馈、工具失败与重复参数、审批、压缩、中断、模型调用与子代理），也可经公开 ingest 写入临时 `orbit.db`。
 
 - 等价性回归：`uv run pytest -q tests/regression/test_analysis_equivalence.py`。200 会话输入下比较 `analyze_bundle(with_text=False)` 与 `build_products` 的核心 section（overview.counts、sessions 的 features/usage/bottleneck_features、projects、tools、workflow、statistics 样本计数）与金标 `packages/backend/tests/fixtures/analysis-golden-v1.json`。新增字段或 section 不影响断言；删除字段或数值变化会失败。同时断言生成器确定性，且金标不含真实路径或用户名。
 - 金标更新：只有结果变化是有意为之时运行 `uv run python tests/regression/test_analysis_equivalence.py --update-golden`，并在 PR 描述中说明原因与差异（哪些 section、哪些数值变化）。不得为让检查通过而放宽断言或重生成金标掩盖回归。
@@ -50,4 +50,4 @@ pnpm check:ui --project=mac-14
 
 服务流程验收覆盖 CLI 导入、API 会话与证据、报告一致性和评价隔离；目前尚无原生 App，不能将其称为原生 UI 验收。
 
-Swift 客户端的 6 项测试通过 swift test --package-path packages/catalog-macos 运行，已纳入 pnpm check。Catalog 的本地 E5 权重测试是显式可选集成，默认缺少 TANDEM_TEST_E5_DIR 时跳过；不与必须执行的 staging 桥接测试混淆。
+Swift 客户端的 6 项测试通过 swift test --package-path packages/catalog-macos 运行，已纳入 pnpm check。Catalog 的本地 E5 权重测试是显式可选集成，默认缺少 ORBIT_TEST_E5_DIR 时跳过；不与必须执行的 staging 桥接测试混淆。

@@ -22,10 +22,10 @@ import { fileURLToPath } from 'node:url';
 
 type Sandbox = {root:string, home:string, file:string, store:ConnectorStore, connector:CodexConnector};
 async function sandbox(action:(s:Sandbox)=>Promise<void>):Promise<void> {
-  const root=await realpath(await mkdtemp(join(tmpdir(),'tandem-connector-'))),home=join(root,'codex');
+  const root=await realpath(await mkdtemp(join(tmpdir(),'orbit-connector-'))),home=join(root,'codex');
   await mkdir(join(home,'sessions','2026','10','01'),{recursive:true});
   await mkdir(join(home,'archived_sessions'));
-  const store=new ConnectorStore(join(root,'tandem')),connector=new CodexConnector(store,home);
+  const store=new ConnectorStore(join(root,'orbit')),connector=new CodexConnector(store,home);
   try { await action({root,home,file:join(home,'sessions','2026','10','01','rollout-main.jsonl'),store,connector}); }
   finally { store.close(); await rm(root,{recursive:true,force:true}); }
 }
@@ -208,7 +208,7 @@ test('a stale maintenance file does not block ingestion; malformed records and d
   assert.equal(result.accounting.unparsed,1);
   assert.ok(scalar(s,"SELECT count(*) n FROM diagnostic WHERE code='format_drift'")>0);
   assert.equal(Object.values(result.accounting).reduce((a,b)=>a+b,0),scalar(s,'SELECT count(*) n FROM current_record'));
-  assert.equal((await stat(join(s.root,'tandem','raw'))).mode&0o777,0o700);
+  assert.equal((await stat(join(s.root,'orbit','raw'))).mode&0o777,0o700);
 }));
 test('an actually held maintenance lock defers ingest without acquiring a lock in the connector',async t=>sandbox(async s=>{
   await writeFile(s.file,await fixture());await mkdir(join(s.home,'.tmp'));
@@ -404,7 +404,7 @@ test('record_event represents one native completion contributing multiple events
 }));
 test('v1 staging migration rebuilds nullable L2/L3 without losing archived originals',async()=>sandbox(async s=>{
   const directory=join(s.root,'old-staging');await mkdir(join(directory,'raw'),{recursive:true});
-  const native=await fixture(),bytes=Buffer.from(native),oldPath=join(directory,'tandem.db');
+  const native=await fixture(),bytes=Buffer.from(native),oldPath=join(directory,'orbit.db');
   const db=new DatabaseSync(oldPath);db.exec(readFileSync(new URL('../schema/001.sql',import.meta.url),'utf8'));db.exec('PRAGMA user_version=1');
   const source=s.connector.sourceId,file=uid(source,'old-file'),sid=sessionUid(source,'main'),archive=join(directory,'raw','fixture.zst');
   await writeFile(archive,zstdCompressSync(bytes));db.prepare('INSERT INTO source VALUES(?,?,?,?,?,?)').run(source,'codex',s.home,'fixture',1,1);

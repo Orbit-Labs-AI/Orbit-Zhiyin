@@ -6,7 +6,7 @@ import pytest
 from conftest import BASE, PORT
 from fastapi.testclient import TestClient
 
-from tandem_backend.services import pages
+from orbit_backend.services import pages
 
 HTML = """<!doctype html>
 <html><head>

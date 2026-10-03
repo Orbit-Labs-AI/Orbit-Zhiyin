@@ -3,9 +3,9 @@
 import pytest
 from test_supplemental_requirements import run
 
-from tandem_backend.feedback import language_constraints, scene_of, signals
-from tandem_backend.models import Event
-from tandem_backend.recommend import recommend
+from orbit_backend.feedback import language_constraints, scene_of, signals
+from orbit_backend.models import Event
+from orbit_backend.recommend import recommend
 
 
 @pytest.mark.parametrize('request_text', [

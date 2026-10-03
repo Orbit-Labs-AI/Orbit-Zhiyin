@@ -3,9 +3,9 @@
 import hashlib
 from dataclasses import asdict
 
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.data_access.store import CanonicalStore
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.data_access.store import CanonicalStore
 
 from .contracts import Episode, TemporalSample
 

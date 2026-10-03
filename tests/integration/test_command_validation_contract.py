@@ -1,10 +1,10 @@
 """Native direct command → structured L3 fact → scoped outcome evidence."""
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
-from tandem_backend.analytics.outcome import extract_validation_runs
+from orbit_backend.analytics.outcome import extract_validation_runs
 
 
 def test_native_shell_argv_and_command_status_reach_outcome(tmp_path):

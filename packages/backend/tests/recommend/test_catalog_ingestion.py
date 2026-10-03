@@ -5,9 +5,9 @@ import json
 
 import pytest
 
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.contracts import CATALOG_VERSION, FAMILIES, RecommendationItem
-from tandem_backend.recommend.sources.normalize import catalog_resource, legacy_item
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.contracts import CATALOG_VERSION, FAMILIES, RecommendationItem
+from orbit_backend.recommend.sources.normalize import catalog_resource, legacy_item
 
 
 def item(uid="synthetic-skill", family="skills"):
@@ -181,7 +181,7 @@ def test_diagnostics_do_not_echo_private_payload_values():
 
 
 def test_legacy_adapter_preserves_pins_and_only_declares_known_metadata():
-    from tandem_backend.analytics.recommendations.catalog import load_catalog as legacy_catalog
+    from orbit_backend.analytics.recommendations.catalog import load_catalog as legacy_catalog
 
     hook = next(row for row in legacy_catalog() if row["kind"] == "hook")
     result = legacy_item(hook)

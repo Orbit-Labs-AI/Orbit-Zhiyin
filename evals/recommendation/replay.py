@@ -58,7 +58,7 @@ def load_cases(path: Path = FIXTURES) -> list[dict]:
 
 
 def _default_build():
-    from tandem_backend.recommend.engine import build_slate
+    from orbit_backend.recommend.engine import build_slate
     return build_slate
 
 
@@ -101,7 +101,7 @@ def run_replay(cases: list[dict], build=None, k: int = K) -> dict:
 def ablation(cases: list[dict], drop_route: str, build=None) -> dict:
     """Metric deltas when candidates reached only through `drop_route` are removed (not asserted)."""
     build = build or _default_build()
-    from tandem_backend.recommend.recall.multi import recall_all
+    from orbit_backend.recommend.recall.multi import recall_all
 
     def recall_without(inputs, memory, catalog=None):
         rr = recall_all(inputs, memory, catalog=catalog)

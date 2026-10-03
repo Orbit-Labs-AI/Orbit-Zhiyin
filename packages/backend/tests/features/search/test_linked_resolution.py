@@ -2,8 +2,8 @@ from pathlib import Path
 
 from conftest import NOW
 
-from tandem_backend import appdb as appdb_schema
-from tandem_backend.features.linked import compute_linked, norm
+from orbit_backend import appdb as appdb_schema
+from orbit_backend.features.linked import compute_linked, norm
 
 REVS = {"data": 1, "inventory": 1, "catalog": "1"}
 
@@ -66,9 +66,9 @@ def test_ledger_outranks_matching_and_marks_installed(world):
                                     {"inv_id": "s2", "type": "skill", "name": "pdf-tools"}])
     result = run(world)
     items = by_id(result)
-    assert items["s1"]["catalog"]["method"] == "ledger" and items["s1"]["tandem_installed"]
-    assert not items["s2"]["tandem_installed"]
-    assert result["summary"]["tandem_installed"] == 1
+    assert items["s1"]["catalog"]["method"] == "ledger" and items["s1"]["orbit_installed"]
+    assert not items["s2"]["orbit_installed"]
+    assert result["summary"]["orbit_installed"] == 1
 
 
 def test_ledger_from_real_install_tables(world):
@@ -87,7 +87,7 @@ def test_ledger_from_real_install_tables(world):
                         "VALUES (?, 'p', 'catalog', ?, 't', 'skill', '[]', 'global', 'd', ?, 1)",
                         (install_id, item_id, state))
         world.a.execute("INSERT INTO install_ledger (entry_id, ts, actor, action, install_id, "
-                        "path) VALUES (?, 1, 'tandem', 'install', ?, ?)",
+                        "path) VALUES (?, 1, 'orbit', 'install', ?, ?)",
                         (f"e-{install_id}", install_id, path))
     world.inventory("claude_code", [
         {"inv_id": "s1", "type": "skill", "name": "pdf-tools"},
@@ -95,10 +95,10 @@ def test_ledger_from_real_install_tables(world):
         {"inv_id": "m2", "type": "mcp", "name": "other", "config_path": "/cfg/shared.json"},
         {"inv_id": "s3", "type": "skill", "name": "pdf-tools"}])
     items = by_id(run(world, revs={**REVS, "data": 7}))
-    assert items["s1"]["catalog"]["method"] == "ledger" and items["s1"]["tandem_installed"]
-    assert items["m1"]["catalog"]["item_id"] == "cat-pw" and items["m1"]["tandem_installed"]
-    assert not items["m2"]["tandem_installed"]
-    assert items["s3"]["catalog"]["method"] == "name" and not items["s3"]["tandem_installed"]
+    assert items["s1"]["catalog"]["method"] == "ledger" and items["s1"]["orbit_installed"]
+    assert items["m1"]["catalog"]["item_id"] == "cat-pw" and items["m1"]["orbit_installed"]
+    assert not items["m2"]["orbit_installed"]
+    assert items["s3"]["catalog"]["method"] == "name" and not items["s3"]["orbit_installed"]
 
 
 def test_prefixed_body_sha256_matches(world):

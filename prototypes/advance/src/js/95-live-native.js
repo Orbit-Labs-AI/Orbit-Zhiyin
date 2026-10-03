@@ -1,6 +1,6 @@
 /* ============ live: native shell + first run (slice 7) ============
    Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
-   (22-window.js nativeWin), host menu commands (tandem:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
+   (22-window.js nativeWin), host menu commands (orbit:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
    toggleEdition / refresh / page {n} / sidebar / hud / undo / find / back / mainAction / chartTable / reindex); the page sends
    menuState {sidebar, pages} so the host titles 显示 / 隐藏侧边栏 and the 前往 menu.
    Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
@@ -74,7 +74,7 @@ LVN.command = function (d) {
     if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); S.pop = false; S.winGone = false; if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance', r); else go(r); }
   }
 };
-ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.error('tandem:command', e); } });
+ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.error('orbit:command', e); } });
 if (ORBIT.native.isNative && !ORBIT.native.surface) {
   const lvnBaseSide = toggleSide;
   toggleSide = function () { const r = lvnBaseSide.apply(this, arguments); LVN.menuState(); return r; };
@@ -88,7 +88,7 @@ const LVN_PATHS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, '
   [/kimi/i, 'kimi'], [/hermes/i, 'hermes'], [/opencode/i, 'opencode'], [/deepseek|\bdsh\b|\.dsh/i, 'dsh'], [/(^|\/)\.?pi(\/|$)/i, 'pi']];
 LVN.agentFromPath = (path) => { const hit = LVN_PATHS.find((x) => x[0].test(path || '')); return hit ? hit[1] : null; };
 // addSource({agent?, path?, purpose?}) → {ok, source, agent, root} | {cancelled:true}; throws {message, path?} on failure.
-// In the native shell it asks the host for a folder (chooseFolder → tandem:folder); in a browser the caller passes path.
+// In the native shell it asks the host for a folder (chooseFolder → orbit:folder); in a browser the caller passes path.
 LVN.addSource = async function (o) {
   o = o || {};
   let path = o.path;

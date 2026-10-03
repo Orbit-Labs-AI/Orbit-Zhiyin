@@ -13,7 +13,7 @@
 4. **「不丢信息」用四层结构保证**：L0 原始字节归档 → L1 原始记录索引（每行都有去向）→ L2 标准事件（未映射字段进 `ext`）→ L3 派生表（会话、轮次、工具调用、模型调用、基础统计与特征，可随时重算）。每个连接器都要通过「记录全记账」测试。
 5. **去重是正确性的核心。** 实测确认：Claude Code 一次模型响应会拆成多行（多数 2–3 行，主会话最多 16 行），每行重复同一份 usage（不去重会多算约 2.5–3.1 倍，因字段而异）；分叉与后台会话会复制历史（830 个 uuid 出现在多个文件）；Codex 子代理会重放父会话历史；Codex 还导入了 50 个 Claude Code 会话。
 6. **MVP 先接 Claude Code、Codex、DeepSeek Harness**（本机数据量最大、格式已摸清），pi 与 Antigravity 的明文转录顺手接入；OpenCode、Hermes Agent 已有源码级调研，用安装后生成的样本接入；Copilot 与其他 Agent 留接口。生态侧的已实现来源、增量同步、特征与向量索引见[推荐数据模块](../modules/catalog/architecture.md)；Codex 当前来源使用 `openai/plugins`，已弃用的 `openai/skills` 仅保留历史参考。
-7. **存储用 SQLite + zstd 归档**：`tandem.db`（会话侧）、`catalog.db`（生态侧，可由团队定期构建成快照分发）、`raw/`（原始归档）。数据库表结构就是模块之间的契约，三人可以并行开发。
+7. **存储用 SQLite + zstd 归档**：`orbit.db`（会话侧）、`catalog.db`（生态侧，可由团队定期构建成快照分发）、`raw/`（原始归档）。数据库表结构就是模块之间的契约，三人可以并行开发。
 
 ### 需求对照
 
@@ -576,7 +576,7 @@ OpenCode 与 Hermes 的映射要点（逐类映射表见 [调研总览](../resea
 
 ### 4.7 隐私与脱敏
 
-- 原始归档与数据库都放在 `~/Library/Application Support/Tandem/`，文件权限 `0600`，不进任何同步目录。
+- 原始归档与数据库都放在 `~/Library/Application Support/Orbit/`，文件权限 `0600`，不进任何同步目录。
 - L2 的 `text` 字段写入前做密钥检测（常见 API Key、令牌、私钥格式），命中处替换为 `<redacted:类型>`；原文只在 L0 归档中保留，供用户本人查看。
 - 任何需要发给本机 Agent 的内容（模块 10、11）都从 L2 取脱敏后的文本，并逐项预览。
 
@@ -783,8 +783,8 @@ Skill 的 `name` 并不唯一，大量仓库互相复制，所以一定要用内
 ### 7.1 文件布局
 
 ```text
-~/Library/Application Support/Tandem/     # 权限 0700，文件 0600
-  tandem.db          # 会话侧：source、source_file、raw_record、session、event、L3 派生表、已安装清单
+~/Library/Application Support/Orbit/     # 权限 0700，文件 0600
+  orbit.db          # 会话侧：source、source_file、raw_record、session、event、L3 派生表、已安装清单
   catalog.db         # 生态侧：条目、来源、版本、特征、模型、成绩；可整体替换为新快照
   raw/<source_id>/<文件路径哈希>/<generation>.zst   # L0，代次内帧追加，旧代次保留
   raw/<source_id>/<文件路径哈希>/generations.json  # 代次清单与归档哈希
@@ -793,14 +793,14 @@ Skill 的 `name` 并不唯一，大量仓库互相复制，所以一定要用内
 
 - **SQLite**：单文件、可嵌入，Swift（GRDB）、Node（内置 `node:sqlite` 或 better-sqlite3）、Python 都能直接用；开启 WAL、外键、JSON1、FTS5（事件文本与条目全文检索）。数据量在百万行以内，不需要服务端数据库；重型统计需要时用 DuckDB 只读挂载 SQLite。
 - **两个库分开**：会话库只在本机生成；生态库是公开数据，可由团队定期构建快照分发给所有用户，替换时不影响会话数据。两个库通过 `ATTACH` 联合查询。
-- **控制体积**：L2 的工具输出只存前 8 KB（`text_truncated = 1`），全文通过 `record_uid` 回到 L0 读取；按本机规模估算 `tandem.db` 在 100–300 MB（待实测）。
+- **控制体积**：L2 的工具输出只存前 8 KB（`text_truncated = 1`），全文通过 `record_uid` 回到 L0 读取；按本机规模估算 `orbit.db` 在 100–300 MB（待实测）。
 - **迁移**：`PRAGMA user_version` 记录结构版本，迁移脚本放仓库；L2、L3 结构变化时直接从 L0 / L2 重算，不写复杂的数据迁移。
 - **导出**：L3 表导出 CSV（Demo 的「导出报告与 CSV」）；L2 按会话导出 JSONL，与外部标准对齐见 4.6。
 
 ### 7.2 核心表结构（草图）
 
 ```sql
--- ===== tandem.db =====
+-- ===== orbit.db =====
 CREATE TABLE source (
   source_id     TEXT PRIMARY KEY,              -- 'claude_code:~/.claude'
   agent         TEXT NOT NULL,                 -- claude_code | codex | dsh | pi | antigravity | copilot | ...
@@ -951,21 +951,21 @@ CREATE TABLE benchmark_result (model_id TEXT, effort TEXT, harness TEXT, benchma
 ### 8.1 MVP 范围
 
 - **会话侧**：Claude Code（含子代理、第二账号与桌面版索引）、Codex（含归档目录与子代理）、DeepSeek Harness；pi 作为最简单的连接器模板一并接入；Antigravity 读明文转录与摘要库；OpenCode 与 Hermes Agent 本机未安装，按源码调研写连接器，安装后跑一次生成样本再测试。
-- **生态侧**：`packages/catalog/src/tandem_catalog` 已实现官方 MCP Registry、Claude 官方插件市场、`anthropics/skills`、`openai/plugins`、awesome-copilot、models.dev、LiteLLM 与 SWE-bench，以及内置种子。Hooks、子代理、命令从插件与仓库内容拆出。接口、已知边界和 Swift 封装见[推荐数据模块](../modules/catalog/architecture.md)。
+- **生态侧**：`packages/catalog/src/orbit_catalog` 已实现官方 MCP Registry、Claude 官方插件市场、`anthropics/skills`、`openai/plugins`、awesome-copilot、models.dev、LiteLLM 与 SWE-bench，以及内置种子。Hooks、子代理、命令从插件与仓库内容拆出。接口、已知边界和 Swift 封装见[推荐数据模块](../modules/catalog/architecture.md)。
 - **向量检索范围更新**：按 2026-10-02 的明确实现要求，现已加入本地 E5 向量、FTS5、结构化特征、多路召回与可解释排序；不再沿用早期“向量检索暂不做”的判断。
 - **暂不做**：Hooks 与 OpenTelemetry 补充通道、反代、Antigravity 的 protobuf 用量解码、用模型给条目打标签。
 - **实现形态**（2026-10-02 按仓库现状更新）：采集与标准化独立于界面，只负责写数据库，Mac App 与分析模块只读（`query_only`、`busy_timeout`，一次查询在一个读事务内完成）。目前分三层：
   - **连接器**：TypeScript 的 `packages/connectors`（Node ≥ 24.7，内置 SQLite 与 zstd，PR #11 已合并），先实现 Codex，写入独立的 staging 库，不直接写统一库。
-  - **数据契约与预处理**：Python 3.13 + uv 的 `packages/data`（`tandem_data`，PR #9 已合并），以 `tandem-session-v1` 为权威契约，实现 L0–L3、六种格式的映射、用 `import-connector` 从 staging 桥接（校验分块哈希、保留记录对照），并用 `read_analysis` 提供分析输入；字段设计见 [数据契约](../contracts/data.md)。
-  - **分析与后端**：Python `packages/backend/src/tandem_backend`（命令行 `tandem`，含特征分析 MVP），按 [analysis-inputs.md](../contracts/analysis-inputs.md) 的口径读取 L2 / L3。
-  - Codex 目前有三处解析实现（TS 连接器、`tandem_data` 的映射、后端的 `importers/codex.py`），要收敛到以 `tandem-session-v1` 为准的一条链路，避免三套去重与用量口径各自为政。
+  - **数据契约与预处理**：Python 3.13 + uv 的 `packages/data`（`orbit_data`，PR #9 已合并），以 `orbit-session-v1` 为权威契约，实现 L0–L3、六种格式的映射、用 `import-connector` 从 staging 桥接（校验分块哈希、保留记录对照），并用 `read_analysis` 提供分析输入；字段设计见 [数据契约](../contracts/data.md)。
+  - **分析与后端**：Python `packages/backend/src/orbit_backend`（命令行 `orbit`，含特征分析 MVP），按 [analysis-inputs.md](../contracts/analysis-inputs.md) 的口径读取 L2 / L3。
+  - Codex 目前有三处解析实现（TS 连接器、`orbit_data` 的映射、后端的 `importers/codex.py`），要收敛到以 `orbit-session-v1` 为准的一条链路，避免三套去重与用量口径各自为政。
 
 ### 8.2 步骤
 
 | 步骤 | 产出 | 验收 |
 | --- | --- | --- |
 | M0 契约 | 7.2 的表结构、共有时间契约、每种 `kind` 的 `attrs` JSON Schema、各 Agent 的脱敏样本文件 | 样本覆盖本机出现过的全部记录类型；校验可空时间、时区来源、拆分身份和用量粒度组合 |
-| M1 连接器 | Claude Code、Codex、DeepSeek Harness、pi、Antigravity → L0 / L1 / L2；随后 OpenCode、Hermes Agent；命令行 `tandem ingest` | 全记账测试通过；一条记录拆出多个事件无 ID 或 seq 冲突；同一数据重复导入零差异；同路径改写 / 截断后无旧代次残留，旧归档可独立重建；两个数据根的同名相对路径可同时入库 |
+| M1 连接器 | Claude Code、Codex、DeepSeek Harness、pi、Antigravity → L0 / L1 / L2；随后 OpenCode、Hermes Agent；命令行 `orbit ingest` | 全记账测试通过；一条记录拆出多个事件无 ID 或 seq 冲突；同一数据重复导入零差异；同路径改写 / 截断后无旧代次残留，旧归档可独立重建；两个数据根的同名相对路径可同时入库 |
 | M2 派生与基础统计 | L3 各表、项目归属、按会话 / 项目 / 模型的基础统计、`session_feature` | 与 Claude `/insights` 的 `session-meta` 对照：工具次数、打断次数一致；覆盖范围一致的主模型 token 与 `cost-state` 的累计值误差 < 1%（主会话加子代理以父会话 Agent 工具结果计，`cost-state` 已含子代理，不再额外相加；不进转录的辅助调用单独核对）；累计快照不生成虚构 `model_call`；相同 L2 与统计口径下重复计算零差异 |
 | M3 生态 | Catalog 构建脚本、P0 来源、已安装清单、规则抽取的特征 | 抽检 50 条去重结果；本机已安装项全部能链接或给出未链接原因 |
 | M4 增量 | FSEvents 监听、原始归档、漂移告警；Demo 的 A1、A3、A4 接真实数据 | 新会话写入后 5 秒内可见 |
@@ -992,12 +992,12 @@ L2 契约的回归样本至少覆盖：
 | 生态来源的条款与许可 | 不能随意转载正文 | 默认只存元数据与链接；正文仅在许可允许时保存；成绩数据注明出处 |
 | GitHub API 限流 | 抓取慢 | 构建脚本在 CI 上用令牌运行，App 只下载快照 |
 | 模型名持续变化 | 成本与对比失真 | 未识别模型单独标出；价目表带版本号 |
-| 同一来源多处解析（Codex 目前有三处） | 去重、用量与身份口径不一致，统计对不上 | 以 `tandem-session-v1` 为唯一权威契约，其余实现改为桥接或退役；三方共用同一组脱敏样本做回归 |
+| 同一来源多处解析（Codex 目前有三处） | 去重、用量与身份口径不一致，统计对不上 | 以 `orbit-session-v1` 为唯一权威契约，其余实现改为桥接或退役；三方共用同一组脱敏样本做回归 |
 
 默认做法（实现中遇到反例再调整）：
 
 1. 接入顺序：Claude Code → Codex → DeepSeek Harness → pi → Antigravity → OpenCode、Hermes Agent → 其他（见 8.1）。
-2. 实现分层：TypeScript 连接器写 staging 库，Python `packages/data` 按 `tandem-session-v1` 建统一库并提供分析输入，后端只读（见 8.1）。
+2. 实现分层：TypeScript 连接器写 staging 库，Python `packages/data` 按 `orbit-session-v1` 建统一库并提供分析输入，后端只读（见 8.1）。
 3. 原始归档默认开启、不设保留期；图片等二进制只记引用；设置里可以关闭或清除。
 4. 生态快照先在本机用构建脚本生成；本仓库是私有仓库，对外分发快照时再选公开托管位置。
 5. Hooks 与 OpenTelemetry 不进 MVP；菜单栏的实时状态先用 3.3 的只读信号判断（Claude 的 `sessions/<pid>.json`、Codex 的写锁、会话文件是否在写入），「等待审批」状态等接入 Hooks 后再做。

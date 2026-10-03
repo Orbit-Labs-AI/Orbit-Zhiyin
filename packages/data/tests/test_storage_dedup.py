@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from tandem_data import payload
-from tandem_data.query import event_page, trajectory_page
-from tandem_data.service import ImportRequest, ImportService, wait_for_maintenance
-from tandem_data.store import (
+from orbit_data import payload
+from orbit_data.query import event_page, trajectory_page
+from orbit_data.service import ImportRequest, ImportService, wait_for_maintenance
+from orbit_data.store import (
     PAGE_SIZE,
     SMALL_PAGE_SIZE,
     TINY_PAGE_SIZE,
@@ -21,7 +21,7 @@ from tandem_data.store import (
     readonly_connection,
     target_page_size,
 )
-from tandem_data.validation.integrity import logical_digest
+from orbit_data.validation.integrity import logical_digest
 
 BIG = 48_000
 
@@ -325,7 +325,7 @@ def test_compaction_keeps_page_size_while_a_reader_is_open(tmp_path, corpus):
     home = tmp_path / "home"
     import_home(home, source).db.close()
     digest = logical_digest(home)
-    with Store(home) as store, readonly_connection(home / "tandem.db") as reader:
+    with Store(home) as store, readonly_connection(home / "orbit.db") as reader:
         reader.execute("SELECT COUNT(*) FROM event").fetchone()
         assert store.compact()  # Falls back to a plain VACUUM; WAL mode is kept.
         assert store.db.execute("PRAGMA page_size").fetchone()[0] == PAGE_SIZE
@@ -346,7 +346,7 @@ def test_page_size_tiers_have_hysteresis():
 
 
 def _pages(home: Path) -> str:
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         sessions = [r[0] for r in db.execute("SELECT session_uid FROM session ORDER BY 1")]
     return json.dumps([event_page(home, s, limit=1000) for s in sessions], ensure_ascii=False)
 
@@ -388,7 +388,7 @@ def test_background_maintenance_keeps_reads_stable(tmp_path, corpus):
     home = tmp_path / "home"
     import_home(home, source).db.close()
     expected, digest = _pages(home), logical_digest(home)
-    with readonly_connection(home / "tandem.db") as reader:
+    with readonly_connection(home / "orbit.db") as reader:
         reader.execute("BEGIN")
         snapshot = reader.execute("SELECT COUNT(*),group_concat(event_uid) FROM event").fetchone()
         with Store(home) as store:

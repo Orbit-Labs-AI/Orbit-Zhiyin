@@ -1,6 +1,6 @@
 import pytest
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle
 
 
 def session(sid="s", **kw):

@@ -73,7 +73,7 @@ Object.assign(ACT, {
   shareCopy: () => { const sp = sharePersona(); copyText('我的 AI 协作人格是 ' + sp.p.code + '「' + sp.p.zh + '」：' + sp.p.line + (S.shareNoNum ? '' : '（' + sp.label + ' · ' + sp.p.n + ' 个会话）') + ' —— 来自 Orbit，全部分析在本机完成。', '分享文案'); },
   shareSave: () => toast('浏览器 Demo 不能下载文件；App 会把 1080×1350 的 PNG 存到「下载」')
 });
-/* ---- saving exports (live / native): ORBIT.native.request('save') → tandem:saved; the browser fallback downloads a Blob.
+/* ---- saving exports (live / native): ORBIT.native.request('save') → orbit:saved; the browser fallback downloads a Blob.
    A saved file gets a toast with「在 Finder 中显示」(reveal). Used by 98-live-ops.js; the mock demo keeps its copy buttons. */
 function expStamp() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function expSave(filename, mime, data) {

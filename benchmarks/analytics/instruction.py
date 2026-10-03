@@ -8,7 +8,7 @@ import time
 import tracemalloc
 from pathlib import Path
 
-from tandem_backend.analytics.instruction import (
+from orbit_backend.analytics.instruction import (
     extract_instruction_constraints,
     resolve_instruction_scope,
     structure,

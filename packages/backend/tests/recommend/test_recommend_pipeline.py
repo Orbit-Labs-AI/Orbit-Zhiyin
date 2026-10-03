@@ -7,13 +7,13 @@ from copy import deepcopy
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.recommendations.diagnosis import diagnose_bottlenecks
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.api import create_app
-from tandem_backend.cli import demo_home
-from tandem_backend.data_access.ingest import ingest
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.recommendations.diagnosis import diagnose_bottlenecks
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.api import create_app
+from orbit_backend.cli import demo_home
+from orbit_backend.data_access.ingest import ingest
+from orbit_backend.recommend.service import recommend
 
 
 def correction_bundle(roots=None, *, friction="scope"):
@@ -196,7 +196,7 @@ def test_legacy_correction_resources_follow_friction_not_the_broad_rule_id(frict
     result = recommend(analysis, context={"agent": "codex"}, limit=20)
     assert result["recommendations"]
     assert {signal["rule_id"] for signal in result["signals"]} == {"correction_density"}
-    assert "tandem-scope-brief" not in {card["resource_id"] for card in result["recommendations"]}
+    assert "orbit-scope-brief" not in {card["resource_id"] for card in result["recommendations"]}
     assert all(capability in card["matched_capabilities"] for card in result["recommendations"])
 
 
@@ -215,7 +215,7 @@ def test_api_configured_empty_directory_does_not_fall_back_to_seeds(tmp_path, mo
     catalog_directory = tmp_path / "catalogue"
     catalog_directory.mkdir()
     bundle = correction_bundle()
-    monkeypatch.setattr("tandem_backend.analytics.service.analyze_store",
+    monkeypatch.setattr("orbit_backend.analytics.service.analyze_store",
                         lambda store, scope, with_text: analyze_bundle(bundle, scope, with_text))
     with TestClient(create_app(db=tmp_path / "synthetic.sqlite", recommendation_catalog=catalog_directory)) as client:
         for response in (client.get("/v1/analytics/recommendations?target_agent=codex"),
@@ -243,7 +243,7 @@ def test_api_family_filter_context_and_selected_root_reach_pipeline(tmp_path, mo
         calls.append((scope, with_text))
         return analyze_bundle(bundle, scope, with_text)
 
-    monkeypatch.setattr("tandem_backend.analytics.service.analyze_store", scoped_analysis)
+    monkeypatch.setattr("orbit_backend.analytics.service.analyze_store", scoped_analysis)
     with TestClient(create_app(db=tmp_path / "synthetic.sqlite", recommendation_catalog=catalog_directory)) as client:
         route = "/v1/analytics/recommendations?root_session_uids=fictional-b"
         fetched = client.get(route + "&family=hooks&target_agent=codex")

@@ -22,7 +22,7 @@
 | 词频变化 | 按日期、项目和来源查看词频，并用每千词频次比较不同规模的文本。 |
 | 完整历史 | 每次运行保留请求、时间、环境版本、状态、完整结果和证据，失败与未完成运行也能查询。 |
 
-结果位于 `statistics` 与 `lexical`，同时出现在特征分析和 UI 组合分析中。实现入口是 [`statistics.py`](../../../packages/backend/src/tandem_backend/analytics/products/statistics.py) 与 [`lexical.py`](../../../packages/backend/src/tandem_backend/analytics/products/lexical.py)。
+结果位于 `statistics` 与 `lexical`，同时出现在特征分析和 UI 组合分析中。实现入口是 [`statistics.py`](../../../packages/backend/src/orbit_backend/analytics/products/statistics.py) 与 [`lexical.py`](../../../packages/backend/src/orbit_backend/analytics/products/lexical.py)。
 
 ## 统计口径
 
@@ -49,7 +49,7 @@ TF-IDF 均值使用每条消息内的词频比例乘以平滑 IDF，再对有效
 
 ## 每次分析怎样保存与复用
 
-数据目录中的 `analysis.sqlite` 专门保存派生分析，canonical `tandem.db` 和原始来源保持原有职责。旧版 `--db` 模式使用同目录的 `<原文件名>.analysis.sqlite`。该库是 v2（`user_version=2`），打开 v1 库时在写锁内原地升级，旧运行和快照照常可读。
+数据目录中的 `analysis.sqlite` 专门保存派生分析，canonical `orbit.db` 和原始来源保持原有职责。旧版 `--db` 模式使用同目录的 `<原文件名>.analysis.sqlite`。该库是 v2（`user_version=2`），打开 v1 库时在写锁内原地升级，旧运行和快照照常可读。
 
 | 表 | 保存什么 |
 | --- | --- |
@@ -58,15 +58,15 @@ TF-IDF 均值使用每条消息内的词频比例乘以平滑 IDF，再对有效
 | `session_result` | 每个根会话的会话行（只依赖本会话树的部分），主键 `(root_session_uid, scope_class, algo_version)`，带树指纹。 |
 | `analysis_section` | 每个请求与输入指纹下单独存放的 section（overview、tools、projects……），读时只解压这一段。 |
 | `analysis_row` | 大数组按行存放（目前是 `sessions`），分页直接 `LIMIT/OFFSET`，单个会话按键读取。 |
-| `session_exclusion` | 用户排除的会话（AN-16.1）；事实仍留在 `tandem.db`，只是不再进入分析。 |
+| `session_exclusion` | 用户排除的会话（AN-16.1）；事实仍留在 `orbit.db`，只是不再进入分析。 |
 
 成功结果发布与运行状态更新在同一事务内完成；完成后的运行不能覆盖。读取快照、section、行和会话行时都先检查字节数与 SHA-256，损坏时明确失败（API 返回 409），不返回伪造、部分或重新计算的结果。
 
 **读穿缓存。** canonical 库上的分析按「进程内 LRU → `analysis_section` → 惰性计算」查找：
 
 - `request_key` 由规范化 Scope、`with_text`、`algo_version` 和依赖库版本组成；`algo_version = H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION_VERSION, TAXONOMY_VERSION, PREFERENCE_VERSION, PREFERENCE_EVIDENCE_VERSION, VECTOR_VERSION)`，凡进入 `analysis_digest` 的版本都在其中。
-- `input_fp` 由当前 projection run、项目／别名／清单等全局表计数和候选会话树指纹组成。树指纹由 [`analysis_fingerprint.py`](../../../packages/data/src/tandem_data/analysis_fingerprint.py) 用一条按 `root_uid` 分组的 SQL 计算：事件、工具调用、模型调用的数量与会话内 rowid 跨度、`max(seq)`、时间范围、会话表全部列，以及 mapper／reducer 版本。重投影让整棵树整体平移 rowid 不算变化；计数、跨度和 seq 都不变的原地改写无法识别。
-- 未命中时只计算端点需要的 section。会话行先查 `session_result`，只重算树指纹变化或缺失的根会话；会话树完整落在时间窗内且没有模型、档位、项目、Agent、来源过滤时记为 `full`，否则按过滤条件哈希。行指纹还包含时区、`include_children`、时间窗、覆盖状态等会话级计算读取的参数，所以不同时间窗不会误用彼此的行。需要重算的根会话不少于 300 个时，按约 200 个一块交给 spawn 进程池并行；`TANDEM_ANALYSIS_WORKERS=0` 或 `1` 可关闭。
+- `input_fp` 由当前 projection run、项目／别名／清单等全局表计数和候选会话树指纹组成。树指纹由 [`analysis_fingerprint.py`](../../../packages/data/src/orbit_data/analysis_fingerprint.py) 用一条按 `root_uid` 分组的 SQL 计算：事件、工具调用、模型调用的数量与会话内 rowid 跨度、`max(seq)`、时间范围、会话表全部列，以及 mapper／reducer 版本。重投影让整棵树整体平移 rowid 不算变化；计数、跨度和 seq 都不变的原地改写无法识别。
+- 未命中时只计算端点需要的 section。会话行先查 `session_result`，只重算树指纹变化或缺失的根会话；会话树完整落在时间窗内且没有模型、档位、项目、Agent、来源过滤时记为 `full`，否则按过滤条件哈希。行指纹还包含时区、`include_children`、时间窗、覆盖状态等会话级计算读取的参数，所以不同时间窗不会误用彼此的行。需要重算的根会话不少于 300 个时，按约 200 个一块交给 spawn 进程池并行；`ORBIT_ANALYSIS_WORKERS=0` 或 `1` 可关闭。
 - 任务、偏好、文本表示、词频、统计和推荐都是惰性 section，只在端点需要时计算。`task_ids`、`preference_ids`、`preference_evidence_ids`、文本坐标和全局覆盖属于跨会话字段，只在装配会话行时附加，不进入 `session_result`；偏好证据的 `cluster_id` 复用同一请求的文本 section（`with_text=False` 时为 null）。
 - 每个结果带 `freshness`：`input_fp`、`algo_version`、`computed_at`、`cache_hit`，未命中时还有本次重算／复用的会话行数。
 
@@ -76,15 +76,15 @@ TF-IDF 均值使用每条消息内的词频比例乘以平滑 IDF，再对有效
 
 **清理。** 每次重算后执行：每个 `request_key` 只保留最近使用的 3 个 `input_fp`；失败运行保留 30 天；`session_result` 只保留当前 `algo_version`；整库超过 512 MB 时按 `last_hit_at` 淘汰最久未用的 section。已完成的运行及其快照不删除。
 
-**预热。** [`warmup.py`](../../../packages/backend/src/tandem_backend/analytics/warmup.py) 在后台计算默认 Scope（全部时间、`with_text=False`）的 overview、sessions、tools、projects。导入方在导入完成后调用 `warmup.start(store)`，或请求 `POST /v1/analytics/warmup`；进度见 `GET /v1/analytics/status`。
+**预热。** [`warmup.py`](../../../packages/backend/src/orbit_backend/analytics/warmup.py) 在后台计算默认 Scope（全部时间、`with_text=False`）的 overview、sessions、tools、projects。导入方在导入完成后调用 `warmup.start(store)`，或请求 `POST /v1/analytics/warmup`；进度见 `GET /v1/analytics/status`。
 
 底层纯函数和无持久存储的内存夹具不写盘；参数尚未通过 API 校验的请求不算一次已开始分析。进程意外退出后未完成的条目保留 `running` 和空结束时间，不能据此判断进程仍然存活。数据库及结果文件仅限当前用户访问；原始日志仍由 L0 管理，结果通过证据 ID 回到原记录。运行请求还记录 Python、后端、数据包、Jieba、NumPy、SciPy 和 scikit-learn 的实际版本。
 
-分析历史 DDL 位于 [`migrations/analysis/`](../../../packages/data/src/tandem_data/migrations/analysis/)（`001.sql`、`002.sql`），不进入 canonical 库的迁移序列；字段字典为 [`analysis-history-v1.schema.json`](../../../packages/data/src/tandem_data/schemas/analysis-history-v1.schema.json)（文件名沿用契约族名，内容含 v2 表）。修改该 DDL 后运行：
+分析历史 DDL 位于 [`migrations/analysis/`](../../../packages/data/src/orbit_data/migrations/analysis/)（`001.sql`、`002.sql`），不进入 canonical 库的迁移序列；字段字典为 [`analysis-history-v1.schema.json`](../../../packages/data/src/orbit_data/schemas/analysis-history-v1.schema.json)（文件名沿用契约族名，内容含 v2 表）。修改该 DDL 后运行：
 
 ```sh
-uv run python -m tandem_data.schema_export --database analysis \
-  --output packages/data/src/tandem_data/schemas/analysis-history-v1.schema.json
+uv run python -m orbit_data.schema_export --database analysis \
+  --output packages/data/src/orbit_data/schemas/analysis-history-v1.schema.json
 ```
 
 ## 怎样运行和查回结果
@@ -101,11 +101,11 @@ uv run python -m evals.analytics.products --synthetic \
 已有数据库上分析和查看历史：
 
 ```sh
-uv run tandem --home /实际的数据目录 analysis-report --output .local/statistics-report
-uv run tandem --home /实际的数据目录 analysis-history --engine products
-uv run tandem --home /实际的数据目录 analysis-history --run-id 运行ID \
+uv run orbit --home /实际的数据目录 analysis-report --output .local/statistics-report
+uv run orbit --home /实际的数据目录 analysis-history --engine products
+uv run orbit --home /实际的数据目录 analysis-history --run-id 运行ID \
   --pointer /lexical/terms --limit 100 --offset 0
-uv run tandem --home /实际的数据目录 analysis-history --run-id 运行ID \
+uv run orbit --home /实际的数据目录 analysis-history --run-id 运行ID \
   --output .local/saved-analysis.json
 ```
 

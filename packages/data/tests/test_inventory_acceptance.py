@@ -14,15 +14,15 @@ from pathlib import Path
 import pytest
 from jsonschema import validate
 
-from tandem_data.cli import main
-from tandem_data.inventory import (
+from orbit_data.cli import main
+from orbit_data.inventory import (
     InventoryRequest,
     read_inventory,
     read_inventory_connection,
     scan_inventory,
 )
-from tandem_data.service import ImportService
-from tandem_data.store import Store, readonly_connection
+from orbit_data.service import ImportService
+from orbit_data.store import Store, readonly_connection
 
 # Expected observations are authored independently of the scanner's registry.
 NATIVE_MCP = [
@@ -135,7 +135,7 @@ def test_acceptance_native_cli_facts_coverage_and_source_readonly(
         observations.append({item["inv_id"]: item["content_hash"] for item in data["items"]})
     assert observations[0] == observations[1]
     assert source_snapshot(root) == before
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         assert db.execute("SELECT COUNT(*) FROM raw_record").fetchone()[0] == 0
     assert not list((home / "raw").iterdir())
 
@@ -146,7 +146,7 @@ def test_acceptance_content_changes_keep_identity_and_isolate_sources(tmp_path, 
     path = write(first, "AGENTS.md", "old")
     write(second, "AGENTS.md", "other")
     clock = iter((100, 200, 200))  # Equal timestamps must still have a stable last scan.
-    monkeypatch.setattr("tandem_data.inventory.now_ms", lambda: next(clock))
+    monkeypatch.setattr("orbit_data.inventory.now_ms", lambda: next(clock))
     with Store(tmp_path / "data") as store:
         scan_inventory(store, InventoryRequest("codex", first))
         old = read_inventory(store.home)["items"][0]
@@ -211,7 +211,7 @@ def test_acceptance_sql_contract_rejects_invalid_facts(tmp_path, column, value):
             store.db.execute(f"UPDATE inventory_item SET {column}=?", (value,))
         assert read_inventory(store.home) == before
         dictionary = json.loads(
-            files("tandem_data").joinpath("schemas/tables-v1.schema.json").read_text()
+            files("orbit_data").joinpath("schemas/tables-v1.schema.json").read_text()
         )
         for table, json_columns in [
             ("inventory_item", ("config",)),
@@ -291,11 +291,11 @@ def test_acceptance_resource_limits_publish_partial(tmp_path, monkeypatch, bound
     root = tmp_path / "source"
     root.mkdir()
     if boundary == "file":
-        monkeypatch.setattr("tandem_data.inventory.reader.MAX_BYTES", 16)
+        monkeypatch.setattr("orbit_data.inventory.reader.MAX_BYTES", 16)
         write(root, "config.toml", "x" * 17)
         code, kind = "file_too_large", "mcp"
     elif boundary == "entries":
-        monkeypatch.setattr("tandem_data.inventory.reader.MAX_ENTRIES", 2)
+        monkeypatch.setattr("orbit_data.inventory.reader.MAX_ENTRIES", 2)
         for name in ("one", "two", "three"):
             write(root, f"skills/{name}/SKILL.md", name)
         code, kind = "entry_limit", "skill"
@@ -398,7 +398,7 @@ def test_acceptance_cli_rejects_source_overlap_before_creating_database(
     root.mkdir()
     allowed = tmp_path / "shared"
     allowed.mkdir()
-    home = (root if source_of_overlap == "root" else allowed) / "tandem-data"
+    home = (root if source_of_overlap == "root" else allowed) / "orbit-data"
     args = ["--home", str(home), "scan-inventory", "--agent", "codex", "--root", str(root)]
     if source_of_overlap == "allow-root":
         args += ["--allow-root", str(allowed)]
@@ -412,12 +412,12 @@ def test_acceptance_old_database_read_does_not_implicitly_migrate(tmp_path):
     """INV-13: read-only compatibility yields unavailable until an explicit writer upgrade."""
     home = tmp_path / "data"
     home.mkdir()
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         for name in ("001.sql", "002.sql", "003.sql", "004.sql"):
-            db.executescript(files("tandem_data").joinpath("migrations/" + name).read_text())
+            db.executescript(files("orbit_data").joinpath("migrations/" + name).read_text())
     result = read_inventory(home)
     assert result["items"] is None and result["coverage"]["status"] == "unavailable"
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == 4
         assert not db.execute(
             "SELECT name FROM sqlite_master WHERE name='inventory_scan'"
@@ -426,10 +426,10 @@ def test_acceptance_old_database_read_does_not_implicitly_migrate(tmp_path):
 
 def test_acceptance_schema_names_do_not_change_existing_call_coverage():
     """INV-14: inventory additions must not change unrelated columns sharing a name."""
-    from tandem_data.schema_export import table_schemas
+    from orbit_data.schema_export import table_schemas
 
     dictionary = json.loads(
-        files("tandem_data").joinpath("schemas/tables-v1.schema.json").read_text()
+        files("orbit_data").joinpath("schemas/tables-v1.schema.json").read_text()
     )
     assert dictionary == table_schemas()
     for table in ("model_call", "usage_snapshot"):

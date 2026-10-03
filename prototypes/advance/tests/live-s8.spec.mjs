@@ -4,7 +4,7 @@
 //                no demo session text anywhere; a stream frame calms everything down
 //  2. calm       no realtime route: HUD hidden, panel from /v1/shell/popover (real date, top rec), sim menu off
 //  3. surfaces   ?surface=panel | hud | widgets render only that component, post resizeSurface / openMain
-//  4. export     report .md / CSV / share PNG → save {filename, mime, bytes}; tandem:saved → 在 Finder 中显示 → reveal; 404 → toast
+//  4. export     report .md / CSV / share PNG → save {filename, mime, bytes}; orbit:saved → 在 Finder 中显示 → reveal; 404 → toast
 //  5. A3 / A4    resume command, raw log → reveal, exclude with a reason, tool row → real calls
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
@@ -88,7 +88,7 @@ for (const sf of ['panel', 'hud', 'widgets']) {
     ONLY();
     const errors = collectErrors(page);
     await setup(page, {}, { native: NATIVE });
-    await page.goto('http://tandem.test/app?live=1&surface=' + sf);
+    await page.goto('http://orbit.test/app?live=1&surface=' + sf);
     await expect.poll(() => page.evaluate(() => LV.state), { timeout: 10_000 }).not.toBe('connecting');
     expect(await page.evaluate(() => document.body.className)).toContain('surface-' + sf);
     expect(await page.evaluate(() => document.body.classList.contains('native'))).toBe(true);
@@ -123,7 +123,7 @@ test('surface hud with no live session: the calm pill instead of an empty window
   const errors = collectErrors(page);
   const idle = () => { const o = rtAt('realtime-calm.json'); o.sessions = []; Object.keys(o.counts).forEach((k) => { o.counts[k] = 0; }); return o; };
   await setup(page, { 'GET /v1/analytics/realtime': idle }, { native: NATIVE });
-  await page.goto('http://tandem.test/app?live=1&surface=hud');
+  await page.goto('http://orbit.test/app?live=1&surface=hud');
   await expect.poll(() => page.evaluate(() => LV.state), { timeout: 10_000 }).not.toBe('connecting');
   const pill = page.locator('#hudPill[data-tl="rt-calm"]');
   await expect(pill).toBeVisible();
@@ -157,7 +157,7 @@ test('share card asks the gateway for the persona page scope (period + filters),
   expect(bodies[0].scope.display_timezone).toBeTruthy();
 });
 
-test('export: report / CSV / share PNG go through save; tandem:saved offers 在 Finder 中显示 → reveal', async ({ page }) => {
+test('export: report / CSV / share PNG go through save; orbit:saved offers 在 Finder 中显示 → reveal', async ({ page }) => {
   ONLY();
   const errors = collectErrors(page);
   const csv = fs.readFileSync(path.join(FIXTURES, 's8', 'export-csv.csv'), 'utf8');
@@ -172,7 +172,7 @@ test('export: report / CSV / share PNG go through save; tandem:saved offers 在 
   expect(s1.filename).toBe('orbit-report-2026-10-03.md');
   expect(s1.mime).toBe('text/markdown');
   expect(s1.text).toContain('合成样本');
-  await page.evaluate((id) => window.dispatchEvent(new CustomEvent('tandem:saved', { detail: { id, ok: true, path: '/Users/fx/Downloads/orbit-report-2026-10-03.md' } })), s1.id);
+  await page.evaluate((id) => window.dispatchEvent(new CustomEvent('orbit:saved', { detail: { id, ok: true, path: '/Users/fx/Downloads/orbit-report-2026-10-03.md' } })), s1.id);
   await expect(page.locator('#toast')).toContainText('在 Finder 中显示');
   await page.locator('#toast [data-act="toastAct"]').click();
   await expect.poll(async () => (await msgs(page, 'reveal')).map((m) => m.path)).toEqual(['/Users/fx/Downloads/orbit-report-2026-10-03.md']);
@@ -192,7 +192,7 @@ test('export: report / CSV / share PNG go through save; tandem:saved offers 在 
   expect(png.subarray(1, 4).toString()).toBe('PNG');
   expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1080, 1350]);
   // a cancelled save says nothing
-  await page.evaluate((id) => window.dispatchEvent(new CustomEvent('tandem:saved', { detail: { id, ok: false, cancelled: true } })), s3.id);
+  await page.evaluate((id) => window.dispatchEvent(new CustomEvent('orbit:saved', { detail: { id, ok: false, cancelled: true } })), s3.id);
   expect(errors).toEqual([]);
 });
 

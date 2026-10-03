@@ -1,4 +1,4 @@
-"""Synthetic tandem.db / app.db builder for the A5/A6 uiview adapters (tmp_path only).
+"""Synthetic orbit.db / app.db builder for the A5/A6 uiview adapters (tmp_path only).
 
 Raw INSERTs over the real migrated schema with foreign keys off; never touches a real HOME.
 """
@@ -9,7 +9,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from tandem_data.store import Store
+from orbit_data.store import Store
 
 MIN = 60_000
 HOUR = 3_600_000
@@ -17,10 +17,10 @@ DAY = 86_400_000
 T0 = 1_760_000_000_000  # 2025-10-09T08:53:20Z
 
 
-class Tandem:
+class Orbit:
     def __init__(self, home: Path):
         Store(home).db.close()
-        self.path = home / "tandem.db"
+        self.path = home / "orbit.db"
         self.db = sqlite3.connect(self.path, isolation_level=None)
         self.db.execute("PRAGMA foreign_keys = OFF")
         self.events = 0

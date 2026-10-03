@@ -11,10 +11,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from tandem_backend.recommend import inputs
-from tandem_backend.services.auth import ApiError
-from tandem_backend.services.snapshots import SnapshotStore
-from tandem_backend.services.supervisor import AnalysisQueue, AnalysisTask, SupervisorConfig
+from orbit_backend.recommend import inputs
+from orbit_backend.services.auth import ApiError
+from orbit_backend.services.snapshots import SnapshotStore
+from orbit_backend.services.supervisor import AnalysisQueue, AnalysisTask, SupervisorConfig
 
 REV = (7, 3)
 SCOPE = {"from_ts": 1_780_000_000_000 - 7 * 86_400_000}
@@ -39,7 +39,7 @@ def _gateway(tmp_path, queue: AnalysisQueue):
 
 
 def test_open_circuit_without_snapshot_is_503_not_endless_computing(tmp_path):
-    from tandem_backend.services.snapshots import scope_hash
+    from orbit_backend.services.snapshots import scope_hash
 
     queue = _queue(tmp_path)
     h = scope_hash(SCOPE, {})
@@ -67,5 +67,5 @@ def test_heavy_budget_doubles_after_each_timeout_up_to_cap(tmp_path):
 
 
 def test_heavy_budget_is_configurable_from_env(monkeypatch):
-    monkeypatch.setenv("TANDEM_ANALYSIS_HEAVY_TIMEOUT_S", "600")
+    monkeypatch.setenv("ORBIT_ANALYSIS_HEAVY_TIMEOUT_S", "600")
     assert SupervisorConfig().heavy_timeout_s == 600.0

@@ -1,12 +1,12 @@
 """Changing the reading order must preserve facts and evidence contracts."""
 
-from tandem_backend.analysis import analyze
-from tandem_backend.cli import demo_home
-from tandem_backend.content import visible_text
-from tandem_backend.narrative import explain, markdown
-from tandem_backend.pipeline_eval import _write_case
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.cli import demo_home
+from orbit_backend.content import visible_text
+from orbit_backend.narrative import explain, markdown
+from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store, import_codex
 
 
 def test_empty_report_has_same_public_fields_and_no_unearned_findings(tmp_path):

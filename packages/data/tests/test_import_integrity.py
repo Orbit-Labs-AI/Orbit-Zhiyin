@@ -10,11 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from tandem_data.inventory import InventoryRequest, scan_inventory
-from tandem_data.query import event_page
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store, readonly_connection
-from tandem_data.validation.integrity import invariants, logical_digest, section_digests
+from orbit_data.inventory import InventoryRequest, scan_inventory
+from orbit_data.query import event_page
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store, readonly_connection
+from orbit_data.validation.integrity import invariants, logical_digest, section_digests
 
 REPO = Path(__file__).resolve().parents[3]
 if str(REPO) not in sys.path:
@@ -48,15 +48,15 @@ def synthetic(tmp_path_factory):
 def _copy(home: Path, target: Path) -> Path:
     target.mkdir()
     with (
-        sqlite3.connect(home / "tandem.db") as source,
-        sqlite3.connect(target / "tandem.db") as copy,
+        sqlite3.connect(home / "orbit.db") as source,
+        sqlite3.connect(target / "orbit.db") as copy,
     ):
         source.backup(copy)
     return target
 
 
 def _write(home: Path, sql: str, params=()) -> int:
-    db = sqlite3.connect(home / "tandem.db")
+    db = sqlite3.connect(home / "orbit.db")
     try:
         changed = db.execute(sql, params).rowcount
         db.commit()
@@ -98,13 +98,13 @@ def test_invariants_hold(synthetic):
     assert result["ledger_inconsistent"] == 0
     assert result["current_unparsed"] == 0
     assert result["events"] == manifest["totals"]["events"]
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
 def test_counts_match_manifest(synthetic):
     _, manifest, (home, _) = synthetic
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         sessions = dict(
             db.execute(
                 "SELECT s.agent,COUNT(*) FROM session x JOIN source s USING(source_id) GROUP BY 1"
@@ -139,7 +139,7 @@ def test_large_outputs_round_trip_through_event_page(synthetic):
     _, manifest, (home, _) = synthetic
     large = manifest["large_outputs"]
     assert {item["agent"] for item in large} >= {"claude_code", "pi", "dsh", "opencode"}
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         uids = {
             (row[0], row[1]): row[2]
             for row in db.execute(
@@ -159,7 +159,7 @@ def test_large_outputs_round_trip_through_event_page(synthetic):
 
 def test_inventory_matches_manifest(synthetic):
     _, manifest, (home, _) = synthetic
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         rows = db.execute(
             "SELECT s.agent,i.type,i.name,i.locator,i.content_hash FROM inventory_item i "
             "JOIN inventory_scan s USING(scan_id) ORDER BY 2,3,4,5"
@@ -191,7 +191,7 @@ def test_digest_detects_logical_changes(synthetic, tmp_path, mutation):
     copy = _copy(home, tmp_path / "copy")
     assert logical_digest(copy) == baseline
     if mutation == "event_text_byte":
-        with readonly_connection(copy / "tandem.db") as db:
+        with readonly_connection(copy / "orbit.db") as db:
             uid, text = db.execute(
                 "SELECT event_uid,text FROM event WHERE text GLOB '[a-z]*' ORDER BY event_uid LIMIT 1"
             ).fetchone()
@@ -232,7 +232,7 @@ def test_digest_ignores_physical_representation(synthetic, tmp_path):
     _, _, (home, _) = synthetic
     baseline = logical_digest(home)
     copy = _copy(home, tmp_path / "copy")
-    db = sqlite3.connect(copy / "tandem.db")
+    db = sqlite3.connect(copy / "orbit.db")
     try:
         # Rewrite pages and every index; rowids of non-INTEGER-PRIMARY-KEY tables may move.
         db.execute("REINDEX")

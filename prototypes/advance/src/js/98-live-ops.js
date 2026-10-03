@@ -70,7 +70,7 @@ function tloOpen(uid) {
     requestAnimationFrame(report);
   };
   render.base = base;
-  // navigation leaves the surface: the main window opens (tandem:command route) and this surface stays as it is
+  // navigation leaves the surface: the main window opens (orbit:command route) and this surface stays as it is
   const openMain = (route) => { ORBIT.native.post('openMain', route ? { route } : {}); return false; };
   go = function (route) { openMain(route); };
   openSettings = function (tab) { openMain('settings' + (tab ? '/' + tab : '')); };
@@ -79,7 +79,7 @@ function tloOpen(uid) {
   ACT.popOpen = () => openMain(null);
   if (typeof ResizeObserver === 'function') new ResizeObserver(report).observe(el());
 })();
-// main window: deep routes sent by a surface (openMain → tandem:command {cmd:'route', route:'sessions/<uid>' | 'recs/<id>'}).
+// main window: deep routes sent by a surface (openMain → orbit:command {cmd:'route', route:'sessions/<uid>' | 'recs/<id>'}).
 // Plain pages and settings/<tab> are LVN.command's (95-live-native.js): handling them here too ran go() twice and, across
 // editions, the second go() undid the edition switch.
 if (!ORBIT.native.surface) ORBIT.native.onCommand((c) => {
@@ -119,7 +119,7 @@ if (LV.live) {
     simSettle();
     HUD_TOOLS.length = 0; HUD_TOOLS.push(d.primary ? (d.primary.current_tool || '—') : '—');
   }
-  const H = TandemLive.ops;
+  const H = OrbitLive.ops;
   ['t0', 'ctx', 'tools'].forEach((k) => {
     let v = S.live[k];
     Object.defineProperty(S.live, k, {

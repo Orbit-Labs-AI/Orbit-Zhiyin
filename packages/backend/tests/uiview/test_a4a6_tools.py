@@ -2,17 +2,17 @@ import math
 
 import pytest
 
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.sessionops import toolcalls
-from tandem_backend.uiview import a4a6_common as common
-from tandem_backend.uiview import a4a6_tools as tools
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.sessionops import toolcalls
+from orbit_backend.uiview import a4a6_common as common
+from orbit_backend.uiview import a4a6_tools as tools
 
 try:
-    from .a4a6_fixture import DAY, T0, build_standard, client, conn, gateway, home, tandem
+    from .a4a6_fixture import DAY, T0, build_standard, client, conn, gateway, home, orbit
 except ImportError:
-    from a4a6_fixture import DAY, T0, build_standard, client, conn, gateway, home, tandem
+    from a4a6_fixture import DAY, T0, build_standard, client, conn, gateway, home, orbit
 
-__all__ = ["client", "conn", "gateway", "home", "tandem"]  # pytest fixtures
+__all__ = ["client", "conn", "gateway", "home", "orbit"]  # pytest fixtures
 NOW = T0 + 30 * DAY
 SECRET = "sk-ant-" + "A1b2C3d4E5f6G7h8I9j0K1"
 
@@ -29,8 +29,8 @@ def linear(values, q):
     return v[lo] + (v[hi] - v[lo]) * (pos - lo)
 
 
-def test_standard_header(tandem, conn):
-    expected = build_standard(tandem)
+def test_standard_header(orbit, conn):
+    expected = build_standard(orbit)
     body = build(conn)
     assert body["header"] == {"calls": 566, "tool_kinds": 6, "mcp_servers": 1, "sessions": 40}
     assert expected == {"sessions": 40, "calls": 566}
@@ -40,32 +40,32 @@ def test_standard_header(tandem, conn):
     assert pw["kind"] == "mcp" and pw["mcp_server"] == "pw"
 
 
-def test_error_rate_uses_known_results_only(tandem, conn):
-    tandem.session("a", agent="codex")
+def test_error_rate_uses_known_results_only(orbit, conn):
+    orbit.session("a", agent="codex")
     for i in range(5):
-        tandem.call("a", status="unknown", at=T0 + i)
+        orbit.call("a", status="unknown", at=T0 + i)
     body = build(conn)
     err = body["kpis"]["error_rate"]
     assert err["value"] is None and err["unknown_share"] == 1 and err["lo"] is None
     assert body["tools"][0]["err"] is None
 
-    tandem.session("b")
+    orbit.session("b")
     for i in range(35):  # 10 unknown (above, 5 + 5 here) of 40; 3 failed of 30 known.
         status = "unknown" if i < 5 else ("failed" if i < 8 else "success")
-        tandem.call("b", status=status, at=T0 + 100 + i)
+        orbit.call("b", status=status, at=T0 + 100 + i)
     err = build(conn)["kpis"]["error_rate"]
     assert (err["failed"], err["known"], err["unknown"]) == (3, 30, 10)
     assert err["value"] == pytest.approx(0.1) and err["unknown_share"] == pytest.approx(0.25)
     assert 0 <= err["lo"] <= err["value"] <= err["hi"] <= 1
 
 
-def test_duration_quantiles_and_daily(tandem, conn):
-    tandem.session("a")
+def test_duration_quantiles_and_daily(orbit, conn):
+    orbit.session("a")
     durations = [5, 100, 7, 80, 1200, 33, 0, 61]
     for i, d in enumerate(durations):
-        tandem.call("a", duration=d, at=T0 + i * DAY // 2, quality="estimated" if i % 2 else
+        orbit.call("a", duration=d, at=T0 + i * DAY // 2, quality="estimated" if i % 2 else
                     "reported")
-    tandem.call("a", at=T0 + 1)  # No duration: not in the quantiles.
+    orbit.call("a", at=T0 + 1)  # No duration: not in the quantiles.
     row = build(conn)["tools"][0]
     assert row["p50_ms"] == linear(durations, 0.5)
     assert row["p90_ms"] == pytest.approx(linear(durations, 0.9))
@@ -74,17 +74,17 @@ def test_duration_quantiles_and_daily(tandem, conn):
     assert sum(row["daily"]) == row["n"] == 9 and len(row["days"]) == len(row["daily"])
 
 
-def test_matrix_rows_sum_to_one_and_order_exclusion(tandem, conn):
-    build_standard(tandem)
-    tandem.session("dup")
-    first = tandem.call("dup", name="Read", kind="file.read")
-    shared = tandem.db.execute("SELECT call_event_uid FROM tool_call WHERE call_uid = ?",
+def test_matrix_rows_sum_to_one_and_order_exclusion(orbit, conn):
+    build_standard(orbit)
+    orbit.session("dup")
+    first = orbit.call("dup", name="Read", kind="file.read")
+    shared = orbit.db.execute("SELECT call_event_uid FROM tool_call WHERE call_uid = ?",
                                (first,)).fetchone()[0]
-    tandem.call("dup", name="Edit", kind="file.edit", event_uid=shared)
-    tandem.call("dup", name="Bash", kind="shell")
-    tandem.session("nul")
-    tandem.call("nul", name="Read", kind="file.read", no_event=True)
-    tandem.call("nul", name="Read", kind="file.read")
+    orbit.call("dup", name="Edit", kind="file.edit", event_uid=shared)
+    orbit.call("dup", name="Bash", kind="shell")
+    orbit.session("nul")
+    orbit.call("nul", name="Read", kind="file.read", no_event=True)
+    orbit.call("nul", name="Read", kind="file.read")
     m = build(conn)["matrix"]
     for row, n in zip(m["prob"], m["row_n"], strict=True):
         if n:
@@ -95,7 +95,7 @@ def test_matrix_rows_sum_to_one_and_order_exclusion(tandem, conn):
     assert chain and chain["support_sessions"] >= 3 and len(chain["probs"]) == 2
 
 
-def test_mixed_case_tool_names_from_two_agents_are_one_row(tandem, conn):
+def test_mixed_case_tool_names_from_two_agents_are_one_row(orbit, conn):
     """claude_code says Bash/Edit/Grep/Read/WebSearch, codex bash/edit/grep/read/web.search:
     one row per tool, original spellings kept, drilldown by key or alias returns the same calls."""
     spellings = {"claude_code": (("Bash", "shell"), ("Edit", "file.edit"), ("Grep", "search"),
@@ -106,12 +106,12 @@ def test_mixed_case_tool_names_from_two_agents_are_one_row(tandem, conn):
     for agent, calls in spellings.items():
         for s in range(2):
             uid = f"{agent}-{s}"
-            tandem.session(uid, agent=agent)
+            orbit.session(uid, agent=agent)
             for i, (name, kind) in enumerate(calls):
                 for k in range(i + 1):  # Bash ×1 … WebSearch ×5 per session.
                     at += 1000
                     failed = agent == "codex" and k == 0
-                    tandem.call(uid, name=name, kind=kind, at=at, head="ls" if kind == "shell" else None,
+                    orbit.call(uid, name=name, kind=kind, at=at, head="ls" if kind == "shell" else None,
                                 status="failed" if failed else "success",
                                 approval="approved" if agent == "codex" and kind == "shell" else None,
                                 wait=6000 if agent == "codex" and kind == "shell" else None)
@@ -144,27 +144,27 @@ def test_mixed_case_tool_names_from_two_agents_are_one_row(tandem, conn):
     assert kinds == {"shell", "file.edit", "search", "file.read", "web.search"}
 
 
-def test_retries(tandem, conn):
-    tandem.session("a")
+def test_retries(orbit, conn):
+    orbit.session("a")
     for i in range(3):
-        tandem.call("a", head="npm", status="failed", digest="d1", at=T0 + i,
+        orbit.call("a", head="npm", status="failed", digest="d1", at=T0 + i,
                     command="npm run build")
-    tandem.call("a", head="npm", status="success", digest="d1", at=T0 + 3)
-    tandem.call("a", head="pytest", status="failed", digest="x1", at=T0 + 4)
-    tandem.call("a", head="pytest", status="failed", digest="x2", at=T0 + 5)
+    orbit.call("a", head="npm", status="success", digest="d1", at=T0 + 3)
+    orbit.call("a", head="pytest", status="failed", digest="x1", at=T0 + 4)
+    orbit.call("a", head="pytest", status="failed", digest="x2", at=T0 + 5)
     rows = build(conn)["retries"]
     assert rows == [{"command": "npm run build", "count": 2, "max_run": 3,
                      "session_uids": ["a"]}]
 
 
-def test_failure_classification(tandem, conn):
-    tandem.session("a")
-    tandem.call("a", status="failed", error_class="timeout_hard", result="bash: x: command not found")
-    tandem.call("a", status="failed", result="Permission denied: /etc/hosts")
-    tandem.call("a", status="failed", result=f"usage: tool [-x] token={SECRET} " + "y" * 400)
-    tandem.call("a", status="failed", result="bash: foo: command not found")
-    tandem.call("a", status="success", result="Permission denied but retried ok")
-    tandem.call("a", status="unknown", result="timeout")
+def test_failure_classification(orbit, conn):
+    orbit.session("a")
+    orbit.call("a", status="failed", error_class="timeout_hard", result="bash: x: command not found")
+    orbit.call("a", status="failed", result="Permission denied: /etc/hosts")
+    orbit.call("a", status="failed", result=f"usage: tool [-x] token={SECRET} " + "y" * 400)
+    orbit.call("a", status="failed", result="bash: foo: command not found")
+    orbit.call("a", status="success", result="Permission denied but retried ok")
+    orbit.call("a", status="unknown", result="timeout")
     f = build(conn)["failures"]
     assert f["total"] == 4 and f["unknown_status"] == 1
     by = {(r["source"], r["key"]): r for r in f["rows"]}
@@ -176,14 +176,14 @@ def test_failure_classification(tandem, conn):
     assert sum(r["share"] for r in f["rows"]) == pytest.approx(1)
 
 
-def test_approvals(tandem, conn):
-    tandem.session("cc")
-    tandem.call("cc", head="ls")
-    tandem.session("cx", agent="codex")
-    tandem.call("cx", head="ls", approval="approved", wait=4999)
-    tandem.call("cx", head="cat", approval="approved", wait=5000)
-    tandem.call("cx", head="rm", approval="denied", wait=400_000)
-    tandem.call("cx", head="git", approval="approved")
+def test_approvals(orbit, conn):
+    orbit.session("cc")
+    orbit.call("cc", head="ls")
+    orbit.session("cx", agent="codex")
+    orbit.call("cx", head="ls", approval="approved", wait=4999)
+    orbit.call("cx", head="cat", approval="approved", wait=5000)
+    orbit.call("cx", head="rm", approval="denied", wait=400_000)
+    orbit.call("cx", head="git", approval="approved")
     body = build(conn)
     assert body["coverage"]["approval_agents_without"] == ["claude_code"]
     hist = {b["bucket"]: b["n"] for b in body["approval"]["histogram"]}
@@ -195,31 +195,31 @@ def test_approvals(tandem, conn):
     assert tools.wait_bucket(4999) == "<5s" and tools.wait_bucket(5000) == "5–15s"
 
 
-def test_readonly_prompted_counts_only_truly_readonly_commands(tandem, conn):
+def test_readonly_prompted_counts_only_truly_readonly_commands(orbit, conn):
     """UT-07: a prompted ``find -delete`` / ``git branch -D`` / ``sed -i`` is not read-only, so
     it must not feed readonly_prompted or the 「只读命令自动放行」 automation."""
-    tandem.session("cx", agent="codex")
-    tandem.call("cx", head="find", command="find . -name '*.log' -delete", approval="approved")
-    tandem.call("cx", head="git branch", command="git branch -D old", approval="approved")
-    tandem.call("cx", head="sed", command="sed -i 's/a/b/' x.txt", approval="approved")
-    tandem.call("cx", head="echo", command="echo hi > out.txt", approval="approved")
+    orbit.session("cx", agent="codex")
+    orbit.call("cx", head="find", command="find . -name '*.log' -delete", approval="approved")
+    orbit.call("cx", head="git branch", command="git branch -D old", approval="approved")
+    orbit.call("cx", head="sed", command="sed -i 's/a/b/' x.txt", approval="approved")
+    orbit.call("cx", head="echo", command="echo hi > out.txt", approval="approved")
     body = build(conn)
     assert body["approval"]["readonly_prompted"]["n"] == 0
     assert all(a["kind"] != "permission_rule" for a in body["automation"])
-    tandem.call("cx", head="sed", command="sed -n '1,5p' x.txt", approval="approved")
-    tandem.call("cx", head="git branch", command="git branch -a", approval="approved")
+    orbit.call("cx", head="sed", command="sed -n '1,5p' x.txt", approval="approved")
+    orbit.call("cx", head="git branch", command="git branch -a", approval="approved")
     body = build(conn)
     heads = {h["head"]: h["n"] for h in body["approval"]["readonly_prompted"]["heads"]}
     assert heads == {"sed": 1, "git branch": 1}
     assert any(a["kind"] == "permission_rule" and a["count"] == 2 for a in body["automation"])
 
 
-def test_parallel(tandem, conn):
-    tandem.session("p")
-    tandem.session("k0", kind="subagent", parent="p", started=T0, status="interrupted")
-    tandem.session("k1", kind="subagent", parent="p", started=T0 + 2000)
-    tandem.session("k2", kind="subagent", parent="p", started=T0 + 5000)
-    tandem.session("k3", kind="subagent", parent="p", started=T0 + 60_000)
+def test_parallel(orbit, conn):
+    orbit.session("p")
+    orbit.session("k0", kind="subagent", parent="p", started=T0, status="interrupted")
+    orbit.session("k1", kind="subagent", parent="p", started=T0 + 2000)
+    orbit.session("k2", kind="subagent", parent="p", started=T0 + 5000)
+    orbit.session("k3", kind="subagent", parent="p", started=T0 + 60_000)
     par = build(conn)["parallel"]
     buckets = {b["degree"]: b for b in par["buckets"]}
     assert buckets["3"] == {"degree": "3", "n": 3, "stopped": 1}
@@ -227,9 +227,9 @@ def test_parallel(tandem, conn):
     assert par["stopped_share_ge4"]["value"] is None
 
 
-def test_mcp_inventory_merge(tandem, conn):
-    tandem.session("a")
-    tandem.call("a", name="mcp__pw__click", kind="mcp", mcp_server="pw", status="failed")
+def test_mcp_inventory_merge(orbit, conn):
+    orbit.session("a")
+    orbit.call("a", name="mcp__pw__click", kind="mcp", mcp_server="pw", status="failed")
     inventory = [
         {"type": "mcp", "name": "pw", "config_path": "/c/a.json", "inv_id": "i1",
          "status": "active", "resident": {"tokens_est": None, "basis": "unknown"}},
@@ -250,14 +250,14 @@ def test_mcp_inventory_merge(tandem, conn):
     assert build(conn)["mcp"][0]["status"] == "unscanned"
 
 
-def test_prev_delta_and_trend(tandem, conn):
-    tandem.session("a", started=T0)
+def test_prev_delta_and_trend(orbit, conn):
+    orbit.session("a", started=T0)
     lo, hi = T0 + 10 * DAY, T0 + 20 * DAY
     for i in range(4):
-        tandem.call("a", at=lo - DAY - i, status="failed" if i == 0 else "success")
+        orbit.call("a", at=lo - DAY - i, status="failed" if i == 0 else "success")
     for i in range(6):
-        tandem.call("a", at=lo + DAY + i, approval="approved" if i < 2 else None)
-    tandem.call("a", at=lo - 30 * DAY)  # Outside both windows, inside the 12-week trend.
+        orbit.call("a", at=lo + DAY + i, approval="approved" if i < 2 else None)
+    orbit.call("a", at=lo - 30 * DAY)  # Outside both windows, inside the 12-week trend.
     k = build(conn, Scope(from_ts=lo, until_ts=hi))["kpis"]
     assert (k["calls"]["value"], k["calls"]["prev"], k["calls"]["delta"]) == (6, 4, 2)
     assert k["error_rate"]["prev"] == pytest.approx(0.25)
@@ -276,14 +276,14 @@ def test_week_buckets_and_scope_where():
     assert common.scope_where(Scope(), "s") == ("1", [])
 
 
-def test_route(tandem, gateway, client):
-    build_standard(tandem)
+def test_route(orbit, gateway, client):
+    build_standard(orbit)
     assert client.get("/v1/uiview/tools").json()["meta"]["reason"] == "no_projection"
     gateway.revisions.update(data_rev=7)
     first = client.get("/v1/uiview/tools")
     assert first.status_code == 200
     body = first.json()
-    assert body["meta"]["contract"] == "tandem-uiview-a4a6-v1" and body["meta"]["data_rev"] == 7
+    assert body["meta"]["contract"] == "orbit-uiview-a4a6-v1" and body["meta"]["data_rev"] == 7
     assert body["meta"]["source"] == "computed" and body["header"]["calls"] == 566
     assert body["meta"]["coverage"]["approval_agents_without"] == ["claude_code"]
     again = client.get("/v1/uiview/tools").json()

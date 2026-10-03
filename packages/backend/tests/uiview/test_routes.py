@@ -9,11 +9,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tandem_backend.services import routes_uiview
-from tandem_backend.services.gateway import install_error_handlers
-from tandem_backend.services.sections import rules_digest
-from tandem_backend.services.snapshots import SnapshotKey, SnapshotStore, scope_hash
-from tandem_backend.uiview import facts, fetch
+from orbit_backend.services import routes_uiview
+from orbit_backend.services.gateway import install_error_handlers
+from orbit_backend.services.sections import rules_digest
+from orbit_backend.services.snapshots import SnapshotKey, SnapshotStore, scope_hash
+from orbit_backend.uiview import facts, fetch
 
 from .synth import TODAY, analysed
 

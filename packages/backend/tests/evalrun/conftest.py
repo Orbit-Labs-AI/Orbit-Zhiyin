@@ -3,12 +3,12 @@ import types
 
 import pytest
 
-from tandem_backend.evalrun import registry
-from tandem_backend.evalrun.contract import Check, SuiteResult
+from orbit_backend.evalrun import registry
+from orbit_backend.evalrun.contract import Check, SuiteResult
 
 
 def make_suite(suite_id: str, run):
-    module = types.ModuleType(f"tandem_backend.evalrun.suites.{suite_id}")
+    module = types.ModuleType(f"orbit_backend.evalrun.suites.{suite_id}")
     module.__doc__ = f"Fake suite {suite_id}."
     module.ID, module.TITLE, module.EV, module.run = suite_id, suite_id.title(), ("EV-12",), run
     return module
@@ -46,7 +46,7 @@ FAKES = {"ok": _ok, "half": _half, "skip": _skip, "boom": _boom, "empty": _empty
 @pytest.fixture
 def fake_suites(monkeypatch):
     for suite_id, run in FAKES.items():
-        monkeypatch.setitem(sys.modules, f"tandem_backend.evalrun.suites.{suite_id}",
+        monkeypatch.setitem(sys.modules, f"orbit_backend.evalrun.suites.{suite_id}",
                             make_suite(suite_id, run))
     monkeypatch.setattr(registry, "ids", lambda: sorted(FAKES))
     return FAKES

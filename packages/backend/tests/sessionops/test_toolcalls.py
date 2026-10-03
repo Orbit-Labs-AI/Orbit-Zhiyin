@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from tandem_backend.sessionops import toolcalls
+from orbit_backend.sessionops import toolcalls
 
 from .conftest import T0
 
@@ -11,19 +11,19 @@ SECRET = "sk-ant-" + "A1b2C3d4E5f6G7h8I9j0K1"
 
 
 @pytest.fixture
-def seeded(tandem):
-    tandem.session("s1", cwd="/w/p1")
-    tandem.session("s2", agent="codex", project="p2", cwd="/w/p2")
-    tandem.call("s1", head="git", at=T0 + 1, uid="a1",
+def seeded(orbit):
+    orbit.session("s1", cwd="/w/p1")
+    orbit.session("s2", agent="codex", project="p2", cwd="/w/p2")
+    orbit.call("s1", head="git", at=T0 + 1, uid="a1",
                 input={"command": f"curl -H 'x-api-key: {SECRET}' https://x.dev"},
                 files=["/w/p1/src/a.py", "/elsewhere/b.py"])
-    tandem.call("s1", name="Read", kind="file.read", at=T0 + 2, uid="a2",
+    orbit.call("s1", name="Read", kind="file.read", at=T0 + 2, uid="a2",
                 input={"file_path": "/w/p1/README.md"})
-    tandem.call("s1", head="rm", status="failed", at=T0 + 3, uid="a3")
-    tandem.call("s2", head="git", status="completed", at=T0 + 4, uid="a4",
+    orbit.call("s1", head="rm", status="failed", at=T0 + 3, uid="a3")
+    orbit.call("s2", head="git", status="completed", at=T0 + 4, uid="a4",
                 input={"command": ["git", "status"]})
-    tandem.call("s2", name="mcp__pw__click", kind="mcp", at=T0 + 5, uid="a5")
-    return tandem
+    orbit.call("s2", name="mcp__pw__click", kind="mcp", at=T0 + 5, uid="a5")
+    return orbit
 
 
 def test_filters_and_item_shape(seeded):
@@ -58,14 +58,14 @@ def test_filters_and_item_shape(seeded):
         toolcalls.query(db, {}, limit=0)
 
 
-def test_keyset_pagination_three_pages(tandem):
-    tandem.session("s1")
+def test_keyset_pagination_three_pages(orbit):
+    orbit.session("s1")
     for i in range(25):  # Some calls share a timestamp; call_uid breaks ties.
-        tandem.call("s1", at=T0 + i // 3, uid=f"k{i:03d}")
-    tandem.db.row_factory = sqlite3.Row
+        orbit.call("s1", at=T0 + i // 3, uid=f"k{i:03d}")
+    orbit.db.row_factory = sqlite3.Row
     seen, cursor, pages = [], None, 0
     while True:
-        page = toolcalls.query(tandem.db, {}, limit=10, cursor=cursor)
+        page = toolcalls.query(orbit.db, {}, limit=10, cursor=cursor)
         seen += [i["call_uid"] for i in page["items"]]
         pages += 1
         if not page["has_more"]:
@@ -81,22 +81,22 @@ def test_session_filter_uses_index(seeded):
 
 
 @pytest.mark.serial
-def test_fifty_thousand_rows_under_300ms(tandem):
-    tandem.session("s1")
-    tandem.session("s2", agent="codex")
-    tandem.db.execute("BEGIN")
-    tandem.db.executemany(
+def test_fifty_thousand_rows_under_300ms(orbit):
+    orbit.session("s1")
+    orbit.session("s2", agent="codex")
+    orbit.db.execute("BEGIN")
+    orbit.db.executemany(
         "INSERT INTO tool_call(call_uid, session_uid, name_raw, name, kind, command_head, files, "
         "status, pairing_quality, started_at, duration_source, duration_quality) "
         "VALUES (?, ?, 'Bash', 'Bash', 'shell', 'git', '[]', 'success', 'paired', ?, 'unknown', "
         "'missing')", ((f"t{i:06d}", f"s{i % 2 + 1}", T0 + i) for i in range(50_000)))
-    tandem.db.execute("COMMIT")
-    tandem.db.row_factory = sqlite3.Row
-    toolcalls.query(tandem.db, {})  # Warm the page cache.
+    orbit.db.execute("COMMIT")
+    orbit.db.row_factory = sqlite3.Row
+    toolcalls.query(orbit.db, {})  # Warm the page cache.
     started = time.perf_counter()
-    page = toolcalls.query(tandem.db, {"command_head": "git"}, limit=50, excluded=["s2"])
-    toolcalls.query(tandem.db, {}, limit=50, cursor=page["next_cursor"])
-    toolcalls.query(tandem.db, {"session_uid": "s1"}, limit=50)
+    page = toolcalls.query(orbit.db, {"command_head": "git"}, limit=50, excluded=["s2"])
+    toolcalls.query(orbit.db, {}, limit=50, cursor=page["next_cursor"])
+    toolcalls.query(orbit.db, {"session_uid": "s1"}, limit=50)
     assert (time.perf_counter() - started) / 3 < 0.3
     assert len(page["items"]) == 50 and page["items"][0]["call_uid"] == "t049998"
 

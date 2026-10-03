@@ -2,8 +2,8 @@ from datetime import datetime
 
 import pytest
 
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.presentation.metrics import activity_view, ranked_counts, window_scope
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.presentation.metrics import activity_view, ranked_counts, window_scope
 
 
 def test_window_is_fixed_duration_and_respects_historical_cutoff():

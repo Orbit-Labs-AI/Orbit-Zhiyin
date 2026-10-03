@@ -3,11 +3,11 @@ import socket
 
 import pytest
 
-from tandem_data.capabilities import CACHE_FILE, CACHE_TTL_MS, FEATURES, MATRIX, capabilities
-from tandem_data.resume import AGENTS
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.capabilities import CACHE_FILE, CACHE_TTL_MS, FEATURES, MATRIX, capabilities
+from orbit_data.resume import AGENTS
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 NOW = 1_800_000_000_000
 

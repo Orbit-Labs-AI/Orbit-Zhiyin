@@ -1,4 +1,4 @@
-from tandem_backend.recommend.ranking.gates import check
+from orbit_backend.recommend.ranking.gates import check
 
 NA = "n/a"
 
@@ -127,7 +127,7 @@ def test_audience_and_requirements():
 
 
 def test_unverified_catalog_row_is_rejected():
-    from tandem_backend.recommend.recall.catalog_route import _normalise_catalog, from_item
+    from orbit_backend.recommend.recall.catalog_route import _normalise_catalog, from_item
 
     row = {"item_id": "x", "type": "skill", "name": "X", "license": "MIT", "content_hash": "ab" * 32,
            "agents": ["claude_code"]}
@@ -140,7 +140,7 @@ def test_unverified_catalog_row_is_rejected():
 
 
 def test_catalog_agents_without_declaration_are_unknown():
-    from tandem_backend.recommend.recall.catalog_route import from_item
+    from orbit_backend.recommend.recall.catalog_route import from_item
 
     item = {"item_id": "x", "kind": "skill", "name": "X", "agents": ["claude_code", "codex"], "verified": True}
     cand = from_item(item, None, INPUTS, match_basis="profile")

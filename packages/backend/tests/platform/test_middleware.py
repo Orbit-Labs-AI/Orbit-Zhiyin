@@ -9,9 +9,9 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 
-from tandem_backend import platform as pf
-from tandem_backend.platform import logs
-from tandem_backend.platform.middleware import PlatformMiddleware, route_template
+from orbit_backend import platform as pf
+from orbit_backend.platform import logs
+from orbit_backend.platform.middleware import PlatformMiddleware, route_template
 
 
 def make_app(platform):
@@ -96,7 +96,7 @@ def test_slow_log_and_metrics(started):
     client.get("/v1/stream")
     for handler in [started.log_handler]:
         handler.flush()
-    text = (started.home / "logs" / "tandem.log").read_text()
+    text = (started.home / "logs" / "orbit.log").read_text()
     assert "slow_request" in text and "/v1/sessions/{sid}/events" in text
     assert "s3cr3t-query" not in text
     series = {(s["name"], s["tags"].get("route")): s

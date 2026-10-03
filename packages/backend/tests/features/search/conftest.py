@@ -1,4 +1,4 @@
-"""Minimal tandem.db / catalog.db / app.db built from native DDL; no real HOME is touched."""
+"""Minimal orbit.db / catalog.db / app.db built from native DDL; no real HOME is touched."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import pytest
 DAY = 86_400_000
 NOW = 1_800_000_000_000
 
-TANDEM_DDL = """
+ORBIT_DDL = """
 CREATE TABLE project (project_id TEXT PRIMARY KEY, key_type TEXT NOT NULL, key TEXT NOT NULL,
   name TEXT NOT NULL, git_remote TEXT, paths TEXT NOT NULL DEFAULT '[]') STRICT;
 CREATE TABLE source (source_id TEXT PRIMARY KEY, agent TEXT NOT NULL, root_path TEXT NOT NULL,
@@ -67,11 +67,11 @@ class World:
         self.root = root
         self.home = root / "home"
         self.home.mkdir()
-        self.tandem = self.home / "tandem.db"
+        self.orbit = self.home / "orbit.db"
         self.catalog = self.home / "catalog.db"
         self.app = self.home / "app.db"
-        self.t = sqlite3.connect(self.tandem, isolation_level=None)
-        self.t.executescript(TANDEM_DDL)
+        self.t = sqlite3.connect(self.orbit, isolation_level=None)
+        self.t.executescript(ORBIT_DDL)
         self.t.execute("INSERT INTO projection_run VALUES (1, 0, 0)")
         self.c = sqlite3.connect(self.catalog, isolation_level=None)
         self.c.executescript(CATALOG_DDL)
@@ -80,7 +80,7 @@ class World:
         self.seq = 0
         self.scan = 0
 
-    # tandem.db
+    # orbit.db
     def project(self, pid, name, paths=()):
         self.t.execute("INSERT INTO project VALUES (?,?,?,?,NULL,?)",
                        (pid, "path", f"/p/{pid}", name, json.dumps(list(paths))))
@@ -131,7 +131,7 @@ class World:
     def connection(self, catalog=True) -> sqlite3.Connection:
         conn = sqlite3.connect(self.app.as_uri() + "?mode=ro", uri=True, isolation_level=None)
         conn.row_factory = sqlite3.Row
-        conn.execute("ATTACH DATABASE ? AS t", (self.tandem.as_uri() + "?mode=ro",))
+        conn.execute("ATTACH DATABASE ? AS t", (self.orbit.as_uri() + "?mode=ro",))
         if catalog:
             conn.execute("ATTACH DATABASE ? AS c", (self.catalog.as_uri() + "?mode=ro",))
         return conn
@@ -148,7 +148,7 @@ class World:
 
 @pytest.fixture
 def world(tmp_path):
-    from tandem_backend.features import linked
+    from orbit_backend.features import linked
 
     linked.clear_cache()
     w = World(tmp_path)

@@ -2,11 +2,11 @@
 
 import json
 
-from tandem_backend.analysis import analyze
-from tandem_backend.importers.codex import _command_output_hint, _status, _status_details
-from tandem_backend.pipeline_eval import _write_case
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.importers.codex import _command_output_hint, _status, _status_details
+from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store, import_codex
 
 
 def command_result(code=0, output="command stdout"):

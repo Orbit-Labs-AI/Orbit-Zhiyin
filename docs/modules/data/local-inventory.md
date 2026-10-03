@@ -11,10 +11,10 @@
 从仓库根运行；每条 `scan-inventory` 命令都显式授权一个来源。`--home` 必须位于所有来源目录之外。
 
 ```sh
-uv run tandem-data --home .tandem scan-inventory --agent codex --root ~/.codex
-uv run tandem-data --home .tandem scan-inventory --agent claude_code --root ~/.claude --claude-config ~/.claude.json
-uv run tandem-data --home .tandem scan-inventory --agent common --root ~/.agents
-uv run tandem-data --home .tandem inventory
+uv run orbit-data --home .orbit scan-inventory --agent codex --root ~/.codex
+uv run orbit-data --home .orbit scan-inventory --agent claude_code --root ~/.claude --claude-config ~/.claude.json
+uv run orbit-data --home .orbit scan-inventory --agent common --root ~/.agents
+uv run orbit-data --home .orbit inventory
 ```
 
 项目配置用 `--agent project --root /path/to/project`。所有 Agent 布局均可传 `--project-id` 关联已有 canonical project；不存在的 ID 会被拒绝。未关联的项目仍可在不限定项目的清单中看到，但不会混入指定项目的分析。项目根在数据目录的上级时，应把 `--home` 放到项目之外。
@@ -64,13 +64,13 @@ App 可直接调用：
 
 ```python
 from pathlib import Path
-from tandem_data.inventory import InventoryRequest, read_inventory, scan_inventory
-from tandem_data.store import Store
+from orbit_data.inventory import InventoryRequest, read_inventory, scan_inventory
+from orbit_data.store import Store
 
-with Store('/path/to/tandem-data') as store:
+with Store('/path/to/orbit-data') as store:
     result = scan_inventory(store, InventoryRequest('codex', Path('/path/to/codex-home')))
 
-inventory = read_inventory('/path/to/tandem-data')
+inventory = read_inventory('/path/to/orbit-data')
 ```
 
 `read_inventory` 不要求会话投影已经建立。原有 `read_analysis` 仍要求会话投影就绪，并在同一读事务中增加 `inventory` 和 `inventory_scans`；后端 `AnalysisInputBundle` 和分析结果也透传清单。`sample_boundary.inventory_scan_ids` 参与内容指纹，扫描改变后不会复用旧分析身份。
@@ -85,11 +85,11 @@ inventory = read_inventory('/path/to/tandem-data')
 ## 七个 connector 的接入注意事项
 
 ```sh
-uv run tandem-data --home .tandem scan-inventory --agent dsh --root ~/.dsh
-uv run tandem-data --home .tandem scan-inventory --agent pi --root ~/.pi/agent
-uv run tandem-data --home .tandem scan-inventory --agent hermes --root ~/.hermes
-uv run tandem-data --home .tandem scan-inventory --agent opencode --root ~/.config/opencode
-uv run tandem-data --home .tandem scan-inventory --agent kimi --root ~/.kimi-code
+uv run orbit-data --home .orbit scan-inventory --agent dsh --root ~/.dsh
+uv run orbit-data --home .orbit scan-inventory --agent pi --root ~/.pi/agent
+uv run orbit-data --home .orbit scan-inventory --agent hermes --root ~/.hermes
+uv run orbit-data --home .orbit scan-inventory --agent opencode --root ~/.config/opencode
+uv run orbit-data --home .orbit scan-inventory --agent kimi --root ~/.kimi-code
 ```
 
 `--root` 始终是显式授权的配置根。OpenCode 会话 connector 的根通常是 `~/.local/share/opencode`，安装扫描应另选 `~/.config/opencode` 或实际 `XDG_CONFIG_HOME` 下的配置目录；不会根据会话根自动读取用户目录。项目内 `.pi/`、`.opencode/`、`.dsh/` 或 `.kimi-code/` 可使用对应 Agent 布局并传 `--project-id`，不必将它们标成全局配置。
@@ -112,8 +112,8 @@ uv run tandem-data --home .tandem scan-inventory --agent kimi --root ~/.kimi-cod
 ## 共享目录与 Claude 应用数据根
 
 ```sh
-uv run tandem-data --home .tandem scan-inventory --agent codex --root ~/.codex --skill-root ~/.agents/skills
-uv run tandem-data --home .tandem scan-inventory --agent claude_desktop --root "$HOME/Library/Application Support/Claude"
+uv run orbit-data --home .orbit scan-inventory --agent codex --root ~/.codex --skill-root ~/.agents/skills
+uv run orbit-data --home .orbit scan-inventory --agent claude_desktop --root "$HOME/Library/Application Support/Claude"
 ```
 
 `--skill-root` 可重复使用，明确授权并扫描额外 Skill 根；`--allow-root` 仍用于允许配置引用（DSH 还会在明确授权的安装根下按声明包名查找 manifest），不会遍历整个用户目录。数据 home 不得位于任何授权根之内。

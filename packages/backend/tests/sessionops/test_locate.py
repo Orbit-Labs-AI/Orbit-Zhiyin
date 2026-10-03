@@ -1,17 +1,17 @@
 import os
 
 
-def test_source_location(tandem, client, tmp_path):
-    tandem.session("s1")
-    tandem.raw_file("s1", "claude_code", "projects/a.jsonl", content="{}\n")
-    tandem.raw_file("s1", "claude_code", "projects/gone.jsonl")
+def test_source_location(orbit, client, tmp_path):
+    orbit.session("s1")
+    orbit.raw_file("s1", "claude_code", "projects/a.jsonl", content="{}\n")
+    orbit.raw_file("s1", "claude_code", "projects/gone.jsonl")
     outside = tmp_path / "outside.jsonl"
     outside.write_text("secret")
-    link = tandem.roots / "claude_code" / "projects" / "link.jsonl"
+    link = orbit.roots / "claude_code" / "projects" / "link.jsonl"
     os.symlink(outside, link)
-    tandem.raw_file("s1", "claude_code", "projects/link.jsonl")
-    tandem.raw_file("s1", "claude_code", "../escape.jsonl")
-    first = tandem.event("s1", ts=1, record="rec-first")
+    orbit.raw_file("s1", "claude_code", "projects/link.jsonl")
+    orbit.raw_file("s1", "claude_code", "../escape.jsonl")
+    first = orbit.event("s1", ts=1, record="rec-first")
     assert first
     body = client.get("/v1/sessions/s1/source_location").json()
     assert body["first_record_uid"] == "rec-first"

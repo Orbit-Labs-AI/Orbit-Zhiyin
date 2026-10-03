@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from tandem_backend.analytics.cost_time import activity, summarize_durations, usage
-from tandem_backend.analytics.inputs import Scope
+from orbit_backend.analytics.cost_time import activity, summarize_durations, usage
+from orbit_backend.analytics.inputs import Scope
 
 
 def request(**values):

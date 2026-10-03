@@ -4,10 +4,10 @@ import subprocess
 
 import pytest
 
-from tandem_data.resume import AGENTS, resume_template, session_resume
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.resume import AGENTS, resume_template, session_resume
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 SEVEN = {"claude_code", "codex", "opencode", "pi", "hermes", "dsh", "kimi"}
 
@@ -90,7 +90,7 @@ def test_projected_sessions(tmp_path, no_processes):
     pi = session_resume(home, sessions["pi"])
     assert pi["supported"] and pi["argv"][-1].endswith(".jsonl")
     assert pi["argv"][-1].startswith(str(roots["pi"].resolve()))
-    db = sqlite3.connect(home / "tandem.db")
+    db = sqlite3.connect(home / "orbit.db")
     db.execute("UPDATE session SET status='active' WHERE session_uid=?", (sessions["claude_code"],))
     db.commit()
     db.close()

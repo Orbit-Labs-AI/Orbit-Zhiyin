@@ -3,10 +3,10 @@ import sqlite3
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.evalrun import labels
-from tandem_backend.evalrun.cli import main
-from tandem_backend.recommend import store as rec_store
+from orbit_backend.appdb import AppDB
+from orbit_backend.evalrun import labels
+from orbit_backend.evalrun.cli import main
+from orbit_backend.recommend import store as rec_store
 
 NOW = 1_800_000_000_000
 PROBLEMS = [
@@ -31,14 +31,14 @@ def home(tmp_path):
     with db.write() as conn:
         rec_store.insert_run(conn, run, CANDS)
     db.close()
-    tandem = sqlite3.connect(tmp_path / "tandem.db")
-    tandem.execute("CREATE TABLE event (event_uid TEXT PRIMARY KEY, text TEXT)")
+    orbit = sqlite3.connect(tmp_path / "orbit.db")
+    orbit.execute("CREATE TABLE event (event_uid TEXT PRIMARY KEY, text TEXT)")
     long_text = "前文" * 200 + " 请用 Bash 跑 git status，token sk-abcdefghijklmnopqrstu " + "后文" * 200
-    tandem.executemany("INSERT INTO event VALUES (?,?)",
+    orbit.executemany("INSERT INTO event VALUES (?,?)",
                        [("e1", long_text), ("e2", "又要确认 Bash"), ("e3", None), ("e4", "第三条"),
                         ("e5", "再说一遍：别改测试")])
-    tandem.commit()
-    tandem.close()
+    orbit.commit()
+    orbit.close()
     return tmp_path
 
 

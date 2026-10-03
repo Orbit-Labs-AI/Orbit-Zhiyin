@@ -2,9 +2,9 @@
 
 import pytest
 
-from tandem_backend.ai import tasks_analysis
-from tandem_backend.evalrun.contract import EvalContext
-from tandem_backend.evalrun.suites import facet_quality as suite
+from orbit_backend.ai import tasks_analysis
+from orbit_backend.evalrun.contract import EvalContext
+from orbit_backend.evalrun.suites import facet_quality as suite
 
 
 @pytest.fixture(autouse=True)

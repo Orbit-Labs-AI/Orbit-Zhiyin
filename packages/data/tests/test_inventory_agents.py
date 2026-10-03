@@ -4,10 +4,10 @@ import json
 
 import pytest
 
-from tandem_data.connectors import MAPPERS
-from tandem_data.inventory import InventoryRequest, read_inventory, scan_inventory
-from tandem_data.inventory.adapters import SUPPORTED
-from tandem_data.store import Store
+from orbit_data.connectors import MAPPERS
+from orbit_data.inventory import InventoryRequest, read_inventory, scan_inventory
+from orbit_data.inventory.adapters import SUPPORTED
+from orbit_data.store import Store
 
 
 def write(root, path, value):
@@ -354,7 +354,7 @@ def test_credentials_symlink_blocked_but_oauth_plugin_name_allowed(tmp_path):
 
 
 def test_native_agent_project_scope_and_cli_choices(tmp_path, capsys):
-    from tandem_data.cli import main
+    from orbit_data.cli import main
 
     root = tmp_path / "pi"
     write(root, "AGENTS.md", "project rule")

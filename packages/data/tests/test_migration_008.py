@@ -8,9 +8,9 @@ from importlib.resources import files
 import pytest
 from test_storage_dedup import import_home, write_sessions
 
-from tandem_data import SCHEMA_VERSION, payload
-from tandem_data.query import event_page, trajectory_page
-from tandem_data.store import Store
+from orbit_data import SCHEMA_VERSION, payload
+from orbit_data.query import event_page, trajectory_page
+from orbit_data.store import Store
 
 V8_INDEXES = (
     "session_by_started",
@@ -20,7 +20,7 @@ V8_INDEXES = (
     "source_file_unprojected",
     "source_file_projection_versions",
 )
-V10 = files("tandem_data").joinpath("migrations/010.sql").read_text()
+V10 = files("orbit_data").joinpath("migrations/010.sql").read_text()
 # 010 replaces redundant FK indexes (prefixes of v8 list indexes, a sparse column's full index).
 V10_DROPPED = set(re.findall(r"DROP INDEX IF EXISTS (fk_\w+)", V10))
 V10_INDEXES = set(re.findall(r"CREATE INDEX IF NOT EXISTS (fk_\w+)", V10))
@@ -28,7 +28,7 @@ FK_INDEXES = [
     name
     for name in re.findall(
         r"CREATE INDEX IF NOT EXISTS (fk_\w+)",
-        files("tandem_data").joinpath("migrations/008.sql").read_text(),
+        files("orbit_data").joinpath("migrations/008.sql").read_text(),
     )
     if name not in V10_DROPPED
 ]
@@ -80,7 +80,7 @@ def snapshot(home):
 
 def downgrade(home, variant):
     """Rewrite a v8 store into the physical layout of an older release."""
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         db.executescript(LEGACY_FTS)
         for name in V8_INDEXES:
             db.execute(f"DROP INDEX {name}")
@@ -110,7 +110,7 @@ def test_older_stores_upgrade_to_008_preserving_data(tmp_path, variant, monkeypa
             )
     before = snapshot(home)
     downgrade(home, variant)
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] in (6, 7)
         assert db.execute("SELECT 1 FROM sqlite_master WHERE name='event_fts'").fetchone()
 
@@ -134,7 +134,7 @@ def test_older_stores_upgrade_to_008_preserving_data(tmp_path, variant, monkeypa
         assert not db.execute("PRAGMA foreign_key_check").fetchall()
         # Physical columns match the published field dictionary.
         saved = json.loads(
-            files("tandem_data").joinpath("schemas/tables-v1.schema.json").read_text()
+            files("orbit_data").joinpath("schemas/tables-v1.schema.json").read_text()
         )["$defs"]
         for table, spec in saved.items():
             columns = [r[1] for r in db.execute(f'PRAGMA table_info("{table}")')]
@@ -153,7 +153,7 @@ def test_older_stores_upgrade_to_008_preserving_data(tmp_path, variant, monkeypa
 def test_unknown_future_version_is_rejected(tmp_path):
     home = tmp_path / "home"
     Store(home).db.close()
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         db.execute(f"PRAGMA user_version={SCHEMA_VERSION + 1}")
     with pytest.raises(ValueError, match="Unsupported database version"):
         Store(home)

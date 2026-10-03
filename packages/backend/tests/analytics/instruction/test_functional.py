@@ -4,11 +4,11 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.service import analyze_bundle, analyze_store
-from tandem_backend.api import create_app
-from tandem_backend.cli import main
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.service import analyze_bundle, analyze_store
+from orbit_backend.api import create_app
+from orbit_backend.cli import main
+from orbit_backend.store import Store, import_codex
 
 
 def fixture_bundle():
@@ -28,9 +28,9 @@ def fixture_bundle():
 def test_mock_adapter_engine_api_and_cli_share_scope_and_contract(tmp_path):
     bundle = fixture_bundle()
     original = copy.deepcopy(bundle)
-    with patch("tandem_backend.analytics.service.legacy_bundle", return_value=bundle) as adapter:
+    with patch("orbit_backend.analytics.service.legacy_bundle", return_value=bundle) as adapter:
         with TestClient(create_app(tmp_path / "mock.sqlite")) as client:
-            with patch("tandem_backend.analytics.service.representation", side_effect=AssertionError("not needed")):
+            with patch("orbit_backend.analytics.service.representation", side_effect=AssertionError("not needed")):
                 response = client.get("/v1/analytics/instruction", params={"until_ts": 150})
                 assert response.status_code == 200
                 assert [r["event_uid"] for r in response.json()["instruction"]["records"]] == ["u"]

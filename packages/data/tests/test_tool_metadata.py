@@ -1,17 +1,17 @@
 """tool_metadata: per-agent name -> kind tables, file extraction and argv command specs.
 
 Expected values are written by hand from each harness's argument shapes (see
-tandem_data/tool_kinds.py for the upstream references), not copied from reducer output.
+orbit_data/tool_kinds.py for the upstream references), not copied from reducer output.
 """
 
 import json
 
 import pytest
 
-from tandem_data.contract import canonical
-from tandem_data.reduce import tool_metadata
-from tandem_data.store import Store
-from tandem_data.tool_kinds import AGENT_TOOL_KINDS, file_ops, tool_kind
+from orbit_data.contract import canonical
+from orbit_data.reduce import tool_metadata
+from orbit_data.store import Store
+from orbit_data.tool_kinds import AGENT_TOOL_KINDS, file_ops, tool_kind
 
 PATCH = """*** Begin Patch
 *** Update File: /repo/src/app.py

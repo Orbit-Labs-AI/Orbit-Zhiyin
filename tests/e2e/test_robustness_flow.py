@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 
 @pytest.fixture

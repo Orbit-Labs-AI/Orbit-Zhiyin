@@ -4,14 +4,14 @@ from pathlib import Path
 import pytest
 from conftest import DAY, NOW
 
-from tandem_backend import appdb as appdb_schema
-from tandem_backend.features.search import parse, search, snippet, strip_marks
-from tandem_backend.features.search_index import SearchIndex
+from orbit_backend import appdb as appdb_schema
+from orbit_backend.features.search import parse, search, snippet, strip_marks
+from orbit_backend.features.search_index import SearchIndex
 
 
 @pytest.fixture
 def seeded(world):
-    world.project("p1", "Tandem 前端")
+    world.project("p1", "Orbit 前端")
     world.project("p2", "billing-api")
     world.session("s1", project="p1", title="修复登录页面的样式问题", started=NOW - DAY)
     world.session("s2", source="s-codex", project="p2", title="Refactor login flow",
@@ -25,7 +25,7 @@ def seeded(world):
     world.item("cat-1", "skill", "login-helper", summary="自动化登录流程")
     world.inventory("claude_code", [{"inv_id": "i1", "type": "skill", "name": "login-helper"}])
     index = SearchIndex(world.home)
-    index.sync(world.tandem, data_rev=1)
+    index.sync(world.orbit, data_rev=1)
     return world, index
 
 
@@ -230,7 +230,7 @@ def _many(world, n, per=1):
         for j in range(per):
             world.message(f"m{i:03d}", f"部署流水线第 {i} 次排查 {j}", ts=NOW - DAY)
     index = SearchIndex(world.home)
-    index.sync(world.tandem, data_rev=1)
+    index.sync(world.orbit, data_rev=1)
     return index
 
 
@@ -247,7 +247,7 @@ def test_session_cover_lists_every_matching_session(world):
 
 def test_session_cover_reports_source_cap_and_limit_clamp(world):
     """140 messages (2 per session) exceed PER_SOURCE=100: the cover is flagged incomplete."""
-    from tandem_backend.features.search import MAX_LIMIT, PER_SOURCE
+    from orbit_backend.features.search import MAX_LIMIT, PER_SOURCE
 
     index = _many(world, 70, per=2)
     out = run(world, index, "部署流水线", kinds=["message"], limit=10_000, session_cover=True)

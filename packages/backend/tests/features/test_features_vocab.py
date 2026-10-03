@@ -1,4 +1,4 @@
-from tandem_backend.features.vocab import (
+from orbit_backend.features.vocab import (
     command_info,
     from_catalog_feature,
     from_session_feature,
