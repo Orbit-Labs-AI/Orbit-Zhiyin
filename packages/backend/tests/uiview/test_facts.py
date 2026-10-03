@@ -175,3 +175,78 @@ def test_compact_titles_end_with_ellipsis_not_space():
     wire = facts.compact({**body, "rows": rows})
     back = facts.expand(wire)
     assert back[0]["title"].endswith("…") and " …" not in back[0]["title"]
+
+
+@pytest.mark.parametrize(("last_turn", "corr", "msgs", "tail", "expected"), [
+    # Long session with a few corrections: 3/200 = 1.5% << 1/3, last turn completed.
+    (("completed", True), 3, 200, ["success"], "ok"),
+    # Old rule called this "fail" (corr >= 3); density 3/9 = 1/3 is rework, not failure.
+    (("completed", True), 3, 9, ["success"], "part"),
+    (("completed", True), 2, 7, [], "ok"),  # 2/7 < 1/3
+    (("completed", False), 1, 2, [], "ok"),  # 1/2 dense but a single hit never decides
+    # No human turn (agents without turns, steps=None): no evidence -> None.
+    (None, None, None, None, None),
+    (None, 0, 5, ["success", "success"], None),
+    # A turn without status: a final reply is completion evidence, none is unknown.
+    ((None, True), 0, 3, [], "ok"),
+    ((None, False), 0, 3, [], None),
+    # Unresolved failure streak at the end.
+    (("completed", True), 0, 4, ["success", "failed", "failed", "failed"], "part"),
+    (("completed", True), 0, 4, ["failed", "failed", "success"], "ok"),
+] + [((status, True), 0, 3, [], "fail") for status in
+     ("failed", "error", "interrupted", "aborted", "cancelled", "rejected")])
+def test_outcome_of_boundaries(last_turn, corr, msgs, tail, expected):
+    assert facts.outcome_of(last_turn, corr, msgs, tail) == expected
+
+
+def test_outcome_labels_never_claim_abandoned():
+    from tandem_backend.uiview import derive, outcome
+
+    names = {oid: name for oid, name, _ in derive.OUT_IDS}
+    assert names == {k: outcome.LABELS[k] for k in ("ok", "part", "fail")}
+    assert "放弃" not in "".join(names.values())
+
+
+def _bare_store():
+    """A store with only ``session``/``source``: every L1 detail table is missing."""
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(
+        "CREATE TABLE source(source_id TEXT, agent TEXT);"
+        "CREATE TABLE session(session_uid TEXT, source_id TEXT, kind TEXT, project_id TEXT,"
+        " title TEXT, title_source TEXT, started_at INTEGER);"
+        # tool_call exists but lacks turn_uid/status: 'no such column', not 'no such table'.
+        "CREATE TABLE tool_call(call_uid TEXT, session_uid TEXT);")
+    return conn
+
+
+def test_schema_gaps_degrade_to_null_and_are_reported():
+    """UT-08: a missing table/column leaves its fields null and lists them in meta.degraded."""
+    conn = _bare_store()
+    result = {"sessions": [{"session_uid": "s1", "kind": "main", "agent": "kimi",
+                            "features": {"user_message_count": 4, "tool_call_count": 0,
+                                         "correction_signal_count": 0}}]}
+    body = facts.build_facts(conn, result, SimpleNamespace(display_timezone="UTC"))
+    row = body["rows"][0]
+    assert (row["dur"], row["steps"], row["verify"], row["out"], row["tok"]) == (
+        None, None, None, None, None)
+    assert row["msgs"] == 4  # analysis features are unaffected
+    degraded = set(body["meta"]["degraded"])
+    assert {"dur", "steps", "verify", "out", "errors", "tok", "title", "mood"} <= degraded
+
+
+def test_real_sql_errors_raise():
+    conn = _bare_store()
+    with pytest.raises(sqlite3.OperationalError, match="syntax"):
+        facts._rows(conn, "SELEC session_uid FROM session")
+    assert facts._rows(conn, "SELECT turn_uid FROM tool_call", fields=("steps",)) == []
+    assert facts.is_schema_gap(sqlite3.OperationalError("no such column: turn_uid"))
+    assert not facts.is_schema_gap(sqlite3.OperationalError("database is locked"))
+
+
+def test_compact_keeps_numeric_precision():
+    """UT-10: mood (−1..1) survives the wire with 3 decimals, dur/span with 2."""
+    row = {k: None for k in facts.ROW_KEYS}
+    row.update(id="session_x", mood=-0.34567, dur=12.345, span=61.239, live=False,
+               excluded=False)
+    back = facts.expand(facts.compact({"rows": [row], "meta": {}, "aux": {}}))[0]
+    assert back["mood"] == -0.346 and back["dur"] == 12.35 and back["span"] == 61.24

@@ -91,11 +91,25 @@ TEXT_FREE_SECTIONS = (
 )
 
 
+def _unknown_model_calls(model_calls) -> int | None:
+    """Request rows whose usage cannot be attributed: invalid rows + conflicting request ids.
+
+    Same rule as ``cost_time.tokens.prepare_requests`` (the basis of every usage metric), so
+    the unknown count matches what the usage numbers actually dropped. ``None`` = no source.
+    """
+    if model_calls is None:
+        return None
+    from .cost_time.tokens import prepare_requests
+
+    prepared = prepare_requests(model_calls)
+    return prepared["invalid_request_rows"] + len(prepared["conflicting_request_ids"])
+
+
 def text_variant_meta(meta: Record, content_digest, with_text: bool) -> Record:
     """``meta`` as the other ``with_text`` variant reports it (only the digest differs)."""
-    from .products.contracts import RULE_VERSIONS
+    from .products.contracts import rule_versions
 
-    return {**meta, "analysis_digest": stable_id(content_digest, RULE_VERSIONS, with_text)}
+    return {**meta, "analysis_digest": stable_id(content_digest, rule_versions(), with_text)}
 
 
 # Row fields that depend on other sessions or on the whole selection; never cached per row.
@@ -782,14 +796,15 @@ class AnalysisSections:
                 PREFERENCE_VERSION,
                 PREFERENCE_EVIDENCE_VERSION,
             )
-            from .products.contracts import RULE_VERSIONS
+            from .products.contracts import rule_versions
 
+            methods = rule_versions()
             self.content_digest = digest  # lets the cache derive the other text variant
             meta.update(
                 {
                     "feature_schema_version": FEATURE_VERSION,
                     "feature_dictionary": FEATURES,
-                    "analysis_digest": stable_id(digest, RULE_VERSIONS, self.with_text),
+                    "analysis_digest": stable_id(digest, methods, self.with_text),
                     "effective_samples": {
                         "main_sessions": len(self.main_ids),
                         "human_messages": human_count,
@@ -802,12 +817,12 @@ class AnalysisSections:
                             s.get("kind") == "unknown" for s in context.sessions
                         ),
                         "timestamp": diagnostics["time_unknown_events"],
-                        "model_calls": None if model_calls is None else 0,
+                        "model_calls": _unknown_model_calls(model_calls),
                     },
                     "limitations": list(LIMITATIONS),
                     "inventory": bundle.inventory,
                     "inventory_scans": bundle.inventory_scans,
-                    "analysis_methods": dict(RULE_VERSIONS),
+                    "analysis_methods": methods,
                     "coverage_report": build_coverage_report(meta["coverage"]),
                 }
             )

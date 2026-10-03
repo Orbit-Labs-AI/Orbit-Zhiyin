@@ -55,6 +55,9 @@ class AppDB:
                 db.execute("INSERT INTO module_schema VALUES (?, ?, ?) ON CONFLICT(module) DO "
                            "UPDATE SET sha256 = excluded.sha256, applied_at = excluded.applied_at",
                            (module, digest, int(time.time() * 1000)))
+        from . import migrations
+
+        migrations.apply(self)
 
     @contextmanager
     def write(self) -> Iterator[sqlite3.Connection]:

@@ -72,7 +72,46 @@ def test_short_data_span_is_not_unused(world):
     seed(world, first_session_days=20)
     world.call("a", skill="other", started=NOW - 5 * DAY)
     world.inventory("claude_code", [{"inv_id": "never", "type": "skill", "name": "never"}])
-    assert run(world)["never"]["status"] == "active"
+    assert run(world)["never"]["status"] == "insufficient_history"
+
+
+def test_unused_needs_the_full_90_day_window(world):
+    """UT-09: 60 days of history cannot prove "no call in 90 days" (old rule: >= 30 days)."""
+    seed(world, first_session_days=60)
+    world.call("a", skill="other", started=NOW - 5 * DAY)
+    world.inventory("claude_code", [{"inv_id": "never", "type": "skill", "name": "never"}])
+    linked.clear_cache()
+    result = compute_linked(world.connection(), revs=REVS, now_ms=NOW, write=world.write,
+                            read_text=lambda _p: None)
+    item = result["items"][0]
+    assert item["status"] == "insufficient_history" and item["unused_days"] is None
+    assert result["summary"]["insufficient_history"] == 1 and result["summary"]["unused"] == 0
+    assert result["summary"]["by_type"]["skill"]["insufficient_history"] == 1
+
+
+def test_result_cache_rolls_over_with_the_day(world):
+    """Same revisions, 10 days later: calls_30d must move (cache key carries the day)."""
+    seed(world)
+    world.call("a", skill="pdf-tools", started=NOW - 25 * DAY)
+    world.inventory("claude_code", [{"inv_id": "s", "type": "skill", "name": "pdf-tools"}])
+    linked.clear_cache()
+
+    def usage(now):
+        return compute_linked(world.connection(), revs=REVS, now_ms=now,
+                              read_text=lambda _p: None)["items"][0]["usage"]
+
+    assert usage(NOW)["calls_30d"] == 1  # 25 days ago
+    assert usage(NOW + 10 * DAY)["calls_30d"] == 0  # now 35 days ago, no clear_cache
+
+
+def test_multi_agent_filter_keeps_every_agent(world):
+    seed(world)
+    world.inventory("claude_code", [{"inv_id": "cc", "type": "skill", "name": "a"}])
+    world.inventory("codex", [{"inv_id": "cx", "type": "skill", "name": "b"}])
+    world.inventory("gemini", [{"inv_id": "gm", "type": "skill", "name": "c"}])
+    assert set(run(world, agent=["claude_code", "codex"])) == {"cc", "cx"}
+    assert set(run(world, agent="codex")) == {"cx"}
+    assert set(run(world)) == {"cc", "cx", "gm"}
 
 
 def test_resident_tokens_cached_by_content_hash(world):

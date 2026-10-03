@@ -27,6 +27,10 @@ def _skip(ctx):
     return SuiteResult("skip", skipped="no data")
 
 
+def _empty(ctx):
+    return SuiteResult("empty", [], metrics={"pairs": 0})
+
+
 def _boom(ctx):
     raise RuntimeError("kaput")
 
@@ -36,7 +40,7 @@ def _params(ctx):
                        metrics={"home": str(ctx.home)})
 
 
-FAKES = {"ok": _ok, "half": _half, "skip": _skip, "boom": _boom, "params": _params}
+FAKES = {"ok": _ok, "half": _half, "skip": _skip, "boom": _boom, "empty": _empty, "params": _params}
 
 
 @pytest.fixture

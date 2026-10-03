@@ -15,9 +15,9 @@ from datetime import UTC, datetime, tzinfo
 from ..analytics.products.journey import EXPLORE
 from ..realtime import context_windows
 from ..sessionops import resume
+from . import metrics
 from . import moments as rules
 from .sessions import (
-    ACTIVE_GAP_MS,
     HUMAN_WHERE,
     agent_name,
     errors_of,
@@ -92,10 +92,7 @@ def _mins(ts: int | None, t0: int) -> float | None:
 
 
 def _active_ms(stamps: list[int]) -> int | None:
-    if not stamps:
-        return None
-    stamps = sorted(stamps)
-    return sum(min(b - a, ACTIVE_GAP_MS) for a, b in zip(stamps, stamps[1:], strict=False))
+    return metrics.active_ms(stamps)
 
 
 def _phases(stream: list[tuple[float, str]], T: float) -> list[dict]:
@@ -282,7 +279,8 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
                   "last_event_ts": max(stamps) if stamps else None}
     cmd = resume.build(resume_row, now_ms if now_ms is not None else int(time.time() * 1000))
     first = (cmd["commands"] or [{}])[0]
-    out = estimate_outcome(live, status, last_turn[0] if last_turn else None, tree_statuses)
+    out = estimate_outcome(live, status, last_turn[0] if last_turn else None, tree_statuses,
+                           corr, msgs)
     header = {
         "id": uid, "a": agent, "agent_name": agent_name(agent),
         "model": models.most_common(1)[0][0] if models else None,
@@ -295,7 +293,10 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
         "started_at": started_at if started_at is not None else (t0 or None),
         "dur": facts.get("dur", round(active / 60_000, 1) if active is not None else None),
         "dur_basis": "active_estimate",
-        "out": facts.get("out", out), "out_basis": "estimate",
+        # Liveness beats the facts snapshot (taken before or after the session ran).
+        "out": "live" if live else (out if facts.get("out", out) == "live"
+                                    else facts.get("out", out)),
+        "out_basis": "realtime" if live else "estimate",
         "corr": facts.get("corr", corr), "corr_basis": "lexical_candidate",
         "live": live, "excluded": excluded,
         "resume": {"shell": first.get("shell"), "verified": first.get("verified", False),
@@ -304,7 +305,8 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
     peak = max((p[1] for p in ctx), default=None) if ctx else None
     stats7 = {"msgs": msgs, "steps": len(tool_events) + replies,
               "steps_basis": "tool_calls_plus_reply_spans", "tools": len(tree_statuses),
-              "errors": errors_of(tree_statuses), "corr": corr, "ctx_peak": peak,
+              # Same corr as the header (facts when present): one number per page.
+              "errors": errors_of(tree_statuses), "corr": header["corr"], "ctx_peak": peak,
               "ctx_basis": "estimate" if ctx else None, "tok": tok,
               "tok_basis": "l1_model_call" if tok is not None else None}
     trajectory = {

@@ -68,7 +68,8 @@ def recall(problems: list[dict], rules, inputs: dict, memory: dict) -> tuple[lis
         else:
             title = f"精简常驻内容 {name}（约 {v.get('tokens', 0)} tokens）"
         cand.update({"title": title, "dim": DIM_BY_TYPE.get(v.get("inv_type"), "rule"), "level": 3 if split else 2,
-                     "unit_minutes": round(int(v.get("tokens") or 0) / 1000 * .2, 4)})
+                     # per-session time of resident tokens is unmeasured: rank prices the tokens directly
+                     "unit_minutes": None, "resident_tokens": int(v.get("tokens") or 0) or int(v.get("lines") or 0) * 15})
         path = PLUGIN_SETTINGS.get(v.get("agent") or "claude_code", PLUGIN_SETTINGS["claude_code"]) if plugin \
             else tilde(v.get("config_path"))
         cand["target"].update({"path_hint": path or None, "scope": "user", "project_id": None})

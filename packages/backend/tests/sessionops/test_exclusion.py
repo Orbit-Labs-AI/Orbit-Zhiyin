@@ -1,3 +1,7 @@
+import sqlite3
+
+import pytest
+
 from tandem_backend.appdb import AppDB
 from tandem_backend.services.routes_analytics import analytics_scope
 from tandem_backend.sessionops import exclusion
@@ -28,8 +32,14 @@ def test_provider_merges_into_analytics_scope(home):
         scope = analytics_scope(excluded_session_uids=["s1", "x"])
         assert scope.excluded_session_uids == ["s1", "x", "s9"]
         assert analytics_scope().excluded_session_uids == ["s1", "s9"]
-        exclusion.set_provider(lambda: 1 / 0)  # A broken provider never fails analytics.
-        assert analytics_scope(excluded_session_uids=["x"]).excluded_session_uids == ["x"]
+        # A broken provider is fail-closed: excluded (private) sessions must not leak back in.
+        exclusion.set_provider(lambda: 1 / 0)
+        with pytest.raises(exclusion.ExclusionsUnavailable) as failed:
+            analytics_scope(excluded_session_uids=["x"])
+        assert (failed.value.status, failed.value.code, failed.value.retryable) == (
+            503, "exclusions_unavailable", True)
+        exclusion.set_provider(None)  # no provider at all (CLI/tests): only the explicit list
+        assert exclusion.merged(["x"]) == ["x"]
     finally:
         exclusion.set_provider(None)
         db.close()
@@ -75,3 +85,16 @@ def test_excluded_list_etag_changes_on_exclusion(tandem, client):
     client.post("/v1/sessions/s1/exclude", json={})
     fresh = client.get("/v1/sessions/excluded", headers={"If-None-Match": tag})
     assert fresh.status_code == 200 and fresh.json()["count"] == 1
+
+
+def test_broken_exclusion_store_returns_503_not_private_sessions(tandem, client, gateway):
+    tandem.session("s1")
+    assert client.get("/v1/quota").status_code == 200
+
+    def broken():
+        raise sqlite3.ProgrammingError("Cannot operate on a closed database.")
+
+    exclusion.set_provider(broken)
+    response = client.get("/v1/quota")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "exclusions_unavailable"

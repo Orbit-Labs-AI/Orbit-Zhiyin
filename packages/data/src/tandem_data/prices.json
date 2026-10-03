@@ -1,0 +1,507 @@
+{
+ "version": "list-2026-10-03",
+ "currency": "USD",
+ "unit": "per 1M tokens, standard tier, first-party API",
+ "notes": [
+  "Rows are copied from each provider's public pricing page on the retrieved date; nothing is extrapolated.",
+  "cache_write_billed=false: the provider has no per-token cache-write charge (writes bill as input or are free), so an absent cache_write bucket is not missing data. Gemini explicit-cache storage is billed per hour and is not derivable from usage logs; it is excluded.",
+  "max_prompt_tokens: above this prompt size the provider applies a long-context price; the table has no such rows, so cost stays NULL.",
+  "Anthropic cache writes: 5-minute TTL 1.25x input, 1-hour TTL 2x input (prompt-caching docs).",
+  "DeepSeek is not listed: its pricing page could not be retrieved for verification on the retrieved date."
+ ],
+ "sources": {
+  "anthropic": {
+   "url": "https://platform.claude.com/docs/en/about-claude/pricing",
+   "cache_url": "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+   "retrieved": "2026-09-25"
+  },
+  "openai": {
+   "url": "https://developers.openai.com/api/docs/pricing",
+   "retrieved": "2026-10-03"
+  },
+  "google": {
+   "url": "https://ai.google.dev/gemini-api/docs/pricing",
+   "retrieved": "2026-10-03"
+  },
+  "moonshot": {
+   "url": "https://platform.kimi.ai/docs/pricing/chat",
+   "retrieved": "2026-10-03"
+  },
+  "zai": {
+   "url": "https://docs.z.ai/guides/overview/pricing",
+   "retrieved": "2026-10-03"
+  }
+ },
+ "models": {
+  "claude-fable-5-1": {
+   "source": "anthropic",
+   "input": 10,
+   "output": 50,
+   "cache_read": 0.25,
+   "cache_write_5m": 12.5,
+   "cache_write_1h": 20
+  },
+  "claude-fable-5": {
+   "source": "anthropic",
+   "input": 10,
+   "output": 50,
+   "cache_read": 1.0,
+   "cache_write_5m": 12.5,
+   "cache_write_1h": 20
+  },
+  "claude-opus-5-5": {
+   "source": "anthropic",
+   "input": 4,
+   "output": 20,
+   "cache_read": 0.2,
+   "cache_write_5m": 5.0,
+   "cache_write_1h": 8
+  },
+  "claude-opus-5": {
+   "source": "anthropic",
+   "input": 5,
+   "output": 25,
+   "cache_read": 0.5,
+   "cache_write_5m": 6.25,
+   "cache_write_1h": 10
+  },
+  "claude-opus-4-8": {
+   "source": "anthropic",
+   "input": 5,
+   "output": 25,
+   "cache_read": 0.5,
+   "cache_write_5m": 6.25,
+   "cache_write_1h": 10
+  },
+  "claude-opus-4-7": {
+   "source": "anthropic",
+   "input": 5,
+   "output": 25,
+   "cache_read": 0.5,
+   "cache_write_5m": 6.25,
+   "cache_write_1h": 10
+  },
+  "claude-opus-4-6": {
+   "source": "anthropic",
+   "input": 5,
+   "output": 25,
+   "cache_read": 0.5,
+   "cache_write_5m": 6.25,
+   "cache_write_1h": 10
+  },
+  "claude-opus-4-5": {
+   "source": "anthropic",
+   "input": 5,
+   "output": 25,
+   "cache_read": 0.5,
+   "cache_write_5m": 6.25,
+   "cache_write_1h": 10
+  },
+  "claude-opus-4-1": {
+   "source": "anthropic",
+   "input": 15,
+   "output": 75,
+   "cache_read": 1.5,
+   "cache_write_5m": 18.75,
+   "cache_write_1h": 30
+  },
+  "claude-opus-4": {
+   "source": "anthropic",
+   "input": 15,
+   "output": 75,
+   "cache_read": 1.5,
+   "cache_write_5m": 18.75,
+   "cache_write_1h": 30
+  },
+  "claude-sonnet-5-5": {
+   "source": "anthropic",
+   "input": 2,
+   "output": 10,
+   "cache_read": 0.2,
+   "cache_write_5m": 2.5,
+   "cache_write_1h": 4
+  },
+  "claude-sonnet-5": {
+   "source": "anthropic",
+   "input": 2,
+   "output": 10,
+   "cache_read": 0.2,
+   "cache_write_5m": 2.5,
+   "cache_write_1h": 4
+  },
+  "claude-sonnet-4-6": {
+   "source": "anthropic",
+   "input": 3,
+   "output": 15,
+   "cache_read": 0.3,
+   "cache_write_5m": 3.75,
+   "cache_write_1h": 6
+  },
+  "claude-sonnet-4-5": {
+   "source": "anthropic",
+   "input": 3,
+   "output": 15,
+   "cache_read": 0.3,
+   "cache_write_5m": 3.75,
+   "cache_write_1h": 6
+  },
+  "claude-sonnet-4": {
+   "source": "anthropic",
+   "input": 3,
+   "output": 15,
+   "cache_read": 0.3,
+   "cache_write_5m": 3.75,
+   "cache_write_1h": 6
+  },
+  "claude-3-7-sonnet": {
+   "source": "anthropic",
+   "input": 3,
+   "output": 15,
+   "cache_read": 0.3,
+   "cache_write_5m": 3.75,
+   "cache_write_1h": 6
+  },
+  "claude-3-5-sonnet": {
+   "source": "anthropic",
+   "input": 3,
+   "output": 15,
+   "cache_read": 0.3,
+   "cache_write_5m": 3.75,
+   "cache_write_1h": 6
+  },
+  "claude-haiku-4-5": {
+   "source": "anthropic",
+   "input": 1,
+   "output": 5,
+   "cache_read": 0.1,
+   "cache_write_5m": 1.25,
+   "cache_write_1h": 2
+  },
+  "claude-3-5-haiku": {
+   "source": "anthropic",
+   "input": 0.8,
+   "output": 4,
+   "cache_read": 0.08,
+   "cache_write_5m": 1.0,
+   "cache_write_1h": 1.6
+  },
+  "gpt-5.5": {
+   "source": "openai",
+   "input": 5,
+   "output": 30,
+   "cache_read": 0.5,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5.4": {
+   "source": "openai",
+   "input": 2.5,
+   "output": 15,
+   "cache_read": 0.25,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5.4-mini": {
+   "source": "openai",
+   "input": 0.75,
+   "output": 4.5,
+   "cache_read": 0.075,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5.4-nano": {
+   "source": "openai",
+   "input": 0.2,
+   "output": 1.25,
+   "cache_read": 0.02,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5.2": {
+   "source": "openai",
+   "input": 1.75,
+   "output": 14,
+   "cache_read": 0.175,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5.1": {
+   "source": "openai",
+   "input": 1.25,
+   "output": 10,
+   "cache_read": 0.125,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5": {
+   "source": "openai",
+   "input": 1.25,
+   "output": 10,
+   "cache_read": 0.125,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5-mini": {
+   "source": "openai",
+   "input": 0.25,
+   "output": 2,
+   "cache_read": 0.025,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5-nano": {
+   "source": "openai",
+   "input": 0.05,
+   "output": 0.4,
+   "cache_read": 0.005,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "gpt-5.3-codex": {
+   "source": "openai",
+   "input": 1.75,
+   "output": 14,
+   "cache_read": 0.175,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 272000
+  },
+  "o3": {
+   "source": "openai",
+   "input": 2,
+   "output": 8,
+   "cache_read": 0.5,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "o4-mini": {
+   "source": "openai",
+   "input": 1.1,
+   "output": 4.4,
+   "cache_read": 0.275,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "gpt-4.1": {
+   "source": "openai",
+   "input": 2,
+   "output": 8,
+   "cache_read": 0.5,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "gpt-4.1-mini": {
+   "source": "openai",
+   "input": 0.4,
+   "output": 1.6,
+   "cache_read": 0.1,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "gpt-4.1-nano": {
+   "source": "openai",
+   "input": 0.1,
+   "output": 0.4,
+   "cache_read": 0.025,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "gemini-2.5-pro": {
+   "source": "google",
+   "input": 1.25,
+   "output": 10,
+   "cache_read": 0.125,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 200000
+  },
+  "gemini-2.5-flash": {
+   "source": "google",
+   "input": 0.3,
+   "output": 2.5,
+   "cache_read": 0.03,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "gemini-2.5-flash-lite": {
+   "source": "google",
+   "input": 0.1,
+   "output": 0.4,
+   "cache_read": 0.01,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "gemini-3.8-flash": {
+   "source": "google",
+   "input": 0.75,
+   "output": 3.75,
+   "cache_read": 0.075,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "gemini-3.1-pro-preview": {
+   "source": "google",
+   "input": 2,
+   "output": 12,
+   "cache_read": 0.2,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false,
+   "max_prompt_tokens": 200000
+  },
+  "gemini-3.1-flash-lite": {
+   "source": "google",
+   "input": 0.25,
+   "output": 1.5,
+   "cache_read": 0.025,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "kimi-k3": {
+   "source": "moonshot",
+   "input": 3,
+   "output": 15,
+   "cache_read": 0.3,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "kimi-k2.7-code": {
+   "source": "moonshot",
+   "input": 0.95,
+   "output": 4,
+   "cache_read": 0.19,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "kimi-k2.7-code-highspeed": {
+   "source": "moonshot",
+   "input": 1.9,
+   "output": 8,
+   "cache_read": 0.38,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "kimi-k2.6": {
+   "source": "moonshot",
+   "input": 0.95,
+   "output": 4,
+   "cache_read": 0.16,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-5.3": {
+   "source": "zai",
+   "input": 1.4,
+   "output": 4.4,
+   "cache_read": 0.26,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-5.2": {
+   "source": "zai",
+   "input": 1.4,
+   "output": 4.4,
+   "cache_read": 0.26,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-5.1": {
+   "source": "zai",
+   "input": 1.4,
+   "output": 4.4,
+   "cache_read": 0.26,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-5": {
+   "source": "zai",
+   "input": 1,
+   "output": 3.2,
+   "cache_read": 0.2,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-4.7": {
+   "source": "zai",
+   "input": 0.6,
+   "output": 2.2,
+   "cache_read": 0.11,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-4.6": {
+   "source": "zai",
+   "input": 0.6,
+   "output": 2.2,
+   "cache_read": 0.11,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-4.5": {
+   "source": "zai",
+   "input": 0.6,
+   "output": 2.2,
+   "cache_read": 0.11,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-4.5-air": {
+   "source": "zai",
+   "input": 0.2,
+   "output": 1.1,
+   "cache_read": 0.03,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  },
+  "glm-5.3-flash": {
+   "source": "zai",
+   "input": 0.15,
+   "output": 0.5,
+   "cache_read": 0.03,
+   "cache_write_5m": null,
+   "cache_write_1h": null,
+   "cache_write_billed": false
+  }
+ }
+}

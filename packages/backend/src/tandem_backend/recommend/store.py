@@ -14,6 +14,8 @@ import secrets
 import sqlite3
 from collections import defaultdict
 
+from .ranking.rank import clamp_personal
+
 HOUR = 3_600_000
 DAY = 24 * HOUR
 SNOOZE_MS = 14 * DAY
@@ -21,6 +23,8 @@ VIEW_DEDUPE_MS = 6 * HOUR
 GATED_DROP = ("ui", "explain", "trial", "track", "file")
 HIDDEN = {"installed", "not_applicable", "muted"}
 RUN_JSON = ("scope", "problems", "routes", "diagnostics")
+TRACK_SUCCESS = ("positive",)
+TRACK_FAILURE = ("negative", "guardrail_hit", "reverted")
 
 
 def dumps(value) -> str:
@@ -347,7 +351,7 @@ def exposure_summary(conn: sqlite3.Connection, rec_key: str) -> dict:
 def _weight(useful: int, not_applicable: int, not_useful: int) -> float:
     n = useful + not_applicable + not_useful
     value = 1 + 0.5 * (useful - 0.5 * not_applicable - not_useful) / (n + 5)
-    return round(min(1.4, max(0.6, value)), 4)
+    return round(clamp_personal(value), 4)
 
 
 def memory(conn: sqlite3.Connection, now: int, settings: dict | None = None) -> dict:
@@ -386,11 +390,15 @@ def memory(conn: sqlite3.Connection, now: int, settings: dict | None = None) -> 
         if row["label"] == "useful":
             posteriors[row["rec_key"]]["alpha"] += 1
         elif row["label"] == "not_useful":
-            posteriors[row["rec_key"]]["beta"] += 2 if row["reason"] == "reverted" else 1
-    for rec_key, positive in conn.execute(
-            "SELECT rec_key, count(*) FROM tracking WHERE effect_status='positive' "
-            "GROUP BY rec_key").fetchall():
-        posteriors[rec_key]["alpha"] += positive
+            # A revert also sets tracking.effect_status='reverted' (counted below), so the revert
+            # label itself adds 1: total weight 2 for a revert, 1 for a plain "not useful".
+            posteriors[row["rec_key"]]["beta"] += 1
+    # Tracked outcomes update the Beta posterior symmetrically: a measured improvement is a success,
+    # a measured regression / guardrail breach / revert is a failure (same unit weight as a label).
+    for rec_key, status, count in conn.execute(
+            "SELECT rec_key, effect_status, count(*) FROM tracking WHERE effect_status IN (?, ?, ?, ?) "
+            "GROUP BY rec_key, effect_status", (*TRACK_SUCCESS, *TRACK_FAILURE)).fetchall():
+        posteriors[rec_key]["alpha" if status in TRACK_SUCCESS else "beta"] += count
     return {
         "now": now, "state": state, "labels": dict(labels),
         "muted_kb_rules": sorted(k.removeprefix("kb:") for k, s in state.items()

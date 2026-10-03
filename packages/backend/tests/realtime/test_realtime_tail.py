@@ -5,6 +5,7 @@ import time
 import pytest
 from realtime_fixtures import ATTRS, NOW, Reads
 
+from tandem_backend.realtime import classify
 from tandem_backend.realtime.tail import ACTIVE_SQL, load_tails
 
 
@@ -68,3 +69,29 @@ def test_pending_permission_only_when_newest(tandem):
     tails = {t.session_uid: t for t in load_tails(Reads(tandem.path), NOW)}
     assert tails["a"].pending_permission == {"ts": NOW - 5000, "command": "rm -rf build"}
     assert tails["b"].pending_permission is None
+
+
+@pytest.mark.parametrize(("fresh", "read", "write", "used", "ratio", "pressure"), [
+    # Claude after a compact: the whole new prompt is written to the cache in one call.
+    # 2_000 + 0 + 182_000 = 184_000 of the 200k Claude window = 0.92 >= 0.9.
+    (2_000, 0, 182_000, 184_000, 0.92, True),
+    # Same prompt read back from cache on the next call: 2_000 + 182_000 + 0.
+    (2_000, 182_000, None, 184_000, 0.92, True),
+    # Without the cache write the prompt would read as 2_000 / 200_000 = 0.01.
+    (2_000, 0, 0, 2_000, 0.01, False),
+    # Codex-style row: input already fresh (total 120 - cached 40 - written 10 = 70).
+    (70, 40, 10, 120, 0.0006, False),
+    # Unknown fresh input stays unknown even when caches are known.
+    (None, 5_000, 5_000, None, None, False),
+])
+def test_context_counts_cache_write(tandem, fresh, read, write, used, ratio, pressure):
+    tandem.session("s1", started=NOW - 60_000)
+    tandem.event("s1", NOW - 3_000, actor="human")
+    tandem.event("s1", NOW - 1_000, actor="assistant")
+    tandem.usage("s1", NOW - 1_000, fresh, cache_read=read, cache_write=write)
+    (tail,) = load_tails(Reads(tandem.path), NOW)
+    assert tail.usage["used_tokens"] == used
+    state = classify.classify(tail, NOW)
+    assert state.state != "idle"
+    assert state.context["ratio"] == ratio
+    assert ("context_pressure" in state.flags) is pressure

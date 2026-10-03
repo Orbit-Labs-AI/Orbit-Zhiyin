@@ -6,6 +6,9 @@
 * Claude Code: no native limit in the logs, so the 5h / weekly windows are *estimated*
   from ``model_call`` tokens (active = input + cache_write + output) relative to the
   user's own historical peak for that window length. Too little history -> insufficient.
+  The peak is a personal high-water mark, not the vendor limit: the current window can
+  exceed it, so ``used_percent`` is clamped to 100 with ``exceeds_peak = true`` and advice
+  never turns an estimate into "avoid" (see ``advice.verdict``).
 
 Every window carries ``basis`` (observed / observed_reset / estimated_peak / insufficient).
 """
@@ -122,7 +125,7 @@ def claude_windows(db, now_ms: int, agent: str = "claude_code", excluded=()) -> 
                   "active_tokens": tokens, "requests": len(current), "peak_tokens": None,
                   "used_percent": None, "headroom": None, "resets_at": None,
                   "observed_at": max((r["ts"] for r in current), default=None),
-                  "basis": "insufficient", "pace": None, "history": []}
+                  "basis": "insufficient", "exceeds_peak": None, "pace": None, "history": []}
         if rows and now_ms - min(r["ts"] for r in rows) >= min_history_ms:
             bins: dict[int, int] = {}
             for r in rows:
@@ -134,8 +137,9 @@ def claude_windows(db, now_ms: int, agent: str = "claude_code", excluded=()) -> 
                                  for i in range(max(first, now_bin - 4 * width), now_bin + 1)]
             if peak > 0:
                 ratio = tokens / peak
-                window.update(peak_tokens=peak, used_percent=round(100 * ratio, 2),
-                              headroom=round(max(0.0, 1 - ratio), 4), basis="estimated_peak")
+                window.update(peak_tokens=peak, used_percent=round(100 * min(ratio, 1.0), 2),
+                              headroom=round(max(0.0, 1 - ratio), 4), basis="estimated_peak",
+                              exceeds_peak=ratio > 1)
         out.append(window)
     return out
 
@@ -157,5 +161,6 @@ def snapshot(db, now_ms: int, excluded=()) -> dict:
             "binding_window": binding["window_kind"] if binding else None,
             "resets_at": binding["resets_at"] if binding else None,
             "basis": binding["basis"] if binding else "insufficient",
+            "exceeds_peak": bool(binding.get("exceeds_peak")) if binding else False,
         })
     return {"now": now_ms, "agents": summary, "quota_window": windows}

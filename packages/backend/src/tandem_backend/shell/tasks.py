@@ -4,8 +4,10 @@
   transcripts → one ``new_source`` notification per root, ever.
 * ``weekly_report`` (checked hourly): after local Monday 09:00, once per ISO week, freeze
   last week's report through the export package and notify ``weekly``. Skipped when the
-  ``weekly_report`` setting is false (checked first, on any day) or the export package is
-  not merged yet.
+  ``weekly_report`` setting is false (checked first, on any day). While any section is
+  still ``computing`` or ``unavailable`` (cold start on Monday morning) nothing is saved or
+  notified and the next hourly check retries; only after ``WEEKLY_RETRY_HOURS`` of retries
+  is the report frozen with what exists (missing sections say so) instead of never.
 
 Both are registered with ``Maintenance.register`` and can be triggered by hand through
 ``POST /v1/platform/maintenance/run {"task": "source_watch" | "weekly_report"}``.
@@ -21,6 +23,10 @@ from .producers import already_sent, emit
 HOUR_S = 3600
 WEEKLY_HOUR = 9
 WEEKLY_SECTIONS = ("overview", "metrics", "tools", "friction", "recommendations")
+# 24 hourly checks: a cold full analysis takes minutes (supervisor heavy budget caps one task
+# at 900 s), so a day is ample; a section still missing after that is not transient.
+WEEKLY_RETRY_HOURS = 24
+PENDING = ("computing", "unavailable")
 
 
 def week_key(moment: datetime) -> str:
@@ -77,10 +83,8 @@ def source_watch(gw) -> dict:
 
 
 def _export():
-    try:
-        from ..exporting import report, snapshots  # type: ignore[attr-defined]
-    except ImportError:
-        return None
+    from ..exporting import report, snapshots
+
     return report, snapshots
 
 
@@ -93,10 +97,7 @@ def weekly_report(gw, now_local: datetime | None = None) -> dict:
         return {"skipped": "disabled", **({"week": key} if key else {})}
     if key is None:
         return {"skipped": "not_due"}
-    exp = _export()
-    if exp is None:
-        return {"skipped": "export_unavailable", "week": key}
-    report, snapshots = exp
+    report, snapshots = _export()
     monday = (now_local - timedelta(days=now_local.isoweekday() - 1)).replace(
         hour=0, minute=0, second=0, microsecond=0)
     start, end = monday - timedelta(days=7), monday
@@ -105,11 +106,15 @@ def weekly_report(gw, now_local: datetime | None = None) -> dict:
     wanted = getattr(report, "DEFAULT_SECTIONS", WEEKLY_SECTIONS)
     sections = [s for s in wanted if s in report.SECTION_IDS]
     result = report.assemble(gw, sections, scope)
+    pending = sorted({s["id"] for s in result.get("sections") or [] if s.get("status") in PENDING})
+    due_at = monday.replace(hour=WEEKLY_HOUR)
+    if pending and now_local < due_at + timedelta(hours=WEEKLY_RETRY_HOURS):
+        # Nothing saved, nothing notified: weekly_due stays true and the next check retries.
+        return {"skipped": "computing", "week": key, "sections": pending}
     result["week"] = key
     from ..services.sections import rules_digest
 
-    # report_snapshot kind 'weekly' once the export package lists it; 'report' until then.
-    kind = "weekly" if "weekly" in snapshots.KINDS else "report"
+    kind = "report"  # report_snapshot has no 'weekly' kind; the notification marks the week
     snapshot_id = snapshots.save(gw.appdb, kind, scope, result["scope_hash"], result,
                                  rules_digest())
     emit(gw, {"type": "weekly", "key": f"weekly:{key}", "title": "每周报告已生成",

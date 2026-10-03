@@ -13,8 +13,20 @@ Axes keep the prototype's value semantics (high value → first letter of the pa
 value = 100·p. Every axis always gets a letter from the value alone: value ≥ 50 → the high
 letter (D / I / M / V), value < 50 → the low letter (S / P / F / T); an axis with no units
 counts as 50. One session is enough (``ok``); only an empty selection has no persona. The
-Wilson interval and unit counts stay in the payload as context, and ``hint`` gently notes a
-small sample (< ``SOFT_SESSIONS`` sessions) without withholding the type.
+interval and unit counts stay in the payload as context: ``decided`` marks an axis whose 95%
+interval lies wholly outside the 45–55 band, and ``hint`` gently notes a small sample
+(< ``SOFT_SESSIONS`` sessions) without withholding the type.
+
+Turns of one session are not independent, so the D/V interval is cluster-robust: the
+ratio estimator p = Σk_i/Σn_i over sessions i gets the linearisation variance
+m/(m−1)·Σ(k_i − p·n_i)²/(Σn_i)² (Cochran 1977, *Sampling Techniques*, §6.4), which gives an
+effective size n_eff = p(1−p)/var (Kish 1965 design effect), capped at the turn count and
+at the session count when the variance is 0; the Wilson interval is taken at n_eff.
+Duplicating turns inside sessions therefore never narrows the interval. I (one unit per
+session) and M (one unit per day) keep the plain Wilson interval.
+
+All bands live in ``CONFIG``; their provenance is in ``docs/modules/analytics/profiling.md``.
+They are product defaults, not calibrated against a population baseline.
 """
 
 from __future__ import annotations
@@ -27,12 +39,28 @@ from . import derive, facts
 from .typecopy import AXES, SOURCE, TYPES, copy
 
 METHOD = "uiview-persona-v0"
+# Every threshold of the classifier in one place (see profiling.md for sources).
+CONFIG = {
+    "soft_sessions": 30,         # below this the payload carries a "more data, more accurate" hint
+    "midpoint": 50,              # value ≥ midpoint → high letter, < midpoint → low letter
+    "band": (45.0, 55.0),        # an axis is ``decided`` when its interval clears this band
+    "step_threshold": facts.STEP_THRESHOLD,  # D: a turn with ≥ this many steps is "delegated"
+    "z": 1.96,                   # 95% two-sided
+}
 MIN_SESSIONS = 1
 MIN_DAYS = 1
 MIN_UNITS = {"D": 0, "I": 0, "M": 0, "V": 0}
-SOFT_SESSIONS = 30  # below this the payload carries a gentle "more data, more accurate" hint
-MIDPOINT = 50  # value ≥ MIDPOINT → high letter, < MIDPOINT → low letter
-STEP_THRESHOLD = facts.STEP_THRESHOLD
+SOFT_SESSIONS = CONFIG["soft_sessions"]
+MIDPOINT = CONFIG["midpoint"]
+STEP_THRESHOLD = CONFIG["step_threshold"]
+# Signals each axis actually uses (the prototype's ``AXES.sig`` copy lists aspirational
+# signals that are not computed; the payload reports what is).
+SIG_USED = {
+    "D": f"单轮步数 ≥ {STEP_THRESHOLD} 的轮次占比（按会话聚类）",
+    "I": "首条消息是否无结构（未标执行顺序/验收标准、未达长度阈值、无列表或规格引用）",
+    "M": "同日使用 ≥ 2 个 Agent 或会话时间重叠的天数占比",
+    "V": "要求验证或运行验证命令的轮次占比（按会话聚类；含 Agent 自行运行的命令）",
+}
 UNITS = {"D": "turn", "I": "session_opening", "M": "active_day", "V": "turn"}
 LEFT_RIGHT = {"D": ("D 委托", "掌舵 S"), "I": ("P 规划", "即兴 I"), "M": ("M 多线", "专注 F"),
               "V": ("V 求证", "信任 T")}
@@ -69,6 +97,44 @@ def _overlap(intervals: list[tuple[int, int]]) -> bool:
     return False
 
 
+def session_counts(rows: list[dict], aux: dict) -> dict[str, list[tuple[int, int]]]:
+    """Per-session (k_i, n_i) for the turn-level axes D and V (sessions with turns only)."""
+    out: dict[str, list[tuple[int, int]]] = {"D": [], "V": []}
+    for r in rows:
+        turns = (aux.get(r["id"]) or {}).get("turns") or []
+        if not turns:
+            continue
+        out["D"].append((sum(1 for t in turns if t[0] >= STEP_THRESHOLD), len(turns)))
+        out["V"].append((sum(1 for t in turns if t[1]), len(turns)))
+    return out
+
+
+def cluster_interval(clusters: list[tuple[int, int]], z: float = 1.96
+                     ) -> tuple[float, float, float]:
+    """(lo, hi, n_eff) of Σk/Σn with sessions as clusters (see module docstring)."""
+    n = sum(c[1] for c in clusters)
+    if n <= 0:
+        return 0.0, 1.0, 0.0
+    k = sum(c[0] for c in clusters)
+    m = len(clusters)
+    p = k / n
+    var = (m / (m - 1) * sum((ki - p * ni) ** 2 for ki, ni in clusters) / (n * n)
+           if m > 1 else 0.0)
+    n_eff = min(float(n), p * (1 - p) / var) if var > 0 else float(min(n, m))
+    lo, hi = wilson_p(p, n_eff, z)
+    return lo, hi, n_eff
+
+
+def wilson_p(p: float, n: float, z: float = 1.96) -> tuple[float, float]:
+    """Wilson interval for proportion p at (possibly effective, non-integer) size n."""
+    if n <= 0:
+        return 0.0, 1.0
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
 def units(rows: list[dict], aux: dict) -> dict[str, tuple[int, int]]:
     """(k, n) per axis over the given rows."""
     turns = [t for r in rows for t in (aux.get(r["id"]) or {}).get("turns") or []]
@@ -90,21 +156,31 @@ def units(rows: list[dict], aux: dict) -> dict[str, tuple[int, int]]:
             "V": (sum(1 for t in turns if t[1]), len(turns))}
 
 
-def axis(spec: dict, k: int, n: int, days: int) -> dict:
+def axis(spec: dict, k: int, n: int, days: int,
+         clusters: list[tuple[int, int]] | None = None) -> dict:
+    """One axis. ``clusters`` (per-session (k_i, n_i)) switches to the clustered interval."""
     key = spec["k"]
     value = 100 * k / n if n else None
-    lo, hi = wilson(k, n)
+    if clusters:
+        lo, hi, n_eff = cluster_interval(clusters, CONFIG["z"])
+        basis = "wilson_at_cluster_effective_n"
+    else:
+        lo, hi = wilson(k, n, CONFIG["z"])
+        n_eff, basis = float(n), "wilson"
     lo, hi = round(lo * 100, 1), round(hi * 100, 1)
-    # No "undetermined" band: the letter follows the value's lean; no units counts as 50.
+    # No "undetermined" band for the letter: it follows the value's lean; no units counts as 50.
     lean = MIDPOINT if value is None else value
     letter = spec["hi"] if lean >= MIDPOINT else spec["lo"]
     state = "no_data" if value is None else "settled"
+    band_lo, band_hi = CONFIG["band"]
+    decided = value is not None and (lo >= band_hi or hi <= band_lo)
     left, right = LEFT_RIGHT[key]
     return {"k": key, "value": None if value is None else round(value, 1), "lo": lo, "hi": hi,
             "n_units": n, "k_units": k, "unit": UNITS[key], "letter": letter, "state": state,
             "strong": None if value is None else round(max(value, 100 - value)),
-            "left": left, "right": right, "dim": spec["dim"], "q": spec["q"], "sig": spec["sig"],
-            "ref": REFS[key]}
+            "left": left, "right": right, "dim": spec["dim"], "q": spec["q"], "sig": SIG_USED[key],
+            "ref": REFS[key], "n_eff": round(n_eff, 1), "ci_basis": basis,
+            "decided": decided}
 
 
 def hint(n: int) -> str | None:
@@ -118,20 +194,22 @@ def persona(rows: list[dict], aux: dict, min_n: int = MIN_SESSIONS) -> dict:
     if n < max(1, min_n):
         return {"ok": False, "classified": False, "n": n, "days": days, "code": None,
                 "zh": None, "en": None, "line": None, "v": None, "axes": [],
-                "conf": "低", "hint": None}
+                "conf": "低", "hint": None, "decided_axes": 0}
     counts = units(rows, aux)
-    axes = [axis(spec, *counts[spec["k"]], days) for spec in AXES]
+    clusters = session_counts(rows, aux)
+    axes = [axis(spec, *counts[spec["k"]], days, clusters.get(spec["k"])) for spec in AXES]
     code = "".join(a["letter"] for a in axes)
     zh, en, line = copy(code)
     return {"ok": True, "classified": code in TYPES, "n": n, "days": days, "code": code,
             "zh": zh, "en": en, "line": line, "v": {a["k"]: a["value"] for a in axes},
             "axes": axes, "conf": "高" if n >= 100 else "中" if n >= SOFT_SESSIONS else "低",
-            "hint": hint(n)}
+            "hint": hint(n), "decided_axes": sum(1 for a in axes if a["decided"])}
 
 
 def mini(p: dict) -> dict:
     return {"ok": p["ok"], "code": p["code"], "zh": p["zh"], "en": p["en"], "conf": p["conf"],
-            "n": p["n"], "hint": p["hint"], "method": METHOD,
+            "n": p["n"], "hint": p["hint"], "decided_axes": p.get("decided_axes", 0),
+            "method": METHOD,
             "axes": [{"k": a["k"], "value": a["value"], "strong": a["strong"],
                       "letter": a["letter"], "left": a["left"], "right": a["right"]}
                      for a in p["axes"]]}
@@ -215,12 +293,21 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
     plan = sorted(((e[0] / e[1], pid) for pid, e in per_project.items() if e[1]), key=_by_ratio)
     check = sorted(((e[2] / e[3], pid) for pid, e in per_project.items() if e[3]), key=_by_ratio)
     axes = {a["k"]: a for a in p["axes"]}
-    open_n = axes["I"]["n_units"] or 1
+    open_n = axes["I"]["n_units"]
+    # Unknown message counts stay unknown: they are neither a 0 bin nor a 0 average.
+    with_msgs = [r for r in rows if r.get("msgs") is not None]
+    msgs = sum(r["msgs"] for r in with_msgs)
+    steps = sum(r.get("steps") or 0 for r in with_msgs)
+    per = msgs / len(with_msgs) if with_msgs else None
+    auto = steps / msgs if msgs else None
+    d_txt = ("消息数未知" if per is None else f"每会话 {per:.1f} 条消息" +
+             (f" · 单轮平均 {auto:.1f} 步" if auto is not None else ""))
     return {
-        "D": {"txt": f"每会话 {st['per']:.1f} 条消息 · 单轮平均 {st['auto']:.1f} 步",
-              "vals": _hist([r.get("msgs") or 0 for r in rows], 10, 20),
-              "lbl": "消息数 0 → 20+ 的会话数"},
-        "I": {"txt": f"结构化开场占 {round((open_n - axes['I']['k_units']) / open_n * 100)}%",
+        "D": {"txt": d_txt,
+              "vals": _hist([r["msgs"] for r in with_msgs], 10, 20) if with_msgs else None,
+              "lbl": "消息数 0 → 20+ 的会话数", "missing_n": len(rows) - len(with_msgs)},
+        "I": {"txt": (f"结构化开场占 {round((open_n - axes['I']['k_units']) / open_n * 100)}%"
+                      if open_n else "开场结构未知"),
               "vals": [round(v * 100) for v, _ in plan],
               "lbl": "项目结构化开场占比 · 低 → 高",
               "projects": [derive.project_name(projects, pid) for _, pid in plan]},
@@ -256,23 +343,35 @@ def fingerprint(rows: list[dict], agents: list[str], cap: int = 200) -> dict:
 
 
 def fit(rows: list[dict], agents: list[str]) -> list[dict]:
+    """Per-agent outcome rate. Sessions without an outcome are unknown, not failures, so the
+    denominator is the sessions with ``out``; ``ok_ci`` is the Wilson 95% interval (±0 at
+    0/n or n/n would be a Wald artefact), given from 5 outcomes on."""
     out = []
     for agent in agents:
         xs = [r for r in rows if r.get("a") == agent]
         st = derive.stats(xs)
-        ok = st["ok"] / 100
-        ci = round(1.96 * math.sqrt(ok * (1 - ok) / len(xs)) * 100) if len(xs) >= 5 else None
+        known = [r for r in xs if r.get("out") is not None]
+        k = sum(1 for r in known if r["out"] == "ok")
+        ok_est = round(100 * k / len(known), 1) if known else None
+        ci = None
+        if len(known) >= 5:
+            lo, hi = wilson(k, len(known), CONFIG["z"])
+            ci = [round(lo * 100, 1), round(hi * 100, 1)]
         out.append({"a": agent, "n": len(xs), "sessions": [r["id"] for r in xs[-5:]],
                     "corr_rate": round(st["fric"], 2) if st["msgs"] else None,
-                    "ok_est": round(st["ok"], 1) if xs else None, "ok_ci": ci,
-                    "basis": "descriptive_estimate", "off": len(xs) < 5})
+                    "ok_est": ok_est, "ok_ci": ci, "ok_n": len(known),
+                    "basis": "descriptive_estimate", "off": len(known) < 5})
     return out
 
 
 def blind_spots(rows: list[dict]) -> list[dict]:
+    """Top friction types. ``problem`` is the recommendation problem type the A1 surface
+    (``recs_ref``) filters on; no per-item recommendation id is invented here."""
+    from .insight import RECS_REF
+
     counts = sorted(derive.count_by(rows, "fric").items(), key=lambda kv: (-kv[1], kv[0]))[:3]
-    return [{"type": t, "n": n, "problem": FRIC_PROBLEM.get(t), "rec_id": None,
-             "recs_ref": "/v1/recommendations?surface=A1"} for t, n in counts]
+    return [{"type": t, "n": n, "problem": FRIC_PROBLEM.get(t), "recs_ref": RECS_REF}
+            for t, n in counts]
 
 
 def strengths(p: dict) -> list[dict]:
@@ -322,6 +421,10 @@ def _filters(params: dict) -> dict:
 
 def page(body: dict, params: dict, today: date) -> dict:
     """A2 / Lite persona payload for ``period`` (``ValueError`` on an unknown period)."""
+    return _page(body, params, today)[0]
+
+
+def _page(body: dict, params: dict, today: date) -> tuple[dict, list[dict]]:
     from . import CONTRACT, VERSION
 
     rows = derive.prepare(body.get("rows") or [], today)
@@ -363,15 +466,12 @@ def page(body: dict, params: dict, today: date) -> dict:
         "hint": p["hint"],
         "reveal": {"candidates": candidates(p)},
     }
-    return payload
+    return payload, L
 
 
 def reveal(body: dict, params: dict, today: date, cap: int = 400) -> dict:
     """Reveal animation subset: code / copy / axes plus one particle per session."""
-    full = page(body, params, today)
-    rows = derive.prepare(body.get("rows") or [], today)
-    window, *_ = resolve_period(params.get("period") or "90", today, derive.first_index(rows))
-    L = derive.sel(rows, window, _filters(params), no_extra=True)
+    full, L = _page(body, params, today)
     particles = [{"h": r.get("h"), "mi": r.get("mi"), "dur": r.get("dur"), "a": r.get("a")}
                  for r in L[-cap:]]
     keep = ("meta", "ok", "classified", "n", "conf", "code", "zh", "en", "line", "low", "hint")
