@@ -82,6 +82,7 @@
 | [导入可靠性审计](audits/ingestion-reliability-2026-10-03.md) | 七类 Agent 内容覆盖、发现补扫、捕获重试、标准化与开发日志 |
 | [分析与 AI 可靠性审计](audits/analysis-ai-reliability-2026-10-03.md) | 范围隔离、证据校验、专业分析模板和 UI 输入输出映射 |
 | [推荐与资源库可靠性审计](audits/recommendation-reliability-2026-10-03.md) | 多路召回、质量维度、目录扩充、AI 专家建议和评测边界 |
+| [历史 Skill 丢失根因](audits/history-skill-root-cause.md) | 12 条 history 的候选漏斗、Agent 过滤与名额消融 |
 | [端到端集成审计](audits/integration-reliability-2026-10-03.md) | 设置并发、问答范围、页面接线、交互证据与本轮验收 |
 
 ## 7. 调研

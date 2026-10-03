@@ -10,13 +10,17 @@ import argparse
 import copy
 import sqlite3
 from collections import Counter
+from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from orbit_backend.features.hub import QueryHub
 from orbit_backend.features.match import match_items
 from orbit_backend.features.profile import build_profile
 from orbit_backend.recommend.engine import build_slate
+from orbit_backend.recommend.ranking import hygiene
+from orbit_backend.recommend.ranking import slate as slate_policy
 from orbit_backend.recommend.store import memory
 from orbit_catalog.search import search
 from orbit_catalog.store import CatalogStore
@@ -24,7 +28,7 @@ from orbit_catalog.store import CatalogStore
 from .study import command, digest, read, save
 
 
-def replay(home: Path, inputs_path: Path, output: Path) -> dict:
+def replay(home: Path, inputs_path: Path, output: Path, *, ablations: bool = False) -> dict:
     inputs = read(inputs_path)
     conn = sqlite3.connect(home / "app.db")
     conn.row_factory = sqlite3.Row
@@ -66,10 +70,31 @@ def replay(home: Path, inputs_path: Path, output: Path) -> dict:
                   "code_commit": command(["git", "rev-parse", "HEAD"]),
                   "profile": profile, "feature_filter_probe": feature_matches,
                   "feature_probe_limit": 1000, "replays": {}}
-        for name, relax in (("unchanged_selection", False), ("agent_filter_counterfactual", True)):
-            slate = build_slate(copy.deepcopy(inputs), copy.deepcopy(mem),
-                                catalog=Catalog(relax), features=Features(relax))
-            result["replays"][name] = slate
+        variants = [("unchanged_selection", {}), ("agent_filter_counterfactual", {"relax_agent": True})]
+        if ablations:
+            variants += [("dedup_disabled", {"dedup": False}),
+                         ("per_problem_3", {"per_problem": 3}),
+                         ("global_top_1", {"limit": 1}), ("global_top_3", {"limit": 3}),
+                         ("global_top_10", {"limit": 10}),
+                         ("agent_relaxed_per_problem_3", {"relax_agent": True, "per_problem": 3})]
+        select = slate_policy.select
+        for name, options in variants:
+            # These local counterfactuals diagnose an already exposed development snapshot.
+            # They never persist policy changes or install a recommendation.
+            with ExitStack() as stack:
+                if "per_problem" in options:
+                    stack.enter_context(patch.object(slate_policy, "PER_PROBLEM", options["per_problem"]))
+                if options.get("dedup") is False:
+                    stack.enter_context(patch.object(hygiene, "dedupe", lambda cards: (cards, [])))
+                if "limit" in options:
+                    chosen_limit = options["limit"]
+                    stack.enter_context(patch.object(slate_policy, "select",
+                                                     lambda cards, limit, chosen=chosen_limit: select(cards, limit=chosen)))
+                relax = options.get("relax_agent", False)
+                slate = build_slate(copy.deepcopy(inputs), copy.deepcopy(mem),
+                                    catalog=Catalog(relax), features=Features(relax))
+                slate["counterfactual_options"] = options
+                result["replays"][name] = slate
         save(output, result)
         return {name: {"selected_types": dict(Counter(c["kind"] for c in slate["candidates"] if c.get("rank"))),
                        "stages": [{k: s[k] for k in ("stage", "input_count", "kept_count", "rejected_count")}
@@ -84,9 +109,10 @@ def main():
     parser.add_argument("--home", required=True, type=Path)
     parser.add_argument("--inputs", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--ablations", action="store_true")
     args = parser.parse_args()
     import json
-    print(json.dumps(replay(args.home, args.inputs, args.output), ensure_ascii=False))
+    print(json.dumps(replay(args.home, args.inputs, args.output, ablations=args.ablations), ensure_ascii=False))
 
 
 if __name__ == "__main__":
