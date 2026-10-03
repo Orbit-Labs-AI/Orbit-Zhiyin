@@ -3879,6 +3879,8 @@ function rgMorph(from, to) {
   rgAttrs(from, to);
   if (from.tagName === 'TEXTAREA') { if (document.activeElement !== from && from.value !== to.value) from.value = to.value; return from; }
   rgKids(from, to);
+  // a <select> follows the markup's choice (as a rebuild would) unless the user is on it
+  if (from.tagName === 'SELECT' && document.activeElement !== from && from.selectedIndex !== to.selectedIndex) from.selectedIndex = to.selectedIndex;
   return from;
 }
 function rgKids(from, to) {
@@ -3978,15 +3980,19 @@ const PAGES = {};
 // (edRoute in 26-edition.js), so links such as go('persona') land on the Lite page while Lite is active.
 const RENDER_HOOKS = [];
 let ROUTE_ENTER = false;
+// go() to the page already on screen (a sidebar row of the current page, a pinned project while on 项目习惯, a notification
+// or palette entry that sets a filter first) is not a navigation: a region-built page refreshes its regions in place and
+// keeps its scroll position, so only a route or edition change (and the first render) rebuilds #main.
 function go(route, keepScroll) {
   edFollow(route); route = edRoute(route);
   if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
-  if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
+  const same = route === S.route && RG.canRefresh();
+  if (!same) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
   edRemember(route);   // App: the page to come back to next launch (26-edition.js)
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
   render();
-  if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
+  if (!keepScroll && !same) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
 /* Re-render keeps what the user was doing: every box scrolled inside the sidebar or the page (not only #content — the
    sidebar list, tables and lists with their own scroll) and the focused field (caret and value) are put back on the
@@ -9654,8 +9660,10 @@ function renderSet() {
   const fakeLights = !(window.ORBIT && window.ORBIT.native && window.ORBIT.native.isNative);
   const keepF = el.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement : null;
   const keepK = keepF && keepF.dataset.act ? '[data-act="' + keepF.dataset.act + '"]' + (keepF.dataset.v != null ? '[data-v="' + keepF.dataset.v + '"]' : '') + (keepF.dataset.k != null ? '[data-k="' + keepF.dataset.k + '"]' : '') : null;
-  el.innerHTML = '<div class="ptop">' + (fakeLights ? '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div>' : '<button type="button" class="ib set-x" data-act="setClose" aria-label="关闭设置" data-tip="关闭（Esc）">' + ic('x', 13) + '</button>') + '<span class="vh" id="setName">设置</span><h2 class="ptitle" id="setTitle">' + curTab[1] + '</h2></div>' +
-    '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>';
+  // morphed in place (rgPut, 24-regions.js): a live frame while the panel is open keeps the scrolled body, the focused field
+  // and the open add-source form as they are
+  rgPut(el, '<div class="ptop">' + (fakeLights ? '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div>' : '<button type="button" class="ib set-x" data-act="setClose" aria-label="关闭设置" data-tip="关闭（Esc）">' + ic('x', 13) + '</button>') + '<span class="vh" id="setName">设置</span><h2 class="ptitle" id="setTitle">' + curTab[1] + '</h2></div>' +
+    '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>');
   if (keepK) { const f = el.querySelector(keepK); if (f) f.focus({ preventScroll: true }); }
 }
 function doReset() {
@@ -13953,7 +13961,7 @@ if (LV.live) {
   renderHud = function () {
     const d = TLO.d;
     if (S.paused && S.hud.show && LV.state !== 'connecting') {
-      const h = $('#hud'); S.hud.open = false; h.hidden = false; h.innerHTML = pausedPill();
+      const h = $('#hud'); S.hud.open = false; h.hidden = false; rgPut(h, pausedPill());
       if (!ORBIT.native.surface) hudPlace();
       return;
     }
@@ -13962,7 +13970,7 @@ if (LV.live) {
       // the HUD surface (its own NSPanel, shown by default) keeps the pill in its calm form instead of an empty window
       if (ORBIT.native.surface === 'hud' && S.hud.show && LV.state !== 'connecting') {
         S.hud.open = false; h.hidden = false;
-        h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-calm"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>Orbit</b><span style="color:var(--hud-ink-2)">' + (TLO.off ? '实时状态暂不可用' : '没有进行中的会话') + '</span><button type="button" class="hg" data-act="popOpen">打开 Orbit</button></div>';
+        rgPut(h, '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-calm"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>Orbit</b><span style="color:var(--hud-ink-2)">' + (TLO.off ? '实时状态暂不可用' : '没有进行中的会话') + '</span><button type="button" class="hg" data-act="popOpen">打开 Orbit</button></div>');   // morphed: the calm pill keeps its nodes
         return;
       }
       h.hidden = true; h.innerHTML = ''; return;

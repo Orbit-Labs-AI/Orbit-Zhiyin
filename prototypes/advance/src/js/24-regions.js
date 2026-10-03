@@ -98,6 +98,8 @@ function rgMorph(from, to) {
   rgAttrs(from, to);
   if (from.tagName === 'TEXTAREA') { if (document.activeElement !== from && from.value !== to.value) from.value = to.value; return from; }
   rgKids(from, to);
+  // a <select> follows the markup's choice (as a rebuild would) unless the user is on it
+  if (from.tagName === 'SELECT' && document.activeElement !== from && from.selectedIndex !== to.selectedIndex) from.selectedIndex = to.selectedIndex;
   return from;
 }
 function rgKids(from, to) {

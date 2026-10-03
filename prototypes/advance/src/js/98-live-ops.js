@@ -227,7 +227,7 @@ if (LV.live) {
   renderHud = function () {
     const d = TLO.d;
     if (S.paused && S.hud.show && LV.state !== 'connecting') {
-      const h = $('#hud'); S.hud.open = false; h.hidden = false; h.innerHTML = pausedPill();
+      const h = $('#hud'); S.hud.open = false; h.hidden = false; rgPut(h, pausedPill());
       if (!ORBIT.native.surface) hudPlace();
       return;
     }
@@ -236,7 +236,7 @@ if (LV.live) {
       // the HUD surface (its own NSPanel, shown by default) keeps the pill in its calm form instead of an empty window
       if (ORBIT.native.surface === 'hud' && S.hud.show && LV.state !== 'connecting') {
         S.hud.open = false; h.hidden = false;
-        h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-calm"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>Orbit</b><span style="color:var(--hud-ink-2)">' + (TLO.off ? '实时状态暂不可用' : '没有进行中的会话') + '</span><button type="button" class="hg" data-act="popOpen">打开 Orbit</button></div>';
+        rgPut(h, '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="false" aria-label="悬浮组件" data-tl="rt-calm"><span class="dot" style="width:9px;height:9px;background:var(--hud-ink-3)"></span><b>Orbit</b><span style="color:var(--hud-ink-2)">' + (TLO.off ? '实时状态暂不可用' : '没有进行中的会话') + '</span><button type="button" class="hg" data-act="popOpen">打开 Orbit</button></div>');   // morphed: the calm pill keeps its nodes
         return;
       }
       h.hidden = true; h.innerHTML = ''; return;

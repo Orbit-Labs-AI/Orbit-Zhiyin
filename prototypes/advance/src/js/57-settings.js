@@ -168,8 +168,10 @@ function renderSet() {
   const fakeLights = !(window.ORBIT && window.ORBIT.native && window.ORBIT.native.isNative);
   const keepF = el.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement : null;
   const keepK = keepF && keepF.dataset.act ? '[data-act="' + keepF.dataset.act + '"]' + (keepF.dataset.v != null ? '[data-v="' + keepF.dataset.v + '"]' : '') + (keepF.dataset.k != null ? '[data-k="' + keepF.dataset.k + '"]' : '') : null;
-  el.innerHTML = '<div class="ptop">' + (fakeLights ? '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div>' : '<button type="button" class="ib set-x" data-act="setClose" aria-label="关闭设置" data-tip="关闭（Esc）">' + ic('x', 13) + '</button>') + '<span class="vh" id="setName">设置</span><h2 class="ptitle" id="setTitle">' + curTab[1] + '</h2></div>' +
-    '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>';
+  // morphed in place (rgPut, 24-regions.js): a live frame while the panel is open keeps the scrolled body, the focused field
+  // and the open add-source form as they are
+  rgPut(el, '<div class="ptop">' + (fakeLights ? '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div>' : '<button type="button" class="ib set-x" data-act="setClose" aria-label="关闭设置" data-tip="关闭（Esc）">' + ic('x', 13) + '</button>') + '<span class="vh" id="setName">设置</span><h2 class="ptitle" id="setTitle">' + curTab[1] + '</h2></div>' +
+    '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>');
   if (keepK) { const f = el.querySelector(keepK); if (f) f.focus({ preventScroll: true }); }
 }
 function doReset() {

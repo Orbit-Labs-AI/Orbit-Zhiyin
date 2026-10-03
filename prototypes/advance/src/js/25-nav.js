@@ -7,15 +7,19 @@ const PAGES = {};
 // (edRoute in 26-edition.js), so links such as go('persona') land on the Lite page while Lite is active.
 const RENDER_HOOKS = [];
 let ROUTE_ENTER = false;
+// go() to the page already on screen (a sidebar row of the current page, a pinned project while on 项目习惯, a notification
+// or palette entry that sets a filter first) is not a navigation: a region-built page refreshes its regions in place and
+// keeps its scroll position, so only a route or edition change (and the first render) rebuilds #main.
 function go(route, keepScroll) {
   edFollow(route); route = edRoute(route);
   if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
-  if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
+  const same = route === S.route && RG.canRefresh();
+  if (!same) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
   edRemember(route);   // App: the page to come back to next launch (26-edition.js)
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
   render();
-  if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
+  if (!keepScroll && !same) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
 /* Re-render keeps what the user was doing: every box scrolled inside the sidebar or the page (not only #content — the
    sidebar list, tables and lists with their own scroll) and the focused field (caret and value) are put back on the
