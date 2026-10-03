@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from orbit_data import SCHEMA_VERSION
 from orbit_data.analysis_input import AnalysisScope, read_analysis
-from orbit_data.service import ImportRequest, ImportService
+from orbit_data.service import ImportRequest, ImportService, wait_for_maintenance
 from orbit_data.store import Store
 from orbit_data.validation.fixtures import create_sources
 
@@ -348,6 +348,10 @@ def test_analysis_omits_native_copies_but_keeps_facts_and_evidence(data):
 @pytest.mark.parametrize("schema_version", [4, 5, 6])
 def test_existing_store_adds_indexes_for_deferred_parent_inserts(data, schema_version):
     home, _ = data
+    # The fixture schedules background maintenance, which opens Store and can migrate
+    # a deliberately rewound version before this test finishes dropping its indexes.
+    # Finish that writer before constructing historical DDL; retain the plan assertion.
+    wait_for_maintenance(home)
     with Store(home) as store:
         # A historical fixture must have its historical columns, not just an old
         # version number attached to the current DDL.
