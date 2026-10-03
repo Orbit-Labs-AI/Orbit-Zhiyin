@@ -1,3 +1,10 @@
 # App 原型的单文件 HTML 由 prototypes/advance/build.mjs 生成：在 PR 中折叠它的差异，并固定源码为 LF 换行，保证构建结果逐字节一致
 prototypes/advance/orbit-demo.html linguist-generated=true
 prototypes/advance/** text eol=lf
+# 图片与字体是二进制：不做换行转换（上一行的 text eol=lf 会改写其中的 CR/LF 字节）
+prototypes/advance/**/*.webp binary
+prototypes/advance/**/*.png binary
+prototypes/advance/**/*.jpg binary
+prototypes/advance/**/*.jpeg binary
+prototypes/advance/**/*.gif binary
+prototypes/advance/**/*.woff2 binary
