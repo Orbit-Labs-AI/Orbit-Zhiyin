@@ -5,6 +5,10 @@
 // Demo bindings (browser-safe; the App uses ⌘ where noted): ⌥1–9 pages (⌘1–9), ⌥0 main window (⌘0), ⌃⌘S sidebar, ⌃⌘F full
 // screen, ⌘M minimise, ⌘K palette, ⌘, settings, ⇧⌘S share card, ⇧⌘E report, ⌥⌘P HUD, ⌃⌥T panel, ⌥R reindex (⌘R), ⌥T chart/table
 // (⌘T), ⌘F find, ⌘↩ main action, ⌘Z undo install, ⌘[ back, ? shortcuts, Space play/pause (sessions).
+// KB_DID[cmd] = when the page handled a shortcut that the native menu also carries (95-live-native.js LVN.command skips the
+// menu's tandem:command for the same cmd right after, so a key never acts twice whichever side sees it first).
+const KB_DID = {};
+const kbDid = (c) => { KB_DID[c] = Date.now(); };
 document.addEventListener('keydown', (e) => {
   const tg = e.target; const tag = (tg.tagName || '').toLowerCase();
   const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || tg.isContentEditable;
@@ -42,24 +46,24 @@ document.addEventListener('keydown', (e) => {
   if (tg.id === 'hudPill' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); S.hud.open = !S.hud.open; renderHud(); const p = $('#hudPill'); if (p) p.focus(); return; }
   if (ovOpen) return;
   if (e.ctrlKey && e.altKey && e.code === 'KeyT') { e.preventDefault(); S.pop = !S.pop; render(); return; }
-  if (e.ctrlKey && e.metaKey && e.code === 'KeyS') { e.preventDefault(); toggleSide(); return; }
+  if (e.ctrlKey && e.metaKey && e.code === 'KeyS') { e.preventDefault(); kbDid('sidebar'); toggleSide(); return; }
   if (e.ctrlKey && e.metaKey && e.code === 'KeyF') { e.preventDefault(); winFullToggle(); return; }
-  if (mod && e.altKey && e.code === 'KeyP') { e.preventDefault(); toggleHud(); return; }
+  if (mod && e.altKey && e.code === 'KeyP') { e.preventDefault(); kbDid('hud'); toggleHud(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyK') { e.preventDefault(); if (MODAL_KEY === 'palette' && modalOpen) closeModal(); else { closeModal(); openPalette(); } return; }
   if (mod && e.key === ',') { e.preventDefault(); closeModal(); openSettings(); return; }
-  if (mod && e.shiftKey && e.code === 'KeyS') { e.preventDefault(); closeModal(); openShare(); return; }
-  if (mod && e.shiftKey && e.code === 'KeyE') { e.preventDefault(); closeModal(); openReport(); return; }
+  if (mod && e.shiftKey && e.code === 'KeyS') { e.preventDefault(); kbDid('share'); closeModal(); openShare(); return; }
+  if (mod && e.shiftKey && e.code === 'KeyE') { e.preventDefault(); kbDid('report'); closeModal(); openReport(); return; }
   if (modalOpen) return;
-  if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyZ' && !typing) { e.preventDefault(); undoInstall(); return; }
-  if (mod && !e.altKey && e.code === 'KeyF') { e.preventDefault(); findCmd(); return; }
-  if (mod && e.key === 'Enter') { e.preventDefault(); mainAction(); return; }
+  if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyZ' && !typing) { e.preventDefault(); kbDid('undo'); undoInstall(); return; }
+  if (mod && !e.altKey && e.code === 'KeyF') { e.preventDefault(); kbDid('find'); findCmd(); return; }
+  if (mod && e.key === 'Enter') { e.preventDefault(); kbDid('mainAction'); mainAction(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyM' && !typing) { e.preventDefault(); ACT.winMin(); return; }
-  if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); goBack(); return; }
+  if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); kbDid('back'); goBack(); return; }
   // in the native App the browser-safe ⌥ bindings also answer to ⌘ (⌘1–9 pages, ⌘0 main window, ⌘T chart / table);
   // ⌘R stays with the App menu (刷新 → tandem:command refresh)
   const appKey = e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && nativeShell();
-  if (appKey && /^Digit[0-9]$/.test(e.code)) { e.preventDefault(); if (e.code === 'Digit0') showMain(); else { const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); } return; }
-  if (appKey && e.code === 'KeyT') { e.preventDefault(); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }
+  if (appKey && /^Digit[0-9]$/.test(e.code)) { e.preventDefault(); kbDid('page'); if (e.code === 'Digit0') showMain(); else { const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); } return; }
+  if (appKey && e.code === 'KeyT') { e.preventDefault(); kbDid('chartTable'); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }
   if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); return; }
   if (e.altKey && !mod && e.code === 'Digit0') { e.preventDefault(); showMain(); return; }
   if (e.altKey && !mod && e.code === 'KeyR') { e.preventDefault(); reindex(); return; }

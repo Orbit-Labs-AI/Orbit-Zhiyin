@@ -42,16 +42,22 @@ function tloOpen(uid) {
     'body.surface .desk>.wall,body.surface #mbar,body.surface #win,body.surface #set,body.surface .desk>:is(#pop,#hud,#widgets):not(' + keep + '){display:none!important}' +
     'body.surface ' + keep + '{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;margin:0}' +
     'body.surface-panel #pop{width:100%;max-height:none;border-radius:12px;animation:none}' +
-    'body.surface-hud #hud{align-items:flex-start!important;flex-direction:column!important;padding:4px}' +
+    'body.surface-hud #hud{align-items:flex-end!important;flex-direction:column!important;padding:4px}' +
+    // intrinsic widths (not viewport-relative): the reported width must not shrink with the panel it resizes
+    'body.surface-hud #hud>.pill{width:max-content;max-width:500px}body.surface-hud .hcard{width:380px}' +
     'body.surface-widgets #widgets{width:364px;padding:8px}';
   document.head.appendChild(st);
   S.winGone = true; S.pop = sf === 'panel'; S.widgets = sf === 'widgets'; S.hud.show = sf === 'hud';
   const el = () => $(keep);
-  let lastH = 0;
+  let lastH = 0, lastW = 0;
+  // the HUD also reports the pill / card width: its NSPanel shrinks to it, so no transparent margin takes other windows' clicks
   function report() {
     const e = el(); if (!e) return;
-    const h = Math.ceil(e.hidden ? 0 : e.getBoundingClientRect().height + (sf === 'panel' ? 0 : 8));
-    if (h !== lastH) { lastH = h; ORBIT.native.post('resizeSurface', { height: h }); }
+    const r = e.getBoundingClientRect();
+    const h = Math.ceil(e.hidden ? 0 : r.height + (sf === 'panel' ? 0 : 8));
+    let w = 0;
+    if (sf === 'hud' && !e.hidden) w = Math.ceil(Math.max(0, ...Array.from(e.children).map((k) => k.getBoundingClientRect().width)) + 16);
+    if (h !== lastH || w !== lastW) { lastH = h; lastW = w; ORBIT.native.post('resizeSurface', w ? { height: h, width: w } : { height: h }); }
   }
   hudPlace = function () { /* the host window is the position */ };
   popPlace = function () { /* the NSPopover is the position */ };
@@ -73,15 +79,16 @@ function tloOpen(uid) {
   ACT.popOpen = () => openMain(null);
   if (typeof ResizeObserver === 'function') new ResizeObserver(report).observe(el());
 })();
-// main window: routes sent by a surface (openMain → tandem:command {cmd:'route', route:'sessions/<uid>' | 'recs/<id>' | 'settings/<tab>' | page})
+// main window: deep routes sent by a surface (openMain → tandem:command {cmd:'route', route:'sessions/<uid>' | 'recs/<id>'}).
+// Plain pages and settings/<tab> are LVN.command's (95-live-native.js): handling them here too ran go() twice and, across
+// editions, the second go() undid the edition switch.
 if (!ORBIT.native.surface) ORBIT.native.onCommand((c) => {
   if (c.cmd !== 'route' || !c.route) return;
-  const m = /^(sessions|recs|settings)\/(.+)$/.exec(c.route);
+  const m = /^(sessions|recs)\/(.+)$/.exec(c.route);
+  if (!m) return;
   S.pop = false; S.winGone = false;
-  if (!m) { if (PAGES[c.route]) go(c.route); else render(); return; }
   if (m[1] === 'sessions') tloOpen(m[2]);
-  else if (m[1] === 'recs') { if (RECI[m[2]]) ACT.openRec({ dataset: { id: m[2] } }); else go('recs'); }
-  else openSettings(m[2]);
+  else if (RECI[m[2]]) ACT.openRec({ dataset: { id: m[2] } }); else go('recs');
 });
 
 if (LV.live) {

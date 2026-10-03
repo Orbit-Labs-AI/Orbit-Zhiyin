@@ -83,7 +83,8 @@ def build_helper() -> Path:
 
 def build_host(contents: Path) -> None:
     run("xcrun", "swiftc", "-O", "-target", f"arm64-apple-macos{MIN_MACOS}", "-framework", "AppKit",
-        "-framework", "WebKit", "-framework", "Security", "-framework", "UserNotifications", HERE / "Orbit.swift",
+        "-framework", "WebKit", "-framework", "Security", "-framework", "UserNotifications",
+        "-framework", "ServiceManagement", HERE / "Orbit.swift",
         "-o", contents / f"MacOS/{NAME}")
 
 
@@ -217,9 +218,32 @@ def check_minos(bundle: Path) -> None:
     print(f"minos check: {scanned} Mach-O files <= macOS {MIN_MACOS}", flush=True)
 
 
-def sign(identity: str) -> None:
-    flags = [] if identity == "-" else ["--options", "runtime", "--timestamp"]
-    run("codesign", "--force", "--deep", "--sign", identity, *flags, APP)
+MACHO_MAGIC = (b"\xca\xfe\xba\xbe", b"\xca\xfe\xba\xbf", b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe")
+
+
+def _is_macho(path: Path) -> bool:
+    if path.is_symlink() or not path.is_file():
+        return False
+    with path.open("rb") as handle:
+        return handle.read(4) in MACHO_MAGIC
+
+
+def sign(identity: str, runtime: bool | None = None) -> None:
+    """Sign inside-out without --deep: every Mach-O in the helper (deepest first), the helper
+    executable with helper.entitlements, then the app with Orbit.entitlements. A Developer ID
+    signature uses the Hardened Runtime and a timestamp; ad-hoc ("-") skips both unless
+    runtime=True (a local check that the helper still starts under the runtime)."""
+    runtime = identity != "-" if runtime is None else runtime
+    flags = ["--options", "runtime"] if runtime else []
+    if identity != "-":
+        flags.append("--timestamp")
+    backend = APP / "Contents/Resources/backend"
+    helper = backend / "tandem-helper"
+    nested = [p for p in backend.rglob("*") if p != helper and _is_macho(p)]
+    for path in sorted(nested, key=lambda p: len(p.parts), reverse=True):
+        run("codesign", "--force", "--sign", identity, *flags, path, stdout=subprocess.DEVNULL)
+    run("codesign", "--force", "--sign", identity, *flags, "--entitlements", HERE / "helper.entitlements", helper)
+    run("codesign", "--force", "--sign", identity, *flags, "--entitlements", HERE / "Orbit.entitlements", APP)
     run("codesign", "--verify", "--deep", "--strict", "--verbose=2", APP)
 
 
@@ -238,6 +262,8 @@ def package() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--skip-helper", action="store_true", help="reuse .local/macos-build/dist")
+    parser.add_argument("--runtime", action="store_true",
+                        help="Hardened Runtime even for ad-hoc signing (checks the helper's entitlements locally)")
     args = parser.parse_args()
     OUTPUT.mkdir(parents=True, exist_ok=True)
     helper = OUTPUT / "dist/tandem-helper" if args.skip_helper else build_helper()
@@ -255,7 +281,7 @@ def main() -> None:
     write_plist(contents)
     check_minos(APP)
     identity = os.environ.get("TANDEM_SIGN_IDENTITY", "-")
-    sign(identity)
+    sign(identity, runtime=True if args.runtime else None)
     profile = os.environ.get("TANDEM_NOTARY_PROFILE")
     if profile and identity != "-":
         notarize = OUTPUT / f"{ARTIFACT}-notarize.zip"

@@ -117,3 +117,7 @@ body.native .wtop{height:var(--titlebar-inset);padding-left:78px}
 body.native .main{padding-top:var(--titlebar-inset)}
 body.native .side{border-radius:0}
 body.native .win.nosb .tbar{padding-left:20px}
+/* settings card title is the dialog's name (h2); in the App the page-drawn traffic lights give way to a plain close button */
+.ptop h2.ptitle{margin:0}
+.ptop .set-x{width:24px;height:24px;margin-left:-7px;color:var(--ink-3);position:relative;z-index:1}
+.ptop .set-x:hover{background:var(--field);color:var(--ink-1)}

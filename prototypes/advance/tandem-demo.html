@@ -76,6 +76,9 @@ color-scheme:dark}
 html,body{height:100%}
 body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--font-sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable],pre,code,.code,.log,.ask-a,.tbl td,.sharecard{-webkit-user-select:text;user-select:text}
+/* page text (titles, paths, numbers, notes) stays copyable; controls, charts and drag areas keep none */
+.content{-webkit-user-select:text;user-select:text}
+.content :is(button,[role=button],[role=tab],[role=switch],[role=option],[draggable=true],.btn,.chip,.seg,.sw,label,svg,canvas){-webkit-user-select:none;user-select:none}
 button,input,textarea,select{font:inherit;color:inherit;margin:0;line-height:1.25}
 button{cursor:default}
 a{color:inherit}
@@ -233,6 +236,10 @@ body.native .wtop{height:var(--titlebar-inset);padding-left:78px}
 body.native .main{padding-top:var(--titlebar-inset)}
 body.native .side{border-radius:0}
 body.native .win.nosb .tbar{padding-left:20px}
+/* settings card title is the dialog's name (h2); in the App the page-drawn traffic lights give way to a plain close button */
+.ptop h2.ptitle{margin:0}
+.ptop .set-x{width:24px;height:24px;margin-left:-7px;color:var(--ink-3);position:relative;z-index:1}
+.ptop .set-x:hover{background:var(--field);color:var(--ink-1)}
 
 /* Editions: the Lite / Advance switch on top of the sidebar (a two-segment track with a sliding thumb, monochrome like every
    other control) and the cross-fade between editions. The thumb follows #win[data-ed], so it slides on the existing element
@@ -346,6 +353,9 @@ body.native .win.nosb .tbar{padding-left:20px}
 @keyframes slidein{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 .fade{animation:fadein .15s var(--ease)}
 .stale{opacity:.45;transition:opacity .15s}
+/* text links and sortable table headers: the hit area grows to ≥ 24px tall without changing how they look */
+.lnk,.tbl th button{position:relative}
+.lnk::after,.tbl th button::after{content:'';position:absolute;left:-2px;right:-2px;top:50%;height:max(100%,24px);transform:translateY(-50%)}
 
 /* VZ · shared visualization kit (see js/36-vizkit.js). Colors only via tokens; text sizes are fixed px so charts never scale type with width.
    Semantic chart colors (critique §4): one color = one meaning. They read the shell's --sem-* tokens when present and fall back to the theme. */
@@ -579,7 +589,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lite .vz-kpi-l{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .lite .vz-kpi .v{font-family:var(--font-num);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
 .lite .vz-kpi-u{font-size:15px}
-.lite .vz-kpi-d{font-size:12px;line-height:16px}
+.lite .vz-kpi-d{font-size:12px;line-height:16px;white-space:normal;overflow-wrap:anywhere}   /* narrow tiles: the delta wraps instead of running past the edge */
 .lite .vz-kpi.l-warn .v{color:var(--crit)}
 .lite .l-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
 
@@ -767,6 +777,14 @@ body.native .win.nosb .tbar{padding-left:20px}
 .step .mk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 10.5px/1 var(--font-num)}
 .log{flex:1;min-height:160px;border-radius:9px;background:var(--sunken);border:1px solid var(--line);padding:10px 12px;font:11px/17px var(--font-mono);overflow:auto;max-height:340px}
 .log div{white-space:pre-wrap;word-break:break-all}
+
+/* range widening (empty range, wider history has sessions) */
+.range-note{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;color:var(--ink-2);font-size:13px}
+.range-widen{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.range-note .range-widen{margin-top:0}
+/* sidebar agent with no sessions in the selected range */
+.nav .ag.idle{color:var(--ink-3)}
+.nav .ag.idle .dot{opacity:.55}
 
 /* A1 overview: AI-card micro evidence, KPI tiles, outcome share strip, trend controls, persona card, heat line, tool rows, recs (page styles live here, not in 40-pages.css) */
 /* AI card: every column = header row (label + mini viz / regen) → prose → bottom line (evidence link / provenance), so the four bottoms share a baseline */
@@ -1494,7 +1512,9 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
    (desktop layer, z below the window), notifications (344px, slide in from the right). */
 .pop{position:absolute;z-index:60;top:30px;right:120px;width:336px;max-height:calc(100% - 46px);overflow:auto;border-radius:12px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);color:var(--ink-1);animation:popin .12s var(--ease);transform-origin:top right}
 .pop .sec{padding:12px 14px;border-top:1px solid var(--hair)}
-.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:calc(100% - 40px);overflow:auto}
+.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:min(60vh,calc(100% - 40px));overflow:auto;overscroll-behavior:contain}
+.dd .dd-q{display:block;width:calc(100% - 4px);margin:2px 2px 5px;height:26px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-1);font:inherit;font-size:12px;position:sticky;top:0;z-index:1}
+.dd button[hidden],.dd hr[hidden]{display:none}
 .dd button{width:100%;display:flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 6px;border:0;border-radius:5px;background:transparent;text-align:left;font-size:13px;color:var(--ink-1);white-space:nowrap}
 .dd button:hover,.dd button.act{background:var(--accent);color:var(--accent-ink)}
 .dd button:hover .k,.dd button.act .k{color:inherit;opacity:.8}
@@ -2072,10 +2092,10 @@ const TYPES = {
   SIFT: ['搭档', 'The Partner', '像结对编程一样边聊边推进，彼此信任。']
 };
 const AXES = [
-  { k: 'D', L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', dim: '自主度', q: '你把多大块的事交出去？', sig: '每会话消息数 · 单轮自主步数 · 打断与中止率' },
-  { k: 'I', L: 'P', Ln: '规划', R: 'I', Rn: '即兴', dim: '结构度', q: '先想清楚再动手，还是边做边想？', sig: '首条消息长度与验收标准 · 规格文件引用 · 中途改向' },
-  { k: 'M', L: 'M', Ln: '多线', R: 'F', Rn: '专注', dim: '并发度', q: '你同时推进几件事？', sig: '每日会话数 · 同日使用的 Agent 数 · 子代理并行度' },
-  { k: 'V', L: 'V', Ln: '求证', R: 'T', Rn: '信任', dim: '求证度', q: '你怎么确认它做对了？', sig: '要求测试 / 编译 / 线上验证的比例 · 回滚与重做率' }
+  { k: 'D', L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', dim: '委托', q: '你把多大块的事交出去？', sig: '每会话消息数 · 单轮自主步数 · 打断与中止率' },
+  { k: 'I', L: 'P', Ln: '规划', R: 'I', Rn: '即兴', dim: '即兴', q: '先想清楚再动手，还是边做边想？', sig: '首条消息长度与验收标准 · 规格文件引用 · 中途改向' },
+  { k: 'M', L: 'M', Ln: '多线', R: 'F', Rn: '专注', dim: '多线', q: '你同时推进几件事？', sig: '每日会话数 · 同日使用的 Agent 数 · 子代理并行度' },
+  { k: 'V', L: 'V', Ln: '求证', R: 'T', Rn: '信任', dim: '求证', q: '你怎么确认它做对了？', sig: '要求测试 / 编译 / 线上验证的比例 · 回滚与重做率' }
 ];
 
 function pickW(r, w) { let tot = 0; for (const k in w) tot += w[k]; let x = r() * tot; for (const k in w) { x -= w[k]; if (x <= 0) return k; } return Object.keys(w)[0]; }
@@ -3358,6 +3378,9 @@ const APP_MARK = appIcon(32);
 function setTheme(t) {
   S.theme = t; store.set('theme', t);
   if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  // native shell: NSApp.appearance follows (system → nil), so open / save panels, notifications and popovers match the page
+  const n = window.ORBIT && window.ORBIT.native;
+  if (n && n.isNative && n.has('appearance') && n.hasHost()) n.post('appearance', { mode: t === 'light' || t === 'dark' ? t : 'system' });
 }
 /* tooltip: light, 11px, shows after a 0.8s hover delay (tipOn() itself is immediate) */
 let TIPS = {}, TIP_T = null;
@@ -3878,9 +3901,17 @@ const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act=
 let SIDE_EXTRA = null;
 const sideExtra = () => (SIDE_EXTRA ? SIDE_EXTRA() : '');
 const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '">' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
+// sidebar agents (B): 未接入 (never imported: source off and no sessions at all) vs 停用 (imported, then turned off in settings);
+// an agent with no sessions in the selected range fades (.idle) instead of looking like a filter choice
+function agentState(a) { return S.srcOff.has(a.id) ? (a.all ? 'off' : 'none') : 'on'; }
 function sideAgents() {
   const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
-  return AG.map((a) => { const off = S.srcOff.has(a.id); const dim = !off && !S.agents.has(a.id); return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + (off ? a.name + ' 已在设置中停用' : '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选') + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (off ? '停用' : agCount(a.id)) + '</span></button>'; }).join('');
+  return AG.map((a) => {
+    const st = agentState(a), off = st !== 'on', n = off ? 0 : agCount(a.id);
+    const dim = !off && !S.agents.has(a.id), idle = !off && !dim && !n;
+    const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' : (idle ? rangeLabel() + '内没有会话 · ' : '') + '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选';
+    return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + tip + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>';
+  }).join('');
 }
 function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
 function renderSide() {
@@ -3924,10 +3955,25 @@ function filterRow(right) {
     '<button type="button" class="chip' + (agN !== AG.length ? ' on' : '') + '" data-act="agentMenu">' + ic('bot', 14, agN === AG.length ? 'color:var(--ink-3)' : '') + agLbl + ic('chev', 11, agN === AG.length ? 'color:var(--ink-3)' : '') + '</button>' +
     '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 ' + PJ.length) + ic('chev', 11) + '</button>' +
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
-    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>';
+    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>' + rangeWidenNote();
 }
-function agentLegendItems() { return AG.map((a) => ({ t: a.name, v: a.id, on: S.agents.has(a.id) })); }
-function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + '</div>'; }
+function agentLegendItems() { return AG.map((a) => { const st = agentState(a); return { t: a.name, v: a.id, on: S.agents.has(a.id), k: st === 'none' ? '未接入' : st === 'off' ? '停用' : String(sel({ noExtra: true, agent: a.id }).length) }; }); }
+// range widening (A): the selected range has no sessions while a wider one has some (e.g. a first import of only older
+// sessions) → offer 扩大到 90 天 / 看全部历史. Advance pages get it under the filter row, Lite (no filter row) in empty().
+function rangeWider() {
+  if (S.range === 0 || !ALL.length || sel({ noExtra: true }).length) return [];
+  const w90 = S.range < 90 && sel({ range: 90, noExtra: true }).length > 0;
+  return sel({ range: 0, noExtra: true }).length ? (w90 ? [90, 0] : [0]) : [];
+}
+function rangeWidenBtns() {
+  const w = rangeWider(); if (!w.length) return '';
+  return '<div class="row range-widen">' + w.map((r, i) => '<button type="button" class="btn' + (i === 0 ? ' p' : '') + '" data-act="range" data-v="' + r + '">' + (r === 0 ? '看全部历史' : '扩大到 ' + r + ' 天') + '</button>').join('') + '</div>';
+}
+function rangeWidenNote() {
+  const b = rangeWidenBtns(); if (!b) return '';
+  return '<div class="card pad range-note" data-range-note><span>' + rangeLabel() + '内没有会话 · 全部历史共 ' + fmt(sel({ range: 0, noExtra: true }).length) + ' 个</span>' + b + '</div>';
+}
+function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
 
 /* ============ editions: Lite / Advance in one app ============ */
 // One window, two editions. Advance = the full desktop app (nine pages, filters, every tool). Lite = genius-FXC's focused
@@ -3985,10 +4031,13 @@ function renderSideLite() {
     sideGroup('action', '行动', nav(3, '', recN || '')) +
     sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
 }
-function edSet(ed) {
+// edSet(ed, route?): route = the page to land on in the new edition (a menu / notification route). The swap runs after the
+// thumb animation, so the target is passed in instead of calling go(route) next to edSet (that go would run first, while
+// S.ed is still the old edition, and be overwritten by the swap's own go).
+function edSet(ed, route) {
   if (ed !== 'lite' && ed !== 'advance') return;
-  if (ed === S.ed) return;
-  const target = edRoute(S.route, ed);
+  if (ed === S.ed) { if (route) go(route); return; }
+  const target = route ? edRoute(route, ed) : edRoute(S.route, ed);
   const win = $('#win');
   const swap = () => { S.ed = ed; store.set('edition', ed); win.dataset.ed = ed; closeDD(); go(target); };
   const reduce = !!window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -4049,7 +4098,7 @@ Object.assign(ACT, {
   range: (el) => { S.range = +el.dataset.v; render(); },
   agentToggle: (el, e) => {
     const id = el.dataset.a;
-    if (S.srcOff.has(id)) { toast(agent(id).name + ' 已在设置中停用，先到「设置 › 数据源」启用', { act: '打开设置', onAct: () => openSettings('sources') }); return; }
+    if (S.srcOff.has(id)) { toast(agent(id).name + (agent(id).all ? ' 已在设置中停用' : ' 还没有接入') + '，先到「设置 › 数据源」启用', { act: '打开设置', onAct: () => openSettings('sources') }); return; }
     if (e.altKey) { if (S.agents.has(id) && S.agents.size > 1) S.agents.delete(id); else S.agents.add(id); }
     else if (S.agents.size === 1 && S.agents.has(id)) AG.forEach((a) => S.agents.add(a.id));
     else { S.agents.clear(); S.agents.add(id); }
@@ -4060,7 +4109,30 @@ Object.assign(ACT, {
     else if (S.agents.has(v)) { S.agents.delete(v); if (!S.agents.size) AG.forEach((a) => S.agents.add(a.id)); } else S.agents.add(v);
     render();
   }, { keep: true, refresh: () => [{ h: '多选；全部取消时恢复全部' }].concat(agentLegendItems()).concat([{ sep: 1 }, { t: '全部 Agent', v: '*' }]) }),
-  projectMenu: (el) => openDD(el, [{ t: '全部项目', v: null, on: !S.project }, { sep: 1 }].concat(PJ.map((p) => ({ t: p.name, v: p.id, on: S.project === p.id, k: String(sel({ noExtra: true, project: p.id }).length) }))), (v) => { S.project = v; render(); }),
+  // project filter (C): projects with sessions in the range first; 0-session and scratch-* ones fold into 「其他」 (one click
+  // shows them all); a search box on top filters the rows in place; the menu is height-capped and scrolls inside
+  projectMenu: (el, more) => {
+    const all = more === true;   // the click dispatcher passes the event second
+    const rows = PJ.map((p) => ({ p, n: sel({ noExtra: true, project: p.id }).length }));
+    const fold = (r) => !r.n || /^scratch[-_]/i.test(r.p.name);
+    const main = all ? rows : rows.filter((r) => !fold(r) || r.p.id === S.project);
+    const rest = all ? 0 : rows.length - main.length;
+    const items = [{ t: '全部项目', v: null, on: !S.project }, { sep: 1 }].concat(main.map((r) => ({ t: r.p.name, v: r.p.id, on: S.project === r.p.id, k: String(r.n) })));
+    if (rest) items.push({ sep: 1 }, { t: '其他 ' + rest + ' 个项目（' + rangeLabel() + '无会话或临时目录）', v: '__more' });
+    openDD(el, items, (v) => { if (v === '__more') { setTimeout(() => ACT.projectMenu(el, true), 0); return; } S.project = v; render(); });
+    const dd = $('#dd');
+    if (rows.length > 8 && dd && !dd.hidden) {
+      dd.insertAdjacentHTML('afterbegin', '<input type="search" class="dd-q" placeholder="搜索项目" aria-label="搜索项目" autocomplete="off" spellcheck="false">');
+      const q = dd.querySelector('.dd-q');
+      q.addEventListener('input', () => {
+        const t = q.value.trim().toLowerCase();
+        dd.querySelectorAll('button[data-i]').forEach((b) => { const it = DD && DD.items[+b.dataset.i]; const hit = !t || (it && it.v !== '__more' && String(it.t).toLowerCase().indexOf(t) >= 0); b.hidden = !hit; b.disabled = !hit; });
+        dd.querySelectorAll('hr').forEach((h) => { h.hidden = !!t; });
+      });
+      q.addEventListener('click', (e) => e.stopPropagation());
+      setTimeout(() => { if (q.isConnected) q.focus({ preventScroll: true }); }, 0);
+    }
+  },
   addFilter: (el) => openDD(el, [{ h: '主题' }].concat(Object.keys(TOPICS).map((k) => ({ t: TOPICS[k], v: 't:' + k, on: S.topic === k }))).concat([{ sep: 1 }, { h: '结果' }, { t: '完成', v: 'o:ok', on: S.outcome === 'ok' }, { t: '部分完成', v: 'o:part', on: S.outcome === 'part' }, { t: '放弃', v: 'o:fail', on: S.outcome === 'fail' }]), (v) => {
     const k = v.slice(2); if (v[0] === 't') S.topic = S.topic === k ? null : k; else S.outcome = S.outcome === k ? null : k; render();
   }),
@@ -5889,6 +5961,9 @@ PAGES.overview = () => {
     ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
     ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
+  // 0 sessions in range: no praise / friction verdict (the backend's 「这段时间还没有会话」 next to 「查看 3 条建议」 read as
+  // contradictory); the range note under the filter row offers the wider range instead
+  if (!st.n) { ai[0][3] = '—'; ai[0][4] = ''; ai[1][3] = '—'; ai[1][4] = ''; }
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
   const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : '所选范围还没有会话，暂时无法给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
@@ -5909,7 +5984,7 @@ PAGES.overview = () => {
   const terr = (t) => t.err == null ? '<span class="mono e"' + (t.why ? ' data-tip="' + esc(t.why) + '"' : '') + '>—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
-  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
+  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有接入 Agent'),
     '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
@@ -6075,6 +6150,11 @@ function peRelax(w) {
   if (S.persona.period !== 'all') out.push({ k: 'period', t: '周期 · ' + PERIODS[S.persona.period][2], n: n({ w: [0, LASTDAY] }) });
   return out;
 }
+// the persona page keeps its own period (近 90 天 / a month / 全部), not the global time range: say so on the page (E)
+function peScopeTag(per) {
+  const same = (S.persona.period === '90' && S.range === 90) || (S.persona.period === 'all' && S.range === 0);
+  return '<span class="cap pe-scope" data-pe-scope title="协作人格按本页的统计周期计算；概览人格卡跟随全局范围">统计周期 · ' + per[2] + (same ? '' : '（本页单独设置，全局为' + rangeLabel() + '）') + '</span>';
+}
 const AXR = { D: 0, I: 90, M: 180, V: 270 };
 // 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、轨道环带 R0 → R0+RH、行星轨道 PR、节律带 98 → 118、内盘 92、
 // 玫瑰半径 RR、指针半长 NL（= 0.8 × RR，短于字母位，不压住分数）。Genesis（56-onboarding.js）的粒子落点、环带扫描与玫瑰生长共用这一组常量。
@@ -6205,13 +6285,14 @@ PAGES.persona = () => {
   if (p.pending) return tbar('协作人格', filt + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="stack">' + LV.pend(420) + LV.pend(260) + '</div></div>';
   if (!p.ok) {
     const frac = 0; const x = 56, y = 10;   // 1 个会话即可出结论：这里只剩没有会话 / 取不到 / 暂不计算三种空态，环不再表示进度
-    const relax = peRelax([per[0], per[1]]);
+    const relax = peRelax([per[0], per[1]]).filter((r) => r.n > L.length);   // only filters whose removal adds sessions (D)
+    const more = relax.some((r) => r.k !== 'period'), wider = relax.some((r) => r.k === 'period');
     return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--font-num)" fill="var(--ink-1)">' + L.length + '</text></svg><div class="col" style="flex:1;min-width:240px">' +
       (allOff ? '<h2 class="serif" style="margin:0;font-size:24px">所有数据源已停用</h2><p style="margin:0;color:var(--ink-2)">人格需要会话数据。到「设置 › 数据源」重新启用至少一个 Agent，分析会立即恢复。</p><div class="row"><button type="button" class="btn p" data-act="openSettings" data-tab="sources">打开设置 · 数据源</button></div>'
         : L.length ? '<h2 class="serif" style="margin:0;font-size:24px">' + (p.error ? '画像暂时取不到' : '当前筛选下暂不计算画像') + '</h2><p style="margin:0;color:var(--ink-2)">' + (p.error ? '稍后会自动重试，也可以换一个统计周期。' : '换一个统计周期，或清除 Agent / 项目筛选。') + '</p><div class="row" style="flex-wrap:wrap"><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>'
-        : '<h2 class="serif" style="margin:0;font-size:24px">当前筛选下还没有会话</h2><p style="margin:0;color:var(--ink-2)">有 1 个会话就能给出协作人格。' + (relax.length ? '放宽下面任一筛选可以补到：' : '可以放宽筛选，或换一个统计周期。') + '</p>' +
+        : '<h2 class="serif" style="margin:0;font-size:24px">当前筛选下还没有会话</h2><p style="margin:0;color:var(--ink-2)">有 1 个会话就能给出协作人格。' + (relax.length ? '放宽下面任一筛选可以补到：' : '会话还不够，继续使用 Orbit 就会积累。') + '</p>' + peScopeTag(per) +
         (relax.length ? '<div class="pe-relax">' + relax.map((r) => '<button type="button" class="chip on" data-act="peRelax" data-k="' + r.k + '">' + esc(r.t) + ic('x', 12) + '<b class="mono" style="color:' + (r.n >= 1 ? 'var(--good)' : 'var(--ink-3)') + '">移除后 n≈' + r.n + '</b></button>').join('') + '</div>' : '') +
-        '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>') +
+        (more || wider ? '<div class="row" style="flex-wrap:wrap">' + (more ? '<button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button>' : '') + (wider ? '<button type="button" class="btn' + (more ? '' : ' p') + '" data-act="period" data-v="all">看全部历史</button>' : '') + '</div>' : '')) +
       '</div></div></div>';
   }
   CUR.persona = p;
@@ -6230,7 +6311,7 @@ PAGES.persona = () => {
   const metaFull = filt + '基于 ' + L.length + ' 个会话 · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + per[2] + (note ? ' · ' + note : '');
   return tbar('协作人格', '<span title="' + esc(metaFull) + '">' + filt + L.length + ' 个会话 · ' + per[2] + '</span>', right) +
     '<div class="content" id="content"><div class="stack">' +
-    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
+    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + peScopeTag(per) + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
     '<p class="pe-line"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
@@ -6263,7 +6344,7 @@ PAGES.persona.after = () => {
   VZ.mount('pe-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: peAxisRows(p, prev), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], format: peNum, refLabel: S.persona.vs === 'pop' ? '全体用户（示例）' : '上月', axis: false, rowH: 34, barH: 10, legend: false, animate: false, onSelect: () => ACT.axisJump() });
   const months = CUR.peMonths || [];
   VZ.mount('pe-evo', { type: 'line', title: '四个维度 · 逐月', height: 150, legend: 'top', animate: false, points: true, endLabels: false, x: { values: months.map((m) => m.lbl.slice(5) + ' 月') }, y: { min: 0, max: 100, format: 'int', ticks: 4 }, refs: [{ y: 50 }],
-    series: [['D', '自主 D', 'var(--ink-1)', false], ['I', '结构 I', 'var(--ink-2)', true], ['M', '并发 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
+    series: [['D', '委托 D', 'var(--ink-1)', false], ['I', '即兴 I', 'var(--ink-2)', true], ['M', '多线 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
 };
 TIPS.axis = (i) => { const p = CUR.persona; if (!p) return ''; const a = axisView(p, +i); return '<b>' + a.ax.dim + '：' + a.ax.L + ' ' + a.ax.Ln + ' ↔ ' + a.ax.R + ' ' + a.ax.Rn + '</b>\n' + a.ax.q + '\n<span style="opacity:.8">信号：' + a.ax.sig + '</span>'; };
 Object.assign(ACT, {
@@ -7636,7 +7717,7 @@ Object.assign(ACT, {
 });
 
 /* ============ shared bits for overlays ============ */
-S.attn = new Set(); S.numOnly = false; S.login = true; S.weekly = true; S.shareDark = true; S.shareNoNum = false;
+S.attn = new Set(); S.numOnly = false; S.login = false; S.weekly = true; S.shareDark = true; S.shareNoNum = false;
 S.rep = new Set(['ov', 'persona', 'proj', 'fric', 'recs']); S.addSrc = false; S.addSrcFmt = 'jsonl'; S.ruleTest = false;
 S.rules['自定义正则 2 条'] = true;
 S.ruleSample = 'cd /Users/alex/Projects/demo && git push\n联系 alex@example.com，token = sk-demo-0000aaaa1111\n服务器 192.168.1.20，构建机 build-01.local\n电话 13800001234，内部代号-X7，工号 004213';
@@ -7654,6 +7735,28 @@ let HUD_T = 0, OVL = null, SIMT = null, ASKT = null;
 // page guide (「这页回答」, inserted by 37-motion.js's render hook, which runs before this one): the full sentence is also its
 // tooltip, so the line can stay one short row — on narrow content columns the 「先看 …」 half is hidden (90-responsive.css)
 RENDER_HOOKS.push((m) => { const t = m.querySelector('.pg-guide-t'); if (t && !t.dataset.tip) t.dataset.tip = t.textContent.replace(/^这页回答/, '这页回答：'); });
+
+// #modal is role=dialog + aria-modal: name it after its sheet title (the palette, which has none, is「命令面板」), and when a
+// sheet closes with nothing to return to (opened from a host command while <body> had the focus), the keyboard continues in
+// the settings window if it is the key window, else on the page title, instead of falling back to <body>.
+{
+  const baseOpen = openModal, baseClose = closeModal;
+  openModal = function (html, cls) {
+    baseOpen(html, cls);
+    const m = $('#modal'); const h = m.querySelector('.mh h2');
+    if (h) { h.id = 'modalTitle'; m.setAttribute('aria-labelledby', 'modalTitle'); m.removeAttribute('aria-label'); }
+    else { m.removeAttribute('aria-labelledby'); m.setAttribute('aria-label', /\bpal\b/.test(cls || '') ? '命令面板' : '对话框'); }
+  };
+  closeModal = function () {
+    const was = !$('#modal').hidden;
+    baseClose();
+    if (!was) return;
+    $('#modal').removeAttribute('aria-labelledby'); $('#modal').removeAttribute('aria-label');
+    const a = document.activeElement; if (a && a !== document.body && a.isConnected) return;
+    if (!$('#set').hidden && S.keyWin === 'set' && typeof setFocusIn === 'function') { setFocusIn(); return; }
+    const t = $('#main .tbar h1'); if (t) { t.tabIndex = -1; t.focus({ preventScroll: true }); }
+  };
+}
 
 /* ============ install flow: preview → confirm → written (undo countdown) → 7-day tracking ============ */
 // INST is the open sheet; LAST_INSTALL the one ⌘Z / the toast can still undo; S.instLog the install / undo records
@@ -7879,7 +7982,7 @@ function askAnswer(ctx, i) {
   if (ctx === 'persona') {
     if (!p.ok) return '所选范围还没有会话，暂时不判断类型。';
     const ax = AXES.map((a, k) => axisView(p, k)).sort((a, b) => b.strong - a.strong);
-    if (i === 0) return '依据 ' + p.n + ' 个会话：\n\n' + AXES.map((a, k) => { const v = axisView(p, k); return '· ' + a.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '%（信号：' + a.sig + '）'; }).join('\n') + '\n\n最鲜明的是「' + ax[0].name + '」（' + ax[0].strong + '%），最接近中间的是「' + ax[3].name + '」（' + ax[3].strong + '%）。';
+    if (i === 0) return '依据 ' + p.n + ' 个会话：\n\n' + AXES.map((a, k) => { const v = axisView(p, k); return '· ' + a.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '（信号：' + a.sig + '）'; }).join('\n') + '\n\n最鲜明的是「' + ax[0].name + '」（' + ax[0].strong + '），最接近中间的是「' + ax[3].name + '」（' + ax[3].strong + '）。';
     if (i === 1) { const c = { D: '委托多：吞吐高，但方向一错代价也大', S: '掌舵多：方向稳，但你的时间被大量小指令占用', I: '即兴多：启动快，但更容易中途改向', P: '规划多：返工少，但前期投入大', M: '多线并行：产出多，但并行会话互相冲突的风险更高', F: '专注单线：质量稳，但等待 Agent 的时间更长', V: '验收严：结果可靠，但会花更多时间检查', T: '信任多：节奏快，但问题更晚才暴露' }; return '类型没有好坏，只有取舍。' + p.code + ' ' + p.zh + ' 的取舍是：\n\n' + p.code.split('').filter((x) => c[x]).map((x) => '· ' + c[x]).join('\n') + '\n\n不必换类型，把代价最高的环节前置成规则就行。可以从「' + (recs[0] ? recs[0].title : '—') + '」开始。'; }
     return '你的盲点主要在「' + (fr[0] ? fr[0][0] : '—') + '」' + (fr[1] ? '和「' + fr[1][0] + '」' : '') + '。\n\n建议：\n· ' + (fr[0] && FRIC_RULE[fr[0][0]] ? FRIC_RULE[fr[0][0]] : '在首条消息里写清完成条件') + '\n· ' + recs.slice(0, 2).map((r) => r.title).join('\n· ');
   }
@@ -7970,11 +8073,22 @@ function openAbout() {
   if (LV.live) { openAboutLive(); return; }
   openModal(modalHead('关于这个 Demo', 'Orbit 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI Hackathon 产品（暂定名 Orbit / 同频）的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>名称、MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
 }
+// 「你」follows the persona page: same period (S.persona.period, default 近 90 天) and the same answer (live persona when the
+// page uses it), labelled with that period. Axis names are the pole words the persona page uses (委托 / 即兴 / 多线 / 求证).
+const METHOD_POLE = { D: '委托', I: '即兴', M: '多线', V: '求证' };
+function methodPersona() {
+  try {
+    const key = PERIODS[S.persona.period] ? S.persona.period : '90'; const per = PERIODS[key];
+    const L = personaScope([per[0], per[1]]);
+    const p = LV.live && L.length >= 30 && !lvHasUnits(L) ? LV.personaFor(key, L) : persona(L);
+    return { p: p || { ok: false }, label: per[2] };
+  } catch (e) { return { p: personaNow(), label: '默认时间范围' }; }
+}
 function openMethod() {
-  const p = personaNow();
+  const mp = methodPersona(); const p = mp.p;
   openModal(modalHead('协作人格如何计算', '四个维度各取一极，组成 16 型 · 1 个会话即可出结论，样本越多越准') +
-    '<div class="mb col" style="gap:14px">' + AXES.map((ax, i) => { const v = p.ok ? axisView(p, i) : null; return '<div class="col" style="gap:3px"><div class="row" style="gap:8px;flex-wrap:wrap"><b class="mono" style="font-size:13px;min-width:36px">' + ax.L + ' / ' + ax.R + '</b><b style="font-size:13px">' + ax.dim + '：' + ax.Ln + ' ↔ ' + ax.Rn + '</b>' + (v ? '<span class="mono cap" style="margin-left:auto">你：' + v.letter + ' ' + v.name + ' ' + v.strong + '%</span>' : '') + '</div><span class="cap" style="font-size:12px">' + ax.q + ' 信号：' + ax.sig + '</span></div>'; }).join('') +
-    '<div class="code" style="padding:10px 12px;white-space:pre-wrap;font-size:12px;line-height:1.7">委托度 D = 50 + (自主比 − 8) × 5.8\n规划度 P、求证度 V = 各项目特征按协作时长加权\n并发度 M = 20 + 7 × 日均会话 + 5 × 日均 Agent 数 − 6\n每个维度以 50 为界：≥ 50 取 D / I / M / V，< 50 取 S / P / F / T（恰好 50 归前者）\n始终给出完整 4 字母；少于 30 个会话时置信度标「低」</div>' +
+    '<div class="mb col" style="gap:14px">' + AXES.map((ax, i) => { const v = p.ok ? axisView(p, i) : null; return '<div class="col" style="gap:3px"><div class="row" style="gap:8px;flex-wrap:wrap"><b class="mono" style="font-size:13px;min-width:36px">' + ax.L + ' / ' + ax.R + '</b><b style="font-size:13px">' + METHOD_POLE[ax.k] + '</b><span class="cap" style="font-size:12px">' + ax.Ln + ' ↔ ' + ax.Rn + '</span>' + (v ? '<span class="mono cap" style="margin-left:auto" data-method="you">你 · ' + esc(mp.label) + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '</span>' : '') + '</div><span class="cap" style="font-size:12px">' + ax.q + ' 信号：' + ax.sig + '</span></div>'; }).join('') +
+    '<div class="code" style="padding:10px 12px;white-space:pre-wrap;font-size:12px;line-height:1.7">委托 D = 50 + (自主比 − 8) × 5.8\n即兴 I、求证 V = 各项目特征按协作时长加权\n多线 M = 20 + 7 × 日均会话 + 5 × 日均 Agent 数 − 6\n「你」一栏是偏向那一极的强度（50–100），不是百分比\n每个维度以 50 为界：≥ 50 取 D / I / M / V，< 50 取 S / P / F / T（恰好 50 归前者）\n始终给出完整 4 字母；少于 30 个会话时置信度标「低」</div>' +
     '<div class="eb">16 型 · 点击查看</div><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">' + Object.keys(TYPES).map((k) => '<button type="button" data-act="typeInfo" data-k="' + k + '" style="border-radius:8px;padding:6px 8px;text-align:left;display:flex;flex-direction:column;gap:1px;' + (p.ok && p.code === k ? 'border:1.5px solid var(--ink-1);background:var(--surface)' : 'border:1px solid var(--line);background:var(--bg)') + '"><b class="mono" style="font-size:12px;letter-spacing:.04em">' + k + '</b><span style="font-size:12px;color:var(--ink-2)">' + TYPES[k][0] + '</span></button>').join('') + '</div><div id="typeLine" style="min-height:20px;font-size:13px;line-height:20px;color:var(--ink-2)">' + (p.ok ? '<b style="color:var(--ink-1)">' + p.code + ' ' + p.zh + '</b>：' + esc(p.line) : '点击任一类型查看描述') + '</div></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">维度信号与权重是初版设想，待真实数据校准</span><button type="button" class="btn" data-act="openSettings" data-tab="analysis">分析设置</button><button type="button" class="btn p" data-act="closeModal">知道了</button></div>', 'wide');
 }
 Object.assign(ACT, {
@@ -8001,7 +8115,7 @@ function reportMD() {
   if (S.rep.has('ov')) out.push('## 概览', '', '| 指标 | 数值 |', '| --- | ---: |', '| 会话 | ' + fmt(st.n) + ' |', '| 协作时长 | ' + f1(st.hours) + ' 小时 |', '| 你的消息 | ' + fmt(st.msgs) + ' |', '| 自主比 | ' + f1(st.auto) + '× |', '| 摩擦率 | ' + f1(st.fric) + '% |', '| 完成率 | ' + Math.round(st.ok) + '% |', '');
   if (S.rep.has('persona')) {
     out.push('## 协作人格', '', p.ok ? '**' + p.code + ' · ' + p.zh + '**（' + p.en + '）：' + p.line + (fn ? '　—　' + (personaScopeNote() || '按上面的筛选计算') + '，' + p.n + ' 个会话' : '') : '所选范围还没有会话，暂不判断。', '');
-    if (p.ok) { AXES.forEach((ax, i) => { const v = axisView(p, i); out.push('- ' + ax.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '%'); }); out.push(''); }
+    if (p.ok) { AXES.forEach((ax, i) => { const v = axisView(p, i); out.push('- ' + ax.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong); }); out.push(''); }
   }
   if (S.rep.has('proj')) { out.push('## 项目', '', '| 项目 | 会话 | 时长 | 自主比 | 摩擦率 |', '| --- | ---: | ---: | ---: | ---: |'); projRows(L).filter((r) => r.st.n).sort((a, b) => b.st.hours - a.st.hours).slice(0, 6).forEach((r) => out.push('| ' + r.p.name + ' | ' + r.st.n + ' | ' + f1(r.st.hours) + 'h | ' + f1(r.st.auto) + '× | ' + f1(r.st.fric) + '% |')); out.push(''); }
   if (S.rep.has('fric')) { out.push('## 主要摩擦', ''); Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).slice(0, 4).forEach((f, i) => out.push((i + 1) + '. ' + f[0] + '：' + f[1] + ' 个会话')); out.push(''); }
@@ -8742,6 +8856,9 @@ const RULE_RE = {
 const ENGINE_TXT = { stats: '只做计数与时序统计。语义主题、情绪曲线、AI 解读与生成工坊都不可用。', agent: '语义分析交给你本机的 Agent（默认 Claude Code），用它自己的登录与额度；Orbit 只传结构化摘要。', ollama: '用本机模型（如 qwen3:8b）做语义分析，完全离线但较慢；生成工坊仍然需要本地 Agent。' };
 const NEV = [['waiting', '有会话等你确认'], ['done', '会话完成（超过 10 分钟的）'], ['stuck', '同一命令连续失败 / 长时间无进展'], ['ctx', '上下文即将压缩'], ['weekly', '每周报告已生成']];
 const NEV_COL = [['横幅', '右上角滑入，7 秒后自动收起'], ['悬浮组件', '胶囊切换为该事件的状态'], ['菜单栏角标', '图标角标变色 / 变形']];
+// 菜单栏角标 exists in the browser demo (simulated menu bar) and in a shell that implements statusBadge; elsewhere the column hides
+const badgeOn = () => !(window.ORBIT && window.ORBIT.native && window.ORBIT.native.isNative) || NATV.has('statusBadge');
+const nevCols = () => (badgeOn() ? [0, 1, 2] : [0, 1]);
 // what leaves the machine when the analysis engine is a local Agent or model (settings › 分析 › AI 通道)
 S.aiCh = S.aiCh || { sum: true, snip: true, raw: false };
 const AI_CH = [['sum', '结构化摘要', '计数、时序、工具名、结果；不含任何原文'], ['snip', '脱敏后的片段', '关键时刻前后各 2 条消息，先过脱敏规则'], ['raw', '完整原文', '仅本机模型（Ollama）可选；本地 Agent 通道始终关闭']];
@@ -8752,16 +8869,92 @@ function redact(text) {
   Object.keys(RULE_RE).forEach((k) => { if (!S.rules[k]) return; const rr = RULE_RE[k]; t = t.replace(rr[0], (...m) => { n++; const pre = rr[1].startsWith('$1') ? m[1] : ''; return pre + '\u0001' + rr[1].replace('$1', '') + '\u0002'; }); });
   return { n, html: esc(t).replace(/\u0001/g, '<mark class="rd">').replace(/\u0002/g, '</mark>') };
 }
+// Native capabilities of the shell (contract: native-shell batch). A control shows only when the host lists the feature in
+// __ORBIT_NATIVE__.features and a message handler exists; in a browser or an older shell the row is hidden, never broken.
+// NATV.ask(type, payload, ms, ev) posts {type, id, ...} (Orbit.swift answers with the same id) and resolves the reply event
+// 'tandem:<type>' (or ev, e.g. notify → 'tandem:notified'); no reply within ms rejects with code 'timeout'.
+const NATV = {
+  on() { const n = window.ORBIT && window.ORBIT.native; return !!(n && n.isNative && n.hasHost()); },
+  has(f) { const n = window.ORBIT && window.ORBIT.native; return NATV.on() && n.has(f); },
+  seq: 0,
+  ask(type, payload, ms, ev) {
+    const n = window.ORBIT && window.ORBIT.native;
+    if (!NATV.on()) return Promise.reject(Object.assign(new Error('no host'), { code: 'no_host' }));
+    const id = (payload && payload.id != null) ? payload.id : type + '-n' + (++NATV.seq) + '-' + Date.now().toString(36);
+    return new Promise((resolve, reject) => {
+      const evs = ['tandem:' + type, ev || 'tandem:reply'];
+      const done = (fn, v) => { evs.forEach((x) => window.removeEventListener(x, h)); clearTimeout(t); fn(v); };
+      const h = (e) => { const d = (e && e.detail) || {}; if (d.id === id) done(resolve, d); };
+      const t = setTimeout(() => done(reject, Object.assign(new Error('timeout'), { code: 'timeout' })), ms || 4000);
+      evs.forEach((x) => window.addEventListener(x, h));
+      if (!n.post(type, Object.assign({}, payload || {}, { id }))) done(reject, Object.assign(new Error('no host'), { code: 'no_host' }));
+    });
+  },
+  // 登录时启动: the switch mirrors SMAppService; S.login stays false until the host answered
+  loginGet() {
+    if (!NATV.has('loginItem')) return;
+    NATV.ask('loginItem', { op: 'get' }).then((r) => { S.login = !!r.enabled; S.loginStatus = r.status || null; renderSet(); }, () => { /* older host: keep off */ });
+  },
+  loginSet() {
+    if (!NATV.has('loginItem') || S.loginBusy) return;
+    const prev = !!S.login, to = !prev; S.login = to; S.loginBusy = true; renderSet();
+    const fail = (why) => { S.login = prev; toast('没能' + (to ? '开启' : '关闭') + '登录时启动' + (why ? '：' + why : '')); };
+    NATV.ask('loginItem', { op: 'set', enabled: to }).then((r) => {
+      S.loginStatus = r.status || null;
+      if (r.ok === false || (r.enabled != null && !!r.enabled !== to)) fail(r.reason || r.error || (r.status === 'requiresApproval' ? '需要在「系统设置 › 通用 › 登录项」中允许 Orbit' : ''));
+      else if (r.status === 'requiresApproval') toast('请在「系统设置 › 通用 › 登录项」中允许 Orbit');
+    }, (e) => fail(e.code === 'timeout' ? '系统没有响应' : e.message)).then(() => { S.loginBusy = false; renderSet(); });
+  },
+  // system notification permission (settings › 通知)
+  notifGet() {
+    if (!NATV.has('notificationStatus')) return;
+    NATV.ask('notificationStatus', {}).then((r) => { const v = r.status || r.value; if (v && v !== S.notifAuth) { S.notifAuth = v; renderSet(); } }, () => { /* unknown */ });
+  }
+};
+S.loginStatus = null; S.notifAuth = null;
 // settings › 数据源 / 隐私 rows; live mode (97-live-studio-settings.js) swaps these for the gateway's sources and rules
 let srcRows = () => AG.map((a) => ({ name: a.name, ver: a.ver, path: a.path, n: fmt(a.all), st: SRC_ST[a.id] || ['—', 'minus', 'var(--ink-3)', '—'], on: !S.srcOff.has(a.id), t: a.t, c: a.c, attrs: ' data-a="' + a.id + '"' }));
 let srcMissing = () => (S.extraSrc.some((x) => /cursor/i.test(x.name)) ? [] : [{ name: 'Cursor', v: 'Cursor', hint: '未检测到 · 可以手动指定数据库位置' }]);
-let srcIndexed = () => fmt(2416 + S.extraSrc.length * 37);
+let srcIndexed = () => '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话';
 let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE[k] ? RULE_RE[k][1].replace('$1', '') : '', on: S.rules[k], locked: false }));
 // A sheet left open by the previous tab (工具名映射表, 协作人格如何计算 …) or by the main window would cover the settings window and
 // swallow every pointer event, so opening settings or switching tabs closes it first (palette excluded: it has no host).
 function setDropSheet() { if (!$('#modal').hidden && MODAL_HOST) closeModal(); tipOff(); }
-function openSettings(tab) { if (tab) S.setTab = tab; S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
-function closeSettings() { if (MODAL_HOST === $('#set')) closeModal(); $('#set').hidden = true; S.keyWin = 'main'; keyWinApply(); }
+// The settings window is a dialog (role, name from its title) that takes the focus when it opens, keeps Tab inside itself
+// while it is the key window, and gives the focus back to whatever opened it (⌘, / palette / menu button) when it closes.
+let SET_OPENER = null, SET_OPENER_SEL = null;
+// a selector that finds the opener again after a render replaced it (the toolbar and sidebar are redrawn on every render)
+const setOpenerSel = (a) => { if (!a || !a.tagName) return null; if (a.id) return '#' + CSS.escape(a.id); const act = a.dataset && a.dataset.act; if (!act) return null; return a.tagName.toLowerCase() + '[data-act="' + act + '"]' + (a.dataset.v != null ? '[data-v="' + a.dataset.v + '"]' : '') + (a.classList[0] ? '.' + CSS.escape(a.classList[0]) : ''); };
+const setFocusables = () => $$('#set button:not([disabled]), #set input:not([disabled]), #set textarea:not([disabled]), #set select:not([disabled]), #set a[href], #set [tabindex]:not([tabindex="-1"])').filter((x) => x.offsetParent !== null || x === document.activeElement);
+function setFocusIn() { const el = $('#set'); if (el.hidden) return; const f = el.querySelector('[role="tab"][aria-selected="true"]') || setFocusables()[0]; if (f) f.focus({ preventScroll: true }); }
+function openSettings(tab) {
+  const el = $('#set'); const a = document.activeElement;
+  if (el.hidden) { SET_OPENER = a && a !== document.body && !el.contains(a) ? a : null; SET_OPENER_SEL = setOpenerSel(SET_OPENER); }
+  if (tab) S.setTab = tab; NATV.loginGet(); if (S.setTab === 'notify') NATV.notifGet();
+  S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-labelledby', 'setName setTitle'); el.removeAttribute('aria-label');
+  el.hidden = false; render(); setPlace(); keyWinApply();
+  if (!el.contains(document.activeElement)) setFocusIn();
+}
+function closeSettings() {
+  if (MODAL_HOST === $('#set')) closeModal();
+  const el = $('#set'); const had = el.contains(document.activeElement);
+  el.hidden = true; S.keyWin = 'main'; keyWinApply();
+  let o = SET_OPENER; const sel = SET_OPENER_SEL; SET_OPENER = null; SET_OPENER_SEL = null;
+  if (o && !o.isConnected && sel) o = $$(sel).find((x) => x.offsetParent !== null) || null;
+  if (o && o.isConnected && o.offsetParent !== null) { try { o.focus({ preventScroll: true }); return; } catch (e) { /* fall through */ } }
+  if (had || document.activeElement === document.body) { const h = $('#main .tbar h1'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
+}
+document.addEventListener('keydown', (e) => {
+  const el = $('#set'); if (!el || el.hidden || S.keyWin !== 'set' || !$('#modal').hidden || (typeof OVL !== 'undefined' && OVL)) return;
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); closeSettings(); return; }
+  if (e.key !== 'Tab') return;
+  const fs = setFocusables(); if (!fs.length) return;
+  const i = fs.indexOf(document.activeElement);
+  if (i < 0) { e.preventDefault(); (e.shiftKey ? fs[fs.length - 1] : fs[0]).focus(); }
+  else if (!e.shiftKey && i === fs.length - 1) { e.preventDefault(); fs[0].focus(); }
+  else if (e.shiftKey && i === 0) { e.preventDefault(); fs[fs.length - 1].focus(); }
+}, true);
 /* centred horizontally, 60px under the menu bar (or wherever it was dragged to), always fully inside the stage */
 function setPlace() {
   const el = $('#set'); if (el.hidden) return;
@@ -8779,7 +8972,7 @@ function renderSet() {
   const card = (title, sub, inner, right) => '<div class="card"><div class="row set-ch"><div style="flex:1;min-width:200px"><div class="ct">' + title + '</div>' + (sub ? '<div class="cap set-cs">' + sub + '</div>' : '') + '</div>' + (right || '') + '</div><div class="set-cb">' + inner + '</div></div>';
   let body = '';
   if (t === 'general') {
-    body = card('外观与组件', '', '<div class="form">' + row('外观', seg('setTheme', S.theme, [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']], '外观')) + row('悬浮组件', swBtn(S.hud.show, 'setHud', '', '悬浮组件'), kb('⌥⌘P') + ' 显示或隐藏 · 拖动吸附到 6 个位置，按住 ⌥ 自由放置') + row('桌面小组件', swBtn(S.widgets, 'setWidgets', '', '桌面小组件'), '<span data-tip="屏幕宽度不小于 1500 时主窗口默认让出左侧一列；更窄时小组件在主窗口之下，移动或缩小主窗口可以看到">显示在桌面层，主窗口之下 · 宽屏时主窗口让出左侧一列</span>') + row('小组件尺寸', seg('wgSize', S.wgSize || 'm', WG_SIZES, '小组件尺寸'), '小：人格、今日 · 中：+ 本周、建议 · 大：+ 运行中、7 天趋势') + row('小组件只显示数字', swBtn(S.numOnly, 'setNumOnly', '', '小组件只显示数字'), '隐藏项目名与会话标题，适合录屏与演示') + row('登录时启动', swBtn(S.login, 'setLogin', '', '登录时启动'), '只在菜单栏常驻，不打开主窗口') + '</div>') +
+    body = card('外观与组件', '', '<div class="form">' + row('外观', seg('setTheme', S.theme, [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']], '外观'), S.theme === 'system' ? '默认跟随 macOS 的浅色 / 深色' : '只影响 Orbit，不改变系统外观' + (NATV.has('appearance') ? '（Orbit 的面板、对话框与菜单栏弹窗一并切换）' : '')) + row('悬浮组件', swBtn(S.hud.show, 'setHud', '', '悬浮组件'), kb('⌥⌘P') + ' 显示或隐藏 · 拖动吸附到 6 个位置，按住 ⌥ 自由放置') + row('桌面小组件', swBtn(S.widgets, 'setWidgets', '', '桌面小组件'), '<span data-tip="屏幕宽度不小于 1500 时主窗口默认让出左侧一列；更窄时小组件在主窗口之下，移动或缩小主窗口可以看到">显示在桌面层，主窗口之下 · 宽屏时主窗口让出左侧一列</span>') + row('小组件尺寸', seg('wgSize', S.wgSize || 'm', WG_SIZES, '小组件尺寸'), '小：人格、今日 · 中：+ 本周、建议 · 大：+ 运行中、7 天趋势') + row('小组件只显示数字', swBtn(S.numOnly, 'setNumOnly', '', '小组件只显示数字'), '隐藏项目名与会话标题，适合录屏与演示') + (NATV.has('loginItem') ? row('登录时启动', swBtn(S.login, 'setLogin', S.loginBusy ? ' disabled' : '', '登录时启动'), S.loginStatus === 'requiresApproval' ? '等待你在「系统设置 › 通用 › 登录项」中允许' : '登录 Mac 时自动打开 Orbit') : '') + '</div>') +
       card('统计', '', '<div class="form">' + row('默认时间范围', seg('setRange', String(S.range), [['7', '7 天'], ['30', '30 天'], ['90', '90 天'], ['0', '全部']], '默认时间范围')) + row('键盘快捷键', '<button type="button" class="btn sm" data-act="openKeys">查看全部</button>') + '</div>');
   } else if (t === 'sources') {
     body = card('已检测到的 Agent', '自动扫描默认目录 · 只读会话日志，不读凭据文件', srcRows().map((r) => '<div class="srcrow" style="opacity:' + (r.on ? 1 : 0.55) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + r.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + r.c) + '</span><div style="min-width:0"><div class="row" style="gap:6px;flex-wrap:wrap"><b style="font-size:13px">' + r.name + '</b><span class="mono cap" style="font-size:11px">' + r.ver + '</span><span class="row" style="gap:3px;font-size:11px;color:' + r.st[2] + '">' + ic(r.st[1], 12) + r.st[0] + '</span></div><div class="mono cap" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + r.path + ' · ' + r.n + ' 个会话</div></div><span class="mono cap when" style="font-size:11px">' + r.st[3] + '</span>' + swBtn(r.on, 'setSrc', r.attrs, '启用 ' + r.name) + '</div>').join('') +
@@ -8788,7 +8981,7 @@ function renderSet() {
       (S.addSrc ? '<div class="col" style="gap:10px;margin-top:10px;padding:12px;border-radius:10px;background:var(--sunken)"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><label class="l" for="srcName">名称</label><input id="srcName" value="' + esc(S.addSrc === 'Cursor' ? 'Cursor' : '导出的聊天记录') + '" style="' + FIELD + '"><label class="l" for="srcPath">位置</label><input id="srcPath" value="' + esc(S.addSrc === 'Cursor' ? '~/Library/Application Support/Cursor/User/workspaceStorage' : '~/Documents/chat-export') + '" style="' + FIELD + ';font-family:var(--font-mono)"><span class="l">格式</span>' + seg('setParser', S.addSrcFmt, [['jsonl', 'JSONL'], ['sqlite', 'SQLite'], ['md', 'Markdown 导出']], '格式') + '</div><div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="setAddCancel">取消</button><button type="button" class="btn sm p" data-act="setAddDo">添加并索引</button></div></div>' : ''),
       '<button type="button" class="btn sm" data-act="setMap">工具名映射表</button>') +
       '<div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-act="setAddSrc">' + ic('plus', 14) + '添加自定义来源…</button><span class="cap" style="font-size:11px">支持 JSONL、SQLite、Markdown 导出</span></div>' +
-      card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), '暂停后菜单栏图标不显示状态角标，也不产生任何事件') + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', '已索引 ' + srcIndexed() + ' 个会话') + '</div>');
+      card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), (badgeOn() ? '暂停后菜单栏图标不显示状态角标，也不产生任何事件' : '暂停后不产生任何事件')) + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', srcIndexed()) + '</div>');
   } else if (t === 'privacy') {
     const rd = redact(S.ruleSample);
     body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Orbit 的数据库', ruleRows().map((r) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + r.label + '</span><span class="mono cap" style="font-size:11px">' + esc(r.ph) + '</span>' + swBtn(r.on, 'setRule', ' data-k="' + esc(r.k) + '"' + (r.locked ? ' disabled' : ''), String(r.label).replace(/<[^>]*>/g, '').trim()) + '</div>').join('') +
@@ -8806,13 +8999,22 @@ function renderSet() {
   } else if (t === 'notify') {
     // each column is its own channel: a row with only 悬浮组件 ticked changes the HUD and nothing else (BUG-40)
     const nOn = (c) => NEV.filter((e) => S.notif[e[0]][c]).length;
-    body = card('投递矩阵', '默认克制：只在需要你动作或有明确结果时打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + NEV_COL.map((c, i) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + [0, 1, 2].map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + NEV_COL.map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="cap" style="font-size:11px;margin-top:6px">每列独立生效 · 用菜单栏「演示」菜单模拟事件即可预览</div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
-      card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div><span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span><div class="row" style="gap:10px;padding-top:6px;border-top:1px solid var(--hair)">' + swBtn(!S.hud.tipOff, 'setTipOn', '', '悬浮组件里的上下文提示') + '<span style="flex:1;min-width:0;font-size:13px">悬浮组件里的上下文提示<span class="cap" style="display:block;font-size:11px">上下文超过 60% 时建议「先总结进度」' + (S.hud.tipOff ? '；已被「不再提示此类」关闭' : '') + '</span></span></div><div><button type="button" class="btn sm" data-act="setTestNotif">发送测试通知</button></div></div>');
+    const AUTH = { authorized: ['已允许', 'var(--good)'], provisional: ['静默投递（临时授权）', 'var(--ink-2)'], denied: ['已关闭', 'var(--warn)'], notDetermined: ['还没有询问过', 'var(--ink-2)'] };
+    const au = AUTH[S.notifAuth] || ['读取中…', 'var(--ink-3)'];
+    const sys = NATV.has('notificationStatus') ? card('系统通知', 'Orbit 不在前台时，横幅改由 macOS 通知中心投递', '<div class="row" data-tl="notif-auth" data-v="' + esc(S.notifAuth || '') + '" style="gap:10px;flex-wrap:wrap"><span style="font-size:13px;color:' + au[1] + '">' + au[0] + '</span>' + (S.notifAuth === 'denied' ? '<button type="button" class="btn sm" data-act="setNotifSys">打开系统设置</button><span class="cap" style="font-size:11px">在「通知 › Orbit」里允许通知</span>' : S.notifAuth === 'notDetermined' ? '<span class="cap" style="font-size:11px">点「预览通知」时系统会询问一次</span>' : '') + '</div>') : '';
+    body = sys + card('投递矩阵', '默认克制：只在需要你动作或有明确结果时打扰', '<div class="scroll-x"><table class="tbl nmx"><thead><tr><th>事件</th>' + nevCols().map((i) => [NEV_COL[i], i]).map(([c, i]) => '<th><span class="col" style="gap:1px;align-items:center"><span>' + c[0] + '</span><span class="cap mono" style="font-size:10px;font-weight:400">' + nOn(i) + ' / ' + NEV.length + '</span></span></th>').join('') + '</tr></thead><tbody>' + NEV.map((e) => '<tr><td>' + e[1] + '</td>' + nevCols().map((c) => '<td><input type="checkbox" data-chg="setNotif" data-e="' + e[0] + '" data-c="' + c + '"' + (S.notif[e[0]][c] ? ' checked' : '') + ' aria-label="' + e[1] + ' · ' + NEV_COL[c][0] + '"></td>').join('') + '</tr>').join('') + '</tbody></table></div><div class="nmx-legend">' + nevCols().map((i) => NEV_COL[i]).map((c) => '<span><b>' + c[0] + '</b> ' + c[1] + '</span>').join('') + '</div><div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap"><span class="cap" style="font-size:11px;flex:1;min-width:160px">每列独立生效 · 点「预览通知」发一条测试通知' + (NATV.has('notify') ? '，Orbit 不在前台时也会出现在通知中心' : '') + '</span><button type="button" class="btn sm" data-act="setTestNotif">' + ic('bell', 13) + '预览通知</button></div>', '<div class="row" style="gap:6px"><button type="button" class="btn sm" data-act="setNotifPreset" data-v="quiet">只留必须的</button><button type="button" class="btn sm" data-act="setNotifPreset" data-v="all">全部打开</button></div>') +
+      card('暂停提醒', '', '<div class="col" style="gap:8px"><div class="row" style="gap:10px">' + swBtn(S.hud.mute, 'setMute', '', '暂停所有提醒') + '<span style="font-size:13px">暂停横幅与悬浮组件提醒</span></div>' + (badgeOn() ? '<span class="cap" style="font-size:11px">菜单栏角标仍然更新，方便你回头查看</span>' : '') + '<div class="row" style="gap:10px;padding-top:6px;border-top:1px solid var(--hair)">' + swBtn(!S.hud.tipOff, 'setTipOn', '', '悬浮组件里的上下文提示') + '<span style="flex:1;min-width:0;font-size:13px">悬浮组件里的上下文提示<span class="cap" style="display:block;font-size:11px">上下文超过 60% 时建议「先总结进度」' + (S.hud.tipOff ? '；已被「不再提示此类」关闭' : '') + '</span></span></div></div>');
   } else {
     body = '<div class="col" style="align-items:center;text-align:center;gap:8px;padding:24px 0"><span class="appicon" style="width:64px;height:64px">' + appIcon(64) + '</span><div style="font-size:22px;font-weight:700">Orbit</div><div class="mono cap">1.0（演示版）· 2026-10-01</div><div style="font-size:13px;color:var(--ink-2)">本地的跨 Agent 会话分析</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px"><button type="button" class="btn sm" data-act="openAbout">' + (LV.live ? '关于 Orbit' : '关于这个 Demo') + '</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button><button type="button" class="btn sm" data-act="obReplay">重新播放首次启动</button><button type="button" class="btn sm" data-act="setUpdate">检查更新</button></div></div>';
   }
-  el.innerHTML = '<div class="ptop"><div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div><span class="ptitle">' + curTab[1] + '</span></div>' +
+    // the App draws real traffic lights on its own windows: inside it the page-drawn ones (yellow / green greyed out) would be a
+  // fake window, so the settings card keeps a plain close button instead (Esc and ⌘W close it as well)
+  const fakeLights = !(window.ORBIT && window.ORBIT.native && window.ORBIT.native.isNative);
+  const keepF = el.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement : null;
+  const keepK = keepF && keepF.dataset.act ? '[data-act="' + keepF.dataset.act + '"]' + (keepF.dataset.v != null ? '[data-v="' + keepF.dataset.v + '"]' : '') + (keepF.dataset.k != null ? '[data-k="' + keepF.dataset.k + '"]' : '') : null;
+  el.innerHTML = '<div class="ptop">' + (fakeLights ? '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="setClose" aria-label="关闭设置"></button><button type="button" class="y" aria-label="最小化" disabled></button><button type="button" class="g" aria-label="缩放" disabled></button></div>' : '<button type="button" class="ib set-x" data-act="setClose" aria-label="关闭设置" data-tip="关闭（Esc）">' + ic('x', 13) + '</button>') + '<span class="vh" id="setName">设置</span><h2 class="ptitle" id="setTitle">' + curTab[1] + '</h2></div>' +
     '<div class="tabs" role="tablist" aria-label="设置分区">' + SET_TABS.map((x) => '<button type="button" role="tab" aria-selected="' + (x[0] === t) + '" data-act="setTab" data-v="' + x[0] + '" class="' + (x[0] === t ? 'on' : '') + '">' + ic(x[2], 18) + x[1] + '</button>').join('') + '</div><div class="body">' + body + '</div>';
+  if (keepK) { const f = el.querySelector(keepK); if (f) f.focus({ preventScroll: true }); }
 }
 function doReset() {
   store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null); store.set('range', null); store.set('wgSize', null);
@@ -8824,13 +9026,13 @@ function resetDemo() {
 }
 Object.assign(ACT, {
   openSettings: (el) => openSettings(el && el.dataset ? el.dataset.tab : undefined),
-  setTab: (el) => { S.setTab = el.dataset.v; setDropSheet(); renderSet(); },
+  setTab: (el) => { S.setTab = el.dataset.v; setDropSheet(); renderSet(); if (S.setTab === 'notify') NATV.notifGet(); },
   setClose: () => closeSettings(),
   setTheme: (el) => { setTheme(el.dataset.v); render(); },
   setHud: () => toggleHud(),
   setWidgets: () => { S.widgets = !S.widgets; render(); },
   setNumOnly: () => { S.numOnly = !S.numOnly; render(); },
-  setLogin: () => { S.login = !S.login; renderSet(); },
+  setLogin: () => NATV.loginSet(),
   setRange: (el) => { S.range = +el.dataset.v; store.set('range', S.range); render(); },
   setSrc: (el) => { const id = el.dataset.a; if (S.srcOff.has(id)) S.srcOff.delete(id); else S.srcOff.add(id); render(); toast(S.srcOff.has(id) ? agent(id).name + ' 已停用：数据在所有页面隐藏，但不删除' : agent(id).name + ' 已重新启用'); },
   setAddSrc: (el) => { S.addSrc = el.dataset.v || '自定义'; S.addSrcFmt = S.addSrc === 'Cursor' ? 'sqlite' : 'jsonl'; renderSet(); const n = $('#srcPath'); if (n) n.focus(); },
@@ -8864,7 +9066,8 @@ Object.assign(ACT, {
   setTipOn: () => { S.hud.tipOff = !S.hud.tipOff; render(); toast(S.hud.tipOff ? '已关闭悬浮组件里的上下文提示' : '已恢复悬浮组件里的上下文提示'); },
   setAiCh: (el) => { const k = el.dataset.k; S.aiCh[k] = !S.aiCh[k]; renderSet(); },
   setMute: () => setHudMuted(!S.hud.mute),
-  setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true }),
+  setTestNotif: () => notify({ t: '测试通知', b: '看到这条，说明通知工作正常。', force: true, system: true }),
+  setNotifSys: () => { if (window.ORBIT && ORBIT.native) ORBIT.native.post('openNotificationSettings', {}); },
   setUpdate: () => toast('已是最新版本（演示）'),
   obReplay: () => openOnboarding(0),
   doReset: () => doReset()
@@ -9152,8 +9355,11 @@ const WG_SIZES = [['s', '小'], ['m', '中'], ['l', '大']];
 function wgPair() { return typeof LV !== 'undefined' && LV.live ? [AG[0] ? AG[0].id : null, AG[1] ? AG[1].id : null] : ['cc', 'cx']; }
 const wgC = (k) => (k && AGI[k] ? AGI[k].c : 'var(--h2)');
 const wgN = (k) => (k && AGI[k] ? AGI[k].short : '—');
+// The native widgets panel (?surface=widgets) always shows them: opening it from the menu is the request, whatever the
+// in-window setting (S.widgets follows the window width there and would leave the panel blank).
+const WG_SURFACE = /[?&]surface=widgets(&|$)/.test(location.search || '');
 function renderWidgets() {
-  const w = $('#widgets'); const on = S.widgets && !S.win.full;
+  const w = $('#widgets'); const on = WG_SURFACE || (S.widgets && !S.win.full);
   w.hidden = !on; if (!on) { w.innerHTML = ''; return; }
   const size = S.wgSize || 'm';
   const p = personaNow();
@@ -9296,6 +9502,10 @@ ACT.studioStart = (el, e) => { if (S.engine === 'stats') { toast('分析引擎�
 // Demo bindings (browser-safe; the App uses ⌘ where noted): ⌥1–9 pages (⌘1–9), ⌥0 main window (⌘0), ⌃⌘S sidebar, ⌃⌘F full
 // screen, ⌘M minimise, ⌘K palette, ⌘, settings, ⇧⌘S share card, ⇧⌘E report, ⌥⌘P HUD, ⌃⌥T panel, ⌥R reindex (⌘R), ⌥T chart/table
 // (⌘T), ⌘F find, ⌘↩ main action, ⌘Z undo install, ⌘[ back, ? shortcuts, Space play/pause (sessions).
+// KB_DID[cmd] = when the page handled a shortcut that the native menu also carries (95-live-native.js LVN.command skips the
+// menu's tandem:command for the same cmd right after, so a key never acts twice whichever side sees it first).
+const KB_DID = {};
+const kbDid = (c) => { KB_DID[c] = Date.now(); };
 document.addEventListener('keydown', (e) => {
   const tg = e.target; const tag = (tg.tagName || '').toLowerCase();
   const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || tg.isContentEditable;
@@ -9333,24 +9543,24 @@ document.addEventListener('keydown', (e) => {
   if (tg.id === 'hudPill' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); S.hud.open = !S.hud.open; renderHud(); const p = $('#hudPill'); if (p) p.focus(); return; }
   if (ovOpen) return;
   if (e.ctrlKey && e.altKey && e.code === 'KeyT') { e.preventDefault(); S.pop = !S.pop; render(); return; }
-  if (e.ctrlKey && e.metaKey && e.code === 'KeyS') { e.preventDefault(); toggleSide(); return; }
+  if (e.ctrlKey && e.metaKey && e.code === 'KeyS') { e.preventDefault(); kbDid('sidebar'); toggleSide(); return; }
   if (e.ctrlKey && e.metaKey && e.code === 'KeyF') { e.preventDefault(); winFullToggle(); return; }
-  if (mod && e.altKey && e.code === 'KeyP') { e.preventDefault(); toggleHud(); return; }
+  if (mod && e.altKey && e.code === 'KeyP') { e.preventDefault(); kbDid('hud'); toggleHud(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyK') { e.preventDefault(); if (MODAL_KEY === 'palette' && modalOpen) closeModal(); else { closeModal(); openPalette(); } return; }
   if (mod && e.key === ',') { e.preventDefault(); closeModal(); openSettings(); return; }
-  if (mod && e.shiftKey && e.code === 'KeyS') { e.preventDefault(); closeModal(); openShare(); return; }
-  if (mod && e.shiftKey && e.code === 'KeyE') { e.preventDefault(); closeModal(); openReport(); return; }
+  if (mod && e.shiftKey && e.code === 'KeyS') { e.preventDefault(); kbDid('share'); closeModal(); openShare(); return; }
+  if (mod && e.shiftKey && e.code === 'KeyE') { e.preventDefault(); kbDid('report'); closeModal(); openReport(); return; }
   if (modalOpen) return;
-  if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyZ' && !typing) { e.preventDefault(); undoInstall(); return; }
-  if (mod && !e.altKey && e.code === 'KeyF') { e.preventDefault(); findCmd(); return; }
-  if (mod && e.key === 'Enter') { e.preventDefault(); mainAction(); return; }
+  if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyZ' && !typing) { e.preventDefault(); kbDid('undo'); undoInstall(); return; }
+  if (mod && !e.altKey && e.code === 'KeyF') { e.preventDefault(); kbDid('find'); findCmd(); return; }
+  if (mod && e.key === 'Enter') { e.preventDefault(); kbDid('mainAction'); mainAction(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyM' && !typing) { e.preventDefault(); ACT.winMin(); return; }
-  if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); goBack(); return; }
+  if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); kbDid('back'); goBack(); return; }
   // in the native App the browser-safe ⌥ bindings also answer to ⌘ (⌘1–9 pages, ⌘0 main window, ⌘T chart / table);
   // ⌘R stays with the App menu (刷新 → tandem:command refresh)
   const appKey = e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && nativeShell();
-  if (appKey && /^Digit[0-9]$/.test(e.code)) { e.preventDefault(); if (e.code === 'Digit0') showMain(); else { const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); } return; }
-  if (appKey && e.code === 'KeyT') { e.preventDefault(); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }
+  if (appKey && /^Digit[0-9]$/.test(e.code)) { e.preventDefault(); kbDid('page'); if (e.code === 'Digit0') showMain(); else { const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); } return; }
+  if (appKey && e.code === 'KeyT') { e.preventDefault(); kbDid('chartTable'); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }
   if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); return; }
   if (e.altKey && !mod && e.code === 'Digit0') { e.preventDefault(); showMain(); return; }
   if (e.altKey && !mod && e.code === 'KeyR') { e.preventDefault(); reindex(); return; }
@@ -9789,6 +9999,20 @@ LV.hydrate = function (spine) {
   if (S.proj.cmp && !PJI[S.proj.cmp]) S.proj.cmp = null;
 };
 
+// first landing (A): when the default range holds no sessions but older history does (a first import of only older
+// sessions), pick the narrowest range that has data (30 → 90 → all) once, instead of every page reading 「没有会话」
+LV.autoRanged = false;
+function lvAutoRange() {
+  if (LV.autoRanged || !ALL.length) return;
+  LV.autoRanged = true;
+  if (S.range === 0 || sel({ noExtra: true }).length) return;
+  const to = [90, 0].find((r) => (r === 0 || r > S.range) && sel({ range: r, noExtra: true }).length);
+  if (to == null) return;
+  const from = rangeLabel();
+  S.range = to;
+  if (typeof toast === 'function') toast(from + '内没有会话，已切换到' + rangeLabel());
+}
+
 let lvSpineAgain = false, lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
 const LV_SECTION = 'uiview_facts';
 LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
@@ -9855,6 +10079,7 @@ LV.loadSpine = function () {
     spine.environment = LV.env.filter((x) => x.installed);
     LV.hydrate(spine);
     LV.state = rows.length ? 'ready' : 'empty';
+    lvAutoRange();
   }, (e) => {
     // 422 analysis_scope_too_large: this window is too big for the machine → 30 days, then 7 (the strip says so)
     if (e && e.code === 'analysis_scope_too_large') {
@@ -10892,7 +11117,8 @@ function lvSearchMerge(out, q, have) {
 /* ============ live: native shell + first run (slice 7) ============
    Native (window.__ORBIT_NATIVE__, any mode): body.native layout (20-window.css), window ops through ORBIT.native.post
    (22-window.js nativeWin), host menu commands (tandem:command → settings / palette / about / keys / onboarding / reveal / report / share / csv / route /
-   toggleEdition / refresh).
+   toggleEdition / refresh / page {n} / sidebar / hud / undo / find / back / mainAction / chartTable / reindex); the page sends
+   menuState {sidebar, pages} so the host titles 显示 / 隐藏侧边栏 and the 前往 menu.
    Live first run: /v1/app/state with no projection or no enabled source opens onboarding by itself; step 1 lists the sources of
    /v1/shell/onboarding (+ /v1/app/discovery) with estimates, 添加文件夹 = LVN.addSource() (native chooseFolder, browser: the
    path field) → POST /v1/app/sources; 开始分析 aligns the sources, PATCHes recent_days and POSTs an import job; job frames
@@ -10912,8 +11138,40 @@ LVN.refresh = function () {
   TL.invalidate(); LV.loadSpine(); TL.changed();
   toast('正在刷新');
 };
+// a shortcut the page itself just handled (85-keyboard.js kbDid) also fired the host menu item: act once
+const LVN_KB = { sidebar: 1, hud: 1, share: 1, report: 1, undo: 1, find: 1, mainAction: 1, back: 1, page: 1, chartTable: 1 };
+// the host asks before routing Edit › 撤销 here: an undoable install, and no text field that owns ⌘Z
+LVN.canUndo = function () {
+  const a = document.activeElement; const tag = ((a && a.tagName) || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || (a && a.isContentEditable)) return false;
+  return typeof LAST_INSTALL !== 'undefined' && !!LAST_INSTALL && typeof instDone === 'function' && !!instDone(LAST_INSTALL);
+};
+// menu titles that follow page state (显示 › 显示 / 隐藏侧边栏): sent to the host whenever they change
+LVN.menuState = function () {
+  if (!ORBIT.native.isNative || ORBIT.native.surface) return;
+  const st = { sidebar: !!S.side, pages: navRoutes().slice(0, 9).map((r) => r[1]) };
+  const k = JSON.stringify(st); if (LVN.lastMenu === k) return;
+  LVN.lastMenu = k; ORBIT.native.post('menuState', st);
+};
+function lvnChartTable() {
+  if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); }
+  else toast('图表 ↔ 表格只在概览页可用');
+}
 LVN.command = function (d) {
   const cmd = d && d.cmd; if (!cmd) return;
+  if (LVN_KB[cmd] && typeof KB_DID !== 'undefined' && KB_DID[cmd] && Date.now() - KB_DID[cmd] < 600) return;
+  if (cmd === 'page') {   // 前往 › page n (⌘1–9) of the edition in use
+    const r = navRoutes()[(+d.n || 0) - 1]; if (!r) return;
+    if (OVL) closeOverlay(); closeModal(); S.winGone = false; go(r[0]); return;
+  }
+  if (cmd === 'sidebar') { toggleSide(); return; }
+  if (cmd === 'hud') { toggleHud(); return; }
+  if (cmd === 'undo') { undoInstall(); return; }
+  if (cmd === 'find') { findCmd(); return; }
+  if (cmd === 'back') { goBack(); return; }
+  if (cmd === 'mainAction') { mainAction(); return; }
+  if (cmd === 'chartTable') { lvnChartTable(); return; }
+  if (cmd === 'reindex') { reindex(); return; }
   if (cmd === 'settings') { closeModal(); openSettings(d.tab || undefined); }
   else if (cmd === 'palette') { closeModal(); openPalette(); }
   else if (cmd === 'about') { closeModal(); openAbout(); }
@@ -10929,10 +11187,17 @@ LVN.command = function (d) {
     const r = String(d.route || '').replace(/^#/, '');
     if (r === 'settings' || /^settings[:/]/.test(r)) { openSettings(r.split(/[:/]/)[1] || undefined); return; }
     if (r === 'onboarding') { openOnboarding(0); return; }
-    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance'); go(r); }
+    if (PAGES[r]) { if (OVL) { closeOverlay(); } closeModal(); S.pop = false; S.winGone = false; if (/^l-/.test(r) !== (S.ed === 'lite')) edSet(/^l-/.test(r) ? 'lite' : 'advance', r); else go(r); }
   }
 };
 ORBIT.native.onCommand((d) => { try { LVN.command(d); } catch (e) { console.error('tandem:command', e); } });
+if (ORBIT.native.isNative && !ORBIT.native.surface) {
+  const lvnBaseSide = toggleSide;
+  toggleSide = function () { const r = lvnBaseSide.apply(this, arguments); LVN.menuState(); return r; };
+  const lvnBaseRender = render;   // edition switches change the 前往 titles
+  render = function () { const r = lvnBaseRender.apply(this, arguments); LVN.menuState(); return r; };
+  setTimeout(() => LVN.menuState(), 0);
+}
 
 /* ---- sources ---- */
 const LVN_PATHS = [[/\.claude\b|claude/i, 'claude_code'], [/\.codex\b|codex/i, 'codex'], [/gemini/i, 'gemini'], [/copilot/i, 'copilot'],
@@ -12476,17 +12741,28 @@ if (TL.mode === 'live') {
     return (seg[0] || '/' + seg[1]) + '/…/' + (tail.length > 32 ? '…' + tail.slice(-31) : tail);
   }
   srcMissing = function () {
-    const ab = TL.resource(R.about).data; const disc = discList() || [];
-    const have = new Set(disc.map((x) => x.agent)); const maps = (ab && ab.components && ab.components.mappers) || [];
-    return maps.filter((k) => !have.has(k)).map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
+    const ab = TL.resource(R.about).data; const disc = discList();
+    if (!disc) return [];   // discovery not answered yet: nothing is known to be missing
+    // discovery and the about mappers spell agents differently (claude / claude_code, dsh / deepseek …): compare UI ids
+    const norm = (k) => lvAgentOf(k).id || k;
+    const have = new Set(disc.map((x) => norm(x.agent)).concat(AG.map((a) => a.id))); const maps = (ab && ab.components && ab.components.mappers) || [];
+    const seen = new Set();
+    return maps.filter((k) => { const id = norm(k); if (have.has(id) || seen.has(id)) return false; seen.add(id); return true; })
+      .map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
   };
-  srcIndexed = function () { const st = TL.resource(R.state).data; const n = st && st.storage && st.storage.counts ? st.storage.counts.sessions : ALL.length; return fmt(n || 0); };
+  // the sidebar counts root sessions (ALL); storage.counts.sessions also counts sub-agent sessions, so it is labelled as such
+  srcIndexed = function () {
+    const st = TL.resource(R.state).data; const all = st && st.storage && st.storage.counts ? +st.storage.counts.sessions || 0 : 0;
+    return '已索引 ' + fmt(ALL.length) + ' 个会话' + (all > ALL.length ? '（含子会话共 ' + fmt(all) + ' 个）' : '');
+  };
 
   // 隐私: rules from GET /v1/privacy/rules; the test box asks POST /v1/privacy/preview (nothing stored)
   ruleRows = function () {
     const d = TL.resource(R.rules).data; if (!d || !d.rules) return [];
-    return d.rules.map((r) => ({ k: r.id, label: esc(r.label) + (r.locked ? ' <span class="cap" style="font-size:11px">始终开启</span>' : ''), ph: r.placeholder || '', on: !!r.enabled, locked: !!r.locked }));
+    return d.rules.map((r) => ({ k: r.id, label: esc(r.label) + (r.locked ? ' <span class="cap" style="font-size:11px">始终开启</span>' : ''), ph: tlsPh(r), on: !!r.enabled, locked: !!r.locked }));
   };
+  // home_user replaces /Users/<name> with「~」: a lone ~ in the mono column reads as a dash, so it shows what it stands for
+  function tlsPh(r) { const ph = r.placeholder || ''; return /user/i.test(r.id || '') && ph.length <= 1 ? '[user] → ' + (ph || '~') : ph || (/user/i.test(r.id || '') ? '[user]' : ''); }
   redact = function (text) {
     const d = TL.resource(R.rules).data; if (!d) return { n: 0, html: esc(text) };
     const p = TLS.rd; if (!p || p.text !== text) { tlsPreviewRules(text); return { n: p ? p.n : 0, html: p ? p.html : esc(text) }; }
@@ -12654,6 +12930,7 @@ if (TL.mode === 'live') {
     base(el, ev);
   });
   wrap('setTestNotif', (base, el, ev) => {
+    TLS.testAt = Date.now();   // the frame of POST /v1/notifications/test (type system) goes to the system as well
     TL.send('POST', '/v1/notifications/test', {}).then(() => { if (!TL.events.connected) base(el, ev); else toast('已发送测试通知'); }, (e) => { if (TL.unavailable(e)) base(el, ev); else tlsErr(e, '发送测试通知'); });
   });
   wrap('setUpdate', () => { const ab = TL.resource(R.about).data; const u = ab && ab.update; toast(u && u.available ? '有新版本 ' + u.available : u && u.checked_at ? '已是最新版本' : '还没有检查过更新'); });
@@ -12675,29 +12952,55 @@ if (TL.mode === 'live') {
   });
 
   /* ---------- notify frames → banner / HUD / 菜单栏角标 ---------- */
-  // in the native shell a banner raised while the window is hidden also goes to the system (notify → UNUserNotification)
+  // In the native shell a banner raised while Orbit is not the focused app (window hidden, or visible on another screen
+  // behind another app) also goes to the system (notify → UNUserNotification). n.system (测试 / 预览通知) always goes, with
+  // force:true, so the first authorisation prompt can appear; a {delivered:false, reason} reply is shown instead of swallowed.
   const tlsNotifyBase = notify;
   notify = function (n) {
     tlsNotifyBase(n);
-    if (ORBIT.native.isNative && document.hidden && !(S.paused && !n.force)) ORBIT.native.post('notify', { id: n.id || undefined, title: n.t || '', body: n.b || '' });
+    if (!ORBIT.native.isNative || (S.paused && !n.force)) return;
+    let away = true; try { away = document.hidden || !document.hasFocus(); } catch (e) { /* keep away */ }
+    if (!n.system && !away) return;
+    const msg = { id: n.id || undefined, title: n.t || '', body: n.b || '' };
+    if (!n.system) { ORBIT.native.post('notify', msg); return; }
+    msg.force = true;
+    NATV.ask('notify', msg, 5000, 'tandem:notified').then((r) => {
+      if (r && r.delivered === false) {
+        if (/denied|not.?authori[sz]ed/i.test(r.reason || '')) S.notifAuth = 'denied';
+        toast('系统通知没有送达：' + (r.reason === 'denied' ? '通知权限已关闭，在「设置 › 通知」中打开' : r.reason || '原因未知'));
+        renderSet();
+      } else if (r && r.delivered) NATV.notifGet();
+    }, () => { /* an older host does not answer: the post itself went out */ });
   };
+  // 菜单栏角标 in the native shell: the kinds delivered on the badge channel, pruned once they are no longer open; posted as
+  // statusBadge {state: none | info | warn} on change (paused → none). The simulated menu bar (S.sim) is hidden in body.native.
+  TLS.badgeK = new Set(); TLS.badgeSent = null;
+  function tlsBadge() {
+    if (!NATV.has('statusBadge')) return;
+    const K = TLS.badgeK;
+    if (K.has('waiting') && !S.waitOpen) K.delete('waiting');
+    ['stuck', 'ctx'].forEach((k) => { if (K.has(k) && !S.attn.has(k)) K.delete(k); });
+    const st = S.paused || !K.size ? 'none' : K.has('waiting') || K.has('stuck') ? 'warn' : 'info';
+    if (st !== TLS.badgeSent) { TLS.badgeSent = st; ORBIT.native.post('statusBadge', { state: st }); }
+  }
   function tlsNotify(d) {
     const k = tlsKind(d.type); const ch = d.channels || [];
     const toHud = ch.indexOf('hud') >= 0 && !S.hud.mute, toBadge = ch.indexOf('badge') >= 0;
     const set = (v) => { if (toHud) S.hudSim = v; if (toBadge) S.sim = v; };
+    if (k && toBadge) TLS.badgeK.add(k);
     if (k && (toHud || toBadge)) {
-      if (k === 'done') { set('done'); clearTimeout(TLS.doneT); TLS.doneT = setTimeout(() => { simClear('done'); render(); }, 8000); }
+      if (k === 'done') { set('done'); clearTimeout(TLS.doneT); TLS.doneT = setTimeout(() => { simClear('done'); TLS.badgeK.delete('done'); render(); }, 8000); }
       else if (k === 'waiting') { S.waitOpen = true; set('waiting'); }
       else if (k === 'stuck' || k === 'ctx') { S.attn.add(k); set(k); }
     }
-    if (ch.indexOf('banner') >= 0) notify({ id: d.id, t: d.title || '通知', b: d.body || '', force: true, a1: '查看', on1: () => { S.pop = true; render(); }, a2: '稍后', on2: () => { if (d.id) TL.send('POST', '/v1/notifications/' + encodeURIComponent(d.id) + '/ack', { snooze_s: 3600 }).catch(() => {}); } });
+    if (ch.indexOf('banner') >= 0) notify({ id: d.id, t: d.title || '通知', b: d.body || '', force: true, system: d.type === 'system' && Date.now() - (TLS.testAt || 0) < 15000, a1: '查看', on1: () => { S.pop = true; render(); }, a2: '稍后', on2: () => { if (d.id) TL.send('POST', '/v1/notifications/' + encodeURIComponent(d.id) + '/ack', { snooze_s: 3600 }).catch(() => {}); } });
     render();
   }
   TL.on('event', (ev) => {
     const d = ev.data || {};
     if (ev.name === 'notification') tlsNotify(d);
     else if (ev.name === 'attention') TL.invalidate((r) => r.path === R.attn);
-    else if (ev.name === 'service' && d.name === 'collection') { TLS.colFrame = d.state === 'paused'; S.paused = TLS.colFrame; }
+    else if (ev.name === 'service' && d.name === 'collection') { TLS.colFrame = d.state === 'paused'; S.paused = TLS.colFrame; tlsBadge(); }
   });
 
   /* ---------- status strip on the studio (refreshStudio redraws #main without the 96 render wrapper) ---------- */
@@ -12709,7 +13012,7 @@ if (TL.mode === 'live') {
   }
   RENDER_HOOKS.push(() => tlsStrip());
   const tlsRenderBase = render;
-  render = function () { tlsSync(); tlsRenderBase(); tlsStrip(); };
+  render = function () { tlsSync(); tlsRenderBase(); tlsStrip(); tlsBadge(); };
 }
 
 /* ============ live binding (slice 8): surfaces · 菜单栏面板 · HUD · 桌面小组件 · A3 会话操作 · A4 调用明细 · 导出 ============
@@ -12756,16 +13059,22 @@ function tloOpen(uid) {
     'body.surface .desk>.wall,body.surface #mbar,body.surface #win,body.surface #set,body.surface .desk>:is(#pop,#hud,#widgets):not(' + keep + '){display:none!important}' +
     'body.surface ' + keep + '{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;margin:0}' +
     'body.surface-panel #pop{width:100%;max-height:none;border-radius:12px;animation:none}' +
-    'body.surface-hud #hud{align-items:flex-start!important;flex-direction:column!important;padding:4px}' +
+    'body.surface-hud #hud{align-items:flex-end!important;flex-direction:column!important;padding:4px}' +
+    // intrinsic widths (not viewport-relative): the reported width must not shrink with the panel it resizes
+    'body.surface-hud #hud>.pill{width:max-content;max-width:500px}body.surface-hud .hcard{width:380px}' +
     'body.surface-widgets #widgets{width:364px;padding:8px}';
   document.head.appendChild(st);
   S.winGone = true; S.pop = sf === 'panel'; S.widgets = sf === 'widgets'; S.hud.show = sf === 'hud';
   const el = () => $(keep);
-  let lastH = 0;
+  let lastH = 0, lastW = 0;
+  // the HUD also reports the pill / card width: its NSPanel shrinks to it, so no transparent margin takes other windows' clicks
   function report() {
     const e = el(); if (!e) return;
-    const h = Math.ceil(e.hidden ? 0 : e.getBoundingClientRect().height + (sf === 'panel' ? 0 : 8));
-    if (h !== lastH) { lastH = h; ORBIT.native.post('resizeSurface', { height: h }); }
+    const r = e.getBoundingClientRect();
+    const h = Math.ceil(e.hidden ? 0 : r.height + (sf === 'panel' ? 0 : 8));
+    let w = 0;
+    if (sf === 'hud' && !e.hidden) w = Math.ceil(Math.max(0, ...Array.from(e.children).map((k) => k.getBoundingClientRect().width)) + 16);
+    if (h !== lastH || w !== lastW) { lastH = h; lastW = w; ORBIT.native.post('resizeSurface', w ? { height: h, width: w } : { height: h }); }
   }
   hudPlace = function () { /* the host window is the position */ };
   popPlace = function () { /* the NSPopover is the position */ };
@@ -12787,15 +13096,16 @@ function tloOpen(uid) {
   ACT.popOpen = () => openMain(null);
   if (typeof ResizeObserver === 'function') new ResizeObserver(report).observe(el());
 })();
-// main window: routes sent by a surface (openMain → tandem:command {cmd:'route', route:'sessions/<uid>' | 'recs/<id>' | 'settings/<tab>' | page})
+// main window: deep routes sent by a surface (openMain → tandem:command {cmd:'route', route:'sessions/<uid>' | 'recs/<id>'}).
+// Plain pages and settings/<tab> are LVN.command's (95-live-native.js): handling them here too ran go() twice and, across
+// editions, the second go() undid the edition switch.
 if (!ORBIT.native.surface) ORBIT.native.onCommand((c) => {
   if (c.cmd !== 'route' || !c.route) return;
-  const m = /^(sessions|recs|settings)\/(.+)$/.exec(c.route);
+  const m = /^(sessions|recs)\/(.+)$/.exec(c.route);
+  if (!m) return;
   S.pop = false; S.winGone = false;
-  if (!m) { if (PAGES[c.route]) go(c.route); else render(); return; }
   if (m[1] === 'sessions') tloOpen(m[2]);
-  else if (m[1] === 'recs') { if (RECI[m[2]]) ACT.openRec({ dataset: { id: m[2] } }); else go('recs'); }
-  else openSettings(m[2]);
+  else if (RECI[m[2]]) ACT.openRec({ dataset: { id: m[2] } }); else go('recs');
 });
 
 if (LV.live) {

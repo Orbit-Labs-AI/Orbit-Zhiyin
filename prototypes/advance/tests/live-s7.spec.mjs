@@ -166,7 +166,8 @@ test('native: body.native hides the fake desktop, #win fills the viewport, windo
   expect(await page.evaluate(() => $('#win').dataset.mode)).toBe('native');
   const inset = await page.evaluate(() => getComputedStyle($('#main')).paddingTop);
   expect(inset).toBe('28px');
-  const types = () => page.evaluate(() => window.__nativeMsgs.map((m) => m.type));
+  // window ops only: menuState (sidebar / page titles for the host menu) is posted on render
+  const types = () => page.evaluate(() => window.__nativeMsgs.map((m) => m.type).filter((t) => t !== 'menuState'));
   await page.keyboard.press('Meta+m');
   await page.keyboard.press('Control+Meta+f');
   await page.locator('#main .tbar h1').dblclick();
