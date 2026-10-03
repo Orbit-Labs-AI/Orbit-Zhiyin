@@ -78,12 +78,14 @@ let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE
 function setDropSheet() { if (!$('#modal').hidden && MODAL_HOST) closeModal(); tipOff(); }
 // The settings window is a dialog (role, name from its title) that takes the focus when it opens, keeps Tab inside itself
 // while it is the key window, and gives the focus back to whatever opened it (⌘, / palette / menu button) when it closes.
-let SET_OPENER = null;
+let SET_OPENER = null, SET_OPENER_SEL = null;
+// a selector that finds the opener again after a render replaced it (the toolbar and sidebar are redrawn on every render)
+const setOpenerSel = (a) => { if (!a || !a.tagName) return null; if (a.id) return '#' + CSS.escape(a.id); const act = a.dataset && a.dataset.act; if (!act) return null; return a.tagName.toLowerCase() + '[data-act="' + act + '"]' + (a.dataset.v != null ? '[data-v="' + a.dataset.v + '"]' : '') + (a.classList[0] ? '.' + CSS.escape(a.classList[0]) : ''); };
 const setFocusables = () => $$('#set button:not([disabled]), #set input:not([disabled]), #set textarea:not([disabled]), #set select:not([disabled]), #set a[href], #set [tabindex]:not([tabindex="-1"])').filter((x) => x.offsetParent !== null || x === document.activeElement);
 function setFocusIn() { const el = $('#set'); if (el.hidden) return; const f = el.querySelector('[role="tab"][aria-selected="true"]') || setFocusables()[0]; if (f) f.focus({ preventScroll: true }); }
 function openSettings(tab) {
   const el = $('#set'); const a = document.activeElement;
-  if (el.hidden) SET_OPENER = a && a !== document.body && !el.contains(a) ? a : null;
+  if (el.hidden) { SET_OPENER = a && a !== document.body && !el.contains(a) ? a : null; SET_OPENER_SEL = setOpenerSel(SET_OPENER); }
   if (tab) S.setTab = tab; NATV.loginGet(); if (S.setTab === 'notify') NATV.notifGet();
   S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set';
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-labelledby', 'setTitle'); el.removeAttribute('aria-label');
@@ -94,7 +96,8 @@ function closeSettings() {
   if (MODAL_HOST === $('#set')) closeModal();
   const el = $('#set'); const had = el.contains(document.activeElement);
   el.hidden = true; S.keyWin = 'main'; keyWinApply();
-  const o = SET_OPENER; SET_OPENER = null;
+  let o = SET_OPENER; const sel = SET_OPENER_SEL; SET_OPENER = null; SET_OPENER_SEL = null;
+  if (o && !o.isConnected && sel) o = $$(sel).find((x) => x.offsetParent !== null) || null;
   if (o && o.isConnected && o.offsetParent !== null) { try { o.focus({ preventScroll: true }); return; } catch (e) { /* fall through */ } }
   if (had || document.activeElement === document.body) { const h = $('#main .tbar h1'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
 }
