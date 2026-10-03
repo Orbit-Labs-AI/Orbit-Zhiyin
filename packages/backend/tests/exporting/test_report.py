@@ -105,20 +105,48 @@ def test_insufficient_prints_marker(env, sections):
     assert "markdown" in body
 
 
-def test_persona_gated_like_share_card(env, sections, monkeypatch):
+def test_persona_reads_the_uiview_persona_like_share_card(env, sections, monkeypatch):
+    from datetime import date
+
+    from tandem_backend.uiview import persona
+
     client, _, _ = env
-    sections.update(tasks=({}, "fresh"), instruction=({}, "fresh"), preferences=({}, "fresh"))
-    axes = {k: {"label": k, "direction": "D", "effective_task_n": 29}
-            for k in ("a", "b", "c", "d")}
-    monkeypatch.setattr(sharecard, "persona_profile",
-                        lambda bodies: {"axes": axes, "headline": "h", "coverage": {}})
+    today = date(2026, 9, 30)
+    # Two sessions on one day: D 1 of 2 turns ≥ 5 steps = 50 → D; I 1 of 2 unstructured
+    # openings = 50 → I; M overlap → 1 of 1 day = 100 → M; V 0 of 2 → 0 → T.
+    body = {"meta": {}, "rows": [{"id": "a", "d": "2026-09-30", "a": "codex"},
+                                 {"id": "b", "d": "2026-09-30", "a": "codex"}],
+            "aux": {"a": {"turns": [[5, 0]], "open": 0, "t0": 0, "t1": 10},
+                    "b": {"turns": [[1, 0]], "open": 1, "t0": 5, "t1": 15}},
+            "agents": [{"id": "codex", "short": "Codex"}], "projects": []}
+    page = persona.page(body, {"period": "30"}, today)
+    monkeypatch.setattr(report, "persona_page", lambda gw, scope, wait_ms: (page, "fresh", []))
     s = by_id(post(client, sections=["persona"]))["persona"]
-    assert s["status"] == "insufficient" and s["data"] is None and s["n"] == 29
-    for axis in axes.values():
-        axis["effective_task_n"] = 30
+    assert s["status"] == "ok" and s["data"]["experimental"] and s["data"]["code"] == "DIMT"
+    assert s["n"] == 2 and [a["value"] for a in s["data"]["axes"]] == [50.0, 50.0, 100.0, 0.0]
+    card = sharecard.payload(page)
+    assert card["eligible"] and card["code"] == s["data"]["code"]
+    assert "实验性" in s["markdown"] and "DIMT" in s["markdown"]
+    empty = persona.page({**body, "rows": []}, {"period": "30"}, today)
+    monkeypatch.setattr(report, "persona_page", lambda gw, scope, wait_ms: (empty, "fresh", []))
     s = by_id(post(client, sections=["persona"]))["persona"]
-    assert s["status"] == "ok" and s["data"]["experimental"] and s["data"]["code"] == "DDDD"
-    assert s["data"]["type_name"] is None and "实验性" in s["markdown"]
+    assert s["status"] == "insufficient" and s["data"] is None and s["n"] == 0
+    monkeypatch.setattr(report, "persona_page",
+                        lambda gw, scope, wait_ms: (None, "computing", []))
+    assert by_id(post(client, sections=["persona"]))["persona"]["status"] == "computing"
+
+
+def test_persona_request_maps_the_analytics_scope():
+    now = 1_000 * 86_400_000
+    facts_scope, params, notes = sharecard.persona_request(
+        {"display_timezone": "UTC", "from_ts": now - 10 * 86_400_000, "until_ts": now,
+         "project_ids": ["p1", "p2"]}, now)
+    # 10 days back → period "10", served from the 30-day facts window.
+    assert params == {"period": "10", "agents": None, "project": None, "vs": None}
+    assert facts_scope["until_ts"] is None and facts_scope["from_ts"] is not None
+    assert len(notes) == 2
+    _, all_params, none = sharecard.persona_request({"project_ids": ["p1"]}, now)
+    assert all_params["period"] == "all" and all_params["project"] == "p1" and none == []
 
 
 def test_recommendations_titles_and_status(env, sections):

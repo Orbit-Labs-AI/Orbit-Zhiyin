@@ -179,3 +179,32 @@ def test_cli_fail_under(tmp_path, monkeypatch, capsys):
 def test_suite_skips_without_fixtures(tmp_path):
     result = runner.run_suite("recommend", params={"fixtures_dir": str(tmp_path / "none")})
     assert result.skipped == "evals/recommendation/fixtures not found"
+
+
+def test_suite_reports_replay_negatives_and_disclaimer(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    clean = runner.run_suite("recommend", params={"ablation": False})
+    cases = json.loads((FIXTURES / "replay-cases.json").read_text())["cases"]
+    n_negative = sum("expect" in case for case in cases)
+    check = next(c for c in clean.checks if c.id == "recommend.replay.negative_pass_rate")
+    assert check.passed and check.value == 1.0 and f"{n_negative} negative cases" in check.detail
+    assert clean.metrics["replay"]["n_negative"] == n_negative > 0
+    assert clean.metrics["disclaimer"].startswith("合成集，仅回归")
+
+
+def test_suite_fails_when_a_negative_case_recommends(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    fixtures = tmp_path / "recommendation" / "fixtures"
+    fixtures.mkdir(parents=True)
+    cases = json.loads((FIXTURES / "replay-cases.json").read_text())["cases"]
+    positive = next(c for c in cases if c["id"] == "permission-readonly")
+    # the same evidence that should produce a permission card, declared as "must recommend nothing"
+    wrong = {"id": "neg-wrong", "inputs": positive["inputs"], "relevant": {}, "expect": {"ranked": 0}}
+    (fixtures / "replay-cases.json").write_text(json.dumps({"cases": [*cases, wrong]}), encoding="utf-8")
+    (fixtures / "timeline-cases.json").write_text((FIXTURES / "timeline-cases.json").read_text(), encoding="utf-8")
+    (fixtures.parent / "replay.py").write_text((FIXTURES.parent / "replay.py").read_text(), encoding="utf-8")
+    result = runner.run_suite("recommend", params={"ablation": False, "fixtures_dir": str(fixtures)})
+    check = next(c for c in result.checks if c.id == "recommend.replay.negative_pass_rate")
+    n_negative = sum("expect" in case for case in cases) + 1
+    assert not check.passed and check.value == round((n_negative - 1) / n_negative, 4)
+    assert "neg-wrong: ranked" in check.detail

@@ -217,7 +217,9 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
         return {"min_month": 0, "label": "—", "low": 0, "high": 0, "basis": "没有可折算的问题证据"}
     unit_minutes, source = raw.get("unit_minutes"), raw.get("unit_minutes_source")
     if unit_minutes is None or not source:
-        return _unestimated("单次耗时没有实测值或有出处的估计，不折算分钟")
+        note = raw.get("unit_minutes_note")
+        reason = note.split("未估算原因：", 1)[-1] if note else None
+        return _unestimated("单次耗时没有实测值或有出处的估计，不折算分钟" + (f"：{reason}" if reason else ""))
     prior = raw.get("prior") or {}
     alpha, beta = float(prior.get("alpha") or 1), float(prior.get("beta") or 1)
     p = alpha / (alpha + beta)
