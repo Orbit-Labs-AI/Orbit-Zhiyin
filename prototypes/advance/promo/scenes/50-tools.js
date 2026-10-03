@@ -203,7 +203,10 @@ scene('50-tools', () => {
   });
   // 5.4 v18.2: the card leaves with the old title (b67.3, .45 beat, E.in): 240 px left, blur 10, gone — a short clean exit
   // instead of the 1-beat diagonal that left a grey blurred slab crossing the frame; its pills go with it (until b67.75)
-  tween(0, CX, .45, () => { const C = decks[0].C; return { ax: C.ax - 240, o: 0, bl: 10 }; }, E.in);
+  tween(0, CX, .45, () => { const C = decks[0].C; return { ax: C.ax - 240, bl: 10 }; }, E.in);
+  // QA v18.2: α on its own shorter in-out (.35 beat) — with α on the same E.in the card was still ≈ .7 opaque at blur 7–10
+  // (b67.65–67.75) and read as a grey slab for 3–4 frames; now it is mostly gone before the blur builds up
+  tween(0, CX, .35, { o: 0 }, E.inOut);
 
   /* ---------- 5.4–5.7 studio (deck 1, b56.1–75.2) ---------- */
   const runCard = (D) => { const s = D.querySelector('#main .st-steps'); return s ? s.closest('.card') : D.querySelectorAll('#main .card.pad.col')[1]; };
@@ -243,7 +246,7 @@ scene('50-tools', () => {
   // click the button dips to .94 (.06 beat) and springs back (.14 beat) before it gives way to 停止
   // the pressed button stays on as the camera pulls away and fades with it (b69.0–69.4, E.in), so the press bloom never
   // hangs on bare black
-  drive(1, 56.15, BOFF, (p, b) => {
+  const btnFx = (b) => {
     placeBtn(); const el = startBtn(decks[1].D); if (!el) return;
     el.style.opacity = (1 - E.in(clamp((b - 69.0) / (BOFF - 69.0)))).toFixed(3);
     const h = io(b, HOV, .3), d = E.out(clamp((b - PRESS) / .06)) - E.inOut(clamp((b - PRESS - .06) / .14));
@@ -254,10 +257,12 @@ scene('50-tools', () => {
     if (tint || ring) el.style.setProperty('box-shadow', [tint, ring, '0 0 0 .5px rgba(255,255,255,.14)', '0 30px 90px rgba(0,0,0,.55)'].filter(Boolean).join(','), 'important');
     else el.style.removeProperty('box-shadow');
     el.style.transformOrigin = '50% 50%'; el.style.transform = d > .001 ? 'scale(' + (1 - .06 * d).toFixed(4) + ')' : '';
-  });
+  };
+  drive(1, 56.15, BOFF, (p, b) => btnFx(b));
   // QA: SKILL.md stays hidden through the push-in (it sat cut off at the frame's right edge beside the button) and fades
   // in on the glide (b68.95–69.55)
-  drive(1, 56.15, 69.6, (p, b) => { const el = skillCard(decks[1].D); if (el) el.style.opacity = clamp((b - 68.95) / .6).toFixed(3); });
+  const skFx = (b) => { const el = skillCard(decks[1].D); if (el) el.style.opacity = clamp((b - 68.95) / .6).toFixed(3); };
+  drive(1, 56.15, 69.6, (p, b) => skFx(b));
   at(69.6, () => { const el = skillCard(decks[1].D); if (el) el.style.opacity = ''; });
   at(BOFF, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); BTN0.forEach((k) => { b.style[k] = ''; }); b.style.opacity = ''; } });
   // v18.1 one shot: a push-in on 开始生成 alone (b67.3–68.8, the dot slides on and presses it), then the camera glides to
@@ -292,8 +297,12 @@ scene('50-tools', () => {
     const W = decks[1].W, D = decks[1].D, run = W.eval('S.studio.run'); if (!run) return;
     W.eval('clearTimeout(RUNT)');
     let k = run._k ?? -1;
+    const k0 = k;
     while (k + 1 < RUN.length && b >= RUN[k + 1][0]) { k++; W.studioStep(RUN[k][1]); W.eval('clearTimeout(RUNT)'); }
     run._k = k;
+    // QA v18.2: studioStep re-renders #main AFTER this frame's button / SKILL.md drives ran — at b68.95 the frame showed the
+    // button gone and SKILL.md fully opaque at the frame's edge (one-frame pop); re-apply both on the new nodes
+    if (k !== k0) { if (b < BOFF) btnFx(b); if (b < 69.6) skFx(b); }
     if (run.step === 2 && !run.done) {
       genW();
       const u = GW[GW.length - 1] * clamp((b - L0) / (L1 - L0));
@@ -367,5 +376,8 @@ scene('50-tools', () => {
   // v18.2: the card is drawn INTO the orb — it shrinks to .6 about the orb's live point on an in-out (most of the shrink
   // happens while it is still clearly visible), and its blur and fade trail it (E.in), so it reads as swallowed, not faded
   tween(1, BACK, .9, () => ({ s: decks[1].C.s * .6 }), E.inOut);
-  tween(1, BACK, .9, { o: 0, bl: 8 }, E.in);
+  // QA v18.2: α on its own in-out (.7 beat) — on the blur's E.in the white card was still ≈ .5 opaque at blur 6–8 (b74.6–74.75)
+  // and read as a translucent light slab; now it is nearly gone by the time the blur is heavy
+  tween(1, BACK, .9, { bl: 8 }, E.in);
+  tween(1, BACK, .7, { o: 0 }, E.inOut);
 });
