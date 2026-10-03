@@ -70,3 +70,28 @@ test('B: never-imported agents read 未接入, turned-off ones 停用, idle ones
   expect(ks.some((k) => /^\d+$/.test(k))).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('C: project menu is height-capped, folds empty / scratch projects and filters by search', async ({ page }) => {
+  const errors = collectErrors(page);
+  await stubGateway(page, 'core');
+  await openLive(page, 'sessions');
+  await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  await page.evaluate(() => {
+    for (let i = 0; i < 40; i++) { const p = { id: 'zz' + i, name: (i % 2 ? 'scratch-2026-09-' : 'Empty') + i, path: '—', n: 0 }; PJ.push(p); PJI[p.id] = p; }
+    render();
+  });
+  await page.locator('.frow [data-act="projectMenu"]').click();
+  const dd = page.locator('#dd');
+  const box = await dd.boundingBox(); const vh = page.viewportSize().height;
+  expect(box.height).toBeLessThanOrEqual(vh * 0.6 + 2);
+  await expect(dd.locator('button', { hasText: 'scratch-2026-09-1' })).toHaveCount(0);
+  await expect(dd.locator('button', { hasText: /^其他 \d+ 个项目/ })).toHaveCount(1);
+  const first = await page.evaluate(() => PJ[0].name);
+  await dd.locator('.dd-q').fill(first.slice(0, 4));
+  await expect(dd.locator('button:visible', { hasText: first })).toHaveCount(1);
+  await expect(dd.locator('button:visible', { hasText: '其他' })).toHaveCount(0);
+  await dd.locator('.dd-q').fill('');
+  await dd.locator('button', { hasText: /^其他/ }).click();
+  await expect(page.locator('#dd button', { hasText: 'scratch-2026-09-1' }).first()).toBeAttached();
+  expect(errors).toEqual([]);
+});

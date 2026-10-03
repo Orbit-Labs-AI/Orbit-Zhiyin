@@ -1504,7 +1504,9 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
    (desktop layer, z below the window), notifications (344px, slide in from the right). */
 .pop{position:absolute;z-index:60;top:30px;right:120px;width:336px;max-height:calc(100% - 46px);overflow:auto;border-radius:12px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);color:var(--ink-1);animation:popin .12s var(--ease);transform-origin:top right}
 .pop .sec{padding:12px 14px;border-top:1px solid var(--hair)}
-.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:calc(100% - 40px);overflow:auto}
+.dd{position:absolute;z-index:70;min-width:200px;max-width:min(340px,calc(100% - 16px));border-radius:10px;background:var(--raised);-webkit-backdrop-filter:blur(40px) saturate(1.6);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--sh-pop);padding:5px;max-height:min(60vh,calc(100% - 40px));overflow:auto;overscroll-behavior:contain}
+.dd .dd-q{display:block;width:calc(100% - 4px);margin:2px 2px 5px;height:26px;padding:0 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink-1);font:inherit;font-size:12px;position:sticky;top:0;z-index:1}
+.dd button[hidden],.dd hr[hidden]{display:none}
 .dd button{width:100%;display:flex;align-items:center;gap:6px;height:24px;padding:0 10px 0 6px;border:0;border-radius:5px;background:transparent;text-align:left;font-size:13px;color:var(--ink-1);white-space:nowrap}
 .dd button:hover,.dd button.act{background:var(--accent);color:var(--accent-ink)}
 .dd button:hover .k,.dd button.act .k{color:inherit;opacity:.8}
@@ -4028,7 +4030,30 @@ Object.assign(ACT, {
     else if (S.agents.has(v)) { S.agents.delete(v); if (!S.agents.size) AG.forEach((a) => S.agents.add(a.id)); } else S.agents.add(v);
     render();
   }, { keep: true, refresh: () => [{ h: '多选；全部取消时恢复全部' }].concat(agentLegendItems()).concat([{ sep: 1 }, { t: '全部 Agent', v: '*' }]) }),
-  projectMenu: (el) => openDD(el, [{ t: '全部项目', v: null, on: !S.project }, { sep: 1 }].concat(PJ.map((p) => ({ t: p.name, v: p.id, on: S.project === p.id, k: String(sel({ noExtra: true, project: p.id }).length) }))), (v) => { S.project = v; render(); }),
+  // project filter (C): projects with sessions in the range first; 0-session and scratch-* ones fold into 「其他」 (one click
+  // shows them all); a search box on top filters the rows in place; the menu is height-capped and scrolls inside
+  projectMenu: (el, more) => {
+    const all = more === true;   // the click dispatcher passes the event second
+    const rows = PJ.map((p) => ({ p, n: sel({ noExtra: true, project: p.id }).length }));
+    const fold = (r) => !r.n || /^scratch[-_]/i.test(r.p.name);
+    const main = all ? rows : rows.filter((r) => !fold(r) || r.p.id === S.project);
+    const rest = all ? 0 : rows.length - main.length;
+    const items = [{ t: '全部项目', v: null, on: !S.project }, { sep: 1 }].concat(main.map((r) => ({ t: r.p.name, v: r.p.id, on: S.project === r.p.id, k: String(r.n) })));
+    if (rest) items.push({ sep: 1 }, { t: '其他 ' + rest + ' 个项目（' + rangeLabel() + '无会话或临时目录）', v: '__more' });
+    openDD(el, items, (v) => { if (v === '__more') { setTimeout(() => ACT.projectMenu(el, true), 0); return; } S.project = v; render(); });
+    const dd = $('#dd');
+    if (rows.length > 8 && dd && !dd.hidden) {
+      dd.insertAdjacentHTML('afterbegin', '<input type="search" class="dd-q" placeholder="搜索项目" aria-label="搜索项目" autocomplete="off" spellcheck="false">');
+      const q = dd.querySelector('.dd-q');
+      q.addEventListener('input', () => {
+        const t = q.value.trim().toLowerCase();
+        dd.querySelectorAll('button[data-i]').forEach((b) => { const it = DD && DD.items[+b.dataset.i]; const hit = !t || (it && it.v !== '__more' && String(it.t).toLowerCase().indexOf(t) >= 0); b.hidden = !hit; b.disabled = !hit; });
+        dd.querySelectorAll('hr').forEach((h) => { h.hidden = !!t; });
+      });
+      q.addEventListener('click', (e) => e.stopPropagation());
+      setTimeout(() => { if (q.isConnected) q.focus({ preventScroll: true }); }, 0);
+    }
+  },
   addFilter: (el) => openDD(el, [{ h: '主题' }].concat(Object.keys(TOPICS).map((k) => ({ t: TOPICS[k], v: 't:' + k, on: S.topic === k }))).concat([{ sep: 1 }, { h: '结果' }, { t: '完成', v: 'o:ok', on: S.outcome === 'ok' }, { t: '部分完成', v: 'o:part', on: S.outcome === 'part' }, { t: '放弃', v: 'o:fail', on: S.outcome === 'fail' }]), (v) => {
     const k = v.slice(2); if (v[0] === 't') S.topic = S.topic === k ? null : k; else S.outcome = S.outcome === k ? null : k; render();
   }),

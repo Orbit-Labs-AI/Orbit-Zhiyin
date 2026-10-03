@@ -41,7 +41,30 @@ Object.assign(ACT, {
     else if (S.agents.has(v)) { S.agents.delete(v); if (!S.agents.size) AG.forEach((a) => S.agents.add(a.id)); } else S.agents.add(v);
     render();
   }, { keep: true, refresh: () => [{ h: '多选；全部取消时恢复全部' }].concat(agentLegendItems()).concat([{ sep: 1 }, { t: '全部 Agent', v: '*' }]) }),
-  projectMenu: (el) => openDD(el, [{ t: '全部项目', v: null, on: !S.project }, { sep: 1 }].concat(PJ.map((p) => ({ t: p.name, v: p.id, on: S.project === p.id, k: String(sel({ noExtra: true, project: p.id }).length) }))), (v) => { S.project = v; render(); }),
+  // project filter (C): projects with sessions in the range first; 0-session and scratch-* ones fold into 「其他」 (one click
+  // shows them all); a search box on top filters the rows in place; the menu is height-capped and scrolls inside
+  projectMenu: (el, more) => {
+    const all = more === true;   // the click dispatcher passes the event second
+    const rows = PJ.map((p) => ({ p, n: sel({ noExtra: true, project: p.id }).length }));
+    const fold = (r) => !r.n || /^scratch[-_]/i.test(r.p.name);
+    const main = all ? rows : rows.filter((r) => !fold(r) || r.p.id === S.project);
+    const rest = all ? 0 : rows.length - main.length;
+    const items = [{ t: '全部项目', v: null, on: !S.project }, { sep: 1 }].concat(main.map((r) => ({ t: r.p.name, v: r.p.id, on: S.project === r.p.id, k: String(r.n) })));
+    if (rest) items.push({ sep: 1 }, { t: '其他 ' + rest + ' 个项目（' + rangeLabel() + '无会话或临时目录）', v: '__more' });
+    openDD(el, items, (v) => { if (v === '__more') { setTimeout(() => ACT.projectMenu(el, true), 0); return; } S.project = v; render(); });
+    const dd = $('#dd');
+    if (rows.length > 8 && dd && !dd.hidden) {
+      dd.insertAdjacentHTML('afterbegin', '<input type="search" class="dd-q" placeholder="搜索项目" aria-label="搜索项目" autocomplete="off" spellcheck="false">');
+      const q = dd.querySelector('.dd-q');
+      q.addEventListener('input', () => {
+        const t = q.value.trim().toLowerCase();
+        dd.querySelectorAll('button[data-i]').forEach((b) => { const it = DD && DD.items[+b.dataset.i]; const hit = !t || (it && it.v !== '__more' && String(it.t).toLowerCase().indexOf(t) >= 0); b.hidden = !hit; b.disabled = !hit; });
+        dd.querySelectorAll('hr').forEach((h) => { h.hidden = !!t; });
+      });
+      q.addEventListener('click', (e) => e.stopPropagation());
+      setTimeout(() => { if (q.isConnected) q.focus({ preventScroll: true }); }, 0);
+    }
+  },
   addFilter: (el) => openDD(el, [{ h: '主题' }].concat(Object.keys(TOPICS).map((k) => ({ t: TOPICS[k], v: 't:' + k, on: S.topic === k }))).concat([{ sep: 1 }, { h: '结果' }, { t: '完成', v: 'o:ok', on: S.outcome === 'ok' }, { t: '部分完成', v: 'o:part', on: S.outcome === 'part' }, { t: '放弃', v: 'o:fail', on: S.outcome === 'fail' }]), (v) => {
     const k = v.slice(2); if (v[0] === 't') S.topic = S.topic === k ? null : k; else S.outcome = S.outcome === k ? null : k; render();
   }),
