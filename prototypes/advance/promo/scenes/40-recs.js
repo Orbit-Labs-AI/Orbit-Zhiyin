@@ -78,7 +78,7 @@ scene('40-recs', () => {
   };
   AGD.follow(41.4, 55.0, (i, b) => ({ a: .6 + .4 * lit(i, b) }), { blend: .6 });
 
-  /* ---------- deck 0: six cards in one column (b40.0 set-up, b41.0–55.4 on screen) ---------- */
+  /* ---------- deck 0: six cards in one column (b40.0 set-up, b40.6–55.4 on screen: the first card rises while the dots still fly, H11) ---------- */
   const advLight = (d) => { const Wd = decks[d].W; if (Wd.eval('S.ed') !== 'advance') Wd.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); Wd.setTheme('light'); };
   const still = (D) => D.getAnimations().forEach((a) => { const t = a.effect && a.effect.target; if (t && t.closest && t.closest('.recs')) a.cancel(); });
   const unscroll = (D) => { for (let e = D.querySelector('#content'); e; e = e.parentElement) { if (e.scrollTop) e.scrollTop = 0; if (e.scrollLeft) e.scrollLeft = 0; } };
@@ -104,7 +104,7 @@ scene('40-recs', () => {
     CAM = { x: X0, y: Y0, s: S0, ax: CX, ay: CY, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 };
     if (DEBUG) console.warn('promo 40-recs layout', JSON.stringify({ S0, X0, Y0, H: cs.map((c) => base(c).h) }));
   });
-  tween(0, 40.9, 0, () => CAM || { x: 400, y: 500, s: 2, ax: CX, ay: CY, o: 1 }, E.lin);
+  tween(0, 40.6, 0, () => CAM || { x: 400, y: 500, s: 2, ax: CX, ay: CY, o: 1 }, E.lin);
 
   // scroll position u (entries): entry n's centre is at CY + GAP·(n − u). Even 245 px/beat; eases into the hold on the
   // last entry (b51 → 52.4), holds to b54.2, then accelerates up and out
@@ -112,9 +112,9 @@ scene('40-recs', () => {
   const U = (b) => b < 51 ? (b - 42) / 2 : b < 52.4 ? herm((b - 51) / 1.4, 4.5, .7, 5) : b < 54.2 ? 5 : 5 + 2.2 * E.in(lp(b, 54.2, 1.4));
   const FOC = IDS.map(() => ({ a: 0, bl: 0 }));                  // per entry: opacity and blur, shared by its card and its word
   const MK = { t: 'rc', k: 'rk' };
-  drive(0, 40.95, 55.4, (p, b, D) => {
+  drive(0, 40.55, 55.4, (p, b, D) => {
     still(D); unscroll(D);
-    const u = U(b), gIn = E.out(lp(b, 41.0, .8)), gOut = 1 - E.inOut(lp(b, 54.6, .8));
+    const u = U(b), gIn = E.out(lp(b, 40.6, .9)), gOut = 1 - E.inOut(lp(b, 54.6, .8));
     IDS.forEach((id, n) => {
       const el = card(D, id); if (!el) return;
       narrow(el);
@@ -139,7 +139,7 @@ scene('40-recs', () => {
 
   // the type word of each entry rides 24 px above its card's top-left corner, blurred and dimmed with it
   IDS.forEach((id, n) => {
-    const b0 = Math.max(40.95, ARR[n] - 3.4), b1 = Math.min(55.4, n < 5 ? ARR[n] + 3.4 : 55.4);
+    const b0 = Math.max(40.55, ARR[n] - 3.4), b1 = Math.min(55.4, n < 5 ? ARR[n] + 3.4 : 55.4);
     txt(b0, b1, [['xl sv r4-w', WORD[n]]], { x: CX, y: -400 }, {
       anim: (el) => {
         const F = FOC[n], p = elXY(0, sel(id), 0, 0);
