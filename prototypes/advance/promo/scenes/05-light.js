@@ -1,8 +1,8 @@
 /* Light（全片，最底层）：三团常驻光体（v17，见 STORYBOARD「光影」）。图是路演 PPT 同一套颗粒渐变光斑（light/*.webp）。
    每团整片沿自己的连续路径走：经过手写路点的向心 Catmull-Rom 样条（x、y、宽、强度一起插值；拍 → 样条参数用单调
    Hermite 弧长映射，速度连续，路点处不停顿），叠加慢漂移与呼吸（周期 20–40 拍，不随节拍）和各自的匀速自转。
-   光体不读取任何场景对象（不调用 AGD / MARK / elXY / 相机），场景改动不会牵动光。只在 b0–3 淡入、b85.6–88 淡出；
-   「衍生」= 原位、原宽度上 2 拍交叉溶解换图。拍号是成片拍（SHIFT 0）。
+   光体不读取任何场景对象（不调用 AGD / MARK / elXY / 相机），场景改动不会牵动光。只在 b0–4.5 淡入、END−3.6–END 淡出；
+   「衍生」= 原位、原宽度上 2 拍交叉溶解换图。拍号是成片拍（v18.1 起固定，不再按 END 拉伸）。
    v17.7（用户：标志时刻落在纯黑上）：20-orbit 字标段（场景拍 b24.0–31.2）前后各 3–4 拍长淡，光体压到每团 ≤ .15；
    60-close 曲线画起前（场景拍 b70.4–75.4）长淡到 0，此后保持全黑到片尾。时间只按 SHIFT 表换算，不读场景对象。 */
 scene('05-light', () => {
@@ -13,25 +13,38 @@ scene('05-light', () => {
   const box = document.createElement('div'); box.className = 'light'; stage.insertBefore(box, stage.firstChild);
   // aspect h / w of each image (all 1200 px wide)
   const ASP = { circle: .738, ring: .927, prism: 1.002, warm: .998, wave: .383, ribbon: .738 };
-  const GAIN = 1.35, CAP = .7, FADE_IN = [0, 3], FADE_OUT = [85.6, 88];
-  // k: [film beat, x, y (centre, stage px), width px, strength]; img: [first image, [beat, next image], …] (2-beat dissolve)
+  // v18.1: ring.webp is a lumpy blob, not a donut — a radial mask (in % of the layer, so it scales with w and turns with the
+  // layer about its centre) cuts a soft dark disc, so the rim haloes what sits at the waypoint (1e dot ring, persona dial)
+  const MASK = { ring: 'radial-gradient(circle farthest-corner at 50% 50%, transparent 0 33%, rgba(0,0,0,.5) 40%, #000 50%)' };
+  const GAIN = 1.35, CAP = .7, FADE_IN = [0, 4.5], FADE_TAIL = 3.6;
+  // k: [film beat, x, y (centre, stage px), width px, strength]; img: [first image, [beat, next image], …] (3-beat dissolve)
   // spin: own constant turn (deg / beat) on top of the breathing wobble; rot0: starting angle; d: drift phase
+  // v18.1: beats are fixed film beats (the v17 88-beat grid × 131.7 / 88 once), so a change of END no longer moves the light.
   const B = [
-    { name: 'A', img: ['circle', [26, 'ring'], [70, 'circle']], spin: .25, rot0: -6, d: 1,
-      k: [[0, 1560, 1240, 1200, 0], [4, 1380, 900, 1250, .32], [12, 1150, 700, 1300, .36], [19, 990, 560, 1350, .42], [24, 980, 530, 1300, .46],
-        [28, 900, 548, 1200, .36], [33, 620, 560, 1050, .32], [41, 300, 560, 900, .3], [56, 240, 560, 820, .34], [64, 520, 560, 950, .3],
-        [72, 960, 540, 1250, .4], [78, 960, 470, 1300, .44], [80, 960, 330, 1250, .44], [88, 960, 300, 1300, 0]] },
-    { name: 'B', img: ['prism', [60, 'warm']], spin: -.18, rot0: 8, d: 2,
-      k: [[0, 180, -260, 1100, 0], [5, 330, 150, 1150, .34], [13, 860, 100, 1150, .3], [21, 1440, 190, 1100, .32], [31, 1560, 480, 1100, .3],
-        [38, 1520, 600, 1100, .3], [46, 1660, 520, 1000, .32], [54, 1600, 640, 1000, .3], [62, 1420, 720, 1050, .34], [69, 1640, 980, 1050, .3],
-        [81, 1500, 900, 1000, .26], [88, 1450, 950, 1000, 0]] },
-    { name: 'C', img: ['wave', [74, 'ribbon']], spin: .12, rot0: -5, d: 3,
-      k: [[0, -200, 1000, 1700, 0], [6, 640, 960, 1800, .3], [14, 1060, 960, 1800, .34], [22, 1400, 1030, 1800, .26], [30, 1780, 1150, 1700, .12],
-        [40, 1100, 1080, 1800, .2], [50, 860, 1000, 1900, .26], [60, 900, 1080, 1800, .2], [70, 820, 980, 1700, .26], [77, 950, 770, 1500, .36],
-        [84, 965, 740, 1550, .38], [88, 975, 728, 1600, 0]] }
+    // A: ring from b27 haloes the R420 dot ring of the 1e peak (centre 960,540, dark disc ≥ ring), then sits concentric with
+    // the persona dial (600,560) and swells at the DIMV reveal; back to circle before recs so no ring under the column / cards
+    { name: 'A', img: ['circle', [27, 'ring'], [62.9, 'circle']], spin: .167, rot0: -6, d: 1,
+      k: [[0, 1560, 1240, 1200, 0], [6.0, 1380, 900, 1250, .26], [18.0, 1150, 700, 1300, .28], [28.4, 960, 540, 1500, .42], [35.9, 960, 540, 1500, .46],
+        [41.9, 900, 548, 1200, .36], [49.4, 720, 560, 1000, .30], [61.4, 600, 560, 1000, .38], [83.8, 240, 560, 820, .34], [95.8, 520, 560, 950, .3],
+        [107.8, 960, 540, 1250, .3], [116.7, 960, 470, 1300, .3], [119.7, 960, 330, 1250, .3], [131.7, 960, 300, 1300, 0]] },
+    // B: warm accent near the 1b headline; late swell behind the right side of the centred recs payoff
+    { name: 'B', img: ['prism', [89.8, 'warm']], spin: -.12, rot0: 8, d: 2,
+      k: [[0, 180, -260, 1100, 0], [7.5, 520, 120, 1150, .36], [19.5, 860, 100, 1150, .3], [31.4, 1440, 190, 1100, .32], [46.4, 1560, 480, 1100, .3],
+        [56.9, 1520, 600, 1100, .3], [68.8, 1660, 520, 1000, .32], [80.8, 1880, 560, 1000, .40], [92.8, 1420, 720, 1050, .34], [103.3, 1640, 980, 1050, .3],
+        [121.2, 1500, 900, 1000, .26], [131.7, 1450, 950, 1000, 0]] },
+    // C: floor glow under the intro bar (y 1120), then the wave / ribbon low band
+    { name: 'C', img: ['wave', [110.7, 'ribbon']], spin: .08, rot0: -5, d: 3,
+      k: [[0, -200, 1000, 1700, 0], [9.0, 640, 1120, 1800, .3], [21.0, 1060, 1120, 1800, .34], [32.9, 1400, 1030, 1800, .26], [44.9, 1780, 1150, 1700, .12],
+        [59.9, 1100, 1080, 1800, .2], [74.8, 860, 1000, 1900, .26], [89.8, 900, 1080, 1800, .2], [104.8, 820, 980, 1700, .26], [115.2, 950, 770, 1500, .36],
+        [125.7, 965, 740, 1550, .38], [131.7, 975, 728, 1600, 0]] }
   ];
+  // v18.1 parallax: scripted [film beat, dur, dx, dy, ease], ≈ 1/3 of each foreground move in the same direction
+  // (A, B × 1, C × .6); the eased sum is an offset that stays (see the waypoint note below). Still no reads of scene objects.
+  const PAR = [[49.7, 1.4, -120, 0, 'inOut'], [85.9, 1.4, 40, 0, 'out'], [98.2, 1.2, -60, 40, 'inOut'], [106.1, 1.0, 0, -40, 'inOut']];
+  const par = (b) => PAR.reduce((a, [pb, du, x, y, ez]) => { const q = E[ez](clamp((b - pb) / du)); a[0] += x * q; a[1] += y * q; return a; }, [0, 0]);
 
-  // ---- path: centripetal Catmull-Rom (Barry–Goldman) over [x, y, w, strength], knots from the x/y chord ** .5 ----
+  // ---- path: centripetal Catmull-Rom (Barry–Goldman) over [x, y, w, strength], knots from the x/y chord ** .5 (v18.1: at least 12, so a
+  // waypoint that holds its place — 1e ring, persona dial — does not make w / strength overshoot) ----
   function path(k) {
     const n = k.length, beat = k.map((r) => r[0]), P = k.map((r) => r.slice(1));
     // the waypoint strength 0 at b0 / b88 is the fade; the envelope does it, so the spline holds the neighbour's strength
@@ -39,7 +52,7 @@ scene('05-light', () => {
     const ext = (a, b) => a.map((v, j) => 2 * v - b[j]);
     const Q = [ext(P[0], P[1]), ...P, ext(P[n - 1], P[n - 2])];
     const T = [0];
-    for (let i = 1; i < Q.length; i++) T.push(T[i - 1] + Math.max(1e-3, Math.hypot(Q[i][0] - Q[i - 1][0], Q[i][1] - Q[i - 1][1]) ** .5));
+    for (let i = 1; i < Q.length; i++) T.push(T[i - 1] + Math.max(12, Math.hypot(Q[i][0] - Q[i - 1][0], Q[i][1] - Q[i - 1][1]) ** .5));
     const mix = (a, b, ta, tb, t) => a.map((v, j) => ((tb - t) * v + (t - ta) * b[j]) / (tb - ta));
     const seg = (t) => {
       let i = 0; while (i < n - 2 && t > T[i + 2]) i++;
@@ -68,20 +81,25 @@ scene('05-light', () => {
   }
 
   B.forEach((o) => {
-    o.at = path(o.k);
+    // waypoints are screen positions: the PAR offset reached by each waypoint's beat is taken back out of the spline, so a
+    // parallax step is a quick extra move with the foreground and the blob still sits on its waypoint afterwards
+    o.pk = o.name === 'C' ? .6 : 1;
+    o.at = path(o.k.map(([kb, x, y, w, st]) => { const [qx, qy] = par(kb); return [kb, x - qx * o.pk, y - qy * o.pk, w, st]; }));
     o.layers = {};
     [o.img[0], ...o.img.slice(1).map((x) => x[1])].forEach((im) => {
       if (o.layers[im]) return;
-      const el = document.createElement('div'); el.className = 'lb'; el.style.backgroundImage = 'url(light/' + im + '.webp)'; box.appendChild(el); o.layers[im] = el;
+      const el = document.createElement('div'); el.className = 'lb'; el.style.backgroundImage = 'url(light/' + im + '.webp)';
+      if (MASK[im]) el.style.webkitMaskImage = el.style.maskImage = MASK[im];
+      box.appendChild(el); o.layers[im] = el;
     });
   });
   // image weights at beat b: in-place cross-dissolves of 2 beats
   const weights = (o, b) => {
     const w = { [o.img[0]]: 1 };
-    o.img.slice(1).forEach(([bs, im]) => { const p = E.sine(clamp((b - bs) / 2)); for (const key in w) w[key] *= 1 - p; w[im] = (w[im] || 0) + p; });
+    o.img.slice(1).forEach(([bs, im]) => { const p = E.sine(clamp((b - bs) / 3)); for (const key in w) w[key] *= 1 - p; w[im] = (w[im] || 0) + p; });
     return w;
   };
-  const env = (b) => E.sine(clamp((b - FADE_IN[0]) / (FADE_IN[1] - FADE_IN[0]))) * (1 - E.sine(clamp((b - FADE_OUT[0]) / (FADE_OUT[1] - FADE_OUT[0]))));
+  const env = (b) => E.sine(clamp((b - FADE_IN[0]) / (FADE_IN[1] - FADE_IN[0]))) * (1 - E.sine(clamp((b - (END - FADE_TAIL)) / FADE_TAIL)));
 
   // v17.7: logo moments on pure black (film beats, from the SHIFT table only — no scene objects).
   // DIM: behind the Orbit·知音 wordmark of 20-orbit every blob is scaled to ≤ .15 (DIM_K · CAP), long sine fades either side;
@@ -93,16 +111,14 @@ scene('05-light', () => {
     return lerp(1, DIM_K, dim) * (1 - E.sine(clamp((bf - DARK[0]) / (DARK[1] - DARK[0]))));
   };
 
-  // v17.3: the waypoints stay in the v17 88-beat grid; the whole path is stretched evenly to the film's length.
-  // v17.7: the length is the engine's END, read per frame (60-close sets it after this scene registers, boot() then adds
-  // its SHIFT, so by the first frame END is already the film length in film beats) — the fade-out ends on the last frame.
+  // v18.1: b is the film beat (no stretch); only the fade-out reads END, so it still ends on the last frame.
   every(0, 1e6, (p, bf) => {
-    const LK = END / 88, b = bf / LK, e = env(b) * look(bf);
+    const b = bf, e = env(b) * look(bf), [px, py] = par(b);
     B.forEach((o) => {
-      const [x, y, w, st] = o.at(b), d = o.d, wt = weights(o, b);
-      // slow drift and breathing (periods ≈ 26–37 beats, never in time with the music)
-      const dx = 26 * Math.sin(b * .19 + d * 1.7), dy = 18 * Math.cos(b * .17 + d * 2.3), sc = 1 + .035 * Math.sin(b * .23 + d);
-      const rr = o.rot0 + o.spin * b + 2.5 * Math.sin(b * .2 + d * 3.1);
+      const [x0, y0, w, st] = o.at(b), d = o.d, wt = weights(o, b), x = x0 + px * o.pk, y = y0 + py * o.pk;
+      // slow drift and breathing (periods ≈ 40–55 film beats, the v17 speeds × 88 / 131.7, never in time with the music)
+      const dx = 26 * Math.sin(b * .127 + d * 1.7), dy = 18 * Math.cos(b * .114 + d * 2.3), sc = 1 + .035 * Math.sin(b * .154 + d);
+      const rr = o.rot0 + o.spin * b + 2.5 * Math.sin(b * .134 + d * 3.1);
       const op = Math.min(CAP, Math.max(0, st) * GAIN) * e;
       for (const im in o.layers) {
         const el = o.layers[im], a = op * (wt[im] || 0);
