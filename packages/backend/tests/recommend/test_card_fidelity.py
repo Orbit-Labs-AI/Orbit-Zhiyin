@@ -162,9 +162,12 @@ def test_removal_evidence(slate):
     for cand in removal:
         assert cand["ui"]["evq"]["session_uids"], cand["rec_key"]
         assert len(cand["ui"]["evq"]["session_uids"]) <= 20
-    unused = next(c for c in removal if c["rec_key"] == "removal:inv_syn_2")
-    assert unused["ui"]["ev"] == "36 个会话（均未调用）"
-    assert unused["ui"]["evq"]["session_uids"][0] == "session_syn_35"  # newest first
+    # The parity window is ~29 days: below the 90-day window features.linked needs before it calls
+    # an item unused, so the MCP is only a resident-cost removal, never「均未调用」.
+    resident = next(c for c in removal if c["rec_key"] == "removal:inv_syn_2")
+    assert resident["ui"]["ev"] == "36 个会话（每次都加载）"
+    assert "未调用" not in resident["ui"]["ev"]
+    assert resident["ui"]["evq"]["session_uids"][0] == "session_syn_35"  # newest first
 
 
 def test_relations_one_per_pair(slate):

@@ -64,7 +64,7 @@ def test_benefit_zero_cards_do_not_pass():
     inv = problems.build(inputs(
         inventory=[{"inv_id": "m1", "type": "mcp", "name": "figma", "enabled": True}],
         facts={"usage": {"skill": {}, "mcp": {}}},
-        sessions={"main": 40, "weeks": 6, "first_ts": "2026-07-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}))
+        sessions={"main": 40, "weeks": 6, "first_ts": "2026-05-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}))
     unused = next(p for p in inv if p["type"] == "installed_unused")
     assert unused["wilson_lo"] <= .9 and unused["vars"]["tokens_basis"] == "estimate"
     zero = raw("removal:x", kind="removal", dim="mcp", unit_minutes=0., prob={**unused, "weekly_count": 0})
@@ -77,7 +77,7 @@ def test_signal_units_read_in_chinese_and_unknown_usage_is_not_unused():
     sig = signal("tool_failures", "r1", group={"tool": "WebFetch", "kind": "web.fetch"})
     sig["metrics"][0]["unit"] = "count"
     assert problems.build(inputs(signals=[sig]))[0]["unit"] == "次"
-    window = {"main": 40, "weeks": 6, "first_ts": "2026-07-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
+    window = {"main": 40, "weeks": 6, "first_ts": "2026-05-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
     inv = [{"inv_id": "c", "type": "skill", "name": "codex-skill", "status": "unknown_usage", "resident_tokens": 50},
            {"inv_id": "u", "type": "skill", "name": "idle", "status": "unused", "resident_tokens": 50}]
     keys = {p["key"] for p in problems.build(inputs(inventory=inv, facts={"usage": {"skill": {}, "mcp": {}}},
@@ -164,3 +164,45 @@ def test_mixed_recurs_boundaries(k, n, recurs):
 
     data = {"sessions": {"main": n, "weeks": 4}, "facts": {"session_days": _days(k, n)}}
     assert templates._mixed_recurs(data) is recurs
+
+
+def test_fact_sessions_above_main_are_truncated_and_not_active():
+    # 12 failing sessions reported against 8 main sessions: k/n would read 12/12 = 100 %.
+    out = {p["key"]: p for p in problems.build(_big(_failures(12), main=8))}["tool_env_failure:docker"]
+    assert out["status"] == "insufficient"
+    assert out["sessions"] == 8 and out["denominator_all"] == 8
+    assert out["vars"]["count_mismatch"] == {"k_reported": 12, "main": 8}
+    # without any session total the share is unknown as well
+    none = {p["key"]: p for p in problems.build(_big(_failures(6), main=0))}["tool_env_failure:docker"]
+    assert none["status"] == "insufficient" and none["vars"]["count_mismatch"]["main"] == 0
+    # consistent counts carry no diagnostic: 6 of 8 → Wilson lo = 0.409 (hand: p=.75, z=1.96)
+    ok = {p["key"]: p for p in problems.build(_big(_failures(6), main=8))}["tool_env_failure:docker"]
+    assert ok["status"] == "active" and "count_mismatch" not in ok["vars"]
+    assert ok["wilson_lo"] == pytest.approx(.4093, abs=1e-4)
+
+
+@pytest.mark.parametrize(("first", "expected"), [
+    ("2026-06-10T00:00:00Z", None),   # 83 days: features.linked says insufficient_history
+    ("2026-06-03T00:00:00Z", .5),     # exactly 90 days: unused, confidence starts at .5
+    ("2026-04-19T00:00:00Z", .7),     # 135 days: .5 + .4 × 45/90
+    ("2026-01-01T00:00:00Z", .9),     # ≥ 180 days: capped at .9
+])
+def test_installed_unused_follows_the_linked_90_day_window(first, expected):
+    inv = [{"inv_id": "m", "type": "mcp", "name": "figma", "enabled": True, "resident_tokens": 2100}]
+    sessions = {"main": 40, "weeks": 6, "first_ts": first, "last_ts": "2026-09-01T00:00:00Z"}
+    out = {p["key"]: p for p in problems.build(inputs(inventory=inv, facts={"usage": {"mcp": {}, "skill": {}}},
+                                                      sessions=sessions))}
+    unused = out.get("installed_unused:m")
+    if expected is None:
+        assert unused is None
+    else:
+        assert unused["status"] == "active" and unused["wilson_lo"] == pytest.approx(expected)
+
+
+def test_linked_insufficient_history_is_not_unused():
+    inv = [{"inv_id": "m", "type": "mcp", "name": "figma", "enabled": True, "resident_tokens": 2100,
+            "status": "insufficient_history"}]
+    sessions = {"main": 40, "weeks": 30, "first_ts": "2026-01-01T00:00:00Z", "last_ts": "2026-09-01T00:00:00Z"}
+    keys = {p["key"] for p in problems.build(inputs(inventory=inv, facts={"usage": {"mcp": {}, "skill": {}}},
+                                                    sessions=sessions))}
+    assert "installed_unused:m" not in keys
