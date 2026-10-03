@@ -1561,6 +1561,7 @@ const OrbitLive = (function () {
       toolCalls: (f, o) => C.send('GET', '/v1/analytics/tool_calls', null, { query: toolCallsQuery(f), signal: o && o.signal }).then(body),
       /* export */
       tables: () => C.send('GET', '/v1/export/tables').then(body),
+      // No UI entry since F20 removed 「导出工具明细 CSV」; kept as the general export API (backend /v1/export/csv)
       // CSV is text, not JSON: read it with the bearer header and hand back the text (status / code on failure)
       csv(table, f) {
         if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('OrbitLive is in mock mode'), { code: 'mock_mode', status: 0 }));
