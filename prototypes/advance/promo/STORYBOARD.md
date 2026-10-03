@@ -12,7 +12,7 @@
 - **平滑**：所有形态都是同一套参数的插值，没有换图，也没有突然出现的形状；缓动全部用 E.inOut / E.sine，没有回弹或过冲（落定只是挤压后回到 1，不越过）；不闪，不抖。
 - **不碰标志**：笔头、珠子只是骑在 orbitSVG 上或跟在它后面的点，不重画、不改宽曲线，也不替代曲线自带的笔头光。
 
-### F1 形态词汇（10 种）
+### F1 形态词汇（12 种）
 
 所有形态都是**一个径向轮廓**加一个 logo：轮廓用 64 个角度采样点 ρ(φ) 描述，单位是徽章半径 r（r 仍由编队 key 给出，所以编队的缩放照常生效）。插值时逐个采样点 lerp，再用 Catmull-Rom 闭合成路径，因此任意两种形态之间都能连续过渡。轮廓参数：
 
@@ -159,7 +159,7 @@ AGD.shape(i, b)               // 点 i 在 b 的实际形态参数（交接时�
 ### F4 实现清单（先 infra，再各场景）
 
 1. **`scenes/02-agents.js`（infra，先合入）**
-   - `AGD.morph` / `AGD.shape` / `AGD_MORPH`，参数表与 10 种形态（F1、F2），活参数复用 agV / agCall，存储加 SH，回调收场景拍。
+   - `AGD.morph` / `AGD.shape` / `AGD_MORPH`，参数表与 12 种形态（F1、F2），活参数复用 agV / agCall，存储加 SH，回调收场景拍。
    - `agShape(i, x, y, r, S)`：dot 短路为 agLogo；其余为 64 点径向轮廓 + agGlyph（logo 正立）、rays、micro、tick、stem。
    - 速度拖影（dot / bead，上限 .18，|v| < 300 px/拍 为 0），rot 'vel' / 'tan' / 'rad' / aim。
    - merge 合拢自动 morph 到 orb；tail 形态下 AGD.bubble 默认锚点在尾尖，AGD.chat 的 send 轨迹终点同。
