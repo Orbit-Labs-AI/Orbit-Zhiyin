@@ -73,6 +73,14 @@ def default_scope(tz: str | None = None) -> dict:
 
 def latest_rows(gw, tz: str | None = None) -> dict[str, dict] | None:
     """Newest cached fact rows by session id (never enqueues a computation)."""
+    body = latest_body(gw, tz)
+    if body is None:
+        return None
+    return {r["id"]: r for r in body.get("rows") or [] if not r.get("excluded")}
+
+
+def latest_body(gw, tz: str | None = None) -> dict | None:
+    """Newest cached ``uiview_facts`` body (rows + aux), widest window first; never enqueues."""
     from ..services.fastpath import windowed
     from ..services.sections import rules_digest
     from ..services.snapshots import scope_hash
@@ -83,9 +91,7 @@ def latest_rows(gw, tz: str | None = None) -> dict[str, dict] | None:
         snapshot = gw.snapshots.latest(SECTION, scope_hash(windowed(base, days), {}), rules)
         if snapshot is not None:
             break
-    if snapshot is None:
-        return None
-    return {r["id"]: r for r in snapshot.body.get("rows") or [] if not r.get("excluded")}
+    return None if snapshot is None else snapshot.body
 
 
 def persona_page(gw, scope_dict: dict, params: dict, today, *, wait_ms: int = 0):

@@ -84,3 +84,26 @@ def test_sentiment_days_are_local_calendar_days():
     # An explicit since still wins; without a zone the old rolling window stays.
     assert a4a6_sentiment._window({"since": 5, "days": 7}, now, zone)[0] == 5
     assert a4a6_sentiment._window({"days": 1}, now)[0] == now - 86_400_000
+
+
+def test_project_persona_comes_from_the_fact_rows():
+    """A5's persona column was always ``persona_pending`` (nothing set ``persona_lookup``);
+    it now reads the same fact rows and ``persona.persona`` as A2, per project."""
+    from orbit_backend.uiview import a4a6_projects, persona
+
+    from .synth import analysed
+
+    body = analysed()[4]
+    rows = [r for r in body["rows"] if not r.get("excluded")]
+    pid = next(r["p"] for r in rows if r.get("p"))
+    find = a4a6_projects.facts_persona_lookup(body)
+    got = a4a6_projects._persona(pid, find)
+    mine = derive.prepare([r for r in rows if r.get("p") == pid], date.today())
+    want = persona.persona(mine, body.get("aux") or {})
+    assert got["status"] == "available" and got["code"] == want["code"]
+    assert got["n"] == len(mine) and got["v"] == want["v"]
+    # agents and the window narrow the rows; an empty selection is not "pending"
+    empty = a4a6_projects._persona(pid, a4a6_projects.facts_persona_lookup(body, agents=["nope"]))
+    assert empty["code"] is None and empty["status"] == "insufficient_sample"
+    assert a4a6_projects._persona(pid, a4a6_projects.facts_persona_lookup(None))["status"] \
+        == "persona_pending"

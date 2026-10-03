@@ -165,7 +165,7 @@ LV.personaFor = function (period, L) {
 LV.reveal = function (period) { return lvpFetch(period, '/v1/uiview/persona/reveal', LVP.full); };
 // single-project subsets: /v1/uiview/projects[].persona (persona_pending until the backend computes it → 样本不足)
 function lvProjPersona(pid, L) {
-  const sc = LV.scope(); const path = LV.withQuery('/v1/uiview/projects', { range: sc.range, agent: sc.agents, display_timezone: TL_TZ || 'UTC' });
+  const sc = LV.scope(); const path = LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range) }); // same window as A5 (93-live-tools-projects)
   let e = LVP.proj.get(path);
   if (!e || (e.rev !== LV.rev && !e.loading)) {
     e = e || { rev: null, loading: false, map: {} }; LVP.proj.set(path, e); e.loading = true; const rev = LV.rev;

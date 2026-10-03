@@ -185,8 +185,50 @@ def _persona(pid, persona_lookup) -> dict:
     if not found:
         return {"code": None, "status": "persona_pending", "n_tasks": None,
                 "reason": "persona_pending"}
-    return {"code": found.get("code"), "status": found.get("status", "available"),
-            "n_tasks": found.get("n_tasks")}
+    out = {"code": found.get("code"), "status": found.get("status", "available"),
+           "n_tasks": found.get("n_tasks")}
+    # The axis values the prototype's project persona reads (91-live-persona lvProjPersona).
+    out.update({k: found[k] for k in ("n", "v", "zh", "en", "conf", "basis") if k in found})
+    return out
+
+
+def facts_persona_lookup(body: dict | None, *, agents=None, since: int | None = None,
+                         until: int | None = None):
+    """Per-project persona from the cached ``uiview_facts`` rows (the same rows and the same
+    ``uiview.persona.persona`` as A2), limited to the request's agents and ``[since, until)``
+    by each session's start. ``None`` while no fact snapshot exists (shown as pending)."""
+    if body is None:
+        return None
+    from datetime import date
+
+    from . import derive, persona
+
+    aux = body.get("aux") or {}
+    wanted = set(agents) if agents else None
+
+    def started(row):
+        return (aux.get(row["id"]) or {}).get("t0")
+
+    rows = [r for r in derive.prepare(body.get("rows") or [], date.today())
+            if not r.get("live") and (wanted is None or r.get("a") in wanted)
+            and (since is None or (started(r) is not None and started(r) >= since))
+            and (until is None or (started(r) is not None and started(r) < until))]
+    by_project: dict = defaultdict(list)
+    for r in rows:
+        by_project[r.get("p")].append(r)
+
+    def find(pid):
+        mine = by_project.get(pid) or []
+        if not mine:
+            return {"code": None, "status": "insufficient_sample", "n_tasks": 0, "n": 0}
+        p = persona.persona(mine, aux)
+        if not p.get("ok"):
+            return {"code": None, "status": "insufficient_sample", "n_tasks": p.get("n"),
+                    "n": p.get("n")}
+        return {"code": p["code"], "status": "available", "n_tasks": p["n"], "n": p["n"],
+                "v": p["v"], "zh": p["zh"], "en": p["en"], "conf": p["conf"],
+                "basis": "uiview_facts"}
+    return find
 
 
 def project_row(pid, rows, project, persona_lookup) -> dict:
@@ -478,8 +520,17 @@ def register(api, gw) -> None:
 
     range_dependency = Depends(common.range_scope)
 
-    def lookup():
-        return getattr(gw, "persona_lookup", None)
+    def lookup(agents=None, since=None, until=None):
+        custom = getattr(gw, "persona_lookup", None)
+        if custom is not None:
+            return custom
+        from . import fetch
+
+        try:
+            body = fetch.latest_body(gw)
+        except Exception:  # noqa: BLE001 - the persona column is optional, never break the page
+            return None
+        return facts_persona_lookup(body, agents=agents, since=since, until=until)
 
     @api.get("/v1/uiview/projects")
     def projects(project_id: ManyQuery = None, agent: ManyQuery = None, agents: str | None = None,
@@ -497,7 +548,8 @@ def register(api, gw) -> None:
         scope = {**scope_of(project_id, common.agent_list(agent, agents), since, until),
                  **ranges, "session_uids": ids}
         with gw.reads.read(empty=True) as conn:
-            body = build_projects(conn, scope, {"group": group}, persona_lookup=lookup())
+            body = build_projects(conn, scope, {"group": group},
+                                  persona_lookup=lookup(scope["agent_ids"], since, until))
             return mark_empty(body) if gw.reads.is_empty(conn) else body
 
     @api.get("/v1/uiview/projects/{project_id}")
@@ -508,7 +560,8 @@ def register(api, gw) -> None:
         items = _linked_items([project_id])
         with gw.reads.read(empty=True) as conn:  # nothing imported yet: 404, not 503
             body = build_project(conn, scope, project_id, {"compare": compare},
-                                 inventory_items=items, appdb=gw.appdb, persona_lookup=lookup())
+                                 inventory_items=items, appdb=gw.appdb,
+                                 persona_lookup=lookup(agent, since, until))
         if body is None:
             raise ApiError(404, "not_found", f"项目 {project_id} 不存在")
         return body
