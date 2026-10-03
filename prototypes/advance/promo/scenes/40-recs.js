@@ -1,5 +1,5 @@
 /* 40-recs 4（b39.4–55.1） — STORYBOARD.md v17「4 优化建议」+ v17.1 T10 / T10′, hand-offs T10 (in) / T11 (out).
-   Left: the five AGD dots in one short column (x 330, cp 372 / cc 456 / ds 540 / cx 624 / gm 708, r 30); when entry n
+   Left: the five AGD dots in one short column (x 330, rows 372 … 708 in their compass-rim y order, r 30); when entry n
    nears the centre line the dots it links to step forward to x 386, light up and emit the links; the type word wipes in
    left → right as the first link reaches the card (the entry comes out of its dots). Middle: six real recommendation
    cards of deck 0 (Advance, light) in one column that scrolls up at one slow constant speed (204 px/beat, no holds);
@@ -19,13 +19,22 @@ scene('40-recs', () => {
   const FLD = ['t', 'k', 't', 'k', 't', 'k'];                    // which counter each entry adds to
   const PIT = 2.4, ARR = IDS.map((_, n) => 41.6 + PIT * n);      // beat entry n reaches the centre line (41.6 … 53.6)
   const GAP = 490, CX = 540, CY = 540, CW = 820;                 // entry pitch (screen px), card left / centre line, card width
-  const ORD = [1, 3, 4, 2, 0];                                   // dot i → row (= order 'y' from the compass, H11)
-  const ROWDOT = [4, 0, 3, 1, 2];                                // row → dot
+  // dot i → row = its y rank on the compass rim at b39.4 (order 'y', H11). The 0.0.4 dial puts the badges at the data's
+  // bearings (demo: cc 43 / cx 62 / gm 288 / ds 118 / cp 221° → rows cc cx gm ds cp), not at the v17 spots V2 assumed
+  // ([1, 3, 4, 2, 0] sent cp from the bottom of the rim to the top row and gm down through ds / cp: the dots crossed and
+  // bunched at b40.4). Same ranking as cpBadge (y = C − R·cos θ); the centre row (gm here) lands on (330, 540) for T11.
+  const ORD = (() => {
+    let pl = []; try { pl = compassData().sets.base.pl || []; } catch (e) { /* no compass data: index order */ }
+    const y = [0, 1, 2, 3, 4].map((i) => -Math.cos((pl[i] ?? i * 72 + 18) * Math.PI / 180)), o = [];
+    [0, 1, 2, 3, 4].sort((p, q) => y[p] - y[q]).forEach((d, r) => { o[d] = r; });
+    return o;
+  })();
+  const ROWDOT = ORD.map((_, r) => ORD.indexOf(r));              // row → dot
   const sel = (id) => '.rcard[data-id="' + id + '"]';
   const card = (D, id) => D.querySelector(sel(id));
 
-  /* ---------- T10: the dots leave the compass rim and close into one short column (each travels 90–470 px, ranked by
-     their y on the compass, so no paths cross; ds lands on the centre line, where T11 merges the column) ---------- */
+  /* ---------- T10: the dots leave the compass rim and close into one short column (ranked by their y on the compass,
+     so no paths cross; the centre row lands on the centre line, where T11 merges the column) ---------- */
   const COLX = 330, STEP_X = 56;                                 // column x; a linked dot steps forward to 386
   AGD.key(39.4, 'column', { x: COLX, y0: 372, gap: 84, r: 30, order: ORD, dur: 1.6, stag: .08, arc: 20 });
 
@@ -75,7 +84,7 @@ scene('40-recs', () => {
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
   // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
   // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b55.0, so the merge (T11)
-  // starts from the exact column (ds at (330, 540))
+  // starts from the exact column (the centre row at (330, 540))
   const near = (i, b, d) => {
     let v = 0;
     IDS.forEach((_, n) => {
@@ -90,7 +99,8 @@ scene('40-recs', () => {
     return { a: .6 + .4 * near(i, b, .3), x: q.x + STEP_X * near(i, b, .4) + 4 * Math.sin(2 * Math.PI * (b / px + h)), y: q.y + 8 * Math.sin(2 * Math.PI * (b / py + h * 1.7)) };
   }, { blend: .4 });
 
-  /* ---------- deck 0: six cards in one column (b40.0 set-up, b40.6–55.1 on screen: the first card rises while the dots still fly, H11) ---------- */
+  /* ---------- deck 0: six cards in one column (b40.0 set-up, b40.3–55.1 on screen: the first card rises while the dots still fly, H11;
+     it starts fading in as the dial (gone b40.25) and the persona column (gone b40.2) leave, so the dots never fly over an empty frame) ---------- */
   const advLight = (d) => { const Wd = decks[d].W; if (Wd.eval('S.ed') !== 'advance') Wd.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); Wd.setTheme('light'); };
   const still = (D) => D.getAnimations().forEach((a) => { const t = a.effect && a.effect.target; if (t && t.closest && t.closest('.recs')) a.cancel(); });
   const unscroll = (D) => { for (let e = D.querySelector('#content'); e; e = e.parentElement) { if (e.scrollTop) e.scrollTop = 0; if (e.scrollLeft) e.scrollLeft = 0; } };
@@ -116,17 +126,17 @@ scene('40-recs', () => {
     CAM = { x: X0, y: Y0, s: S0, ax: CX, ay: CY, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 };
     if (DEBUG) console.warn('promo 40-recs layout', JSON.stringify({ S0, X0, Y0, H: cs.map((c) => base(c).h) }));
   });
-  tween(0, 40.6, 0, () => CAM || { x: 400, y: 500, s: 2, ax: CX, ay: CY, o: 1 }, E.lin);
+  tween(0, 40.3, 0, () => CAM || { x: 400, y: 500, s: 2, ax: CX, ay: CY, o: 1 }, E.lin);
 
-  // scroll position u (entries): entry n's centre is at CY + GAP·(n − u). One constant 204 px/beat from b40.55 (no
+  // scroll position u (entries): entry n's centre is at CY + GAP·(n − u). One constant 204 px/beat from b40.25 (no
   // stop-and-go, no hold); from b54.0 an E.in term adds .6 entry so the column eases faster up and out while it fades
   // (gone by b55.1: the trajectory card enters at b55.4, H12)
   const U = (b) => (b - ARR[0]) / PIT + .6 * E.in(lp(b, 54.0, 1.1));
   const FOC = IDS.map(() => ({ a: 0, bl: 0 }));                  // per entry: opacity and blur, shared by its card and its word
   const MK = { t: 'rc', k: 'rk' };
-  drive(0, 40.55, 55.1, (p, b, D) => {
+  drive(0, 40.25, 55.1, (p, b, D) => {
     still(D); unscroll(D);
-    const u = U(b), gIn = E.out(lp(b, 40.6, .9)), gOut = 1 - E.inOut(lp(b, 54.4, .7));
+    const u = U(b), gIn = E.out(lp(b, 40.3, .9)), gOut = 1 - E.inOut(lp(b, 54.4, .7));
     IDS.forEach((id, n) => {
       const el = card(D, id); if (!el) return;
       narrow(el);
