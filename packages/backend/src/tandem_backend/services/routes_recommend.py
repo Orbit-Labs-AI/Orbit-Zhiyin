@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 Surface = Literal["A7", "A1", "lite", "menubar", "widget", "palette", "ask", "hud"]
 Action = Literal["view", "open", "preview", "copy", "install", "dismiss", "snooze"]
-SURFACE_LIMIT = {"A7": 30, "A1": 3, "lite": 3, "menubar": 1, "widget": 1}
+SURFACE_LIMIT = runs.SURFACE_LIMIT  # single source: default ``limit`` per surface
 TOP_SURFACES = ("A1", "lite", "menubar", "widget")
 TOP_TTL_MS = store.DAY
 DIMS = (("all", "全部"), ("rule", "规则与 Prompt"), ("skill", "Skills"), ("hook", "Hooks"),
@@ -75,9 +75,15 @@ class LabelRequest(BaseModel):
                     "never_triggered", "reverted"] | None = None
 
 
+# Keys a recompute body may set: the parameters of routes_analytics.analytics_scope, listed
+# explicitly (test_rec_routes checks the list against that signature).
+SCOPE_KEYS = frozenset({"display_timezone", "project_ids", "legacy_project_ids", "model_ids", "effort_raw",
+                        "from_ts", "until_ts", "root_session_uids", "excluded_session_uids", "include_children",
+                        "scene", "source_ids", "days", "agent_ids"})
+
+
 def _scope_from_body(scope: dict):
-    allowed = set(analytics_scope.__code__.co_varnames[:analytics_scope.__code__.co_argcount])
-    unknown = set(scope) - allowed
+    unknown = set(scope) - SCOPE_KEYS
     if unknown:
         raise ApiError(422, "invalid_request", f"Unknown scope keys: {sorted(unknown)}")
     return analytics_scope(**scope)
@@ -134,10 +140,13 @@ def router(gw: Gateway) -> APIRouter:
             counts[item.get("dim")] = counts.get(item.get("dim"), 0) + 1
             kinds[item.get("kind")] = kinds.get(item.get("kind"), 0) + 1
         library = sum(1 for item in items if item.get("basis") == "catalog_only")
-        if surface in TOP_SURFACES and not problem_id:
+        filtered = not dim or dim == "all"
+        if not filtered:
+            items = [c for c in items if c.get("dim") == dim]
+        if surface in TOP_SURFACES and not problem_id and filtered:
             items = _top(surface, h, run, items, limit, now)
-        else:
-            items = [c for c in items if not dim or dim == "all" or c.get("dim") == dim][:limit]
+        else:  # a dim / problem filter is a different slice than the cached per-surface top
+            items = items[:limit]
         body = {"run": _run_meta(run, freshness), "items": items, "dims": _dims(counts),
                 "problems": run.get("problems") or [],
                 "counts": {"dim": counts, "kind": kinds, "state": state_counts,

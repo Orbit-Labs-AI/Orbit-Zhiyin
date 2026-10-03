@@ -143,12 +143,10 @@ def test_prefix_query_matches_partial_last_token(store):
     assert search(store, MatchRequest(text="flameg", prefix=True))["items"][0]["item_id"] == "profiler"
 
 
-def test_lexical_k_doubles_until_filtered_items_found(store, monkeypatch):
-    import tandem_catalog.search as module
+def test_lexical_finds_filtered_item_behind_many_stronger_hits(store):
     rows = [record(f"p{n:03}", summary="retry retry retry wording", agents=["claude_code"]) for n in range(60)]
     rows.append(record("only-codex", summary="retry once, among many other unrelated words here", agents=["codex"]))
     publish(store, rows)
-    monkeypatch.setattr(module, "MIN_K", 1)  # First window (40 chunks) holds only filtered-out items.
     result = search(store, MatchRequest(text="retry", agents=["codex"], per_route=10))
     assert [i["item_id"] for i in result["items"]] == ["only-codex"]
 
@@ -193,8 +191,167 @@ def test_snake_case_query_matches_fts_split_not_phrase(store, text):
 def test_lexical_fts_error_degrades_only_that_route(store, monkeypatch):
     import tandem_catalog.search as module
     publish(store, [record("envfix", features=[Feature(feature="friction", value="tool_env", origin="curated")])])
-    monkeypatch.setattr(module, "match_expression", lambda text, prefix=False: '"a b"')  # phrase: unsupported here
+    monkeypatch.setattr(module, "_fts_term", lambda term, is_prefix: '"a b"')  # phrase: unsupported here
     result = search(store, MatchRequest(text="tool env", features=[Feature(feature="friction", value="tool_env")]))
     assert result["degraded"] == ["lexical:OperationalError"]
     assert result["routes"]["lexical"] == 0
     assert [i["item_id"] for i in result["items"]] == ["envfix"]
+
+
+# --- lexical BM25F ranking and absolute scores (hand-computed expectations) ---------------------
+
+def _animals(store):
+    rows = [("zebra", "zebra", "striped animal"), ("lion", "lion", "savanna animal"),
+            ("eagle", "eagle", "mountain bird"), ("guide", "safari guide", "lion lion lion tracking")]
+    publish(store, [Record(native_id=i, resource=Resource(item_id=i, type="skill", name=n, summary=s,
+                                                           url="https://example.org")) for i, n, s in rows])
+
+
+def _lexical_raw(result, item_id):
+    item = next(i for i in result["items"] if i["item_id"] == item_id)
+    return item["score_parts"]["routes"]["lexical"]["raw_score"]
+
+
+def test_bm25f_absolute_score_matches_hand_computation(store):
+    import math
+
+    from tandem_catalog.search import IDF_PRIOR_DOCS
+    _animals(store)  # 4 items, one metadata chunk each: "name\nsummary"
+    n = 4 + IDF_PRIOR_DOCS
+    idf = lambda df: math.log(1 + (n - df + 0.5) / (df + 0.5))  # noqa: E731
+    result = search(store, MatchRequest(text="zebra"))
+    # name hit (weight 4) + one occurrence in the chunk text: tf~ = 5, saturation 5 / (1.2 + 5)
+    assert _lexical_raw(result, "zebra") == pytest.approx(5 / 6.2)
+    result = search(store, MatchRequest(text="zebra animal"))
+    expected = (idf(1) * 5 / 6.2 + idf(2) * 1 / 2.2) / (2 * idf(1))
+    assert _lexical_raw(result, "zebra") == pytest.approx(expected)
+    # "lion" (savanna animal) carries only the df=2 term in its text.
+    assert _lexical_raw(result, "lion") == pytest.approx(idf(2) / 2.2 / (2 * idf(1)))
+    assert result["items"][0]["item_id"] == "zebra"
+
+
+def test_name_hit_outranks_repeated_body_mentions(store):
+    _animals(store)
+    ids = [i["item_id"] for i in search(store, MatchRequest(text="lion"))["items"]]
+    # lion: tf~ = 4 + 1 → 5/6.2 = 0.81; guide: three body hits → 3/4.2 = 0.71.
+    assert ids[:2] == ["lion", "guide"]
+
+
+def test_rare_term_outranks_common_term(store):
+    _animals(store)
+    rows = [Record(native_id=f"x{k}", resource=Resource(item_id=f"x{k}", type="skill", name=f"pack {k}",
+                   summary="deploy notes", url="https://example.org")) for k in range(8)]
+    rows.append(Record(native_id="w", resource=Resource(item_id="w", type="skill", name="pack w",
+                       summary="wrangler notes", url="https://example.org")))
+    publish(store, rows, source="primary", revision="r2", mode="incremental")
+    ids = [i["item_id"] for i in search(store, MatchRequest(text="deploy wrangler"))["items"]]
+    assert ids[0] == "w"
+
+
+def test_multi_term_match_outranks_single_term(store):
+    rows = [("both", "browser kit", "playwright automation"), ("one", "browser kit two", "plain automation"),
+            ("other", "playwright notes", "recording only")]
+    publish(store, [Record(native_id=i, resource=Resource(item_id=i, type="skill", name=n, summary=s,
+                                                           url="https://example.org")) for i, n, s in rows])
+    assert search(store, MatchRequest(text="playwright browser"))["items"][0]["item_id"] == "both"
+
+
+def test_unknown_and_stop_word_queries_return_nothing(store):
+    _animals(store)
+    assert search(store, MatchRequest(text="xqzv"))["items"] == []
+    assert search(store, MatchRequest(text="the and of how to"))["items"] == []
+
+
+def test_same_item_scores_identically_in_different_candidate_sets(store):
+    _animals(store)
+    full = search(store, MatchRequest(text="animal lion"))
+    narrow = search(store, MatchRequest(text="animal lion", excluded_ids=["lion", "guide"]))
+    score = {i["item_id"]: i["score"] for i in full["items"]}
+    assert narrow["items"] and all(i["score"] == score[i["item_id"]] for i in narrow["items"])
+    assert all(i["score"] < 0.85 for i in narrow["items"])  # no "best candidate gets the top score"
+
+
+@pytest.fixture(scope="module")
+def seeded(tmp_path_factory):
+    from tandem_catalog.service import CatalogService
+    service = CatalogService(tmp_path_factory.mktemp("seed") / "catalog.db")
+    service.bootstrap()
+    yield service
+    service.close()
+
+
+# Query -> substring every acceptable target name contains (chosen by reading the seed, not by
+# running the ranker): the item a user typing the query is looking for.
+GOLDEN = {"pdf docx": "docx", "playwright browser": "playwright", "postgres": "postgres", "slack": "slack",
+          "kubernetes": "kubernetes", "figma design": "figma", "stripe payments": "stripe", "sentry errors": "sentry",
+          "terraform": "terraform", "systematic debugging": "systematic", "notion": "notion",
+          "jupyter notebook": "jupyter", "excel spreadsheet": "xlsx", "code review": "code-review",
+          "git commit message": "commit"}
+
+
+@pytest.mark.parametrize("text", sorted(GOLDEN))
+def test_seed_golden_queries_hit_top3(seeded, text):
+    result = seeded.match(MatchRequest(text=text, purpose="library", limit=3))
+    names = [i["name"].casefold() for i in result["items"]]
+    assert any(GOLDEN[text] in name for name in names), names
+    assert all(i["score_parts"]["routes"]["lexical"]["raw_score"] > 0 for i in result["items"])
+
+
+@pytest.mark.parametrize("text", ["use the file", "the best tool", "how do I use this"])
+def test_seed_generic_query_returns_nothing(seeded, text):
+    # Every remaining word is in a large share of the 7.9k seed chunks: idf is low, so even a
+    # saturated match stays under MIN_TEXT_RELEVANCE.
+    assert seeded.match(MatchRequest(text=text, purpose="library"))["items"] == []
+
+
+def test_mmr_does_not_treat_shared_agents_as_redundancy(store):
+    agents = ["claude_code", "codex", "gemini", "opencode"]
+    rows = [Record(native_id=i, resource=Resource(item_id=i, type="skill", name=n, summary=s, agents=a,
+                                                   url=f"https://github.com/{i}/repo"))
+            for i, n, s, a in [("a", "pdf merge", "pdf pages", agents), ("b", "pdf split", "pdf pdf files", agents),
+                               ("c", "pdf forms", "pdf files", [])]]
+    publish(store, rows)
+    items = search(store, MatchRequest(text="pdf"))["items"]
+    by_score = sorted(items, key=lambda i: (-i["score"], -i["score_parts"]["rrf"], i["item_id"]))
+    # Distinct names and repositories, same kind: every pair is 1/5 similar, so MMR keeps score order.
+    assert [i["item_id"] for i in items] == [i["item_id"] for i in by_score]
+    from tandem_catalog.search import _similarity, redundancy_keys
+    keys = {i: redundancy_keys({"url": f"https://github.com/{i}/repo", "name_key": i, "type": "skill"}) for i in "ab"}
+    assert _similarity({"content_hash": "x", "_keys": keys["a"]}, {"content_hash": "y", "_keys": keys["b"]}) == 0.2
+
+
+def test_seed_mmr_keeps_docx_at_or_above_its_score_rank(seeded):
+    items = seeded.match(MatchRequest(text="pdf docx", purpose="library", limit=10))["items"]
+    by_score = sorted(items, key=lambda i: (-i["score"], -i["score_parts"]["rrf"], i["item_id"]))
+    position = next(n for n, i in enumerate(items) if i["name"] == "docx")
+    assert position <= next(n for n, i in enumerate(by_score) if i["name"] == "docx")
+
+
+# Chinese query -> substrings of acceptable English target names (by intent, read off the seed).
+GOLDEN_ZH = {"代码审查": ("review",), "数据库迁移": ("sql", "migration", "database"), "浏览器测试": ("playwright", "testing"),
+             "论文引用": ("research", "citation", "consensus"), "调试": ("debug",), "部署": ("deploy",),
+             "性能优化": ("performance",), "容器": ("docker", "container"), "安全漏洞": ("vulnerab", "security"),
+             "表格": ("xlsx",), "幻灯片": ("pptx",), "前端": ("frontend",), "监控日志": ("logging", "monitor"),
+             "机器学习": ("machine-learning",), "持续集成": ("cicd",), "重构": ("refactor",),
+             "支付": ("payment", "stripe"), "截图": ("screenshot",), "设计系统": ("design system",)}
+
+
+@pytest.mark.parametrize("text", sorted(GOLDEN_ZH))
+def test_seed_chinese_queries_reach_english_items_without_a_model(seeded, text):
+    result = seeded.match(MatchRequest(text=text, purpose="library", limit=5))
+    names = [i["name"].casefold() for i in result["items"]]
+    assert result["vector"]["status"] == "not_configured"
+    assert any(target in name for name in names for target in GOLDEN_ZH[text]), names
+
+
+def test_han_expansion_is_one_concept_and_does_not_dilute(store):
+    from tandem_catalog.search import HAN_EXPANSIONS, query_concepts
+    assert {"code review", "pull request"} <= HAN_EXPANSIONS["代码审查"]  # from VOCABULARY ("domain", "git.pr")
+    assert len(query_concepts("代码审查")) == 1
+    publish(store, [Record(native_id="r", resource=Resource(item_id="r", type="skill", name="reviewer",
+                                                             summary="code review helper", url="https://example.org"))])
+    zh = search(store, MatchRequest(text="代码审查"))["items"][0]["score_parts"]["routes"]["lexical"]["raw_score"]
+    en = search(store, MatchRequest(text="code review"))["items"][0]["score_parts"]["routes"]["lexical"]["raw_score"]
+    # One concept whose best alternative is the phrase "code review": mean over its two terms
+    # equals the English query's two concepts averaged over two.
+    assert zh == pytest.approx(en)

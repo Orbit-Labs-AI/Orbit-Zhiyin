@@ -58,7 +58,8 @@ def test_header_stats_and_resume(l1):
     head, stats = body["header"], body["stats7"]
     assert head["agent_name"] == "Claude Code" and head["model"] == "claude-opus-4-5"
     assert head["effort"] == "high" and head["cwd"] == "/w/p1" and head["started_at"] == T0
-    assert head["out"] == "ok" and head["out_basis"] == "estimate"
+    # 2 of 3 human messages are corrections: same "part" as the list row (uiview.outcome).
+    assert head["out"] == "part" and head["out_basis"] == "estimate"
     assert head["resume"]["shell"] == "cd /w/p1 && claude --resume native-cc-fix"
     assert head["resume"]["verified"] is False
     assert stats["tools"] == 8 and stats["errors"] == 3 and stats["steps"] == 10
@@ -150,3 +151,20 @@ def test_detail_5000_events_under_200ms(l1):
     elapsed = time.perf_counter() - started
     assert len(body["trajectory"]["moments"]) <= 6
     assert elapsed < 0.2, f"detail took {elapsed:.3f}s"
+
+
+def test_stats_corr_matches_header_corr(l1):
+    """UT-06: one corr per page; facts (A1) win in both the header and stats7."""
+    handwritten_cc(l1)
+    plain = detail(l1)
+    assert plain["stats7"]["corr"] == plain["header"]["corr"] == 2  # 2 lexical corrections
+    with_facts = trajectory.build_detail(l1.db, "cc-fix", facts={"corr": 4})
+    assert with_facts["header"]["corr"] == with_facts["stats7"]["corr"] == 4
+
+
+def test_active_time_is_one_implementation():
+    from tandem_backend.uiview import metrics, sessions
+
+    assert trajectory._active_ms([0, 60_000, 60_000 + 10 * 60_000]) == 60_000 + 5 * 60_000
+    assert metrics.active_ms([]) is None and metrics.active_ms([5]) == 0
+    assert sessions.ACTIVE_GAP_MS == metrics.IDLE_CAP_MS

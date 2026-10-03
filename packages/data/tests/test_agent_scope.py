@@ -96,3 +96,34 @@ def test_selected_descendant_does_not_restore_unselected_agent_root(multi_agent_
     assert not read_analysis(
         multi_agent_home, AnalysisScope("UTC", agent_ids=("pi",), from_ts=2000000000000)
     )["events"]
+
+
+def _touch(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"")
+    return path
+
+
+def test_discovery_finds_hermes_profiles_and_opencode_channel_databases(tmp_path):
+    from tandem_data.discovery import inputs
+
+    hermes = tmp_path / "hermes"
+    expected = {
+        _touch(hermes / "state.db"),
+        _touch(hermes / "profiles/work/state.db"),
+        _touch(hermes / "profiles/play/state.db"),
+    }
+    _touch(hermes / "profiles/.deleted/state.db")  # tombstone
+    _touch(hermes / "profiles/work/state.db-wal")
+    _touch(hermes / "profiles/work/nested/x/state.db")  # deeper than a profile home
+    assert {f.path for f in inputs("hermes", hermes)} == expected
+
+    opencode = tmp_path / "opencode"
+    expected = {
+        _touch(opencode / "opencode.db"),
+        _touch(opencode / "opencode.dev.db"),
+        _touch(opencode / "opencode-beta.db"),
+    }
+    _touch(opencode / "opencode.db-wal")
+    _touch(opencode / "other.db")
+    assert {f.path for f in inputs("opencode", opencode)} == expected

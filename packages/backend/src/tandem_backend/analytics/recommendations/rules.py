@@ -2,6 +2,15 @@
 
 Rules operate on one selected root-session tree at a time. They never consume
 raw prompts, old lexical proxies, popularity, or estimated work duration.
+
+Scores are an inspectable ranking heuristic, not calibrated probabilities (no labelled
+outcomes exist to fit them against):
+- ``coverage``: share of the rule's population whose evidence is decidable (known / total).
+- ``confidence = coverage * min(1, n / target_n)``; ``target_n`` is twice the rule's minimum
+  sample, so support saturates once the sample is double the trigger floor.
+- ``severity``: the observed rate over twice its trigger threshold (or the raw rate where
+  no rate threshold exists), clamped to [0, 1].
+- ``recurrence = min(1, count / (3 * minimum count))``.
 """
 
 import json
@@ -133,7 +142,7 @@ def evaluate_features(features, policy, context):
     else:
         emit(rule, ["requirements_memory"], f"观察到 {len(repeats)} 条对同任务、同对象要求的再次强调，可试用要求记录与阶段核对。",
              [metric("interaction.repeated_requirement_count", len(repeats), len(requirements))],
-             [evidence("event", r["session_uid"], r["event_uid"], r["task_uid"]) for r in requirements],
+             [evidence("event", r["session_uid"], r["event_uid"], r["task_uid"]) for r in repeats],
              len(repeats), policy.repeated_min_count, len(requirements), policy.requirement_min_samples * 2,
              requirement_coverage, len(repeats) / (policy.repeated_min_count * 2),
              "检验持久记录要求是否减少重复强调，而不增加无关的计划步骤。",
@@ -143,11 +152,15 @@ def evaluate_features(features, policy, context):
     rule = "identical_retries"
     links = respond.get("retry_links")
     unique_links = {(r.get("session_uid"), r.get("from_call_uid"), r.get("to_call_uid")): r for r in links or []}
-    retries = []
+    retries, decidable = [], 0
     for (sid, previous, current), link in unique_links.items():
         a, b = call_index.get((sid, previous)), call_index.get((sid, current))
-        if (link.get("state") == "confirmed" and link.get("same_arguments") is True and link.get("task_uid")
-                and link.get("status_scope") not in (None, "unknown") and a and b and _status(a) == "failed"):
+        # Decidable: both calls recorded, task and status scope known, first result known.
+        known = (bool(link.get("task_uid")) and link.get("status_scope") not in (None, "unknown")
+                 and a is not None and b is not None and _status(a) in ("success", "failed"))
+        decidable += known
+        if (known and link.get("state") == "confirmed" and link.get("same_arguments") is True
+                and _status(a) == "failed"):
             retries.append(link)
     if calls is None or links is None:
         assessment(rule, "insufficient_evidence", "没有可验证的调用与重试关系。")
@@ -158,7 +171,7 @@ def evaluate_features(features, policy, context):
         emit(rule, ["debugging", "retry_control"], f"存在 {len(retries)} 对确认的失败后同参数重试，可试行先诊断再重试。",
              [metric("respond.retry_links.confirmed_same_arguments", len(retries), len(unique_links))], refs,
              len(retries), policy.retry_min_count, len(retries), policy.retry_min_count * 2,
-             len(retries) / len(unique_links), len(retries) / (policy.retry_min_count * 2),
+             decidable / len(unique_links), len(retries) / (policy.retry_min_count * 2),
              "检验根因定位和重试检查点是否减少重复失败；不得通过跳过失败检查来降低计数。",
              ["respond.retry_links", "outcome.acceptance_results"])
         assessment(rule, "triggered", "使用确认关系，不使用兼容层的弱重试计数。")

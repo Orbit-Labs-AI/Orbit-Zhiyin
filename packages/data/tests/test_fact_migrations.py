@@ -46,6 +46,14 @@ def test_fact_migrations_preserve_records_and_rebuild_native_facts(tmp_path, lay
         before_events = [tuple(row) for row in before_events]
 
     with sqlite3.connect(home / "tandem.db") as db:
+        # Neither historical layout has the v14 cost/failure/file fields.
+        db.execute("DROP TABLE tool_call_file")
+        for table, column in (
+            ("model_call", "cache_write_1h_tokens"),
+            ("model_call", "service_tier"),
+            ("tool_call", "failure_kind"),
+        ):
+            db.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
         if layout == "main_v10":
             for table, column in (
                 ("model_call", "request_identity_quality"),
@@ -82,6 +90,11 @@ def test_fact_migrations_preserve_records_and_rebuild_native_facts(tmp_path, lay
         assert call["native_execution_ms"] == 2000
         assert call["wall_elapsed_ms"] == 3000
         assert call["command_spec"] is not None
+        # v14 fields exist after the upgrade; a successful command has no failure kind.
+        assert "failure_kind" in call.keys() and call["failure_kind"] is None
+        columns = {r["name"] for r in store.db.execute("PRAGMA table_info(model_call)")}
+        assert {"cache_write_1h_tokens", "service_tier"} <= columns
+        assert store.db.execute("SELECT COUNT(*) FROM tool_call_file").fetchone()[0] == 0
         assert store.verify()["integrity"] == "ok"
         assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
     # Reopening does not reapply fields or downgrade either migration marker.

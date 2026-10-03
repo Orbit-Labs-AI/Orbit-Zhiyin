@@ -149,3 +149,15 @@ def test_duplicate_scenarios_cannot_double_count_savings():
     scenario = {"resource_id": "x", "signal_id": "s", "analysis_digest": "current", "reduction": value(.2), "basis": "hypothesis"}
     with pytest.raises(ValidationError, match="Duplicate"):
         RecommendationContext(benefit_scenarios=[scenario, scenario])
+
+
+def test_card_savings_uses_scenario_bounds():
+    from tandem_backend.recommend.benefit import beta_interval, card_savings
+
+    lo, hi = beta_interval(9, 1)
+    # mean .9, sd = √(9·1 / (10²·11)) = .0904534 ; ±1.645·sd = .1487958 ; upper clipped at 1
+    assert lo == pytest.approx(.7512042, abs=1e-6) and hi == 1.
+    out = card_savings(10, 4, 2., (.25, .5))
+    # baseline 10 × 4 × 2 = 80 min; gross = 80 × [.25, .5] = [20, 40]; overhead unknown → partial
+    assert out["status"] == "partial" and out["baseline"] == {"low": 80, "high": 80}
+    assert out["gross_savings"] == {"low": 20, "high": 40} and out["net_savings"] is None

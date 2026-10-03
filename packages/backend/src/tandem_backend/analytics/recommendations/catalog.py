@@ -6,8 +6,13 @@ import re
 from importlib.resources import files
 from pathlib import PurePosixPath
 
+from tandem_data.capabilities import MATRIX
+
 KINDS = {"skill", "agent", "hook", "prompt"}
-TARGETS = {"generic", "codex", "claude_code"}
+# Every agent the data layer has a capability row for (claude_code, codex, opencode, pi,
+# hermes, dsh, kimi), plus "generic". One source, so a newly supported agent is accepted
+# by the GET routes and the compatibility analyzer without editing a second list.
+TARGETS = frozenset({"generic", *MATRIX})
 CAPABILITIES = {"scope_alignment", "requirements_memory", "debugging", "retry_control",
                 "tool_preflight", "verification", "validation_visibility", "context_budget"}
 

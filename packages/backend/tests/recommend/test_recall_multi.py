@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from tandem_backend.recommend.recall import catalog_route, generative, graph, hashed, models
+from tandem_backend.recommend.recall import catalog_route, generative, hashed, models
 from tandem_backend.recommend.recall.multi import recall_all
 
 
@@ -86,7 +86,7 @@ def test_candidate_shape_matches_contract():
     retry = next(c for c in result["candidates"] if c["rec_key"] == "kb:retry-breaker")
     assert retry["evidence"]["counts"]["sessions"] == 6 and retry["problem"]["status"] == "active"
     assert retry["target"]["agents"][0] == "claude_code" and retry["explain_hints"]["mechanism_row"] == 0
-    assert set(result["routes"]) >= {"kb", "subtract", "catalog", "dense"}
+    assert set(result["routes"]) >= {"kb", "subtract", "catalog", "hashed_lexical"}
 
 
 class FakeCatalog:
@@ -157,10 +157,10 @@ def test_catalog_none_falls_back_to_legacy_bm25():
     assert "catalog:tandem-diagnose-retry" in {c["rec_key"] for c in legacy}
 
 
-def test_vector_ready_skips_dense_route():
+def test_vector_ready_skips_hashed_lexical_route():
     result = recall_all(make(many("identical_retries")), {}, catalog=FakeCatalog(n=30, vector="ready"))
-    assert "dense" not in result["routes"]
-    assert {"source": "dense", "status": "skipped", "reason": "catalog_vector_ready"} in result["diagnostics"]
+    assert "hashed_lexical" not in result["routes"]
+    assert {"source": "hashed_lexical", "status": "skipped", "reason": "catalog_vector_ready"} in result["diagnostics"]
 
 
 @pytest.mark.serial
@@ -211,13 +211,24 @@ def test_model_effort_route():
     assert "model:effort-medium-readonly" not in {c["rec_key"] for c in recall_all(make(facts=low))["candidates"]}
 
 
-def test_graph_pairs_with_installed_and_relation_hints():
+def test_graph_pairs_with_installed():
     memory = {"state": {"kb:retry-breaker": {"status": "installed"}}}
     result = recall_all(make(main=30), memory)
     keys = {c["rec_key"]: c for c in result["candidates"]}
     assert "graph" in keys["kb:systematic-debugging"]["routes"]
-    hints = graph.relation_hints(recall_all(make(many("acceptance_evidence_gap")))["candidates"])
-    assert ("kb:stop-verify-hook", "kb:verify-checklist", "complements", "搭配使用效果更好") in hints
+    assert keys["kb:systematic-debugging"]["match_basis"] == "complement"
+
+
+def test_complement_survives_problem_cards_with_cap():
+    from tandem_backend.recommend import engine
+
+    memory = {"state": {"kb:retry-breaker": {"status": "installed"}}}
+    inputs = make(facts=READONLY, main=30)  # a permission problem drives its own cards
+    slate = engine.build_slate(inputs, memory, recall=lambda i, m, catalog=None: recall_all(i, m))
+    ranked = [c for c in slate["candidates"] if c["rank"]]
+    assert any(c["basis"] == "problem" for c in ranked)
+    complements = [c for c in ranked if c["basis"] == "complement"]
+    assert len(complements) == 1, [(c["rec_key"], c["basis"]) for c in ranked]
 
 
 def test_failing_route_is_isolated(monkeypatch):
@@ -243,3 +254,69 @@ def test_recall_all_latency_budget():
         timings.append(time.perf_counter() - start)
     assert len(result["problems"]) >= 8
     assert statistics.quantiles(timings, n=20)[-1] < .08
+
+
+AGENTS7 = ["claude_code", "codex", "hermes", "kimi", "opencode", "dsh", "pi"]
+HOMES = {"claude_code": "~/.claude/", "codex": "~/.codex/"}
+
+
+@pytest.mark.parametrize("agent", AGENTS7)
+def test_landing_path_never_falls_back_to_another_agent(agent):
+    from tandem_backend.recommend import engine, narrate
+
+    inputs = make(facts=READONLY, agents={agent: 30})
+    result = recall_all(inputs, {})
+    kb = [c for c in result["candidates"] if c["source"]["origin"] in ("kb", "template")]
+    assert kb
+    for cand in kb:
+        path = cand["target"]["path_hint"] or ""
+        for owner, home in HOMES.items():
+            if owner != agent:
+                assert not path.startswith(home), (agent, cand["rec_key"], path)
+    allow = next(c for c in kb if c["rec_key"] == "kb:readonly-allowlist")
+    if agent in HOMES:
+        assert allow["target"]["path_hint"].startswith(HOMES[agent])
+    else:
+        assert allow["target"]["path_hint"] is None
+        slate = engine.build_slate(inputs, {}, recall=lambda i, m, catalog=None: result)
+        card = next(c for c in slate["candidates"] if c["rec_key"] == "kb:readonly-allowlist")
+        assert "needs_context" in card["gates"]["reasons"]
+        if card.get("ui"):
+            assert card["ui"]["primary"] == "查看方案" and card["ui"]["target"] == ""
+    assert agent in narrate.AGENT_NAME
+
+
+def test_catalog_query_covers_every_used_agent():
+    catalog = FakeCatalog()
+    recall_all(make(many("identical_retries"), agents={"claude_code": 30, "hermes": 4, "kimi": 1, "pi": 0}), {},
+               catalog=catalog)
+    assert catalog.requests and all(r.agents == ["claude_code", "hermes", "kimi"] for r in catalog.requests)
+
+
+def test_fuse_weights_change_order():
+    from tandem_backend.recommend.recall.fusion import fuse
+
+    routes = {"kb": [("a", 1.), ("b", .9)], "catalog": [("b", 1.), ("a", .9)]}
+    # w_kb=1, w_cat=.7: a = 1/61 + .7/62 = .027684, b = 1/62 + .7/61 = .027605 → a first
+    default = [f.item_id for f in fuse(routes, k=60, weights={"kb": 1., "catalog": .7})]
+    # w_kb=.5, w_cat=1: a = .5/61 + 1/62 = .024326, b = .5/62 + 1/61 = .024458 → b first
+    swapped = [f.item_id for f in fuse(routes, k=60, weights={"kb": .5, "catalog": 1.})]
+    assert default == ["a", "b"] and swapped == ["b", "a"]
+
+
+def test_recall_all_weight_override_reaches_fusion():
+    inputs = make(many("identical_retries"))
+    base = {c["rec_key"]: c["fusion"] for c in recall_all(inputs)["candidates"]}
+    boosted = {c["rec_key"]: c["fusion"] for c in recall_all(inputs, weights={"kb": 2.})["candidates"]}
+    key = "kb:retry-breaker"
+    assert boosted[key] > base[key]
+    assert {c["rec_key"] for c in recall_all(inputs, hashed_threshold=1.01)["candidates"]
+            if "hashed_lexical" in c["routes"]} == set()
+
+
+def test_hashed_threshold_boundary():
+    docs = {"same": "同一命令连续失败", "other": "完全无关的文本 zebra"}
+    score = dict(hashed.rank("同一命令连续失败", docs, threshold=0.))["same"]
+    assert score == pytest.approx(1.)  # identical text → cosine 1
+    assert "same" in dict(hashed.rank("同一命令连续失败", docs, threshold=score))
+    assert "same" not in dict(hashed.rank("同一命令连续失败", docs, threshold=score + 1e-6))

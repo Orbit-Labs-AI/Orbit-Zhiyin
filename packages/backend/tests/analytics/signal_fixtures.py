@@ -34,9 +34,10 @@ class Session:
                            "trigger": "human", "status": "completed"})
         return self._event("message.user", text, "human", origin="human", **attrs)
 
-    def reply(self, text="好的，已经处理。", final=True):
+    def reply(self, text="好的，已经处理。", final=True, *, phase=True):
+        """Codex shape labels ``phase`` (final/commentary); ``phase=False`` is the Claude/Kimi shape."""
         return self._event("message.assistant", text, "assistant",
-                           **({"phase": "final"} if final else {}))
+                           **({"phase": "final" if final else "commentary"} if phase else {}))
 
     def event(self, kind, **attrs):
         return self._event(kind, None, None, **attrs)

@@ -4,7 +4,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 
-from ..common import human, task_uid
+from ..common import final_assistant_uids, human, task_uid
 
 
 def digest(value):
@@ -63,6 +63,7 @@ DEFAULT_BUDGET = Budget()
 
 def select_candidates(events, main_ids, budget=DEFAULT_BUDGET):
     seen, histories, candidates, skipped = set(), {}, [], []
+    finals = final_assistant_uids(events)
     for event in sorted(events, key=lambda e: (e["session_uid"], e["seq"], e["event_uid"])):
         sid, uid = event["session_uid"], event["event_uid"]
         if (sid, uid) in seen:
@@ -109,10 +110,7 @@ def select_candidates(events, main_ids, budget=DEFAULT_BUDGET):
                 candidates.append(item)
         if (
             human(event, main_ids)
-            or event["kind"] == "message.assistant"
-            and event.get("attrs", {}).get("phase") in ("final", "final_answer")
-            and not event.get("attrs", {}).get("duplicate_of")
-            and not event.get("attrs", {}).get("replayed_from")
+            or (sid, uid) in finals
         ):
             history.append(event)
     return candidates, skipped

@@ -81,6 +81,56 @@ def test_facet_mapping_and_missing_events():
     assert layer.outcomes["d"]["reason"] == "events_unavailable"
 
 
+def phaseless(sid, *feedback, turns=True):
+    """Claude/Kimi shape: assistant messages carry no ``attrs.phase``."""
+    s = Session(sid)
+    s.user("请写一份周报")
+    s.reply("我先看一下数据", phase=False)
+    s.tool("rg report", status="success", digest="r")
+    s.reply("周报如下……", phase=False)
+    for text in feedback:
+        s.user(text)
+    if not turns:
+        for e in s.events:
+            e["turn_uid"] = None
+    return s
+
+
+def test_final_delivery_without_phase_is_last_assistant_of_turn():
+    from tandem_backend.analytics.common import final_assistant_uids
+    from tandem_backend.analytics.outcome_subjective.extraction import collect_deliveries
+
+    for turns in (True, False):
+        s = phaseless("a", turns=turns)
+        assert final_assistant_uids(s.events) == {("a", "a-e4")}  # not the "先看一下" message
+        assert [d["delivery_event_uid"] for d in collect_deliveries(s.events, {"a"})] == ["a-e4"]
+    # Codex labels still win: commentary is never a delivery even when it is last.
+    codex = Session("c")
+    codex.user("请写一份周报")
+    codex.reply("周报如下……")
+    codex.reply("顺便说明一下", final=False)
+    assert final_assistant_uids(codex.events) == {("c", "c-e1")}
+
+
+def test_explicit_feedback_layer_without_phase():
+    assert outcome(phaseless("a", "可以了，谢谢")) == ("completed", "explicit_feedback")
+    assert outcome(phaseless("b", "这个不对，需要返工")) == ("partial", "explicit_feedback")
+    assert outcome(phaseless("c", "可以了，谢谢", turns=False)) == ("completed", "explicit_feedback")
+
+
+def test_structural_not_abandoned_when_assistant_answers_correction_without_phase():
+    s = phaseless("a", "我说的是月报")  # correction proxy, no feedback wording
+    assert outcome(s) == ("abandoned", "structural")  # session really ends on the correction
+    s.reply("好的，月报如下……", phase=False)
+    assert outcome(s) != ("abandoned", "structural")
+
+
+def test_autonomy_steps_count_final_without_phase():
+    s = phaseless("a")
+    # one tool call + one final delivery; the intermediate message is not a step
+    assert layer_of(s).facts["a"]["autonomy_steps"] == 2
+
+
 # ---------------------------------------------------------------- AN-02
 
 
