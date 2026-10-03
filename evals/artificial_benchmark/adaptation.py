@@ -13,23 +13,23 @@ from dataclasses import asdict
 from pathlib import Path
 
 import yaml
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
 
-from tandem_backend import features
-from tandem_backend.ai import pack as packs
-from tandem_backend.ai.errors import CallFailed
-from tandem_backend.ai.generate import tasks as generation
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.appdb import AppDB
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.features.service import FeatureService
-from tandem_backend.install.errors import PlanError
-from tandem_backend.install.plan import _ai_payload, _kb_spec, build_spec
-from tandem_backend.recommend import section
-from tandem_backend.recommend.engine import build_slate
-from tandem_backend.recommend.store import memory
-from tandem_backend.services.sections import ResultMemo
+from orbit_backend import features
+from orbit_backend.ai import pack as packs
+from orbit_backend.ai.errors import CallFailed
+from orbit_backend.ai.generate import tasks as generation
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.appdb import AppDB
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.features.service import FeatureService
+from orbit_backend.install.errors import PlanError
+from orbit_backend.install.plan import _ai_payload, _kb_spec, build_spec
+from orbit_backend.recommend import section
+from orbit_backend.recommend.engine import build_slate
+from orbit_backend.recommend.store import memory
+from orbit_backend.services.sections import ResultMemo
 
 from .runner import agent_directory, events_from, summarize_events
 from .study import code_digests, digest, load_frozen, object_digest, read, save, tree

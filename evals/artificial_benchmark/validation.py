@@ -9,7 +9,7 @@ import subprocess
 import uuid
 from pathlib import Path
 
-from tandem_backend.ai.generate.templates import get
+from orbit_backend.ai.generate.templates import get
 
 from .adaptation import add_spec
 from .runner import create_container, one_run, runtime_digests
