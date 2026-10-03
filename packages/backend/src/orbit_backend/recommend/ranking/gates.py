@@ -181,12 +181,21 @@ def _audience_ok(raw, inputs, memory):
 
 def _requirements_ok(raw, inputs, memory):
     req = raw.get("requirements") or {}
-    needed = {t.lower() for t in (req.get("tools") or []) + (req.get("software") or [])}
-    tools = (inputs.get("profile") or {}).get("tools")
-    if not needed or not tools:
-        return NA, ""
-    missing = needed - {t.lower() for t in tools}
-    return (False, "缺少：" + "、".join(sorted(missing))) if missing else (True, "")
+    profile = inputs.get("profile") or {}
+    checked, unknown, missing = False, False, set()
+    for key in ("tools", "software"):
+        needed = {t.lower() for t in req.get(key) or ()}
+        observed = profile.get(key)
+        if not needed:
+            continue
+        if not observed:
+            unknown = True  # Absent/empty observations are unknown, not a full inventory.
+            continue
+        checked = True
+        missing.update(needed - {t.lower() for t in observed})
+    if missing:
+        return False, "未观察到要求项：" + "、".join(sorted(missing))
+    return (True, "") if checked and not unknown else (NA, "")
 
 
 CHECKS = {

@@ -15,9 +15,13 @@ from collections import defaultdict
 from functools import lru_cache, partial
 from pathlib import Path
 
+from orbit_data.command_spec import command_spec
+
 from ..services.sections import Section, register
+from .tool_facts import EDIT_KINDS, EDIT_NAMES, is_edit
 
 VERSION = "rec-inputs-v1"
+FACTS_VERSION = 2  # Cache revision; the RecInputs wire shape is unchanged.
 MAX_BYTES = 200_000
 MAX_UIDS = 20
 READONLY_HEADS = ("git status", "git diff", "git log", "git show", "ls", "cat", "pwd", "rg",
@@ -27,7 +31,6 @@ FAILURE_CLASSES = ("command_not_found", "missing_dependency", "permission_denied
                    "network")
 FAILED = ("failed", "error", "failure")
 DECLINED = ("declined", "denied", "rejected", "cancelled", "aborted")
-EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "apply_patch")
 RULE_PROBLEMS = {"correction_density": "wrong_approach",
                  "repeated_requirements": "repeated_instruction",
                  "identical_retries": "tool_env_failure", "tool_failures": "tool_env_failure",
@@ -281,10 +284,10 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
     # call_uid -> (failed, approved read-only) for the ledger; plain calls stay out
     flags: dict[str, tuple[bool, bool]] = {}
     waits: list[tuple[str, int]] = []
-    for head, error_class, status, approval, name, uid, command, call_uid in _call_rows(conn, uids):
+    for head, _error_class, status, approval, name, uid, command, call_uid, kind in _call_rows(conn, uids):
         root = root_of.get(uid, uid)
         head = real_head(head, command)
-        if name in EDIT_TOOLS:
+        if is_edit(name, kind):
             edit_roots.add(root)
         if head and (software := software_of(head)):
             software_roots[software].add(root)
@@ -300,8 +303,6 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
             per_root[root]["readonly_prompts"] += 1
         if status in FAILED:
             per_root[root]["tool_failures"] += 1
-            if error_class in FAILURE_CLASSES and head:
-                _add_failure(failures, software_of(head), error_class, root)
         failed = status in FAILED
         allowed = bool(matched) and is_approved(approval) and status not in DECLINED
         if call_uid is not None and (failed or allowed):
@@ -312,7 +313,11 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
     for matched, count in denied.items():
         if matched in readonly:
             readonly[matched]["denied"] = count
-    _guard("failure_class", diagnostics, _classify_failures, conn, uids, root_of, failures)
+    unscoped = _guard("failure_class", diagnostics, _classify_failures, conn, uids, root_of, failures) or set()
+    # Command-head exposure misses later shell subcommands. Use the whole scope instead
+    # of a denominator that counts only some of their attempts (or just their failures).
+    for software in unscoped:
+        software_roots.pop(software, None)
     usage = {"skill": {}, "mcp": {}}
     for column, key in (("skill", "skill"), ("mcp_server", "mcp")):
         for name, calls, sessions, last in conn.execute(
@@ -379,10 +384,10 @@ def _call_rows(conn, uids: str):
     try:
         return conn.execute(
             f"SELECT t.command_head, t.error_class, t.status, t.approval, t.name, t.session_uid, "
-            f"{_INPUT.format(wrappers=wrappers)}, t.call_uid FROM tool_call t WHERE t.session_uid IN {UIDS}",
+            f"{_INPUT.format(wrappers=wrappers)}, t.call_uid, t.kind FROM tool_call t WHERE t.session_uid IN {UIDS}",
             (*WRAPPER_HEADS, uids)).fetchall()
     except Exception:  # noqa: BLE001 - schema drift: no unwrapping
-        return [(*row[:6], None, row[6]) for row in conn.execute(
+        return [(*row[:6], None, row[6], None) for row in conn.execute(
             f"SELECT command_head, error_class, status, approval, name, session_uid, call_uid FROM "
             f"tool_call WHERE session_uid IN {UIDS}", (uids,))]
 
@@ -595,22 +600,70 @@ def _permission_prompts(conn, uids, root_of, readonly, per_root, denied=None, wa
             waits.append((root, answered - asked))
 
 
-def _classify_failures(conn, uids, root_of, failures) -> None:
-    """Failed calls without ``error_class``: classify from exit code and result text."""
+_MISSING_PROGRAM = re.compile(
+    r"^(?:/\S*/)?(?:bash|sh|zsh|dash)(?::(?: line )?\d+)?: "
+    r"(?:(?P<before>[/\w.+-]+): (?:command not found|not found)|"
+    r"command not found: (?P<after>[/\w.+-]+))\s*$", re.MULTILINE)
+
+
+def failure_software(head, command, error_class, text) -> str | None:
+    """Prefer a shell's explicit diagnostic; ambiguous compound failures stay unassigned.
+
+    Text emitted by cat/grep/etc. is not a shell diagnostic. A full native script
+    matters here: command_head is only a vocabulary key, not the failing program.
+    """
+    software = software_of(head)
+    if error_class == "command_not_found" and text and software not in TEXT_DUMPERS:
+        found = {((m.group("before") or m.group("after")).rsplit("/", 1)[-1])
+                 for m in _MISSING_PROGRAM.finditer(text)}
+        if len(found) == 1:
+            return next(iter(found))
+        if found:
+            return None
+    if command is not None:
+        if isinstance(command, str) and command.startswith("["):
+            try:
+                command = json.loads(command)
+            except ValueError:
+                return None
+        if isinstance(command, list):
+            import shlex
+
+            command = shlex.join(str(word) for word in command)
+        spec = command_spec(command)
+        if not spec or not spec["command_complete"]:
+            return None
+    return software
+
+
+def _classify_failures(conn, uids, root_of, failures) -> set[str]:
+    """Classify failed calls once, including native classes; return incomplete exposures."""
     status_in = ",".join("?" * len(FAILED))
-    wrappers = ",".join("?" * len(WRAPPER_HEADS))
-    for uid, head, exit_code, text, command in conn.execute(
+    try:
+        rows = conn.execute(
             f"SELECT t.session_uid, t.command_head, t.exit_code, substr(e.text, 1, 2000), "
-            f"{_INPUT.format(wrappers=wrappers)} FROM "
-            f"tool_call t LEFT JOIN event e ON e.event_uid = t.result_event_uid WHERE "
-            f"t.error_class IS NULL AND t.status IN ({status_in}) AND t.session_uid IN {UIDS}",
-            (*WRAPPER_HEADS, *FAILED, uids)):
+            f"COALESCE(json_extract(c.attrs, '$.input.command'), json_extract(c.attrs, '$.input.cmd')), "
+            f"t.error_class FROM tool_call t LEFT JOIN event e ON e.event_uid = t.result_event_uid "
+            f"LEFT JOIN event c ON c.event_uid = t.call_event_uid "
+            f"WHERE t.status IN ({status_in}) AND t.session_uid IN {UIDS}", (*FAILED, uids)).fetchall()
+    except Exception:  # noqa: BLE001 - old stores retain their native classes but lack result/input links
+        rows = [(uid, head, None, None, None, cls) for uid, head, cls in conn.execute(
+            f"SELECT session_uid, command_head, error_class FROM tool_call "
+            f"WHERE status IN ({status_in}) AND session_uid IN {UIDS}", (*FAILED, uids))]
+    unscoped = set()
+    for uid, head, exit_code, text, command, native_class in rows:
         head = real_head(head, command)
         # read / print commands echo file contents: their text says nothing about the failure
         dumps = bool(readonly_head(head)) or software_of(head) in TEXT_DUMPERS
-        error_class = classify_failure(exit_code, None if dumps else text)
-        if error_class and head:
-            _add_failure(failures, software_of(head), error_class, root_of.get(uid, uid))
+        error_class = native_class or classify_failure(exit_code, None if dumps else text)
+        if error_class not in FAILURE_CLASSES:
+            continue
+        software = failure_software(head, command, error_class, None if dumps else text)
+        if software:
+            _add_failure(failures, software, error_class, root_of.get(uid, uid))
+            if software != software_of(head):
+                unscoped.add(software)
+    return unscoped
 
 
 def _call_sequences(conn, uids, root_of) -> dict:
@@ -620,15 +673,15 @@ def _call_sequences(conn, uids, root_of) -> dict:
     try:
         rows = conn.execute(
             f"SELECT t.session_uid, t.name, t.command_head, t.status, t.argument_digest, "
-            f"{_INPUT.format(wrappers=wrappers)} FROM tool_call t "
+            f"{_INPUT.format(wrappers=wrappers)}, t.kind FROM tool_call t "
             f"WHERE t.session_uid IN {UIDS} ORDER BY t.started_at, t.rowid", (*WRAPPER_HEADS, uids)).fetchall()
     except Exception:  # noqa: BLE001 - older stores: plain heads
-        rows = [(*row, None) for row in conn.execute(
+        rows = [(*row, None, None) for row in conn.execute(
             f"SELECT session_uid, name, command_head, status, argument_digest FROM tool_call "
             f"WHERE session_uid IN {UIDS} ORDER BY started_at, rowid", (uids,))]
-    for uid, name, head, status, digest, command in rows:
+    for uid, name, head, status, digest, command, kind in rows:
         head = _sequence_head(head, command)
-        by_root[root_of.get(uid, uid)].append((name in EDIT_TOOLS, head, status in FAILED, digest))
+        by_root[root_of.get(uid, uid)].append((is_edit(name, kind), head, status in FAILED, digest))
     return by_root
 
 
@@ -749,12 +802,13 @@ def _task_kinds(conn, uids, root_of, result) -> dict:
             f"SELECT t.session_uid, t.files, json_extract(e.attrs, '$.input'), s.cwd FROM tool_call t "
             f"LEFT JOIN event e ON e.event_uid = t.call_event_uid "
             f"LEFT JOIN session s ON s.session_uid = t.session_uid "
-            f"WHERE t.name IN ({','.join('?' * len(EDIT_TOOLS))}) AND t.session_uid IN {UIDS}",
-            (*EDIT_TOOLS, uids)).fetchall()
+            f"WHERE (t.kind IN ({','.join('?' * len(EDIT_KINDS))}) OR "
+            f"lower(t.name) IN ({','.join('?' * len(EDIT_NAMES))})) AND t.session_uid IN {UIDS}",
+            (*EDIT_KINDS, *EDIT_NAMES, uids)).fetchall()
     except Exception:  # noqa: BLE001 - older stores lack call_event_uid / cwd
         rows = [(uid, files, None, None) for uid, files in conn.execute(
-            f"SELECT session_uid, files FROM tool_call WHERE name IN "
-            f"({','.join('?' * len(EDIT_TOOLS))}) AND session_uid IN {UIDS}", (*EDIT_TOOLS, uids))]
+            f"SELECT session_uid, files FROM tool_call WHERE lower(name) IN "
+            f"({','.join('?' * len(EDIT_NAMES))}) AND session_uid IN {UIDS}", (*EDIT_NAMES, uids))]
     for uid, files, patch_input, cwd in rows:
         paths = _json_list(files)
         if not paths and patch_input:
@@ -862,7 +916,7 @@ def _calls_by_root(conn, root_of: dict) -> dict[str, list[dict]]:
     cols = {row[1] for row in conn.execute("PRAGMA table_info(tool_call)")}
     pick = ", ".join(c if c in cols else f"NULL AS {c}" for c in (
         "session_uid", "name", "command_head", "status", "files", "started_at", "ended_at",
-        "duration_ms"))
+        "duration_ms", "kind"))
     calls: dict[str, list[dict]] = defaultdict(list)
     command = (_INPUT.format(wrappers=",".join("?" * len(WRAPPER_HEADS)))
                if {"call_event_uid", "kind"} <= cols else "NULL")
@@ -874,16 +928,16 @@ def _calls_by_root(conn, root_of: dict) -> dict[str, list[dict]]:
         rows = [(*row, None) for row in conn.execute(
             f"SELECT {pick} FROM tool_call WHERE session_uid IN {UIDS} "
             f"ORDER BY COALESCE(started_at, 0), rowid", (uids,))]
-    for uid, name, head, status, files, start, end, duration, wrapped in rows:
+    for uid, name, head, status, files, start, end, duration, kind, wrapped in rows:
         head = _sequence_head(head, wrapped)
         calls[root_of.get(uid, uid)].append({
-            "name": name, "head": head, "status": status,
+            "name": name, "kind": kind, "head": head, "status": status,
             "files": _files(files), "start": start, "end": end or start, "duration": duration})
     return calls
 
 
 def _is_edit(call: dict) -> bool:
-    return call["name"] in EDIT_TOOLS
+    return is_edit(call["name"], call.get("kind"))
 
 
 def _review_rounds(calls: list[dict]) -> int:

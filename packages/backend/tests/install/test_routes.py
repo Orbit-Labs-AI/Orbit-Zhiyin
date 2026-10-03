@@ -10,6 +10,8 @@ from orbit_backend.services.gateway import Gateway
 from orbit_backend.services.supervisor import SupervisorConfig
 
 from .test_fetch import COMMIT, FakeFetcher
+from .test_kb_install import add, card
+from .test_service import snapshot
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -42,6 +44,69 @@ def test_environment_shape(client):
     assert claude["install_support"] == "full" and claude["installed"] and claude["layers"]
     assert {"home", "agents", "projects", "scanned_at"} <= body.keys()
     assert c.get("/v1/install/environment?refresh=1").status_code == 200
+
+
+def test_resolve_reuses_kb_payloads_without_planning_or_installing(client, fake_home, monkeypatch):
+    c, svc = client
+    before = snapshot(fake_home)
+    monkeypatch.setattr(svc, "environment", lambda *a, **kw: pytest.fail("resolve must not inspect agent targets"))
+    add(svc, "c-hook", card("retry-breaker", {"software": "unzip"}))
+    add(svc, "c-rule", card("env-quirks-rule", {"software": "unzip"}))
+    hook = c.post("/v1/install/resolve", json={"source": {"type": "candidate", "id": "c-hook"}})
+    assert hook.status_code == 200
+    hook = hook.json()
+    assert hook["status"] == "ready" and hook["spec"]["kind"] == "hook"
+    payload = hook["spec"]["payload"]
+    assert 'HOOK_ID = "retry-breaker"' in payload["script"]["text"]
+    assert {b["event"] for b in payload["event_bindings"]} == {"PreToolUse", "PostToolUse"}
+    assert json.loads(payload["extra_files"][0]["text"])["threshold"] == 3
+    rule = c.post("/v1/install/resolve", json={"source": {"type": "candidate", "id": "c-rule"}}).json()
+    assert rule["status"] == "ready" and "unzip" in rule["spec"]["payload"]["text"]
+    assert snapshot(fake_home) == before
+    with svc.appdb.read() as db:
+        assert db.execute("SELECT count(*) FROM install_plan").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM install_ledger").fetchone()[0] == 0
+
+
+def test_resolve_follows_catalog_ref_and_keeps_fetch_status(client, fake_home):
+    c, svc = client
+    before = snapshot(fake_home)
+    body = card("systematic-debugging")
+    body["source"]["catalog_ref"] = SKILL["id"]
+    add(svc, "c-ref", body)
+    source = {"type": "candidate", "id": "c-ref"}
+    pending = c.post("/v1/install/resolve", json={"source": source}).json()
+    assert pending["status"] == "needs_fetch"
+    fetched = c.post("/v1/install/resolve", json={"source": source, "fetch": True})
+    assert fetched.status_code == 200
+    resolved = fetched.json()
+    assert resolved["status"] == "ready" and resolved["spec"]["kind"] == "skill"
+    assert resolved["spec"]["payload"]["files"][0]["rel"] == "SKILL.md"
+    assert resolved["spec"]["payload"]["files"][0]["text"] == "# foo\n"  # FakeFetcher content, unchanged.
+    # Same product spec; planning additionally applies the requested agent override.
+    plan = svc.plan(source, agents=["claude_code"], fetch=True)
+    assert {**resolved["spec"], "agents": ["claude_code"]} == svc._plan(plan["plan_id"])["spec"]
+    assert snapshot(fake_home) == before
+
+
+def test_resolve_preserves_artifacts_validation_and_auth(client):
+    c, svc = client
+    with svc.appdb.write() as db:
+        db.execute("INSERT INTO ai_artifact (artifact_id,kind,template_id,name,title,slots,payload,files,"
+                   "checks,personalized,content_hash,status,created_at,updated_at) "
+                   "VALUES ('a-output','rule','t','output','Output','{}',?,'[]','[]',0,'hash','draft',1,1)",
+                   (json.dumps({"kind": "rule", "payload": {"text": "Inspect inputs before editing."}}),))
+    resolved = c.post("/v1/install/resolve", json={"source": {"type": "artifact", "id": "a-output"}}).json()
+    assert resolved["status"] == "ready"
+    assert resolved["spec"]["payload"]["text"] == "Inspect inputs before editing."
+    invalid = c.post("/v1/install/resolve", json={"source": {"type": "spec", "spec": {
+        "id": "bad", "kind": "skill", "payload": {}}}})
+    assert invalid.status_code == 422 and error(invalid)["code"] == "invalid_spec"
+    missing = c.post("/v1/install/resolve", json={"source": {"type": "candidate", "id": "missing"}})
+    assert missing.status_code == 404 and error(missing)["code"] == "not_found"
+    unauth = c.post("/v1/install/resolve", headers={"Authorization": "Bearer wrong"}, json={
+        "source": {"type": "artifact", "id": "a-output"}})
+    assert unauth.status_code == 401
 
 
 def test_plan_preview_apply_revert_flow(client, fake_home):
