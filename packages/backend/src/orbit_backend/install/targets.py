@@ -456,6 +456,7 @@ def follow_link(path: str | Path, home: Path) -> str | None:
 
 REASON_TEXT = {
     "agent_not_supported_v1": "这个 Agent 暂不支持自动安装。",
+    "collect_not_available": "Orbit 实时采集暂未支持这个 Agent，会话仍可通过导入获得。",
     "kimi_unverified_no_source": "Kimi Code 的配置落点尚未核实，暂不自动写入。",
     "codex_custom_prompts_removed": "Codex 已不再读取自定义 prompts 目录，命令请改装为 Skill。",
     "mcp_transport_unsupported": "这个 Agent 不支持该 MCP 传输方式（SSE），未自动写入。",
@@ -556,6 +557,9 @@ def resolve_targets(spec: dict, env_info: dict, *, env: Env | None = None) -> li
                  "write_mode": row.write_mode if act == "merge_json" else "set", "file_mode": None,
                  "block_id": f"orbit:{spec['id']}" if act in ("md_block", "toml_block") else None,
                  "requires_trust": row.requires_trust, "mappable": True, "reason": None, "note": note,
+                 # "unknown": no checked minimum version for this agent, so not shown as compatible.
+                 "version_check": "unknown" if cap in (info.get("capabilities") or {}).get(
+                     "version_unknown", ()) else "known",
                  "group": None, "shared_layer": row.shared_layer or (project is not None and _inside(path, project)
                                                                      and row.scope != "local"), "kind": kind}
             t.update(extra)

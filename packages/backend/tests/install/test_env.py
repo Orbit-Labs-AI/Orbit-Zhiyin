@@ -113,7 +113,8 @@ def test_probe_failures_do_not_raise_and_cache_hits(env, tmp_path):
 
 
 def test_capabilities_table():
-    assert capabilities("claude_code", None) == {**dict.fromkeys(envmod.CAPABILITIES, True), "basis": "assumed"}
+    assert capabilities("claude_code", None) == {**dict.fromkeys(envmod.CAPABILITIES, True), "basis": "assumed",
+                                                 "version_unknown": []}
     old = capabilities("claude_code", "1.0.10")
     assert old["basis"] == "probed" and not old["hooks"] and old["mcp"]
     assert capabilities("codex", None)["plugins"] is False
@@ -254,3 +255,14 @@ def test_dir_counts_mean_installed_plugins_and_real_skills(env, tmp_path):
     (plugins / "installed_plugins.json").write_text(
         '{"version": 2, "plugins": {"a@m": [{"scope": "user"}], "b@m": [{}, {}]}}', "utf-8")
     assert agent(environment(env), "claude_code")["dirs"]["plugins"]["count"] == 2
+
+
+def test_new_agents_without_minimum_versions_report_version_unknown():
+    from orbit_backend.install.env import capabilities, version_check
+
+    assert version_check("claude_code", "skills") == "known"
+    assert version_check("claude_code", "rules") == "known"   # baseline for an agent with minimums
+    assert version_check("opencode", "skills") == "unknown"
+    caps = capabilities("opencode", "1.2.3")
+    assert caps["skills"] is True and "skills" in caps["version_unknown"]
+    assert capabilities("codex", "0.80.0")["version_unknown"] == []

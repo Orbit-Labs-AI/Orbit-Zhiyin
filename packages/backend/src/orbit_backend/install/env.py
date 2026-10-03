@@ -224,15 +224,27 @@ def _vtuple(version: str) -> tuple[int, ...]:
     return tuple(int(x) for x in re.findall(r"\d+", version)[:3])
 
 
+def version_check(agent: str, capability: str) -> str:
+    """``known`` when a minimum version is recorded for this agent (a capability without its own
+    entry is baseline for that agent), ``unknown`` when none is recorded for the agent at all:
+    dsh / pi / hermes / opencode have no checked minimums, so a probed version proves nothing
+    and the UI must not present the capability as compatible."""
+    if (agent, capability) in MIN_VERSIONS or any(a == agent for a, _ in MIN_VERSIONS):
+        return "known"
+    return "unknown"
+
+
 def capabilities(agent: str, version: str | None) -> dict:
     supported = SUPPORTED.get(agent, set())
+    unknown = sorted(c for c in supported if version_check(agent, c) == "unknown")
     if not version:
-        return {**{c: c in supported for c in CAPABILITIES}, "basis": "assumed"}
+        return {**{c: c in supported for c in CAPABILITIES}, "basis": "assumed",
+                "version_unknown": unknown}
     caps = {}
     for c in CAPABILITIES:
         minimum = MIN_VERSIONS.get((agent, c))
         caps[c] = c in supported and (minimum is None or _vtuple(version) >= _vtuple(minimum))
-    return {**caps, "basis": "probed"}
+    return {**caps, "basis": "probed", "version_unknown": unknown}
 
 
 # ---- filesystem facts ---------------------------------------------------------------------
