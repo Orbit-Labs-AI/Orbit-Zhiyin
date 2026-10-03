@@ -48,7 +48,8 @@
 .nav .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav .ct{font:500 11px/1 var(--font-num);color:var(--ink-3)}
 .nav .bd{height:16px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--ink-1);color:var(--bg);font:600 11px/16px var(--font-num);text-align:center}
-.nav .ag .dot{width:9px;height:9px;margin:0 3px}
+/* 9px dot centred in the 16px icon slot of plain nav rows (3.5 + 9 + 3.5), so agent labels start at the same x */
+.nav .ag .dot{width:9px;height:9px;margin:0 3.5px}
 .nav .ag.dim{color:var(--ink-3)}
 .nav .ag.dim .dot{opacity:.45}
 .nav .ag.off{color:var(--ink-3)}

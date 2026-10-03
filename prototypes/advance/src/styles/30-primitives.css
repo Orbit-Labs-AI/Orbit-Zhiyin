@@ -17,6 +17,8 @@
 .btn.p:hover{background:color-mix(in srgb,var(--pri) 86%,var(--bg))}
 .btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
 .btn.ai:hover{background:color-mix(in srgb,var(--ai-bg) 90%,var(--ai))}
+/* the sparkle glyph's ink sits ~1.3px above its box centre: nudge it onto the label's optical centre line */
+.btn.ai>svg,.aib>svg{transform:translateY(1px)}
 .btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
 .btn.gh:hover{background:var(--field)}
 .btn.dg{color:var(--crit)}

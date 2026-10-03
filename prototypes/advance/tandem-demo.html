@@ -167,7 +167,8 @@ h1.serif,h2.serif,h3.serif{font-weight:600}
 .nav .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav .ct{font:500 11px/1 var(--font-num);color:var(--ink-3)}
 .nav .bd{height:16px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--ink-1);color:var(--bg);font:600 11px/16px var(--font-num);text-align:center}
-.nav .ag .dot{width:9px;height:9px;margin:0 3px}
+/* 9px dot centred in the 16px icon slot of plain nav rows (3.5 + 9 + 3.5), so agent labels start at the same x */
+.nav .ag .dot{width:9px;height:9px;margin:0 3.5px}
 .nav .ag.dim{color:var(--ink-3)}
 .nav .ag.dim .dot{opacity:.45}
 .nav .ag.off{color:var(--ink-3)}
@@ -308,6 +309,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .btn.p:hover{background:color-mix(in srgb,var(--pri) 86%,var(--bg))}
 .btn.ai{background:var(--ai-bg);border-color:transparent;color:var(--ai);box-shadow:none}
 .btn.ai:hover{background:color-mix(in srgb,var(--ai-bg) 90%,var(--ai))}
+/* the sparkle glyph's ink sits ~1.3px above its box centre: nudge it onto the label's optical centre line */
+.btn.ai>svg,.aib>svg{transform:translateY(1px)}
 .btn.gh{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
 .btn.gh:hover{background:var(--field)}
 .btn.dg{color:var(--crit)}
