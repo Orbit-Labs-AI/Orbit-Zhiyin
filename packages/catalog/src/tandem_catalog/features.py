@@ -94,16 +94,33 @@ HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification", 
 _ASCII = re.compile(r"^[a-z0-9 ./+#-]+$")
 
 
-def _pattern(word: str) -> re.Pattern:
-    # Latin words need boundaries ("pr" must not hit "prompt"); Han text matches as a substring.
-    if _ASCII.match(word):
-        return re.compile(r"(?<![a-z0-9])" + re.escape(word) + r"(?![a-z0-9])")
-    return re.compile(re.escape(word))
-
-
 COMMANDS = re.compile(r"\b(git|gh|pytest|uv|python|pnpm|npm|wrangler|docker|latexmk)\b")
 EXTENSIONS = re.compile(r"\.(py|ts|tsx|js|jsx|swift|rs|tex|md|pdf|docx|xlsx)\b")
-_MATCHERS = [(key, [(word, _pattern(word)) for word in words]) for key, words in VOCABULARY.items()]
+_ASCII_WORDS = {w for words in VOCABULARY.values() for w in words if _ASCII.match(w)}
+_HAN_WORDS = sorted({w for words in VOCABULARY.values() for w in words} - _ASCII_WORDS)
+_ALNUM = re.compile(r"[a-z0-9]+")
+# Latin words need token boundaries ("pr" must not hit "prompt"): bucket every word by its first
+# alphanumeric token, then confirm candidates only at token starts. Han words match as substrings.
+_BY_FIRST_TOKEN: dict[str, list[str]] = {}
+for _word in sorted(_ASCII_WORDS):
+    _BY_FIRST_TOKEN.setdefault(_ALNUM.match(_word).group(), []).append(_word)
+
+
+def vocabulary_hits(text: str) -> dict[str, list[int]]:
+    """Vocabulary word -> character offsets of its occurrences in lower-cased ``text``."""
+    hits: dict[str, list[int]] = {}
+    for token in _ALNUM.finditer(text):
+        start = token.start()  # Maximal [a-z0-9]+ runs: the left boundary holds by construction.
+        for word in _BY_FIRST_TOKEN.get(token.group(), ()):
+            end = start + len(word)
+            if text.startswith(word, start) and not (end < len(text) and text[end].isascii() and text[end].isalnum()):
+                hits.setdefault(word, []).append(start)
+    for word in _HAN_WORDS:
+        start = text.find(word)
+        while start >= 0:
+            hits.setdefault(word, []).append(start)
+            start = text.find(word, start + len(word))
+    return hits
 
 
 def lexical_tokens(text: str) -> list[str]:
@@ -157,8 +174,9 @@ def _structured(resource: Resource) -> list[Feature]:
 def extract(resource: Resource) -> list[Feature]:
     features = {(f.feature, f.value, f.origin): f for f in resource.features}
     text = "\n".join((resource.name, resource.summary, resource.body)).lower()
-    for (key, value), matchers in _MATCHERS:
-        found = next((word for word, pattern in matchers if pattern.search(text)), None)
+    hits = vocabulary_hits(text)
+    for (key, value), words in VOCABULARY.items():
+        found = next((word for word in words if word in hits), None)
         if found:
             weight = EXTRACTED_FRICTION_WEIGHT if key == "friction" else 1
             feature = Feature(feature=key, value=value, weight=weight, evidence=f"text contains: {found}")
