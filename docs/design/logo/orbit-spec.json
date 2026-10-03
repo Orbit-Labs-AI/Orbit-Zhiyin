@@ -49,26 +49,20 @@
     }
   },
   "wordmark": {
-    "note": "长度以字高 H（标志墨迹高度减去上下溢出）为单位；stroke 为设计单位；O 为同一螺旋在 o_pitch 视角下的投影（其余参数与标志相同）",
+    "note": "O 为同一螺旋在 o_pitch 视角下的投影；rbit 取自开源字体（OFL），只做等比缩放与排列。长度以字高 H（O 墨迹高度减去上下溢出）为单位",
     "o_pitch": 75,
     "overshoot": 0.015,
-    "stroke": 30,
-    "x_height": 0.6,
+    "font": {
+      "family": "Cormorant Garamond",
+      "weight": 600,
+      "glyphs": "wordmark-glyphs.json",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantgaramond/CormorantGaramond%5Bwght%5D.ttf"
+    },
     "ascender": 1.0,
-    "t_height": 0.8,
-    "r_shoulder": 0.5,
-    "r_arm_end": 320,
-    "i_dot": 1.5,
-    "i_dot_gap": 0.1,
-    "t_bar": 0.46,
-    "t_hook": 0.2,
-    "t_hook_end": 50,
     "spacing": {
-      "O_r": 0.2,
-      "r_b": 0.12,
-      "b_i": 0.13,
-      "i_t": 0.1
-    }
+      "O_r": 0.16
+    },
+    "tracking": 0.0
   },
   "motion": {
     "note": "点击标志：视角 pitch 由 view.pitch 转到 wordmark.o_pitch，同时移到字标 O 的位置，随后 rbit 依次出现；再点击按相反顺序收回",

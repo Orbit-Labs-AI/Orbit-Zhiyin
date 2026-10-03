@@ -81,18 +81,19 @@ PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xco
 
 ![Orbit 字标](logo/kit/wordmark/png/orbit-wordmark-ink-128.png)
 
-字标的 O 是同一条螺旋换成俯视视角（pitch 75°，宽高比约 1.01，近正圆）的投影：曲线、线宽规则、断口与标志完全相同，只改 `wordmark.o_pitch`。单独使用的标志仍是 45° 斜视。rbit 是几何单线小写字母（直线与圆弧，圆头收笔，r 肩部与 t 收尾用大圆弧），线宽 30；字母同样展开成填充的贝塞尔轮廓，字标 SVG 只含标志 path 与字母 path 两条。参数在 `orbit-spec.json` 的 `wordmark` 一节，长度以字高 H 为单位（H = 标志墨迹高度去掉上下各 1.5% 的圆形溢出；基线 = 标志墨迹底边上移 1.5%）：
+字标的 O 是同一条螺旋换成俯视视角（pitch 75°，宽高比约 1.01，近正圆）的投影：曲线、线宽规则、断口与标志完全相同，只改 `wordmark.o_pitch`。单独使用的标志仍是 45° 斜视。
+
+rbit 用开源衬线字体 **Cormorant Garamond SemiBold（600）**：衬线体的粗细对比与标志「近粗远细、两端渐细」的线条语言呼应。字形不重画，只做等比缩放与排列：[`logo/extract_glyphs.py`](logo/extract_glyphs.py) 从 google/fonts 下载字体、按字重取出 r、b、i、t 的轮廓（TrueType 二次曲线精确升为三次贝塞尔），写入 [`logo/wordmark-glyphs.json`](logo/wordmark-glyphs.json)，并记录来源与 SHA-256；`generate.py` 只读这个文件。字体以 SIL Open Font License 1.1 授权，允许把字形轮廓用于标志。换字体或字重：改 `wordmark.font` 后运行 `uv run --no-project --with fonttools python docs/design/logo/extract_glyphs.py`，再运行 `generate.py` 与 `export.mjs`。
+
+参数在 `orbit-spec.json` 的 `wordmark` 一节，长度以字高 H 为单位（H = O 墨迹高度去掉上下各 1.5% 的圆形溢出；基线 = O 墨迹底边上移 1.5%）：
 
 | 参数 | 值 | 含义 |
 | --- | --- | --- |
 | `o_pitch` | 75° | 字标 O 的俯仰视角（标志本身为 45°） |
-| `stroke` | 30 | 字母线宽（设计单位） |
-| `x_height` / `ascender` / `t_height` | 0.6 / 1.0 / 0.8 | 小写字高、b 的升部、t 的高度 |
-| `r_shoulder` / `r_arm_end` | 0.5 / 320° | r 肩部圆弧半径（× x 字高）与收笔角度 |
-| `i_dot` / `i_dot_gap` | 1.5 / 0.1 | i 点直径（× 线宽）与点到 x 字高的间隙 |
-| `t_bar` | 0.46 | t 横笔长度（× x 字高），以竖干为中心 |
-| `t_hook` / `t_hook_end` | 0.2 / 50° | t 底部圆弧收尾的半径（× x 字高）与收笔角度 |
-| `spacing` | O–r 0.2、r–b 0.12、b–i 0.13、i–t 0.1 | 字间距（墨迹到墨迹） |
+| `font` | Cormorant Garamond，600 | rbit 的字体与字重（轮廓见 `wordmark-glyphs.json`） |
+| `ascender` | 1.0 | b 的升部顶与字高对齐，由此确定字体缩放 |
+| `spacing.O_r` | 0.16 | O 与 r 的墨迹间距；其后按字体自身步进宽度排列 |
+| `tracking` | 0 | 额外字距 |
 
 **与上一版的关系**：上一版（v1）把中心线每 1.5 设计单位取一点、画成折线多边形。矢量版沿用 v1 的离散常数（端点、深度范围、断口区间与外框，记录在 `orbit-geometry.json` 的 `v1`），只把折线换成平滑曲线；轮廓与 v1 顶点的最大偏差为 0.013 设计单位（1024 图标上约 0.02 px），渲染出的 1024 PNG 与旧版逐像素比对，差异只在抗锯齿边缘。
 
