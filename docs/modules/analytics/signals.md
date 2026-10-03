@@ -2,7 +2,7 @@
 
 `analytics/signals/` 是八族之上的横向派生层，不是第九个族。它只读取 `AnalysisContext` 与 `analyze_context` 的结果，把八族事实转成 `signal`，再派生 `problem`（AN-06）、关键时刻（AN-09）、会话结果（AN-19）和会话事实补字段（AN-02）。设计依据见 [分析模块设计](../../plans/analysis-module.md) §2.3、§2.4、§3.2、§4，缺口与任务包见 [分析模块审计](../../audits/analysis-audit.md) §1、§2.2、§5。
 
-版本：`rules_version = signals-v1.0`（[dictionary.py](../../../packages/backend/src/tandem_backend/analytics/signals/dictionary.py)）。词表、阈值或映射变化时必须同步提升版本号。
+版本：`rules_version = signals-v1.2`（[dictionary.py](../../../packages/backend/src/tandem_backend/analytics/signals/dictionary.py)）。词表、阈值或映射变化时必须同步提升版本号。v1.1：升级闸改为 Wilson 下界 > 0、`would_prompt` 改用调用级 approval；v1.2：纠偏判定统一到 `interaction.rules.correction_verdict`（结果反馈不再算纠偏）、删除无生产者的 `dimension` 分支。全部数值阈值及出处见 `dictionary.THRESHOLDS`（`calibrated = false` 即产品默认、未校准）。
 
 ## 模块
 
@@ -14,7 +14,7 @@
 | [signals/moments.py](../../../packages/backend/src/tandem_backend/analytics/signals/moments.py) | AN-09 | 规则关键时刻：编号、去重、每会话最多 8 个 |
 | [signals/outcome.py](../../../packages/backend/src/tandem_backend/analytics/signals/outcome.py) | AN-19 | 会话结果合成器 |
 | [signals/facts.py](../../../packages/backend/src/tandem_backend/analytics/signals/facts.py) | AN-02 | `outcome / verify_* / autonomy_steps / signals_summary` |
-| [signals/inventory.py](../../../packages/backend/src/tandem_backend/analytics/signals/inventory.py) | AN-11 | `installed_unused`、`resident_tokens_median` |
+| [signals/inventory.py](../../../packages/backend/src/tandem_backend/analytics/signals/inventory.py) | AN-11 | `first_request_tokens`（`metrics.resident_tokens_median` 的输入） |
 | [metrics.py](../../../packages/backend/src/tandem_backend/analytics/metrics.py) | AN-01 | `metrics(context, metric[], bucket, group_by)` |
 | [drilldown.py](../../../packages/backend/src/tandem_backend/analytics/drilldown.py) | AN-01.2 | 按工具取最近 N 条调用 |
 | [api/insights.py](../../../packages/backend/src/tandem_backend/api/insights.py) | — | `build_router(get_result)` 提供的独立 `APIRouter` |
@@ -33,11 +33,11 @@
 
 | kind | 规则 | unit | friction_type | problem_type | 机会分母 | basis | null 条件 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `correction` | 助手回复之后、5–200 字的直接真人消息命中纠偏词表 | message | misunderstood_request | 有 `dimension` → repeated_instruction；无 → misunderstood_request | 有真人消息 | proxy | 事件不可用 |
+| `correction` | 助手回复之后、2–200 字的直接真人消息，`interaction.rules.correction_kind = correction`（只有「还是不行/依然失败/still failing」等结果反馈不算） | message | misunderstood_request | misunderstood_request | 有真人消息 | proxy | 事件不可用 |
 | `frustration`（v1） | 挫败词表，或连续 2 条 ≤ 40 字纠偏 | session | misunderstood_request | misunderstood_request | 有真人消息 | proxy | 事件不可用 |
 | `retry_loop` | 适配 `respond.retry_links`：同轮次（或同任务）、同 `status_scope`、`same_arguments = true` 的链接 ≥ 2 条且失败 ≥ 3 次；预期失败测试排除 | turn | tool_env_failure | tool_env_failure | 有工具调用 | measured | 调用不可用；存在无法确认身份的候选重试且无确认链 |
 | `missing_verification` | 最后一次 `file.edit / file.write / file.change` 之后没有已执行验证 | session | buggy_output | missing_verification | 有编辑 | measured | 调用或验证不可用；旧账本；编辑后只有未确认的验证候选 |
-| `would_prompt` | `kind = shell`、非包装、只读命令头，会话 `permission_mode = default`，且未被已装 allow 规则覆盖 | session | permission_friction | permission_friction | 有 shell 调用 | inventory 未知时为 proxy | 调用不可用；有只读命令但权限模式未知 |
+| `would_prompt` | `kind = shell`、非包装、只读命令头，调用级 `approval / approval_wait_ms`（reducer 从 permission.request/decision 复制）表明实际等待了审批，且未被已装 allow 规则覆盖 | session | permission_friction | permission_friction | 有 shell 调用 | measured | 调用不可用；有只读命令但会话内没有任何审批数据 |
 | `permission_denied` | `permission.decision.decision = deny` 或 `tool_call.approval = declined` | session | permission_friction | permission_friction | 有真人消息 | measured | 不支持 `permission.*` 事件且调用无 `approval` 字段 |
 | `risky_command` | DT-13 破坏性命令词表（`rm -rf`、`git push --force`、`git reset --hard`、`git clean -f`、`DROP TABLE`、`mkfs / dd`、`chmod -R 777`） | session | other | unsafe_operation | 有真人消息 | proxy | 调用不可用 |
 | `interruption` | `turn.status = interrupted` 或旧账本 `turn.interrupted` | turn | process_overhead | 不升级（进 AN-19） | 有真人消息 | measured | 轮次与事件都不可用 |
@@ -50,8 +50,8 @@
 
 | problem.type | 来源 kind | key | min_sessions |
 | --- | --- | --- | --- |
-| `repeated_instruction` | 带 `dimension` 的 `correction` | `correction:<dimension>` | 2 |
-| `misunderstood_request` | 无 `dimension` 的 `correction`、`frustration` | `correction:none`、`frustration:session` | 3 |
+| `repeated_instruction` | 当前无信号产生（原 `dimension` 字段无生产者，v1.2 删除） | — | 2 |
+| `misunderstood_request` | `correction`、`frustration` | `correction:session`、`frustration:session` | 3 |
 | `tool_env_failure` | `retry_loop` | `retry_loop:<command_head>` | 3 |
 | `missing_verification` | `missing_verification` | `missing_verification:<扩展名众数 ∣ project>` | 3 |
 | `permission_friction` | `would_prompt`、`permission_denied` | `would_prompt:readonly_shell`、`permission_denied:<命令族>` | 3 |
@@ -59,7 +59,7 @@
 
 其余问题类型（`communication_gap / repeated_workflow / context_loss / parallel_conflict / quota_interrupt / process_overhead`）的门槛已登记在字典中，来源信号随 v1 接入。
 
-升级条件：`sessions ≥ min_sessions` 且 `wilson_lo(sessions, denom) ≥ 0.05`。`denom` 只统计同一范围内「有机会发生」且该 kind 证据可用的会话。范围为 `all / project / source`；`problem_id = stable_id(type, key, scope, scope_id)`，跨重算稳定。输出带显式的 `session_uids`；未升级的项放入 `candidates`，并给出 `reason ∈ below_min_sessions / below_wilson_lo / no_denominator`。`label(target_kind = problem, label ∈ resolved / dismissed)` 只读入 `status`，从不写回，也不会从结果中删除问题。`weekly_count` 取参考时刻前 4 周的出现次数均值。
+升级条件：`sessions ≥ min_sessions` 且 `wilson_lo(sessions, denom) > wilson_lo_min`（默认 `WILSON_LO_MIN = 0`，即 95% Wilson 区间不含 0；某类型可在 `PROBLEM_TYPES` 中设实测背景率，目前均未校准）。原 0.05 无出处，使 1/20、3/60、5/100 这类稀有但重要的问题永远停在候选。`denom` 只统计同一范围内「有机会发生」且该 kind 证据可用的会话。范围为 `all / project / source`；`problem_id = stable_id(type, key, scope, scope_id)`，跨重算稳定。输出带显式的 `session_uids`；未升级的项放入 `candidates`，并给出 `reason ∈ below_min_sessions / below_wilson_lo / no_denominator`。`label(target_kind = problem, label ∈ resolved / dismissed)` 只读入 `status`，从不写回，也不会从结果中删除问题。`weekly_count` 取参考时刻前 4 周的出现次数均值。
 
 ## AN-19 会话结果
 
@@ -83,8 +83,8 @@
 ## AN-01.2 下钻与 AN-11
 
 - `tool_calls(context, name, limit ≤ 50, command_head?)`：按 `name_raw / name` 匹配，按 `started_at`、`seq` 倒序返回。参数摘要由命令头和参数文本拼成，经过 `privacy.redact` 脱敏，并截断到 160 字。
-- `installed_unused`：已启用的 skill / mcp / plugin 与窗口内调用名的匹配结果；hook / rule / scheduled_task 无法从调用名观测，标为 `not_matchable`，不计为未使用。inventory 不可用时返回 `null`。
-- `resident_tokens_median`：每个主会话首个模型请求 `input_tokens` 的中位数，`basis = estimated`。
+- `resident_tokens_median`（`metrics` 指标）：每个主会话首个模型请求输入侧 token 的中位数，输入侧 = 未缓存 `input_tokens` + `cache_read_tokens` + `cache_write_tokens`（按 `input_tokens_semantics` 归一；任一桶未知则该会话为 unknown，不按 0 计），不含输出，`basis = estimated`。只用未缓存输入会把 Claude Code 这类首请求几乎全是 cache_creation 的会话低估几个数量级。
+- 原 `installed_unused` 事实与 `analyze_signals` 没有生产入口（只有测试调用），v1.2 删除；`installed_unused` 问题由 `recommend.problems` 产出。
 
 ## 接入
 
