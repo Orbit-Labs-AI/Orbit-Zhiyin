@@ -243,3 +243,40 @@ def test_recall_all_latency_budget():
         timings.append(time.perf_counter() - start)
     assert len(result["problems"]) >= 8
     assert statistics.quantiles(timings, n=20)[-1] < .08
+
+
+AGENTS7 = ["claude_code", "codex", "hermes", "kimi", "opencode", "dsh", "pi"]
+HOMES = {"claude_code": "~/.claude/", "codex": "~/.codex/"}
+
+
+@pytest.mark.parametrize("agent", AGENTS7)
+def test_landing_path_never_falls_back_to_another_agent(agent):
+    from tandem_backend.recommend import engine, narrate
+
+    inputs = make(facts=READONLY, agents={agent: 30})
+    result = recall_all(inputs, {})
+    kb = [c for c in result["candidates"] if c["source"]["origin"] in ("kb", "template")]
+    assert kb
+    for cand in kb:
+        path = cand["target"]["path_hint"] or ""
+        for owner, home in HOMES.items():
+            if owner != agent:
+                assert not path.startswith(home), (agent, cand["rec_key"], path)
+    allow = next(c for c in kb if c["rec_key"] == "kb:readonly-allowlist")
+    if agent in HOMES:
+        assert allow["target"]["path_hint"].startswith(HOMES[agent])
+    else:
+        assert allow["target"]["path_hint"] is None
+        slate = engine.build_slate(inputs, {}, recall=lambda i, m, catalog=None: result)
+        card = next(c for c in slate["candidates"] if c["rec_key"] == "kb:readonly-allowlist")
+        assert "needs_context" in card["gates"]["reasons"]
+        if card.get("ui"):
+            assert card["ui"]["primary"] == "查看方案" and card["ui"]["target"] == ""
+    assert agent in narrate.AGENT_NAME
+
+
+def test_catalog_query_covers_every_used_agent():
+    catalog = FakeCatalog()
+    recall_all(make(many("identical_retries"), agents={"claude_code": 30, "hermes": 4, "kimi": 1, "pi": 0}), {},
+               catalog=catalog)
+    assert catalog.requests and all(r.agents == ["claude_code", "hermes", "kimi"] for r in catalog.requests)

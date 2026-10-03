@@ -14,7 +14,9 @@ from ..narrate import audience_default
 from ..ranking.hygiene import GENERIC
 
 # Where a remedy lands, per the Agent the user runs most (user scope; project scope swaps
-# the home prefix for the project's directory name).
+# the home prefix for the project's directory name). Only agents with a known config layout are
+# listed: any other top agent (hermes, kimi, opencode, dsh, pi, …) gets path_hint=None and the card
+# is a manual / needs_context action — never a Claude path.
 PATHS = {"claude_code": {"permission_rule": "~/.claude/settings.json", "hook": "~/.claude/settings.json",
                          "skill": "~/.claude/skills/{id}/SKILL.md", "subagent": "~/.claude/agents/{id}.md",
                          "rule": "AGENTS.md", "prompt": "AGENTS.md"},
@@ -63,9 +65,18 @@ def project_name(project_id: str | None, inputs: dict) -> str | None:
     return (os.path.basename(str(root).rstrip("/")) if root else None) or info.get("name")
 
 
+AGENT_HOME = {"claude_code": "~/.claude/", "codex": "~/.codex/"}
+
+
+def agent_owns_path(path: str, agent: str | None) -> bool:
+    """False when ``path`` lives in another agent's home directory than ``agent``'s."""
+    owner = next((a for a, home in AGENT_HOME.items() if path.startswith(home)), None)
+    return owner is None or owner == agent
+
+
 def path_hint(kind: str, rule_id: str, inputs: dict, project: str | None) -> str | None:
-    """Landing path for the top Agent; project scope → ``<project name>/...``."""
-    path = PATHS.get(top_agent(inputs) or "claude_code", PATHS["claude_code"]).get(kind)
+    """Landing path for the top Agent; project scope → ``<project name>/...``; None for other agents."""
+    path = PATHS.get(top_agent(inputs) or "", {}).get(kind)
     if not path:
         return None
     path = path.format(id=rule_id)
@@ -122,6 +133,8 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
     scope = "project" if rule.remedy.scope == "project" or project else "user"
     path = rule.remedy.path.format(id=rule.id) if rule.remedy.path else path_hint(
         rule.remedy.kind, rule.id, inputs, project if scope == "project" else None)
+    if path and not agent_owns_path(path, top_agent(inputs)):
+        path = None  # e.g. a fixed ~/.claude/... path while the user runs another agent
     file = [[fill(line, shown), mark] for line, mark in rule.file]
     if rule.remedy.kind == "permission_rule" and values.get("head_list"):
         file = allow_file([str(h) for h in values["head_list"]], top_agent(inputs))

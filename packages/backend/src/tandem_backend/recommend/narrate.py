@@ -30,6 +30,7 @@ TYPE_LABEL = {"rule": "规则", "prompt": "Prompt", "skill": "Skill", "hook": "H
 ICON = {"rule": "rule", "skill": "book", "hook": "bolt", "mcp": "plug", "agent": "bot", "model": "gauge",
         "flow": "flow"}
 AGENT_NAME = {"claude_code": "Claude Code", "codex": "Codex", "gemini": "Gemini CLI", "pi": "Pi",
+              "dsh": "DeepSeek Harness", "kimi": "Kimi CLI",
               "opencode": "OpenCode", "hermes": "Hermes"}
 UNESTIMATED = "未估算"
 TRIAL_FALLBACK = "下次遇到同类情况时观察是否改善，7 天后看效果追踪"
@@ -261,7 +262,8 @@ def _primary(cand: dict, raw: dict) -> tuple[str, int]:
     kind, level = cand.get("kind"), cand.get("level") or 1
     file, path = raw.get("file") or [], (cand.get("target") or {}).get("path_hint")
     if kind == "permission_rule":
-        return "一键应用", level
+        # one-click apply needs a known settings file for the user's agent; otherwise it is manual
+        return ("一键应用", level) if path else ("查看方案", max(level, 3))
     if kind == "generate":
         return "交给 Agent 生成", level
     if kind in ("rule", "prompt") and file:
