@@ -19,7 +19,7 @@ from conftest import (
 )
 from fastapi.testclient import TestClient
 
-from tandem_backend.services.worker_protocol import DEBUG_DELAY_ENV
+from orbit_backend.services.worker_protocol import DEBUG_DELAY_ENV
 
 # Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
 pytestmark = pytest.mark.serial
@@ -53,7 +53,7 @@ def test_legacy_routes_fall_through_with_uniform_errors(tmp_path, codex_root):
 
 def test_scope_budget_is_reported_as_422(client_factory, codex_root):
     client, gateway = client_factory(config=fast_config(
-        worker_env={"TANDEM_ANALYSIS_MAX_EVENTS": "10"}))
+        worker_env={"ORBIT_ANALYSIS_MAX_EVENTS": "10"}))
     _import_head(client, add_codex(client, codex_root))
     response = client.get("/v1/analytics/overview", params={**ALL_TIME, "wait_ms": 3000})
     if response.status_code == 202:

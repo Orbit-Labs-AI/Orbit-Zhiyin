@@ -1,12 +1,12 @@
 """Keep native elapsed execution and observation wall span without selecting a winner."""
 
 import pytest
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.duration import native_duration_ms
-from tandem_data.store import Store
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.duration import native_duration_ms
+from orbit_data.store import Store
 
-from tandem_backend.analytics.cost_time import summarize_durations
+from orbit_backend.analytics.cost_time import summarize_durations
 
 
 @pytest.mark.parametrize("duration", [

@@ -7,11 +7,11 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from tandem_backend.analytics.interaction.rules import correction_terms
-from tandem_backend.appdb import AppDB
-from tandem_backend.uiview import a4a6_sentiment as S
+from orbit_backend.analytics.interaction.rules import correction_terms
+from orbit_backend.appdb import AppDB
+from orbit_backend.uiview import a4a6_sentiment as S
 
-from .a4a6_ps_fixture import DAY, MIN, T0, Tandem, ro
+from .a4a6_ps_fixture import DAY, MIN, T0, Orbit, ro
 
 UTC = ZoneInfo("UTC")
 CORRECTIONS = ["别用子代理", "不要改别的文件", "用 Cloudflare 不是 Vercel", "你改错了",
@@ -86,7 +86,7 @@ def home(tmp_path):
 
 @pytest.fixture
 def world(home):
-    t = Tandem(home)
+    t = Orbit(home)
     t.project("p1")
     # Current window [T0, T0+10d): f1 (facet), r1 (2 failures), r2 (read-only ask), q1/q2 phrases.
     t.session("f1", start=T0 + DAY)

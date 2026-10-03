@@ -68,7 +68,7 @@ scene('40-recs', () => {
     const a = app(0); a.S.recs.sel = RB; a.S.recs.tab = 'why'; a.S.recs.dim = 'all'; a.S.recs.peek = null; a.go('recs');
     const D = a.D; paperCss(D); still(D); unscroll(D);
     IDS.forEach((id) => { const c = card(D, id); if (!c) { console.warn('promo 40-recs: no card', id); return; } c.style.transform = 'none'; c.style.filter = 'none'; const r = c.getBoundingClientRect(); BASE[id] = { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; });
-    SAVE = IDS.map((id) => { const v = +a.W.eval('recX(' + JSON.stringify(id) + ').save'); return isFinite(v) ? v : 0; });
+    SAVE = IDS.map((id) => { const v = +a.W.eval('(recPct(' + JSON.stringify(id) + ') || {}).t || 0'); if (!(v > 0)) console.warn('promo 40-recs: no saving share for', id); return isFinite(v) ? v : 0; });   // % of collaboration time
     solo(0, IDS.map((id) => (DD) => card(DD, id))); unscroll(D);
   });
   // all three cards are moved onto the place of the first one (in the app's own px); the camera frames that place
@@ -92,11 +92,11 @@ scene('40-recs', () => {
   // headline: the eyebrow, the rolling estimate and one line that says what the number is
   txt(56.0, 66.4 + dA, [['eb', '02 · 推荐 · 按协作人格定制']], { x: 960, y: 120, align: 'c' }, { outB: .5 });
   const cum = (b) => SAVE.reduce((v, h, i) => v + h * E.out(lp(b, LAND[i], 1.4)), 0);   // rolls for ≈ 0.7 s as each card lands
-  txt(56.4, 66.4 + dA, [['xl sv r-tot', '<span class="r-n">0.0</span><span class="r-u">h / 月</span>']], { x: 960, y: 290, align: 'c' }, {
+  txt(56.4, 66.4 + dA, [['xl sv r-tot', '<span class="r-n">0.0</span><span class="r-u">%</span>']], { x: 960, y: 290, align: 'c' }, {
     anim: K.rise({ in: .8, out: .5 }),
     tick: (el, tl, life, t) => { const n = el.querySelector('.r-n'); if (n) n.textContent = cum(t / BEAT).toFixed(1); }
   });
-  txt(56.8, 66.4 + dA, [['lt', '每条建议都标明预计省下的时间']], { x: 960, y: 440, align: 'c' }, { outB: .5 });
+  txt(56.8, 66.4 + dA, [['lt', '每条建议都标明预计省下的协作时间占比']], { x: 960, y: 440, align: 'c' }, { outB: .5 });
   // the type of each card, beside it while it holds
   IDS.forEach((id, i) => {
     const kind = { 'paper-audit': 'Skill · 把流程写成技能', acceptance: 'Prompt · 更好的开场', 'retry-breaker': 'Hook · 自动拦住重复失败' }[id];

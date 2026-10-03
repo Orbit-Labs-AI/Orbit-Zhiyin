@@ -8,8 +8,8 @@ import stat
 import pytest
 from fakectx import FakeCtx, hook_pack
 
-from tandem_backend.ai.generate import TASKS
-from tandem_backend.ai.runner import Runner
+from orbit_backend.ai.generate import TASKS
+from orbit_backend.ai.runner import Runner
 
 HOOK = {"matcher": "Bash", "threshold": 3, "message": "测试已连续失败，先看错误输出再重试。",
         "command_heads": ["pnpm test"]}
@@ -76,7 +76,7 @@ def test_to_library_maps_kind(client, gateway, hook_id):
 
 
 def test_glue_maps_to_workflow():
-    from tandem_backend.ai import artifact_ops
+    from orbit_backend.ai import artifact_ops
 
     artifact = {"kind": "glue", "name": "g", "files": [{"target": "x", "content": "do"}],
                 "checks": {"lint": {"status": "warn"}, "scan": {"status": "ok"}}}

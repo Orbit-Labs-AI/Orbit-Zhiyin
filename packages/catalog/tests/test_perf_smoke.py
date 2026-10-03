@@ -3,10 +3,10 @@
 import statistics
 import time
 
-from tandem_catalog import query
-from tandem_catalog.contracts import MatchRequest, Page, Record, Resource, SourceSpec
-from tandem_catalog.search import search
-from tandem_catalog.store import CatalogStore
+from orbit_catalog import query
+from orbit_catalog.contracts import MatchRequest, Page, Record, Resource, SourceSpec
+from orbit_catalog.search import search
+from orbit_catalog.store import CatalogStore
 
 WORDS = "retry flaky pytest debug cache build deploy docker review prompt token latency index schema agent hook".split()
 

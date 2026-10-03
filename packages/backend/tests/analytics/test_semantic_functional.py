@@ -3,21 +3,21 @@ from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.preference.dictionary import FEATURES as PREFERENCE_FEATURES
-from tandem_backend.analytics.service import analyze_bundle, analyze_store
-from tandem_backend.analytics.task.dictionary import FEATURES as TASK_FEATURES
-from tandem_backend.api import create_app
-from tandem_backend.cli import main
-from tandem_backend.models import Event, ParsedSession, Session
-from tandem_backend.store import Store
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.preference.dictionary import FEATURES as PREFERENCE_FEATURES
+from orbit_backend.analytics.service import analyze_bundle, analyze_store
+from orbit_backend.analytics.task.dictionary import FEATURES as TASK_FEATURES
+from orbit_backend.api import create_app
+from orbit_backend.cli import main
+from orbit_backend.models import Event, ParsedSession, Session
+from orbit_backend.store import Store
 
 
 def test_mock_api_family_routes_scope_errors_and_compatibility(fixtures, monkeypatch, tmp_path):
     s, e, b = fixtures
     data = b([e("请修复代码", "a", 0, ts=10), e("以后这个项目用中文", "b", 1, ts=20)])
     mock = Mock(side_effect=lambda store, scope, with_text=True: analyze_bundle(data, scope, with_text))
-    monkeypatch.setattr("tandem_backend.analytics.service.analyze_store", mock)
+    monkeypatch.setattr("orbit_backend.analytics.service.analyze_store", mock)
     with TestClient(create_app(tmp_path / "mock.sqlite")) as client:
         result = client.get("/v1/analytics/tasks").json()
         task_id = result["tasks"]["records"][0]["task_id"]

@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from fact_db import GROUP, build
 
-from tandem_backend import features
-from tandem_backend.recommend import engine, problems, section
+from orbit_backend import features
+from orbit_backend.recommend import engine, problems, section
 
 
 @pytest.fixture(autouse=True)
@@ -55,6 +55,12 @@ def test_facts_from_events_and_sequences(inputs):
     assert inventory["rule:agents-md"]["resident_tokens"] > 0
     assert inventory["mcp:figma"]["resident_tokens"] is None
     assert all(item["enabled"] is None for item in inventory.values())
+    ledger = facts["trajectory"]
+    assert "trajectory" not in {row["source"] for row in inputs["diagnostics"]}
+    assert ledger["tokens"] == 30 * 1200 and ledger["requests"] == 30 and ledger["active_ms"] > 0
+    # Codex approvals: request → decision of each allowed read-only prompt (7 s apart in this slice)
+    assert ledger["ops"]["readonly"] == {"n": 3 * GROUP, "tokens": 0, "ms": 3 * GROUP * 7000}
+    assert ledger["ops"]["failed"]["n"] == 6 * GROUP
 
 
 def test_fact_problems_are_active(inputs):
@@ -111,6 +117,8 @@ def test_slate_reaches_six_cards_across_dims(inputs):
     assert not [cand["title"] for cand in ranked if "…" in cand["title"] or "{" in cand["title"]]
     mixed = next(cand for cand in slate["candidates"] if cand["rec_key"] == "template:split-mixed-session")
     assert "纠偏" not in (mixed.get("explain") or {}).get("reason", "")
+    allow = next(cand for cand in ranked if cand["rec_key"].startswith("kb:readonly-allowlist"))
+    assert allow["ui"]["save"]["time_pct"] > 0 and allow["ui"]["gain"].startswith("省时 ")
 
 
 def test_missing_event_table_degrades(tmp_path):

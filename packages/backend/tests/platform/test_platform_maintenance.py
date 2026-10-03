@@ -7,8 +7,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from tandem_backend.platform.maintenance import INTERVALS, UnknownTask
-from tandem_backend.services.snapshots import SnapshotKey
+from orbit_backend.platform.maintenance import INTERVALS, UnknownTask
+from orbit_backend.services.snapshots import SnapshotKey
 
 
 def runs(platform, task):
@@ -31,11 +31,11 @@ def test_tasks_run_and_are_logged(started, task):
 
 def test_storage_report_saved(started):
     started.maintenance.run("storage_report")
-    from tandem_backend.platform.storage import latest_report
+    from orbit_backend.platform.storage import latest_report
 
     report = latest_report(started.appdb)
     ids = [c["id"] for c in report["components"]]
-    assert ids[:3] == ["tandem_db", "raw", "app_db"] and report["total_bytes"] > 0
+    assert ids[:3] == ["orbit_db", "raw", "app_db"] and report["total_bytes"] > 0
 
 
 def test_busy_runs_only_flush(started):
@@ -73,14 +73,14 @@ def test_telemetry_export(started, tmp_path):
 def test_retention_prunes_logs(started):
     logs_dir = started.home / "logs"
     for i in range(3):
-        (logs_dir / f"tandem.log.{i + 1}").write_bytes(b"x" * (9 * 1024 * 1024))
+        (logs_dir / f"orbit.log.{i + 1}").write_bytes(b"x" * (9 * 1024 * 1024))
     detail = started.maintenance.run("retention")["detail"]
     assert detail["log_files"] >= 1
     assert sum(p.stat().st_size for p in logs_dir.iterdir()) <= 20 * 1024 * 1024
 
 
 def test_install_sweep(started):
-    from tandem_backend.install.service import InstallService
+    from orbit_backend.install.service import InstallService
 
     assert started.maintenance.run("install_sweep")["detail"] == {"skipped": True}
     started.gw.install = InstallService(started.appdb, started.home)
@@ -91,9 +91,9 @@ def test_install_sweep(started):
 
 
 def test_retention_prunes_analysis_runs_and_refreshes_the_storage_report(started):
-    from tandem_data.analysis_history import AnalysisHistory
+    from orbit_data.analysis_history import AnalysisHistory
 
-    from tandem_backend.platform.storage import fresh_report, latest_report
+    from orbit_backend.platform.storage import fresh_report, latest_report
 
     history = AnalysisHistory(started.home / "analysis.sqlite")
     for index in range(4):
@@ -111,7 +111,7 @@ def test_retention_prunes_analysis_runs_and_refreshes_the_storage_report(started
 
 
 def test_storage_endpoint_recomputes_an_old_report(started):
-    from tandem_backend.platform.storage import fresh_report, save_report, storage_report
+    from orbit_backend.platform.storage import fresh_report, save_report, storage_report
 
     old = storage_report(started.home)
     old["generated_at"] -= 3_600_000
@@ -124,30 +124,30 @@ def test_storage_endpoint_recomputes_an_old_report(started):
 
 
 def test_prune_logs_truncates_live_worker_log_and_keeps_it_writable(tmp_path):
-    from tandem_backend.platform.maintenance import LOGS_CAP, _prune_logs
+    from orbit_backend.platform.maintenance import LOGS_CAP, _prune_logs
 
     logs_dir = tmp_path / "logs"
     logs_dir.mkdir()
     MB = 1024 * 1024
-    old = logs_dir / "tandem.log.1"
+    old = logs_dir / "orbit.log.1"
     old.write_bytes(b"o" * (8 * MB))
     os.utime(old, (1, 1))                                       # oldest file of all
-    (logs_dir / "tandem.log").write_bytes(b"t" * MB)
+    (logs_dir / "orbit.log").write_bytes(b"t" * MB)
     live = logs_dir / "ingest.log"
     live.write_bytes(b"i" * (15 * MB))
-    os.utime(live, (2, 2))                                      # older than tandem.log
+    os.utime(live, (2, 2))                                      # older than orbit.log
     writer = open(live, "ab")                                   # the worker's stderr handle
     try:
-        # 8 + 1 + 15 = 24 MB > 20 MB cap: deleting tandem.log.1 (8 MB) leaves 16 MB, done;
-        # the live worker log is not touched although it is older than tandem.log.
+        # 8 + 1 + 15 = 24 MB > 20 MB cap: deleting orbit.log.1 (8 MB) leaves 16 MB, done;
+        # the live worker log is not touched although it is older than orbit.log.
         assert _prune_logs(logs_dir) == 1
         assert not old.exists() and live.stat().st_size == 15 * MB
-        (logs_dir / "tandem.log.2").write_bytes(b"o" * (2 * MB))
+        (logs_dir / "orbit.log.2").write_bytes(b"o" * (2 * MB))
         (logs_dir / "analysis.log").write_bytes(b"a" * (5 * MB))
         # 1 + 15 + 2 + 5 = 23 MB: rotated file goes first (-2 → 21 MB), then the oldest live
         # worker log is truncated in place (-15 → 6 MB) instead of unlinked.
         assert _prune_logs(logs_dir) == 2
-        assert not (logs_dir / "tandem.log.2").exists()
+        assert not (logs_dir / "orbit.log.2").exists()
         assert live.exists() and live.stat().st_size == 0
         assert (logs_dir / "analysis.log").stat().st_size == 5 * MB
         writer.write(b"after\n")
@@ -159,7 +159,7 @@ def test_prune_logs_truncates_live_worker_log_and_keeps_it_writable(tmp_path):
 
 
 def test_worker_log_rotates_on_spawn_when_large(tmp_path):
-    from tandem_backend.services.supervisor import WORKER_LOG_MAX, rotate_worker_log
+    from orbit_backend.services.supervisor import WORKER_LOG_MAX, rotate_worker_log
 
     path = tmp_path / "ingest.log"
     assert rotate_worker_log(path) is False                     # missing: nothing to do

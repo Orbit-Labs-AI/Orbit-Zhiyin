@@ -6,11 +6,11 @@ import sqlite3
 
 from fact_db import SCHEMA, FakeStore
 
-from tandem_backend.recommend import problems, section
+from orbit_backend.recommend import problems, section
 
 
 def _db(tmp_path):
-    path = tmp_path / "tandem.db"
+    path = tmp_path / "orbit.db"
     conn = sqlite3.connect(path)
     conn.executescript(SCHEMA)
     conn.execute("INSERT INTO source VALUES ('src', 'codex')")

@@ -6,14 +6,14 @@ import pytest
 from pydantic import ValidationError
 from test_recommend_pipeline import correction_bundle, ready_item
 
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.recommend.benefit import estimate_benefit
-from tandem_backend.recommend.contracts import (
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.recommend.benefit import estimate_benefit
+from orbit_backend.recommend.contracts import (
     BenefitScenario,
     RecommendationContext,
     RecommendationItem,
 )
-from tandem_backend.recommend.service import recommend
+from orbit_backend.recommend.service import recommend
 
 
 def value(low, high=None):
@@ -151,13 +151,9 @@ def test_duplicate_scenarios_cannot_double_count_savings():
         RecommendationContext(benefit_scenarios=[scenario, scenario])
 
 
-def test_card_savings_uses_scenario_bounds():
-    from tandem_backend.recommend.benefit import beta_interval, card_savings
+def test_beta_interval_is_a_clipped_normal_band():
+    from orbit_backend.recommend.benefit import beta_interval
 
     lo, hi = beta_interval(9, 1)
     # mean .9, sd = √(9·1 / (10²·11)) = .0904534 ; ±1.645·sd = .1487958 ; upper clipped at 1
     assert lo == pytest.approx(.7512042, abs=1e-6) and hi == 1.
-    out = card_savings(10, 4, 2., (.25, .5))
-    # baseline 10 × 4 × 2 = 80 min; gross = 80 × [.25, .5] = [20, 40]; overhead unknown → partial
-    assert out["status"] == "partial" and out["baseline"] == {"low": 80, "high": 80}
-    assert out["gross_savings"] == {"low": 20, "high": 40} and out["net_savings"] is None

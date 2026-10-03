@@ -6,10 +6,10 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
-from realtime_fixtures import Tandem
+from realtime_fixtures import Orbit
 
-from tandem_backend.services.gateway import Gateway
-from tandem_backend.services.routes_realtime import stream
+from orbit_backend.services.gateway import Gateway
+from orbit_backend.services.routes_realtime import stream
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 PORT = 8765
@@ -27,7 +27,7 @@ def client(home):
 
 def seed(home):
     now = int(time.time() * 1000)
-    t = Tandem(home)
+    t = Orbit(home)
     t.session("live", started=now - 60_000, title="修复构建")
     t.event("live", now - 50_000, actor="human")
     for i in range(3):
@@ -39,7 +39,7 @@ def seed(home):
     t.db.close()
 
 
-def test_snapshot_before_tandem_db_is_idle(client):
+def test_snapshot_before_orbit_db_is_idle(client):
     test_client, _ = client
     body = test_client.get("/v1/analytics/realtime").json()
     assert body["status"] == "idle" and body["sessions"] == []

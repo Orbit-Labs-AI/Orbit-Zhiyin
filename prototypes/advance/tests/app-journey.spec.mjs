@@ -1,18 +1,18 @@
 // End-to-end user journey of the Orbit App against a REAL gateway (run through scripts/check-app-journey.sh).
 // The page is loaded from the gateway's own /app (same origin, as in the WKWebView) with an init script that emulates the
-// native host: __TANDEM_TOKEN__/__TANDEM_ENDPOINT__/__ORBIT_NATIVE__ plus a fake webkit.messageHandlers.tandem that records
+// native host: __ORBIT_TOKEN__/__ORBIT_ENDPOINT__/__ORBIT_NATIVE__ plus a fake webkit.messageHandlers.orbit that records
 // every message and answers chooseFolder (synthetic source folders) and save (ok).
 // Every step screenshots into $JOURNEY_SHOTS/live/<nn>-<step>.png and logs console/page errors, failed requests (≥400) and
 // timings into $JOURNEY_SHOTS/journey-report.json. Steps never abort the journey: a failing step is recorded and the next
 // one runs, so a single run lists every defect. The mock test shoots the same routes from file:// into shots/mock/.
-// Env: LIVE_GATEWAY, TANDEM_TOKEN (required for the live test), JOURNEY_SRC (fx-src), JOURNEY_SHOTS, JOURNEY_FAKE_HOME.
+// Env: LIVE_GATEWAY, ORBIT_TOKEN (required for the live test), JOURNEY_SRC (fx-src), JOURNEY_SHOTS, JOURNEY_FAKE_HOME.
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { ADV_FILE } from './live-helpers.mjs';
 
 const GW = process.env.LIVE_GATEWAY ? process.env.LIVE_GATEWAY.replace(/\/+$/, '') : null;
-const TOKEN = process.env.TANDEM_TOKEN || '';
+const TOKEN = process.env.ORBIT_TOKEN || '';
 const SRC = process.env.JOURNEY_SRC || '';
 const SHOTS = process.env.JOURNEY_SHOTS || path.resolve('test-results', 'journey-shots');
 const FAKE_HOME = process.env.JOURNEY_FAKE_HOME || '';
@@ -27,20 +27,20 @@ test.describe.configure({ mode: 'serial' });
 
 // ---- fake WKWebView host ----
 function hostInit([endpoint, token, features, native]) {
-  if (endpoint) { window.__TANDEM_ENDPOINT__ = endpoint; window.__TANDEM_TOKEN__ = token; }
+  if (endpoint) { window.__ORBIT_ENDPOINT__ = endpoint; window.__ORBIT_TOKEN__ = token; }
   if (!native) return;
   window.__ORBIT_NATIVE__ = { v: 1, app: '0.0.1', platform: 'macos', features };
   window.__nativeMsgs = []; window.__folders = [];
   const fire = (name, detail) => setTimeout(() => window.dispatchEvent(new CustomEvent(name, { detail })), 30);
-  window.webkit = { messageHandlers: { tandem: { postMessage(m) {
+  window.webkit = { messageHandlers: { orbit: { postMessage(m) {
     if (m && m.type === 'dragRegions') return;  // layout report from 23-native-drag.js, not a bridge call
     const rec = Object.assign({}, m);
     if (rec.base64 != null) { rec.bytes = Math.floor(rec.base64.length * 3 / 4); delete rec.base64; }
     if (rec.text != null) { rec.bytes = new Blob([rec.text]).size; rec.head = String(rec.text).slice(0, 160); delete rec.text; }
     rec.at = Date.now();
     window.__nativeMsgs.push(rec);
-    if (m.type === 'chooseFolder') { const p = window.__folders.shift(); fire('tandem:folder', { id: m.id, path: p || null, cancelled: !p }); }
-    if (m.type === 'save') fire('tandem:saved', { id: m.id, ok: true, path: '/tmp/orbit-journey/' + (m.filename || 'export') });
+    if (m.type === 'chooseFolder') { const p = window.__folders.shift(); fire('orbit:folder', { id: m.id, path: p || null, cancelled: !p }); }
+    if (m.type === 'save') fire('orbit:saved', { id: m.id, ok: true, path: '/tmp/orbit-journey/' + (m.filename || 'export') });
   } } } };
 }
 
@@ -121,7 +121,7 @@ const ADV_ROUTES = ['overview', 'persona', 'sentiment', 'sessions', 'projects', 
 const LITE_ROUTES = ['l-home', 'l-persona', 'l-sessions', 'l-recs'];
 
 test('live journey: first run → every route → Lite → surfaces', async ({ page, context }) => {
-  test.skip(!GW || !TOKEN, 'needs LIVE_GATEWAY + TANDEM_TOKEN (scripts/check-app-journey.sh)');
+  test.skip(!GW || !TOKEN, 'needs LIVE_GATEWAY + ORBIT_TOKEN (scripts/check-app-journey.sh)');
   test.setTimeout(20 * 60_000);
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.addInitScript(hostInit, [GW, TOKEN, FEATURES, true]);
@@ -580,7 +580,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
   await step('about-close', async () => { await closeAll(page); }, { shot: false });
   await step('native-commands', async (s) => {
     for (const d of [{ cmd: 'route', route: 'projects' }, { cmd: 'palette' }, { cmd: 'settings', tab: 'privacy' }, { cmd: 'refresh' }]) {
-      await ev(page, (d) => window.dispatchEvent(new CustomEvent('tandem:command', { detail: d })), d); await sleep(500);
+      await ev(page, (d) => window.dispatchEvent(new CustomEvent('orbit:command', { detail: d })), d); await sleep(500);
     }
     s.notes.push('route=' + await ev(page, () => S.route));
     await closeAll(page);

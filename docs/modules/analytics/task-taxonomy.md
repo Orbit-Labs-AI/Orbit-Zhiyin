@@ -2,7 +2,7 @@
 
 本模块把确认来自主会话真人的**当前请求**映射成可解释的多标签候选。它服务于概览、项目卡片、会话任务列表和画像中的任务分布，不参与四轴人格打分，不从词数推断兴趣强度或技能水平。
 
-实现：[taxonomy.py](../../../packages/backend/src/tandem_backend/analytics/task/taxonomy.py)、[features.py](../../../packages/backend/src/tandem_backend/analytics/task/features.py)。自造中英语料：[task-domain-corpus-v2.json](../../../packages/backend/src/tandem_backend/data/task-domain-corpus-v2.json)。
+实现：[taxonomy.py](../../../packages/backend/src/orbit_backend/analytics/task/taxonomy.py)、[features.py](../../../packages/backend/src/orbit_backend/analytics/task/features.py)。自造中英语料：[task-domain-corpus-v2.json](../../../packages/backend/src/orbit_backend/data/task-domain-corpus-v2.json)。
 
 ## 层级与稳定标识
 
@@ -80,7 +80,7 @@ p_k=\frac{\sum_t1[k\in labels(t)]}{n_{known}}.
 
 ```sh
 uv run pytest packages/backend/tests/analytics/test_task_taxonomy_v2.py packages/backend/tests/analytics/test_task.py packages/backend/tests/analytics/test_semantic_quality.py -q
-uv run ruff check packages/backend/src/tandem_backend/analytics/task packages/backend/tests/analytics/test_task_taxonomy_v2.py
+uv run ruff check packages/backend/src/orbit_backend/analytics/task packages/backend/tests/analytics/test_task_taxonomy_v2.py
 ```
 
 Windows 旧测试夹具未声明 UTF-8 时需设置 `PYTHONUTF8=1`。涉及完整 API 的测试请使用项目支持的 Linux/macOS 环境，Catalog 有 `fcntl` 依赖。

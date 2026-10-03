@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from tandem_backend.analysis import analyze
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.store import Store, import_codex
 
 
 def message(role, text):

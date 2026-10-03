@@ -7,8 +7,8 @@ import sys
 
 import pytest
 
-from tandem_backend.ai.generate import templates
-from tandem_backend.ai.generate.hooks_replay import decide_fn
+from orbit_backend.ai.generate import templates
+from orbit_backend.ai.generate.hooks_replay import decide_fn
 
 
 def test_manifest_hashes_match_files():
@@ -30,7 +30,7 @@ def test_changed_template_without_version_bump_fails(tmp_path, monkeypatch):
         else:
             manifest = {k: v for k, v in json.loads(src.read_text()).items() if v["kind"] == "rule"}
             (tmp_path / entry).write_text(json.dumps(manifest))
-    (tmp_path / "rules" / "paragraph@1.md").write_text("tampered\n")
+    (tmp_path / "rules" / "paragraph@2.md").write_text("tampered\n")
     monkeypatch.setattr(templates, "ROOT", tmp_path)
     templates.load.cache_clear()
     try:
@@ -123,7 +123,7 @@ def test_scope_guard_script_exit_codes(tmp_path, event, code, out):
                           capture_output=True, text=True, env={"TMPDIR": str(tmp_path)}, timeout=10)
     assert proc.returncode == code
     assert proc.stdout.strip() == out
-    assert (tmp_path / "tandem-hooks" / "t1-scope-guard.json").exists()
+    assert (tmp_path / "orbit-hooks" / "t1-scope-guard.json").exists()
 
 
 def test_warn_script_prints_system_message(tmp_path):

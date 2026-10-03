@@ -296,17 +296,17 @@ GET /v1/analytics/presentation?window=7d&agent_ids=codex&display_timezone=Asia/S
 导出：
 
 ```bash
-tandem analytics --presentation --window 7d --agent-id codex \
+orbit analytics --presentation --window 7d --agent-id codex \
   --display-timezone Asia/Shanghai --output .local/presentation.json
 ```
 
 直接调用可先用 `window_scope` 构造实际范围，再运行已有分析：
 
 ```python
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.presentation import build_presentation
-from tandem_backend.analytics.presentation.metrics import window_scope
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.presentation import build_presentation
+from orbit_backend.analytics.presentation.metrics import window_scope
+from orbit_backend.analytics.service import analyze_bundle
 
 scope = window_scope(Scope(display_timezone="Asia/Shanghai", agent_ids=["codex"]), "7d")
 analysis = analyze_bundle(bundle, scope, with_text=False)
@@ -315,10 +315,10 @@ presentation = build_presentation(analysis)
 
 实现文件：
 
-- [metrics.py](../../../packages/backend/src/tandem_backend/analytics/presentation/metrics.py)：滚动窗口、基础量值、排行、活动热度。
-- [profile.py](../../../packages/backend/src/tandem_backend/analytics/presentation/profile.py)：任务等权四轴、缺口、月份、固定散点与偏好历史。
-- [diagnostics.py](../../../packages/backend/src/tandem_backend/analytics/presentation/diagnostics.py)：确认比例、工具状态与耗时、转移矩阵、结果与建议排序。
-- [service.py](../../../packages/backend/src/tandem_backend/analytics/presentation/service.py)：八族结果装配为同一前端快照、会话／项目子视图及不可用能力。
+- [metrics.py](../../../packages/backend/src/orbit_backend/analytics/presentation/metrics.py)：滚动窗口、基础量值、排行、活动热度。
+- [profile.py](../../../packages/backend/src/orbit_backend/analytics/presentation/profile.py)：任务等权四轴、缺口、月份、固定散点与偏好历史。
+- [diagnostics.py](../../../packages/backend/src/orbit_backend/analytics/presentation/diagnostics.py)：确认比例、工具状态与耗时、转移矩阵、结果与建议排序。
+- [service.py](../../../packages/backend/src/orbit_backend/analytics/presentation/service.py)：八族结果装配为同一前端快照、会话／项目子视图及不可用能力。
 
 快照保留源特征版本、各族版本、源分析摘要与展示版本，便于追溯口径变化。前端不要自己换分母、重新拟合坐标或从空字段补造结论；变更公式、阈值和字段语义时同时更新规则版本与合成验收样例。
 
@@ -330,4 +330,4 @@ presentation = build_presentation(analysis)
 
 这些测试验证规则和对接，不证明规则提取在真实语言上的准确率，也不证明建议已经改善效率。真实语义质量和产品阈值仍需团队人工验收；不以合成测试通过率对外宣称人格准确率。
 
-2026-10-02（Asia/Shanghai）在 Python 3.13.12 / Linux 上验证：合入 main 的推荐模块后，后端 1,129 项通过、1 项 staging 桥接测试因未构建 Node 连接器而跳过；数据层 101 项通过。锁定依赖同步、规定目录 Ruff 检查及数据层格式检查、两包构建、`tandem demo`、`tandem evaluate`、`git diff --check` 通过；评价的 readability / pipeline / probe 分别为 8/8、34/34、12/12。构造的 canonical demo 数据成功导出 `presentation-v1` JSON，验证显式空资源目录和目标 Agent 不被展示层覆盖；未读取或导入个人会话。远端 CI 状态单独查看 PR。
+2026-10-02（Asia/Shanghai）在 Python 3.13.12 / Linux 上验证：合入 main 的推荐模块后，后端 1,129 项通过、1 项 staging 桥接测试因未构建 Node 连接器而跳过；数据层 101 项通过。锁定依赖同步、规定目录 Ruff 检查及数据层格式检查、两包构建、`orbit demo`、`orbit evaluate`、`git diff --check` 通过；评价的 readability / pipeline / probe 分别为 8/8、34/34、12/12。构造的 canonical demo 数据成功导出 `presentation-v1` JSON，验证显式空资源目录和目标 Agent 不被展示层覆盖；未读取或导入个人会话。远端 CI 状态单独查看 PR。

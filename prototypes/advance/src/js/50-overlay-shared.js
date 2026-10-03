@@ -11,7 +11,7 @@ const isDark = () => S.theme === 'dark' || (S.theme === 'system' && !!window.mat
 function swBtn(on, act, attrs, label) { return '<button type="button" class="sw' + (on ? ' on' : '') + '" role="switch" aria-checked="' + !!on + '" aria-label="' + esc(label || '') + '" data-act="' + act + '"' + (attrs || '') + '></button>'; }
 const FIELD = 'height:30px;border-radius:7px;border:1px solid var(--line);background:var(--surface);padding:0 9px;font-size:13px;color:var(--ink-1);width:100%;min-width:0';
 const LIVE_ID = 'sess-1001-1512';
-const HUD_TOOLS = ['Edit Main.dc.html', 'Read Sessions.dc.html', 'Bash node lint.js', 'Edit tandem-demo.html', 'Read canvas.json', 'Bash git status'];
+const HUD_TOOLS = ['Edit Main.dc.html', 'Read Sessions.dc.html', 'Bash node lint.js', 'Edit orbit-demo.html', 'Read canvas.json', 'Bash git status'];
 let HUD_T = 0, OVL = null, SIMT = null, ASKT = null;
 
 // page guide (「这页回答」, inserted by 37-motion.js's render hook, which runs before this one): the full sentence is also its

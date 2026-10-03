@@ -11,12 +11,12 @@ from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 
-from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.diagnostics import diagnostics, terminal_text
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 from .robustness import save
 from .robustness_invariants import validate_result
@@ -30,7 +30,7 @@ def run(home, output, *, sizes=(20, 100), progress=None):
     if not output.is_relative_to((ROOT / ".local").resolve()):
         raise ValueError("Scale output must remain under ignored .local/")
     with sqlite3.connect(
-        f"{(Path(home) / 'tandem.db').resolve().as_uri()}?mode=ro", uri=True
+        f"{(Path(home) / 'orbit.db').resolve().as_uri()}?mode=ro", uri=True
     ) as db:
         native = [
             dict(zip(("session_uid", "kind", "root_uid"), row, strict=True))

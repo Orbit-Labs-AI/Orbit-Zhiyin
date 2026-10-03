@@ -12,10 +12,10 @@
 
 | 模块 | 主要工作文件与进度文档 | 输出重点 |
 | --- | --- | --- |
-| Interaction | [features.py](../../../packages/backend/src/tandem_backend/analytics/interaction/features.py)、rules.py、[README](../../../packages/backend/src/tandem_backend/analytics/interaction/README.md) | 意图标注、介入位置、确认纠偏、重复要求、摩擦 |
-| Respond | [calls.py](../../../packages/backend/src/tandem_backend/analytics/respond/calls.py)、sequence.py、relations.py、features.py、rules.py、[README](../../../packages/backend/src/tandem_backend/analytics/respond/README.md) | 调用配对、状态与失败原因、重试、子代理、执行区间 |
-| Cost / Time | [tokens.py](../../../packages/backend/src/tandem_backend/analytics/cost_time/tokens.py)、features.py、durations.py、activity.py、[README](../../../packages/backend/src/tandem_backend/analytics/cost_time/README.md) | 请求 Token、缓存包含关系、耗时／区间并集、跨度、活动分布 |
-| Outcome | [validation.py](../../../packages/backend/src/tandem_backend/analytics/outcome/validation.py)、acceptance.py、rules.py、[README](../../../packages/backend/src/tandem_backend/analytics/outcome/README.md) | 实际验证、结果证据、逐项验收、版本和覆盖范围 |
+| Interaction | [features.py](../../../packages/backend/src/orbit_backend/analytics/interaction/features.py)、rules.py、[README](../../../packages/backend/src/orbit_backend/analytics/interaction/README.md) | 意图标注、介入位置、确认纠偏、重复要求、摩擦 |
+| Respond | [calls.py](../../../packages/backend/src/orbit_backend/analytics/respond/calls.py)、sequence.py、relations.py、features.py、rules.py、[README](../../../packages/backend/src/orbit_backend/analytics/respond/README.md) | 调用配对、状态与失败原因、重试、子代理、执行区间 |
+| Cost / Time | [tokens.py](../../../packages/backend/src/orbit_backend/analytics/cost_time/tokens.py)、features.py、durations.py、activity.py、[README](../../../packages/backend/src/orbit_backend/analytics/cost_time/README.md) | 请求 Token、缓存包含关系、耗时／区间并集、跨度、活动分布 |
+| Outcome | [validation.py](../../../packages/backend/src/orbit_backend/analytics/outcome/validation.py)、acceptance.py、rules.py、[README](../../../packages/backend/src/orbit_backend/analytics/outcome/README.md) | 实际验证、结果证据、逐项验收、版本和覆盖范围 |
 
 每个目录另有 `__init__.py` 稳定导出、`analyzer.py` 组合入口与 `dictionary.py` 字段口径；`analyzer.py` 保留此前的公开函数导入。共享字典只汇集各族定义，不再维护四族的规则实现。
 
@@ -34,8 +34,8 @@ PR #13 的任务 ID 经来源／项目命名空间哈希，内部 `task_by_event
 ```python
 import json
 from pathlib import Path
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.service import analyze_bundle
 
 raw = json.loads(Path("packages/backend/tests/fixtures/bottleneck-features-v1.json").read_text())
 result = analyze_bundle(AnalysisInputBundle.from_dict(raw), Scope(**raw["scope"]), with_text=False)
@@ -44,7 +44,7 @@ print(families["interaction"]["confirmed_correction_rate"])
 print(families["outcome"]["acceptance_results"])
 ```
 
-统一 JSON 的 `bottleneck_features` 包含 interaction/respond/cost_time/outcome；`sessions[*]` 和 `projects[*]` 也含相同结构，使用各自成员范围。`GET /v1/analytics/bottleneck` 返回总体四组结果及原有 scope/coverage/digest 等元数据；会话详情 API 可查看单会话树。`tandem analytics --output ...` 自动包含新结构，无需新 CLI。
+统一 JSON 的 `bottleneck_features` 包含 interaction/respond/cost_time/outcome；`sessions[*]` 和 `projects[*]` 也含相同结构，使用各自成员范围。`GET /v1/analytics/bottleneck` 返回总体四组结果及原有 scope/coverage/digest 等元数据；会话详情 API 可查看单会话树。`orbit analytics --output ...` 自动包含新结构，无需新 CLI。
 
 整体版本为 `feature-analytics-v2.2-bottleneck`，四组输出子契约为 `bottleneck-features-v1`。旧导入位置和字段仍可使用；新 benchmark 应读取新分组。本次还修正重复调用计数、模型活动误计累计记录、会话缺开始时间时错误补造开始、非法 Token／时延和缓存重复计量。机器可读定义在各特征族的 `dictionary.py`，由 `analytics/dictionary.py` 汇集。
 
@@ -70,8 +70,8 @@ print(families["outcome"]["acceptance_results"])
 ```bash
 uv run ruff check packages/backend/src packages/backend/tests packages/data/src packages/data/tests tests
 pytest -q
-tandem demo --output /tmp/tandem-synthetic-demo
-tandem evaluate --output /tmp/tandem-synthetic-evaluation.json
+orbit demo --output /tmp/orbit-synthetic-demo
+orbit evaluate --output /tmp/orbit-synthetic-evaluation.json
 ```
 
 最后两条只生成仓库自带的虚构数据；本次实际运行使用独立临时目录。逐模块用例验证文档正反例，集成用例验证共同筛选、子代理排除、未来证据隔离、输入不变、重复去重及 CLI/API 一致性。

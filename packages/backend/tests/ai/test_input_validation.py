@@ -6,10 +6,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tandem_backend.ai import ask
-from tandem_backend.ai.errors import AIError
-from tandem_backend.services import routes_ai
-from tandem_backend.services.gateway import install_error_handlers
+from orbit_backend.ai import ask
+from orbit_backend.ai.errors import AIError
+from orbit_backend.services import routes_ai
+from orbit_backend.services.gateway import install_error_handlers
 
 
 @pytest.fixture

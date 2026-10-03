@@ -317,6 +317,7 @@ function sessPickPartial() {
   sl.querySelectorAll('.srow').forEach((b) => { const on = b.dataset.id === S.sess.sel || b.dataset.id === S.sess.cmp; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); });
   if (PAGES.sessions.after) PAGES.sessions.after();
   RENDER_HOOKS.forEach((fn) => { try { fn(m, false); } catch (e) { console.error(e); } });
+  paneSync();   // the new session's detail starts at the top of its pane (88-panes.js)
   if (window.__lvRendered) window.__lvRendered();
   return true;
 }

@@ -200,7 +200,7 @@ test('palette: search endpoint missing shows an honest note, local results still
   expect(errors).toEqual([]);
 });
 
-// real-gateway smoke (LIVE_GATEWAY + TANDEM_TOKEN): the polished A6 root and the palette render on a real home
+// real-gateway smoke (LIVE_GATEWAY + ORBIT_TOKEN): the polished A6 root and the palette render on a real home
 test('real gateway smoke: A6 and palette search', async ({ page }) => {
   test.skip(!PASS, 'needs LIVE_GATEWAY');
   const errors = collectErrors(page);

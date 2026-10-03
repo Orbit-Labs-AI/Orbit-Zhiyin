@@ -3,8 +3,8 @@ import os
 
 import pytest
 
-from tandem_data.contract import canonical
-from tandem_data.maintenance import (
+from orbit_data.contract import canonical
+from orbit_data.maintenance import (
     LAYERS,
     PURGE_CONFIRMATION,
     PurgeRefused,
@@ -12,9 +12,9 @@ from tandem_data.maintenance import (
     purge_all,
     storage_usage,
 )
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 
 def build(tmp_path):
@@ -100,19 +100,19 @@ def test_symlinked_cache_dir_and_home_are_refused(tmp_path):
     (home / "cache").symlink_to(outside, target_is_directory=True)
     with pytest.raises(PurgeRefused, match="outside"):
         purge_all(home, PURGE_CONFIRMATION)
-    assert (outside / "capabilities.json").exists() and (home / "tandem.db").exists()
+    assert (outside / "capabilities.json").exists() and (home / "orbit.db").exists()
     link = tmp_path / "link-home"
     link.symlink_to(home, target_is_directory=True)
     with pytest.raises(PurgeRefused, match="symbolic link"):
         purge_all(link, PURGE_CONFIRMATION)
-    assert (home / "tandem.db").exists()
+    assert (home / "orbit.db").exists()
 
 
-def test_non_tandem_directory_is_refused(tmp_path):
+def test_non_orbit_directory_is_refused(tmp_path):
     folder = tmp_path / "docs"
     folder.mkdir()
     (folder / "notes.txt").write_text("x")
-    with pytest.raises(PurgeRefused, match="not a Tandem"):
+    with pytest.raises(PurgeRefused, match="not an Orbit"):
         purge_all(folder, PURGE_CONFIRMATION)
     assert (folder / "notes.txt").exists()
 
@@ -126,20 +126,20 @@ def test_active_import_blocks_purge(tmp_path):
             purge_all(home, PURGE_CONFIRMATION)
     finally:
         os.close(descriptor)
-    assert (home / "tandem.db").exists()
+    assert (home / "orbit.db").exists()
 
 
 def test_confirmed_purge_clears_data_and_store_reinitialises(tmp_path):
     home = build(tmp_path)
-    from tandem_data.capabilities import capabilities
+    from orbit_data.capabilities import capabilities
 
     capabilities(home)
     result = purge_all(home, PURGE_CONFIRMATION)
     assert result["deleted_files"] > 2 and result["deleted_bytes"] > 0
-    assert not (home / "tandem.db").exists() and not (home / "raw").exists()
+    assert not (home / "orbit.db").exists() and not (home / "raw").exists()
     assert not (home / "cache" / "capabilities.json").exists()
     assert (home / "catalog.db").read_bytes() == b"keep"
-    assert "tandem.db" not in result["kept"]
+    assert "orbit.db" not in result["kept"]
     with Store(home) as store:
         assert store.db.execute("SELECT COUNT(*) FROM event").fetchone()[0] == 0
         assert store.verify()["unparsed"] == 0
@@ -150,7 +150,7 @@ def test_confirmed_purge_clears_data_and_store_reinitialises(tmp_path):
 def test_cli_data_service_commands(tmp_path, capsys):
     import json
 
-    from tandem_data.cli import main
+    from orbit_data.cli import main
 
     home = build(tmp_path)
 
@@ -171,9 +171,9 @@ def test_cli_data_service_commands(tmp_path, capsys):
     usage.mkdir(parents=True)
     (usage / "demo.json").write_text('{"session_id": "demo", "tool_counts": {"Bash": 1}}')
     report = run("insights", "--path", str(usage.parent), "--match")
-    assert report["matches"][0]["tandem"]["tool_calls"] == 1
+    assert report["matches"][0]["orbit"]["tool_calls"] == 1
     with pytest.raises(PurgeRefused):
         main(["--home", str(home), "purge", "--confirm", "no"])
-    assert (home / "tandem.db").exists()
+    assert (home / "orbit.db").exists()
     assert run("purge", "--confirm", PURGE_CONFIRMATION)["deleted_files"] > 0
-    assert not (home / "tandem.db").exists()
+    assert not (home / "orbit.db").exists()

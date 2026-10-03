@@ -1,12 +1,13 @@
-/* ============ live binding: recommendations (TandemLive.recs, js/06-live-client.js) ============
+/* ============ live binding: recommendations (OrbitLive.recs, js/06-live-client.js) ============
    Mock mode changes nothing. In live mode the demo renderers stay as they are (A7 cards and detail, A1「本周建议」, Lite
    l-home「本周最值得做的一件事」and l-recs, menubar「本周最值得做」): this file swaps the rows they read (RECS / RECI / REC_X)
    for GET /v1/recommendations, and recOrder / recTop(surface) put the backend's stable top slate (surface A1 / lite / menubar) first.
    - Recommendations are personal data: live mode drops the demo rows at load (RECS / RECI / REC_X; ?demo=1 keeps them).
      No run yet (cold start), 0 cards, a missing / down endpoint (404 / 501 / 503 / offline) or computing all render the
      A7 page's own honest empty state, never demo rows. Live once: later failures keep the last live rows (strip: 刷新失败).
-   - Rows carry the real agents (target.agents → LV.agentOf → AG ids; native vs 转换), the monthly saving from ui.save, the
-     resident tokens from ui.tok and the source link. 获取 / 预览并安装 runs the real install sheet (97-live-library-install
+   - Rows carry the real agents (target.agents → LV.agentOf → AG ids; native vs 转换), the saving shares from ui.save (time /
+     token % of the real trajectory), the resident token share from ui.tok_pct and the source link.
+     获取 / 预览并安装 runs the real install sheet (97-live-library-install
      liInstall, source {type:'candidate'}): plan → preview → confirm → apply with the preview_digest; 撤销 reverts by install_id.
    - Writes: view / open / preview / copy exposure; 不适用 / 稍后 / 不再推荐同类 are labels with an 8-second undo
      (DELETE /v1/labels/{id}); 重新计算 is POST /v1/recommendations/recompute. Each write invalidates the rec resources. */
@@ -21,22 +22,22 @@ if (TL.mode === 'live' && !LV.demo) {
   RECS.length = 0; Object.keys(RECI).forEach((k) => { delete RECI[k]; }); Object.keys(REC_X).forEach((k) => { delete REC_X[k]; });
   S.installed.clear(); S.recs.sel = null;
 }
-// Cand → RECS row: the shared mapper (TandemLive.recs.row) plus real agents, ui.save / ui.tok and the source link.
+// Cand → RECS row: the shared mapper (OrbitLive.recs.row) plus real agents, ui.save / ui.tok_pct and the source link.
 function lvRecRow(c) {
-  const r = TandemLive.recs.row(c); const u = c.ui || {};
+  const r = OrbitLive.recs.row(c); const u = c.ui || {};
   const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
   const ids = [], parts = []; r.native = Object.keys(nat).filter((k) => nat[k] === 'native').map((b) => LV.agentOf(b).id);
   bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
   r.agents = ids; r.bagents = bids;
   if (ids.length) r.compat = parts.join(' · ');
+  // r.x.pct (shares of the real trajectory) and r.x.tokp come from ui.save / ui.tok_pct via OrbitLive.recs.row; tok in k
   const sv = u.save && typeof u.save === 'object' ? u.save : null;
-  if (sv) r.x.save = sv.min_month > 0 ? Math.round(sv.min_month / 60 * 10) / 10 : null;
   r.x.tok = typeof u.tok === 'number' ? Math.round(u.tok / 100) / 10 : null;
   if (Array.isArray(u.n) && u.n[0] != null) r.x.n = [u.n[0], u.n[1] != null ? u.n[1] : u.n[0]];
   // evidence: catalog rows matched only by profile have no session behind them, so they say what matched instead of 0 个会话
   const evN = ((c.evidence || {}).counts || {}).sessions || ((c.evidence || {}).session_uids || []).length || 0; r.evN = evN;
   r.why = lvRecBrief(r.why && r.why !== r.title ? r.why : c.summary) || lvRecBrief(c.summary) || '';
-  if (sv) r.saveBasis = sv.basis || null;
+  if (sv) r.saveBasis = sv.basis || null;   // 未估算: why (no problem evidence, no ledger yet …)
   if (!evN) {
     const m = ((c.feature_overlap || {}).matched || []).map((t) => String(t).replace(/^[a-z_]+:/, '')).filter((t, i, a) => t && a.indexOf(t) === i).slice(0, 3);
     r.ev = m.length ? '技术栈匹配 · ' + m.join(' · ') : '按使用画像匹配';

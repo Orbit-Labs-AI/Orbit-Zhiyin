@@ -308,8 +308,8 @@ def test_native_history_replay_keeps_future_out_of_recommendation_and_writes_all
 ):
     import json
 
-    from tandem_backend.cli import demo_home
-    from tandem_backend.data_access.ingest import ingest
+    from orbit_backend.cli import demo_home
+    from orbit_backend.data_access.ingest import ingest
 
     local = importlib.import_module("evals.benchmark.local")
     monkeypatch.setattr(local, "ROOT", tmp_path)
@@ -432,8 +432,8 @@ def test_later_reviews_only_change_evaluation_and_actions_match_frozen_predictio
 def test_wrong_user_ablation_rejects_copied_native_history(api, tmp_path, monkeypatch, reimport):
     import shutil
 
-    from tandem_backend.cli import demo_home
-    from tandem_backend.data_access.ingest import ingest
+    from orbit_backend.cli import demo_home
+    from orbit_backend.data_access.ingest import ingest
 
     local = importlib.import_module("evals.benchmark.local")
     monkeypatch.setattr(local, "ROOT", tmp_path)

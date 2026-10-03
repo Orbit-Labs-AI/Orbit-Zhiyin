@@ -5,10 +5,10 @@ Nothing here reads local agent history. Every name, path, prompt and command is 
 Two outputs share one seeded plan:
 
 * ``generate_bundle(sessions, seed)`` returns an ``analysis-input-v1`` dict shaped like the
-  canonical reader (``tandem_data.analysis_input.read_analysis``) output, including
+  canonical reader (``orbit_data.analysis_input.read_analysis``) output, including
   ``statistical_members`` so ``analyze_bundle`` takes the canonical selection path.
 * ``build_canonical_home(home, sessions, seed)`` writes fictional Codex-format JSONL under
-  three source roots and imports them through the public ingest path into ``tandem.db``,
+  three source roots and imports them through the public ingest path into ``orbit.db``,
   so ``read_analysis`` can be measured on a real canonical database.
 """
 
@@ -476,8 +476,8 @@ def _codex(kind, ts, payload):
 def build_canonical_home(
     home: Path, sessions: int = 200, seed: int = 7, workdir: Path | None = None
 ) -> Path:
-    """Import fictional sources through the public ingest path; returns the Tandem home."""
-    from tandem_backend.data_access.ingest import ingest
+    """Import fictional sources through the public ingest path; returns the Orbit home."""
+    from orbit_backend.data_access.ingest import ingest
 
     with tempfile.TemporaryDirectory(dir=workdir) as scratch:
         for source_root in write_codex_sources(Path(scratch), sessions, seed):

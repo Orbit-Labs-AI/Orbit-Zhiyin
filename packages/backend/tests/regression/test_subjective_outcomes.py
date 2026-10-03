@@ -5,21 +5,21 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.outcome_subjective import (
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.outcome_subjective import (
     aggregate_subjective_outcomes,
     analyze_subjective_outcomes,
 )
-from tandem_backend.analytics.outcome_subjective.extraction import (
+from orbit_backend.analytics.outcome_subjective.extraction import (
     classify_feedback,
     collect_deliveries,
     extract_subjective_feedback,
 )
-from tandem_backend.analytics.outcome_subjective.linking import link_feedback_targets
-from tandem_backend.analytics.outcome_subjective.summary import summarize_subjective_outcomes
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.api import create_app
-from tandem_backend.cli import main
+from orbit_backend.analytics.outcome_subjective.linking import link_feedback_targets
+from orbit_backend.analytics.outcome_subjective.summary import summarize_subjective_outcomes
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.api import create_app
+from orbit_backend.cli import main
 
 
 def event(uid, seq, text, *, sid="s", delivery=False, ts="auto", **attrs):
@@ -219,7 +219,7 @@ def test_bundle_time_project_and_child_boundaries():
 def test_mock_store_api_and_cli_share_the_family(tmp_path, capsys):
     b = bundle([delivery(), event("f", 2, "可以了，问题解决了")])
     output = tmp_path / "analytics.json"
-    with patch("tandem_backend.analytics.service.legacy_bundle", return_value=b) as loader:
+    with patch("orbit_backend.analytics.service.legacy_bundle", return_value=b) as loader:
         main(["--db", str(tmp_path / "mock.sqlite"), "analytics", "--no-text", "--output", str(output)])
         capsys.readouterr()
         cli = json.loads(output.read_text())

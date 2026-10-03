@@ -8,8 +8,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tandem_backend.services import routes_ai
-from tandem_backend.services.gateway import install_error_handlers
+from orbit_backend.services import routes_ai
+from orbit_backend.services.gateway import install_error_handlers
 
 CLUSTERS = {"key": "scan-1", "clusters": [
     {"cluster_id": "0", "top_terms": ["css"], "summaries": ["调样式"]},
@@ -80,7 +80,7 @@ def test_narratives_l0_when_ai_off(client, ai_svc):
 
 
 def test_gateway_serves_narratives(tmp_path, ai_env):
-    from tandem_backend.services.gateway import Gateway
+    from orbit_backend.services.gateway import Gateway
 
     token = "synthetic-test-token-0123456789abcdef"
     gateway = Gateway(tmp_path / "gw", discovery=lambda: [], prewarm_debounce_s=3600.0)

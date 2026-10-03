@@ -2,7 +2,7 @@
 
 Stages (exclusive wall time, nested stages are subtracted from their parent):
 
-read        canonical mode only: ``read_analysis`` on a synthetic ``tandem.db``
+read        canonical mode only: ``read_analysis`` on a synthetic ``orbit.db``
 bundle      ``AnalysisInputBundle.from_dict``
 select      ``AnalysisContext.select`` (statistical members, linked context)
 session_rows ``compute_row_cores`` (per-session rows, possibly in worker processes) excluding text representation
@@ -37,13 +37,13 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
-from tandem_backend.analytics import context as context_module
-from tandem_backend.analytics import history as history_module
-from tandem_backend.analytics import service as service_module
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.products import lexical as lexical_module
-from tandem_backend.analytics.products import service as products_module
-from tandem_backend.analytics.products import statistics as statistics_module
+from orbit_backend.analytics import context as context_module
+from orbit_backend.analytics import history as history_module
+from orbit_backend.analytics import service as service_module
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.products import lexical as lexical_module
+from orbit_backend.analytics.products import service as products_module
+from orbit_backend.analytics.products import statistics as statistics_module
 
 from .synthetic import TIMEZONE, build_canonical_home, generate_bundle
 
@@ -112,7 +112,7 @@ def run_once(source, scope, with_text, history_home):
     timer = StageTimer()
     with instrumented(timer):
         if isinstance(source, Path):
-            from tandem_backend.data_access.store import CanonicalStore
+            from orbit_backend.data_access.store import CanonicalStore
 
             with timer.stage("read"):
                 raw = CanonicalStore(source).read_bundle(scope, include_native=False)
@@ -153,7 +153,7 @@ def profile_once(source, scope, with_text, history_home, lines=30):
 def benchmark(sizes, repeats=3, *, with_text=False, canonical=False, profile=False, seed=7):
     scope = Scope(display_timezone=TIMEZONE)
     rows, profile_text = [], None
-    with tempfile.TemporaryDirectory(prefix="tandem-bench-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="orbit-bench-") as scratch:
         scratch = Path(scratch)
         for size in sizes:
             setup_start = time.perf_counter()
@@ -197,7 +197,7 @@ def benchmark(sizes, repeats=3, *, with_text=False, canonical=False, profile=Fal
         "machine": platform.machine(),
         "processor": platform.processor() or None,
         "cpu_count": os.cpu_count(),
-        "mode": "canonical tandem.db via read_analysis" if canonical else "in-memory bundle",
+        "mode": "canonical orbit.db via read_analysis" if canonical else "in-memory bundle",
         "with_text": with_text,
         "repeats": repeats,
         "seed": seed,
@@ -219,7 +219,7 @@ def main(argv=None):
     parser.add_argument(
         "--canonical",
         action="store_true",
-        help="ingest synthetic sources into tandem.db and time read_analysis",
+        help="ingest synthetic sources into orbit.db and time read_analysis",
     )
     parser.add_argument(
         "--profile",

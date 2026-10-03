@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend import privacy_rules
-from tandem_backend.appdata import sources_scope
-from tandem_backend.services.gateway import Gateway
-from tandem_backend.services.supervisor import SupervisorConfig
-from tandem_backend.sessionops import exclusion
+from orbit_backend import privacy_rules
+from orbit_backend.appdata import sources_scope
+from orbit_backend.services.gateway import Gateway
+from orbit_backend.services.supervisor import SupervisorConfig
+from orbit_backend.sessionops import exclusion
 
 TESTS = Path(__file__).resolve().parents[1]
 for extra in (TESTS / "services", TESTS / "ai" / "generate"):  # synthetic.py, fakectx.py
@@ -36,7 +36,7 @@ def user_home(tmp_path, monkeypatch) -> Path:
 
 @pytest.fixture
 def home(tmp_path) -> Path:
-    path = tmp_path / "tandem-home"
+    path = tmp_path / "orbit-home"
     path.mkdir()
     return path
 
@@ -77,7 +77,7 @@ def client(gateway):
 def _reset_exclusion_provider():
     """Every gateway registers the process-wide exclusion provider; exclusion.merged is
     fail-closed, so a provider left over from an earlier test's closed app.db must not leak."""
-    from tandem_backend.sessionops import exclusion
+    from orbit_backend.sessionops import exclusion
 
     exclusion.set_provider(None)
     yield

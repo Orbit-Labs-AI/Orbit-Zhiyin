@@ -7,9 +7,9 @@ import json
 import pytest
 from ai_analysis_fakectx import DAY, NOW, FakeCtx, run_task
 
-from tandem_backend.ai import ask
-from tandem_backend.ai import pack as P
-from tandem_backend.ai.tasks_analysis import TASKS, CallFailed, numbers_ok
+from orbit_backend.ai import ask
+from orbit_backend.ai import pack as P
+from orbit_backend.ai.tasks_analysis import TASKS, CallFailed, numbers_ok
 
 FACET, NARRATE, ASK = TASKS["facet.session"], TASKS["narrate.overview"], TASKS["ask.question"]
 SCOPE = {"start_ms": NOW - 30 * DAY, "end_ms": NOW}
@@ -62,8 +62,8 @@ def facet_for(uid, **over):
             "repeated_instructions": [], "summary": "做功能，中途纠偏一次", "chunked": False, **over}
 
 
-def test_facet_drops_foreign_events_and_saves(tdb, appdb, tandem_home):
-    pack = facet_pack(tdb, appdb, tandem_home, 3)
+def test_facet_drops_foreign_events_and_saves(tdb, appdb, orbit_home):
+    pack = facet_pack(tdb, appdb, orbit_home, 3)
     uids = list(pack["content"]["items"])
     out = {"items": [facet_for(u) for u in uids]}
     out["items"][0]["candidates"].append({"signal_id": "sig:other", "event_uid": "other-h9", "is_correction": True,
@@ -79,8 +79,8 @@ def test_facet_drops_foreign_events_and_saves(tdb, appdb, tandem_home):
     assert '"ref_id":"' + uids[0] in ctx.calls[0]["prompt"]
 
 
-def test_facet_missing_item_retried_then_failed(tdb, appdb, tandem_home):
-    pack = facet_pack(tdb, appdb, tandem_home, 4)
+def test_facet_missing_item_retried_then_failed(tdb, appdb, orbit_home):
+    pack = facet_pack(tdb, appdb, orbit_home, 4)
     uids = list(pack["content"]["items"])
     first = {"items": [facet_for(u) for u in uids[:3]]}           # one missing
     retry = {"items": [facet_for(uids[3], friction_types=["context_loss"])]}  # ungrounded → still invalid
@@ -92,8 +92,8 @@ def test_facet_missing_item_retried_then_failed(tdb, appdb, tandem_home):
     assert len(ctx.calls) == 2 and uids[3] in ctx.calls[1]["prompt"] and uids[0] not in ctx.calls[1]["prompt"]
 
 
-def test_facet_aborts_after_half_failed_batch(tdb, appdb, tandem_home):
-    pack = facet_pack(tdb, appdb, tandem_home, 16)
+def test_facet_aborts_after_half_failed_batch(tdb, appdb, orbit_home):
+    pack = facet_pack(tdb, appdb, orbit_home, 16)
     assert len(pack["batches"]) == 2
     ctx = FakeCtx(FACET, pack, [CallFailed("x")] * 8)
     result = run_task(FACET, ctx)
@@ -124,8 +124,8 @@ def good_narrative():
             "next_step": "先试重复失败熔断。", "caveats": [], "main_evidence_ids": ["cand-1"], "audience": "user"}
 
 
-def test_narrate_ok(tdb, appdb, tandem_home):
-    pack = narrate_pack(tdb, appdb, tandem_home)
+def test_narrate_ok(tdb, appdb, orbit_home):
+    pack = narrate_pack(tdb, appdb, orbit_home)
     result = run_task(NARRATE, FakeCtx(NARRATE, pack, [good_narrative()]))
     assert result["status"] == "ok" and result["result"]["source"] == "ai"
 
@@ -135,8 +135,8 @@ def test_narrate_ok(tdb, appdb, tandem_home):
     {"main_evidence_ids": ["made-up-id"]},
     {"summary": "装上就一定能提升效率"},
 ])
-def test_narrate_fabrication_falls_back(tdb, appdb, tandem_home, bad):
-    pack = narrate_pack(tdb, appdb, tandem_home)
+def test_narrate_fabrication_falls_back(tdb, appdb, orbit_home, bad):
+    pack = narrate_pack(tdb, appdb, orbit_home)
     ctx = FakeCtx(NARRATE, pack, [{**good_narrative(), **bad}] * 2)
     result = run_task(NARRATE, ctx)
     assert len(ctx.calls) == 2 and ctx.calls[1]["errors"]
@@ -160,8 +160,8 @@ def ask_pack(tdb, appdb, home, question):
     return P.build(ASK, reads=tdb.reads, appdb=appdb, home=home, scope=SCOPE, goal=question, goal_source="ask")
 
 
-def test_ask_out_of_range_queries_dropped(ask_data, appdb, tandem_home):
-    pack = ask_pack(ask_data, appdb, tandem_home, "哪个工具最差？")
+def test_ask_out_of_range_queries_dropped(ask_data, appdb, orbit_home):
+    pack = ask_pack(ask_data, appdb, orbit_home, "哪个工具最差？")
     plan = {"intents": ["tool_worst"], "queries": [{"api": "tools", "params": {"limit": 99}},
                                                    {"api": "sessions", "params": {"sql": "x"}}]}
     ctx = FakeCtx(ASK, pack, [plan], reads=ask_data.reads, params={"context": "tools"})
@@ -171,16 +171,16 @@ def test_ask_out_of_range_queries_dropped(ask_data, appdb, tandem_home):
     assert len(ctx.calls) == 1 and ctx.calls[0]["slot"] == "cheap"
 
 
-def test_ask_other_intent(ask_data, appdb, tandem_home):
-    pack = ask_pack(ask_data, appdb, tandem_home, "今天天气如何")
+def test_ask_other_intent(ask_data, appdb, orbit_home):
+    pack = ask_pack(ask_data, appdb, orbit_home, "今天天气如何")
     ctx = FakeCtx(ASK, pack, [{"intents": ["other"], "queries": [{"api": "metrics", "params": {}}]}],
                   reads=ask_data.reads)
     assert run_task(ASK, ctx)["result"]["answer"] == ask.OUT_OF_SCOPE
 
 
-def test_ask_answer_validated(ask_data, appdb, tandem_home, monkeypatch):
+def test_ask_answer_validated(ask_data, appdb, orbit_home, monkeypatch):
     monkeypatch.setattr(P, "now_ms", lambda: NOW)
-    pack = ask_pack(ask_data, appdb, tandem_home, "哪个工具最差？")
+    pack = ask_pack(ask_data, appdb, orbit_home, "哪个工具最差？")
     plan = {"intents": ["tool_worst"], "queries": [{"api": "tools", "params": {"limit": 3}}]}
     fake = {"answer": "Bash 失败 99 次", "refs": [{"kind": "session", "id": "nope"}], "next": "tools"}
     ok = {"answer": "Bash 失败最多，共 3 次，错误率 100%。", "refs": [], "next": "tools"}
@@ -193,8 +193,8 @@ def test_ask_answer_validated(ask_data, appdb, tandem_home, monkeypatch):
     assert rows[0]["tool"] == "Bash"
 
 
-def test_ask_engine_failure_falls_back(ask_data, appdb, tandem_home):
-    pack = ask_pack(ask_data, appdb, tandem_home, "哪个工具最差？")
+def test_ask_engine_failure_falls_back(ask_data, appdb, orbit_home):
+    pack = ask_pack(ask_data, appdb, orbit_home, "哪个工具最差？")
     ctx = FakeCtx(ASK, pack, [CallFailed("down")], reads=ask_data.reads)
     result = run_task(ASK, ctx)
     assert result["status"] == "fallback" and result["result"]["source"] == "template"
@@ -204,8 +204,8 @@ def _ask_plan(apis):
     return {"intents": ["approvals"], "queries": [{"api": a, "params": {"limit": 3}} for a in apis]}
 
 
-def test_ask_withholds_snippet_queries_without_consent(ask_data, appdb, tandem_home):
-    pack = ask_pack(ask_data, appdb, tandem_home, "我最常怎么纠正 Agent？")
+def test_ask_withholds_snippet_queries_without_consent(ask_data, appdb, orbit_home):
+    pack = ask_pack(ask_data, appdb, orbit_home, "我最常怎么纠正 Agent？")
     answer = {"answer": "见工具统计。", "refs": [], "next": "none"}
     ctx = FakeCtx(ASK, pack, [_ask_plan(["corrections", "tools"]), answer], reads=ask_data.reads,
                   grants=("summary",))
@@ -217,24 +217,24 @@ def test_ask_withholds_snippet_queries_without_consent(ask_data, appdb, tandem_h
     assert any("snippets" in line for line in ctx.logs)
 
 
-def test_ask_snippet_only_plan_requires_consent(ask_data, appdb, tandem_home):
-    pack = ask_pack(ask_data, appdb, tandem_home, "我最常怎么纠正 Agent？")
+def test_ask_snippet_only_plan_requires_consent(ask_data, appdb, orbit_home):
+    pack = ask_pack(ask_data, appdb, orbit_home, "我最常怎么纠正 Agent？")
     ctx = FakeCtx(ASK, pack, [_ask_plan(["corrections", "search"])], reads=ask_data.reads, grants=("summary",))
     result = run_task(ASK, ctx)
     assert result["status"] == "fallback" and len(ctx.calls) == 1  # no answer call was made
     assert result["result"]["error_code"] == "consent_required" and result["result"]["missing"] == ["snippets"]
 
 
-def test_ask_sends_snippet_queries_once_granted(ask_data, appdb, tandem_home):
-    pack = ask_pack(ask_data, appdb, tandem_home, "我最常怎么纠正 Agent？")
+def test_ask_sends_snippet_queries_once_granted(ask_data, appdb, orbit_home):
+    pack = ask_pack(ask_data, appdb, orbit_home, "我最常怎么纠正 Agent？")
     answer = {"answer": "见纠偏记录。", "refs": [], "next": "none"}
     ctx = FakeCtx(ASK, pack, [_ask_plan(["corrections", "tools"]), answer], reads=ask_data.reads)
     run_task(ASK, ctx)
     assert [r["api"] for r in json.loads(ctx.calls[1]["prompt"])["results"]] == ["corrections", "tools"]
 
 
-def test_ask_fabricated_count_fails_after_retry(ask_data, appdb, tandem_home):
-    pack = ask_pack(ask_data, appdb, tandem_home, "哪个工具最差？")
+def test_ask_fabricated_count_fails_after_retry(ask_data, appdb, orbit_home):
+    pack = ask_pack(ask_data, appdb, orbit_home, "哪个工具最差？")
     plan = {"intents": ["tool_worst"], "queries": [{"api": "tools", "params": {"limit": 3}}]}
     made_up = {"answer": "有 7 个会话里 Bash 失败。", "refs": [], "next": "tools"}
     ctx = FakeCtx(ASK, pack, [plan, made_up, made_up], reads=ask_data.reads)
@@ -246,8 +246,8 @@ def test_ask_fabricated_count_fails_after_retry(ask_data, appdb, tandem_home):
 
 @pytest.mark.parametrize("reason,code", [("timeout", "timeout"), ("not_logged_in", "engine_unavailable"),
                                          ("engine_error", "engine_unavailable"), ("refused", "refused")])
-def test_ask_engine_failure_reports_reason(ask_data, appdb, tandem_home, reason, code):
-    pack = ask_pack(ask_data, appdb, tandem_home, "哪个工具最差？")
+def test_ask_engine_failure_reports_reason(ask_data, appdb, orbit_home, reason, code):
+    pack = ask_pack(ask_data, appdb, orbit_home, "哪个工具最差？")
     ctx = FakeCtx(ASK, pack, [CallFailed(reason, "detail")], reads=ask_data.reads)
     result = run_task(ASK, ctx)["result"]
     assert result["error_code"] == code and result["reason"] == reason

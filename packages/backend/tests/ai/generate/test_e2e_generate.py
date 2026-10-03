@@ -8,9 +8,9 @@ import json
 import pytest
 from fakectx import hook_pack
 
-from tandem_backend.ai.engines import FakeEngine
-from tandem_backend.ai.service import service
-from tandem_backend.services.gateway import Gateway
+from orbit_backend.ai.engines import FakeEngine
+from orbit_backend.ai.service import service
+from orbit_backend.services.gateway import Gateway
 
 HOOK = {"matcher": "Bash", "threshold": 3, "message": "测试已连续失败，先看错误输出再重试。", "command_heads": ["pnpm test"]}
 
@@ -18,7 +18,7 @@ HOOK = {"matcher": "Bash", "threshold": 3, "message": "测试已连续失败，�
 @pytest.fixture
 def gw(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    gateway = Gateway(tmp_path / "tandem", discovery=lambda: [], prewarm_debounce_s=3600.0)
+    gateway = Gateway(tmp_path / "orbit", discovery=lambda: [], prewarm_debounce_s=3600.0)
     yield gateway
     gateway.close()
 

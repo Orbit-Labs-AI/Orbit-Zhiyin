@@ -9,9 +9,9 @@ from ai_support import answer_task
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tandem_backend.ai.service import AIService, fallback_pack
-from tandem_backend.services import routes_ai
-from tandem_backend.services.gateway import install_error_handlers
+from orbit_backend.ai.service import AIService, fallback_pack
+from orbit_backend.services import routes_ai
+from orbit_backend.services.gateway import install_error_handlers
 
 
 @pytest.fixture
@@ -145,7 +145,7 @@ def test_ask_routes(client, ai_svc):
 
 
 def test_gateway_mounts_ai_routes(tmp_path, ai_env):
-    from tandem_backend.services.gateway import Gateway
+    from orbit_backend.services.gateway import Gateway
 
     token = "synthetic-test-token-0123456789abcdef"
     gateway = Gateway(tmp_path / "gw", discovery=lambda: [], prewarm_debounce_s=3600.0)

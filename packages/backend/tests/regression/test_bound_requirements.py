@@ -2,12 +2,12 @@
 
 import pytest
 
-from tandem_backend.analysis import analyze
-from tandem_backend.feedback import reader_context, scene_of, signals, task_contexts
-from tandem_backend.models import Event
-from tandem_backend.pipeline_eval import _write_case
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.feedback import reader_context, scene_of, signals, task_contexts
+from orbit_backend.models import Event
+from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store, import_codex
 
 
 def observed(text):

@@ -1,7 +1,7 @@
 // Lite recommendation cards on live data (A1/A2/Lite area): icons the backend names but the prototype has no glyph for
-// (recommend/narrate.py emits ui.icon 'flow') and recs without a saving estimate (no ui.save and no score.benefit → x.save null).
+// (recommend/narrate.py emits ui.icon 'flow') and recs without a saving share (no ui.save → x.pct null).
 // Regressions for journey J12 / B19: switching to Lite logged `<path> attribute d: … "undefined"` x3 and the cards showed
-// a big green dash + "h / 月", the hero a made-up「每月大约省下 0.0 小时」.
+// a big green dash, the hero a made-up 0.0 total. Savings are shares of the real trajectory, never hours.
 import { test, expect } from '@playwright/test';
 import { stubGateway, openLive, collectErrors, fx, PASS } from './live-helpers.mjs';
 
@@ -37,27 +37,32 @@ test('Lite recs: unknown backend icon falls back to a real glyph; no estimate �
   await page.evaluate(() => edSet('lite'));
   await expect.poll(() => page.evaluate(() => S.route)).toBe('l-home');
   await expect(page.locator('.l-one .rc-top svg.ico path').first()).toHaveAttribute('d', /^M/);
-  await expect(page.locator('.l-one .l-gain')).toContainText('节省时间待估算');
+  await expect(page.locator('.l-one .l-gain')).toContainText('节省比例待估算');
   await expect(page.locator('.l-one .l-gain .v')).toHaveCount(0);
   await page.evaluate(() => go('l-recs'));
-  await expect(page.locator('.l-rhero')).toContainText('还没有节省时间的估计');
+  await expect(page.locator('.l-rhero')).toContainText('还没有节省比例的估计');
   await expect(page.locator('.l-rhero')).not.toContainText('0.0');
   await expect(page.locator('.l-rc .l-gain .v')).toHaveCount(0);
-  expect(await page.locator('.l-rc .l-gain').first().innerText()).not.toMatch(/h \/ 月/);
+  expect(await page.locator('.l-rc .l-gain').first().innerText()).not.toMatch(/h \/ 月|小时/);
   expect(await badPaths(page)).toBe(0);
   expect(errors).toEqual([]);
 });
 
-test('Lite recs: estimates present → the hero sums them and each card shows its h / 月', async ({ page }) => {
+test('Lite recs: shares present → the hero adds them per problem and each card shows its percentage', async ({ page }) => {
   test.skip(!!PASS, 'stubbed recommendation bodies');
   const errors = collectErrors(page);
-  const mins = [90, 30, 0];
-  await stubGateway(page, 's1', routes(recsBody((c, i) => { c.ui.save = { min_month: mins[i] }; })));
+  // two recs on one problem (alternatives: the best counts once) and one without a share
+  const saves = [{ time_pct: 1.2, token_pct: 0.5, key: 'p1' }, { time_pct: 0.8, token_pct: 2.1, key: 'p1' }, null];
+  await stubGateway(page, 's1', routes(recsBody((c, i) => { if (saves[i]) c.ui.save = Object.assign({ share: { time: 2, token: 3 }, effect: 0.6 }, saves[i]); else delete c.ui.save; })));
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => visibleRecs().filter((r) => r.live).length)).toBeGreaterThan(0);
   await page.evaluate(() => { edSet('lite'); go('l-recs'); });
-  await expect(page.locator('.l-rhero .l-big-n .v')).toHaveAttribute('data-count', '2.0');
+  // max per problem: 1.2 % of the time, 2.1 % of the tokens — not 2.0 % / 2.6 %
+  await expect(page.locator('.l-rhero .l-big-n .v')).toHaveAttribute('data-count', '1.2');
+  await expect(page.locator('.l-rhero .l-big-n')).toContainText('1.2%的协作时间');
+  await expect(page.locator('.l-rhero')).toContainText('token 预计省下 2.1%');
+  await expect(page.locator('.l-rhero')).not.toContainText(/小时|h \/ 月/);
   await expect(page.locator('.l-rc .l-gain .v')).toHaveCount(2);
-  await expect(page.locator('.l-rc .l-gain').nth(2)).toContainText('节省时间待估算');
+  await expect(page.locator('.l-rc .l-gain').nth(2)).toContainText('节省比例待估算');
   expect(errors).toEqual([]);
 });

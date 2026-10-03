@@ -1,5 +1,5 @@
-// Live binding for A8 资源库 and the install sheet (src/js/97-live-library-install.js + C.li in prototypes/shared/tandem-live.js).
-// The gateway is simulated with page.route on http://tandem.test; /v1/catalog/* and /v1/install/* answer with the synthetic
+// Live binding for A8 资源库 and the install sheet (src/js/97-live-library-install.js + C.li in prototypes/shared/orbit-live.js).
+// The gateway is simulated with page.route on http://orbit.test; /v1/catalog/* and /v1/install/* answer with the synthetic
 // fixtures in prototypes/shared/fixtures/library-install (fixture mode, no real backend, no real sessions).
 //  1. library   cards, rows, facet counts, 加载更多 (cursor), search, 本地生成, item detail (README, versions, risk)
 //  2. install   plan → preview (default selection narrows Codex off) → toggle target → confirm → 409 preview_stale
@@ -14,8 +14,8 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
-const ADV_FILE = path.join(ROOT, 'advance', 'tandem-demo.html');
-const LITE_FILE = path.join(ROOT, 'lite', 'tandem-benchmark-demo.html');
+const ADV_FILE = path.join(ROOT, 'advance', 'orbit-demo.html');
+const LITE_FILE = path.join(ROOT, 'lite', 'orbit-benchmark-demo.html');
 const FX = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'shared', 'fixtures', name + '.json'), 'utf8'));
 const LI = (name) => FX('library-install/' + name);
 const ONLY = (name) => test.skip(test.info().project.name !== name, 'runs once, at the default size');
@@ -36,7 +36,7 @@ function collectErrors(page, allow) {
 async function gateway(page, opt = {}) {
   const state = { seen: [], applies: 0 };
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await page.route(/^http:\/\/tandem\.test\//, async (route) => {
+  await page.route(/^http:\/\/orbit\.test\//, async (route) => {
     const req = route.request(); const u = new URL(req.url()); const p = decodeURIComponent(u.pathname); const m = req.method();
     const body = req.postData() ? JSON.parse(req.postData()) : null;
     state.seen.push({ method: m, path: p, search: u.search, body });
@@ -69,7 +69,7 @@ test('live library: catalog cards, facets, paging, search, local items and item 
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   const gw = await gateway(page);
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.addStyleTag({ content: '#notes{display:none!important}' });   // demo notifications would cover the toolbar
   await page.evaluate(() => go('library'));
   const lib = page.locator('[data-tl="library"]');
@@ -117,7 +117,7 @@ test('live install: preview, target selection, preview_stale re-confirm, apply, 
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   const gw = await gateway(page);
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.addStyleTag({ content: '#notes{display:none!important}' });   // demo notifications would cover the toolbar
   await page.evaluate(() => go('library'));
   await page.locator('[data-tl-item="fx:hook/retry-guard"] [data-act="getLib"]').first().click();
@@ -165,7 +165,7 @@ test('live library degraded: missing catalog routes fall back to the seed demo w
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   await gateway(page, { degraded: true });
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.addStyleTag({ content: '#notes{display:none!important}' });   // demo notifications would cover the toolbar
   await page.evaluate(() => go('library'));
   await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
@@ -184,7 +184,7 @@ test('live Lite library: catalog cards, detail and install (preview_stale re-con
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   const gw = await gateway(page);
-  await page.goto('http://tandem.test/lite#token=fx-token');
+  await page.goto('http://orbit.test/lite#token=fx-token');
   await page.evaluate(() => go('library'));
   const lib = page.locator('[data-tl="library"]');
   await expect(lib.locator('.lib-feature')).toHaveCount(3);
@@ -192,7 +192,7 @@ test('live Lite library: catalog cards, detail and install (preview_stale re-con
   await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
   // B09: the official source label is Orbit's; B08: raw `agent: … command: …` index metadata never reaches a card
   await expect(lib).toContainText('Orbit 官方');
-  await expect(lib).not.toContainText('Tandem 官方');
+  await expect(lib).not.toContainText('Tandem 官方');  // orbit-rename: keep
   await expect(lib).not.toContainText(/(?:^|\s)(?:agent|command|dimension):\s/);
   await page.locator('[data-tl-item="fx:hook/retry-guard"] [data-act="li-detail"]').evaluate((el) => el.click());
   await expect(page.locator('#modal [data-tl="lib-readme"]')).toContainText('同一命令连续失败两次后暂停');
@@ -213,7 +213,7 @@ test('live Lite library degraded: the demo library with 示例数据', async ({ 
   ONLY('mac-14');
   const errors = collectErrors(page, allow404);
   await gateway(page, { degraded: true });
-  await page.goto('http://tandem.test/lite#token=fx-token');
+  await page.goto('http://orbit.test/lite#token=fx-token');
   await page.evaluate(() => go('library'));
   await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
   await expect(page.locator('#content .lib-feature')).toHaveCount(3);

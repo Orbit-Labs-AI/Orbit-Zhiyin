@@ -496,7 +496,7 @@ class Generator:
             target.write_bytes(data)
 
         def source_hash(value) -> str:
-            # Same normalization as tandem_data.inventory.adapters._source_bytes.
+            # Same normalization as orbit_data.inventory.adapters._source_bytes.
             raw = json.dumps(value, sort_keys=True, ensure_ascii=False, default=str).encode()
             return hashlib.sha256(raw).hexdigest()
 

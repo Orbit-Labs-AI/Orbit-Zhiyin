@@ -1,8 +1,8 @@
 // A7 优化建议 + A8 资源库 + 安装闭环（branch ui/p-recs-library）。
 //
 // Test flow (fresh page per test; interaction tests run once at mac-14, layout checks at every project):
-//  1 recs list      cards are sorted by the unified metric「每月节省时间」, each shows the ≈ h / 月 figure, the agent dots
-//                   and the resident-token line; the detail head has the three KPI cells; cards are keyboard-selectable
+//  1 recs list      cards are sorted by the saving share (省时 %, the token % where time is not measured), each shows the
+//                   time / token percentages of the whole trajectory, the agent dots and the resident-token share; the detail head has the three KPI cells; cards are keyboard-selectable
 //                   (Enter on a focused card, BUG-61) and a double click on「不适用」strikes one card only (BUG-65)
 //  2 install loop   预览 (scope「仅项目」→ the target path moves into the project, BUG-22) → 下一步 (a double click does not
 //                   skip the confirmation, BUG-64) → 确认写入 → the sheet stays on「已写入」with a counting-down undo →
@@ -30,15 +30,17 @@ test('recs cards carry the unified metric, select by keyboard, and strike one ca
   const errors = await openDemo(page, 'recs');
   const saves = await page.$$eval('#content .rcard .rc-save b', (els) => els.map((e) => e.textContent));
   expect(saves.length).toBeGreaterThan(5);
-  expect(saves[0]).toMatch(/≈ 6\.1 h/);
-  // sorted by saved hours inside each group（高收益 · 低成本 / 值得投入 · 需要配置）
-  const groups = await page.evaluate(() => { const out = []; for (const el of document.querySelectorAll('#content .stack > *')) { if (el.classList.contains('eb')) out.push([]); else if (el.classList.contains('rcard')) { const t = el.querySelector('.rc-save b').textContent; out[out.length - 1].push(/h/.test(t) ? parseFloat(t.replace(/[^\d.]/g, '')) : parseFloat(t.replace(/[^\d.]/g, '')) / 60); } } return out; });
+  expect(saves.slice(0, 2)).toEqual(['4.3%', '3.8%']);   // 省时 · token of the top card
+  expect(saves.join(' ')).not.toMatch(/h|min/);
+  // sorted by the main share (the first number) inside each group（高收益 · 低成本 / 值得投入 · 需要配置）
+  const groups = await page.evaluate(() => { const out = []; for (const el of document.querySelectorAll('#content .stack > *')) { if (el.classList.contains('eb')) out.push([]); else if (el.classList.contains('rcard')) { out[out.length - 1].push(parseFloat(el.querySelector('.rc-save b').textContent.replace(/[^\d.]/g, ''))); } } return out; });
   expect(groups.length).toBe(2);
   for (const g of groups) for (let i = 1; i < g.length; i++) expect(g[i]).toBeLessThanOrEqual(g[i - 1] + 1e-9);
   await expect(page.locator('#content .rcard').first().locator('.rc-ag .dot')).toHaveCount(2);
-  await expect(page.locator('#content .rcard').first().locator('.rc-tok')).toContainText('+0.4k');
+  await expect(page.locator('#content .rcard').first().locator('.rc-tok')).toContainText('常驻 +0.3%');
   await expect(page.locator('#content .rc-kpi')).toHaveCount(3);
-  await expect(page.locator('#content .rc-kpis')).toContainText('每月节省时间');
+  await expect(page.locator('#content .rc-kpis')).toContainText('预计节省');
+  await expect(page.locator('#content .rc-kpi-save .v')).toHaveText('4.3%时间 3.8%token');
   await expect(page.locator('#content .rc-kpis')).toContainText('常驻 TOKEN', { ignoreCase: true });
   // keyboard: Enter on the second card selects it (BUG-61)
   const second = page.locator('#content .rcard').nth(1);

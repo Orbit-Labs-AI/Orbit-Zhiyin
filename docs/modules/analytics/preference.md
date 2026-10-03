@@ -1,6 +1,6 @@
 # Preference：显式偏好与历史证据
 
-这组特征回答“用户明确表达了什么偏好，以及过去在任务中怎样要求 agent 工作”。实现位于 `packages/backend/src/tandem_backend/analytics/preference/`，通过 `/v1/analytics/preferences` 与现有 `tandem analytics` 输出接入。处理在本地完成，使用确定性规则，不调用模型或外部服务。
+这组特征回答“用户明确表达了什么偏好，以及过去在任务中怎样要求 agent 工作”。实现位于 `packages/backend/src/orbit_backend/analytics/preference/`，通过 `/v1/analytics/preferences` 与现有 `orbit analytics` 输出接入。处理在本地完成，使用确定性规则，不调用模型或外部服务。
 
 Instruction 继续表示**当前任务控制要求**。Preference 不再重新解析普通任务要求，而消费 Instruction 已经识别的结构化结果。Explicit Preference 保留独立的提取、作用范围和版本历史，作为最高等级证据；两条路径在 `PreferenceEvidence` 层汇合。
 
@@ -107,13 +107,13 @@ bash scripts/check-preference.sh
 
 # 回归通过后，读取显式指定的 canonical 库；可复现上面的七日快照窗口。
 bash scripts/check-preference.sh \
-  --db /path/to/canonical/tandem.db \
+  --db /path/to/canonical/orbit.db \
   --from-ts 1790322173000 \
   --until-ts 1790926973000
 
 # 已跑过回归时，可单独运行快照诊断。
 uv run --locked python -m evals.analytics.preference_local \
-  --db /path/to/canonical/tandem.db
+  --db /path/to/canonical/orbit.db
 ```
 
 `--from-ts` 包含下界，`--until-ts` 不包含上界，均为 UTC 毫秒；不传时间时读取所提供快照中的全部可见主会话用户消息。可重复传 `--project-id`、`--exclude-session`。`--max-messages` 默认 100000，超限报错，避免静默截断；`--help` 查看参数。

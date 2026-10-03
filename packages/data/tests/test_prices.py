@@ -9,9 +9,9 @@ import json
 import pytest
 from test_reduce_quality import capture, claude_rows
 
-from tandem_data.models import PRICE_SOURCES, PRICE_TABLE_VERSION, PRICES, cost_usd
-from tandem_data.reduce import _failure_kind
-from tandem_data.store import Store
+from orbit_data.models import PRICE_SOURCES, PRICE_TABLE_VERSION, PRICES, cost_usd
+from orbit_data.reduce import _failure_kind
+from orbit_data.store import Store
 
 
 def test_every_price_row_is_sourced_and_ordered():

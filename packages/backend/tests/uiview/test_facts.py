@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tandem_backend.uiview import facts
+from orbit_backend.uiview import facts
 
 from .synth import analysed
 
@@ -134,8 +134,8 @@ def test_wire_size_and_build_speed():
 
 
 def test_section_reuses_the_memoised_analysis():
-    from tandem_backend.services.sections import SECTIONS
-    from tandem_backend.uiview import section
+    from orbit_backend.services.sections import SECTIONS
+    from orbit_backend.uiview import section
 
     _, store, scope, result, body = analysed()
     seen = []
@@ -200,7 +200,7 @@ def test_outcome_of_boundaries(last_turn, corr, msgs, tail, expected):
 
 
 def test_outcome_labels_never_claim_abandoned():
-    from tandem_backend.uiview import derive, outcome
+    from orbit_backend.uiview import derive, outcome
 
     names = {oid: name for oid, name, _ in derive.OUT_IDS}
     assert names == {k: outcome.LABELS[k] for k in ("ok", "part", "fail")}

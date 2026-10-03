@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from conftest import add_codex, bus_events, run_job, wait_for, wait_job
 
-from tandem_backend.services.sections import HEAVY, LIGHT
+from orbit_backend.services.sections import HEAVY, LIGHT
 
 
 def _ready(gateway, section):
@@ -17,7 +17,7 @@ def test_legacy_analyses_are_queued_paged_and_bounded(client_factory, codex_root
     def in_gateway(*args, **kwargs):
         raise AssertionError("the gateway process must not compute products itself")
 
-    monkeypatch.setattr("tandem_backend.analytics.products.analyze_product_store", in_gateway)
+    monkeypatch.setattr("orbit_backend.analytics.products.analyze_product_store", in_gateway)
     client, gateway = client_factory()
     source = add_codex(client, codex_root)
     job = run_job(client, "import", [source], phase="head")
@@ -48,7 +48,7 @@ def test_work_graph_and_trajectories_are_worker_snapshots(client_factory, codex_
     def in_gateway(*args, **kwargs):
         raise AssertionError("the gateway process must not build the work graph itself")
 
-    monkeypatch.setattr("tandem_backend.analytics.work_graph.graph.build_work_graph", in_gateway)
+    monkeypatch.setattr("orbit_backend.analytics.work_graph.graph.build_work_graph", in_gateway)
     client, gateway = client_factory()
     source = add_codex(client, codex_root)
     job = run_job(client, "import", [source], phase="head")

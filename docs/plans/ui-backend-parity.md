@@ -33,7 +33,7 @@
 3. **外壳的 full 只代表形状对得上。** 菜单栏、小组件和面板里的推荐质量，取决于下面第 3 节说的那些问题。
 
 **需要 `yhyfhgs` 决定的事：**
-- A7 的排序口径：UI 按 `save`（h / 月）排，后端按 priority 排。两种做法，一是前端按 `ui.save.min_month` 重排，二是把 UI 文案改成「按优先级」。
+- A7 的排序口径：UI 按 `save`（h / 月）排，后端按 priority 排。两种做法，一是前端按 `ui.save.min_month` 重排，二是把 UI 文案改成「按优先级」。（2026-10-03 起改为按轨迹占比：UI 按 `ui.save.time_pct` 排，时间未实测时按 `token_pct`，见 [推荐引擎](../modules/recommendation/engine.md)。）
 - 人格的权威定义：本轮新增的 `uiview-persona-v0` 用 UI 的四轴（D/S、P/I、M/F、V/T，Wilson 区间）；分析核心的 `collaboration-profile-v1` 用 C/D、E/P、A/V、S/O；第 3 轮的分享卡读的是后者。需要统一成一套。
 - 是否从 UI 删除示例元素：全体用户对照、「同类型用户在用」、热门安装量、0–100 契合度分、−1~+1 情绪曲线。feature-map 已经决定删除一部分，其余见第 4 节。
 
@@ -42,7 +42,7 @@
 **结论：** 骨架完整：检索、列表、facets、详情、本地条目、安装声明和模型库都已经有了。本轮补上了两个结构性空洞：全新安装时库里是 0 条，以及 MCP 几乎为空。剩下的问题在内容质量：hook 太薄；离线种子是用修复前的数据打的包；所有来源都拿不到安装量。
 
 **本轮新增和修复：**
-- 新增来源：`wshobson/agents`、`obra/superpowers`、`anthropics/claude-code`、`openai/skills`、`VoltAgent/awesome-claude-code-subagents`、`ComposioHQ/awesome-claude-skills`、Gemini CLI 扩展（审计实测 2082 条）、ClawHub（带下载量）、`tandem-kb`（Tandem 官方条目 25 条）。
+- 新增来源：`wshobson/agents`、`obra/superpowers`、`anthropics/claude-code`、`openai/skills`、`VoltAgent/awesome-claude-code-subagents`、`ComposioHQ/awesome-claude-skills`、Gemini CLI 扩展（审计实测 2082 条）、ClawHub（带下载量）、`orbit-kb`（Orbit 官方条目 25 条）。
 - 新增离线种子快照 `library-seed.v1`：1277 条，1.3 MB（2026-10-03 用修复后的来源重打：hook 按插件目录命名、无 skill 内部规则、镜像去重；MCP 注册表实测 ≥ 24000 个），首启时导入，联网同步后退役。
 - 新增后台定时刷新。
 - HttpClient 对 5xx、429 和超时做退避重试。
@@ -60,7 +60,7 @@
 | subagent | 同上；新增 VoltAgent、wshobson | 279（含被误判的 skill 内部文件） | 150 | 许可 94%，README 94% | 来源已修；种子里仍有 5 条误判 |
 | command | 各插件仓库 | 75 | 60 | 简介 85%，许可 79% | — |
 | rule / workflow | 同上 | 333（其中 148 条是 skill 内部文件）/ 22 | 60 / 20 | 规则简介 54% | 来源已修；**种子里的 60 条规则仍是 `_sections`、`_template` 这类 skill 内部文件，简介 0%** |
-| hook | claude-plugins、awesome-copilot；新增 tandem-kb 官方条目 5 条 | 17（其中 16 条都叫 "hooks"，且全部不可安装） | 16 | 简介 47% | 已解析 `install.hook`，并按插件目录命名；**种子里的 16 条仍然都叫 "hooks"**；UI 上的 retry-breaker、readonly-allowlist 等现在以官方条目入库 |
+| hook | claude-plugins、awesome-copilot；新增 orbit-kb 官方条目 5 条 | 17（其中 16 条都叫 "hooks"，且全部不可安装） | 16 | 简介 47% | 已解析 `install.hook`，并按插件目录命名；**种子里的 16 条仍然都叫 "hooks"**；UI 上的 retry-breaker、readonly-allowlist 等现在以官方条目入库 |
 | mcp_server | MCP 官方注册表（实测 ≥ 5100 个） | 1（首次同步 294 秒后 http_500 失败） | 300 | 种子：简介 100%，`packages` 72%，安装量 0 | 入库时即生成 `install.mcp`；重试加分段发布后**没有联网复测**全量条数 |
 | model / benchmark | models.dev、litellm、SWE-bench | 12823 / 324 | — | 完整 | full |
 
@@ -88,8 +88,8 @@
 | UI 字段 | 后端字段 | 现状 | 差距 |
 | --- | --- | --- | --- |
 | 类型、图标、难度 L1–L4 | `ui.dim`、`ui.type`、`ui.lvl` | 由安装动作推出；教程类卡为 L4 | — |
-| 主数字（h / 月） | `ui.save{min_month,label,low,high,basis}` | 有区间，并写明「（估计）」 | 无证据的卡显示「—」；排序仍按 priority |
-| 收益 | `ui.gain` | 月度数值，如「−34 次审批 / 月」 | 无证据的卡显示「0 个会话出现」 |
+| 主数字（h / 月） | `ui.save{min_month,label,low,high,basis}` | 有区间，并写明「（估计）」 | 无证据的卡显示「—」；排序仍按 priority（2026-10-03 起改为 `ui.save{time_pct,token_pct,share,effect,key,basis}`，按真实轨迹的占比） |
+| 收益 | `ui.gain` | 月度数值，如「−34 次审批 / 月」 | 无证据的卡显示「0 个会话出现」（2026-10-03 起为百分比标题，如「省时 1.5% · 省 token 0%」） |
 | 标题、原因 | `title`、`ui.why` | 中文自然 | **`{software}`、`{build_command}` 仍会漏出** |
 | 依据 N 个会话（跳到 A3） | `ui.evq.session_uids` | 可以精确解析 | — |
 | 兼容、落点 | `ui.compat`、`ui.target` | 按实际在用的 Agent 和项目名给出 | — |

@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.install import env as envmod
+from orbit_backend.install import env as envmod
 
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
-    monkeypatch.setenv("TANDEM_INSTALL_HOME", str(tmp_path / "install-home"))
+    monkeypatch.setenv("ORBIT_INSTALL_HOME", str(tmp_path / "install-home"))
     for name in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "DSH_HOME", "HERMES_HOME", "PI_CODING_AGENT_DIR",
                  "KIMI_CODE_HOME", "XDG_DATA_HOME"):
         monkeypatch.delenv(name, raising=False)

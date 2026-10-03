@@ -75,11 +75,11 @@ value = 100·p。字母只看取值：value ≥ 50 取高极字母，< 50 取低
 ## 在 CLI 中核对
 
 ```sh
-.venv/bin/tandem demo --output .local/demo
-.venv/bin/tandem --db .local/demo/demo.sqlite report --output .local/demo --view profile
-.venv/bin/tandem --db .local/demo/demo.sqlite report --output .local/demo --view bottlenecks
-.venv/bin/tandem --db .local/demo/demo.sqlite report --output .local/demo --view process
-.venv/bin/tandem --db .local/demo/demo.sqlite evidence <报告中的证据ID>
+.venv/bin/orbit demo --output .local/demo
+.venv/bin/orbit --db .local/demo/demo.sqlite report --output .local/demo --view profile
+.venv/bin/orbit --db .local/demo/demo.sqlite report --output .local/demo --view bottlenecks
+.venv/bin/orbit --db .local/demo/demo.sqlite report --output .local/demo --view process
+.venv/bin/orbit --db .local/demo/demo.sqlite evidence <报告中的证据ID>
 ```
 
 同一目录下的 `profile.json / bottlenecks.json / process.json` 保存结构化副产品；对应 Markdown 便于阅读。`analysis.json` 保留完整结果，`report.md` 再解释推荐与下一步。技术模块见 [架构](../../architecture/backend.md)，统计假设见 [建模说明](modeling.md)。

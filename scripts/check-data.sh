@@ -7,5 +7,5 @@ uv sync --locked --all-packages --dev
 uv run --no-sync ruff check packages/data/src packages/data/tests
 uv run --no-sync ruff format --check packages/data/src packages/data/tests
 uv run --no-sync pytest packages/data/tests -q
-uv build --package tandem-data
-uv run --no-sync python -m tandem_data.validation "$@"
+uv build --package orbit-data
+uv run --no-sync python -m orbit_data.validation "$@"

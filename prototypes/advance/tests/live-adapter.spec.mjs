@@ -1,11 +1,11 @@
-// Live data adapter (prototypes/shared/tandem-live.js, src/js/06-live-client.js + 96-live-bind.js, and the @tandem-live block
-// in the Lite HTML). The gateway is simulated with page.route on http://tandem.test: /app and /lite serve the built pages,
+// Live data adapter (prototypes/shared/orbit-live.js, src/js/06-live-client.js + 96-live-bind.js, and the @orbit-live block
+// in the Lite HTML). The gateway is simulated with page.route on http://orbit.test: /app and /lite serve the built pages,
 // /v1/* answers with the hand-written fixtures in prototypes/shared/fixtures, /v1/events with SSE frames from a queue.
 //  1. mock          file:// pages stay in mock mode: no requests, no adapter markup on any page, no console errors
 //  2. live Advance  import progress, overview counts, sessions + events, tools, projects, sidebar and settings › 数据源 all come
 //                   from fixtures; missing values show「—」not 0; unbound pages carry 示例数据
 //  3. outage        503 + Retry-After keeps the previous screen and shows the banner; service degraded shows too
-//  4. restart       a tandem:endpoint event moves to the new gateway (new token) and re-renders from it
+//  4. restart       an orbit:endpoint event moves to the new gateway (new token) and re-renders from it
 //  5. live Lite     same bindings in the single-file Lite page
 //  6. Lite edition  Advance's Lite pages: l-home / l-sessions reuse the bound pages, l-recs is bound, l-persona shows 示例数据
 //  7. recs          A7 / A1 / Lite / menubar read /v1/recommendations (fixtures/recs); exposure, labels with undo, recompute;
@@ -17,8 +17,8 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
-const ADV_FILE = path.join(ROOT, 'advance', 'tandem-demo.html');
-const LITE_FILE = path.join(ROOT, 'lite', 'tandem-benchmark-demo.html');
+const ADV_FILE = path.join(ROOT, 'advance', 'orbit-demo.html');
+const LITE_FILE = path.join(ROOT, 'lite', 'orbit-benchmark-demo.html');
 const FX = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'shared', 'fixtures', name + '.json'), 'utf8'));
 const ONLY = (name) => test.skip(test.info().project.name !== name, 'runs once, at the default size');
 const sseText = (frames) => frames.map((f) => 'id: ' + f.id + '\nevent: ' + f.event + '\ndata: ' + JSON.stringify(f.data) + '\n\n').join('');
@@ -33,7 +33,7 @@ function collectErrors(page, allow) {
     if (allow && allow(m.text(), url)) return;
     // v0.0.1 optional routes this fixture gateway does not serve (first-run state, native popover, A1 uiview): the page
     // degrades on 404 by design; their own flows are covered in live-s6 / live-s7 / live-s8 and live-core
-    if (/status of 404/.test(m.text()) && /^http:\/\/tandem\.test\/v1\/(app\/state|shell\/popover|uiview\/overview)(\?|$)/.test(url)) return;
+    if (/status of 404/.test(m.text()) && /^http:\/\/orbit\.test\/v1\/(app\/state|shell\/popover|uiview\/overview)(\?|$)/.test(url)) return;
     errors.push(m.text());
   });
   return errors;
@@ -53,9 +53,9 @@ async function gateway(page) {
   const ev = FX('events').frames;
   state.queue.push([ev[0], ev[1]]);   // first connection: gateway ok + import job running
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await page.route(/^http:\/\/tandem2?\.test\//, async (route) => {
+  await page.route(/^http:\/\/orbit2?\.test\//, async (route) => {
     const u = new URL(route.request().url());
-    const second = u.host === 'tandem2.test';
+    const second = u.host === 'orbit2.test';
     state.seen.push({ host: u.host, path: u.pathname, auth: route.request().headers().authorization || null });
     const json = (body, status = 200, headers = {}) => route.fulfill({ status, contentType: 'application/json', headers, body: JSON.stringify(body) });
     if (u.pathname === '/app') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(ADV_FILE, 'utf8') });
@@ -124,7 +124,7 @@ test.skip('live Advance: progress, overview, sessions, tools, projects, sidebar 
   ONLY('mac-14');
   const errors = collectErrors(page);
   const gw = await gateway(page);
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   expect(await page.evaluate(() => [TL.mode, location.hash])).toEqual(['live', '']);
   const ov = page.locator('[data-tl="overview"]');
   await expect(ov).toContainText('128');
@@ -151,7 +151,7 @@ test.skip('live Advance: progress, overview, sessions, tools, projects, sidebar 
   await expect(page.locator('[data-tl="tools"]')).toContainText('2,810');
   await expect(page.locator('[data-tl="tools"]')).toContainText('6.0%');
   await page.evaluate(() => go('projects'));
-  await expect(page.locator('[data-tl="projects"]')).toContainText('tandem-fixture');
+  await expect(page.locator('[data-tl="projects"]')).toContainText('orbit-fixture');
   // unbound page: 示例数据
   await page.evaluate(() => go('persona'));
   await expect(page.locator('#content [data-tl="sample"]')).toHaveText('示例数据');
@@ -167,7 +167,7 @@ test.skip('live Advance in the Lite edition: l-home and l-sessions use the bound
   ONLY('mac-14');
   const errors = collectErrors(page);
   await gateway(page);
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await expect(page.locator('[data-tl="overview"]')).toContainText('128');
   await page.evaluate(() => edSet('lite'));
   await expect.poll(() => page.evaluate(() => [S.ed, S.route])).toEqual(['lite', 'l-home']);
@@ -193,13 +193,13 @@ test.skip('live Advance in the Lite edition: l-home and l-sessions use the bound
 });
 
 // superseded by slice 0: the plain TL_PAGES renderers are gone (polished pages on the facts spine, live-core.spec.mjs)
-test.skip('live outage: 503 + Retry-After keeps the previous screen with a banner; gateway restart reconnects via tandem:endpoint', async ({ page }) => {
+test.skip('live outage: 503 + Retry-After keeps the previous screen with a banner; gateway restart reconnects via orbit:endpoint', async ({ page }) => {
   ONLY('mac-14');
   // the browser logs the deliberate 503 responses as resource errors; nothing else may fail
-  const errors = collectErrors(page, (text, url) => /status of 503/.test(text) && /^http:\/\/tandem\.test\/v1\/analytics\//.test(url));
+  const errors = collectErrors(page, (text, url) => /status of 503/.test(text) && /^http:\/\/orbit\.test\/v1\/analytics\//.test(url));
   const gw = await gateway(page);
-  await page.addInitScript(() => { window.__TANDEM_TOKEN__ = 'fx-token'; });
-  await page.goto('http://tandem.test/app');
+  await page.addInitScript(() => { window.__ORBIT_TOKEN__ = 'fx-token'; });
+  await page.goto('http://orbit.test/app');
   await expect(page.locator('[data-tl="overview"]')).toContainText('1,874');
   gw.down = true;
   const ev = FX('events').frames;
@@ -209,11 +209,11 @@ test.skip('live outage: 503 + Retry-After keeps the previous screen with a banne
   await expect(page.locator('#content [data-tl="error"]')).toContainText('刷新失败');
   // gateway restarted elsewhere with a new token
   gw.down = false;
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('tandem:endpoint', { detail: { endpoint: 'http://tandem2.test', token: 'fx-token-2' } })));
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('orbit:endpoint', { detail: { endpoint: 'http://orbit2.test', token: 'fx-token-2' } })));
   await expect(page.locator('[data-tl="overview"] .tl-kpi').first().locator('b')).toHaveText('256');
   await expect(page.locator('#side [data-r="sessions"] .ct')).toHaveText('256');
-  expect(gw.seen.some((s) => s.host === 'tandem2.test' && s.path === '/v1/events' && s.auth === 'Bearer fx-token-2')).toBe(true);
-  expect(gw.seen.filter((s) => s.host === 'tandem2.test').every((s) => s.auth === 'Bearer fx-token-2')).toBe(true);
+  expect(gw.seen.some((s) => s.host === 'orbit2.test' && s.path === '/v1/events' && s.auth === 'Bearer fx-token-2')).toBe(true);
+  expect(gw.seen.filter((s) => s.host === 'orbit2.test').every((s) => s.auth === 'Bearer fx-token-2')).toBe(true);
   expect(errors).toEqual([]);
 });
 
@@ -221,7 +221,7 @@ test('live Lite: the same bindings render overview, sessions, tools, projects, s
   ONLY('mac-14');
   const errors = collectErrors(page);
   const gw = await gateway(page);
-  await page.goto('http://tandem.test/lite#token=fx-token');
+  await page.goto('http://orbit.test/lite#token=fx-token');
   expect(await page.evaluate(() => TL.mode)).toBe('live');
   const ov = page.locator('[data-tl="overview"]');
   await expect(ov).toContainText('1,874');
@@ -245,7 +245,7 @@ test('live Lite: the same bindings render overview, sessions, tools, projects, s
   expect(errors).toEqual([]);
 });
 
-/* ---------- recommendations (97-live-recs.js, TandemLive recs section) ---------- */
+/* ---------- recommendations (97-live-recs.js, OrbitLive recs section) ---------- */
 // state.rec: {mode: 'ok' | 'missing' | 'down' | 'computing', hidden: candidate ids labelled away, posts: [{method, path, body}]}.
 // The top surfaces answer a different order from A7 (handoff first) so the stable slate is visible on A1 / Lite / menubar.
 const RFX = (name) => FX('recs/' + name);
@@ -281,18 +281,18 @@ test('live recs: A7 from fixtures, exposure, 不适用 with reason and 8-second 
   const errors = collectErrors(page);
   const gw = await gateway(page);
   gw.rec = { mode: 'ok', hidden: new Set(), posts: [] };
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   // A1: the overview's own 本周建议 card (no appended block) lists the backend's A1 slate first
   await expect(page.locator('#content [data-tl="recs-a1"]')).toHaveCount(0);
   const a1 = page.locator('#content .ov-recs');
   await expect(a1.locator('.ov-recn').first()).toHaveText('长会话交接摘要');
   await expect.poll(() => gw.rec.posts.some((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A1')).toBe(true);
-  // A7: the demo renderer with fixture rows; save estimate from score.benefit, a missing one prints —
+  // A7: the demo renderer with fixture rows; saving shares from ui.save (省时 · token), a missing one prints 未估算
   await page.evaluate(() => go('recs'));
   const cards = page.locator('#content .rcard');
   await expect(cards).toHaveCount(3);
   await expect(page.locator('#content')).not.toContainText('PR 收尾');
-  await expect(cards.filter({ hasText: '只读命令自动放行' }).locator('.rc-save b')).toHaveText('≈ 1.2 h');
+  await expect(cards.filter({ hasText: '只读命令自动放行' }).locator('.rc-save b')).toHaveText(['1.0%', '0%']);
   await expect(cards.filter({ hasText: '验收命令' }).locator('.rc-save')).toHaveText('未估算');   // live: no benefit → 未估算 (fix-recs J16)
   await expect(page.locator('#content [data-tl="sample"]')).toHaveCount(0);
   await expect.poll(() => gw.rec.posts.filter((x) => x.path === '/v1/recommendations/exposures' && x.body.surface === 'A7').flatMap((x) => x.body.items.map((i) => i.candidate_id)).sort()).toEqual(['fxc-allow', 'fxc-handoff', 'fxc-rule']);
@@ -331,7 +331,7 @@ test('live recs in the Lite edition: l-home 本周最值得做的一件事 and l
   const errors = collectErrors(page);
   const gw = await gateway(page);
   gw.rec = { mode: 'ok', hidden: new Set(), posts: [] };
-  await page.goto('http://tandem.test/app#token=fx-token');
+  await page.goto('http://orbit.test/app#token=fx-token');
   await page.evaluate(() => edSet('lite'));
   // l-home's own 本周最值得做的一件事 card (no appended recs-lite block) takes the lite slate's first rec
   await expect(page.locator('#content [data-tl="recs-lite"]')).toHaveCount(0);
@@ -348,10 +348,10 @@ for (const mode of ['missing', 'down']) {
   test('live recs degrade: ' + mode + ' before any live data shows the honest empty state, no demo rows', async ({ page }) => {
     ONLY('mac-14');
     test.setTimeout(60_000);
-    const errors = collectErrors(page, (text, url) => /status of (404|503)/.test(text) && /^http:\/\/tandem\.test\/v1\/recommendations/.test(url));
+    const errors = collectErrors(page, (text, url) => /status of (404|503)/.test(text) && /^http:\/\/orbit\.test\/v1\/recommendations/.test(url));
     const gw = await gateway(page);
     gw.rec = { mode, hidden: new Set(), posts: [] };
-    await page.goto('http://tandem.test/app#token=fx-token');
+    await page.goto('http://orbit.test/app#token=fx-token');
     await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
     await expect(page.locator('#content [data-tl="recs-a1"]')).toHaveCount(0);
     await expect(page.locator('#content .ov-recs .ov-rec')).toHaveCount(0);
@@ -369,10 +369,10 @@ for (const mode of ['missing', 'down']) {
 test('live Lite recs: 优化建议 reads the fixtures; 404 before any live data keeps the demo rows with 示例数据', async ({ page }) => {
   ONLY('mac-14');
   test.setTimeout(60_000);
-  const errors = collectErrors(page, (text, url) => /status of 404/.test(text) && /^http:\/\/tandem\.test\/v1\/recommendations/.test(url));
+  const errors = collectErrors(page, (text, url) => /status of 404/.test(text) && /^http:\/\/orbit\.test\/v1\/recommendations/.test(url));
   const gw = await gateway(page);
   gw.rec = { mode: 'ok', hidden: new Set(), posts: [] };
-  await page.goto('http://tandem.test/lite#token=fx-token');
+  await page.goto('http://orbit.test/lite#token=fx-token');
   await page.evaluate(() => go('recs'));
   await expect(page.locator('#content .rec-card')).toHaveCount(3);
   await expect(page.locator('#content')).toContainText('只读命令自动放行');

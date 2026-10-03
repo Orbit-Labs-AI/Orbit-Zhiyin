@@ -8,16 +8,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import analyze_store
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.diagnostics import diagnostics, terminal_text
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import analyze_store
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_HOME = ROOT / ".local/backend-nine-hour/current-data"
-if not (DEFAULT_HOME / "tandem.db").is_file():
+if not (DEFAULT_HOME / "orbit.db").is_file():
     DEFAULT_HOME = ROOT / ".local/backend-nine-hour/p0-data"
 DEFAULT_CATALOG = ROOT / "evals/recommendation/fixtures/reviewed-skills.json"
 
@@ -25,7 +25,7 @@ DEFAULT_CATALOG = ROOT / "evals/recommendation/fixtures/reviewed-skills.json"
 def snapshot_scope(home, days=7, *, from_ts=None, until_ts=None):
     if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 90:
         raise ValueError("days must be between 1 and 90")
-    database = Path(home).resolve() / "tandem.db"
+    database = Path(home).resolve() / "orbit.db"
     if not database.is_file():
         raise ValueError("Provide an existing canonical data home with --home")
     if until_ts is None:

@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.ai.engines import FakeEngine
-from tandem_backend.appdb import AppDB
-from tandem_backend.evalrun import cli, runner
-from tandem_backend.recommend import evaluation as ev
-from tandem_backend.recommend.engine import build_slate
-from tandem_backend.recommend.ranking import gates as gate_mod
-from tandem_backend.recommend.ranking import rank as rank_mod
+from orbit_backend.ai.engines import FakeEngine
+from orbit_backend.appdb import AppDB
+from orbit_backend.evalrun import cli, runner
+from orbit_backend.recommend import evaluation as ev
+from orbit_backend.recommend.engine import build_slate
+from orbit_backend.recommend.ranking import gates as gate_mod
+from orbit_backend.recommend.ranking import rank as rank_mod
 
 FIXTURES = Path(__file__).resolve().parents[4] / "evals" / "recommendation" / "fixtures"
 T = "2026-09-28T00:00:00Z"
@@ -172,7 +172,7 @@ def test_suite_registered_and_fails_on_bad_exposure(tmp_path, monkeypatch):
 def test_cli_fail_under(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     code = cli.main(["eval", "run", "--suite", "recommend", "--fail-under", "0.9", "--no-store",
-                     "--home", str(tmp_path / "tandem")])
+                     "--home", str(tmp_path / "orbit")])
     assert code == 0 and "PASS" in capsys.readouterr().out
 
 

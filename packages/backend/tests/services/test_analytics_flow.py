@@ -8,8 +8,8 @@ import pytest
 from conftest import ALL_TIME, add_codex, bus_events, run_job, wait_for, wait_job
 from fastapi.testclient import TestClient
 
-from tandem_backend.api.routes import create_app
-from tandem_backend.services.sections import SESSION_SUMMARY_FIELDS
+from orbit_backend.api.routes import create_app
+from orbit_backend.services.sections import SESSION_SUMMARY_FIELDS
 
 # Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
 pytestmark = pytest.mark.serial

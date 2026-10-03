@@ -2,13 +2,13 @@
 
 ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。产品名 **Orbit**（原暂定名 Tandem / 同频），目标为本地 macOS App；当前采用 Python workspace、TypeScript 连接器与 UI 原型。
 
-- 文档、界面文案与提交说明里的产品名一律写 Orbit。代码标识（`tandem_*` 包、`tandem` CLI、`TANDEM_HOME`、`Application Support/Tandem`、`TandemLive`、`@tandem/*`、`tandem-demo.html` 等）暂不改名，对照见 [品牌](docs/design/brand.md)。
+- 文档、界面文案与提交说明里的产品名一律写 Orbit，全名带字标时写 Orbit·知音。代码标识自 2026-10-03 起同样统一为 orbit（`orbit_*` 包、`orbit` CLI、`ORBIT_*` 环境变量、`Application Support/Orbit`、`orbit.db`、`OrbitLive`、`@orbit/*`、`orbit-demo.html` 等），不再新增 tandem 命名；旧数据与旧设置的兼容集中在 `packages/data/src/orbit_data/legacy.py`，见 [品牌](docs/design/brand.md#名称)。改名前开出的分支先运行 `python3 scripts/orbit-rename.py` 再合并 main，`--check` 列出残留。
 - 标志与 App 图标以 `docs/design/logo/` 为准：参数只在 `orbit-spec.json`，`generate.py` 写出矢量、`export.mjs` 渲染位图，素材在 `logo/kit/`。所有尺寸都是 App 图标曲线的整体等比缩放，不重绘、不改线宽；App 原型与 App 构建原样引用这些文件。
 
 ## App 版本与设计归属
 
-- **Lite**：采用 `genius-FXC` 的设计，参考 `prototypes/lite/tandem-benchmark-demo.html`（PR #12）。
-- **Advance**：采用 `yhyfhgs` 的设计，参考 `prototypes/advance/tandem-demo.html`、`prototypes/advance/src/` 与 `docs/design/visual-cases-v1/`。
+- **Lite**：采用 `genius-FXC` 的设计，参考 `prototypes/lite/orbit-benchmark-demo.html`（PR #12）。
+- **Advance**：采用 `yhyfhgs` 的设计，参考 `prototypes/advance/orbit-demo.html`、`prototypes/advance/src/` 与 `docs/design/visual-cases-v1/`。
 - 版本名统一使用 **Lite / Advance**；历史文档中的 `Advanced` 指 **Advance**。设计入口与详细说明以 [设计资料](docs/design/README.md) 为准。
 - 两版是同一个 App（`prototypes/advance`，侧栏顶部一键切换），共用侧栏、卡片、栏目、控件、小组件与动效；Lite 只做页面数量与尺度上的减法，不另建一套组件。
 - 以上仅规定版本与现有设计的对应关系。本次结构整理将可运行原型归入 prototypes；画板与界面行为仍由对应设计任务推进，MVP 功能范围仍须三位成员共同确认。
@@ -52,12 +52,12 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。产品名 **Or
 
 从仓库根运行 `bash scripts/bootstrap.sh`、`pnpm check`。后者执行 lint、全部 Python 测试、连接器检查、Swift 客户端测试、原型产物检查、文档链接检查和 wheel 安装后验收；TypeScript producer 必须先构建，桥接测试不允许静默跳过。修改原型后还须运行 `pnpm check:ui`。分类与局部检查见 [测试指南](docs/development/testing.md)。
 
-数据库的权威结构是 `packages/data/src/tandem_data/migrations/`。改变 DDL 后，用 `uv run python -m tandem_data.schema_export --output packages/data/src/tandem_data/schemas/tables-v1.schema.json` 更新字段字典，并保持 `event-v1.schema.json` 与导入校验一致。实际本机会话、`.tandem/` 数据库和原始归档禁止提交；连接器 staging 库必须通过桥接导入，不能当成同一版 canonical 库直接写入。
+数据库的权威结构是 `packages/data/src/orbit_data/migrations/`。改变 DDL 后，用 `uv run python -m orbit_data.schema_export --output packages/data/src/orbit_data/schemas/tables-v1.schema.json` 更新字段字典，并保持 `event-v1.schema.json` 与导入校验一致。实际本机会话、`.orbit/` 数据库和原始归档禁止提交；连接器 staging 库必须通过桥接导入，不能当成同一版 canonical 库直接写入。
 
 ## 目录与接入
 
 - 根 `pyproject.toml` / `uv.lock` 与 `pnpm-workspace.yaml` / `pnpm-lock.yaml` 分别统一两种语言的依赖；不新增包内锁文件。
-- 后端实现在 `packages/backend/src/tandem_backend/`；兼容导出文件不新增业务逻辑。模块与数据流见 [模块接入表](docs/architecture/module-map.md)。
+- 后端实现在 `packages/backend/src/orbit_backend/`；兼容导出文件不新增业务逻辑。模块与数据流见 [模块接入表](docs/architecture/module-map.md)。
 - 模块测试随包；根 `tests/` 只放跨包和服务流程。评测放 `evals/`，性能放 `benchmarks/`，根 `scripts/` 保持薄入口。
 - 可运行原型放 `prototypes/lite` 与 `prototypes/advance`；静态设计资料留在 `docs/design`。正式 App 不建立空实现；Catalog 与 Swift 客户端分别位于 packages/catalog 和 packages/catalog-macos。
 - 活跃分支遵循 [目录迁移说明](docs/development/structure-migration.md)，不要在 merge 时恢复旧目录或平行锁文件。

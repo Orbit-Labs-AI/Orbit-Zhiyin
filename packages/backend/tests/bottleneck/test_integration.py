@@ -5,12 +5,12 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.api import create_app
-from tandem_backend.cli import main
-from tandem_backend.models import Event, ParsedSession, Session
-from tandem_backend.store import Store
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.api import create_app
+from orbit_backend.cli import main
+from orbit_backend.models import Event, ParsedSession, Session
+from orbit_backend.store import Store
 
 
 def fixture():

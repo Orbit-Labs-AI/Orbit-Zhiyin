@@ -2,7 +2,7 @@
   "enabled": false,
   "retention_days": 7,
   "slow_ms": 500,
-  "export_dir": "~/.tandem-fixture/exports",
+  "export_dir": "~/.orbit-fixture/exports",
   "stats": {
     "series": 12,
     "rows": 3400,

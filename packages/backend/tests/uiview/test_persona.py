@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.uiview import derive, insight, overview, persona
-from tandem_backend.uiview.typecopy import AXES, BUILTIN, TYPES
+from orbit_backend.uiview import derive, insight, overview, persona
+from orbit_backend.uiview.typecopy import AXES, BUILTIN, TYPES
 
 from .synth import TODAY, analysed
 

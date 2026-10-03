@@ -56,7 +56,7 @@ function lvFlush() {
   lvDeferSince = 0;
   render();
 }
-// the import progress strip (TandemLive.ui.progress) is patched in place on every job frame instead of re-rendering the page
+// the import progress strip (OrbitLive.ui.progress) is patched in place on every job frame instead of re-rendering the page
 function lvPatchProgress() {
   if (typeof document === 'undefined') return;
   const els = document.querySelectorAll('#content .tl-progress'); if (!els.length) return;
@@ -68,8 +68,8 @@ function lvSchedule() {
   if (typeof requestAnimationFrame === 'function') lvFrame = requestAnimationFrame(lvFlush);
   lvFrameT = setTimeout(lvFlush, 120);
 }
-const TL = TandemLive.create({ onChange: () => lvSchedule() });
-const TLU = TandemLive.ui;
+const TL = OrbitLive.create({ onChange: () => lvSchedule() });
+const TLU = OrbitLive.ui;
 const TL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
 
 /* ---- native bridge (WKWebView shell; browser fallbacks) ---- */
@@ -78,10 +78,10 @@ if (typeof window !== 'undefined') window.ORBIT = ORBIT;
 ORBIT.native = (function () {
   const flag = window.__ORBIT_NATIVE__;
   const info = flag === true ? { v: 1, app: null, platform: 'macos', features: [] } : flag && typeof flag === 'object' ? flag : null;
-  const handler = () => { try { return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tandem; } catch (e) { return null; } };
+  const handler = () => { try { return window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.orbit; } catch (e) { return null; } };
   let q = null; try { q = new URLSearchParams(location.search || ''); } catch (e) { q = null; }
   const surface = q && ['panel', 'hud', 'widgets'].indexOf(q.get('surface')) >= 0 ? q.get('surface') : null;
-  const REPLY = { chooseFolder: 'tandem:folder', save: 'tandem:saved' };
+  const REPLY = { chooseFolder: 'orbit:folder', save: 'orbit:saved' };
   const waits = new Map(); let seq = 0;
   Object.keys(REPLY).forEach((t) => window.addEventListener(REPLY[t], (e) => {
     const d = (e && e.detail) || {}; const w = waits.get(d.id); if (!w) return;
@@ -129,8 +129,8 @@ ORBIT.native = (function () {
       if (!post(type, payload)) { waits.delete(id); reject(Object.assign(new Error('no host'), { code: 'no_host' })); }
     });
   }
-  // tandem:command {cmd:'settings'|'palette'|'about'|'keys'|'onboarding'|'reveal'|'report'|'share'|'csv'|'route'|'toggleEdition'|'refresh', route?}
-  function onCommand(fn) { const h = (e) => fn((e && e.detail) || {}); window.addEventListener('tandem:command', h); return () => window.removeEventListener('tandem:command', h); }
+  // orbit:command {cmd:'settings'|'palette'|'about'|'keys'|'onboarding'|'reveal'|'report'|'share'|'csv'|'route'|'toggleEdition'|'refresh', route?}
+  function onCommand(fn) { const h = (e) => fn((e && e.detail) || {}); window.addEventListener('orbit:command', h); return () => window.removeEventListener('orbit:command', h); }
   return { isNative: !!info, info, surface, post, request, onCommand, has: (f) => !!info && (info.features || []).indexOf(f) >= 0, hasHost: () => !!handler() };
 })();
 
@@ -557,6 +557,6 @@ if (LV.live) {
   });
   TL.on('resync', () => LV.loadSpine());
   TL.on('retry', () => { if (!LV.failed && !LV.job && (LV.state === 'error' || LV.state === 'connecting')) { clearTimeout(lvSpineTimer); LV.loadSpine(); } });
-  window.addEventListener('tandem:endpoint', () => { lvSpineData = null; LV.env = null; setTimeout(() => LV.loadSpine(), 0); });
+  window.addEventListener('orbit:endpoint', () => { lvSpineData = null; LV.env = null; setTimeout(() => LV.loadSpine(), 0); });
   setTimeout(() => LV.loadSpine(), 0);
 }

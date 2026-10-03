@@ -1,4 +1,4 @@
-"""Synthetic tandem.db for uiview session tests: raw INSERTs over the real schema (foreign keys
+"""Synthetic orbit.db for uiview session tests: raw INSERTs over the real schema (foreign keys
 off) under tmp_path. Never reads a real HOME, agent directory or app data."""
 
 from __future__ import annotations
@@ -10,13 +10,13 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from tandem_data import MAPPER_VERSION, REDUCER_VERSION
-from tandem_data.store import Store
+from orbit_data import MAPPER_VERSION, REDUCER_VERSION
+from orbit_data.store import Store
 
-from tandem_backend.services.gateway import Gateway, install_error_handlers
-from tandem_backend.services.supervisor import SupervisorConfig
-from tandem_backend.sessionops import exclusion
-from tandem_backend.uiview import routes_sessions
+from orbit_backend.services.gateway import Gateway, install_error_handlers
+from orbit_backend.services.supervisor import SupervisorConfig
+from orbit_backend.sessionops import exclusion
+from orbit_backend.uiview import routes_sessions
 
 # Star-imported by the test modules (fixtures only); helpers are imported by name.
 __all__ = ["client", "gateway", "home", "l1"]
@@ -29,7 +29,7 @@ DAY = 86_400_000
 class L1:
     def __init__(self, home: Path):
         Store(home).db.close()
-        self.db = sqlite3.connect(home / "tandem.db", isolation_level=None)
+        self.db = sqlite3.connect(home / "orbit.db", isolation_level=None)
         self.db.execute("PRAGMA foreign_keys = OFF")
         self.seq: dict[str, int] = {}
         self.n = 0

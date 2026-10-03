@@ -1,10 +1,10 @@
 """Partial child-path projects must not change the final canonical project set."""
 
-from tandem_data.contract import canonical
-from tandem_data.reduce import project_for
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.integrity import section_digests
+from orbit_data.contract import canonical
+from orbit_data.reduce import project_for
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.integrity import section_digests
 
 
 def test_incremental_parent_project_matches_full_and_preserves_override(tmp_path):

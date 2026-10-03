@@ -41,7 +41,17 @@ engine v2 流程：`recall/multi.recall_all`（`problems.build` 把信号与 SQL
 - `utility ≤ 0` 的候选被 engine 标记为 `net_non_positive` 拦下，slate 里有 rank 的卡 utility 全部 > 0。12 个原回放 case 的 top1 priority 由旧公式的 0–2.02（其中 4 个为 0 且 net 为负）变为 15.1–58.0（中位约 22.9）。
 - 收益 B：有问题证据时 `1 − exp(−每周次数 × 单次分钟 / 30)`；单次分钟未知时按事件频次（`benefit_basis = frequency_only`）；精简卡按 `1 − exp(−常驻 tokens / 2000)`，与添加 tokens 的成本同一换算（`units.CONTEXT_TOKENS_PER_UNIT`）。
 
-节省时间（`narrate._save`）：只有 KB 规则的 `benefit.unit_minutes_source` 写明出处时才显示分钟，口径与 `benefit.py` 相同：观测周次数 × 4.345 × 单次分钟 × 改善比例，low/high 为 Beta 先验约 90% 区间的情景边界，不是置信区间，也不扣除未知的配置成本。catalog / generative / model 卡与精简卡一律显示「未估算」。
+节省比例（`narrate._save`）：只按当前范围的真实轨迹给百分比，不折算小时。分析层 `recommend_inputs` 的 `facts.trajectory`（`section._ledger`）沿用 App 的口径统计总 token（输入 + 缓存读写 + 输出）、协作时长（会话树事件间隔，每段封顶 5 分钟）与用户轮次，并把每个会话树的时间间隔与请求 token 分摊到具体工具调用：间隔归正在运行或等待模型读取结果的调用，请求的 token 归它读取的那些调用结果，都按人数均分；汇总成全部调用、失败调用、只读审批等待三类的实测成本（审批只计等待时间、不计 token；Codex 取 permission request → decision 的间隔）。
+
+| 问题类型 | 对应操作 | 每次的成本 |
+| --- | --- | --- |
+| `permission_friction` | 只读审批等待 | 实测等待，token 为 0 |
+| `tool_env_failure`、`buggy_output`、`late_build_failure` | 失败的工具调用（含失败的测试与构建） | 失败调用的平均 token 与时间；没有计时数据时按平均工具调用近似 |
+| `polling`、`repeated_workflow` | 工具调用（重复流程 × 步数） | 平均工具调用 |
+| `resident_cost`、`installed_unused`（精简卡） | 常驻上下文 | 常驻 tokens × 对应 Agent 的请求数；时间未实测 |
+| 其余（纠偏、重复说明、压缩、review 轮次等） | 返工轮次 | 一轮用户对话的平均 token 与时间 |
+
+对应操作占比 = 观测窗口内的次数 × 每次成本 ÷ 总 token / 总协作时长（不超过该类操作的实测总量）；预计节省 = 占比 × 生效率（Beta 先验均值），区间取先验约 90% 范围，是情景边界而不是置信区间，也不扣除未知的配置成本。`ui.save` 给出 `time_pct`、`token_pct`、两者的区间、`share`（占比）、`effect`、`op`、`key` 与中文 `basis`；`ui.gain` 是同一组百分比的标题（如「省时 1.5% · 省 token 0%」），`ui.tok_pct` 是卡片自身常驻上下文占全部 token 的比例。同一问题的替代方案共用 `key`，界面合计时每个问题只取最大值。没有问题证据的 catalog / model 卡和还没有轨迹账本的旧快照显示「未估算」。
 
 来源与兼容：catalog 条目只有 `verification` 为 `repository_and_skill_read` / `repository_and_source_read` 时视为已核验；资源库的 `agents` 列表只作提示，未给出支持矩阵时各 agent 为 unknown（门禁给 needs_context）。只有 Claude Code 与 Codex 有已知落地路径，其他 agent 的 `path_hint` 为空，卡片改为手动方案。
 
@@ -187,7 +197,7 @@ engine v2 流程：`recall/multi.recall_all`（`problems.build` 把信号与 SQL
 
 坏条目单独诊断，同文件其他合法条目继续接收；坏 envelope 或不可解析 JSON 按文件诊断。相同 `identity.id` 的所有冲突记录都排除，不按文件或输入顺序选择胜者。诊断只包含字段位置与错误类别，不回显字段中的原始输入内容。
 
-统一接收层先检查公共合同；`service.py` 再检查对应 family 字段。例如 skills 的 `required_tools` 会并入公共工具依赖，MCP/plugin 的 `permissions` 会进入权限检查。[data/recommend/](../../../packages/backend/src/tandem_backend/data/recommend/) 中的七份 `*.schema.json` 由这些合同生成，供编辑器及资源提供方校验。
+统一接收层先检查公共合同；`service.py` 再检查对应 family 字段。例如 skills 的 `required_tools` 会并入公共工具依赖，MCP/plugin 的 `permissions` 会进入权限检查。[data/recommend/](../../../packages/backend/src/orbit_backend/data/recommend/) 中的七份 `*.schema.json` 由这些合同生成，供编辑器及资源提供方校验。
 
 安装项目依赖后，在仓库根目录运行：
 
@@ -200,8 +210,8 @@ uv run python -m evals.recommendation.catalog /path/to/catalog --agent codex
 分析已授权的数据库时可显式接入该目录：
 
 ```sh
-tandem --db .local/synthetic.sqlite analytics --no-text --recommendation-catalog /path/to/catalog --recommendation-agent codex --recommendation-family skills --output .local/recommendation-result.json
-tandem --db .local/synthetic.sqlite serve --recommendation-catalog /path/to/catalog
+orbit --db .local/synthetic.sqlite analytics --no-text --recommendation-catalog /path/to/catalog --recommendation-agent codex --recommendation-family skills --output .local/recommendation-result.json
+orbit --db .local/synthetic.sqlite serve --recommendation-catalog /path/to/catalog
 ```
 
 `GET /v1/analytics/recommendations` 保留原参数并新增 `family`；同路径 `POST` 接收 `context`、`family`、`limit`，通过 context 明确工具清单、已安装资源与权限。项目、时间和根会话筛选仍使用既有 query 参数。目录路径由服务启动配置，HTTP 请求不能指定本地路径。
@@ -231,8 +241,8 @@ tandem --db .local/synthetic.sqlite serve --recommendation-catalog /path/to/cata
 使用已有合成夹具或获授权输入生成的 `analysis_result`；不要为了试推荐而读取本机个人聊天数据。下面假定 `analysis_result` 已由 `analytics.service.analyze_bundle` 生成，`path/to/prepared/catalog` 是团队准备的资源目录。
 
 ```python
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 catalog_directory = "path/to/prepared/catalog"
 received = load_catalog(directory=catalog_directory)
@@ -256,7 +266,7 @@ print(result["status"])
 print(result["recommendations"])
 ```
 
-新入口是 `tandem_backend.recommend.service.recommend`。`from tandem_backend.recommend import recommend` 保留旧画像接口，不要把两者的输入与返回类型混用。新入口也接受 `catalog=[RecommendationItem 或统一格式 dict]`、可选的同快照 `bottlenecks`、`RecommendationPolicy` 和 `RankingPolicy`。
+新入口是 `orbit_backend.recommend.service.recommend`。`from orbit_backend.recommend import recommend` 保留旧画像接口，不要把两者的输入与返回类型混用。新入口也接受 `catalog=[RecommendationItem 或统一格式 dict]`、可选的同快照 `bottlenecks`、`RecommendationPolicy` 和 `RankingPolicy`。
 
 如果传入 `bottlenecks`，其 `feature_digest`、`analysis_digest`、`scope` 必须匹配当前 analytics；信号证据必须属于对应根会话树。不同会话的样本不会合并来凑门槛。原始对话正文与 persona 标签不进入检索文本；解析后的显式 preference 通过独立路线和特征参与排序。
 
@@ -291,7 +301,7 @@ MMR 使用 `0.8 × score − 0.2 × 与已选项的最大相似度`；相似度�
 
 `sources.normalize.legacy_item` 只适配原有已审核目录，保留固定 commit、文件路径和内容摘要。它把原有能力映射为规则方向先验，仍保留原能力交集条件，避免宽泛规则映射改变旧资源的推荐依据。
 
-`sources.normalize.catalog_resource` 为 `packages/catalog` 中的 `tandem_catalog` 包提供显式接收边界：输入该包的 Resource 字典，仅把 `origin=curated` 的受控 feature 转成匹配字段。README/body、自动提取特征、人气和安装命令不成为能力真值；即使有 curated 标签，适配结果仍保持 draft，Agent 兼容性保持 unknown。调用方需显式选择这个 adapter，不会自动猜测其他 JSON 格式，接收适配仍独立于采集与索引的实现。上游包负责来源采集/存储；本包负责审核后资源与用户瓶颈的匹配。
+`sources.normalize.catalog_resource` 为 `packages/catalog` 中的 `orbit_catalog` 包提供显式接收边界：输入该包的 Resource 字典，仅把 `origin=curated` 的受控 feature 转成匹配字段。README/body、自动提取特征、人气和安装命令不成为能力真值；即使有 curated 标签，适配结果仍保持 draft，Agent 兼容性保持 unknown。调用方需显式选择这个 adapter，不会自动猜测其他 JSON 格式，接收适配仍独立于采集与索引的实现。上游包负责来源采集/存储；本包负责审核后资源与用户瓶颈的匹配。
 
 后续按真实需求补充：
 
@@ -310,7 +320,7 @@ MMR 使用 `0.8 × score − 0.2 × 与已选项的最大相似度`；相似度�
 
 - 全量 `pytest -q`：1,055 项通过；原有 Starlette/AnyIO 弃用警告 1 项。
 - `ruff check src tests` 及两个推荐脚本检查通过，`git diff --check` 通过。
-- `tandem demo`、`tandem evaluate` 和推荐演示脚本在临时目录中通过；显式空目录、Agent 和 family 命令行参数已验证。
+- `orbit demo`、`orbit evaluate` 和推荐演示脚本在临时目录中通过；显式空目录、Agent 和 family 命令行参数已验证。
 - 离线构建 wheel 并在临时目录导入：七份接收 JSON、七份 Schema 均随包发布，默认旧资源适配及新 service 可用。
 - 独立检查未发现 P0/P1 阻塞问题。上述检查不代表权重已校准或真实收益已得到验证。
 

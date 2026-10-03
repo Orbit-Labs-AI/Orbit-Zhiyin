@@ -2,11 +2,11 @@
 
 import json
 
-from tandem_backend.analysis import analyze
-from tandem_backend.cli import demo_home, main
-from tandem_backend.pipeline_eval import _metrics, _write_case, evidence_checks, pipeline_benchmark
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.cli import demo_home, main
+from orbit_backend.pipeline_eval import _metrics, _write_case, evidence_checks, pipeline_benchmark
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store, import_codex
 
 
 def test_full_pipeline_contrasts_match_labeled_decisions():

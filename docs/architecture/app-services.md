@@ -1,16 +1,16 @@
 # Orbit App 服务层：封装、UI 衔接与分析快照
 
-> 状态：已定方案，服务层（§5.1 包 A）按本文实现于 `packages/backend/src/tandem_backend/services/`，实现细节与基准见 §7。审计基于 `main`（`0459c8f`）；性能数字来自合成数据，不含真实会话。
+> 状态：已定方案，服务层（§5.1 包 A）按本文实现于 `packages/backend/src/orbit_backend/services/`，实现细节与基准见 §7。审计基于 `main`（`0459c8f`）；性能数字来自合成数据，不含真实会话。
 > 回答三个问题：Q3 数据模块如何封装为 App 的一部分（多个本地服务）；Q4 数据模块如何与 Lite / Advance 的对应环节衔接；Q7 分析模块如何与 UI 衔接并打包进 App（高可用、低延迟）。
 > 关联：[功能映射](../plans/feature-map.md)（§5 前端→后端、§6.1 DT、§6.2 AN、§6.10 缺口对照）、[模块契约](../plans/module-contract.md)（§3.1 Scope / meta、§5.3 前端 API）、[缺口对照](../audits/backend-gap.md)、[后端架构](backend.md)、[数据管线](data-pipeline.md)、[模块接入表](module-map.md)。
 
 ## 0. 结论先行
 
 1. **逻辑上 4 个服务，物理上 3 个进程**：`gateway`（对 UI 的唯一入口：HTTP + SSE、鉴权、只读查询、快照缓存、监管）、`ingest-worker`（唯一写者：发现 / 监听 / 导入 / 重建）、`analysis-worker`（计算、写分析结果）。`data-query` 不单独成进程，作为 gateway 内的只读连接池。Swift 宿主只拉起 gateway，gateway 拉起并监管两个 worker。
-2. **SQLite 单写者 + WAL + 只读连接**：`tandem.db` 只有 ingest-worker 写；其余全部 `mode=ro`。`analysis.sqlite` 只有 analysis-worker 写。UI 永远不等写者。
+2. **SQLite 单写者 + WAL + 只读连接**：`orbit.db` 只有 ingest-worker 写；其余全部 `mode=ro`。`analysis.sqlite` 只有 analysis-worker 写。UI 永远不等写者。
 3. **UI 的数字全部来自“快照”**：分析结果按 `(section, scope_hash, data_rev, rules_version)` 物化；请求命中即返回（目标 < 300 ms 首屏），数据变了先返回旧快照并标记 `stale`，同时后台重算，算完经 SSE 推送。绝不让 UI 在 10 秒级计算上同步等待。
 4. **首启先秒开 UI，再渐进导入**：静态页面不依赖数据；先导入最近一批会话并发布（首个有数据画面），再补 30 天、再补全量，每一批原子发布。
-5. **前端只加一层适配（`TandemLive`）**：Lite 与 Advance 共用同一份适配代码（mock ↔ live 切换、加载 / 空 / 错 / 陈旧 / 计算中 / 导入中六态、SSE 订阅），逐页绑定；未绑定的页面在 live 模式明确标“示例数据”，不静默混用。
+5. **前端只加一层适配（`OrbitLive`）**：Lite 与 Advance 共用同一份适配代码（mock ↔ live 切换、加载 / 空 / 错 / 陈旧 / 计算中 / 导入中六态、SSE 订阅），逐页绑定；未绑定的页面在 live 模式明确标“示例数据”，不静默混用。
 6. **本次审计发现三个必须先在设计里解决的实测问题**（§1.2）：读路径在导入中途会抛 “Projection is pending”；`analyze_store` 同一范围重复调用仍耗时 10 s 级、全量结果 220 MB；增量导入不比全量快。它们分别落到 gateway 的“最后一次发布版本兜底”、按 section 分片快照，以及数据 / 分析审计包的前置依赖（§5.3）。
 
 ## 1. 现状盘点
@@ -19,18 +19,18 @@
 
 | 能力 | 位置 | 说明 |
 | --- | --- | --- |
-| 本机 HTTP API | `packages/backend/src/tandem_backend/api/routes.py`（349 行） | `create_app()`：`/v1/analytics/*` 十余段、`/v1/sessions`、`/v1/projects`、`/v1/catalog*`、`/v1/evaluation`；`tandem serve` 用 uvicorn 绑端口 8765，无鉴权、无 SSE、无任务接口 |
-| 导入服务 | `packages/data/src/tandem_data/service.py` | `ImportService.import_source(ImportRequest, cancel)`：`flock(import.lock)` 单写者、文件级取消、`progress` 回调（只含阶段与计数）、`watch()` 2 s 轮询；`ImportRequest.files` 可只导入子集 |
-| 来源发现 | `tandem_data/discovery.py` | `candidates()` 只列目录，不读正文；`inputs(agent, root)` 是白名单 |
-| 规范库读取 | `tandem_backend/data_access/store.py::CanonicalStore` | 每次读新开 `mode=ro` 连接；`counts / sources / session_page / event_page / evidence` 全是 SQL 分页 |
-| 分析结果历史 | `analytics/history.py` + `tandem_data/analysis_history.py` | `recorded()` 记录每次运行与内容寻址的压缩结果（`analysis.sqlite`），但**不用于命中缓存** |
+| 本机 HTTP API | `packages/backend/src/orbit_backend/api/routes.py`（349 行） | `create_app()`：`/v1/analytics/*` 十余段、`/v1/sessions`、`/v1/projects`、`/v1/catalog*`、`/v1/evaluation`；`orbit serve` 用 uvicorn 绑端口 8765，无鉴权、无 SSE、无任务接口 |
+| 导入服务 | `packages/data/src/orbit_data/service.py` | `ImportService.import_source(ImportRequest, cancel)`：`flock(import.lock)` 单写者、文件级取消、`progress` 回调（只含阶段与计数）、`watch()` 2 s 轮询；`ImportRequest.files` 可只导入子集 |
+| 来源发现 | `orbit_data/discovery.py` | `candidates()` 只列目录，不读正文；`inputs(agent, root)` 是白名单 |
+| 规范库读取 | `orbit_backend/data_access/store.py::CanonicalStore` | 每次读新开 `mode=ro` 连接；`counts / sources / session_page / event_page / evidence` 全是 SQL 分页 |
+| 分析结果历史 | `analytics/history.py` + `orbit_data/analysis_history.py` | `recorded()` 记录每次运行与内容寻址的压缩结果（`analysis.sqlite`），但**不用于命中缓存** |
 | 桌面外壳与应用状态 | `origin/feat/data-app-integration`（未合入） | Swift AppKit/WKWebView 宿主、随机端口 + 启动令牌、`DesktopService`（单队列任务、`interrupted` 恢复、`app-state.json`）、`/v1/app/*`、PyInstaller 打包脚本；旧目录布局，正与 main 合并 |
 
 ### 1.2 合成数据实测（300 会话 × 12 轮 × 每轮 3 次工具调用；Apple Silicon，Python 3.13）
 
 | 项目 | 结果 | 含义 |
 | --- | --- | --- |
-| 全量导入 300 个会话 | 19.6 s（约 15 会话/s）；`tandem.db` 194 MB | 首启全量导入不可能同步等待，必须分批发布 |
+| 全量导入 300 个会话 | 19.6 s（约 15 会话/s）；`orbit.db` 194 MB | 首启全量导入不可能同步等待，必须分批发布 |
 | 再追加 60 个会话后增量导入 | 24.0 s（比全量还慢） | 增量路径疑似重算全库；归数据审计包处理，gateway 只依赖“批次可发布” |
 | 读：`session_page(50)` / `counts` / `event_page(100)` | 1.5 / 1.6 / 2.8 ms | 直读 SQLite 远低于 UI 预算，**不必为这些接口做缓存** |
 | 导入进行中并发读 | 稳态 p50 2.0 ms、p99 2.9 ms；但导入“已捕获、尚未重建”的窗口里，读线程收到 `ValueError: Projection is pending` | `current_projection()` 在待重建时一律拒绝读。gateway 必须有兜底（§4.2）；数据包应提供“读最后一次已发布投影” |
@@ -46,9 +46,9 @@
 
 | 服务 | 职责 | 进程 | 读写 |
 | --- | --- | --- | --- |
-| **gateway** | 对 UI 的唯一入口：Bearer 鉴权、Host / Origin 校验、HTTP 路由、SSE 事件总线、任务登记、监管 worker、只读查询（会话 / 事件 / 项目 / 来源 / 清单 / 搜索）、快照读取与过期判断、静态页面（`/app`、`/lite`） | 主 helper 进程（uvicorn + asyncio；阻塞 SQL 走线程池，每线程一个 `mode=ro` 连接） | 读 `tandem.db`；读写 `cache/ui.sqlite`（响应缓存，可丢弃）、`app-state.json`（来源开关与设置） |
-| **ingest-worker** | 来源发现（只列目录）、导入、重建投影、校验 / 备份、持续同步（轮询，监听留给 v1）；分批优先级调度；向 gateway 回报进度与“已发布版本” | 子进程 | **唯一写 `tandem.db` / `raw/`**；`flock(import.lock)` 兜底防双写 |
-| **analysis-worker** | 执行 section 计算（`analyze_store` / `analyze_product_store` 及后续新增）、写分析结果与快照、预热、超时与取消、RSS 看门 | 子进程 | 读 `tandem.db`（`mode=ro`）；写 `analysis.sqlite` |
+| **gateway** | 对 UI 的唯一入口：Bearer 鉴权、Host / Origin 校验、HTTP 路由、SSE 事件总线、任务登记、监管 worker、只读查询（会话 / 事件 / 项目 / 来源 / 清单 / 搜索）、快照读取与过期判断、静态页面（`/app`、`/lite`） | 主 helper 进程（uvicorn + asyncio；阻塞 SQL 走线程池，每线程一个 `mode=ro` 连接） | 读 `orbit.db`；读写 `cache/ui.sqlite`（响应缓存，可丢弃）、`app-state.json`（来源开关与设置） |
+| **ingest-worker** | 来源发现（只列目录）、导入、重建投影、校验 / 备份、持续同步（轮询，监听留给 v1）；分批优先级调度；向 gateway 回报进度与“已发布版本” | 子进程 | **唯一写 `orbit.db` / `raw/`**；`flock(import.lock)` 兜底防双写 |
+| **analysis-worker** | 执行 section 计算（`analyze_store` / `analyze_product_store` 及后续新增）、写分析结果与快照、预热、超时与取消、RSS 看门 | 子进程 | 读 `orbit.db`（`mode=ro`）；写 `analysis.sqlite` |
 | **catalog / recommend / AI** | 沿用现有 `create_app()` 内的 `/v1/catalog*`、`/v1/recommendations`、`/v1/ai/*`（后续）。MVP 留在 gateway 进程内，不单独起服务；AI 作业之后注册为新的任务种类，复用同一套任务与 SSE | gateway 内 | 各自库 |
 
 不拆更多进程的理由：CPU 密集的分析（scikit-learn / jieba，10 s 级，GIL）会卡住 gateway 的事件循环，且不可协作取消，所以必须进程隔离（超时直接杀进程重启）；导入的崩溃（坏日志、OOM）不应带走读接口，所以写者也隔离。再往下拆（每个 Agent 一个采集进程、独立 query 服务）在 MVP 阶段没有收益。
@@ -57,16 +57,16 @@
 
 ```text
 Orbit.app (Swift AppKit + WKWebView)           ← 原生能力：目录选择 / bookmark、保存面板、窗口、通知
-   │  Process() 拉起，注入 TANDEM_API_TOKEN / TANDEM_PARENT_PID；读取 stdout 首行 {"port":N}
+   │  Process() 拉起，注入 ORBIT_API_TOKEN / ORBIT_PARENT_PID；读取 stdout 首行 {"port":N}
    ▼
-tandem-helper gateway  (127.0.0.1:随机端口，Bearer token)
+orbit-helper gateway  (127.0.0.1:随机端口，Bearer token)
    ├─ HTTP  /app /lite（静态页）  /v1/*（JSON）  /v1/events（SSE）
-   ├─ 只读连接池 ───────────────► tandem.db  (WAL, mode=ro)
+   ├─ 只读连接池 ───────────────► orbit.db  (WAL, mode=ro)
    ├─ 响应缓存 ──────────────────► cache/ui.sqlite（可丢弃）
    ├─ 监管器 + 任务登记 ─────────► app-state.json（来源开关 / 设置 / 任务记录）
    │        │ stdio JSON Lines（请求 / 进度 / 结果 / 心跳）
-   │        ├──► tandem-helper worker ingest   ──► 写 tandem.db、raw/
-   │        └──► tandem-helper worker analysis ──► 读 tandem.db，写 analysis.sqlite
+   │        ├──► orbit-helper worker ingest   ──► 写 orbit.db、raw/
+   │        └──► orbit-helper worker analysis ──► 读 orbit.db，写 analysis.sqlite
 ```
 
 ### 2.3 进程间通信
@@ -74,15 +74,15 @@ tandem-helper gateway  (127.0.0.1:随机端口，Bearer token)
 | 链路 | 方式 | 理由 |
 | --- | --- | --- |
 | WebView → gateway | `http://127.0.0.1:<随机端口>`，`Authorization: Bearer <启动令牌>`；页面由 gateway 同源提供，无 CORS | WKWebView 的 `fetch` 不能直连 Unix socket；令牌由宿主生成，经子进程环境与 `WKUserScript` 传递，不进命令行与 URL。沿用 `data-app-integration` 已验证的做法 |
-| 宿主 ↔ gateway | stdout 首行 JSON 报端口；`GET /health` 轮询；`TANDEM_PARENT_PID` 看门（父进程变化即退出） | 避免宿主崩溃后残留进程 |
+| 宿主 ↔ gateway | stdout 首行 JSON 报端口；`GET /health` 轮询；`ORBIT_PARENT_PID` 看门（父进程变化即退出） | 避免宿主崩溃后残留进程 |
 | gateway ↔ worker | 子进程 stdin / stdout，每行一个 JSON：`{"op":"run","job":…}`、`{"t":"progress"…}`、`{"t":"done"…}`、`{"t":"hb"}`；stdin 关闭即 worker 退出 | 无端口、无额外鉴权，生命周期随父进程；协议小到可以在测试里用管道直接驱动 |
 | gateway → UI 推送 | 单路 SSE：`GET /v1/events`（用 `fetch` 流读取，可带 Authorization；原生 `EventSource` 不能设头，所以不用） | 一条连接复用所有主题；见 §3.4 |
 
-不使用 Unix socket / launchd 的原因：WebView 无法直连；launchd 仅在 v1“App 关闭后继续采集”时才需要（届时用 `SMAppService` 登录项拉起同一个 `tandem-helper worker ingest --daemon`，与本设计兼容）。
+不使用 Unix socket / launchd 的原因：WebView 无法直连；launchd 仅在 v1“App 关闭后继续采集”时才需要（届时用 `SMAppService` 登录项拉起同一个 `orbit-helper worker ingest --daemon`，与本设计兼容）。
 
 ### 2.4 数据所有权与并发规则
 
-1. **写者唯一**：`tandem.db`、`raw/` 只由 ingest-worker 写；分析与 gateway 只读。`import.lock` 保留作双保险。
+1. **写者唯一**：`orbit.db`、`raw/` 只由 ingest-worker 写；分析与 gateway 只读。`import.lock` 保留作双保险。
 2. **发布即版本**：每次投影发布产生新的 `projection_run.run_id`；gateway 把 `data_rev = max(run_id)` 与 `inventory_rev = max(scan_id)` 缓存在内存，仅在收到 worker 的 `published` 事件时更新，请求路径上不查库取版本。
 3. **读到“待重建”**：导入已捕获但尚未重建时，`current_projection()` 拒绝读（§1.2）。gateway 的规则：命中响应缓存则返回缓存并标 `freshness: stale`；无缓存则返回 `503 projection_pending` + `Retry-After`，前端保持上一屏数据并显示“正在整理”。数据审计包应让只读查询可读取最后一次已发布的投影（§5.3 依赖 D1），届时此兜底只剩缓存命中路径。
 4. **分析不阻塞导入，导入不阻塞读**：三类连接互不持锁；analysis-worker 的读事务只持续到取完 bundle。
@@ -127,17 +127,17 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 | analysis-worker 进程树（含进程池子进程）RSS > 1.5 GB | 当前任务完成后回收重启 |
 | 运行中心跳进程树 RSS > `rss_kill_bytes`（物理内存 ¾，限定 4–24 GB；真实库全时段峰值约 17 GB） | 立即杀 worker，任务记 `analysis_scope_too_large` |
 | worker 被杀或崩溃时未结束的 `analysis_run` | worker 实时上报运行 id，supervisor 将其标为 `failed(WorkerTerminated)`；gateway 启动时把早于最大预算的 `running` 行同样标记 |
-| gateway 崩溃 | 宿主 `/health` 连续 3 次失败（2 s 间隔）→ 重启 gateway（新端口、新令牌），通过 `evaluateJavaScript` 设置 `window.__TANDEM_ENDPOINT__ = {base, token}` 并触发 `tandem:endpoint` 事件，适配层重连，不整页刷新；子 worker 因 stdin 关闭自行退出，不会残留 |
+| gateway 崩溃 | 宿主 `/health` 连续 3 次失败（2 s 间隔）→ 重启 gateway（新端口、新令牌），通过 `evaluateJavaScript` 设置 `window.__ORBIT_ENDPOINT__ = {base, token}` 并触发 `orbit:endpoint` 事件，适配层重连，不整页刷新；子 worker 因 stdin 关闭自行退出，不会残留 |
 | 宿主退出 | gateway 父进程看门退出；ingest 在文件边界取消，已发布数据不受损（既有语义） |
 | `/health` | 进程存活 + 各服务 readiness：`{ok, version, services:{ingest:{state,pid,restarts,last_hb}, analysis:{…}}, data_rev, projection:"ready|pending|absent"}` |
 
 ### 2.8 打包
 
-- **形态**：`Orbit.app/Contents/{MacOS/Orbit（Swift 宿主）, Resources/ui/{advance.html, lite.html}, Resources/helper/tandem-helper/（PyInstaller onedir）}`。`tandem-helper` 是**一个**冻结可执行文件，用子命令区分角色：`gateway`、`worker ingest`、`worker analysis`；gateway 以自身可执行文件路径拉起 worker（冻结环境下不能用 `python -m`）。
-- **复用**：`origin/feat/data-app-integration` 的 `apps/macos/Tandem.swift`（Process 拉起、令牌与端口握手、`NSOpenPanel` + security-scoped bookmark、退出时终止 helper）与 `apps/macos/build.py`（PyInstaller + swiftc + `codesign` + 可选公证）。**不重做**；本设计只把 helper 入口由单进程 `desktop.py` 换成 `tandem-helper` 三角色，并增加 Lite 页面资源。
-- **Node 连接器**：MVP 不随包分发。Python 原生映射器已覆盖七个 Agent；TS 连接器（FSEvents 增量、`tandem-ingest`）作为 v1 的可选 sidecar，打成单个 Node 可执行文件由 ingest-worker 拉起，经现有 `bridge.import_connector()` 汇入。理由：少带约 40 MB 运行时与一套签名 / 升级面；轮询对 MVP 的“近实时”足够（自适应 2 s → 30 s）。
+- **形态**：`Orbit.app/Contents/{MacOS/Orbit（Swift 宿主）, Resources/ui/{advance.html, lite.html}, Resources/helper/orbit-helper/（PyInstaller onedir）}`。`orbit-helper` 是**一个**冻结可执行文件，用子命令区分角色：`gateway`、`worker ingest`、`worker analysis`；gateway 以自身可执行文件路径拉起 worker（冻结环境下不能用 `python -m`）。
+- **复用**：`origin/feat/data-app-integration` 上的 macOS 宿主原型（现为 `apps/desktop/Orbit.swift`；Process 拉起、令牌与端口握手、`NSOpenPanel` + security-scoped bookmark、退出时终止 helper）与同一原型的构建脚本（现为 `apps/desktop/build.py`；PyInstaller + swiftc + `codesign` + 可选公证）。**不重做**；本设计只把 helper 入口由单进程 `desktop.py` 换成 `orbit-helper` 三角色，并增加 Lite 页面资源。
+- **Node 连接器**：MVP 不随包分发。Python 原生映射器已覆盖七个 Agent；TS 连接器（FSEvents 增量、`orbit-ingest`）作为 v1 的可选 sidecar，打成单个 Node 可执行文件由 ingest-worker 拉起，经现有 `bridge.import_connector()` 汇入。理由：少带约 40 MB 运行时与一套签名 / 升级面；轮询对 MVP 的“近实时”足够（自适应 2 s → 30 s）。
 - **体积与签名（需实机测量）**：scikit-learn / scipy / jieba 使 onedir 体积需实测（预期 200 MB 量级）；PyInstaller 加载 numpy 动态库可能需要 `disable-library-validation` 之类的 entitlement；当前为非 Sandbox 独立分发，Developer ID + Hardened Runtime + 公证需用户提供身份。Sandbox 版（App Store）另立目标，不在本文范围。
-- **数据目录**：`~/Library/Application Support/Tandem/`（`tandem.db`、`raw/`、`analysis.sqlite`、`cache/ui.sqlite`、`app-state.json`、`backups/`）；`--home` 覆盖用于演示与验收。
+- **数据目录**：`~/Library/Application Support/Orbit/`（`orbit.db`、`raw/`、`analysis.sqlite`、`cache/ui.sqlite`、`app-state.json`、`backups/`）；`--home` 覆盖用于演示与验收。
 
 ## 3. Q4：数据模块与 UI 的衔接（Lite 与 Advance）
 
@@ -175,13 +175,13 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 
 Lite 只使用 A1–A8、全局筛选、命令面板、导出与最小设置，Advance 全量；两者**共用同一组接口与同一份适配层**，差别只在页面绑定了哪些资源（`GET /v1/status` 的 `capabilities.mode` 可回报，但不改变接口）。
 
-### 3.3 前端适配层（`TandemLive`）
+### 3.3 前端适配层（`OrbitLive`）
 
 形态：一份无依赖的浏览器脚本，同时嵌入 Lite（单文件 HTML 的带标记区块）和 Advance（`src/js` 新增文件，由构建拼接）；用同步脚本保证两处内容一致并可校验。
 
 | 能力 | 行为 |
 | --- | --- |
-| 模式 | `mock`（默认；`file://` 或独立打开）/ `live`（由 gateway 提供的 `/app`、`/lite`，或 `?live=1`）。live 下端点来自 `window.__TANDEM_ENDPOINT__` / `__TANDEM_TOKEN__`，开发期可用 `#token=`；**live 一旦建立，失败时显示错误并保留上一屏数据，不回退成演示数据** |
+| 模式 | `mock`（默认；`file://` 或独立打开）/ `live`（由 gateway 提供的 `/app`、`/lite`，或 `?live=1`）。live 下端点来自 `window.__ORBIT_ENDPOINT__` / `__ORBIT_TOKEN__`，开发期可用 `#token=`；**live 一旦建立，失败时显示错误并保留上一屏数据，不回退成演示数据** |
 | 请求 | `get(path, {scope, waitMs, signal})`：带 `If-None-Match`；返回 `{data, meta, state}`；同键并发请求合并；页面切换用 `AbortController` 取消 |
 | 资源状态 | `idle / loading / ready / stale / computing / empty / error / importing` 八态；保留 last-good，陈旧数据加“更新于 xx · 正在刷新”徽标，计算中显示骨架并订阅 `analysis.ready` |
 | 推送 | `fetch` 读取 `/v1/events`（SSE 文本帧），指数退避重连，`Last-Event-ID` 续传，缺口过大则 `resync`（重新 `GET /v1/status` 并失效相关资源）；事件到来只失效对应资源并 `render()` |
@@ -213,7 +213,7 @@ snapshot_key = (section, scope_hash, data_rev, inventory_rev, rules_digest)
   ETag          = W/"<rules_digest>:<rev>:<scope_hash>:<section>"
 ```
 
-- 存放：analysis-worker 把**每个 section 的紧凑结果**写成独立快照（压缩 JSON，附 `meta`）；gateway 保存 ≤ 64 MB 的内存 LRU，并在 `cache/ui.sqlite` 落盘已渲染的响应体（`gzip`），重启后第一屏仍可秒出。两者都是可丢弃缓存，真值在 `tandem.db` + `analysis.sqlite`。
+- 存放：analysis-worker 把**每个 section 的紧凑结果**写成独立快照（压缩 JSON，附 `meta`）；gateway 保存 ≤ 64 MB 的内存 LRU，并在 `cache/ui.sqlite` 落盘已渲染的响应体（`gzip`），重启后第一屏仍可秒出。两者都是可丢弃缓存，真值在 `orbit.db` + `analysis.sqlite`。
 - **不在请求路径上序列化整包**：分析包 220 MB 级（§1.2）；快照按 section 与分页切片（会话列表 ≤ 200 行紧凑摘要，详情另取）。
 - 保留策略：每个 `(section, scope_hash)` 保留最新 2 版；总容量上限（默认 512 MB）按最近访问淘汰；`analysis.sqlite` 的完整历史运行保持现状，不由本层管理。
 - 与“分析审计包”的边界：快照的**内容与持久化模式**（哪些指标增量更新、按会话 / 按日分片缓存、`signal / problem / profile` 派生表）归分析审计包；本层只约定接口（§5.3 依赖 A1–A3）并提供默认实现（调用现有 `analyze_store` + `response_section`）。
@@ -249,7 +249,7 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 - **触发**：每次 `data.published`（去抖 30 s；`head / window` 批次只预热轻量 section）；来源启停、设置变更；用户请求未命中（interactive，最高优先）；`POST /v1/analytics/recompute {sections, scope}` 手动。
 - **预热范围**：导入发布后（去抖 30 s）与有数据时 gateway 启动后，按 7 天 → 30 天 → 全部的窗口梯度，每个窗口先算 `uiview_facts`（一次完整分析），再算轻量 section（此时多为 analysis.sqlite 缓存读取）；然后是设置中的默认范围（若不在梯度内）与最近 5 个 MRU 范围；`rest` 全量批次后再算重型 section 与推荐输入。范围按路由同样方式构建（MRU 里的客户端时区、默认来源、持久排除），快照键与请求一致。重型 section 标注 `cost: heavy`，UI 进入对应页面时才升为 interactive。
 - **缓存共享**：`with_text=True` 的完整计算会把与文本无关的 section（overview/tools/workflow/bottleneck_features/tasks/instruction/lexical）连同元数据一并写入 `with_text=False` 键，作为依赖算出的 section 也全部落盘；同一窗口只冷算一次。
-- **成本控制**：prewarm 以较低 OS 优先级运行（`setpriority`）、单并发；interactive 到来时抢占当前 prewarm，被抢占的 prewarm 回到队尾（至多 2 次）；冷算进程池默认最多 4 个子进程（`TANDEM_ANALYSIS_WORKERS` 覆盖），选区超过 15 万事件时不起进程池（`TANDEM_ANALYSIS_PARALLEL_MAX_EVENTS`），避免子进程各持一份分片把进程树推到十几 GB；用户正在拖动筛选时合并为最后一个 Scope。
+- **成本控制**：prewarm 以较低 OS 优先级运行（`setpriority`）、单并发；interactive 到来时抢占当前 prewarm，被抢占的 prewarm 回到队尾（至多 2 次）；冷算进程池默认最多 4 个子进程（`ORBIT_ANALYSIS_WORKERS` 覆盖），选区超过 15 万事件时不起进程池（`ORBIT_ANALYSIS_PARALLEL_MAX_EVENTS`），避免子进程各持一份分片把进程树推到十几 GB；用户正在拖动筛选时合并为最后一个 Scope。
 - **更新**：按 `data_rev` 整体失效是 MVP 的保守默认；分析审计包若提供按会话 / 按日增量，则把“失效”收窄为受影响的快照，网关接口不变（只是 `rev` 更细）。
 
 ### 4.4 超时与降级
@@ -279,8 +279,8 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 
 | 包 | 内容 | 文件边界（不重叠） | effort |
 | --- | --- | --- | --- |
-| **A. 服务层** | gateway、监管、worker 协议、任务与进度、SSE、快照读写与 ETag、`/v1/status`、`/v1/app/*`、分析与列表路由 | 仅 `packages/backend/src/tandem_backend/services/**`、`packages/backend/tests/services/**`、`packages/backend/pyproject.toml`（入口脚本）、`docs/architecture/app-services.md`；**不改** `api/routes.py`、`packages/data/**`、`analytics/**` | high |
-| **B. 前端适配层** | `TandemLive`、同步脚本、Lite / Advance 绑定与状态组件、单元与浏览器检查 | 仅 `prototypes/shared/**`（新）、`prototypes/lite/**`、`prototypes/advance/**`（Advance 仅新增 `src/js` 文件并重建 `tandem-demo.html`，对既有文件至多一行挂钩） | medium |
+| **A. 服务层** | gateway、监管、worker 协议、任务与进度、SSE、快照读写与 ETag、`/v1/status`、`/v1/app/*`、分析与列表路由 | 仅 `packages/backend/src/orbit_backend/services/**`、`packages/backend/tests/services/**`、`packages/backend/pyproject.toml`（入口脚本）、`docs/architecture/app-services.md`；**不改** `api/routes.py`、`packages/data/**`、`analytics/**` | high |
+| **B. 前端适配层** | `OrbitLive`、同步脚本、Lite / Advance 绑定与状态组件、单元与浏览器检查 | 仅 `prototypes/shared/**`（新）、`prototypes/lite/**`、`prototypes/advance/**`（Advance 仅新增 `src/js` 文件并重建 `orbit-demo.html`，对既有文件至多一行挂钩） | medium |
 
 两包之间只通过本文的 JSON 约定耦合：B 用手写夹具（`prototypes/shared/fixtures/`）按 §3.1–3.4 的形状做测试，A 用 TestClient 验证形状；合并后再做一次端到端联调（A 的 gateway + B 的适配层，合成数据）。
 
@@ -320,26 +320,26 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 
 ## 7. 实现说明
 
-服务层位于 `packages/backend/src/tandem_backend/services/`，入口 `python -m tandem_backend.services gateway | worker ingest | worker analysis`（安装后为 `tandem-helper`，冻结后以 `<可执行文件> worker <role>` 拉起 worker）。`--home` 覆盖数据目录，默认沿用 `tandem_data.paths.default_home()`。
+服务层位于 `packages/backend/src/orbit_backend/services/`，入口 `python -m orbit_backend.services gateway | worker ingest | worker analysis`（安装后为 `orbit-helper`，冻结后以 `<可执行文件> worker <role>` 拉起 worker）。`--home` 覆盖数据目录，默认沿用 `orbit_data.paths.default_home()`。
 
 ### 7.1 模块
 
 | 模块 | 职责 |
 | --- | --- |
-| [`gateway.py`](../../packages/backend/src/tandem_backend/services/gateway.py) | 组装 FastAPI：自身路由先注册，`mount("/")` 懒加载回落 `create_app()`（无库时回 `503 no_projection`），lifespan 中转发其 shutdown；内存中的 `Revisions`（`data_rev / inventory_rev / counts`，启动时读一次库，之后只由 worker 的 `published` 更新）；去抖预热；持续同步轮询；`run_gateway` 绑定随机端口、stdout 首行打印 `{"port":N}`、`TANDEM_PARENT_PID` 看门 |
-| [`auth.py`](../../packages/backend/src/tandem_backend/services/auth.py) | 纯 ASGI 中间件（不缓冲 SSE）：Host 必须是本机回环加端口，Origin 若存在必须同源，`Authorization: Bearer`（`TANDEM_API_TOKEN` ≥ 32 字符，常量时间比较）；所有响应追加 `Cache-Control: no-store`、`nosniff`、`X-Frame-Options: DENY`、CSP 等；`ApiError` 统一错误体 |
-| [`supervisor.py`](../../packages/backend/src/tandem_backend/services/supervisor.py) | `WorkerProcess`（懒启动、心跳看门、退避重启、`degraded`）；`IngestRunner`（`JobRunner` 的 worker 实现，退避窗口内提交的任务在重新拉起后下发）；`AnalysisQueue`（`interactive > prewarm` 优先级、同键合并、崩溃重排一次、超时、熔断、RSS 回收、空闲回收、interactive 运行时暂停 ingest 的 rest 批次） |
-| [`worker_protocol.py`](../../packages/backend/src/tandem_backend/services/worker_protocol.py) | stdio JSON Lines；worker 的 fd 1 专供协议，库的 `print` 改走 stderr（写入 `logs/<role>.log`） |
-| [`worker_ingest.py`](../../packages/backend/src/tandem_backend/services/worker_ingest.py) / [`ingest_plan.py`](../../packages/backend/src/tandem_backend/services/ingest_plan.py) | 唯一写者；`phase=auto` 时按 mtime 切 head / window / rest，每批经 `ImportRequest.files` 调 `ImportService` 并回报新 `data_rev`；rest 按块（默认 200 个文件）在块间可暂停；取消在文件边界生效 |
-| [`worker_analysis.py`](../../packages/backend/src/tandem_backend/services/worker_analysis.py) / [`sections.py`](../../packages/backend/src/tandem_backend/services/sections.py) | 按 `SECTIONS` 注册表计算；同一 worker 内对同一 `(scope, with_text, rev)` 复用最近两次完整分析，避免各 section 重复跑整包；错误分类为 `not_found / invalid_request / analysis_scope_too_large / projection_pending / analysis_failed` |
-| [`snapshots.py`](../../packages/backend/src/tandem_backend/services/snapshots.py) | 快照键、内存 LRU 与 `cache/ui.sqlite`；损坏的缓存文件直接重建 |
-| [`jobs.py`](../../packages/backend/src/tandem_backend/services/jobs.py) | `AppState` 与 `JobService`；逐文件进度合并为“阶段变化或每 0.25 s 一帧”，避免一次导入挤满 1000 帧缓冲 |
-| [`events.py`](../../packages/backend/src/tandem_backend/services/events.py) | SSE 总线；`Last-Event-ID` 早于缓冲时先发无 id 的 `resync` 帧 |
-| [`routes_data.py`](../../packages/backend/src/tandem_backend/services/routes_data.py) / [`routes_app.py`](../../packages/backend/src/tandem_backend/services/routes_app.py) / [`routes_analytics.py`](../../packages/backend/src/tandem_backend/services/routes_analytics.py) | 直读、`/v1/app/*` 与 `/v1/events`、快照分析路由与 `POST /v1/analytics/recompute` |
+| [`gateway.py`](../../packages/backend/src/orbit_backend/services/gateway.py) | 组装 FastAPI：自身路由先注册，`mount("/")` 懒加载回落 `create_app()`（无库时回 `503 no_projection`），lifespan 中转发其 shutdown；内存中的 `Revisions`（`data_rev / inventory_rev / counts`，启动时读一次库，之后只由 worker 的 `published` 更新）；去抖预热；持续同步轮询；`run_gateway` 绑定随机端口、stdout 首行打印 `{"port":N}`、`ORBIT_PARENT_PID` 看门 |
+| [`auth.py`](../../packages/backend/src/orbit_backend/services/auth.py) | 纯 ASGI 中间件（不缓冲 SSE）：Host 必须是本机回环加端口，Origin 若存在必须同源，`Authorization: Bearer`（`ORBIT_API_TOKEN` ≥ 32 字符，常量时间比较）；所有响应追加 `Cache-Control: no-store`、`nosniff`、`X-Frame-Options: DENY`、CSP 等；`ApiError` 统一错误体 |
+| [`supervisor.py`](../../packages/backend/src/orbit_backend/services/supervisor.py) | `WorkerProcess`（懒启动、心跳看门、退避重启、`degraded`）；`IngestRunner`（`JobRunner` 的 worker 实现，退避窗口内提交的任务在重新拉起后下发）；`AnalysisQueue`（`interactive > prewarm` 优先级、同键合并、崩溃重排一次、超时、熔断、RSS 回收、空闲回收、interactive 运行时暂停 ingest 的 rest 批次） |
+| [`worker_protocol.py`](../../packages/backend/src/orbit_backend/services/worker_protocol.py) | stdio JSON Lines；worker 的 fd 1 专供协议，库的 `print` 改走 stderr（写入 `logs/<role>.log`） |
+| [`worker_ingest.py`](../../packages/backend/src/orbit_backend/services/worker_ingest.py) / [`ingest_plan.py`](../../packages/backend/src/orbit_backend/services/ingest_plan.py) | 唯一写者；`phase=auto` 时按 mtime 切 head / window / rest，每批经 `ImportRequest.files` 调 `ImportService` 并回报新 `data_rev`；rest 按块（默认 200 个文件）在块间可暂停；取消在文件边界生效 |
+| [`worker_analysis.py`](../../packages/backend/src/orbit_backend/services/worker_analysis.py) / [`sections.py`](../../packages/backend/src/orbit_backend/services/sections.py) | 按 `SECTIONS` 注册表计算；同一 worker 内对同一 `(scope, with_text, rev)` 复用最近两次完整分析，避免各 section 重复跑整包；错误分类为 `not_found / invalid_request / analysis_scope_too_large / projection_pending / analysis_failed` |
+| [`snapshots.py`](../../packages/backend/src/orbit_backend/services/snapshots.py) | 快照键、内存 LRU 与 `cache/ui.sqlite`；损坏的缓存文件直接重建 |
+| [`jobs.py`](../../packages/backend/src/orbit_backend/services/jobs.py) | `AppState` 与 `JobService`；逐文件进度合并为“阶段变化或每 0.25 s 一帧”，避免一次导入挤满 1000 帧缓冲 |
+| [`events.py`](../../packages/backend/src/orbit_backend/services/events.py) | SSE 总线；`Last-Event-ID` 早于缓冲时先发无 id 的 `resync` 帧 |
+| [`routes_data.py`](../../packages/backend/src/orbit_backend/services/routes_data.py) / [`routes_app.py`](../../packages/backend/src/orbit_backend/services/routes_app.py) / [`routes_analytics.py`](../../packages/backend/src/orbit_backend/services/routes_analytics.py) | 直读、`/v1/app/*` 与 `/v1/events`、快照分析路由与 `POST /v1/analytics/recompute` |
 
 ### 7.2 接口与已定取舍
 
-- 直读：`/v1/status`、`/health` 只读内存；`/v1/sessions`（保持既有列表形状，总数放 `X-Total-Count`）、`/v1/sessions/{id}/events`、`/v1/projects`、`/v1/sources`、`/v1/inventory` 用每线程一个 `mode=ro` 连接。`/v1/projects` 改为直读 `[{project_id, name, sessions, sessions_all, last_started_at}]`，不再在请求路径上跑 `profiling.analyze`；`sessions` 只计 main 会话，与 `/v1/sessions?project_id=` 默认的 `X-Total-Count` 一致，`sessions_all` 计全部 kind；没有会话的项目默认隐藏（`include_empty=true` 列出），重名项目后缀父目录。`/v1/sessions` 列表项为 `{id, title, project_id, project, model, started_at, kind, agent}`，`model` 取会话中最常用的模型调用，`kind` 参数默认 `main`，`all` 或逗号列表放宽，非法值 `422 invalid_kind`。投影待重建时同一请求的上一份结果带 `X-Tandem-Freshness: stale` 返回，否则 `503 projection_pending` + `Retry-After`。首次导入前尚无 tandem.db 属于“空”而非“暂不可用”：列表与汇总直读（含 `/v1/analytics/tool_calls`、`/v1/uiview/{sessions,projects,sentiment}`）在内存中的空 canonical schema 上照常查询，返回与有数据时同形的 `200`，带 `X-Tandem-Freshness: none`，对象体另加 `meta.freshness:"none"`、`meta.reason:"no_projection"`；按 id 查询返回 `404`；空结果不进响应缓存，首次导入发布期间仍是 `503 projection_pending`。
+- 直读：`/v1/status`、`/health` 只读内存；`/v1/sessions`（保持既有列表形状，总数放 `X-Total-Count`）、`/v1/sessions/{id}/events`、`/v1/projects`、`/v1/sources`、`/v1/inventory` 用每线程一个 `mode=ro` 连接。`/v1/projects` 改为直读 `[{project_id, name, sessions, sessions_all, last_started_at}]`，不再在请求路径上跑 `profiling.analyze`；`sessions` 只计 main 会话，与 `/v1/sessions?project_id=` 默认的 `X-Total-Count` 一致，`sessions_all` 计全部 kind；没有会话的项目默认隐藏（`include_empty=true` 列出），重名项目后缀父目录。`/v1/sessions` 列表项为 `{id, title, project_id, project, model, started_at, kind, agent}`，`model` 取会话中最常用的模型调用，`kind` 参数默认 `main`，`all` 或逗号列表放宽，非法值 `422 invalid_kind`。投影待重建时同一请求的上一份结果带 `X-Orbit-Freshness: stale` 返回，否则 `503 projection_pending` + `Retry-After`。首次导入前尚无 orbit.db 属于“空”而非“暂不可用”：列表与汇总直读（含 `/v1/analytics/tool_calls`、`/v1/uiview/{sessions,projects,sentiment}`）在内存中的空 canonical schema 上照常查询，返回与有数据时同形的 `200`，带 `X-Orbit-Freshness: none`，对象体另加 `meta.freshness:"none"`、`meta.reason:"no_projection"`；按 id 查询返回 `404`；空结果不进响应缓存，首次导入发布期间仍是 `503 projection_pending`。
 - 分析：`/v1/analytics/{overview,sessions,sessions/{id},tools,projects,text,tasks,preferences,instruction}` 走 §4.2。原先落到 `create_app()`、在网关进程内同步计算的重型路由也改走 §4.2 的 analysis worker：`statistics`、`lexical`、`bottleneck`、`presentation`、`recommendations`（GET/POST）、`products`（`sessions` 按 `offset/limit` 分页）、`products/sessions` 与 `products/compare`（复用 products 快照，网关只做搜索分页与对比）、`POST /v1/analytics/compare`、`/v1/analysis`、`/v1/catalog/match-analysis`（worker 产出匹配请求，目录匹配仍在网关）。这些段只按需计算、不预热；`products`、`presentation`、`compare` 预算 1800 s，其余按轻量 / 重型预算；失败一次即熔断，同一数据版本下直接返回 `503 analysis_unavailable`（消息带 `timeout` 等原因），数据变化或手动 recompute 才重算。202 所带 `job_id` 可用 `GET /v1/analytics/jobs/{job_id}` 查询 `queued / running / completed / failed` 与错误码。`/v1/analytics/runs*` 仍由 `create_app()` 提供（只读分析历史）。
 - 载荷：分析段的 `sample_boundary` 只带 `file_count` 与 `files_digest`，文件清单改由 `GET /v1/analytics/sample_files?offset&limit≤1000` 分页提供。`/v1/sessions/{id}/events`（默认 `max_chars=8000`）与 `/v1/evidence/{event_id}`（网关直读，默认 64000）截断超长 `text` 与 `details` 字符串，标出 `truncated`、`truncated_fields` 与 `text_range{offset,length,total}`；全文用 `?text_offset=&max_chars=`（≤ 4,000,000）按区间读取。会话列表快照只存紧凑摘要行，分页在 gateway 做，ETag 的 section 段带 `[offset:limit]`。`preferences?task_id=` 与会话详情把参数并入 `scope_hash`。
 - 快照失效按 `(data_rev, inventory_rev)` 整体判断；导入进行中命中旧快照时仍会排队重算（同键合并），去抖只作用于预热。预热范围见 §4.3（7 / 30 / 全部窗口梯度、默认范围、最近 5 个 MRU 范围）；head / window 批次不预热重型 section。
@@ -350,13 +350,13 @@ GET /v1/analytics/{section}?scope…            （wait_ms 默认 0；适配层�
 
 | 项 | 默认 | 说明 |
 | --- | --- | --- |
-| `heartbeat_s` / `stale_s` | 5 / 15 | worker 心跳间隔与判定卡死阈值（经 `TANDEM_WORKER_HEARTBEAT_S` 传给 worker） |
+| `heartbeat_s` / `stale_s` | 5 / 15 | worker 心跳间隔与判定卡死阈值（经 `ORBIT_WORKER_HEARTBEAT_S` 传给 worker） |
 | `backoff_s` / `max_restarts` / `restart_window_s` | 0.5,1,2,4 / 5 / 60 | 崩溃重启退避；窗口内超过次数进入 `degraded`，用户提交导入或重试时复位 |
 | `light_timeout_s` / `heavy_timeout_s` | 60 / 120 | 分析超时；按 section 的 `cost` 选择 |
 | `max_failures` | 3 | 同 `(section, scope_hash)` 在同一版本下的熔断阈值；数据版本变化或 `recompute` 解除 |
 | `rss_limit_bytes` / `analysis_idle_s` | 1.5 GB / 300 | analysis worker 回收条件 |
 | `plan` | `{}` | 传给 `plan_batches` 的覆盖（`head_sessions`、`head_days`、`window_days`、`rest_chunk`） |
-| `worker_env` | `{}` | 额外环境变量；`TANDEM_ANALYSIS_MAX_EVENTS` 设定分析事件预算，`TANDEM_WORKER_DEBUG_DELAY_MS` 仅供测试拉宽竞态窗口 |
+| `worker_env` | `{}` | 额外环境变量；`ORBIT_ANALYSIS_MAX_EVENTS` 设定分析事件预算，`ORBIT_WORKER_DEBUG_DELAY_MS` 仅供测试拉宽竞态窗口 |
 
 ### 7.4 验证与基准
 

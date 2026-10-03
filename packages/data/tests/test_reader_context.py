@@ -1,8 +1,8 @@
 """Cross-turn evidence and role preservation at the canonical application boundary."""
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
 
 def test_later_turn_tool_result_cannot_leak_into_historical_snapshot(tmp_path):

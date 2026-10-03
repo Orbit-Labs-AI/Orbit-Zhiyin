@@ -41,10 +41,11 @@ function peScopeTag(per) {
   const same = (S.persona.period === '90' && S.range === 90) || (S.persona.period === 'all' && S.range === 0);
   return '<span class="cap pe-scope" data-pe-scope title="协作人格按本页的统计周期计算；概览人格卡跟随全局范围">统计周期 · ' + per[2] + (same ? '' : '（本页单独设置，全局为' + rangeLabel() + '）') + '</span>';
 }
-// 罗盘几何（400 视框，圆心 200）：外框 196、轨道基线 R0 与最大起伏 RH、内盘 90、花的最大半径 RR、花苞比例 BUD（Genesis 01–02
-// 花合拢旋转，03 开花）、首次启动 Orbit 内弧收拢成的领瓣长度 NL、徽章离轨道峰线的距离 PG。Genesis（56-onboarding.js）的粒子落点、
-// 环带扫描与开花共用这一组常量。
-const FPG = { R0: 100, RH: 58, RR: 80, BUD: 0.34, NL: 56, PG: 15 };
+// 罗盘几何（400 视框，圆心 200）：外框 196（刻度贴着它向内）、轨道基线 R0、最大起伏 RH 与谷底的最小厚度 HM、花的最大半径 RR、
+// 花苞比例 BUD（Genesis 01–02 花合拢旋转，03 开花）、首次启动 Orbit 内弧收拢成的领瓣长度 NL、Agent 徽章的轨道半径 PR 与徽章
+// 半径 PB（PR − PB − 描边 > 色带最高处 R0 + 1 + RH，PR + PB + 描边 < 型分界刻度的内端 189.5）。Genesis（56-onboarding.js）的
+// 粒子落点、环带扫描与开花共用这一组常量。
+const FPG = { R0: 104, RH: 64, HM: 4, RR: 80, BUD: 0.34, NL: 56, PR: 179.5, PB: 9 };
 let FP_UID = 0;
 // 表盘按 16 型排布：格雷码顺序（相邻两型只差一个字母，与宣传片一致），每型 22.5°，DIMV 在 12 点右侧。这样排下来，右半圈全是
 // 委托 D、左半圈全是掌舵 S，上半圈全是即兴 I、下半圈全是规划 P，表盘四个方位只需标这四个字；多线 / 专注、求证 / 信任在象限里交替
@@ -91,43 +92,46 @@ function fpClassify(L) {
   });
   return { by, byT };
 }
-// 轨道（学宣传片的极光）：每个会话在它的方位上放一个高斯核（σ = 8°），按 Agent 分别累加成密度；总密度经 0.8 次方压缩成起伏
-// 高度 H（低处也看得见），每个 Agent 按它在该方位的占比分得 H 的一段，自下而上叠成几条嵌套的细曲线——两条线之间的色带越宽，
-// 该方位上这个 Agent 的会话占比越高。每 2.5° 采样，画成闭合的 Catmull-Rom 曲线。
-// 徽章：每个有会话的 Agent 一枚 Agent 标志，停在它会话最多的那一型的方位、轨道外缘之外；与别的徽章或四个方位字相碰时沿轨道错开。
+// 轨道（学宣传片的极光环带）：每个会话在它的方位上放一个高斯核（σ = 8°），总密度经 0.9 次方略压缩成起伏高度 H——谷底留一层
+// HM 厚的底，峰高到 RH，几个峰之间的谷看得清。每个 Agent 按它在该方位附近的占比（σ = 18° 的宽核，谷里不会因为一两个会话
+// 跳色）分得 H 的一段，自基线向外叠成几条色带，每条色带外缘一条细线——色带越宽，该方位上这个 Agent 的会话占比越高。
+// 每 2.5° 采样，画成闭合的 Catmull-Rom 曲线。
+// 徽章：每个有会话的 Agent 一枚 Agent 标志，表示这个 Agent 的总体平均方向——它在当前筛选里全部会话方位（与色带密度同一组
+// 连续方位）的圆周平均，不吸附到扇区中线，也不找峰：色带是逐个会话的分布，平均方向一般不在峰上。所有徽章停在同一条轨道
+// FPG.PR 上（色带最高处之外、外框刻度之内，像同一轨道上的行星），不会压在曲线峰顶；与别的徽章或四个方位字相碰时，沿轨道
+// 以最小的角度错开（真实平均方向留在 mean / data-mean，提示里报它所在的类型）。
 const FP_N = 144;
 const fpPt = (r, deg) => { const a = deg * Math.PI / 180; return [200 + r * Math.sin(a), 200 - r * Math.cos(a)]; };
-function fpOrbit(L, cls) {
-  const N = FP_N, SIG = 8, idx = AG.map(() => []), dens = AG.map(() => new Float64Array(N + 1));
+function fpOrbit(L, cls, sm) {
+  const N = FP_N, idx = AG.map(() => []);
   L.forEach((s) => { const i = AG.findIndex((a) => a.id === s.a); if (i >= 0) idx[i].push(cls.by[s.id].a); });
-  idx.forEach((as, i) => { for (let k = 0; k <= N; k++) { const th = k / N * 360; let v = 0; as.forEach((a) => { const d = ((th - a) % 360 + 540) % 360 - 180; v += Math.exp(-d * d / (2 * SIG * SIG)); }); dens[i][k] = v; } });
-  const tot = Array.from({ length: N + 1 }, (_, k) => dens.reduce((x, d) => x + d[k], 0)), mx = Math.max(1e-9, ...tot);
-  const H = tot.map((v) => 3 + (FPG.RH - 3) * Math.pow(v / mx, 0.8));
+  const kde = (sig) => idx.map((as) => { const d = new Float64Array(N + 1); for (let k = 0; k <= N; k++) { const th = k / N * 360; let v = 0; as.forEach((a) => { const x = ((th - a) % 360 + 540) % 360 - 180; v += Math.exp(-x * x / (2 * sig * sig)); }); d[k] = v; } return d; });
+  const dens = kde(8), mix = kde(18), sum = (ds, k) => ds.reduce((x, d) => x + d[k], 0);
+  const tot = Array.from({ length: N + 1 }, (_, k) => sum(dens, k)), mx = Math.max(1e-9, ...tot), totM = Array.from({ length: N + 1 }, (_, k) => sum(mix, k));
+  const all = idx.map((as) => as.length), allN = all.reduce((x, y) => x + y, 0);
+  const H = tot.map((v) => FPG.HM + (FPG.RH - FPG.HM) * Math.pow(v / mx, 0.9));
   const cum = new Array(N + 1).fill(0), layers = [];
   AG.forEach((ag, i) => {
     const inner = cum.slice();
-    for (let k = 0; k <= N; k++) cum[k] += tot[k] > 1e-9 ? H[k] * dens[i][k] / tot[k] : (i === 0 ? H[k] : 0);
+    for (let k = 0; k <= N; k++) cum[k] += H[k] * (totM[k] > 1e-9 ? mix[i][k] / totM[k] : allN ? all[i] / allN : 0);
     layers.push({ a: ag, inner, outer: cum.slice(), n: idx[i].length });
   });
-  const hAt = (deg) => H[Math.round((((deg % 360) + 360) % 360) / 360 * N)];
+  // 徽章的真实方向：该 Agent 全部会话方位的圆周平均（单位向量求和再取角）；提示里的类型是这个方向落在的扇区
   const planets = AG.map((ag, i) => {
-    const n = idx[i].length; if (!n) return null;
-    const c = cls.byT.map((xs) => xs.filter((s) => s.a === ag.id).length); let t = 0; c.forEach((x, k) => { if (x > c[t]) t = k; });
-    return { a: ag, n, k: c[t], t, code: FP_TYPES[t], deg: t * 22.5 + 11.25, r: 0 };
+    const as = idx[i], n = as.length; if (!n) return null;
+    let sx = 0, sy = 0; as.forEach((a) => { sx += Math.sin(a * Math.PI / 180); sy += Math.cos(a * Math.PI / 180); });
+    const mean = +(((Math.atan2(sx, sy) * 180 / Math.PI) % 360 + 360) % 360).toFixed(1), t = Math.floor(mean / 22.5) % 16;
+    return { a: ag, n, mean, t, code: FP_TYPES[t], deg: mean, r: FPG.PR };
   }).filter(Boolean);
-  // 由多到少放置：先试本型中线，再在本扇区内左右挪（±7°），仍挤就往外一圈；与四个方位字（177）保持距离
-  const BR = 10.5, xy = (x) => fpPt(x.r, x.deg), placed = [];
-  const lbls = FP_POLES.map((q) => fpPt(177, q[0]));
+  // 由多到少放置：先放在真实平均方向上；与已放的徽章或四个方位字（按文字框算）相碰时，沿轨道两侧各试 0.5°、1°、1.5°…
+  // 取最小的错开
+  const BO = FPG.PB + 0.6, xy = (deg) => fpPt(FPG.PR, deg), placed = [];
+  const lbls = FP_POLES.map((q) => { const fs = sm ? 14 : 11.5; return { p: fpPt(sm ? 173 : 177, q[0]), w: fs * q[1].length / 2 + 1, h: fs / 2 + 1 }; });
+  const free = (deg) => { const p0 = xy(deg); return placed.every((y) => { const q = xy(y.deg); return Math.hypot(p0[0] - q[0], p0[1] - q[1]) >= BO * 2 + 2; }) &&
+    lbls.every((b) => Math.hypot(Math.max(0, Math.abs(p0[0] - b.p[0]) - b.w), Math.max(0, Math.abs(p0[1] - b.p[1]) - b.h)) >= BO + 2); };
   planets.slice().sort((a, b) => b.n - a.n).forEach((x) => {
-    const c0 = x.deg; let ok = false;
-    for (const dr of [0, 14, 28]) {
-      for (const dd of [0, -6, 6, -9, 9]) {
-        x.deg = c0 + dd; x.r = Math.min(184, FPG.R0 + 1 + hAt(x.deg) + FPG.PG + dr); const p0 = xy(x);
-        if (placed.every((y) => { const q = xy(y); return Math.hypot(p0[0] - q[0], p0[1] - q[1]) >= BR * 2 + 2; }) && lbls.every((q) => Math.hypot(p0[0] - q[0], p0[1] - q[1]) >= 22)) { ok = true; break; }
-      }
-      if (ok) break;
-    }
-    x.deg = +(((x.deg % 360) + 360) % 360).toFixed(1); placed.push(x);
+    let d = 0; for (let k = 0; k <= 360; k++) { const o = k * 0.5; if (free(x.mean + o)) { d = o; break; } if (k && free(x.mean - o)) { d = -o; break; } }
+    x.deg = +((((x.mean + d) % 360) + 360) % 360).toFixed(1); placed.push(x);
   });
   return { layers, planets, H };
 }
@@ -147,25 +151,27 @@ function fpCR(edge, rev, head) {
 const fpEdgeD = (edge) => fpCR(edge, false, 'M') + 'Z';
 // 一层的色带：外缘顺时针，内缘逆时针收口
 const fpLayerD = (ly) => fpCR(ly.outer, false, 'M') + fpCR(ly.inner, true, 'L') + 'Z';
-// 暖纸底上的轨道用低饱和的 Agent 色：识别色只占三成左右，其余是主题里的暖灰（--h2 填充、--h4 细线），亮暗两套主题都沉稳
+// 暖纸底上的轨道用低饱和的 Agent 色：识别色只占三成左右，其余是主题里的暖灰（填充混 --fp-base、细线混 --h4），亮暗两套主题都
+// 沉稳。色带的底色与不透明度 --fp-base / --fp-bo 在 42-a2-persona.css
 const fpMute = (c, k) => 'color-mix(in oklab, ' + c + ' ' + (k || 46) + '%, var(--h3))';
-const fpFill = (c) => 'color-mix(in oklab, ' + c + ' 30%, var(--h2))';
+const fpFill = (c) => 'color-mix(in oklab, ' + c + ' 28%, var(--fp-base))';
 const fpLine = (c) => 'color-mix(in oklab, ' + c + ' 38%, var(--h4))';
-// 协作指纹 · Orbit 罗盘：表盘没有底色，直接落在页面纸面上。外框是一圈细线与 64 道刻度（16 型的分界稍长），四个方位只标
+// 协作指纹 · Orbit 罗盘：表盘没有底色，直接落在页面纸面上。外框是一圈细线与 128 道细刻度（16 型的分界稍长），四个方位只标
 // 即兴 / 委托 / 规划 / 掌舵，你的类型有 --orbit 基准三角；轨道是每个会话按自己四个维度落到的方位的密度（每个 Agent 一条
 // 色带 + 一条细线），上有 16 个透明的类型热区（选中展开该型会话的 Agent 标志）与 Agent 标志徽章；内盘是协作人格的花，
 // 整朵花旋转（--hd），领瓣指向你的类型。环带的 .fp-sweep 遮罩与徽章的 --pa 留给入场动画。
 function fp2SVG(L, p, size, opt) {
   opt = opt || {}; const C = 200; const R0 = FPG.R0, RH = FPG.RH, RR = FPG.RR; const sm = size < 340; const uid = 'fpm' + (++FP_UID);
-  const cls = fpClassify(L), byT = cls.byT, orb = fpOrbit(L, cls);
+  const cls = fpClassify(L), byT = cls.byT, orb = fpOrbit(L, cls, sm);
   const code = bloomCode(p), mine = fpTypeIdx(code), hd = mine >= 0 ? (mine + 0.5) * 22.5 : 0;
   CUR.fp = { byT, cls, n: L.length, pl: orb.planets, H: orb.H };
   const f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1);
   const sector = (r0, r1, d0, d1) => { const p0 = fpPt(r0, d0), p1 = fpPt(r1, d0), p2 = fpPt(r1, d1), p3 = fpPt(r0, d1); return 'M' + f(p0) + 'L' + f(p1) + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + f(p2) + 'L' + f(p3) + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + f(p0) + 'Z'; };
   const sel = opt.interactive ? S.persona.fpType : null, RO = R0 + RH + 6;   // 只有可交互的表盘（画像页）展开选中的类型；Lite / Genesis 的表盘不带选中态
-  // 轨道：每个 Agent 一条色带（低饱和，向内渐隐，像极光的身体）+ 外缘一条细线（像宣传片里嵌套的极光细线）。没有底盘与光晕
+  // 轨道：每个 Agent 一条有厚度的色带（低饱和，只占它在叠层里的那一段）+ 外缘一条细线（像宣传片里嵌套的极光细线）。
+  // 基线以内与色带之外什么都不画：没有底盘、灰色衬带、渐变与光晕，花直接落在纸面上
   const lys = orb.layers.filter((ly) => ly.n);
-  const orbG = '<g class="fp-orbw"><g class="fp-orb" id="' + uid + 'o" mask="url(#' + uid + ')"><g class="fp-body" mask="url(#' + uid + 'f)">' +
+  const orbG = '<g class="fp-orbw"><g class="fp-orb" id="' + uid + 'o" mask="url(#' + uid + ')"><g class="fp-body">' +
     lys.map((ly) => '<path class="fpo" data-a="' + ly.a.id + '" d="' + fpLayerD(ly) + '" fill="' + fpFill(ly.a.c) + '"/>').join('') + '</g>' +
     lys.map((ly) => '<path class="fpc" data-a="' + ly.a.id + '" d="' + fpEdgeD(ly.outer) + '" fill="none" stroke="' + fpLine(ly.a.c) + '" stroke-width=".9" stroke-linejoin="round"/>').join('') + '</g></g>';
   // 选中一型：整条轨道变淡，只把该型扇区里的那一段按原样再画一遍
@@ -191,10 +197,12 @@ function fp2SVG(L, p, size, opt) {
       i += row.length; r += GAP;
     }
   }
-  // 徽章：画在 (200, 200 − r)，外层按 --pa 旋转到位，标志本身反向转回保持正立；纸色圆底 + 低饱和细环 + 标志
-  const planets = '<g class="fp-pls">' + orb.planets.map((x) => '<g class="fp-pl" data-a="' + x.a.id + '" data-pa="' + x.deg + '" style="--pa:' + x.deg + 'deg"' + (opt.interactive ? ' data-tf="fpp|' + x.a.id + '"' : '') + '><g class="fp-pd">' + agLogo(x.a.id, 200, +(C - x.r).toFixed(1), 9.5, fpLine(x.a.c), 'var(--bg)') + '</g></g>').join('') + '</g>';
-  // 外框：一圈细线 + 64 道刻度（每型 4 道，型与型的分界稍长，四个方位最长），四个方位各一个字；外侧基准三角（--orbit）指向你的类型
-  const tk = ['', '', '']; for (let i = 0; i < 64; i++) { const w = i % 16 === 0 ? 2 : i % 4 === 0 ? 1 : 0; tk[w] += 'M' + f(fpPt(196, i * 5.625)) + 'L' + f(fpPt([193, 190, 186][w], i * 5.625)); }
+  // 徽章：画在 (200, 200 − PR)，外层按 --pa（错开后的画出方位；真实平均方向在 data-mean）旋转到位，标志本身反向转回保持
+  // 正立；纸色圆底 + 低饱和细环 + 标志
+  const planets = '<g class="fp-pls">' + orb.planets.map((x) => '<g class="fp-pl" data-a="' + x.a.id + '" data-pa="' + x.deg + '" data-mean="' + x.mean + '" style="--pa:' + x.deg + 'deg"' + (opt.interactive ? ' data-tf="fpp|' + x.a.id + '"' : '') + '><g class="fp-pd">' + agLogo(x.a.id, 200, +(C - x.r).toFixed(1), FPG.PB, fpLine(x.a.c), 'var(--bg)') + '</g></g>').join('') + '</g>';
+  // 外框：一圈细线 + 贴着它向内的 128 道细刻度（每型 8 道，型与型的分界稍长，四个方位最长），四个方位各一个字；外侧基准三角
+  // （--orbit）指向你的类型
+  const tk = ['', '', '']; for (let i = 0; i < 128; i++) { const w = i % 32 === 0 ? 2 : i % 8 === 0 ? 1 : 0; tk[w] += 'M' + f(fpPt(196, i * 2.8125)) + 'L' + f(fpPt([192.5, 189.5, 185][w], i * 2.8125)); }
   const lbl = FP_POLES.map((x) => { const q = fpPt(sm ? 173 : 177, x[0]); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (sm ? 14 : 11.5) + '" font-weight="600" fill="var(--ink-2)">' + x[1] + '</text>'; }).join('');
   // 内盘：协作人格的花。.fp-flower（Genesis 淡入）› .fp-bloom（--hd 旋转，Genesis 逐帧写）› .fp-bd（入场晃动、悬停轻颤）›
   // .fp-back 后排 / .fp-front 领瓣、前排与花心（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
@@ -203,22 +211,20 @@ function fp2SVG(L, p, size, opt) {
   const flower = '<g class="fp-flower" data-code="' + (p.code || code) + '"><g class="fp-bloom" data-hd="' + hd + '" style="--hd:' + hd + 'deg"><title>你的类型 ' + code + ' ' + (TYPES[code] ? TYPES[code][0] : '') + '</title><g class="fp-bd">' +
     (lay.back ? '<g class="fp-pw fp-back">' + lay.back + '</g>' : '') + '<g class="fp-pw fp-front">' + lay.front + '</g></g></g><g class="fp-heart">' + lay.heart + '</g></g>';
   const tn = TYPES[code];
-  return '<svg class="fp2' + (sel != null ? ' fp-sel' : '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 16 种类型，右半是委托、左半是掌舵、上半是即兴、下半是规划；外圈是每个会话按它自己的四个维度落到的方位，按 Agent 分层，色带越宽占比越高；Agent 标志停在各自会话最多的类型；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，领瓣指向你的类型" style="overflow:visible;max-width:100%;height:auto">' +
+  return '<svg class="fp2' + (sel != null ? ' fp-sel' : '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 16 种类型，右半是委托、左半是掌舵、上半是即兴、下半是规划；外圈是每个会话按它自己的四个维度落到的方位，按 Agent 分层，色带越宽占比越高；Agent 标志停在外圈同一条轨道上，方位是该 Agent 全部会话的平均方向；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，领瓣指向你的类型" style="overflow:visible;max-width:100%;height:auto">' +
     '<defs><mask id="' + uid + '" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle class="fp-sweep" cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="#fff" stroke-width="' + (RH + 30) + '" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="0" transform="rotate(-90 200 200)"/></mask>' +
-    '<radialGradient id="' + uid + 'g" cx="200" cy="200" r="' + (R0 + RH + 2) + '" gradientUnits="userSpaceOnUse"><stop offset="' + (R0 / (R0 + RH + 2)).toFixed(3) + '" stop-color="#fff" stop-opacity="0"/><stop offset="' + ((R0 + RH * 0.4) / (R0 + RH + 2)).toFixed(3) + '" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity=".95"/></radialGradient>' +
-    '<mask id="' + uid + 'f" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle cx="200" cy="200" r="' + (R0 + RH + 4) + '" fill="url(#' + uid + 'g)"/></mask>' +
     (sel != null ? '<clipPath id="' + uid + 'c"><path d="' + sector(R0 - 2, RO + 2, sel * 22.5, (sel + 1) * 22.5) + '"/></clipPath>' : '') + '</defs>' +
     '<g class="fp-base"><circle cx="200" cy="200" r="196" fill="none" stroke="var(--ink-4)" stroke-width=".8"/>' +
-    '<path class="fp-tk" d="' + tk[0] + '" stroke="var(--ink-4)" stroke-width=".6"/><path class="fp-tk" d="' + tk[1] + '" stroke="var(--ink-4)" stroke-width=".9"/><path class="fp-tk" d="' + tk[2] + '" stroke="var(--ink-2)" stroke-width="1.2"/>' +
+    '<path class="fp-tk" d="' + tk[0] + '" stroke="var(--ink-4)" stroke-width=".5"/><path class="fp-tk" d="' + tk[1] + '" stroke="var(--ink-4)" stroke-width=".9"/><path class="fp-tk" d="' + tk[2] + '" stroke="var(--ink-2)" stroke-width="1.2"/>' +
     '<path class="fp-n0" d="M200 2L195 -8L205 -8Z" fill="var(--orbit)" transform="rotate(' + hd + ' 200 200)"/></g>' +
     '<g class="fp-hours">' + lbl + '</g>' +
-    '<g class="fp-band"><circle cx="200" cy="200" r="' + (R0 + 1) + '" fill="none" stroke="var(--line)"/></g>' +
+    '<g class="fp-band"></g>' +
     orbG + focus + '<g class="ring">' + ring + '</g><g class="dots">' + dots + '</g>' + planets +
     '<g class="fp-core"></g>' +
     flower + '</svg>';
 }
 const fpPct = (n, all) => Math.round(n / Math.max(1, all) * 100) + '%';
-TIPS.fpp = (id) => { const F = CUR.fp; const x = F && F.pl.find((q) => q.a.id === id); if (!x) return ''; return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + fpMute(x.a.c, 74) + ';vertical-align:-1px"></span> <b>' + x.a.name + ' · 最集中在 ' + x.code + ' ' + TYPES[x.code][0] + '</b>\n' + x.n + ' 个会话 · 占全部 ' + fpPct(x.n, F.n); };
+TIPS.fpp = (id) => { const F = CUR.fp; const x = F && F.pl.find((q) => q.a.id === id); if (!x) return ''; return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + fpMute(x.a.c, 74) + ';vertical-align:-1px"></span> <b>' + x.a.name + ' · ' + x.n + ' 个会话 · 平均偏向 ' + x.code + ' ' + TYPES[x.code][0] + '</b>\n占全部 ' + fpPct(x.n, F.n) + ' · 标志停在这些会话方位的平均方向上'; };
 TIPS.fpt = (t) => { const F = CUR.fp; if (!F) return ''; const xs = F.byT[+t], c = FP_TYPES[+t]; const by = AG.map((a) => [a, xs.filter((s) => s.a === a.id).length]).filter((x) => x[1]); return '<b>' + c + ' ' + TYPES[c][0] + ' · ' + xs.length + ' 个会话（' + fpPct(xs.length, F.n) + '）</b>\n' + (by.length ? by.map((x) => '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + fpMute(x[0].c, 74) + ';vertical-align:-1px"></span> ' + x[0].short + ' ' + x[1]).join(' · ') : '没有会话偏向这一型') + '\n<span style="opacity:.75">' + (S.persona.fpType === +t ? '再点一次收起' : '点击展开') + '</span>'; };
 // previous calendar month of a month period (null for 近 90 天 / 全部)
 function pePrevKey(k) { const ks = peMonthKeys(); const i = ks.indexOf(k); return i > 0 ? ks[i - 1] : null; }
@@ -270,14 +276,14 @@ PAGES.persona = () => {
     '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + peScopeTag(per) + (p.hint ? '<span class="cap" style="font-size:11px">' + esc(p.hint) + '</span>' : '') + '</div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
-    '<p class="pe-line"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
+    '<p class="pe-line">' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
     '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px">' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>' +
     (note ? '<div class="cap" style="margin-top:8px;font-size:11px" title="人格只按时间、Agent 与项目计算，和侧栏、报告一致">' + esc(note) + '</div>' : '') +
     // 演变：月份码 + 四轴折线（评审 A2-V06）
     '<div class="pe-evw"><div class="eb" style="margin-bottom:8px" title="按月重算，点击月份切换统计周期">演变 · 按月</div><div class="evo pe-evrow">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="tcode" style="display:block;font-size:14px;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 12, 'color:var(--ink-4)') : '')).join('') + '</div>' +
     '<div class="vz pe-evo" data-vz="pe-evo"></div><div class="cap pe-foot" title="四个维度逐月的值；跨过中线 50 的月份，该位字母会变">中线 50 · ≥ 50 取高值一极</div></div></div>' +
     '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + '<div class="pe-fpc">' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
-    '<div class="pe-fp-legend">' + glyphSVG(p, 16) + '<span><b>' + (TYPES[p.code] ? p.zh + '之花' : '协作人格之花') + '</b> · 外圈是每个会话偏向的类型' + (S.persona.fpType != null ? ' · <button type="button" class="lnk" data-act="fpType" data-t="' + S.persona.fpType + '">收起 ' + FP_TYPES[S.persona.fpType] + '</button>' : '') + '</span></div></div></div></div>' +
+    '</div></div></div>' +
     '<div class="three pe-three" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr)">' +
     '<div class="card pad" id="axesCard"><div class="hd"><div class="grow"><span class="ct">四个维度</span></div><div class="seg" role="group" aria-label="对照组"><button type="button" data-act="vs" data-v="past" class="' + (S.persona.vs === 'past' ? 'on' : '') + '">与过去的我</button>' + (LV.live ? '' : '<button type="button" data-act="vs" data-v="pop" class="' + (S.persona.vs === 'pop' ? 'on' : '') + '">与全体用户</button>') + '</div></div>' +
     '<div class="vz" data-vz="pe-axes"></div>' +

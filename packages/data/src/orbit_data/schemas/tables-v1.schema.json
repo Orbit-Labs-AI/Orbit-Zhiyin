@@ -1,0 +1,2538 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Orbit database rows v1",
+  "$defs": {
+    "archive_blob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "archive_uid",
+        "path",
+        "sha256",
+        "byte_len",
+        "stored_len",
+        "codec",
+        "created_at"
+      ],
+      "properties": {
+        "archive_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "byte_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "stored_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "codec": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "created_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE archive_blob (\n  archive_uid TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, sha256 TEXT NOT NULL,\n  byte_len INTEGER NOT NULL CHECK(byte_len >= 0), stored_len INTEGER NOT NULL,\n  codec TEXT NOT NULL CHECK(codec = 'zstd'), created_at INTEGER NOT NULL\n) STRICT"
+    },
+    "connector_checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connector_db",
+        "external_file_id",
+        "generation",
+        "fingerprint",
+        "file_id"
+      ],
+      "properties": {
+        "connector_db": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "external_file_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "generation": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "fingerprint": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "file_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source_file",
+          "from": "file_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE connector_checkpoint (\n  connector_db TEXT NOT NULL, external_file_id TEXT NOT NULL, generation INTEGER NOT NULL,\n  fingerprint TEXT NOT NULL, file_id TEXT NOT NULL REFERENCES source_file,\n  PRIMARY KEY(connector_db, external_file_id, generation)\n) STRICT"
+    },
+    "connector_record_link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connector_db",
+        "external_record_uid",
+        "record_uid"
+      ],
+      "properties": {
+        "connector_db": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "external_record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE connector_record_link (\n  connector_db TEXT NOT NULL, external_record_uid TEXT NOT NULL,\n  record_uid TEXT NOT NULL REFERENCES raw_record, PRIMARY KEY(connector_db, external_record_uid)\n) STRICT"
+    },
+    "content_blob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "codec",
+        "raw_len",
+        "data",
+        "refs"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "codec": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "raw_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "data": {
+          "type": "string",
+          "x-sql-type": "BLOB"
+        },
+        "refs": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE content_blob (\n  sha256 TEXT PRIMARY KEY CHECK(length(sha256) = 64),\n  codec TEXT NOT NULL CHECK(codec IN ('zstd')),\n  raw_len INTEGER NOT NULL CHECK(raw_len >= 0),\n  data BLOB NOT NULL,\n  refs INTEGER NOT NULL DEFAULT 0 CHECK(refs >= 0)\n) STRICT"
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_uid",
+        "session_uid",
+        "record_uid",
+        "native_id",
+        "native_key",
+        "event_path",
+        "kind",
+        "actor",
+        "seq",
+        "ts",
+        "parent_uid",
+        "turn_uid",
+        "call_id",
+        "text",
+        "text_truncated",
+        "attrs",
+        "ext",
+        "contract_version",
+        "mapper_version"
+      ],
+      "properties": {
+        "event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "native_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "native_key": {
+          "type": "array",
+          "x-sql-type": "TEXT"
+        },
+        "event_path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "kind": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "actor": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "seq": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "ts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "parent_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "turn_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "call_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "text_truncated": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "attrs": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "ext": {
+          "type": "object",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'{}'"
+        },
+        "contract_version": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "mapper_version": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "turn",
+          "from": "turn_uid",
+          "to": null
+        },
+        {
+          "table": "event",
+          "from": "parent_uid",
+          "to": null
+        },
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        },
+        {
+          "table": "session_identity",
+          "from": "session_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE event (\n  event_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session_identity,\n  record_uid TEXT NOT NULL REFERENCES raw_record, native_id TEXT,\n  native_key TEXT NOT NULL CHECK(json_valid(native_key)), event_path TEXT NOT NULL,\n  kind TEXT NOT NULL, actor TEXT NOT NULL\n    CHECK(actor IN ('human','assistant','system','tool','hook','subagent','harness')),\n  seq INTEGER NOT NULL CHECK(seq >= 0), ts INTEGER,\n  parent_uid TEXT REFERENCES event DEFERRABLE INITIALLY DEFERRED,\n  turn_uid TEXT REFERENCES turn DEFERRABLE INITIALLY DEFERRED,\n  call_id TEXT, text TEXT, text_truncated INTEGER NOT NULL DEFAULT 0 CHECK(text_truncated IN (0,1)),\n  attrs TEXT NOT NULL CHECK(json_valid(attrs) AND json_type(attrs) = 'object'),\n  ext TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(ext) AND json_type(ext) = 'object'),\n  contract_version INTEGER NOT NULL CHECK(contract_version = 1), mapper_version TEXT NOT NULL,\n  UNIQUE(session_uid, seq),\n  CHECK(json_type(attrs,'$.time') IS 'object'),\n  CHECK((ts IS NULL AND json_extract(attrs,'$.time.quality') IS 'missing') OR\n    (ts IS NOT NULL AND json_extract(attrs,'$.time.quality') IN ('reported','estimated')\n     AND json_type(attrs,'$.time.source_field') IS 'text')),\n  CHECK(kind <> 'model.usage' OR\n    (json_extract(attrs,'$.usage_scope') IS 'call' AND json_extract(attrs,'$.measurement') IS 'delta'\n      AND json_type(attrs,'$.request_key') IS 'array') OR\n    (json_extract(attrs,'$.usage_scope') IN ('session_snapshot','session_model_snapshot')\n      AND json_extract(attrs,'$.measurement') IS 'cumulative'\n      AND json_type(attrs,'$.snapshot_key') IS 'text'))\n) STRICT"
+    },
+    "event_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_uid",
+        "project_id",
+        "cwd",
+        "provider",
+        "model_raw",
+        "effort_raw"
+      ],
+      "properties": {
+        "event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "project_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "project",
+          "from": "project_id",
+          "to": null
+        },
+        {
+          "table": "event",
+          "from": "event_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE event_context (\n  event_uid TEXT PRIMARY KEY REFERENCES event, project_id TEXT REFERENCES project,\n  cwd TEXT, provider TEXT, model_raw TEXT, effort_raw TEXT\n) STRICT"
+    },
+    "file_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_id",
+        "locator",
+        "record_uid"
+      ],
+      "properties": {
+        "file_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "locator": {
+          "type": "array",
+          "x-sql-type": "TEXT"
+        },
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        },
+        {
+          "table": "source_file",
+          "from": "file_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE file_record (\n  file_id TEXT NOT NULL REFERENCES source_file, locator TEXT NOT NULL,\n  record_uid TEXT NOT NULL REFERENCES raw_record, PRIMARY KEY(file_id, locator)\n) STRICT"
+    },
+    "ingest_issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_uid",
+        "source_id",
+        "file_id",
+        "record_uid",
+        "stage",
+        "code",
+        "severity",
+        "detail",
+        "detected_at"
+      ],
+      "properties": {
+        "issue_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "file_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "record_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "stage": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "code": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "severity": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "detail": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "detected_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        },
+        {
+          "table": "source_file",
+          "from": "file_id",
+          "to": null
+        },
+        {
+          "table": "source",
+          "from": "source_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE ingest_issue (\n  issue_uid TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES source,\n  file_id TEXT REFERENCES source_file, record_uid TEXT REFERENCES raw_record,\n  stage TEXT NOT NULL CHECK(stage IN ('l1','l2','l3')), code TEXT NOT NULL,\n  severity TEXT NOT NULL CHECK(severity IN ('info','warning','error')),\n  detail TEXT NOT NULL CHECK(json_valid(detail)), detected_at INTEGER NOT NULL\n) STRICT"
+    },
+    "inventory_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scan_id",
+        "inv_id",
+        "type",
+        "name",
+        "config_path",
+        "locator",
+        "enabled",
+        "evidence",
+        "config",
+        "content_hash"
+      ],
+      "properties": {
+        "scan_id": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "inv_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "type": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "name": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "config_path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "locator": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "enabled": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "evidence": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "config": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "content_hash": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "inventory_scan",
+          "from": "scan_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE inventory_item (\n  scan_id INTEGER NOT NULL REFERENCES inventory_scan, inv_id TEXT NOT NULL,\n  type TEXT NOT NULL CHECK(type IN ('skill','mcp','hook','plugin','rule','scheduled_task')),\n  name TEXT NOT NULL, config_path TEXT NOT NULL, locator TEXT NOT NULL,\n  enabled INTEGER CHECK(enabled IN (0,1)),\n  evidence TEXT NOT NULL CHECK(evidence IN ('file','configured','cached','installed')),\n  config TEXT NOT NULL CHECK(json_valid(config)), content_hash TEXT NOT NULL,\n  PRIMARY KEY(scan_id, inv_id)\n) STRICT"
+    },
+    "inventory_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scan_id",
+        "source_key",
+        "agent",
+        "root_path",
+        "scope",
+        "project_id",
+        "observed_at",
+        "scanner_version",
+        "coverage",
+        "diagnostics"
+      ],
+      "properties": {
+        "scan_id": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "source_key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "agent": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "root_path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "scope": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "project_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "observed_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "scanner_version": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "coverage": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "diagnostics": {
+          "type": "array",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "project",
+          "from": "project_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE inventory_scan (\n  scan_id INTEGER PRIMARY KEY, source_key TEXT NOT NULL, agent TEXT NOT NULL,\n  root_path TEXT NOT NULL, scope TEXT NOT NULL CHECK(scope IN ('global','project')),\n  project_id TEXT REFERENCES project, observed_at INTEGER NOT NULL,\n  scanner_version TEXT NOT NULL,\n  coverage TEXT NOT NULL CHECK(json_valid(coverage)),\n  diagnostics TEXT NOT NULL CHECK(json_valid(diagnostics))\n) STRICT"
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "link_uid",
+        "session_uid",
+        "turn_uid",
+        "event_uid",
+        "kind",
+        "ref",
+        "ts"
+      ],
+      "properties": {
+        "link_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "turn_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "kind": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "ref": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "ts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "event",
+          "from": "event_uid",
+          "to": null
+        },
+        {
+          "table": "turn",
+          "from": "turn_uid",
+          "to": null
+        },
+        {
+          "table": "session",
+          "from": "session_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE link (\n  link_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session, turn_uid TEXT REFERENCES turn,\n  event_uid TEXT NOT NULL REFERENCES event, kind TEXT NOT NULL, ref TEXT NOT NULL, ts INTEGER\n) STRICT"
+    },
+    "model_alias": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model_raw",
+        "model_id",
+        "family"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "model_raw": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "model_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "family": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE model_alias (\n  provider TEXT NOT NULL, model_raw TEXT NOT NULL, model_id TEXT NOT NULL, family TEXT,\n  PRIMARY KEY(provider, model_raw)\n) STRICT"
+    },
+    "model_call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_uid",
+        "session_uid",
+        "turn_uid",
+        "project_id",
+        "usage_event_uid",
+        "request_id",
+        "provider",
+        "model_raw",
+        "model_id",
+        "model_resolution",
+        "effort_raw",
+        "effort_rank",
+        "purpose",
+        "coverage",
+        "input_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "cost_usd",
+        "cost_source",
+        "latency_ms",
+        "ttft_ms",
+        "stop_reason",
+        "ts",
+        "request_identity_quality",
+        "boundary_quality",
+        "cache_write_1h_tokens",
+        "service_tier"
+      ],
+      "properties": {
+        "call_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "turn_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "project_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "usage_event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "request_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "model_resolution": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "effort_raw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "effort_rank": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "purpose": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "coverage": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "input_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "cache_read_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "cache_write_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "output_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "reasoning_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "cost_usd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-sql-type": "REAL"
+        },
+        "cost_source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "latency_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "ttft_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "stop_reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "ts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "request_identity_quality": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'unknown'"
+        },
+        "boundary_quality": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'unknown'"
+        },
+        "cache_write_1h_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "service_tier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "event",
+          "from": "usage_event_uid",
+          "to": null
+        },
+        {
+          "table": "project",
+          "from": "project_id",
+          "to": null
+        },
+        {
+          "table": "turn",
+          "from": "turn_uid",
+          "to": null
+        },
+        {
+          "table": "session",
+          "from": "session_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE model_call (\n  call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  turn_uid TEXT REFERENCES turn, project_id TEXT REFERENCES project,\n  usage_event_uid TEXT NOT NULL UNIQUE REFERENCES event, request_id TEXT,\n  provider TEXT, model_raw TEXT, model_id TEXT, model_resolution TEXT NOT NULL,\n  effort_raw TEXT, effort_rank INTEGER, purpose TEXT, coverage TEXT NOT NULL,\n  input_tokens INTEGER CHECK(input_tokens >= 0), cache_read_tokens INTEGER CHECK(cache_read_tokens >= 0),\n  cache_write_tokens INTEGER CHECK(cache_write_tokens >= 0), output_tokens INTEGER CHECK(output_tokens >= 0),\n  reasoning_tokens INTEGER CHECK(reasoning_tokens >= 0), cost_usd REAL CHECK(cost_usd >= 0), cost_source TEXT,\n  latency_ms INTEGER CHECK(latency_ms >= 0), ttft_ms INTEGER CHECK(ttft_ms >= 0), stop_reason TEXT, ts INTEGER\n, request_identity_quality TEXT NOT NULL DEFAULT 'unknown'\n  CHECK(request_identity_quality IN ('reported','derived','unknown')), boundary_quality TEXT NOT NULL DEFAULT 'unknown'\n  CHECK(boundary_quality IN ('reported','observed','unknown','conflict')), cache_write_1h_tokens INTEGER\n  CHECK(cache_write_1h_tokens >= 0), service_tier TEXT) STRICT"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project_id",
+        "key_type",
+        "key",
+        "name",
+        "git_remote",
+        "paths"
+      ],
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "key_type": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "name": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "git_remote": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "paths": {
+          "type": "array",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'[]'"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE \"project\" (\n  project_id TEXT PRIMARY KEY,\n  key_type TEXT NOT NULL CHECK(key_type IN ('git_remote','git_root','path','bucket')),\n  key TEXT NOT NULL, name TEXT NOT NULL, git_remote TEXT,\n  paths TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(paths)),\n  UNIQUE(key_type, key)\n) STRICT"
+    },
+    "project_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pattern",
+        "project_id"
+      ],
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "project_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "project",
+          "from": "project_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE project_override (\n  pattern TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES project\n) STRICT"
+    },
+    "projection_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "contract_version",
+        "mapper_version",
+        "reducer_version",
+        "completed_at",
+        "event_count",
+        "l1_revision_count"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "contract_version": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "mapper_version": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "reducer_version": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "completed_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "event_count": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "l1_revision_count": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE projection_run (\n  run_id INTEGER PRIMARY KEY, contract_version INTEGER NOT NULL, mapper_version TEXT NOT NULL,\n  reducer_version TEXT NOT NULL, completed_at INTEGER NOT NULL, event_count INTEGER NOT NULL\n  ,l1_revision_count INTEGER NOT NULL\n) STRICT"
+    },
+    "raw_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_uid",
+        "file_id",
+        "revision_uid",
+        "locator",
+        "version",
+        "ordinal",
+        "byte_offset",
+        "byte_len",
+        "sha256",
+        "native_type",
+        "native_id",
+        "harness_version",
+        "shape_hash",
+        "session_uid",
+        "disposition",
+        "note"
+      ],
+      "properties": {
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "file_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "revision_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "locator": {
+          "type": "array",
+          "x-sql-type": "TEXT"
+        },
+        "version": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "ordinal": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "byte_offset": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "byte_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "native_type": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "native_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "harness_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "shape_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "disposition": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'unparsed'"
+        },
+        "note": {
+          "type": "object",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'{}'"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "session_identity",
+          "from": "session_uid",
+          "to": null
+        },
+        {
+          "table": "source_revision",
+          "from": "revision_uid",
+          "to": null
+        },
+        {
+          "table": "source_file",
+          "from": "file_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE raw_record (\n  record_uid TEXT PRIMARY KEY, file_id TEXT NOT NULL REFERENCES source_file,\n  revision_uid TEXT NOT NULL REFERENCES source_revision,\n  locator TEXT NOT NULL CHECK(json_valid(locator)), version INTEGER NOT NULL CHECK(version > 0),\n  ordinal INTEGER NOT NULL CHECK(ordinal >= 0), byte_offset INTEGER NOT NULL CHECK(byte_offset >= 0),\n  byte_len INTEGER NOT NULL CHECK(byte_len > 0), sha256 TEXT NOT NULL,\n  native_type TEXT NOT NULL, native_id TEXT, harness_version TEXT, shape_hash TEXT,\n  session_uid TEXT REFERENCES session_identity DEFERRABLE INITIALLY DEFERRED,\n  disposition TEXT NOT NULL DEFAULT 'unparsed'\n    CHECK(disposition IN ('mapped','folded','replayed','duplicate','ignored','unparsed')),\n  note TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(note)),\n  UNIQUE(file_id, locator, version), UNIQUE(revision_uid, ordinal)\n) STRICT"
+    },
+    "record_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_uid",
+        "event_uid",
+        "relation",
+        "contribution"
+      ],
+      "properties": {
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "relation": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "contribution": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'{}'"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "event",
+          "from": "event_uid",
+          "to": null
+        },
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE \"record_event\" (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  event_uid TEXT NOT NULL REFERENCES event DEFERRABLE INITIALLY DEFERRED,\n  relation TEXT NOT NULL CHECK(relation IN ('mapped','folded','replayed','duplicate')),\n  contribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(contribution)),\n  PRIMARY KEY(record_uid, event_uid)\n) STRICT, WITHOUT ROWID"
+    },
+    "record_location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_uid",
+        "revision_uid",
+        "ordinal",
+        "byte_offset",
+        "byte_len"
+      ],
+      "properties": {
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "revision_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "ordinal": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "byte_offset": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "byte_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source_reference",
+          "from": "revision_uid",
+          "to": null
+        },
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE \"record_location\" (\n  record_uid TEXT NOT NULL REFERENCES raw_record,\n  revision_uid TEXT NOT NULL REFERENCES source_reference,\n  ordinal INTEGER NOT NULL, byte_offset INTEGER NOT NULL, byte_len INTEGER NOT NULL,\n  PRIMARY KEY(record_uid, revision_uid)\n) STRICT, WITHOUT ROWID"
+    },
+    "schema_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_id",
+        "schema_version",
+        "redaction_version"
+      ],
+      "properties": {
+        "contract_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "schema_version": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "redaction_version": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE schema_manifest (\n  contract_id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL, redaction_version TEXT NOT NULL\n) STRICT"
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_uid",
+        "source_id",
+        "native_id",
+        "kind",
+        "parent_uid",
+        "root_uid",
+        "forked_from",
+        "imported_from",
+        "spawn_call_uid",
+        "depth",
+        "lineage_unresolved",
+        "project_id",
+        "cwd",
+        "git_branch",
+        "git_sha",
+        "git_remote",
+        "client",
+        "harness_version",
+        "title",
+        "title_source",
+        "started_at",
+        "ended_at",
+        "timezone",
+        "timezone_source",
+        "status"
+      ],
+      "properties": {
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "native_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "kind": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "parent_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "root_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "forked_from": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "imported_from": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "spawn_call_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "depth": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "lineage_unresolved": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "project_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "git_branch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "git_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "git_remote": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "client": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "harness_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "title_source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "started_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "ended_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "timezone": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "timezone_source": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'unknown'"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'unknown'"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "project",
+          "from": "project_id",
+          "to": null
+        },
+        {
+          "table": "tool_call",
+          "from": "spawn_call_uid",
+          "to": null
+        },
+        {
+          "table": "session_identity",
+          "from": "imported_from",
+          "to": null
+        },
+        {
+          "table": "session_identity",
+          "from": "forked_from",
+          "to": null
+        },
+        {
+          "table": "session_identity",
+          "from": "root_uid",
+          "to": null
+        },
+        {
+          "table": "session_identity",
+          "from": "parent_uid",
+          "to": null
+        },
+        {
+          "table": "source",
+          "from": "source_id",
+          "to": null
+        },
+        {
+          "table": "session_identity",
+          "from": "session_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE session (\n  session_uid TEXT PRIMARY KEY REFERENCES session_identity,\n  source_id TEXT NOT NULL REFERENCES source, native_id TEXT NOT NULL,\n  kind TEXT NOT NULL CHECK(kind IN ('main','subagent','workflow_agent','review','automation','import','auxiliary')),\n  parent_uid TEXT REFERENCES session_identity, root_uid TEXT NOT NULL REFERENCES session_identity,\n  forked_from TEXT REFERENCES session_identity, imported_from TEXT REFERENCES session_identity,\n  spawn_call_uid TEXT REFERENCES tool_call DEFERRABLE INITIALLY DEFERRED,\n  depth INTEGER NOT NULL DEFAULT 0 CHECK(depth >= 0), lineage_unresolved INTEGER NOT NULL DEFAULT 0,\n  project_id TEXT REFERENCES project, cwd TEXT, git_branch TEXT, git_sha TEXT, git_remote TEXT,\n  client TEXT, harness_version TEXT, title TEXT, title_source TEXT,\n  started_at INTEGER, ended_at INTEGER, timezone TEXT,\n  timezone_source TEXT NOT NULL DEFAULT 'unknown' CHECK(timezone_source IN ('reported','local_inferred','unknown')),\n  status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('active','completed','interrupted','failed','unknown')),\n  CHECK((timezone IS NULL AND timezone_source = 'unknown') OR\n    (timezone IS NOT NULL AND timezone_source <> 'unknown'))\n) STRICT"
+    },
+    "session_feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_uid",
+        "feature",
+        "value",
+        "n"
+      ],
+      "properties": {
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "feature": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "value": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "n": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "session",
+          "from": "session_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE session_feature (\n  session_uid TEXT NOT NULL REFERENCES session, feature TEXT NOT NULL, value TEXT NOT NULL,\n  n INTEGER NOT NULL CHECK(n > 0), PRIMARY KEY(session_uid, feature, value)\n) STRICT"
+    },
+    "session_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_uid",
+        "source_id",
+        "native_id",
+        "identity_key"
+      ],
+      "properties": {
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "native_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "identity_key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source",
+          "from": "source_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE session_identity (\n  session_uid TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES source,\n  native_id TEXT NOT NULL, identity_key TEXT NOT NULL, UNIQUE(source_id, identity_key)\n) STRICT"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "agent",
+        "root_path",
+        "label",
+        "enabled",
+        "discovered_at"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "agent": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "root_path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "enabled": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "1"
+        },
+        "discovered_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [],
+      "x-ddl": "CREATE TABLE source (\n  source_id TEXT PRIMARY KEY, agent TEXT NOT NULL, root_path TEXT NOT NULL,\n  label TEXT, enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),\n  discovered_at INTEGER NOT NULL, UNIQUE(agent, root_path)\n) STRICT"
+    },
+    "source_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_id",
+        "source_id",
+        "relative_path",
+        "role",
+        "format",
+        "status",
+        "watermark",
+        "last_scan_at"
+      ],
+      "properties": {
+        "file_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "relative_path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "role": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "format": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'active'"
+        },
+        "watermark": {
+          "type": "object",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'{}'"
+        },
+        "last_scan_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source",
+          "from": "source_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE source_file (\n  file_id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES source,\n  relative_path TEXT NOT NULL, role TEXT NOT NULL, format TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','gone_upstream','error')),\n  watermark TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(watermark)),\n  last_scan_at INTEGER, UNIQUE(source_id, relative_path)\n) STRICT"
+    },
+    "source_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision_uid",
+        "sha256",
+        "byte_len",
+        "encoding"
+      ],
+      "properties": {
+        "revision_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "sha256": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "byte_len": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "encoding": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source_revision",
+          "from": "revision_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE source_reference (\n  revision_uid TEXT PRIMARY KEY REFERENCES source_revision,\n  sha256 TEXT NOT NULL, byte_len INTEGER NOT NULL CHECK(byte_len >= 0),\n  encoding TEXT NOT NULL CHECK(encoding IN ('jsonl','jsonl_zstd','json','sqlite_rows'))\n) STRICT"
+    },
+    "source_revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision_uid",
+        "file_id",
+        "revision",
+        "archive_uid",
+        "captured_at",
+        "source_stat",
+        "record_count"
+      ],
+      "properties": {
+        "revision_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "file_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "revision": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "archive_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "captured_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "source_stat": {
+          "type": "object",
+          "x-sql-type": "TEXT"
+        },
+        "record_count": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "archive_blob",
+          "from": "archive_uid",
+          "to": null
+        },
+        {
+          "table": "source_file",
+          "from": "file_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE \"source_revision\" (\n  revision_uid TEXT PRIMARY KEY, file_id TEXT NOT NULL REFERENCES source_file,\n  revision INTEGER NOT NULL CHECK(revision > 0), archive_uid TEXT REFERENCES archive_blob,\n  captured_at INTEGER NOT NULL, source_stat TEXT NOT NULL CHECK(json_valid(source_stat)),\n  record_count INTEGER NOT NULL CHECK(record_count >= 0), UNIQUE(file_id, revision)\n) STRICT"
+    },
+    "source_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "scanned_at",
+        "selection",
+        "discovered_files",
+        "indexed_files",
+        "capture_errors",
+        "cancelled"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "scanned_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "selection": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "discovered_files": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "indexed_files": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "capture_errors": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "cancelled": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "source",
+          "from": "source_id",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE source_scan (\n  source_id TEXT PRIMARY KEY REFERENCES source,\n  scanned_at INTEGER NOT NULL, selection TEXT NOT NULL,\n  discovered_files INTEGER NOT NULL, indexed_files INTEGER NOT NULL,\n  capture_errors INTEGER NOT NULL, cancelled INTEGER NOT NULL\n) STRICT"
+    },
+    "tool_call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_uid",
+        "session_uid",
+        "turn_uid",
+        "project_id",
+        "native_call_id",
+        "call_event_uid",
+        "result_event_uid",
+        "name_raw",
+        "name",
+        "kind",
+        "mcp_server",
+        "mcp_tool",
+        "skill",
+        "subagent_session_uid",
+        "command_head",
+        "files",
+        "status",
+        "pairing_quality",
+        "exit_code",
+        "error_class",
+        "is_wrapper",
+        "argument_digest",
+        "status_scope",
+        "started_at",
+        "ended_at",
+        "duration_ms",
+        "duration_source",
+        "duration_quality",
+        "approval",
+        "approval_wait_ms",
+        "attribution",
+        "command_spec",
+        "wall_elapsed_ms",
+        "native_execution_ms",
+        "failure_kind"
+      ],
+      "properties": {
+        "call_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "turn_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "project_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "native_call_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "call_event_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "result_event_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "name_raw": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "name": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "kind": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "mcp_server": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "mcp_tool": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "skill": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "subagent_session_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "command_head": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "files": {
+          "type": "array",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'[]'"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "pairing_quality": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "error_class": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "is_wrapper": {
+          "type": "integer",
+          "x-sql-type": "INTEGER",
+          "x-sql-default": "0"
+        },
+        "argument_digest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "status_scope": {
+          "type": "string",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'unknown'"
+        },
+        "started_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "ended_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "duration_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "duration_source": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "duration_quality": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "approval": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "approval_wait_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "attribution": {
+          "type": "object",
+          "x-sql-type": "TEXT",
+          "x-sql-default": "'{}'"
+        },
+        "command_spec": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "wall_elapsed_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "native_execution_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "failure_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "session_identity",
+          "from": "subagent_session_uid",
+          "to": null
+        },
+        {
+          "table": "event",
+          "from": "result_event_uid",
+          "to": null
+        },
+        {
+          "table": "event",
+          "from": "call_event_uid",
+          "to": null
+        },
+        {
+          "table": "project",
+          "from": "project_id",
+          "to": null
+        },
+        {
+          "table": "turn",
+          "from": "turn_uid",
+          "to": null
+        },
+        {
+          "table": "session",
+          "from": "session_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE tool_call (\n  call_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  turn_uid TEXT REFERENCES turn, project_id TEXT REFERENCES project, native_call_id TEXT,\n  call_event_uid TEXT REFERENCES event, result_event_uid TEXT REFERENCES event,\n  name_raw TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,\n  mcp_server TEXT, mcp_tool TEXT, skill TEXT, subagent_session_uid TEXT REFERENCES session_identity,\n  command_head TEXT, files TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(files)),\n  status TEXT NOT NULL, pairing_quality TEXT NOT NULL, exit_code INTEGER, error_class TEXT,\n  is_wrapper INTEGER NOT NULL DEFAULT 0 CHECK(is_wrapper IN (0,1)),\n  argument_digest TEXT, status_scope TEXT NOT NULL DEFAULT 'unknown',\n  started_at INTEGER, ended_at INTEGER, duration_ms INTEGER CHECK(duration_ms >= 0),\n  duration_source TEXT NOT NULL CHECK(duration_source IN ('reported','native_bounds','event_difference','unknown')),\n  duration_quality TEXT NOT NULL CHECK(duration_quality IN ('reported','estimated','missing')),\n  approval TEXT, approval_wait_ms INTEGER CHECK(approval_wait_ms >= 0),\n  attribution TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(attribution)), command_spec TEXT CHECK(command_spec IS NULL OR\n  (json_valid(command_spec) AND json_type(command_spec)='object')), wall_elapsed_ms INTEGER CHECK(wall_elapsed_ms >= 0), native_execution_ms INTEGER CHECK(native_execution_ms >= 0), failure_kind TEXT CHECK(failure_kind IS NULL OR failure_kind IN\n  ('permission_denied','interrupted','nonzero_exit','harness_error')),\n  CHECK((duration_ms IS NULL AND duration_quality = 'missing') OR\n    (duration_ms IS NOT NULL AND duration_quality IN ('reported','estimated')))\n) STRICT"
+    },
+    "tool_call_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_uid",
+        "event_uid",
+        "role"
+      ],
+      "properties": {
+        "call_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "role": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "event",
+          "from": "event_uid",
+          "to": null
+        },
+        {
+          "table": "tool_call",
+          "from": "call_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE \"tool_call_event\" (\n  call_uid TEXT NOT NULL REFERENCES tool_call, event_uid TEXT NOT NULL REFERENCES event,\n  role TEXT NOT NULL, PRIMARY KEY(call_uid, event_uid)\n) STRICT, WITHOUT ROWID"
+    },
+    "tool_call_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_uid",
+        "session_uid",
+        "path",
+        "op",
+        "quality"
+      ],
+      "properties": {
+        "call_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "path": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "op": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "quality": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "session",
+          "from": "session_uid",
+          "to": null
+        },
+        {
+          "table": "tool_call",
+          "from": "call_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE tool_call_file (\n  call_uid TEXT NOT NULL REFERENCES tool_call, session_uid TEXT NOT NULL REFERENCES session,\n  path TEXT NOT NULL,\n  op TEXT NOT NULL CHECK(op IN ('add','update','delete','move','unknown')),\n  quality TEXT NOT NULL CHECK(quality IN ('reported','missing')),\n  PRIMARY KEY(call_uid, path),\n  CHECK((op = 'unknown') = (quality = 'missing'))\n) STRICT"
+    },
+    "turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "turn_uid",
+        "session_uid",
+        "idx",
+        "native_id",
+        "trigger",
+        "boundary_source",
+        "project_id",
+        "status",
+        "started_at",
+        "ended_at",
+        "trigger_event_uid",
+        "first_event_uid",
+        "last_event_uid"
+      ],
+      "properties": {
+        "turn_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "idx": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "native_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "trigger": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "boundary_source": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "project_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "status": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "started_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "ended_at": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "trigger_event_uid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "first_event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "last_event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "event",
+          "from": "last_event_uid",
+          "to": null
+        },
+        {
+          "table": "event",
+          "from": "first_event_uid",
+          "to": null
+        },
+        {
+          "table": "event",
+          "from": "trigger_event_uid",
+          "to": null
+        },
+        {
+          "table": "project",
+          "from": "project_id",
+          "to": null
+        },
+        {
+          "table": "session",
+          "from": "session_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE turn (\n  turn_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  idx INTEGER NOT NULL CHECK(idx >= 0), native_id TEXT, trigger TEXT NOT NULL,\n  boundary_source TEXT NOT NULL CHECK(boundary_source IN ('reported','derived')),\n  project_id TEXT REFERENCES project, status TEXT NOT NULL,\n  started_at INTEGER, ended_at INTEGER,\n  trigger_event_uid TEXT REFERENCES event, first_event_uid TEXT NOT NULL REFERENCES event,\n  last_event_uid TEXT NOT NULL REFERENCES event, UNIQUE(session_uid, idx)\n) STRICT"
+    },
+    "usage_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_uid",
+        "observation"
+      ],
+      "properties": {
+        "record_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "observation": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "raw_record",
+          "from": "record_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE usage_observation (\n  record_uid TEXT PRIMARY KEY REFERENCES raw_record,\n  observation TEXT NOT NULL CHECK(json_valid(observation))\n) STRICT"
+    },
+    "usage_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_uid",
+        "session_uid",
+        "event_uid",
+        "snapshot_key",
+        "counter_cycle",
+        "usage_scope",
+        "coverage",
+        "provider",
+        "model_raw",
+        "model_id",
+        "purpose",
+        "observation_seq",
+        "ts",
+        "observed_at",
+        "input_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "cost_usd",
+        "cost_source"
+      ],
+      "properties": {
+        "snapshot_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "session_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "event_uid": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "snapshot_key": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "counter_cycle": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "usage_scope": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "coverage": {
+          "type": "string",
+          "x-sql-type": "TEXT"
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "model_raw": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "purpose": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        },
+        "observation_seq": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "ts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "observed_at": {
+          "type": "integer",
+          "x-sql-type": "INTEGER"
+        },
+        "input_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "cache_read_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "cache_write_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "output_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "reasoning_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-sql-type": "INTEGER"
+        },
+        "cost_usd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-sql-type": "REAL"
+        },
+        "cost_source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-sql-type": "TEXT"
+        }
+      },
+      "x-foreign-keys": [
+        {
+          "table": "event",
+          "from": "event_uid",
+          "to": null
+        },
+        {
+          "table": "session",
+          "from": "session_uid",
+          "to": null
+        }
+      ],
+      "x-ddl": "CREATE TABLE usage_snapshot (\n  snapshot_uid TEXT PRIMARY KEY, session_uid TEXT NOT NULL REFERENCES session,\n  event_uid TEXT NOT NULL UNIQUE REFERENCES event, snapshot_key TEXT NOT NULL, counter_cycle TEXT NOT NULL,\n  usage_scope TEXT NOT NULL CHECK(usage_scope IN ('session_snapshot','session_model_snapshot')),\n  coverage TEXT NOT NULL, provider TEXT, model_raw TEXT, model_id TEXT, purpose TEXT,\n  observation_seq INTEGER NOT NULL, ts INTEGER, observed_at INTEGER NOT NULL,\n  input_tokens INTEGER CHECK(input_tokens >= 0), cache_read_tokens INTEGER CHECK(cache_read_tokens >= 0),\n  cache_write_tokens INTEGER CHECK(cache_write_tokens >= 0), output_tokens INTEGER CHECK(output_tokens >= 0),\n  reasoning_tokens INTEGER CHECK(reasoning_tokens >= 0), cost_usd REAL CHECK(cost_usd >= 0), cost_source TEXT\n) STRICT"
+    }
+  },
+  "description": "JSON text columns must be decoded before validating a row. Event semantic validation also uses event-v1.schema.json."
+}

@@ -2,22 +2,22 @@
 
 `analytics/signals/` 是八族之上的横向派生层，不是第九个族。它只读取 `AnalysisContext` 与 `analyze_context` 的结果，把八族事实转成 `signal`，再派生 `problem`（AN-06）、关键时刻（AN-09）、会话结果（AN-19）和会话事实补字段（AN-02）。设计依据见 [分析模块设计](../../plans/analysis-module.md) §2.3、§2.4、§3.2、§4，缺口与任务包见 [分析模块审计](../../audits/analysis-audit.md) §1、§2.2、§5。
 
-版本：`rules_version = signals-v1.0`（[dictionary.py](../../../packages/backend/src/tandem_backend/analytics/signals/dictionary.py)）。词表、阈值或映射变化时必须同步提升版本号。
+版本：`rules_version = signals-v1.0`（[dictionary.py](../../../packages/backend/src/orbit_backend/analytics/signals/dictionary.py)）。词表、阈值或映射变化时必须同步提升版本号。
 
 ## 模块
 
 | 文件 | AN | 职责 |
 | --- | --- | --- |
-| [stats.py](../../../packages/backend/src/tandem_backend/analytics/stats.py) | AN-10 | Wilson（z = 1.96）、`INSUFFICIENT_N = 5`、`{value, n, k, lo, hi, basis, status}` 指标对象 |
-| [signals/detectors.py](../../../packages/backend/src/tandem_backend/analytics/signals/detectors.py) | AN-05 | 按根会话树构建视图，运行八个检测器 |
-| [signals/problems.py](../../../packages/backend/src/tandem_backend/analytics/signals/problems.py) | AN-06 | 按 `(type, key, scope, scope_id)` 聚合并判断是否升级 |
-| [signals/moments.py](../../../packages/backend/src/tandem_backend/analytics/signals/moments.py) | AN-09 | 规则关键时刻：编号、去重、每会话最多 8 个 |
-| [signals/outcome.py](../../../packages/backend/src/tandem_backend/analytics/signals/outcome.py) | AN-19 | 会话结果合成器 |
-| [signals/facts.py](../../../packages/backend/src/tandem_backend/analytics/signals/facts.py) | AN-02 | `outcome / verify_* / autonomy_steps / signals_summary` |
-| [signals/inventory.py](../../../packages/backend/src/tandem_backend/analytics/signals/inventory.py) | AN-11 | `installed_unused`、`resident_tokens_median` |
-| [metrics.py](../../../packages/backend/src/tandem_backend/analytics/metrics.py) | AN-01 | `metrics(context, metric[], bucket, group_by)` |
-| [drilldown.py](../../../packages/backend/src/tandem_backend/analytics/drilldown.py) | AN-01.2 | 按工具取最近 N 条调用 |
-| [api/insights.py](../../../packages/backend/src/tandem_backend/api/insights.py) | — | `build_router(get_result)` 提供的独立 `APIRouter` |
+| [stats.py](../../../packages/backend/src/orbit_backend/analytics/stats.py) | AN-10 | Wilson（z = 1.96）、`INSUFFICIENT_N = 5`、`{value, n, k, lo, hi, basis, status}` 指标对象 |
+| [signals/detectors.py](../../../packages/backend/src/orbit_backend/analytics/signals/detectors.py) | AN-05 | 按根会话树构建视图，运行八个检测器 |
+| [signals/problems.py](../../../packages/backend/src/orbit_backend/analytics/signals/problems.py) | AN-06 | 按 `(type, key, scope, scope_id)` 聚合并判断是否升级 |
+| [signals/moments.py](../../../packages/backend/src/orbit_backend/analytics/signals/moments.py) | AN-09 | 规则关键时刻：编号、去重、每会话最多 8 个 |
+| [signals/outcome.py](../../../packages/backend/src/orbit_backend/analytics/signals/outcome.py) | AN-19 | 会话结果合成器 |
+| [signals/facts.py](../../../packages/backend/src/orbit_backend/analytics/signals/facts.py) | AN-02 | `outcome / verify_* / autonomy_steps / signals_summary` |
+| [signals/inventory.py](../../../packages/backend/src/orbit_backend/analytics/signals/inventory.py) | AN-11 | `installed_unused`、`resident_tokens_median` |
+| [metrics.py](../../../packages/backend/src/orbit_backend/analytics/metrics.py) | AN-01 | `metrics(context, metric[], bucket, group_by)` |
+| [drilldown.py](../../../packages/backend/src/orbit_backend/analytics/drilldown.py) | AN-01.2 | 按工具取最近 N 条调用 |
+| [api/insights.py](../../../packages/backend/src/orbit_backend/api/insights.py) | — | `build_router(get_result)` 提供的独立 `APIRouter` |
 
 所有函数都是纯函数，不修改 `service.py`、`routes.py`、`context.py` 及八族文件。
 

@@ -1,5 +1,5 @@
-// J02 against a real synthetic gateway (skipped unless LIVE_GATEWAY / TANDEM_TOKEN / FX_USERHOME are set):
-//   FX_BE=<worktree> .work/release/fx-start.sh <home>  → LIVE_GATEWAY=http://127.0.0.1:<port> TANDEM_TOKEN=<token>
+// J02 against a real synthetic gateway (skipped unless LIVE_GATEWAY / ORBIT_TOKEN / FX_USERHOME are set):
+//   FX_BE=<worktree> .work/release/fx-start.sh <home>  → LIVE_GATEWAY=http://127.0.0.1:<port> ORBIT_TOKEN=<token>
 //   FX_USERHOME=<home>.userhome (the gateway's redirected HOME). Synthetic data only (fx-seed.py on fx-src).
 // A8 card → detail panel; a kb catalog item goes plan → preview → apply, every written file lands inside FX_USERHOME;
 // 撤销 reverts it from the ledger and restores the redirected HOME. A7 kb candidate: plan answer shown honestly.
@@ -10,12 +10,12 @@ import { stubGateway, openLive, PASS } from './live-helpers.mjs';
 
 const UH = process.env.FX_USERHOME ? path.resolve(process.env.FX_USERHOME) : null;
 const KB_ITEM = process.env.FX_KB_ITEM || 'kb:stop-verify-hook';
-// the shared pass-through proxy forwards the page's Origin (http://tandem.test), which the gateway refuses on writes;
+// the shared pass-through proxy forwards the page's Origin (http://orbit.test), which the gateway refuses on writes;
 // writes here go to the gateway as a same-origin client would send them (no Origin header)
 async function passWrites(page) {
-  await page.route(/^http:\/\/tandem\.test\/v1\//, async (route) => {
+  await page.route(/^http:\/\/orbit\.test\/v1\//, async (route) => {
     const req = route.request(); if (req.method() === 'GET') return route.fallback();
-    const u = new URL(req.url()); const h = Object.assign({}, req.headers(), { authorization: 'Bearer ' + process.env.TANDEM_TOKEN }); delete h.origin; delete h.referer;
+    const u = new URL(req.url()); const h = Object.assign({}, req.headers(), { authorization: 'Bearer ' + process.env.ORBIT_TOKEN }); delete h.origin; delete h.referer;
     return route.fulfill({ response: await route.fetch({ url: PASS + u.pathname + u.search, headers: h }) });
   });
 }

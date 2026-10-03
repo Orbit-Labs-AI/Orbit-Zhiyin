@@ -5,8 +5,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from tandem_backend.services.gateway import Gateway
-from tandem_backend.services.supervisor import SupervisorConfig
+from orbit_backend.services.gateway import Gateway
+from orbit_backend.services.supervisor import SupervisorConfig
 
 TOKEN = "synthetic-test-token-0123456789abcdef"
 
@@ -15,7 +15,7 @@ TOKEN = "synthetic-test-token-0123456789abcdef"
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0, backoff_s=(0.1, 0.2), tick_s=0.05)
-    gateway = Gateway(tmp_path / "tandem", config=config, discovery=lambda: [], prewarm_debounce_s=3600.0)
+    gateway = Gateway(tmp_path / "orbit", config=config, discovery=lambda: [], prewarm_debounce_s=3600.0)
     with TestClient(gateway.app(token=TOKEN, port=8765), base_url="http://127.0.0.1:8765",
                     headers={"Authorization": f"Bearer {TOKEN}"}) as c:
         yield c

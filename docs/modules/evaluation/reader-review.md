@@ -5,7 +5,7 @@
 生成默认材料：
 
 ```sh
-.venv/bin/tandem reader-pack
+.venv/bin/orbit reader-pack
 ```
 
 命令会给出一个评审目录。默认六个案例均为虚构，覆盖画像、瓶颈、推荐、开发报告、数学讲解和进度说明。自己的案例通过 `--cases 路径` 提供，必须声明 `evaluation_only`，并为两种表达列出同一组必要事实。
@@ -17,7 +17,7 @@
 汇总一份评审表：
 
 ```sh
-.venv/bin/tandem reader-results --pack 评审目录 --ratings 评审目录/ratings-X.json
+.venv/bin/orbit reader-results --pack 评审目录 --ratings 评审目录/ratings-X.json
 ```
 
 空白表保持待评价；部分填写只汇总已有信息，不补零分。正文或版本映射变动后，原评分会被拒绝混用。明确验收需要读者完成各案例的复述与评分，再填写 `acceptance.decision` 为 `accept` 或 `needs_revision`。这个结论只适用于该读者看过的案例，不能推广为所有场景都已达标。

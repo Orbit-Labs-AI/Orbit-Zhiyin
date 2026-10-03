@@ -7,7 +7,7 @@ from urllib.error import HTTPError
 
 import pytest
 
-from tandem_catalog.network import MAX_BODY, FetchError, HttpClient, SafeRedirect
+from orbit_catalog.network import MAX_BODY, FetchError, HttpClient, SafeRedirect
 
 URL = "https://models.dev/api.json"
 

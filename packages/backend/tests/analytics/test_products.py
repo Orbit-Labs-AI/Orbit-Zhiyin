@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.products import build_products
-from tandem_backend.analytics.products.feedback import classify_emotion
-from tandem_backend.analytics.products.render import export_report, html_report
-from tandem_backend.analytics.products.tools import ordered_calls, transition_matrix
-from tandem_backend.analytics.products.validation import validate_products
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.products import build_products
+from orbit_backend.analytics.products.feedback import classify_emotion
+from orbit_backend.analytics.products.render import export_report, html_report
+from orbit_backend.analytics.products.tools import ordered_calls, transition_matrix
+from orbit_backend.analytics.products.validation import validate_products
 
 T = 1790812800000
 

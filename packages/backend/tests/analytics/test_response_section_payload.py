@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from tandem_backend.analytics.service import response_section
+from orbit_backend.analytics.service import response_section
 
 SHARED = ("input_contract", "feature_schema_version", "scope", "coverage", "versions",
           "selection", "effective_samples", "unknown_counts", "analysis_digest",

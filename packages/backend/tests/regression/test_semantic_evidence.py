@@ -3,12 +3,12 @@
 import pytest
 from test_question_replies import callback
 
-from tandem_backend.analysis import analyze
-from tandem_backend.feedback import reader_context
-from tandem_backend.models import Event
-from tandem_backend.pipeline_eval import _write_case
-from tandem_backend.store import Store, import_codex
-from tandem_backend.trajectory import comparison_signal
+from orbit_backend.analysis import analyze
+from orbit_backend.feedback import reader_context
+from orbit_backend.models import Event
+from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.store import Store, import_codex
+from orbit_backend.trajectory import comparison_signal
 
 
 @pytest.mark.parametrize('text', ['如果这一版比上一版更清楚，就采用它。', '假如这一版比上一版更清楚，就继续。',

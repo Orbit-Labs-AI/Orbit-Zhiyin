@@ -3,8 +3,8 @@
 
 from test_engine import INPUTS, MEMORY, fake_recall, problem, raw
 
-from tandem_backend.recommend import engine, kb, narrate, problems
-from tandem_backend.recommend.recall import catalog_route, kb_route, models
+from orbit_backend.recommend import engine, kb, narrate, problems
+from orbit_backend.recommend.recall import catalog_route, kb_route, models
 
 ITEM = {"item_id": "skill:vendor/pack/protein-design", "kind": "skill", "name": "protein-design",
         "summary": "Design proteins with diffusion models and validate folds.", "url": "https://example.test/x",
@@ -49,8 +49,11 @@ def test_removal_gain_is_never_minus_zero_and_estimates_say_so():
                           "facts": {"usage": {"skill": {}, "mcp": {}}},
                           "inventory": [{"inv_id": "m1", "type": "mcp", "name": "figma", "enabled": True}]})
     unused = next(p for p in inv if p["type"] == "installed_unused")
-    card = _card(raw("removal:m1", kind="removal", dim="mcp", prob=unused))
-    assert card["ui"]["gain"] == "≈ −500 常驻 token（估计）"
+    assert _card(raw("removal:m1", kind="removal", dim="mcp", prob=unused))["ui"]["gain"] == ""  # no ledger yet
+    ledger = {"tokens": 100_000_000, "active_ms": 3_600_000, "turns": 10, "requests": 2000, "ops": {}}
+    card = _card(raw("removal:m1", kind="removal", dim="mcp", prob=unused), {**INPUTS, "facts": {"trajectory": ledger}})
+    # 500 estimated tokens × 2 000 requests = 1 % of all tokens × .9
+    assert card["ui"]["gain"] == "省 token 0.9%" and "约 500 tokens（估计）" in card["ui"]["save"]["basis"]
     zero = _card(raw("removal:z", kind="removal", dim="mcp", prob=problem(ptype="installed_unused", vars={}),
                      cost={"context_tokens": 0}))
     assert zero["ui"]["gain"] == ""
@@ -85,7 +88,7 @@ def test_slate_cards_never_show_placeholder_numbers():
 def test_plugin_cache_removals_disable_the_plugin_without_absolute_paths():
     import os
 
-    from tandem_backend.recommend.recall import subtract
+    from orbit_backend.recommend.recall import subtract
 
     home = os.path.expanduser("~")
     cache = f"{home}/.claude/plugins/cache/vendor/bio-pack/1.2.0/skills/fold/SKILL.md"
@@ -110,7 +113,7 @@ def test_plugin_cache_removals_disable_the_plugin_without_absolute_paths():
 
 
 def test_session_claiming_card_without_uids_is_gated():
-    from tandem_backend.recommend.ranking import gates
+    from orbit_backend.recommend.ranking import gates
 
     mix = [{"model_id": "m", "effort": "high", "agent": "claude_code", "sessions": 90, "readonly_sessions": 70,
             "tokens": 10}]

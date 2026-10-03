@@ -3,12 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from tandem_catalog.contracts import Page, Resource, SourceSpec
-from tandem_catalog.network import FetchError, validate_url
-from tandem_catalog.sources.github import GitHubConnector, frontmatter
-from tandem_catalog.sources.structured import StructuredConnector
-from tandem_catalog.store import CatalogStore
-from tandem_catalog.sync import CatalogSync
+from orbit_catalog.contracts import Page, Resource, SourceSpec
+from orbit_catalog.network import FetchError, validate_url
+from orbit_catalog.sources.github import GitHubConnector, frontmatter
+from orbit_catalog.sources.structured import StructuredConnector
+from orbit_catalog.store import CatalogStore
+from orbit_catalog.sync import CatalogSync
 
 from .test_storage import record
 

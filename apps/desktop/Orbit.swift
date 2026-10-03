@@ -6,7 +6,7 @@ import UserNotifications
 import WebKit
 
 // Orbit native host: owns process lifetime, windows, the menu-bar item, floating panels and
-// system dialogs; the bundled tandem-helper gateway owns all data logic and serves the
+// system dialogs; the bundled orbit-helper gateway owns all data logic and serves the
 // single-file UI at /app. Every surface is the same page: /app?surface=panel|hud|widgets.
 let appVersion = "0.0.3"
 let bundleID = "ai.actionmesh.orbit"
@@ -24,11 +24,31 @@ let windowBackground = NSColor(name: NSColor.Name("OrbitWindowBackground")) { ap
 }
 
 func dataHome() -> URL {
-    if let home = ProcessInfo.processInfo.environment["TANDEM_HOME"], !home.isEmpty {
+    let environment = ProcessInfo.processInfo.environment
+    // TANDEM_HOME: the setting's name before the rename to Orbit (v0.0.3 and earlier).
+    if let home = environment["ORBIT_HOME"] ?? environment["TANDEM_HOME"], !home.isEmpty {  // orbit-rename: keep
         return URL(fileURLWithPath: (home as NSString).expandingTildeInPath)
     }
-    return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Tandem")
+    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    let home = support.appendingPathComponent("Orbit")
+    adoptLegacyHome(home, legacy: support.appendingPathComponent("Tandem"))  // orbit-rename: keep
+    return home
+}
+
+/// Before the rename to Orbit (v0.0.3 and earlier) the data lived in Application Support/Tandem. Move it once and leave
+/// a link at the old path: hooks installed back then write to absolute paths under it. The helper renames the files
+/// inside (orbit_data.legacy); an existing Orbit folder is never touched.
+func adoptLegacyHome(_ home: URL, legacy: URL) {
+    let files = FileManager.default
+    guard !files.fileExists(atPath: home.path),
+          let kind = try? files.attributesOfItem(atPath: legacy.path)[.type] as? FileAttributeType,
+          kind == .typeDirectory else { return }
+    do {
+        try files.moveItem(at: legacy, to: home)
+        try files.createSymbolicLink(atPath: legacy.path, withDestinationPath: home.lastPathComponent)
+    } catch {
+        NSLog("Orbit: could not move \(legacy.path): \(error.localizedDescription)")
+    }
 }
 
 /// One Orbit per data directory: the lock is released by the kernel when the process exits.
@@ -281,7 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if let existing = hosts[surface] { return existing }
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
-        config.userContentController.add(bridge, name: "tandem")
+        config.userContentController.add(bridge, name: "orbit")
         let webView = OrbitWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
         webView.uiDelegate = self
@@ -309,7 +329,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func bootstrapScript(_ origin: URL) -> String {
         let native: [String: Any] = ["v": 1, "app": appVersion, "platform": "macos", "features": nativeFeatures]
-        return "window.__TANDEM_TOKEN__ = \(jsString(token)); window.__TANDEM_ENDPOINT__ = \(jsString(endpoint(origin)));" +
+        return "window.__ORBIT_TOKEN__ = \(jsString(token)); window.__ORBIT_ENDPOINT__ = \(jsString(endpoint(origin)));" +
             " window.__ORBIT_NATIVE__ = \(jsonLiteral(native)); window.__ORBIT_PREFS__ = \(jsonLiteral(prefs.values));"
     }
 
@@ -322,7 +342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                                               forMainFrameOnly: true))
         if host.loaded {
             host.webView.evaluateJavaScript(bootstrapScript(origin))
-            dispatch("tandem:endpoint", ["endpoint": endpoint(origin), "token": token], to: host)
+            dispatch("orbit:endpoint", ["endpoint": endpoint(origin), "token": token], to: host)
         } else {
             host.loaded = true
             host.webView.load(URLRequest(url: pageURL(origin, host.surface)))
@@ -465,7 +485,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             NSApp.sendAction(Selector(("undo:")), to: nil, from: sender); return
         }
         main.webView.evaluateJavaScript("typeof LVN !== 'undefined' && !!LVN.canUndo && LVN.canUndo()") { [weak self] result, _ in
-            if (result as? Bool) == true { self?.dispatch("tandem:command", ["cmd": "undo"], to: main) }
+            if (result as? Bool) == true { self?.dispatch("orbit:command", ["cmd": "undo"], to: main) }
             else { NSApp.sendAction(Selector(("undo:")), to: nil, from: sender) }
         }
     }
@@ -478,14 +498,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         return item
     }
 
-    /// Menu commands go to the main window's page as tandem:command.
+    /// Menu commands go to the main window's page as orbit:command.
     @objc func sendCommand(_ sender: NSMenuItem) {
         let detail: [String: Any]
         if let cmd = sender.representedObject as? String { detail = ["cmd": cmd] }
         else if let object = sender.representedObject as? [String: Any], object["cmd"] is String { detail = object }
         else { return }
         showMain(nil)
-        dispatch("tandem:command", detail, to: hosts[.main])
+        dispatch("orbit:command", detail, to: hosts[.main])
     }
 
     @objc func reloadPage(_ sender: Any?) {
@@ -535,7 +555,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = "OrbitStatusItem"  // Keeps the user's ⌘-drag position in the menu bar.
         if let image = NSImage(named: "StatusIcon") {
-            image.isTemplate = true  // orbit-mark-small.svg rendered verbatim; the menu bar tints it.
+            image.isTemplate = true  // kit/nav/orbit-nav-template-16 as published; the menu bar tints it.
             image.size = NSSize(width: image.size.width * 16 / max(image.size.height, 1), height: 16)
             item.button?.image = image
         } else {
@@ -694,11 +714,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func startBackend() {
         guard let resources = Bundle.main.resourceURL else { return }
         let process = Process()
-        process.executableURL = resources.appendingPathComponent("backend/tandem-helper")
+        process.executableURL = resources.appendingPathComponent("backend/orbit-helper")
         process.arguments = ["gateway", "--home", home.path, "--port", "0",
                              "--assets", resources.appendingPathComponent("orbit.html").path]
         process.environment = ProcessInfo.processInfo.environment.merging(
-            ["TANDEM_API_TOKEN": token, "TANDEM_PARENT_PID": String(getpid())]) { _, new in new }
+            ["ORBIT_API_TOKEN": token, "ORBIT_PARENT_PID": String(getpid())]) { _, new in new }
         let pipe = Pipe(); process.standardOutput = pipe
         let logURL = home.appendingPathComponent("desktop.log")
         if !FileManager.default.fileExists(atPath: logURL.path) {
@@ -803,7 +823,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     /// document-start bootstrap so a reload sees the current values.
     func savePrefs(_ body: [String: Any], from host: WebHost) {
         guard let changes = body["set"] as? [String: Any], let accepted = prefs.merge(changes) else { return }
-        for other in hosts.values where other !== host { dispatch("tandem:prefs", ["set": accepted], to: other) }
+        for other in hosts.values where other !== host { dispatch("orbit:prefs", ["set": accepted], to: other) }
         guard let origin = origin else { return }
         for each in hosts.values where each.loaded {
             let controller = each.webView.configuration.userContentController
@@ -871,7 +891,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     func openMain(route: String?) {
         showMain(nil)
         if let route = route, !route.isEmpty {
-            dispatch("tandem:command", ["cmd": "route", "route": route], to: hosts[.main])
+            dispatch("orbit:command", ["cmd": "route", "route": route], to: hosts[.main])
         }
     }
 
@@ -899,10 +919,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         present(panel, for: host) { [weak self] response in
             guard let self = self else { return }
             guard response == .OK, let url = panel.url else {
-                self.dispatch("tandem:folder", ["id": id, "path": NSNull(), "cancelled": true], to: host); return
+                self.dispatch("orbit:folder", ["id": id, "path": NSNull(), "cancelled": true], to: host); return
             }
             self.rememberBookmark(url)
-            self.dispatch("tandem:folder", ["id": id, "path": url.path, "cancelled": false], to: host)
+            self.dispatch("orbit:folder", ["id": id, "path": url.path, "cancelled": false], to: host)
         }
     }
 
@@ -910,22 +930,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let data: Data
         if let text = body["text"] as? String { data = Data(text.utf8) }
         else if let encoded = body["base64"] as? String, let decoded = Data(base64Encoded: encoded) { data = decoded }
-        else { dispatch("tandem:saved", ["id": id, "ok": false, "error": "no content"], to: host); return }
+        else { dispatch("orbit:saved", ["id": id, "ok": false, "error": "no content"], to: host); return }
         guard data.count <= 200_000_000 else {
-            dispatch("tandem:saved", ["id": id, "ok": false, "error": "too large"], to: host); return
+            dispatch("orbit:saved", ["id": id, "ok": false, "error": "too large"], to: host); return
         }
         let panel = NSSavePanel()
         let name = (body["filename"] as? String).map { ($0 as NSString).lastPathComponent } ?? "orbit-export"
         panel.nameFieldStringValue = name.isEmpty ? "orbit-export" : name
         present(panel, for: host) { [weak self] response in
             guard response == .OK, let url = panel.url else {
-                self?.dispatch("tandem:saved", ["id": id, "ok": false, "cancelled": true], to: host); return
+                self?.dispatch("orbit:saved", ["id": id, "ok": false, "cancelled": true], to: host); return
             }
             do {
                 try data.write(to: url, options: .atomic)
-                self?.dispatch("tandem:saved", ["id": id, "ok": true, "path": url.path], to: host)
+                self?.dispatch("orbit:saved", ["id": id, "ok": true, "path": url.path], to: host)
             } catch {
-                self?.dispatch("tandem:saved", ["id": id, "ok": false, "error": error.localizedDescription], to: host)
+                self?.dispatch("orbit:saved", ["id": id, "ok": false, "error": error.localizedDescription], to: host)
             }
         }
     }
@@ -933,13 +953,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     // MARK: notifications
 
     /// System notification; authorization is requested on first use (notDetermined). The page gets
-    /// tandem:notified {id, delivered, reason?}: denied, an unbundled build or a failed add are reported, not dropped.
+    /// orbit:notified {id, delivered, reason?}: denied, an unbundled build or a failed add are reported, not dropped.
     /// force:true only matters to the page (it posts even while visible); the host always delivers.
     func notify(_ body: [String: Any], id replyID: Any = NSNull(), host: WebHost? = nil) {
         let reply = { (delivered: Bool, reason: String?) in
             var detail: [String: Any] = ["id": replyID, "delivered": delivered]
             if let reason = reason { detail["reason"] = reason }
-            DispatchQueue.main.async { self.dispatch("tandem:notified", detail, to: host) }
+            DispatchQueue.main.async { self.dispatch("orbit:notified", detail, to: host) }
         }
         guard Bundle.main.bundleIdentifier != nil else { reply(false, "unbundled"); return }
         guard let title = body["title"] as? String, !title.isEmpty else { reply(false, "no title"); return }
@@ -972,14 +992,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
     }
 
-    /// notificationStatus → tandem:notificationStatus {id, status: notDetermined | denied | authorized | provisional}.
+    /// notificationStatus → orbit:notificationStatus {id, status: notDetermined | denied | authorized | provisional}.
     func notificationStatus(id: Any, host: WebHost) {
         guard Bundle.main.bundleIdentifier != nil else {
-            dispatch("tandem:notificationStatus", ["id": id, "status": "notDetermined", "error": "unbundled"], to: host); return
+            dispatch("orbit:notificationStatus", ["id": id, "status": "notDetermined", "error": "unbundled"], to: host); return
         }
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let status = AppDelegate.authorizationName(settings.authorizationStatus)
-            DispatchQueue.main.async { self.dispatch("tandem:notificationStatus", ["id": id, "status": status], to: host) }
+            DispatchQueue.main.async { self.dispatch("orbit:notificationStatus", ["id": id, "status": status], to: host) }
         }
     }
 
@@ -995,7 +1015,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     /// loginItem {enabled?}: without enabled it reads, with it registers / unregisters the app (SMAppService.mainApp).
-    /// Replies tandem:loginItem {id, enabled, status, error?}; the state is always the system's, read back after the change.
+    /// Replies orbit:loginItem {id, enabled, status, error?}; the state is always the system's, read back after the change.
     func loginItem(_ body: [String: Any], id: Any, host: WebHost) {
         let service = SMAppService.mainApp
         var error: String?
@@ -1006,7 +1026,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let status = service.status
         var detail: [String: Any] = ["id": id, "enabled": status == .enabled, "status": AppDelegate.loginStatusName(status)]
         if let error = error { detail["error"] = error }
-        dispatch("tandem:loginItem", detail, to: host)
+        dispatch("orbit:loginItem", detail, to: host)
     }
 
     /// appearance {mode: system | light | dark}: the whole app (windows, panels, popover, sheets) follows the page's theme.

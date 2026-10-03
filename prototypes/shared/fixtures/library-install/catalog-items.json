@@ -30,7 +30,7 @@
       "kind": "hook",
       "name": "retry-guard",
       "summary": "同一命令失败两次后暂停（合成夹具）",
-      "author": "tandem",
+      "author": "orbit",
       "license": "MIT",
       "official": true,
       "agents": [

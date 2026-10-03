@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tandem_backend.realtime.replay import DEFAULT_CASES, run_cases
+from orbit_backend.realtime.replay import DEFAULT_CASES, run_cases
 
 
 def test_all_replay_cases_pass():

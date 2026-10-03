@@ -2,19 +2,19 @@
 
 import json
 
-from tandem_data.store import Store as DataStore
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.store import Store as DataStore
+from orbit_data.validation.fixtures import create_sources
 
-from tandem_backend.analytics.inputs import (
+from orbit_backend.analytics.inputs import (
     AnalysisInputBundle,
     Scope,
     legacy_bundle,
     metadata,
     select,
 )
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.models import Event, ParsedSession, Session
-from tandem_backend.store import Store
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.models import Event, ParsedSession, Session
+from orbit_backend.store import Store
 
 
 def test_legacy_agent_requires_parser_provenance_and_empty_filter_means_none(tmp_path):

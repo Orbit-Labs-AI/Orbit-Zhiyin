@@ -3,8 +3,8 @@ import types
 
 import pytest
 
-from tandem_backend.evalrun import registry
-from tandem_backend.evalrun.contract import Check, SuiteResult
+from orbit_backend.evalrun import registry
+from orbit_backend.evalrun.contract import Check, SuiteResult
 
 
 def test_score_is_fraction_of_passed_checks():
@@ -18,7 +18,7 @@ def test_skipped_or_empty_suite_has_no_score():
 
 
 def test_registry_discovers_modules_lazily(monkeypatch):
-    module = types.ModuleType("tandem_backend.evalrun.suites.fake_one")
+    module = types.ModuleType("orbit_backend.evalrun.suites.fake_one")
     module.__doc__ = "Fake suite.\n\nMore text."
     module.ID, module.TITLE, module.EV = "fake_one", "Fake", ("EV-12",)
     monkeypatch.setitem(sys.modules, module.__name__, module)

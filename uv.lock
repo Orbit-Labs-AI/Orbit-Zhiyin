@@ -4,10 +4,10 @@ requires-python = "==3.13.*"
 
 [manifest]
 members = [
-    "tandem-backend",
-    "tandem-catalog",
-    "tandem-data",
-    "tandem-workspace",
+    "orbit-backend",
+    "orbit-catalog",
+    "orbit-data",
+    "orbit-workspace",
 ]
 
 [[package]]
@@ -332,6 +332,149 @@ wheels = [
 ]
 
 [[package]]
+name = "orbit-backend"
+version = "0.13.6"
+source = { editable = "packages/backend" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "jieba" },
+    { name = "markdown-it-py" },
+    { name = "orbit-catalog" },
+    { name = "orbit-data" },
+    { name = "pydantic" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+embeddings = [
+    { name = "orbit-catalog", extra = ["embeddings"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = "==0.115.12" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = "==0.28.1" },
+    { name = "jieba", specifier = "==0.42.1" },
+    { name = "markdown-it-py", specifier = "==4.2.0" },
+    { name = "orbit-catalog", editable = "packages/catalog" },
+    { name = "orbit-catalog", extras = ["embeddings"], marker = "extra == 'embeddings'", editable = "packages/catalog" },
+    { name = "orbit-data", editable = "packages/data" },
+    { name = "pydantic", specifier = "==2.11.7" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = "==8.4.1" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.12.2" },
+    { name = "scikit-learn", specifier = "==1.7.2" },
+    { name = "scipy", specifier = ">=1.16,<2" },
+    { name = "uvicorn", specifier = "==0.34.3" },
+]
+provides-extras = ["embeddings", "dev"]
+
+[[package]]
+name = "orbit-catalog"
+version = "0.1.0"
+source = { editable = "packages/catalog" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "numpy" },
+    { name = "orbit-data" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+embeddings = [
+    { name = "onnxruntime" },
+    { name = "tokenizers" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = "==0.115.12" },
+    { name = "numpy", specifier = ">=2.2,<3" },
+    { name = "onnxruntime", marker = "extra == 'embeddings'", specifier = "==1.30.0" },
+    { name = "orbit-data", editable = "packages/data" },
+    { name = "pydantic", specifier = "==2.11.7" },
+    { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "tokenizers", marker = "extra == 'embeddings'", specifier = "==0.23.2" },
+    { name = "uvicorn", specifier = "==0.34.3" },
+]
+provides-extras = ["embeddings"]
+
+[[package]]
+name = "orbit-data"
+version = "0.2.0"
+source = { editable = "packages/data" }
+dependencies = [
+    { name = "json5" },
+    { name = "jsonschema" },
+    { name = "pyyaml" },
+    { name = "zstandard" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "json5", specifier = ">=0.12,<1" },
+    { name = "jsonschema", specifier = ">=4.23,<5" },
+    { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "zstandard", specifier = ">=0.23,<1" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8,<10" },
+    { name = "ruff", specifier = ">=0.9,<1" },
+]
+
+[[package]]
+name = "orbit-workspace"
+version = "0.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "orbit-backend" },
+]
+
+[package.optional-dependencies]
+embeddings = [
+    { name = "orbit-catalog", extra = ["embeddings"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "orbit-backend", editable = "packages/backend" },
+    { name = "orbit-catalog", extras = ["embeddings"], marker = "extra == 'embeddings'", editable = "packages/catalog" },
+]
+provides-extras = ["embeddings"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = "==0.28.1" },
+    { name = "pytest", specifier = "==8.4.1" },
+    { name = "pytest-xdist", specifier = "==3.8.0" },
+    { name = "ruff", specifier = "==0.12.2" },
+]
+
+[[package]]
 name = "packaging"
 version = "26.3"
 source = { registry = "https://pypi.org/simple" }
@@ -579,149 +722,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ce/20/08dfcd9c983f6a6f4a1000d934b9e6d626cff8d2eeb77a89a68eef20a2b7/starlette-0.46.2.tar.gz", hash = "sha256:7f7361f34eed179294600af672f565727419830b54b7b084efe44bb82d2fccd5", size = 2580846, upload-time = "2025-04-13T13:56:17.942Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/0c/9d30a4ebeb6db2b25a841afbb80f6ef9a854fc3b41be131d249a977b4959/starlette-0.46.2-py3-none-any.whl", hash = "sha256:595633ce89f8ffa71a015caed34a5b2dc1c0cdb3f0f1fbd1e69339cf2abeec35", size = 72037, upload-time = "2025-04-13T13:56:16.21Z" },
-]
-
-[[package]]
-name = "tandem-backend"
-version = "0.13.6"
-source = { editable = "packages/backend" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "jieba" },
-    { name = "markdown-it-py" },
-    { name = "pydantic" },
-    { name = "scikit-learn" },
-    { name = "scipy" },
-    { name = "tandem-catalog" },
-    { name = "tandem-data" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-embeddings = [
-    { name = "tandem-catalog", extra = ["embeddings"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = "==0.115.12" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = "==0.28.1" },
-    { name = "jieba", specifier = "==0.42.1" },
-    { name = "markdown-it-py", specifier = "==4.2.0" },
-    { name = "pydantic", specifier = "==2.11.7" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = "==8.4.1" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.12.2" },
-    { name = "scikit-learn", specifier = "==1.7.2" },
-    { name = "scipy", specifier = ">=1.16,<2" },
-    { name = "tandem-catalog", editable = "packages/catalog" },
-    { name = "tandem-catalog", extras = ["embeddings"], marker = "extra == 'embeddings'", editable = "packages/catalog" },
-    { name = "tandem-data", editable = "packages/data" },
-    { name = "uvicorn", specifier = "==0.34.3" },
-]
-provides-extras = ["embeddings", "dev"]
-
-[[package]]
-name = "tandem-catalog"
-version = "0.1.0"
-source = { editable = "packages/catalog" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "numpy" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "tandem-data" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-embeddings = [
-    { name = "onnxruntime" },
-    { name = "tokenizers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = "==0.115.12" },
-    { name = "numpy", specifier = ">=2.2,<3" },
-    { name = "onnxruntime", marker = "extra == 'embeddings'", specifier = "==1.30.0" },
-    { name = "pydantic", specifier = "==2.11.7" },
-    { name = "pyyaml", specifier = "==6.0.3" },
-    { name = "tandem-data", editable = "packages/data" },
-    { name = "tokenizers", marker = "extra == 'embeddings'", specifier = "==0.23.2" },
-    { name = "uvicorn", specifier = "==0.34.3" },
-]
-provides-extras = ["embeddings"]
-
-[[package]]
-name = "tandem-data"
-version = "0.2.0"
-source = { editable = "packages/data" }
-dependencies = [
-    { name = "json5" },
-    { name = "jsonschema" },
-    { name = "pyyaml" },
-    { name = "zstandard" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "json5", specifier = ">=0.12,<1" },
-    { name = "jsonschema", specifier = ">=4.23,<5" },
-    { name = "pyyaml", specifier = ">=6,<7" },
-    { name = "zstandard", specifier = ">=0.23,<1" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8,<10" },
-    { name = "ruff", specifier = ">=0.9,<1" },
-]
-
-[[package]]
-name = "tandem-workspace"
-version = "0.0.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "tandem-backend" },
-]
-
-[package.optional-dependencies]
-embeddings = [
-    { name = "tandem-catalog", extra = ["embeddings"] },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "tandem-backend", editable = "packages/backend" },
-    { name = "tandem-catalog", extras = ["embeddings"], marker = "extra == 'embeddings'", editable = "packages/catalog" },
-]
-provides-extras = ["embeddings"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = "==0.28.1" },
-    { name = "pytest", specifier = "==8.4.1" },
-    { name = "pytest-xdist", specifier = "==3.8.0" },
-    { name = "ruff", specifier = "==0.12.2" },
 ]
 
 [[package]]

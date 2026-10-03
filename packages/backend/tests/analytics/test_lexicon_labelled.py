@@ -6,10 +6,10 @@ emotion recall >= 0.8 with no label on neutral/hypothetical text.
 
 import pytest
 
-from tandem_backend.analytics.interaction.rules import correction_terms
-from tandem_backend.analytics.lexicon import correction_hits
-from tandem_backend.analytics.products.feedback import classify_emotion
-from tandem_backend.uiview.sessions import is_correction
+from orbit_backend.analytics.interaction.rules import correction_terms
+from orbit_backend.analytics.lexicon import correction_hits
+from orbit_backend.analytics.products.feedback import classify_emotion
+from orbit_backend.uiview.sessions import is_correction
 
 CORRECTIONS = [
     "this is still broken, try a different approach",

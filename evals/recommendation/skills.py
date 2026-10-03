@@ -7,14 +7,14 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
-from tandem_backend.recommend.sources.normalize import catalog_resource
-from tandem_catalog.contracts import MatchRequest
-from tandem_catalog.search import eligibility
-from tandem_catalog.service import CatalogService
-from tandem_catalog.sync import CatalogSync
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
+from orbit_backend.recommend.sources.normalize import catalog_resource
+from orbit_catalog.contracts import MatchRequest
+from orbit_catalog.search import eligibility
+from orbit_catalog.service import CatalogService
+from orbit_catalog.sync import CatalogSync
 
 from .demo import synthetic_bundle
 

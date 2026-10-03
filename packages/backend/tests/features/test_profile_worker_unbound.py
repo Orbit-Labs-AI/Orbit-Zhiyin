@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from tandem_backend import features
-from tandem_backend.recommend import section
+from orbit_backend import features
+from orbit_backend.recommend import section
 
 
 def test_unbound_worker_builds_profile_readonly(home, seeded, make_service, monkeypatch):

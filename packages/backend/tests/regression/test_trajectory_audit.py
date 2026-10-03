@@ -2,11 +2,11 @@
 
 import pytest
 
-from tandem_backend.analysis import analyze
-from tandem_backend.models import Event
-from tandem_backend.pipeline_eval import _write_case
-from tandem_backend.store import Store, import_codex
-from tandem_backend.trajectory import comparison_signal, response_observation
+from orbit_backend.analysis import analyze
+from orbit_backend.models import Event
+from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.store import Store, import_codex
+from orbit_backend.trajectory import comparison_signal, response_observation
 
 
 def audit(tmp_path, ending, original='证明先检查条件。然后构造辅助函数。最后得到结论。', revised='先检查条件，再借助辅助函数得到结论。'):

@@ -1,8 +1,8 @@
 import pytest
 
-from tandem_data.contract import canonical
-from tandem_data.privacy import REDACTION_VERSION, redact
-from tandem_data.privacy_rules import MAX_PREVIEW_CHARS, RULES, preview, rules
+from orbit_data.contract import canonical
+from orbit_data.privacy import REDACTION_VERSION, redact
+from orbit_data.privacy_rules import MAX_PREVIEW_CHARS, RULES, preview, rules
 
 # Samples mirrored from test_security_and_native.py / test_native_connectors.py.
 REPOSITORY_SAMPLES = [

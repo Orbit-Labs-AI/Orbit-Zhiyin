@@ -3,10 +3,10 @@ import time
 
 import pytest
 
-from tandem_backend.recommend import engine, narrate
+from orbit_backend.recommend import engine, narrate
 
 UI_KEYS = {"dim", "type", "icon", "lvl", "aud", "title", "gain", "why", "ev", "evq", "compat", "primary", "target",
-           "file", "steps", "commands", "track", "save", "tok", "n"}
+           "file", "steps", "commands", "track", "save", "tok", "tok_pct", "n"}
 
 
 def problem(pid="p1", ptype="permission_friction", sessions=8, **kw):
@@ -63,9 +63,10 @@ def test_slate_shape_and_ui_keys():
     assert set(top["gates"]) == {"passed", "checks", "reasons"}
     ui = top["ui"]
     assert ui["why"] == "你手动批准了 212 次 git status、ls 这类只读命令。"
-    assert ui["gain"] == "−52 次 / 月" and ui["ev"] == "8 个会话" and ui["compat"] == "Claude Code · Codex"
-    # the fixture's .5 min/event has no source → no minutes figure on the card
-    assert ui["save"]["min_month"] is None and ui["save"]["label"] == "未估算" and ui["tok"] == 0
+    assert ui["gain"] == "8 个会话出现" and ui["ev"] == "8 个会话" and ui["compat"] == "Claude Code · Codex"
+    # INPUTS carries no trajectory ledger → no share is computed, and never an hours figure
+    assert ui["save"]["time_pct"] is None and ui["save"]["label"] == "未估算" and ui["tok"] == 0
+    assert ui["tok_pct"] is None
     assert ui["n"] == [20, None]
     assert ui["primary"] == "一键应用" and ui["type"] == "Hook" and ui["icon"] == "bolt"
     assert ui["evq"] == {"session_uids": ["s1", "s2"]} and ui["steps"] == ["预览", "确认写入"]
@@ -147,18 +148,78 @@ def test_net_non_positive_never_ranks():
     assert gated["score"]["utility"] == pytest.approx(.13772 / (1 + 1 / 30) - .25, abs=1e-4)
 
 
-def test_sourced_unit_minutes_use_benefit_scenario_bounds():
-    r = raw("kb:ro-allow", unit_minutes_source="实测：审批对话框平均停留 30 秒")
-    ui = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([r]))["candidates"][0]["ui"]
-    # point: 13.25 × 4.345 × .5 × .9 = 25.906 ; Beta(9,1) ±1.645·sd: sd = √(9/(100·11)) = .090453
-    # reduction = [.9 − .148795, min(1, .9 + .148795)] = [.751205, 1] → low 21.62, high 28.785
-    assert ui["save"]["min_month"] == 26 and ui["save"]["label"] == "≈ 26 min"
-    assert ui["save"]["low"] == 22 and ui["save"]["high"] == 29
-    assert "实测：审批对话框平均停留 30 秒" in ui["save"]["basis"]
+# 36 000 000 ms (10 h) of active time, 1M tokens, 100 user turns, 2 000 requests; per class n / tokens / ms
+LEDGER = {"tokens": 1_000_000, "active_ms": 36_000_000, "turns": 100, "requests": 2000,
+          "requests_by_agent": {"claude_code": 1500, "codex": 500},
+          "ops": {"call": {"n": 1000, "tokens": 400_000, "ms": 18_000_000},
+                  "failed": {"n": 20, "tokens": 200_000, "ms": 1_200_000},
+                  "readonly": {"n": 50, "tokens": 0, "ms": 1_500_000}}}
+LEDGER_INPUTS = {**INPUTS, "facts": {"trajectory": LEDGER}}
 
 
-def test_catalog_entries_never_share_invented_minutes():
-    from tandem_backend.recommend.recall.catalog_route import from_item
+def ui_of(r, inputs=LEDGER_INPUTS):
+    return engine.build_slate(inputs, MEMORY, recall=fake_recall([r]))["candidates"][0]["ui"]
+
+
+def test_approval_share_is_time_only():
+    save = ui_of(raw("kb:ro-allow"))["save"]
+    # 13.25 approvals × 1 500 000 / 50 ms = 397 500 ms → 1.104167 % of 36 000 000 ms; tokens: the calls still run
+    # × Beta(9, 1) mean .9 = .99375 ; range × [.751205, 1] = [.82946, 1.104167]
+    assert save["share"] == {"time": 1.1042, "token": 0.} and save["effect"] == .9 and save["op"] == "readonly"
+    assert save["time_pct"] == .9938 and save["token_pct"] == 0. and save["time_range"] == [.8295, 1.1042]
+    assert save["label"] == "省时 1.0% · 省 token 0%" and save["key"] == "permission_friction"
+    assert "只读审批等待" in save["basis"] and "在全部轨迹里占时间 1.1%、token 0%" in save["basis"]
+    assert not any(unit in save["basis"] + save["label"] for unit in ("小时", " h", "/ 月"))
+
+
+def test_failure_share_uses_measured_failed_calls():
+    prob = problem(ptype="tool_env_failure", key="tool_env_failure:git", weekly_count=10)
+    ui = ui_of(raw("kb:retry-breaker", kind="hook", prob=prob, prior={"alpha": 8, "beta": 2}))
+    save = ui["save"]
+    # 10 failures × (200 000 / 20) tokens = 100 000 → 10 % ; × (1 200 000 / 20) ms = 600 000 → 1.6667 % ; × .8
+    assert save["share"] == {"time": 1.6667, "token": 10.} and save["op"] == "failed"
+    assert save["time_pct"] == 1.3333 and save["token_pct"] == 8. and ui["gain"] == save["label"] == "省时 1.3% · 省 token 8.0%"
+
+
+def test_rework_problems_cost_one_turn_and_cap_at_the_class_total():
+    rework = problem(ptype="wrong_approach", key="wrong_approach", weekly_count=5)
+    save = ui_of(raw("kb:completion-contract", kind="prompt", prob=rework, prior={"alpha": 1, "beta": 1}))["save"]
+    # 5 corrections × one turn (10 000 tokens, 360 000 ms) = 5 % of each total ; × .5
+    assert save["op"] == "turn" and save["share"] == {"time": 5., "token": 5.} and save["time_pct"] == 2.5
+    flood = problem(ptype="tool_env_failure", key="tool_env_failure", weekly_count=500)
+    save = ui_of(raw("kb:retry-breaker", kind="hook", prob=flood))["save"]
+    assert save["share"] == {"time": 3.3333, "token": 20.}  # never more than all failed calls cost
+
+
+def test_unmeasured_class_falls_back_to_an_average_call():
+    tests = problem(ptype="buggy_output", key="buggy_output", weekly_count=4)
+    untimed = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "ops": {**LEDGER["ops"], "failed": {"n": 0, "tokens": 0, "ms": 0}}}}}
+    save = ui_of(raw("kb:verify-ladder", kind="workflow", prob=tests), untimed)["save"]
+    # no failed call was timed → 4 × (400 000 / 1000) tokens = 1 600 → .16 % ; 4 × 18 000 ms → .2 %
+    assert save["op"] == "failed" and save["share"] == {"time": .2, "token": .16} and "按平均工具调用近似" in save["basis"]
+
+
+def test_removal_frees_resident_tokens_of_its_agent():
+    unused = problem(ptype="installed_unused", key="installed_unused:figma", weekly_count=40,
+                     vars={"tokens": 300, "agent": "claude_code", "tokens_basis": "measured"})
+    ui = ui_of(raw("kb:disable-unused", kind="removal", dim="mcp", prob=unused, prior={"alpha": 6, "beta": 1}))
+    save = ui["save"]
+    # 300 tokens × 1 500 Claude Code requests = 450 000 → 45 % ; time not measured ; × 6/7
+    assert save["op"] == "resident" and save["share"] == {"time": None, "token": 45.} and save["time_range"] is None
+    assert save["token_pct"] == 38.5714 and save["label"] == "省 token 39%" and "时间代价未实测" in save["basis"]
+    assert ui["tok"] == -300 and ui["tok_pct"] == -45.
+
+
+def test_added_context_is_priced_as_a_share():
+    ui = ui_of(raw("kb:ro-allow", cost={"setup_minutes": 1, "context_tokens": 200, "reversible": True}))
+    assert ui["tok"] == 200 and ui["tok_pct"] == 30.  # 200 × 1 500 requests / 1M (target agent claude_code)
+    big = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "tokens": 10 ** 9}}}
+    tiny = ui_of(raw("kb:ro-allow", cost={"setup_minutes": 1, "context_tokens": 2, "reversible": True}), big)
+    assert tiny["tok_pct"] == .0003  # 2 × 1 500 / 1e9: a real cost, never rounded to「不占常驻」
+
+
+def test_catalog_entries_share_the_problem_not_invented_numbers():
+    from orbit_backend.recommend.recall.catalog_route import from_item
 
     prob = problem(evidence={"session_uids": ["s1"], "signal_ids": [], "event_ids": []})
     cards = []
@@ -166,13 +227,28 @@ def test_catalog_entries_never_share_invented_minutes():
         r = from_item({"item_id": item_id, "kind": "skill", "name": f"Skill {item_id}", "agents": [],
                        "license": "MIT", "verified": True}, prob, INPUTS, match_basis="catalog_feature")
         assert r["unit_minutes"] is None
-        cards.append(narrate._save({"kind": "skill", "problem": prob}, r, INPUTS))
-    assert all(c["min_month"] is None and c["label"] == "未估算" for c in cards)
+        cards.append((narrate._save({"kind": "skill", "problem": prob}, r, INPUTS),
+                      narrate._save({"kind": "skill", "problem": prob}, r, LEDGER_INPUTS)))
+    assert all(old["time_pct"] is None and old["label"] == "未估算" for old, _ in cards)
+    assert cards[0][1] == cards[1][1] and cards[0][1]["share"] == {"time": 1.1042, "token": 0.}
+
+
+def test_pct_text_and_tiny_shares():
+    assert [narrate.pct_text(v) for v in (None, 0, .04, 3.21, 12.6)] == ["—", "0%", "<0.1%", "3.2%", "13%"]
+    rare = problem(ptype="tool_env_failure", key="tool_env_failure", weekly_count=.01)
+    save = ui_of(raw("kb:retry-breaker", kind="hook", prob=rare))["save"]
+    # .01 × 10 000 tokens = 100 → .01 % × .9 = .009 %: still a positive share, printed「<0.1%」not「0%」
+    assert save["token_pct"] == .009 and save["label"] == "省时 <0.1% · 省 token <0.1%"
+
+
+def test_model_cards_say_why_they_are_not_estimated():
+    save = narrate._save({"kind": "model", "problem": None}, {}, LEDGER_INPUTS)
+    assert save["time_pct"] is None and "推理 token" in save["basis"]
 
 
 def test_token_pricing_is_symmetric():
-    from tandem_backend.recommend.ranking.rank import score
-    from tandem_backend.recommend.units import CONTEXT_TOKENS_PER_UNIT
+    from orbit_backend.recommend.ranking.rank import score
+    from orbit_backend.recommend.units import CONTEXT_TOKENS_PER_UNIT
 
     removal = raw("removal:x", kind="removal", unit_minutes=None, resident_tokens=3000,
                   cost={"setup_minutes": 0, "context_tokens": 0})

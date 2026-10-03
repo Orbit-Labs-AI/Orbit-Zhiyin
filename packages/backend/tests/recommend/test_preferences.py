@@ -6,9 +6,9 @@ import pytest
 from pydantic import ValidationError
 from test_recommend_pipeline import correction_bundle, ready_item
 
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.recommend.contracts import RecommendationContext
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.recommend.contracts import RecommendationContext
+from orbit_backend.recommend.service import recommend
 
 
 def analysis_with(*statements, roots=None):
