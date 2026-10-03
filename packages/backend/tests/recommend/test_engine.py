@@ -165,9 +165,9 @@ def ui_of(r, inputs=LEDGER_INPUTS):
 def test_approval_share_is_time_only():
     save = ui_of(raw("kb:ro-allow"))["save"]
     # 13.25 approvals × 1 500 000 / 50 ms = 397 500 ms → 1.104167 % of 36 000 000 ms; tokens: the calls still run
-    # × Beta(9, 1) mean .9 = .99375 ; range × [.751205, 1] = [.8295, 1.1042]
-    assert save["share"] == {"time": 1.1, "token": 0.} and save["effect"] == .9 and save["op"] == "readonly"
-    assert save["time_pct"] == .99 and save["token_pct"] == 0. and save["time_range"] == [.83, 1.1]
+    # × Beta(9, 1) mean .9 = .99375 ; range × [.751205, 1] = [.82946, 1.104167]
+    assert save["share"] == {"time": 1.1042, "token": 0.} and save["effect"] == .9 and save["op"] == "readonly"
+    assert save["time_pct"] == .9938 and save["token_pct"] == 0. and save["time_range"] == [.8295, 1.1042]
     assert save["label"] == "省时 1.0% · 省 token 0%" and save["key"] == "permission_friction"
     assert "只读审批等待" in save["basis"] and "在全部轨迹里占时间 1.1%、token 0%" in save["basis"]
     assert not any(unit in save["basis"] + save["label"] for unit in ("小时", " h", "/ 月"))
@@ -178,8 +178,8 @@ def test_failure_share_uses_measured_failed_calls():
     ui = ui_of(raw("kb:retry-breaker", kind="hook", prob=prob, prior={"alpha": 8, "beta": 2}))
     save = ui["save"]
     # 10 failures × (200 000 / 20) tokens = 100 000 → 10 % ; × (1 200 000 / 20) ms = 600 000 → 1.6667 % ; × .8
-    assert save["share"] == {"time": 1.67, "token": 10.} and save["op"] == "failed"
-    assert save["time_pct"] == 1.33 and save["token_pct"] == 8. and ui["gain"] == save["label"] == "省时 1.3% · 省 token 8.0%"
+    assert save["share"] == {"time": 1.6667, "token": 10.} and save["op"] == "failed"
+    assert save["time_pct"] == 1.3333 and save["token_pct"] == 8. and ui["gain"] == save["label"] == "省时 1.3% · 省 token 8.0%"
 
 
 def test_rework_problems_cost_one_turn_and_cap_at_the_class_total():
@@ -189,7 +189,7 @@ def test_rework_problems_cost_one_turn_and_cap_at_the_class_total():
     assert save["op"] == "turn" and save["share"] == {"time": 5., "token": 5.} and save["time_pct"] == 2.5
     flood = problem(ptype="tool_env_failure", key="tool_env_failure", weekly_count=500)
     save = ui_of(raw("kb:retry-breaker", kind="hook", prob=flood))["save"]
-    assert save["share"] == {"time": 3.33, "token": 20.}  # never more than all failed calls cost
+    assert save["share"] == {"time": 3.3333, "token": 20.}  # never more than all failed calls cost
 
 
 def test_unmeasured_class_falls_back_to_an_average_call():
@@ -206,7 +206,7 @@ def test_removal_frees_resident_tokens_of_its_agent():
     save = ui["save"]
     # 300 tokens × 1 500 Claude Code requests = 450 000 → 45 % ; time not measured ; × 6/7
     assert save["op"] == "resident" and save["share"] == {"time": None, "token": 45.} and save["time_range"] is None
-    assert save["token_pct"] == 38.57 and save["label"] == "省 token 39%" and "时间代价未实测" in save["basis"]
+    assert save["token_pct"] == 38.5714 and save["label"] == "省 token 39%" and "时间代价未实测" in save["basis"]
     assert ui["tok"] == -300 and ui["tok_pct"] == -45.
 
 
@@ -227,11 +227,20 @@ def test_catalog_entries_share_the_problem_not_invented_numbers():
         cards.append((narrate._save({"kind": "skill", "problem": prob}, r, INPUTS),
                       narrate._save({"kind": "skill", "problem": prob}, r, LEDGER_INPUTS)))
     assert all(old["time_pct"] is None and old["label"] == "未估算" for old, _ in cards)
-    assert cards[0][1] == cards[1][1] and cards[0][1]["share"] == {"time": 1.1, "token": 0.}
+    assert cards[0][1] == cards[1][1] and cards[0][1]["share"] == {"time": 1.1042, "token": 0.}
 
 
-def test_pct_text():
+def test_pct_text_and_tiny_shares():
     assert [narrate.pct_text(v) for v in (None, 0, .04, 3.21, 12.6)] == ["—", "0%", "<0.1%", "3.2%", "13%"]
+    rare = problem(ptype="tool_env_failure", key="tool_env_failure", weekly_count=.01)
+    save = ui_of(raw("kb:retry-breaker", kind="hook", prob=rare))["save"]
+    # .01 × 10 000 tokens = 100 → .01 % × .9 = .009 %: still a positive share, printed「<0.1%」not「0%」
+    assert save["token_pct"] == .009 and save["label"] == "省时 <0.1% · 省 token <0.1%"
+
+
+def test_model_cards_say_why_they_are_not_estimated():
+    save = narrate._save({"kind": "model", "problem": None}, {}, LEDGER_INPUTS)
+    assert save["time_pct"] is None and "推理 token" in save["basis"]
 
 
 def test_token_pricing_is_symmetric():

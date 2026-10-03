@@ -254,6 +254,8 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
     not additive."""
     problem = cand.get("problem") or {}
     ledger = (inputs.get("facts") or {}).get("trajectory") or {}
+    if cand.get("kind") == "model":
+        return _unestimated("降低思考档位只影响推理 token，轨迹里没有可靠地分开记录推理 token，暂不折算")
     if not problem:
         return _unestimated("没有对应的问题证据，轨迹里找不到可折算的操作")
     if not ledger.get("tokens") and not ledger.get("active_ms"):
@@ -272,8 +274,8 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
     alpha, beta = float(prior.get("alpha") or 1), float(prior.get("beta") or 1)
     p, (lo, hi) = alpha / (alpha + beta), beta_interval(alpha, beta)
 
-    def scaled(share, f):
-        return None if share is None else round(share * f, 2)
+    def scaled(share, f):  # four decimals: a tiny positive share stays「<0.1%」, never rounds to「0%」
+        return None if share is None else round(share * f, 4)
 
     time_pct, token_pct = scaled(share_t, p), scaled(share_k, p)
     span = f"近 {weeks:.1f} 周 {round(total)} {_unit_text(raw, problem)}（{note}）" if op != "resident" else note
