@@ -3,7 +3,7 @@
    5.4 传送带换成生成工坊（deck 1）→ 5.5 光标点「开始生成」→ 5.6 SKILL.md 一行行写出，合并点（cc 在上）到运行卡的线变亮、
    流动 → 5.7 工坊卡缩小轻转淡出。b68.9 起 60-close 从合并点展开（与工坊卡淡出重叠）。
    旧镜头（.mt-ph 胶囊、播放头、DIAG 传送带）来自 git show 78841089^:prototypes/advance/promo/scenes/50-montage.js。
-   生成过程用 App 自己的 studioStep / refreshStudio，但按成片拍逐帧推进（App 自带的定时器约 8 秒跑完，这里压到 b63.35–67.6）。 */
+   生成过程用 App 自己的 studioStep / refreshStudio，但按成片拍逐帧推进（App 自带的定时器约 8 秒跑完，这里压到 b62.95–67.75，SKILL.md 逐字写出）。 */
 scene('50-tools', () => {
   css(`
 .mt-ph{display:inline-flex;align-items:center;gap:14px;font:600 44px var(--sans);color:#fff;padding:10px 26px 12px;border-radius:999px;background:rgba(10,11,13,.9);border:1px solid rgba(255,255,255,.22)}
@@ -26,14 +26,20 @@ scene('50-tools', () => {
 
   /* ---------- 5.1 merge (b55.0–56.4) ---------- */
   AGD.key(55.0, 'merge', { x: 220, y: 540, r: 44, dur: 1.2, stag: .05 });
+  // pacing pass: the merged dot never sits dead still — a slow arc (22 px down, 8 px sideways) that is back on (220, 540) by
+  // the b68.9 hand-off (60-close's compass key blends from the merge form; the follow's weight is 0 there as well)
+  const DRIFT = (b) => clamp((b - 56.0) / 12.9);
+  AGD.follow(56.0, 68.9, (i, b, q) => ({ x: q.x + 8 * Math.sin(2 * Math.PI * DRIFT(b)), y: q.y + 22 * Math.sin(Math.PI * DRIFT(b)) }), { blend: .8 });
 
   /* ---------- top copy: three lines, swapped in place at 5.4, out at b68.4 ---------- */
   const sw = (a, b) => '<span class="sw"><span>' + a + '</span><span>' + b + '</span></span>';
+  // slower rise (1.2 beats) and swap (.75); the block keeps a slow push (+.3 % / beat) instead of a dead hold
   const line = (b0, cls, a, b, y, swapAt) => txt(b0, 69.0, [[cls, sw(a, b)]], { x: 960, y, align: 'c' },
-    { anim: K.all(mask(0, .9, .6), K.swap({ at: [swapAt - b0], dur: .45, out: 0 })) });
-  line(56.4, 'eb', '会话轨迹', '生成工坊', 110, 61.7);
-  line(56.6, 'hv sv t5h', '回放每一次协作', '交给本地 Agent，写成 Skill', 190, 61.85);
-  line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '边写边验', 270, 62.0);
+    { anim: K.all(mask(0, 1.2, .6), K.swap({ at: [swapAt - b0], dur: .75, out: 0 })),
+      tick: (el, tl) => { el.style.transform = 'translate(-50%,-50%) scale(' + (1 + .003 * (tl / BEAT + b0 - 56.4)).toFixed(4) + ')'; } });
+  line(56.4, 'eb', '会话轨迹', '生成工坊', 110, 61.3);
+  line(56.6, 'hv sv t5h', '回放每一次协作', '交给本地 Agent，写成 Skill', 190, 61.45);
+  line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '边写边验', 270, 61.6);
 
   /* ---------- 5.2–5.3 trajectory card (deck 0, b55.12–62.2; enters b55.4 while the dots still merge, H12) ---------- */
   const TL = '.tl-card svg.vz-t-timeline', PH = (D) => D.querySelector(TL + ' .vz-playhead');
@@ -45,27 +51,42 @@ scene('50-tools', () => {
   });
   let PAN = 0;                                              // frame px the camera drifts with the playhead
   const trajCam = () => { const T = framing(0, '.tl-card', [1100, 640, 1360, 560], { max: 1.6 }); PAN = rectOf(0, '.tl-card').w * .05; T.x -= PAN; T.mx = 0; return T; };
-  tween(0, 55.4, 1.0, trajCam, E.quart, IN.fromR);
-  tween(0, 57.0, 4.6, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.04 }), E.sine);
+  tween(0, 55.4, 1.3, trajCam, E.quart, IN.fromR);
+  tween(0, 56.6, 5.0, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.04 }), E.sine);
   // the merged dot owns this session: a thin wire to the card's left edge
-  AGD.link(56.4, 61.9, 0, () => elXY(0, '.tl-card', 0, .5), { color: WIRE, width: 1.5, draw: .4, out: .3 });
-  // playhead through the five phases (0–6–9–24–36–42 min), ~.9 beat each, .4 more at the failing deploy
-  const KN = [[57.0, 0], [57.8, 6], [58.6, 9], [59.4, 24], [59.8, 25], [60.8, 36], [61.5, 42]];
-  const phAt = (b) => { if (b <= KN[0][0]) return 0; for (let i = 1; i < KN.length; i++) if (b <= KN[i][0]) { const [b0, v0] = KN[i - 1], [b1, v1] = KN[i]; return lerp(v0, v1, E.sine((b - b0) / (b1 - b0))); } return 42; };
+  AGD.link(56.4, 61.75, 0, () => elXY(0, '.tl-card', 0, .5), { color: WIRE, width: 1.5, draw: .5, out: .4 });
+  // playhead through the five phases (0–6–9–24–36–42 min): one smooth monotone curve through the phase knots (no stop at
+  // a knot), ~.9 beat per phase and 1.3 at the failing deploy; it is still creeping when the card leaves (b61.1)
+  const KN = [[56.5, 0], [57.4, 6], [58.3, 9], [59.2, 24], [60.5, 36], [61.5, 42]];
+  const KM = KN.map((k, i) => {                              // d3 monotoneX tangents; flat start, secant at the end
+    if (i === 0) return 0;
+    const s0 = (k[1] - KN[i - 1][1]) / (k[0] - KN[i - 1][0]); if (i === KN.length - 1) return s0;
+    const h0 = k[0] - KN[i - 1][0], h1 = KN[i + 1][0] - k[0], s1 = (KN[i + 1][1] - k[1]) / h1, p = (s0 * h1 + s1 * h0) / (h0 + h1);
+    return (Math.sign(s0) + Math.sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), .5 * Math.abs(p));
+  });
+  const phAt = (b) => {
+    if (b <= KN[0][0]) return 0;
+    for (let i = 1; i < KN.length; i++) if (b <= KN[i][0]) {
+      const [b0, v0] = KN[i - 1], [b1, v1] = KN[i], h = b1 - b0, u = (b - b0) / h, u2 = u * u, u3 = u2 * u;
+      return (2 * u3 - 3 * u2 + 1) * v0 + (u3 - 2 * u2 + u) * h * KM[i - 1] + (3 * u2 - 2 * u3) * v1 + (u3 - u2) * h * KM[i];
+    }
+    return 42;
+  };
   const PHASES = [[0, '探索', ''], [6, '规划', ''], [9, '实施 · 纠偏 2 次', 'warn'], [24, '部署 · 连续失败 4 次', 'crit'], [36, '验证 ✓', 'good']];
   const phaseOf = (m) => PHASES.filter((x) => m >= x[0] - .01).pop();
-  drive(0, 56.9, 61.6, (p, b) => { const a = app(0); a.S.sess.ph = Math.min(41.95, phAt(b)); a.W.eval('tlFrame(true)'); });
-  tag(0, 57.0, 61.9, PH, 'top', [['', '<span class="mt-ph"><i></i><b></b></span><span class="mt-stem"></span>']], {
+  drive(0, 56.4, 61.6, (p, b) => { const a = app(0); a.S.sess.ph = Math.min(41.95, phAt(b)); a.W.eval('tlFrame(true)'); });
+  // each phase pill pops in over .55 beat (rise + scale from .9), readable ≥ .9 beat while it rides the moving playhead
+  tag(0, 56.5, 61.9, PH, 'top', [['', '<span class="mt-ph"><i></i><b></b></span><span class="mt-stem"></span>']], {
     at: .5, gap: 10, anim: (el, tl, life, t) => {
       const b = t / BEAT, f = phaseOf(phAt(b)), pill = el.querySelector('.mt-ph');
       if (el.dataset.p !== f[1]) { el.dataset.p = f[1]; pill.className = 'mt-ph ' + f[2]; pill.querySelector('b').textContent = f[1]; el._t = b; }
-      const k = E.out(clamp((b - (el._t ?? b)) / .25)), q = exitQ(tl, life, .3), inn = E.out(clamp(tl / BB(.35)));
-      pill.style.transform = 'translateY(' + ((1 - k) * 18).toFixed(1) + 'px)'; pill.style.opacity = (Math.min(1, .35 + k) * q * inn).toFixed(3);
+      const k = E.out(clamp((b - (el._t ?? b)) / .55)), q = exitQ(tl, life, .45), inn = E.out(clamp(tl / BB(.5)));
+      pill.style.transform = 'translateY(' + ((1 - k) * 22).toFixed(1) + 'px) scale(' + (.9 + .1 * k).toFixed(3) + ')'; pill.style.opacity = (Math.min(1, .2 + k) * q * inn).toFixed(3);
       el.querySelector('.mt-stem').style.opacity = (q * inn).toFixed(3); fixTag(el);
     }
   });
-  // 5.4 conveyor: the card leaves along the diagonal while the studio arrives from the opposite side
-  tween(0, 61.6, .6, () => { const C = decks[0].C; return { ax: C.ax - DIAG[0], ay: C.ay - DIAG[1], o: 0, bl: 8, mx: 30 }; }, E.in);
+  // 5.4 conveyor: the card leaves along the diagonal (1 beat, eased both ends) while the studio arrives from the opposite side
+  tween(0, 61.1, 1.0, () => { const C = decks[0].C; return { ax: C.ax - DIAG[0], ay: C.ay - DIAG[1], o: 0, bl: 8, mx: 24 }; }, E.inOut);
 
   /* ---------- 5.4–5.7 studio (deck 1, b56.1–69.2) ---------- */
   const runCard = (D) => { const s = D.querySelector('#main .st-steps'); return s ? s.closest('.card') : D.querySelectorAll('#main .card.pad.col')[1]; };
@@ -91,39 +112,60 @@ scene('50-tools', () => {
     b.style.transition = 'none'; b.style.transform = ''; const r = b.getBoundingClientRect(), c = rc.getBoundingClientRect();
     b.style.transition = 'none'; b.style.position = 'relative'; b.style.zIndex = '3'; b.style.transform = 'translate(' + (c.right - 18 - r.right).toFixed(1) + 'px,' + (c.top + 16 - r.top).toFixed(1) + 'px)';
   };
-  drive(1, 56.15, 63.45, placeBtn);
-  at(63.45, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); b.style.transform = ''; } });
+  drive(1, 56.15, 63.05, placeBtn);
+  at(63.05, () => { SOLO1.pop(); const b = startBtn(decks[1].D); if (b) { b.classList.remove('promo-solo'); b.style.transform = ''; } });
   // box [1100, 640, 1300, 600]: top edge y 340 and width kept; the cards then grow down into the free space below the box
-  // (to y ≤ 1065 when done) instead of being shrunk to fit their final height into 600 px
+  // (to y ≤ 1065 when done) instead of being shrunk to fit their final height into 600 px. The anchor sits 362 px below the
+  // top edge (≈ the cards' middle when done), so the slow push below and the exit both scale about the middle
   const studioCam = () => {
     const r = SR || rectOf(1, [runCard, skillCard]), s = Math.min(1300 / r.w, 725 / r.h, 1.6);
-    return { x: r.x + r.w / 2, y: r.y, s, ax: 1100, ay: 340, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 };
+    return { x: r.x + r.w / 2, y: r.y + 362 / s, s, ax: 1100, ay: 702, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0 };
   };
-  tween(1, 61.7, .9, studioCam, E.quart, (T) => ({ ax: T.ax + DIAG[0], ay: T.ay + DIAG[1], o: 0, bl: 8, mx: 30 }));
-  tween(1, 62.6, 5.6, () => ({ s: decks[1].C.s * 1.015 }), E.sine);
-  // 5.5 the pointer glides to 开始生成 and presses it (orange bloom); the app's own timers are cleared, the run is driven below
-  clickAt(1, 63.2, startBtn, (a, el) => { a.click(el); a.W.eval('clearTimeout(RUNT)'); remark1(); }, { bloom: 'var(--a1)', glide: .8 });
-  // 5.6 the app's run (v1: pack · analyse · draft · self-check · replay + judge · review), on the film's beats
-  const RUN = [[63.35, 0], [63.7, 1], [64.05, 2], [66.45, 3], [66.95, 4], [67.6, 5]], L0 = 64.15, L1 = 66.3;
-  drive(1, 63.2, 67.7, (p, b) => {
-    const W = decks[1].W, run = W.eval('S.studio.run'); if (!run) return;
+  tween(1, 61.3, 1.2, studioCam, E.quart, (T) => ({ ax: T.ax + DIAG[0], ay: T.ay + DIAG[1], o: 0, bl: 8, mx: 24 }));
+  // continuous push (+3 % over 5.8 beats, linear) so the cards never hold still; bottom edge stays ≤ 1076
+  tween(1, 62.3, 5.8, () => ({ s: decks[1].C.s * 1.03 }), E.lin);
+  // 5.5 the pointer glides to 开始生成 (1 beat) and presses it (orange bloom); the app's own timers are cleared, the run is driven below
+  clickAt(1, 62.8, startBtn, (a, el) => { a.click(el); a.W.eval('clearTimeout(RUNT)'); remark1(); }, { bloom: 'var(--a1)', glide: 1.0 });
+  // 5.6 the app's run (v1: pack · analyse · draft · self-check · replay + judge · review), on the film's beats: ≥ .45 beat per
+  // step, SKILL.md typed character by character at an even rate over b64.05–66.75 (2.7 beats), new log lines fade/rise in
+  const RUN = [[62.95, 0], [63.45, 1], [63.95, 2], [66.85, 3], [67.3, 4], [67.75, 5]], L0 = 64.05, L1 = 66.75;
+  let GL = null, GW = null;                                 // SKILL.md lines (code points) and cumulative typing weights
+  drive(1, 62.8, 67.85, (p, b) => {
+    const W = decks[1].W, D = decks[1].D, run = W.eval('S.studio.run'); if (!run) return;
     W.eval('clearTimeout(RUNT)');
     let k = run._k ?? -1;
     while (k + 1 < RUN.length && b >= RUN[k + 1][0]) { k++; W.studioStep(RUN[k][1]); W.eval('clearTimeout(RUNT)'); }
     run._k = k;
     if (run.step === 2 && !run.done) {
-      const n = Math.round(W.eval('GEN[S.studio.type].lines.length') * clamp((b - L0) / (L1 - L0)));
+      if (!GL) { GL = W.eval('GEN[S.studio.type].lines.map((l) => l[0])').map((s) => [...s]); GW = [0]; GL.forEach((c) => GW.push(GW[GW.length - 1] + 2 + c.length)); }
+      const u = GW[GW.length - 1] * clamp((b - L0) / (L1 - L0));
+      let i = 0; while (i < GL.length - 1 && u >= GW[i + 1]) i++;
+      const n = u <= 0 ? 0 : u >= GW[GW.length - 1] ? GL.length : i + 1;
       if (n !== run.lines) { run.lines = n; W.refreshStudio(); }
+      if (n && n < GL.length || n === GL.length && u < GW[GW.length - 1]) {   // the line being written: only its typed characters
+        const rows = skillCard(D)?.querySelectorAll('.code > div'), t = rows && rows[n - 1]?.querySelector('.t');
+        const c = Math.round(GL[n - 1].length * clamp((u - GW[n - 1] - 1) / Math.max(1, GL[n - 1].length)));
+        if (t) t.textContent = GL[n - 1].slice(0, c).join('') || ' ';
+      }
     }
+    const L = run.log.length;
+    if (run._ln == null) { run._ln = 0; run._ln0 = 0; run._lt = b; }
+    if (L !== run._ln) { run._ln0 = run._ln; run._ln = L; run._lt = b; }
+    const lg = D.querySelector('#studioLog');
+    if (lg) [...lg.children].slice(1, 1 + L).forEach((d, j) => {
+      if (j < run._ln0) return;
+      const q = E.out(clamp((b - run._lt - (j - run._ln0) * .15) / .5));
+      d.style.opacity = q.toFixed(3); d.style.transform = 'translateY(' + ((1 - q) * 8).toFixed(1) + 'px)';
+    });
     remark1();                                              // refreshStudio replaced the solo cards this frame
   });
   // the merged dot is the generator: its wire to the run card brightens and carries pulses while SKILL.md is written
   const runEdge = () => elXY(1, runCard, 0, .5);
-  AGD.link(62.5, 63.65, 0, runEdge, { color: WIRE, width: 1.5, draw: .4, out: .25 });
-  AGD.link(63.4, 68.3, 0, runEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .35, out: .3 });
-  AGD.glow(0, 63.4, 67.6, 1);
-  AGD.pulse(0, 63.3, 1.06, .5);
+  AGD.link(62.2, 63.25, 0, runEdge, { color: WIRE, width: 1.5, draw: .5, out: .3 });
+  AGD.link(62.95, 68.3, 0, runEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .45, out: .3 });
+  AGD.glow(0, 62.95, 67.75, 1);
+  AGD.pulse(0, 62.85, 1.06, .6);
   // 5.7 out: shrink, slight turn, fade (deck 1 is clear by b69.1); the copy leaves at b68.4 (txt above)
   // E.inOut: E.in left the cards at o .5 at b69.0 and cut them to 0 within .2 beat; now they are nearly clear by b68.9, when the dots start to fan out (H13)
-  tween(1, 68.1, 1.0, () => { const C = decks[1].C; return { s: C.s * .8, rz: C.rz - 8, o: 0, bl: 8, y: C.y + 360 / C.s, ay: C.ay + 360 }; }, E.inOut);   // about the cards' middle, not the top anchor
+  tween(1, 68.1, 1.0, () => { const C = decks[1].C; return { s: C.s * .8, rz: C.rz - 8, o: 0, bl: 8 }; }, E.inOut);   // about the cards' middle: studioCam already anchors there
 });
