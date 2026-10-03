@@ -141,7 +141,9 @@ scene('50-tools', () => {
   tween(0, 55.09, 1.31, () => { const c = trajCam(); delete c.o; return c; }, E.out, (T) => ({ s: T.s * .94, bl: 6 }));
   // its opacity on a slower in-out (.1 at b55.4, whole by b56.1) so it does not stack on 40-recs' fading % payoff
   // QA: starts at b55.35 (film 86.25), once 40-recs' % payoff has cleared — earlier the half-faded panel sat under it
-  tween(0, 55.35, .8, { o: 1 }, E.inOut);
+  // hand-off QA v18.2: 40-recs now clears its payoff at film b86.9 (scene 55.2); the old 55.35 start left ~.5 beat of
+  // only the dot stack, then a 3-frame grey slab — start as the payoff clears and ramp in .6 beat (film b86.9–87.5)
+  tween(0, 55.2, .6, { o: 1 }, E.inOut);
   // then the slow drift with the playhead (2 · PAN left) and a 3 % push about the orb's point
   tween(0, 56.6, 11.0, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.03 }), E.sine);
   // the merged dot owns this session: a thin wire to the panel's left edge, drawn .5 beat and taken back by b57.3 as the dot
