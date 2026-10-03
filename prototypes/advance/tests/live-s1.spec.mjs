@@ -183,6 +183,38 @@ test('Lite: home, persona, sessions and recs run on the real agents; persona mon
   expect(errors).toEqual([]);
 });
 
+test('Lite persona: 匹配度 comes from /v1/uiview/persona/reveal for the same period when the code is classified', async ({ page }) => {
+  const errors = collectErrors(page);
+  const settled = fx('s1/persona-90-settled.json'), rv = fx('s1/reveal-settled.json');
+  const gw = await stubGateway(page, 's1', routes({ persona: () => settled, reveal: rv }));
+  await openLive(page, 'overview');
+  await page.evaluate(() => edSet('lite', 'l-persona'));
+  await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('lite|l-persona');
+  await expect(page.locator('.l-phero .letters')).toBeVisible();
+  const want = rv.candidates.find((c) => c.code === settled.code);
+  await expect(page.locator('.l-phero .l-match .bdg')).toHaveText('匹配度 ' + Math.round(want.match) + '%');
+  await expect(page.locator('.l-phero .l-match')).toContainText(settled.n + ' 个会话');
+  // the reveal is fetched for the Lite range, the same period as the persona it is matched against
+  const per = (x) => new URLSearchParams(x.query).get('period');
+  const pp = gw.seen.filter((x) => x.path === '/v1/uiview/persona').map(per), rp = gw.seen.filter((x) => x.path === '/v1/uiview/persona/reveal').map(per);
+  expect(rp.length).toBeGreaterThan(0);
+  expect(rp.every((x) => pp.includes(x))).toBe(true);
+  expect(await page.locator('#main').innerText()).not.toMatch(/\bn\s*[=≈]/);
+  // 播放揭晓 on the Lite page plays the same range: the reveal request carries the Lite period (30 days by default)
+  const range = await page.evaluate(() => ({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range]);
+  const before = gw.seen.length;
+  await page.locator('.l-phero [data-act="reveal"]').click();
+  await expect.poll(() => page.evaluate(() => OVL)).toBe('reveal');
+  const fired = gw.seen.slice(before).filter((x) => x.path === '/v1/uiview/persona/reveal').map(per);
+  expect(fired.length).toBeGreaterThan(0);
+  expect(fired.every((x) => x === range)).toBe(true);
+  // the overlay plays the page's code and 匹配度 (same candidates as .l-phero)
+  const g = await page.evaluate(() => ({ code: GNS && GNS.p.code, sim: GNS && (GNS.cands.find((c) => c.c === GNS.p.code) || {}).sim }));
+  expect(g.code).toBe(settled.code);
+  expect(g.sim).toBe(Math.round(want.match));
+  expect(errors).toEqual([]);
+});
+
 test('empty spine and missing endpoints: owned routes render honest empty states, zero page errors', async ({ page }) => {
   test.skip(!!PASS, 'stubbed answers (gw.set / 404s) only');
   const errors = collectErrors(page);
@@ -212,7 +244,28 @@ test('empty spine and missing endpoints: owned routes render honest empty states
   expect(errors).toEqual([]);
 });
 
-test('G1 port: rows with unit counts compute the persona client-side (Wilson axes) without a server round trip', async ({ page }) => {
+test('G1 port on the live stub: core facts carry every persona unit, so A2 shows the multi-signal structure', async ({ page }) => {
+  const errors = collectErrors(page);
+  const gw = await stubGateway(page, 'core');
+  await openLive(page, 'persona');
+  await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  await expect(page.locator('.persona-hero .letters')).toBeVisible();
+  const p = await page.evaluate(() => ({ method: CUR.persona && CUR.persona.method, code: CUR.persona && CUR.persona.code,
+    units: ALL.every((s) => s.dn != null && s.oa !== undefined && s.rb !== undefined),
+    axes: CUR.persona.axes.map((a) => [a.k, a.state, a.signals.map((x) => x.key)]) }));
+  // computed in the App from the rows (no /v1/uiview/persona in the core manifest), every axis from ≥ 2 signals
+  expect(p.method).toBe('client-port');
+  expect(p.units).toBe(true);
+  expect(gw.seen.some((x) => x.path === '/v1/uiview/persona')).toBe(false);
+  p.axes.forEach(([, state, keys]) => { expect(state).toBe('settled'); expect(keys.length).toBeGreaterThanOrEqual(2); });
+  await expect(page.locator('.persona-hero .letters .L')).toHaveText(p.code.split(''));
+  // 算法说明: V counts only turns where you asked for verification
+  await page.locator('[data-act="method"]').first().click();
+  await expect(page.locator('.modal')).toContainText('Agent 自己主动跑的测试不算');
+  await expect(page.locator('.modal')).toContainText('你要求测试 / 编译 / 检查的轮次占比');
+  expect(errors).toEqual([]);
+});
+test('G1 port: rows with unit counts compute the persona client-side (multi-signal axes) without a server round trip', async ({ page }) => {
   test.skip(!!PASS, 'synthetic rows');
   await stubGateway(page, 's1', routes());
   await openLive(page, 'overview');
@@ -234,5 +287,7 @@ test('G1 port: rows with unit counts compute the persona client-side (Wilson axe
   expect(p.ok).toBe(true);
   expect(p.code).toBe('DPMV');
   expect(p.zh).toBe('总设计师');
-  expect(p.axes).toEqual([['D', 'settled', 100], ['I', 'settled', 0], ['M', 'settled', 100], ['V', 'settled', 100]]);
+  // uiview-persona-v1 composite: D = (0.5·95 [steps 4/4] + 0.25·62 [4 msgs]) / 0.75 = 84; I = (0.35·5 [structured] + 0.3·35
+  // [no redirection]) / 0.65 = 18.8; M = (0.35·95 [two agents a day] + 0.25·40 [2 a day] + 0.25·70 [2 agents]) / 0.85 = 71.5; V = 95
+  expect(p.axes).toEqual([['D', 'settled', 84], ['I', 'settled', 18.8], ['M', 'settled', 71.5], ['V', 'settled', 95]]);
 });

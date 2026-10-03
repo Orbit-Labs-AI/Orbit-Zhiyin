@@ -1,23 +1,24 @@
 """Explicit source layouts. A cache entry is never proof of enabled installation."""
 
 import json
+import os
 from pathlib import Path
 
 import yaml
 
-from .reader import KINDS, ScanReader
+from .reader import BASE_KINDS, KINDS, ScanReader
 
 SUPPORTED = {
-    "codex": KINDS,
-    "dsh": KINDS,
-    "hermes": KINDS,
-    "kimi": KINDS,
+    "codex": (*BASE_KINDS, "command"),
+    "dsh": BASE_KINDS,
+    "hermes": BASE_KINDS,
+    "kimi": BASE_KINDS,
     "pi": ("skill", "mcp", "plugin", "rule"),
-    "opencode": ("skill", "mcp", "plugin", "rule"),
-    "claude_code": ("skill", "mcp", "hook", "plugin", "rule"),
+    "opencode": ("skill", "mcp", "plugin", "rule", "command", "agent"),
+    "claude_code": ("skill", "mcp", "hook", "plugin", "rule", "command", "agent"),
     "common": ("skill", "rule"),
     "project": KINDS,
-    "claude_desktop": KINDS,
+    "claude_desktop": BASE_KINDS,
 }
 
 
@@ -132,34 +133,43 @@ def _frontmatter_name(raw: bytes) -> str | None:
     return name.strip() if isinstance(name, str) and name.strip() else None
 
 
-def claude_markdown_components(reader, root):
+def claude_markdown_components(reader, root, namespace=None, extra=None):
     """Claude Code slash commands (commands/**/*.md, `/dir:name`) and subagent definitions
-    (agents/**/*.md, frontmatter `name`). Both are prompt documents the user can invoke;
-    Claude Code now treats commands as skills, so they are stored as kind "skill" with
-    config.component telling them apart (the inventory DDL has no command/agent type)."""
+    (agents/**/*.md, frontmatter `name`). Stored as their own inventory types (schema 15);
+    config.component repeats the type for readers of scanner-1.3.0 rows. Plugin components
+    are invoked as `<plugin>:<name>`, so ``namespace`` (the plugin name) prefixes them.
+    ``extra`` maps a component to further folders or .md files a plugin manifest declares
+    (``"commands"``/``"agents"``); they supplement the default folders."""
     for component, directory in (("command", "commands"), ("agent", "agents")):
-        folder = root / directory
-        for path in reader.walk(folder, ("skill",)):
-            if path.suffix != ".md":
-                continue
-            raw = reader.read(path, ("skill",))
-            if raw is None:
-                continue
-            relative = path.relative_to(folder).with_suffix("")
-            name = (
-                ":".join(relative.parts)
-                if component == "command"
-                else _frontmatter_name(raw) or relative.name
-            )
-            reader.add(
-                "skill",
-                name,
-                path,
-                f"{directory}/{relative.as_posix()}",
-                evidence="file",
-                raw=raw,
-                config={"component": component},
-            )
+        targets = [root / directory, *(extra or {}).get(component, ())]
+        for folder in targets:
+            if folder.is_file():
+                paths, base = [folder], folder.parent
+            else:
+                paths, base = reader.walk(folder, (component,)), folder
+            for path in paths:
+                if path.suffix != ".md":
+                    continue
+                raw = reader.read(path, (component,))
+                if raw is None:
+                    continue
+                relative = path.relative_to(base).with_suffix("")
+                name = (
+                    ":".join(relative.parts)
+                    if component == "command"
+                    else _frontmatter_name(raw) or relative.name
+                )
+                if namespace:
+                    name = f"{namespace}:{name}"
+                reader.add(
+                    component,
+                    name,
+                    path,
+                    Path(os.path.relpath(path, root)).with_suffix("").as_posix(),
+                    evidence="file",
+                    raw=raw,
+                    config={"component": component},
+                )
 
 
 def rules(reader, root, names, directory="rules"):
@@ -170,7 +180,7 @@ def rules(reader, root, names, directory="rules"):
             reader.file(path, "rule", name=str(path.relative_to(root)))
 
 
-def plugin_cache(reader, root, configured):
+def plugin_cache(reader, root, configured, *, markdown=False):
     components = ("plugin", "skill", "mcp", "hook")
     for market in reader.directories(root / "plugins/cache", components):
         for plugin in reader.directories(market, components):
@@ -198,8 +208,40 @@ def plugin_cache(reader, root, configured):
                 from .components import plugin_components
 
                 plugin_components(
-                    reader, version, doc, manifest, key, enabled=enabled, evidence="cached"
+                    reader,
+                    version,
+                    doc,
+                    manifest,
+                    key,
+                    enabled=enabled,
+                    evidence="cached",
+                    markdown=markdown,
                 )
+
+
+def codex_prompts(reader, root):
+    """Legacy Codex custom prompts (``prompts/*.md``, invoked as ``/prompts:<name>``).
+
+    Current Codex no longer loads this folder (external-agent-migration turns commands into
+    skills and nothing reads a prompts dir), so the files are listed as commands with
+    ``enabled=False`` and ``config.loaded=False``: visible, never counted as installed.
+    """
+    for path in reader.children(root / "prompts", ("command",)):
+        if path.suffix != ".md" or not path.is_file():
+            continue
+        raw = reader.read(path, ("command",))
+        if raw is None:
+            continue
+        reader.add(
+            "command",
+            "prompts:" + path.stem,
+            path,
+            "prompts/" + path.stem,
+            enabled=False,
+            evidence="file",
+            raw=raw,
+            config={"component": "command", "loaded": False, "reason": "codex_prompts_not_loaded"},
+        )
 
 
 def codex(reader: ScanReader, root: Path):
@@ -239,6 +281,7 @@ def codex(reader: ScanReader, root: Path):
                 else:
                     reader.issue(path, ("skill",), "missing_reference")
     rules(reader, root, ("AGENTS.md", "AGENTS.override.md"))
+    codex_prompts(reader, root)
     plugins = reader.mapping(doc, "plugins", path, ("plugin",))
     for name, value in plugins.items():
         if not isinstance(value, dict):
@@ -337,9 +380,15 @@ def claude(reader: ScanReader, root: Path):
                 manifest = reader.document(manifest_path, COMPONENT_KINDS, required=True)
                 if manifest:
                     plugin_components(
-                        reader, folder, manifest, manifest_path, name, enabled=plugins.get(name)
+                        reader,
+                        folder,
+                        manifest,
+                        manifest_path,
+                        name,
+                        enabled=plugins.get(name),
+                        markdown=True,
                     )
-    plugin_cache(reader, root, plugins)
+    plugin_cache(reader, root, plugins, markdown=True)
     from .claude_desktop import synced_plugins
 
     synced_plugins(reader, root / "plugins/synced", plugins)

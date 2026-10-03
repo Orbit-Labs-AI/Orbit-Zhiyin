@@ -1,5 +1,42 @@
-from orbit_data.connectors.base import BaseMapper, Mapping, decode_json
+import re
+
+from orbit_data.connectors.base import (
+    BaseMapper,
+    Mapping,
+    decode_json,
+    mcp_server_names,
+    split_mcp_name,
+)
 from orbit_data.contract import time_fields, uid, unused
+
+
+def sanitize(value: str) -> str:
+    """hermes-agent tools/mcp_tool_schema.py ``sanitize_mcp_name_component``."""
+    return re.sub(r"[^A-Za-z0-9_]", "_", value)
+
+
+def approval_evidence(content) -> tuple[str, dict] | None:
+    """Permission event recorded in a Hermes terminal result, if any.
+
+    tools/terminal_tool.py ``_run_approval_guards``: a refused command returns
+    ``_error_json(msg, status="blocked")``; gateway ask mode returns
+    ``status="pending_approval"``; an approved flagged command carries the ``approval``
+    note "... was approved by the user." or "... auto-approved by smart approval."
+    (terminal_tool_result.py). Unflagged commands never prompt and record nothing.
+    """
+    if not isinstance(content, dict):
+        return None
+    status, note = content.get("status"), content.get("approval")
+    if status == "blocked":
+        return "permission.decision", {"decision": "denied", "reason": "blocked"}
+    if status == "pending_approval":
+        return "permission.request", {"reason": "pending_approval"}
+    if isinstance(note, str):
+        if "approved by the user" in note:
+            return "permission.decision", {"decision": "approved", "reason": "user"}
+        if "auto-approved by smart approval" in note:
+            return "permission.decision", {"decision": "approved", "reason": "smart_approval"}
+    return None
 
 
 def tool_outcome(content) -> tuple[str, int | None]:
@@ -28,6 +65,7 @@ class HermesMapper(BaseMapper):
         self.parents = {}
         self.settings = {}
         self.prompt_sessions = {}
+        self.mcp_servers = mcp_server_names(self.store, "hermes")
 
         def inspect(record):
             table, row = record.data.get("table"), record.data.get("row", {})
@@ -139,6 +177,7 @@ class HermesMapper(BaseMapper):
                 active=bool(row.get("active", 1)),
                 compacted=bool(row.get("compacted", 0)),
             )
+            permission = []
             for event in events:
                 if event.kind == "tool.result":
                     event.attrs["status_scope"] = "tool_protocol"
@@ -149,13 +188,40 @@ class HermesMapper(BaseMapper):
                         # Synthesized result for a call that never ran.
                         event.attrs["status"] = "unknown"
                     else:
-                        status, exit_code = tool_outcome(message["content"])
+                        content = message["content"]
+                        status, exit_code = tool_outcome(content)
                         event.attrs["status"] = status
                         if exit_code is not None:
                             event.attrs["exit_code"] = exit_code
+                        approval = approval_evidence(content)
+                        if (
+                            status == "failed"
+                            and isinstance(content, dict)
+                            and content.get("error")
+                        ):
+                            # tools/registry.tool_error / terminal _error_json envelope.
+                            event.attrs["error_class"] = (
+                                "permission_refused"
+                                if approval and approval[1].get("decision") == "denied"
+                                else "tool_error"
+                            )
+                        if approval:
+                            permission.append((event.call_id, approval))
             if row.get("_compressed_summary"):
                 for event in events:
                     event.kind = "context.compaction"
+            # Decisions precede the result so the reducer attaches them to the open call.
+            events[:0] = [
+                self.make(
+                    record,
+                    kind,
+                    "approval",
+                    call_id=str(call_id),
+                    native_key=[*key, "approval", str(call_id)],
+                    attrs=attrs,
+                )
+                for call_id, (kind, attrs) in permission
+            ]
             for i, tool in enumerate(decode_json(row.get("tool_calls"), []) or []):
                 function = tool.get("function", {})
                 uids = decode_json(row.get("tool_call_uids"), []) or []
@@ -173,6 +239,7 @@ class HermesMapper(BaseMapper):
                                 "name": function["name"],
                                 "input": decode_json(function.get("arguments")),
                                 "native_call_id": tool.get("id"),
+                                **self._mcp(function["name"]),
                             },
                         )
                     )
@@ -274,3 +341,11 @@ class HermesMapper(BaseMapper):
                 reason="deduplicated prompt retained in L0; session rows carry prompt hash",
             )
         return self.unknown(record)
+
+    def _mcp(self, name) -> dict:
+        """Legacy ``mcp_<server>_<tool>`` names (before hermes-agent #33533 switched to
+        ``mcp__<server>__<tool>``, which the reducer splits itself)."""
+        if not isinstance(name, str) or name.startswith("mcp__"):
+            return {}
+        split = split_mcp_name(name, "mcp_", self.mcp_servers, sanitize)
+        return {"mcp_server": split[0], "mcp_tool": split[1]} if split else {}

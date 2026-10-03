@@ -1,4 +1,4 @@
-/* ============ exports: report, csv, share card ============ */
+/* ============ exports: report, share card ============ */
 const REP_SECS = [['ov', '概览'], ['persona', '协作人格'], ['proj', '项目'], ['fric', '主要摩擦'], ['recs', '建议']];
 // Active filters, as one line for the report header. The persona uses the shared persona scope (personaNow, BUG-06):
 // session-level filters such as topic or outcome do not change it, and the report says so.
@@ -12,12 +12,12 @@ function reportMD() {
   const L = sel(); const st = stats(L); const p = personaNow(); const fn = filterNote();
   const out = ['# Orbit 协作报告 · ' + rangeLabel(), '', '> ' + winLabel() + ' · 示例数据 · 生成于 ' + nowText(), ''];
   if (fn) out.push('> 筛选：' + fn, '');
-  if (S.rep.has('ov')) out.push('## 概览', '', '| 指标 | 数值 |', '| --- | ---: |', '| 会话 | ' + fmt(st.n) + ' |', '| 协作时长 | ' + f1(st.hours) + ' 小时 |', '| 你的消息 | ' + fmt(st.msgs) + ' |', '| 自主比 | ' + f1(st.auto) + '× |', '| 摩擦率 | ' + f1(st.fric) + '% |', '| 完成率 | ' + Math.round(st.ok) + '% |', '');
+  if (S.rep.has('ov')) out.push('## 概览', '', '| 指标 | 数值 |', '| --- | ---: |', '| 会话 | ' + fmt(st.n) + ' |', '| 协作时长 | ' + f1(st.hours) + ' 小时 |', '| 你的消息 | ' + fmt(st.msgs) + ' |', '| 自主比 | ' + (st.msgs ? f1(st.auto) + '×' : '—') + ' |', '| 摩擦率 | ' + fricTxt(st) + ' |', '| 完成率 | ' + pctKnown(st.ok, st.okKnown) + ' |', '');
   if (S.rep.has('persona')) {
     out.push('## 协作人格', '', p.ok ? '**' + p.code + ' · ' + p.zh + '**（' + p.en + '）：' + p.line + (fn ? '　—　' + (personaScopeNote() || '按上面的筛选计算') + '，' + p.n + ' 个会话' : '') : '所选范围还没有会话，暂不判断。', '');
     if (p.ok) { AXES.forEach((ax, i) => { const v = axisView(p, i); out.push('- ' + ax.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong); }); out.push(''); }
   }
-  if (S.rep.has('proj')) { out.push('## 项目', '', '| 项目 | 会话 | 时长 | 自主比 | 摩擦率 |', '| --- | ---: | ---: | ---: | ---: |'); projRows(L).filter((r) => r.st.n).sort((a, b) => b.st.hours - a.st.hours).slice(0, 6).forEach((r) => out.push('| ' + r.p.name + ' | ' + r.st.n + ' | ' + f1(r.st.hours) + 'h | ' + f1(r.st.auto) + '× | ' + f1(r.st.fric) + '% |')); out.push(''); }
+  if (S.rep.has('proj')) { out.push('## 项目', '', '| 项目 | 会话 | 时长 | 自主比 | 摩擦率 |', '| --- | ---: | ---: | ---: | ---: |'); projRows(L).filter((r) => r.st.n).sort((a, b) => b.st.hours - a.st.hours).slice(0, 6).forEach((r) => out.push('| ' + r.p.name + ' | ' + r.st.n + ' | ' + f1(r.st.hours) + 'h | ' + (r.st.msgs ? f1(r.st.auto) + '×' : '—') + ' | ' + fricTxt(r.st) + ' |')); out.push(''); }
   if (S.rep.has('fric')) { out.push('## 主要摩擦', ''); Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).slice(0, 4).forEach((f, i) => out.push((i + 1) + '. ' + f[0] + '：' + f[1] + ' 个会话')); out.push(''); }
   if (S.rep.has('recs')) { out.push('## 建议', ''); visibleRecs().slice(0, 6).forEach((r) => out.push('- [' + (S.installed.has(r.id) ? 'x' : ' ') + '] ' + r.title + '（' + r.type + ' · ' + LEVELS[r.lvl] + ' · ' + recGain(r) + '）')); out.push(''); }
   return out.join('\n');
@@ -26,11 +26,6 @@ function openReport() {
   CUR.report = reportMD();
   openModal(modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" aria-label="报告内容" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.report) + '</textarea></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">Demo 不能直接下载 · 复制后粘贴到任意 Markdown 编辑器</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="repCopy">复制 Markdown</button></div>', 'wide');
   MODAL_KEY = 'report';
-}
-function openCSV() {
-  const rows = toolRows(sel());
-  CUR.csv = ['tool,calls,error_rate,failures,avg_duration,approval_rate'].concat(rows.map((r) => [r.name, r.n, (r.err * 100).toFixed(1) + '%', r.fails, r.avg, Math.round(r.ap * 100) + '%'].join(','))).join('\n');
-  openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · ' + rows.length + ' 种工具 · 复制后可以粘贴到表格软件') + '<div class="mb"><textarea readonly aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.csv) + '</textarea></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyCSV">复制 CSV</button></div>', 'wide');
 }
 // 分享卡金句：16 型各一句（与 packages/backend/src/orbit_backend/exporting/type_copy.py 的 SHARE_QUOTES 逐字一致）
 const SHAREQ = { DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], DPMT: ['把需求讲清楚，', '让产出并行流动。'], DPFV: ['一次只推一件事，', '每一件都严格验收。'], DPFT: ['把想法写成好任务，', '把精力留给关键判断。'],
@@ -205,7 +200,6 @@ function shareSaveOne(sp) { const m = shareModel(sp); return sharePNG(m, S.share
 Object.assign(ACT, {
   repSec: (el) => { const k = el.dataset.k; if (el.checked) S.rep.add(k); else S.rep.delete(k); CUR.report = reportMD(); const t = $('#repText'); if (t) t.value = CUR.report; },
   repCopy: () => copyText(CUR.report || reportMD(), '报告'),
-  copyCSV: () => copyText(CUR.csv || '', 'CSV'),
   shareSpan: (el) => { S.shareSpan = el.dataset.v; shareRefresh(); },
   shareTheme: (el) => { S.shareDark = el.dataset.v === 'dark'; shareRefresh(); },
   shareNum: () => { S.shareNoNum = !S.shareNoNum; shareRefresh(); },

@@ -215,3 +215,26 @@ def test_every_supported_english_scope_verb_detects_a_contradiction(verb):
     result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"})
     assert result["conflicts"]
     assert not any(c["feature"] in ("allowed_scope", "prohibited_actions") for c in result["active"])
+
+
+def test_file_reference_count_uses_the_session_language_table():
+    # Hand count: App.swift (Swift), build.gradle (Groovy), schema.proto (Protocol Buffer),
+    # notes.txt (non-language file) -> 4; "v1.2" and "e.g." are not files.
+    text = "改 Sources/App.swift、build.gradle 和 schema.proto，记录到 notes.txt；版本 v1.2，e.g. 见上"
+    result = structure({"event_uid": "e", "text": text, "attrs": {}})
+    assert result["file_reference_count"] == 4
+    from orbit_backend.analytics.features import LANG
+    from orbit_backend.analytics.instruction.structure import file_pattern
+
+    assert {"swift", "gradle", "proto"} <= set(LANG)
+    assert file_pattern().findall("a.tsx b.ts") == ["tsx", "ts"]
+
+
+def test_code_block_count_from_the_raw_message():
+    # Hand count: one ``` fence and one ~~~ fence; the indented line is a list continuation,
+    # not a code block (CommonMark), and inline `x` is not a block -> 2.
+    text = "改一下：\n```py\nx = 1\n```\n- 步骤\n    继续\n\n~~~\nlog\n~~~\n用 `x`"
+    assert structure({"event_uid": "e", "text": text, "attrs": {}})["code_block_count"] == 2
+    assert structure({"event_uid": "e", "text": "没有代码", "attrs": {}})["code_block_count"] == 0
+    legacy = structure({"event_uid": "e", "text": "x", "attrs": {"fences_removed": True}})
+    assert legacy["code_block_count"] is None

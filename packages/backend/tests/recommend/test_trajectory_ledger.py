@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections import Counter, defaultdict
 
 from fact_db import SCHEMA
 
@@ -83,3 +84,41 @@ def test_older_store_without_timing_columns_still_counts_tokens():
     conn.execute("INSERT INTO tool_call (call_uid, session_uid, started_at) VALUES ('t', 's', 1000)")
     ledger = section._ledger(conn, json.dumps(["s"]), {}, {}, [])
     assert ledger["tokens"] == 42 and ledger["active_ms"] == 0 and ledger["ops"]["call"]["n"] == 1
+
+
+def test_readonly_prompt_without_a_recorded_wait_is_counted_not_priced_by_run_time():
+    """R8: a flagged read-only call with no approval_wait_ms ran 1 000–4 000; that run time is not
+    an approval wait, so it adds nothing to the readonly ms and is counted as unmeasured."""
+    conn = _store()
+    flags = {"a": (False, True), "c": (False, True)}
+    ops = section._ledger(conn, json.dumps(["root", "sub"]), {"root": "root", "sub": "root"}, flags, [])["ops"]
+    assert ops["readonly"] == {"n": 1, "tokens": 0, "ms": 2500, "unmeasured": 1}
+
+
+def test_codex_prompt_without_a_decision_timestamp_is_counted_as_unmeasured():
+    """R8: a Codex permission.request with no decision timestamp arrives as (root, None)."""
+    conn = _store()
+    ops = section._ledger(conn, json.dumps(["root", "sub"]), {"root": "root", "sub": "root"}, {},
+                          [("root", 4000), ("root", None)])["ops"]
+    assert ops["readonly"] == {"n": 1, "tokens": 0, "ms": 4000, "unmeasured": 1}
+
+
+def test_permission_prompts_pass_requests_without_a_decision_as_none():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE event (session_uid, kind, call_id, ext, ts, seq)")
+    conn.executemany("INSERT INTO event VALUES (?,?,?,?,?,?)", [
+        ("s", "permission.request", "c1", json.dumps({"call_id": "c1", "command": ["ls"]}), 1000, 1),
+        ("s", "permission.decision", "c1", json.dumps({"call_id": "c1", "decision": "approved"}), 3000, 2),
+        ("s", "permission.request", "c2", json.dumps({"call_id": "c2", "command": ["cat", "a"]}), 5000, 3)])
+    readonly, per_root, waits = {}, defaultdict(Counter), []
+    section._permission_prompts(conn, json.dumps(["s"]), {}, readonly, per_root, Counter(), waits)
+    assert sorted(waits, key=str) == [("s", 2000), ("s", None)]
+
+
+def test_each_human_turn_carries_its_own_measured_cost():
+    """R10: u1 (0) holds requests 1–3 and every gap up to u2, including the wait before u2;
+    u2 (20 000) holds request 4 and the last two gaps."""
+    conn = _store()
+    ledger = section._ledger(conn, json.dumps(["root", "sub"]), {"root": "root", "sub": "root"}, {}, [])
+    assert ledger["turn_cost"] == {"by_session": {"root": [2, 1000, 22000]},
+                                   "by_event": {"u1": [600, 20000], "u2": [400, 2000]}}

@@ -79,13 +79,26 @@ A8 资源库需要搜索、类型/来源/兼容性筛选、已安装排除、资
 ### 查询与排序算法
 
 1. **前置过滤**：active、启用来源、类型、Agent、交付语言、难度、已安装/不感兴趣 ID。过滤同时作用于所有召回通道，不能先取全局 Top-K 再筛选，避免小众兼容项被挤掉。
-2. **独立召回**：`remedy` 匹配已审查的 friction；`feature` 使用调用方明确传入的分析特征；`lexical` 用 FTS5/BM25，过滤常见虚词并做小规模、可审查的中英术语展开，使无模型时的“调试”也能找到 debugging；`semantic` 扫描指定空间中的全部合格向量并按每条资源最佳 chunk 聚合。默认每路 100 条，合并候选再排序。语义通道不会被关键词结果提前截断，也不会把从搜索句猜出的宽泛领域当成额外的画像召回证据。
-3. **RRF 融合**：`sum(route_weight / (60 + rank))`，权重 remedy=1.5、feature=1.2、lexical=1、semantic=2。跨语言自由文本以语义相关性为主；这是根据初次人工检索观察修正的启发式，不是独立标注集上的最优权重。除以当前有效通道都在第一名时的最大值，得到 `rrf_normalized`。
-4. **透明重排**：`max(0, 0.75*rrf + 0.15*feature_coverage + 0.10*content_quality - risk_penalty)`。特征覆盖以请求特征的权重为分母；完整许可正文的内容覆盖分为 1，仅元数据为 0.5；每个风险标记减 0.02，最多减 0.1。这些是待评估的检索启发式，不是有效概率、收益预测或经过训练的相关性模型。
-5. **多样性**：贪心 MMR `0.8*relevance - 0.2*max(feature-Jaccard)`；相同内容哈希去重，稳定的 item_id 打破平分。内容哈希包含清单、兼容性和安装信息，不能因名称/简介相同就合并两个不同服务。
-6. **解释**：返回每路原始分数、名次与 RRF 贡献，重排分项、命中特征与标注来源、最佳文本块及版本、输入的证据 ID、向量覆盖状态；`score_meaning=retrieval_relevance_not_effectiveness`、`effect_status=unmeasured`。
+2. **独立召回**：`remedy` 匹配已审查的 friction；`feature` 使用调用方明确传入的分析特征；`lexical` 见下；`semantic` 扫描指定空间中的全部合格向量并按每条资源最佳 chunk 聚合。默认每路 100 条，合并候选再排序。语义通道不会被关键词结果提前截断，也不会把从搜索句猜出的宽泛领域当成额外的画像召回证据。
+3. **词法路 BM25F 绝对分**：`chunk_fts` 是 `detail=column`，SQLite 的 `bm25()` 在该模式下对所有行返回 0，因此 FTS 只负责回答“哪些 chunk 含词 t”（得到 df），排序在 `search._lexical` 内自算。查询先拆成概念：拉丁词一个概念；`features.VOCABULARY` 与 `EXTRA_ALIASES` 中的中文词是一个概念，其备选为自身 bigram 与对应英文短语，所以“代码审查”与 “code review” 同分、展开数量不稀释分数。分数 `raw = Σ_概念 max_备选 mean_t idf(t)·tf~/(k1+tf~)`，`tf~ = 4·tf_title + tf_body`，k1=1.2、b=0（chunk 已按 1200 字符分窗），idf 用 Lucene 形式并对 N 加 1000 篇伪文档先验。第一阶段每字段按 tf=1 估计，前 40 条用 chunk 原文重算精确 tf。绝对分 = raw ÷（每个在语料中出现过的概念都由 df=1、tf→∞ 的词命中的上限），只取决于条目与语料，不取决于同批候选。停用词含 Lucene 英文停用集、会话填充词以及目录域填充词（tool/tools/best）。
+4. **RRF 融合与 noisy-OR**：RRF `sum(route_weight / (60 + rank))`（remedy=1.5、feature=1.2、lexical=1、semantic=2）只用于记录融合名次和打破平分。相关度由各路**绝对强度**合成：lexical 为上面的绝对分；feature/remedy 为请求特征的加权覆盖 `Σ w·min(1, weight) / Σ w`；semantic 为余弦从 0.7 线性拉伸到 1（multilingual-e5 的 0.01 InfoNCE 温度使余弦集中在 [0.7, 1]，模型卡 FAQ 3）。`evidence = 1 − Π(1 − strength_route)`（noisy-OR：独立通道一致时置信上升，单一强通道也足够）。`score = max(0, evidence·(0.9 + 0.1·content_quality) − risk_penalty)`，完整许可正文 quality=1、仅元数据 0.5；每个风险标记减 0.02，最多 0.1。
+5. **阈值**：没有结构化特征命中、且文本强度（lexical/semantic 取大）< `MIN_TEXT_RELEVANCE=0.2` 的候选直接丢弃，而不是排在末尾凑数。语义路按查询标准化：在合格分块上算 z =（余弦 − 中位数）/ 标准差，只保留 z ≥ 1.5（`SEMANTIC_Z_GATE`），强度从门槛处的 0.2 线性升到 z = 4 时的 1；合格分块少于 200 时没有稳定的分布，回落到绝对下限 `SEMANTIC_FLOOR=0.7`。中文查询另用其 `HAN_EXPANSIONS` 英文短语做第二次语义探测（双语扩展），各自按自己的分布过门，分块取较强的一次。0.2 在 2026-10-03 种子上复核：34 个中英金标查询的目标最低 0.209（code review），10 个泛词查询在加入中文口语填充词（`HAN_FILLER`）后最高 0.177；另 8 个未参与调参的泛词查询有 4 个超过 0.2（最高 0.43），绝对词法门槛的分离度有限，记为遗留。量化见 `evals/recommendation/semantic_gate.py` 与 [资源索引验证](validation.md)。
+6. **多样性**：贪心 MMR `0.8*score - 0.2*max(similarity)`，相似度只看名称、仓库与类型的 Jaccard（不含 agent/领域特征）；相同内容哈希去重，稳定的 item_id 打破平分。
+7. **解释与来源字段**：返回每路原始分数、强度、名次与 RRF 贡献，evidence/重排分项、命中特征与标注来源、最佳文本块及版本、输入的证据 ID、向量覆盖状态；`score_meaning=retrieval_relevance_not_effectiveness`、`effect_status=unmeasured`。每行还带推荐侧闸门所需的原始值：`verification`（来源核验，缺失即 null，不默认已核验）、`body_policy`、`language`、`support`（agent→native/adaptation_required/unknown）、`support_basis`（声明或格式依据与上游源码路径）、`admission`（见下）。
 
-`purpose=recommendation` 还要求问题 ID/type、画像证据、问题证据、scene、Agent 和交付语言，并匹配资源上已审查的 friction/scene/dimension 及来源核对标记。现有四个 Skill 种子具备这些标注；广泛采集的资源首先服务 A8 检索，尚未经过解法适用性审查的条目不会仅凭相似度进入 A7。更多已审查标注可由后续 RC 知识库通过 `Record/Feature` 契约写入，或作为独立高优先级来源发布。
+### Agent 兼容推导
+
+`compat.py` 按资源格式推导支持矩阵。来源声明的 agent 为 `native / source_declared`；开放格式（Agent Skills `SKILL.md`、MCP、`AGENTS.md`、`CLAUDE.md`、Claude Code `hooks.json`）的读取方只有在 `third_party/` 的上游源码中可见时才记为 `native / format:*`（代码注释逐条给出路径：codex、opencode、hermes、dsh、pi）；Kimi、Cursor、Gemini CLI、Copilot 未 vendored，记 `unknown / unverified`，只有来源声明时才算支持。Codex 读 Claude hooks.json 记 `adaptation_required`（自有 hooks 引擎、matcher 工具名不同）。索引的 agent 掩码与 `item_agent` 使用“声明 ∪ 格式已核实”的集合；subagent、command、plugin 等无跨 agent 开放格式的类型不扩展。详情页 `install.paths` 按 agent 给出 skill 目录（如 `~/.hermes/skills/<name>/SKILL.md`）或规则文件（`AGENTS.md`、`CLAUDE.md`、`.github/copilot-instructions.md`、`.cursor/rules/<name>.mdc`），unknown 的 agent 不给路径。
+
+### 推荐准入
+
+`purpose=recommendation` 还要求问题 ID/type、画像证据、问题证据、scene、Agent 和交付语言，并要求来源核验（`verification` 为 repository_and_skill_read / repository_and_source_read）。在此之上条目须属于以下层级之一，行内 `admission.tier` 写明层级：
+
+- `curated`：资源上有人工审查的 friction + scene + dimension（目前为 Orbit KB 与内置种子）。
+- `rule_admitted`（`admission.py`）：抓取条目自动满足全部规则——正文已授权（证据是条目自身文本）、抽取 friction 权重 ≥0.45（= 名称/摘要提到该摩擦，或正文前 2000 字提到 ≥3 次；`HEAD_MASS/(HEAD_MASS+1)×0.6`）、静态风险 ≤1、类型可安装或可应用。阈值为产品默认、未用采纳数据校准；该层没有经过人工审阅，不冒充 curated，scene/dimension 也未经审查。
+- `data/admission.v1.json` 记录人工抽检结论：`reviewed_reject` 把条目移出规则层，`reviewed_accept` 只作为审阅标记随行返回。
+
+`eligibility()` 的 SQL 形式（评测用）与内存掩码同步实现两个层级。
 
 无本地模型、权重加载失败或向量尚未补齐时，保留特征和 FTS 检索，明确返回 `not_configured / unavailable / not_indexed / partial`；不使用哈希向量冒充语义 embedding。切换模型 ID 只查询对应空间。
 
@@ -96,7 +109,10 @@ A8 资源库需要搜索、类型/来源/兼容性筛选、已安装排除、资
 | `contracts.py` | 资源、特征、来源、分页、匹配请求的校验边界 |
 | `network.py` | HTTPS 主机白名单、有限响应、ETag/Last-Modified、原子缓存；token 只从环境传入且只发给 GitHub API |
 | `sources/github.py` | 固定 tree、blob 校验、市场指针与 Skill/Hook/规则/子代理/命令/工作流拆分 |
-| `sources/structured.py` | MCP、models.dev、LiteLLM、SWE-bench、Gemini、ClawHub 与内置种子 |
+| `sources/structured.py` | MCP、models.dev、LiteLLM、SWE-bench、Gemini、ClawHub、awesome 列表、GitHub topic 发现与内置种子 |
+| `compat.py` | 按资源格式推导 agent 支持矩阵与按 agent 的安装目标路径 |
+| `admission.py` + `data/admission.v1.json` | 推荐准入的规则层与人工抽检结论 |
+| `snapshot.py` | 离线种子快照的分层抽样与体积控制 |
 | `features.py` | 可解释的能力词表抽取、中文 bigram/英文 token、带位置的分块 |
 | `store.py` + data 包的 `migrations/catalog` | 单写者、历史版本、原子发布、重建、完整性检查 |
 | `sync.py` | 刷新周期、分页断点、失败退避、取消与来源之间的失败隔离 |
@@ -119,7 +135,17 @@ uv run orbit-catalog --home .local/catalog verify
 uv run orbit-catalog --home .local/catalog search '定位测试反复失败的根因' --type skill
 ```
 
-默认开启内置种子及 8 个公开来源：Anthropic Skills、Claude 官方插件、OpenAI Plugins、awesome-copilot、官方 MCP Registry、models.dev、LiteLLM、SWE-bench。Gemini/ClawHub 适配器可通过 `init --sources <SourceSpec 数组.json>` 显式登记；其他平台不声称已经接入。
+默认来源以 `sources/__init__.py:default_sources()` 为准：Git 仓库（Anthropic Skills、Claude 官方插件、claude-code、OpenAI Plugins/Skills、awesome-copilot、wshobson、superpowers、VoltAgent 子代理、awesome-cursorrules；Composio 默认关闭）、官方 MCP Registry、Gemini 扩展、ClawHub（前 500）、models.dev、LiteLLM、SWE-bench，以及三类发现来源：
+
+- `awesome`（punkpeye/awesome-mcp-servers）：只解析 README 的条目行，保留链接、分类、图例（语言、☁️/🏠、🎖️ 记为 `vendor_official`）与一行描述，不读被链接仓库；`verification=listed_only`。
+- `github_topic`（agent-skills / claude-code-skills / claude-skills、mcp-server、cursor-rules / agents-md）：GitHub 搜索 API 按 star 降序，每 topic 2–3 页、star≥20（防刷的产品默认，未校准），一个仓库一个条目，只存仓库元数据；`verification=repository_metadata`。搜索限额为带 token 30 次/分钟、每查询最多 1000 条，调用间隔 `min_interval` 默认 2.1 s；GitHub 以 403 + Retry-After 或 `x-ratelimit-remaining: 0` 表示限流，`network.py` 按等待时间重试，普通 403 仍为终止错误。
+- `awesome-cursorrules`（CC0-1.0）：`rules/*.mdc` 按 Git 来源读取正文，缺 `description` 时取正文首个散文段落作摘要。
+
+发现来源条目可以在资源库浏览和搜索，但核验级别不足，推荐侧来源闸门不会放行，直到有读取源码的来源覆盖它们。
+
+### 离线种子
+
+`snapshot.build_snapshot` 从已同步的 home 生成 `data/library-seed.v1.json.gz`（≤3 MB）。每个类型按 `DEFAULT_PER_KIND` 配额分层抽样：先取每个来源的最佳 1 条，再保证每个声明 agent ≥15 条、每个来源 ≥10 条，余量按排名（官方、star、安装量、字段完整度、风险、更新时间）填充；无摘要的 rule 不入种子。2026-10-03 重建为 1987 条、17 个来源（第一轮 1277 条、10 个来源）；hook 40、workflow 17 受同步池限制。
 
 模型准备是一次独立下载，固定到具体 Hub revision。默认不下载模型、不访问外部 embedding API。
 

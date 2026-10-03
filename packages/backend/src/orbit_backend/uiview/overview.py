@@ -8,8 +8,8 @@ outcome / friction / hour narrow the page but not the persona or the tile trends
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
-from zoneinfo import ZoneInfo
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import CONTRACT, VERSION, derive, insight, persona
 
@@ -120,6 +120,46 @@ def scope_note(f: dict) -> str:
     return " / ".join(names) + "筛选不计入人格" if names else ""
 
 
+def _narrative_scope(range_: int, f: dict, brushed: bool, start_ms: int | None = None,
+                     known_agents=()) -> dict | None:
+    """The ``narrate.overview`` scope that describes this view, or ``None`` when the view has
+    filters the narrative task cannot take (topic / outcome / friction / hour / brushed window).
+
+    The scope is the narrative's identity: the agent subset (``agent_ids``) and the project
+    are part of it, so each filtered view reads back (and caches) its own narrative.
+    「全部」(range 0) has no day count the task accepts (days 1–365); it is pinned to the
+    first day with data (``start_ms``, stable until older data arrives) instead.
+    Selecting every known Agent is the unfiltered view: it shares that view's narrative
+    instead of generating (and paying for) an identical one under an ``agent_ids`` scope."""
+    if brushed or any(f.get(k) not in (None, "", []) for k in ("topic", "outcome", "fric", "hour")):
+        return None
+    if range_ in (7, 30, 90):
+        scope: dict = {"days": range_}
+    elif not range_ and start_ms is not None:
+        scope = {"start_ms": int(start_ms)}
+    else:
+        return None
+    scope["project_id"] = f.get("project")
+    agents = f.get("agents")
+    if agents is not None:
+        if not agents:
+            return None  # no agent selected: nothing to describe
+        selected = {str(a) for a in agents}
+        known = {str(a) for a in known_agents}
+        if not (known and known <= selected):
+            scope["agent_ids"] = sorted(selected)
+    return scope
+
+
+def _day_start_ms(today: date, di: int, tz: str) -> int:
+    day = today + timedelta(days=di)
+    try:
+        zone = ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo("UTC")
+    return int(datetime(day.year, day.month, day.day, tzinfo=zone).timestamp() * 1000)
+
+
 def build(body: dict, params: dict, today: date) -> dict:
     meta = body.get("meta") or {}
     tz = meta.get("display_timezone") or "UTC"
@@ -162,7 +202,12 @@ def build(body: dict, params: dict, today: date) -> dict:
         "heat": derive.heat(L),
         "tools": tools_top(L, aux),
         "persona_mini": persona.mini(p),
-        "insight": insight.build(L, st, p, projects),
+        "insight": insight.with_ai(insight.build(L, st, p, projects),
+                                   _narrative_scope(range_, f, brushed,
+                                                    _day_start_ms(today, window[0], tz)
+                                                    if not range_ and not brushed else None,
+                                                    [a["id"] for a in agents if a.get("id")]),
+                                   meta.get("data_rev"), with_scope=True),
         "recs_ref": insight.RECS_REF,
     }
     if params.get("edition") == "lite":

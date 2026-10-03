@@ -1,7 +1,7 @@
 // Round 2 · ops regressions (98-live-ops.js, 55-exports.js, 85-keyboard.js):
-//  J15  user-visible brand is Orbit: report title, share card wordmark (the Orbit·知音 vector in HTML and PNG), report / CSV / PNG file names
+//  J15  user-visible brand is Orbit: report title, share card wordmark (the Orbit·知音 vector in HTML and PNG), report / PNG file names
 //  H4   ⇧⌘E opens the report sheet after the settings window was opened and closed (focus left on a hidden control)
-//  B18  exports carry the scope the screen shows: report body.scope (from_ts / source_ids / project_ids), CSV query
+//  B18  exports carry the scope the screen shows: report body.scope (from_ts / source_ids / project_ids)
 //       (from_ts / agent / project_id)
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
@@ -121,14 +121,11 @@ test('H4: a refused share card closes the pending sheet with the reason', async 
   await expect(page.locator('#toast')).toBeVisible();
 });
 
-test('B18: report and CSV exports carry the range, agents and project the screen shows', async ({ page }) => {
+test('B18: report export carries the range, agents and project the screen shows', async ({ page }) => {
   ONLY();
   const errors = collectErrors(page);
   const bodies = [];
-  const csv = fs.readFileSync(path.join(FIXTURES, 's8', 'export-csv.csv'), 'utf8');
   await setup(page, { 'POST /v1/export/report': (req) => { bodies.push(req.postDataJSON()); return fx('s8/export-report.json'); } }, { native: NATIVE });
-  const qs = [];
-  await page.route(/\/v1\/export\/csv/, (r) => { qs.push(new URL(r.request().url()).searchParams); r.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8', body: csv }); });
   await openLive(page, 'tools');
   // the whole range first: no from_ts, no agent / project filters
   await page.evaluate(() => { S.range = 0; S.project = null; S.agents = new Set(AG.map((a) => a.id)); render(); openReport(); });
@@ -151,16 +148,5 @@ test('B18: report and CSV exports carry the range, agents and project the screen
   expect(Math.abs(sc.from_ts - pick.from)).toBeLessThan(86400000);
   expect(sc.source_ids).toEqual(pick.srcs);
   expect(sc.project_ids).toEqual([pick.p]);
-  await page.evaluate(() => { closeModal(); openCSV(); });
-  await expect(page.locator('#modal textarea[data-tl="csv"]')).toBeVisible();
-  const q = qs[qs.length - 1];
-  expect(q.get('table')).toBe('tool_calls');
-  expect(Number(q.get('from_ts'))).toBe(pick.from);
-  expect(q.getAll('agent')).toEqual([pick.key]);
-  expect(q.getAll('project_id')).toEqual([pick.p]);
-  // '_none' (sessions without a project) has no backend filter: dropped rather than sent as a project id
-  await page.evaluate(() => { closeModal(); S.project = '_none'; S.range = 0; S.agents = new Set(AG.map((a) => a.id)); openCSV(); });
-  await expect.poll(() => qs.length).toBe(2);
-  expect([qs[1].getAll('project_id'), qs[1].get('from_ts'), qs[1].getAll('agent')]).toEqual([[], null, []]);
   expect(errors).toEqual([]);
 });

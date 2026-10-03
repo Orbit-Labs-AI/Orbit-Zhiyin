@@ -55,18 +55,71 @@ def test_default_import_publishes_layers_without_using_mvp_parser(tmp_path, monk
         assert result["coverage"][entity]["rows"] > 0
 
 
+# Hand-derived from orbit_data.validation.fixtures.create_sources (one session, one tool call
+# per native agent) and demo_home (three Codex rollouts, one tool call each, no usage rows).
+# usage: per-request token total (input + cache read + cache write + output) when the native
+# row identifies its request, "unknown" when the row has no request id (excluded with a
+# reason), "snapshot" for Hermes' per-session cumulative usage table, None without usage.
+AGENT_EXPECTATIONS = {
+    "codex": {"sessions": 3, "tool_calls": 3, "usage": None},
+    "claude_code": {"sessions": 1, "tool_calls": 1, "usage": 35},
+    "pi": {"sessions": 1, "tool_calls": 1, "usage": "unknown"},
+    "dsh": {"sessions": 1, "tool_calls": 1, "usage": 35},
+    "kimi": {"sessions": 1, "tool_calls": 1, "usage": 35},
+    "opencode": {"sessions": 1, "tool_calls": 1, "usage": 35},
+    "hermes": {"sessions": 1, "tool_calls": 1, "usage": "snapshot"},
+}
+
+
 def test_all_supported_agents_feed_the_same_analysis_contract(tmp_path):
     roots = create_sources(tmp_path / "sources")
     roots["codex"] = demo_home(tmp_path / "codex")
     home = tmp_path / "data"
+    assert set(roots) == set(AGENT_EXPECTATIONS)
     for agent, root in roots.items():
         assert ingest(home, agent, root)["import"]["capture_errors"] == 0
     store = CanonicalStore(home)
     assert len(store.sources()) == 7
     bundle = store.read_bundle()
     assert {s["agent"] for s in bundle["sample_boundary"]["sources"]} == set(roots)
+    agent_of = {s["session_uid"]: s["agent"] for s in bundle["sessions"]}
+    observed = {agent: {"sessions": 0, "tool_calls": 0, "calls": []} for agent in roots}
+    for session in bundle["sessions"]:
+        observed[session["agent"]]["sessions"] += 1
+    for call in bundle["tool_calls"]:
+        observed[agent_of[call["session_uid"]]]["tool_calls"] += 1
+    for call in bundle["model_calls"]:
+        observed[agent_of[call["session_uid"]]]["calls"].append(call)
+    snapshot_agents = {agent_of[e["session_uid"]] for e in bundle["events"]
+                       if e["kind"] == "model.usage" and e["attrs"].get("measurement") == "cumulative"}
+    for agent, expected in AGENT_EXPECTATIONS.items():
+        got = observed[agent]
+        assert (got["sessions"], got["tool_calls"]) == (expected["sessions"], expected["tool_calls"]), agent
+        calls = got["calls"]
+        if expected["usage"] is None or expected["usage"] == "snapshot":
+            assert calls == [], agent
+            assert (agent in snapshot_agents) == (expected["usage"] == "snapshot"), agent
+        elif expected["usage"] == "unknown":
+            assert [c["boundary_quality"] for c in calls] == ["unknown"], agent
+            assert calls[0]["request_id"] is None, agent
+        else:
+            assert [c["boundary_quality"] for c in calls] == ["reported"], agent
+            total = sum(calls[0][k] for k in ("input_tokens", "cache_read_tokens",
+                                              "cache_write_tokens", "output_tokens"))
+            assert total == expected["usage"], agent
     result = analyze_store(store, with_text=False)
-    assert result["overview"]["counts"]["main_sessions"] >= 9
+    assert result["overview"]["counts"]["main_sessions"] == sum(
+        e["sessions"] for e in AGENT_EXPECTATIONS.values())
+    usage = result["overview"]["usage"]
+    unknown = [a for a, e in AGENT_EXPECTATIONS.items() if e["usage"] == "unknown"]
+    bounded = [e["usage"] for e in AGENT_EXPECTATIONS.values() if isinstance(e["usage"], int)]
+    assert usage["request_count"] == len(bounded)
+    assert usage["invalid_request_reasons"] == {"unreliable_request_boundary": len(unknown)}
+    assert usage["known_call_tokens"] == sum(bounded)
+    # An unbounded request row keeps the total a marked lower bound (audit B13), never complete.
+    assert (usage["total_tokens"], usage["total_basis"], usage["total_complete"]) == (
+        sum(bounded), "call_delta_known_rows", False)
+    assert usage["status"] == "partial"
     assert maintain(home, "verify")["unparsed"] == 0
 
 

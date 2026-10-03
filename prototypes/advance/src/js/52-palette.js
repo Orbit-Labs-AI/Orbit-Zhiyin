@@ -7,7 +7,6 @@ function palActions() {
     { t: '问本地 Agent', icon: 'spark', run: () => openAsk(ctx) },
     { t: '导出分享卡', k: kb('⌘⇧S'), icon: 'share', run: () => openShare() },
     { t: '导出报告', k: kb('⌘⇧E'), icon: 'file', run: () => openReport() },
-    { t: '导出工具明细 CSV', icon: 'down', run: () => openCSV() },
     { t: '打开设置', k: kb('⌘,'), icon: 'settings', run: () => openSettings() },
     { t: '重新索引', k: kb('⌥R'), icon: 'sync', run: () => reindex() },
     { t: (S.hud.show ? '隐藏' : '显示') + '悬浮组件', k: kb('⌥⌘P'), icon: 'eye', run: () => toggleHud() },
@@ -15,7 +14,7 @@ function palActions() {
     { t: S.ed === 'lite' ? '切换到 Advance（完整明细）' : '切换到 Lite（只看结论）', icon: 'grid', run: () => edToggle() },
     { t: (S.widgets ? '隐藏' : '显示') + '桌面小组件', icon: 'grid', run: () => { S.widgets = !S.widgets; render(); } },
     { t: '播放人格揭晓', icon: 'persona', run: () => openReveal() },
-    { t: '播放首次启动', icon: 'spark', run: () => openOnboarding(0) },
+    { t: '用户引导（播放首次启动）', icon: 'spark', run: () => openOnboarding(0) },
     { t: '清除所有筛选', icon: 'filter', run: () => ACT.clearAllFilters() },
     { t: '部署相关会话', icon: 'sessions', run: () => { S.topic = 'design'; S.sess.q = '部署'; go('sessions'); } },
     { t: '键盘快捷键', k: '?', icon: 'info', run: () => openKeys() }

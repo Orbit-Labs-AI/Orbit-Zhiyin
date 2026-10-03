@@ -19,24 +19,16 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from orbit_data.privacy import redact
 
-from ..analytics.interaction import correction_terms
-from ..analytics.lexicon import CORRECTION_EXTRA_HINT
-from . import metrics, outcome
+from ..analytics.interaction.rules import is_correction as _is_correction
+from . import derive, metrics, outcome
 
 ACTIVE_GAP_MS = metrics.IDLE_CAP_MS  # ACTIVE_SQL is metrics.active_ms in SQL
 TICKS_MAX = 90
-KNOWN_STATUS = {"success", "completed", "failed", "rejected", "interrupted"}
-FAILED = {"failed"}
 AGENTS = {"claude_code": ("Claude Code", "CC"), "codex": ("Codex", "Codex"),
           "gemini": ("Gemini CLI", "Gemini"), "opencode": ("OpenCode", "OC"),
           "hermes": ("Hermes", "Hermes"), "kimi": ("Kimi CLI", "Kimi")}
 WEEK = "一二三四五六日"
 HOME_RE = re.compile(r"(?:/Users|/home)/[^/\s\"']+")
-# Loose prefilter for ``correction_terms`` (which parses markdown, ~0.3 ms per message):
-# every term it can return contains one of these substrings.
-CORRECTION_HINT = re.compile(
-    r"不对|不是我说的|还是不行|我说的是|你理解错了|重新|改成|wrong|not what I meant|try again|instead",
-    re.I)
 LIST_FIELDS = ("id", "a", "title", "title_source", "p", "d", "h", "mi", "dur", "out",
                "out_basis", "live", "tools", "errors", "corr", "excluded")
 
@@ -101,9 +93,8 @@ def _home() -> str:
 
 
 def is_correction(text: str | None) -> bool:
-    """Same verdict as the analytics lexical rule, without parsing messages that cannot hit."""
-    return bool(text and (CORRECTION_HINT.search(text) or CORRECTION_EXTRA_HINT.search(text))
-                and correction_terms(text))
+    """The analytics correction verdict (``analytics.interaction.rules.is_correction``)."""
+    return _is_correction(text)
 
 
 def scrub(text: str | None, limit: int = 120) -> str | None:
@@ -117,12 +108,12 @@ def scrub(text: str | None, limit: int = 120) -> str | None:
 
 
 def is_failed(status: str | None) -> bool:
-    return status in FAILED
+    return metrics.tool_state(status) == "failed"
 
 
 def errors_of(statuses: list[str]) -> int | None:
     """Known failures; ``None`` when calls exist but none has a protocol status."""
-    if statuses and not any(s in KNOWN_STATUS for s in statuses):
+    if statuses and all(metrics.tool_state(s) == "unknown" for s in statuses):
         return None
     return sum(is_failed(s) for s in statuses)
 
@@ -291,7 +282,7 @@ def list_sessions(rows: list[dict], *, now_ms: int, tz: tzinfo, q: str | None = 
     today, _, _ = local_parts(now_ms, tz)
     window = [r for r in rows if start is None or (r["started_at"] or 0) >= start]
     picked = [r for r in window
-              if (not agents or r["a"] in agents) and (not project or r["p"] == project)
+              if (not agents or r["a"] in agents) and derive.project_matches(r["p"], project)
               and (topic is None or r.get("topic") == topic)
               and (outcome is None or r.get("out") == outcome)
               and (fric is None or r.get("fric") == fric)

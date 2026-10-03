@@ -1,18 +1,32 @@
-"""L0 template for the A1 「AI 解读」 card (lede + 做得好 / 卡在哪 / 立刻可做), no model.
+"""A1 「AI 解读」 card (lede + 做得好 / 卡在哪 / 立刻可做).
 
-Every column carries the number of sessions behind it and a ``ref`` the page can open (a
-filter on the sessions page or the recommendations route). Completion is an estimate from
-agent logs, so it is labelled 「估计」.
+``build`` is the L0 template (no model). Every column carries the number of sessions behind it
+and a ``ref`` the page can open (a filter on the sessions page or the recommendations route).
+Completion is an estimate from agent logs, so it is labelled 「估计」.
+
+``with_ai`` swaps in the texts of a model-written ``narrate.overview`` when the gateway's
+provider (``set_ai_provider``, bound to ``ai.narratives.latest_overview``) has one for exactly
+this window/project and the current ``data_rev``; the card then says ``basis: ai_narrative``
+and names the job. Counts and refs stay the L0 ones (they come from the same rows).
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 
 from . import derive
 
 WHEN = "规则模板 · 本地生成"
 RECS_REF = "/v1/recommendations?surface=A1"
+AI_WHEN = "AI 撰写 · 基于当前数据"
+_ai_provider: Callable[[dict | None, object], dict | None] | None = None
+
+
+def set_ai_provider(fn: Callable[[dict | None, object], dict | None] | None) -> None:
+    """``fn(scope, data_rev)`` → ``{job_id, engine, finished_at, result}`` or ``None``."""
+    global _ai_provider
+    _ai_provider = fn
 
 
 def lede(p: dict) -> str:
@@ -60,3 +74,38 @@ def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:
                      "ok_est": round(st["ok"], 1) if n and st["ok"] is not None else None, "basis": "estimate",
                      "ref": {"page": "sessions", "filter": {"outcome": "ok"}}},
             "stuck": stuck, "next": next_}
+
+
+def with_ai(card: dict, scope: dict | None, data_rev, *, with_scope: bool = False) -> dict:
+    """``card`` with the model narrative's texts when one matches; otherwise ``card``.
+
+    ``scope`` is ``None`` when the view has filters a narrative cannot describe (agents,
+    topic, outcome, friction, hour, brushed window, 「全部」): the L0 card is kept.
+    ``with_scope`` adds ``ai_scope`` (that scope, or ``None``): the page's 「重新生成」 posts a
+    ``narrate.overview`` job with exactly this scope, so the result is the one read back here."""
+    if with_scope:
+        return {**_with_ai(card, scope, data_rev), "ai_scope": scope}
+    return _with_ai(card, scope, data_rev)
+
+
+def _with_ai(card: dict, scope: dict | None, data_rev) -> dict:
+    if _ai_provider is None or scope is None or data_rev is None:
+        return card
+    try:
+        found = _ai_provider(scope, data_rev)
+    except Exception:  # noqa: BLE001 - app.db unreadable: the L0 card is still correct
+        return card
+    if not found:
+        return card
+    out = found["result"]
+    scenes = {f.get("scene"): f.get("text") for f in out.get("findings") or [] if f.get("text")}
+    if not out.get("summary") or not scenes:
+        return card
+    merged = {**card, "lede": out["summary"], "when": AI_WHEN, "basis": "ai_narrative",
+              "source": {"task_id": "narrate.overview", "job_id": found["job_id"],
+                         "engine": found.get("engine"), "finished_at": found.get("finished_at")},
+              "caveats": list(out.get("caveats") or [])}
+    for scene, key in (("good", "good"), ("stuck", "stuck"), ("next", "next")):
+        if scenes.get(scene):
+            merged[key] = {**card[key], "text": scenes[scene]}
+    return merged

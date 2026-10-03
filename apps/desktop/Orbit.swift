@@ -376,12 +376,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         app.addItem(.separator())
         app.addItem(withTitle: "退出 Orbit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
-        // 文件: the demo's file menu (exports + close); exports open the page's export sheets.
+        // 文件: the demo's file menu (report and share card exports + close); exports open the page's export sheets.
         let fileItem = NSMenuItem(); main.addItem(fileItem)
         let file = NSMenu(title: "文件"); fileItem.submenu = file
         file.addItem(command("导出报告…", "report", key: "e", mods: [.command, .shift]))
         file.addItem(command("导出分享卡…", "share", key: "s", mods: [.command, .shift]))
-        file.addItem(command("导出工具明细 CSV…", "csv"))
         file.addItem(.separator())
         file.addItem(withTitle: "关闭窗口", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
 
@@ -440,7 +439,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let helpItem = NSMenuItem(); main.addItem(helpItem)
         let help = NSMenu(title: "帮助"); helpItem.submenu = help
         help.addItem(command("键盘快捷键", "keys", key: "?"))
-        help.addItem(command("重新打开导入向导", "onboarding"))
+        help.addItem(command("用户引导", "onboarding"))  // the first-run guide (sources → import → reveal), any time
         help.addItem(command("播放人格揭晓", "reveal"))
         help.addItem(.separator())
         help.addItem(command("关于 Orbit", "about"))

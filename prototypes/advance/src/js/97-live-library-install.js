@@ -239,11 +239,13 @@ function liDraw() {
   } else if (st.step === 2) {
     const pv = st.preview, tot = pv.totals || {}, risk = pv.risk || {};
     const paths = liUniq(TL.li.helpers.liTargets(pv).filter((t) => !st.sel.disabled.has(t.idx) && t.mappable), (t) => t.display);
+    const vUnknown = liUniq(TL.li.helpers.liTargets(pv).filter((t) => !st.sel.disabled.has(t.idx) && t.mappable && t.versionUnknown), (t) => t.agent).map((t) => liAgentName(t.agent));
     const blocked = pv.requires_override && !st.overrideRisk;
     html = modalHead('写入 ' + paths.length + ' 个文件？', '修改前会自动备份，随时可以撤销') + liProg(2) +
       '<div class="mb col" style="gap:12px" data-tl="inst-confirm"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono col code-t" style="font-size:12px;word-break:break-all;gap:2px">' + paths.map((t) => esc(t.display)).join('<br>') + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(liBackupDir(pv)) + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + TLU.num(tot.adds) + (tot.dels ? ' / −' + TLU.num(tot.dels) : '') + ' 行</span><span class="l">风险</span><span style="font-size:12px">' + esc(LI_RISK[risk.level] || risk.level || '—') + (risk.flags && risk.flags.length ? ' · ' + esc(risk.flags.join('、')) : '') + '</span></div>' +
       (pv.requires_override ? '<label class="row" style="align-items:flex-start;gap:8px;padding:10px 12px;border-radius:9px;border:1px solid var(--line)"><input type="checkbox" data-chg="liOverride"' + (st.overrideRisk ? ' checked' : '') + ' style="margin-top:2px;accent-color:var(--ink-1)"><span class="col" style="gap:2px"><b style="font-size:12.5px">我已了解风险，仍然写入</b><span class="cap" style="font-size:11.5px">该资源的风险等级需要你明确确认。</span></span></label>' : '') +
       (pv.requires_trust ? '<div class="row cap" style="font-size:11.5px">' + ic('info', 13, 'margin-top:2px') + '<span>写入后需要在对应 Agent 里信任该项目配置才会生效。</span></div>' : '') +
+      (vUnknown.length ? '<div class="row cap" style="font-size:11.5px" data-tl="inst-version-unknown">' + ic('info', 13, 'margin-top:2px') + '<span>' + esc(vUnknown.join('、')) + ' 的最低支持版本尚未核实，版本兼容性未知。</span></div>' : '') +
       '<div class="row cap" style="font-size:11.5px;align-items:flex-start">' + ic('info', 13, 'margin-top:2px') + '<span>这是整个流程里唯一真正写盘的一步，写入的是预览中确认过的内容。</span></div></div>' +
       '<div class="mf"><button type="button" class="btn gh" data-act="instBack">返回</button>' + close + '<button type="button" class="btn p" data-act="instDo" autofocus' + (blocked || st.busy ? ' disabled' : '') + '>' + (st.busy ? '正在写入…' : '确认写入') + '</button></div>';
   } else {

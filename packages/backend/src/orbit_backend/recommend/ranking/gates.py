@@ -92,18 +92,33 @@ def _source_verified(raw, inputs, memory):
     return (True, "") if source.get("verified") else (False, "来源未核验")
 
 
-def _agent_supported(raw, inputs, memory):
-    agent = top_agent(inputs)
-    if not agent:
-        return NA, ""
+def target_agents(raw: dict, inputs: dict) -> list[str]:
+    """Agents a card must fit: those of the sessions its problem occurred in, else every Agent the
+    user runs (most used first). Never only the most-used Agent: a problem seen in opencode
+    sessions is judged against opencode even when Claude Code dominates."""
+    used = [a for a, n in sorted((inputs.get("agents") or {}).items(), key=lambda kv: (-kv[1], kv[0])) if n]
+    of = (inputs.get("facts") or {}).get("session_agents") or {}
+    uids = ((raw.get("problem") or {}).get("evidence") or {}).get("session_uids") or ()
+    seen = list(dict.fromkeys(of[u] for u in uids if u in of))
+    return sorted(seen, key=lambda a: used.index(a) if a in used else len(used)) or used
+
+
+def agent_support(raw: dict, agent: str) -> str:
     if raw.get("kind") in UNSUPPORTED_ON.get(agent, ()):
-        return False, f"{agent} 不支持 {raw.get('kind')}"
-    support = (raw.get("agents") or {}).get(agent, "unknown")
-    if support == "unsupported":
-        return False, f"{agent} 不支持这类改动"
-    if support == "unknown":
-        return True, "needs_context"
-    return True, ""
+        return "unsupported"
+    return (raw.get("agents") or {}).get(agent, "unknown")
+
+
+def _agent_supported(raw, inputs, memory):
+    agents = target_agents(raw, inputs)
+    if not agents:
+        return NA, ""
+    support = {a: agent_support(raw, a) for a in agents}
+    if all(v == "unsupported" for v in support.values()):
+        return False, "、".join(agents) + " 不支持这类改动"
+    if any(v in {"native", "manual", "adaptation_required"} for v in support.values()):
+        return True, ""
+    return True, "needs_context"  # unknown for every target Agent: shown as unverified, never as compatible
 
 
 def _not_installed(raw, inputs, memory):

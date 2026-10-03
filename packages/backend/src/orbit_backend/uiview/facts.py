@@ -17,16 +17,42 @@ from contextvars import ContextVar
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from . import CONTRACT, metrics, outcome
+from . import CONTRACT, metrics, outcome, persona_signals
 
 UIDS = "(SELECT value FROM json_each(?))"
-FAILED = frozenset(("failed", "error", "failure"))
+# Turn statuses that do not say how a turn ended (tool results are classified by metrics.tool_state).
 UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
 FRIC = ("方向错误", "工具 / 环境失败", "改动过度", "误解需求", "并行会话冲突",
         "流程过重（子代理）", "额度 / 用量中断")
 TOPICS = ("git", "design", "paper", "data", "quant", "net", "other")
-# Same candidate regex as analytics.outcome.validation (validation_runs candidates).
-VALIDATION_RE = re.compile(r"\b(test|pytest|lint|typecheck|build|check)\b", re.I)
+# Validation commands, matched on the command's own head (after env assignments and
+# runners), never on any word in it: ``cd build``, ``ls test/``, ``git diff --check`` and
+# ``docker build`` are not validation. Tools that only test / lint / type-check:
+VALIDATION_TOOLS = frozenset((
+    "pytest", "py.test", "tox", "nox", "jest", "vitest", "mocha", "ava", "playwright", "rspec",
+    "phpunit", "ctest", "bats", "ruff", "eslint", "biome", "flake8", "pylint", "mypy",
+    "pyright", "tsc", "vue-tsc", "shellcheck", "swiftlint", "golangci-lint", "rubocop",
+    "stylelint", "markdownlint", "hadolint", "clippy-driver"))
+# Build tools whose test / lint / type-check / compile subcommand is validation.
+VALIDATION_SUBCOMMANDS = {
+    "cargo": {"test", "check", "clippy", "build", "nextest"},
+    "go": {"test", "vet", "build"}, "swift": {"test", "build"},
+    "dotnet": {"test", "build"}, "mvn": {"test", "verify", "compile", "package"},
+    "gradle": {"test", "check", "build"}, "./gradlew": {"test", "check", "build"},
+    "make": {"test", "check", "lint", "build", "typecheck"},
+    "xcodebuild": {"test", "build", "build-for-testing"}, "mix": {"test", "compile"},
+    "deno": {"test", "lint", "check"}, "bun": {"test"}, "unittest": {"discover"},
+}
+# Package-manager scripts: ``npm test``, ``pnpm run lint``, ``yarn typecheck``.
+SCRIPT_RUNNERS = frozenset(("npm", "pnpm", "yarn", "bun"))
+VALIDATION_SCRIPT_RE = re.compile(r"^(?:test|tests|lint|typecheck|type-check|check|build|"
+                                  r"verify|ci)(?::[\w:-]+)?$", re.I)
+# Prefixes that run another command (``uv run pytest``, ``npx vitest``, ``python -m mypy``).
+RUNNERS = {"uv": ("run",), "poetry": ("run",), "pipenv": ("run",), "hatch": ("run",),
+           "pdm": ("run",), "npx": (), "pnpx": (), "bunx": (), "time": (), "sudo": (),
+           "env": (), "nice": (), "dotenv": ("--",)}
+_SPLIT_RE = re.compile(r"&&|\|\||[;|\n]")
+_ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 FRIC_LEXICON = (
     ("方向错误", re.compile(r"不要用|别用|换成|改用|方向(?:错|不对)|不是这个方案|用\S{1,20}而不是")),
     ("工具 / 环境失败", re.compile(r"别重复试|先检查|环境|认证|权限|command not found|装不上|"
@@ -48,11 +74,36 @@ DOMAIN_TOPIC = {"software.frontend": "design", "software.devops": "design", "des
                 "software.ai_engineering": "data", "software.database": "data",
                 "data.statistics": "quant", "data.visualization": "quant",
                 "data.machine_learning": "quant", "mathematics": "quant"}
+# A structured opening states its plan or its acceptance: ≥ 2 list items, acceptance words,
+# or a named spec / plan document. A file name alone (``fix README.md``) or a long message
+# (a pasted stack trace) is not structure, so neither triggers it.
 STRUCTURED_RE = re.compile(
     r"(?:^|\n)\s*(?:[-*•]|\d+[.、)])\s+\S.*(?:\n\s*(?:[-*•]|\d+[.、)])\s+\S)"  # ≥ 2 list items
     r"|验收|完成标准|预期结果|acceptance|done when|definition of done"
-    r"|\b[\w./-]+\.(?:md|txt|ya?ml|json)\b|规格|\bspec\b|\bPRD\b|计划文档", re.I | re.S)
-STRUCTURED_LEN = 200
+    r"|规格|\bspec\b|\bPRD\b|计划文档", re.I | re.S)
+# The two halves of a structured opening, kept apart for the persona's I axis: a stated plan
+# or acceptance (lists, acceptance words) and a named spec / plan document.
+ACCEPT_RE = re.compile(
+    r"(?:^|\n)\s*(?:[-*•]|\d+[.、)])\s+\S.*(?:\n\s*(?:[-*•]|\d+[.、)])\s+\S)"
+    r"|验收|完成标准|预期结果|acceptance|done when|definition of done", re.I | re.S)
+SPEC_RE = re.compile(r"规格|\bspec\b|\bPRD\b|\bRFC\b|计划文档|设计文档|需求文档|方案文档"
+                     r"|[\w./-]*(?:plan|spec|design|prd|rfc|roadmap|需求|方案|计划)[\w.-]*\.md\b",
+                     re.I)
+# Rollback / redo evidence for the persona's V axis: the agent ran a command that throws work
+# away, or the user asked for it in words. Matched per shell segment on the command head.
+ROLLBACK_GIT = {"revert", "reset", "restore", "checkout"}
+# git options that come before the subcommand and take a value (``git -C dir reset --hard``)
+GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+# Words in a pasted log or code block are not the user asking for a redo: only short messages count.
+REDO_MAX_CHARS = 400
+# Turn statuses that mean the user (or the user's approval policy) stopped the agent. ``failed`` /
+# ``error`` are tool, API or environment failures, not steering, so the D axis does not count them.
+USER_STOPPED = frozenset(("interrupted", "aborted", "cancelled", "rejected"))
+# Agents whose connectors record child sessions (sub-agents / workflow agents). For the others the
+# sub-agent signal is unknown (None), not "never ran in parallel", so it drops out of the M axis.
+SUBAGENT_AGENTS = frozenset(("claude_code", "codex", "kimi", "hermes"))
+REDO_RE = re.compile(r"回滚|撤销(?:改动|修改|这次)?|撤回|还原(?:改动|修改|到)|推倒重来|重做|重新做一遍"
+                     r"|\brevert\b|\broll ?back\b|\bundo\b", re.I)
 TITLE_LEN = 60
 NULLABLE = ("d", "h", "mi", "a", "p", "title", "dur", "span", "errors", "steps", "verify",
             "out", "fric", "topic", "tok", "model", "effort")
@@ -130,7 +181,10 @@ def _active(conn, uids: str, root_of: dict) -> dict[str, float]:
 
 
 def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
-    """Human-triggered turns per root: [[steps, verify]] plus the last turn's status."""
+    """Human-triggered turns per root: [[steps, verify, requested, ran]] plus the last
+    turn's status. ``requested``: the user's instruction in that turn asks for verification
+    (``instruction.verification_requirements``); ``ran``: the agent ran a validation command
+    in it (``is_validation_command``); ``verify`` is either."""
     calls = dict(_rows(conn, f"SELECT turn_uid, count(*) FROM tool_call WHERE turn_uid IS NOT "
                              f"NULL AND session_uid IN {UIDS} GROUP BY turn_uid", uids,
                              fields=('steps',)))
@@ -140,21 +194,18 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
                               f"session_uid IN {UIDS} GROUP BY turn_uid", uids,
                               fields=('steps', 'out')))
     checked: set[str] = set()
-    for turn, head, command in _rows(
-            conn, f"SELECT tc.turn_uid, tc.command_head, json_extract(e.attrs, '$.input.command')"
+    rollback: set[str] = set()
+    for turn, uid, head, command in _rows(
+            conn, f"SELECT tc.turn_uid, tc.session_uid, tc.command_head, "
+                  f"json_extract(e.attrs, '$.input.command')"
                   f" FROM tool_call tc LEFT JOIN event e ON e.event_uid = tc.call_event_uid "
-                  f"WHERE tc.turn_uid IS NOT NULL AND tc.kind = 'shell' AND tc.session_uid IN "
+                  f"WHERE tc.kind = 'shell' AND tc.session_uid IN "
                   f"{UIDS}", uids, fields=('verify',)):
-        text = head or ""
-        if command:
-            try:
-                parsed = json.loads(command)
-                text += " " + (" ".join(map(str, parsed)) if isinstance(parsed, list)
-                               else str(parsed))
-            except ValueError:
-                text += " " + str(command)
-        if VALIDATION_RE.search(text):
+        text = shell_text(head, command)
+        if turn is not None and is_validation_command(text):
             checked.add(turn)
+        if is_rollback_command(text):
+            rollback.add(root_of.get(uid, uid))
     requested: set[str] = set()
     if verify_events:
         for (turn,) in _rows(conn, f"SELECT turn_uid FROM event WHERE turn_uid IS NOT NULL AND "
@@ -169,11 +220,43 @@ def _turns(conn, uids: str, root_of: dict, verify_events: set[str]):
                   fields=('steps', 'verify', 'out')):
         root = root_of.get(uid, uid)
         if uid == root:
+            # [steps, verify, user asked for verification, agent ran a validation command,
+            #  turn was stopped by the user (interrupted / aborted / cancelled / rejected),
+            #  turn status is known]
+            known = status not in UNKNOWN_STATUS and status != "active"
             per_root[root].append([calls.get(turn, 0) + finals.get(turn, 0),
-                                   int(turn in checked or turn in requested)])
+                                   int(turn in checked or turn in requested),
+                                   int(turn in requested), int(turn in checked),
+                                   int(status in USER_STOPPED), int(known)])
             if root not in last or (idx or 0) >= last[root][0]:
                 last[root] = (idx or 0, status, finals.get(turn, 0) > 0)
-    return per_root, {k: (v[1], v[2]) for k, v in last.items()}
+    return per_root, {k: (v[1], v[2]) for k, v in last.items()}, rollback
+
+
+def _subagents(result: dict, root_of: dict) -> dict[str, int]:
+    """Peak number of a main session's child sessions (sub-agents, workflow agents) observed
+    running at the same time; a root without children is absent (= 0)."""
+    spans: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for row in result.get("sessions") or []:
+        uid = row.get("session_uid")
+        root = root_of.get(uid)
+        if not uid or root is None or root == uid:
+            continue
+        f = row.get("features") or {}
+        start = f.get("first_observed_ts") or row.get("started_at")
+        end = f.get("last_observed_ts") or row.get("ended_at") or start
+        if start is not None:
+            spans[root].append((start, max(start, end)))
+    peak: dict[str, int] = {}
+    for root, items in spans.items():
+        edges = sorted([(a, 1) for a, _ in items] + [(b, -1) for _, b in items],
+                       key=lambda e: (e[0], e[1]))
+        cur = best = 0
+        for _, step in edges:
+            cur += step
+            best = max(best, cur)
+        peak[root] = max(best, 1)
+    return peak
 
 
 def _tails(conn, uids: str, root_of: dict) -> dict[str, list[str | None]]:
@@ -197,9 +280,10 @@ def _tools(conn, uids: str, root_of: dict):
                   fields=('errors',)):
         entry = per_root[root_of.get(uid, uid)].setdefault(name or "unknown", [kind, 0, 0, 0])
         entry[1] += n
-        if status not in UNKNOWN_STATUS:
+        state = metrics.tool_state(status)
+        if state != "unknown":
             entry[3] += n
-            if status in FAILED:
+            if state == "failed":
                 entry[2] += n
     return per_root
 
@@ -300,7 +384,100 @@ def topic_of(first_text: str | None, counts: Counter | None) -> str | None:
 def structured_opening(text: str | None, flagged: bool) -> int | None:
     if text is None:
         return None
-    return int(flagged or len(text) >= STRUCTURED_LEN or bool(STRUCTURED_RE.search(text)))
+    return int(flagged or bool(STRUCTURED_RE.search(text)))
+
+
+def _command_words(segment: str) -> list[str]:
+    """Words of one shell segment without env assignments and runner prefixes."""
+    words = segment.strip().split()
+    while words:
+        head = words[0].rsplit("/", 1)[-1] if not words[0].startswith("./") else words[0]
+        if _ENV_RE.match(words[0]):
+            words = words[1:]
+        elif head in RUNNERS:
+            words = words[1:]
+            for sub in RUNNERS[head]:
+                if words and words[0] == sub:
+                    words = words[1:]
+            while words and words[0].startswith("-"):  # runner flags (npx -y, uv run --frozen)
+                words = words[1:]
+        elif head.startswith("python") and len(words) > 2 and words[1] == "-m":
+            words = words[2:]
+        else:
+            return [head, *words[1:]]
+    return []
+
+
+def shell_text(head: str | None, command) -> str:
+    """The command line of a shell call: ``$.input.command`` (a string, or an argv list as
+    JSON for Codex exec) else ``command_head``; ``bash -lc "<script>"`` yields the script."""
+    if not command:
+        return head or ""
+    try:
+        parsed = json.loads(command)
+        text = " ".join(map(str, parsed)) if isinstance(parsed, list) else str(parsed)
+    except ValueError:
+        text = str(command)
+    parts = text.split(None, 2)
+    if len(parts) == 3 and parts[0].rsplit("/", 1)[-1] in ("bash", "sh", "zsh") \
+            and parts[1].startswith("-") and "c" in parts[1]:
+        return parts[2]
+    return text
+
+
+def is_rollback_command(text: str | None) -> bool:
+    """True when a segment discards work: ``git revert``, ``git reset --hard``,
+    ``git restore <path>``, ``git checkout -- <path>`` (``git checkout <branch>`` is not;
+    ``git restore --staged <path>`` only unstages and is not either). Global options before the
+    subcommand (``git -C dir``, ``git -c k=v``) are skipped."""
+    for segment in _SPLIT_RE.split(text or ""):
+        words = [w.strip("'\"") for w in _command_words(segment)]
+        if not words or words[0].lower() != "git":
+            continue
+        i = 1
+        while i < len(words) and words[i].startswith("-"):
+            i += 2 if words[i] in GIT_VALUE_OPTS else 1
+        if i >= len(words) or words[i] not in ROLLBACK_GIT:
+            continue
+        sub, rest = words[i], words[i + 1:]
+        if sub == "revert":
+            return True
+        if sub == "restore":
+            flags = {w for w in rest if w.startswith("-")}
+            if "--staged" in flags or "-S" in flags:
+                if "--worktree" in flags or "-W" in flags:
+                    return True
+                continue
+            return True
+        if sub == "reset" and "--hard" in rest:
+            return True
+        if sub == "checkout" and "--" in rest:
+            return True
+    return False
+
+
+def asks_redo(texts: list[str]) -> bool:
+    """A short human message asks to roll back / redo (long pasted logs and code are skipped)."""
+    return any(len(t) <= REDO_MAX_CHARS and REDO_RE.search(t) for t in texts)
+
+
+def is_validation_command(text: str | None) -> bool:
+    """True when any ``&&`` / ``;`` / ``|`` segment of ``text`` runs a test, lint,
+    type-check or build command (see ``VALIDATION_TOOLS`` / ``VALIDATION_SUBCOMMANDS``)."""
+    for segment in _SPLIT_RE.split(text or ""):
+        words = [w.strip("'\"") for w in _command_words(segment)]
+        if not words:
+            continue
+        head, rest = words[0].lower(), [w for w in words[1:] if not w.startswith("-")]
+        if head in VALIDATION_TOOLS:
+            return True
+        if head in VALIDATION_SUBCOMMANDS and rest and rest[0] in VALIDATION_SUBCOMMANDS[head]:
+            return True
+        if head in SCRIPT_RUNNERS and rest:
+            script = rest[1] if rest[0] in ("run", "run-script") and len(rest) > 1 else rest[0]
+            if VALIDATION_SCRIPT_RE.match(script):
+                return True
+    return False
 
 
 def friction_of(corr: int | None, texts: list[str], signals: Counter) -> tuple[str | None,
@@ -395,7 +572,8 @@ def _build_facts(conn, result: dict, scope) -> dict:
     main_json = json.dumps(sorted(s["session_uid"] for s in mains))
     verify_events, structured_events = _instruction_index(result)
     active = _active(conn, uids, root_of)
-    turns, last_turn = _turns(conn, uids, root_of, verify_events)
+    turns, last_turn, rollback = _turns(conn, uids, root_of, verify_events)
+    peaks = _subagents(result, root_of)
     tails = _tails(conn, uids, root_of)
     tools = _tools(conn, uids, root_of)
     tok, cumulative, models, efforts = _models(conn, uids, root_of)
@@ -451,8 +629,15 @@ def _build_facts(conn, result: dict, scope) -> dict:
             "live": False, "excluded": False,
         }
         rows.append(row)
+        flagged = first_event in structured_events
         aux[uid] = {"t0": start, "t1": end, "turns": unit_rows,
-                    "open": structured_opening(first_text, first_event in structured_events),
+                    "open": structured_opening(first_text, flagged),
+                    "olen": None if first_text is None else len(first_text.strip()),
+                    "oacc": None if first_text is None else
+                    int(flagged or bool(ACCEPT_RE.search(first_text))),
+                    "ospec": None if first_text is None else int(bool(SPEC_RE.search(first_text))),
+                    "sub": peaks.get(uid, 0) if s.get("agent") in SUBAGENT_AGENTS else None,
+                    "rb": int(uid in rollback or asks_redo(texts.get(uid, []))),
                     "tools": tool_map}
     rows.sort(key=lambda r: (r["d"] or "", r["h"] or 0, r["mi"] or 0, r["id"]))
     excluded = _excluded(conn, list(getattr(scope, "excluded_session_uids", None) or []), tz)
@@ -514,9 +699,21 @@ DICT_FIELDS = ("a", "p", "corr_basis", "out", "out_basis", "fric", "fric_basis",
                "tok_basis", "model", "effort", "title_source")
 ID_PREFIX = "session_"
 # Per-session persona units (from ``aux``) so the client can re-derive the persona on any
-# subset: dk/dn = turns with ≥ STEP_THRESHOLD steps / turns, vk = verified turns,
-# op = structured opening (0 / 1 / null), t0 / t1 = observed interval (ms).
-AUX_KEYS = ("dk", "dn", "vk", "op", "t0", "t1")
+# subset: dk/dn = turns with ≥ STEP_THRESHOLD steps / turns, vk = turns where the user asked
+# for verification (agent-only validation runs are not counted, see persona_signals),
+# op = structured opening (0 / 1 / null), t0 / t1 = observed interval (ms); the persona's
+# further signals: ik / kn = turns that ended stopped / turns with a known status,
+# ol = opening length (chars), oa = opening states a plan or acceptance (0 / 1 / null),
+# os = opening names a spec / plan file (0 / 1 / null), sc = peak concurrent sub-agents,
+# rb = rollback / redo evidence (0 / 1). ``msgs`` and ``corr`` ride in the row itself.
+AUX_KEYS = ("dk", "dn", "vk", "op", "t0", "t1", "ik", "kn", "ol", "oa", "os", "sc", "rb")
+# Product default, not calibrated: no population distribution of steps per turn has been
+# measured. A step is one recorded tool call or final reply, so the scale depends on the
+# agent's tool granularity — Claude Code logs one call per Read / Edit / Bash (and
+# parallel calls separately), while one Codex ``apply_patch`` call can edit several files
+# (third_party/codex/codex-rs/apply-patch) and one exec can chain commands with ``&&``.
+# The same work can therefore read as more "delegated" under Claude Code; profiling.md
+# lists this under 局限 until per-agent distributions are measured on consented data.
 STEP_THRESHOLD = 5
 WIRE_TITLE_LEN = 48
 
@@ -560,8 +757,12 @@ def aux_units(a: dict | None) -> dict:
         return dict.fromkeys(AUX_KEYS)
     turns = a.get("turns") or []
     return {"dk": sum(1 for t in turns if t[0] >= STEP_THRESHOLD), "dn": len(turns),
-            "vk": sum(1 for t in turns if t[1]), "op": a.get("open"), "t0": a.get("t0"),
-            "t1": a.get("t1")}
+            "vk": persona_signals.requested_turns(turns), "op": a.get("open"), "t0": a.get("t0"),
+            "t1": a.get("t1"),
+            "ik": sum(1 for t in turns if len(t) >= 6 and t[4] and t[5]),
+            "kn": sum(1 for t in turns if len(t) >= 6 and t[5]),
+            "ol": a.get("olen"), "oa": a.get("oacc"), "os": a.get("ospec"),
+            "sc": a.get("sub"), "rb": a.get("rb")}
 
 
 FLOAT_DIGITS = {"mood": 3, "dur": 2, "span": 2}

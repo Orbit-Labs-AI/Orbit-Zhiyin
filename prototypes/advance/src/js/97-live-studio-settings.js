@@ -350,24 +350,36 @@ if (TL.mode === 'live') {
       box.innerHTML = xs.map((p, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(p.question) + '</button>').join('');
     }, () => { /* the generic questions stay; answers still go through POST /v1/ai/ask */ });
   };
-  const tlsAnswer = (d) => d.summary != null ? [d.summary, ...(d.findings || []).map((f) => (f.kind === 'hypothesis' ? '待验证的推测：' : '观察：') + f.text + ((f.evidence_ids || []).length ? '\n证据：' + f.evidence_ids.join('、') : '')), (d.next_steps || []).length ? '下一步：\n' + d.next_steps.join('\n') : '', (d.limitations || []).length ? '分析边界：\n' + d.limitations.join('\n') : ''].filter(Boolean).join('\n\n') : (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '');
-  function tlsThinking(q) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">本地 Agent 正在回答…</span>'; }
+  // 来源如实写在回答末尾：预置问题是规则模板在本机查询出的（没有调用模型）；自由提问与专业分析由本地 Agent 作答；
+  // 模型失败时后端回 status=fallback 与说明文字，照样显示说明，不当成回答
+  const tlsAskSrc = (d) => d.source === 'ai' || d.source === 'cache' ? '本地 Agent 回答' + (d.source === 'cache' ? '（缓存）' : '') + ' · 只发送了脱敏后的查询结果'
+    : d.error_code ? '本地 Agent 没有答成（' + d.error_code + '），以上是说明，不是回答'
+    : d.analysis_session && d.analysis_session.validation === 'fallback' ? '没有通过校验的 AI 分析 · 以上是本机统计给出的保底说明'
+    : '规则模板 · 在本机查询你的数据生成，没有调用模型';
+  const tlsAnswer = (d) => (d.summary != null ? [d.summary, ...(d.findings || []).map((f) => (f.kind === 'hypothesis' ? '待验证的推测：' : '观察：') + f.text + ((f.evidence_ids || []).length ? '\n证据：' + f.evidence_ids.join('、') : '')), (d.next_steps || []).length ? '下一步：\n' + d.next_steps.join('\n') : '', (d.limitations || []).length ? '分析边界：\n' + d.limitations.join('\n') : ''].filter(Boolean).join('\n\n') : (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '')) + '\n\n— ' + tlsAskSrc(d);
+  function tlsThinking(q, preset) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">' + (preset ? '正在本机查询…' : '本地 Agent 正在回答…') + '</span>'; }
   function tlsAsk(body, q) {
     tlsCancelQuestion();
     const request = { owner: ASK, ctl: new AbortController(), job: null }; TLS.question = request;
     const current = () => TLS.question === request && ASK === request.owner && MODAL_KEY === 'ask';
-    body = Object.assign({}, body, { scope: ASK.scope, session_uid: ASK.session_uid });
     const task = ASK.template;
+    const preset = !task && body.preset_index != null;
+    body = Object.assign({}, body, { scope: ASK.scope, session_uid: ASK.session_uid });
     const path = task ? '/v1/ai/jobs' : '/v1/ai/ask';
     const payload = task ? { task_id: task, scope: ASK.scope, goal: q, goal_source: 'ask', params: { question: q, session_uid: ASK.session_uid } } : body;
-    clearInterval(ASKT); tlsThinking(q);
+    clearInterval(ASKT); tlsThinking(q, preset);
     TL.send('POST', path, payload).then((r) => {
       const d = r.data || {};
       if (!current()) { if (d.job_id) TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(d.job_id) + '/cancel', {}).catch(() => {}); return null; }
       if (d.answer != null) return d;
-      if (!d.job_id) return { answer: '' };
+      if (!d.job_id) throw Object.assign(new Error('没有返回作业'), { status: 500, code: 'no_job' });
       request.job = d.job_id;
-      return TL.pollJob(d.job_id, null, { signal: request.ctl.signal }).then((job) => { request.job = null; if (TLS_DONE.indexOf(job.status) < 0 && job.status !== 'fallback') throw Object.assign(new Error((job.error && (job.error.message || job.error.code)) || '回答失败'), { status: 500, code: 'job_' + job.status }); return job.result || {}; });
+      return TL.pollJob(d.job_id, null, { signal: request.ctl.signal }).then((job) => {
+        request.job = null;
+        if (job.status === 'fallback' && job.result) return job.result;
+        if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error(job.status === 'cancelled' ? '已取消' : (job.error && (job.error.message || job.error.code || job.error)) || '回答失败'), { status: 500, code: 'job_' + job.status });
+        return job.result || {};
+      });
     }).then((d) => { if (current() && d) { TLS.question = null; askStream(q, tlsAnswer(d)); } }, (e) => {
       if (!current() || e.name === 'AbortError') return;
       TLS.question = null;
@@ -392,7 +404,7 @@ if (TL.mode === 'live') {
 
   /* ---------- 设置：通用 / 数据源 / 隐私 / 分析 / 通知 / 关于 ---------- */
   const R = { col: '/v1/platform/collection', pol: '/v1/notifications/policy', snz: '/v1/notifications/snooze', attn: '/v1/notifications/attention', con: '/v1/ai/consent', tel: '/v1/platform/telemetry', hea: '/v1/platform/health',
-    state: '/v1/app/state', disc: '/v1/app/discovery', about: '/v1/app/about', data: '/v1/app/data', rules: '/v1/privacy/rules', eng: '/v1/ai/engines', usage: '/v1/ai/usage', rec: '/v1/platform/recommend', tmap: '/v1/app/tool_map' };
+    state: '/v1/app/state', disc: '/v1/app/discovery', about: '/v1/app/about', data: '/v1/app/data', rules: '/v1/privacy/rules', eng: '/v1/ai/engines', usage: '/v1/ai/usage', rec: '/v1/platform/recommend', tmap: '/v1/app/tool_map', cov: '/v1/app/coverage' };
   const polKey = (m, k) => TLS_KIND[k].find((t) => m && Object.prototype.hasOwnProperty.call(m, t)) || null;
   const CLS = { sum: 'summary', snip: 'snippets', raw: 'raw' };
   // the gateway's modes are stats | agent | api; 仅统计 is 'stats' (never 'off'), there is no Ollama mode yet
@@ -401,7 +413,7 @@ if (TL.mode === 'live') {
   const conEngine = (d) => TLS.engine || d.default_engine || (Object.keys(d.grants || {})[0] || null);
   const setOpen = () => !$('#set').hidden;
   // settings tab → the resources it reads (loaded only while that tab is open)
-  const TAB_RES = { general: ['state'], sources: ['state', 'disc', 'col', 'about'], privacy: ['rules', 'data'], analysis: ['con', 'usage', 'rec', 'eng'], notify: ['pol', 'snz'], about: ['about', 'hea', 'tel'] };
+  const TAB_RES = { general: ['state'], sources: ['state', 'disc', 'col', 'about', 'cov'], privacy: ['rules', 'data'], analysis: ['con', 'usage', 'rec', 'eng'], notify: ['pol', 'snz'], about: ['about', 'hea', 'tel'] };
   // server state → the demo's S fields (skipped while a demo handler is mid-way, see TLS.hold)
   function tlsSync() {
     if (TLS.hold) return;
@@ -477,6 +489,7 @@ if (TL.mode === 'live') {
     // discovery and the about mappers spell agents differently (claude / claude_code, dsh / deepseek …): compare UI ids
     const norm = (k) => lvAgentOf(k).id || k;
     const have = new Set(disc.map((x) => norm(x.agent)).concat(AG.map((a) => a.id))); const maps = (ab && ab.components && ab.components.mappers) || [];
+    if (maps.length) LV.mappers = maps;   // the gateway's connector registry: what can be imported at all (D9)
     const seen = new Set();
     return maps.filter((k) => { const id = norm(k); if (have.has(id) || seen.has(id)) return false; seen.add(id); return true; })
       .map((k) => ({ name: lvAgentOf(k).name, v: k, hint: '未检测到 · 可以手动指定会话目录' }));
@@ -517,7 +530,8 @@ if (TL.mode === 'live') {
       if (tlsDemo(TL.resource(R.con))) sample('AI 通道');
       const d = TL.resource(R.con).data, u = TL.resource(R.usage).data, rc = TL.resource(R.rec).data, rl = TL.resource(R.rules).data; const c = setCard('AI 通道');
       if (c && (d || u)) c.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-cap" style="font-size:11px;margin-top:8px">' +
-        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 累计 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用 · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
+        (u ? '今日 ' + TLU.money(u.today_cost_usd) + ' · 近 30 天 ' + TLU.num(u.totals && u.totals.calls) + ' 次调用' + (u.totals && u.totals.unknown_calls ? '（' + TLU.num(u.totals.unknown_calls) + ' 次没有价格，按保守单价计入预算）' : '') + ' · ' : '') + '每日 AI 预算上限 ' + TLU.money(d && d.settings && d.settings.daily_usd_cap != null ? d.settings.daily_usd_cap : u ? u.daily_cap : null) + (d ? ' · 授权对象：' + esc(tlsEngName(conEngine(d)) || '未选择') : '') + '</div>');
+      if (c && d && typeof lvaiAutoRow === 'function' && !c.querySelector('[data-tl="auto-ov"]')) c.lastElementChild.insertAdjacentHTML('beforeend', lvaiAutoRow(d));
       const e = setCard('分析引擎'); if (e && rc && rc.level) e.lastElementChild.insertAdjacentHTML('beforeend', '<div class="cap" data-tl="ai-rec" style="font-size:11px;margin-top:8px">按本机配置建议：' + esc(rc.level) + (rc.ai_generate ? ' · 可以使用生成工坊' : '') + '</div>');
       const cnt = c && $$('.cap', c).find((x) => x.textContent.indexOf('当前启用') === 0); if (cnt && rl) cnt.textContent = '当前启用 ' + rl.active_count + ' 条脱敏规则';
     }
@@ -528,6 +542,21 @@ if (TL.mode === 'live') {
         const d = r.data; const top = c.querySelector('.row .mono'); const b = c.querySelector('b.mono');
         if (top) top.textContent = d ? d.home : '—'; if (b) b.textContent = d ? tlsBytes(d.total_bytes) : '—';
         if (d) c.lastElementChild.firstElementChild.insertAdjacentHTML('beforeend', '<div class="col" style="gap:0" data-tl="storage">' + (d.components || []).map((x) => kv(esc(x.label || x.id) + (x.rebuildable ? ' <span class="cap" style="font-size:11px">可重建</span>' : ''), '<b class="mono" style="font-size:12px">' + (x.approx ? '≈ ' : '') + tlsBytes(x.bytes) + '</b>')).join('') + '</div>');
+      }
+    }
+    if (t === 'sources') {
+      // 数据覆盖: GET /v1/app/coverage (all time, all sources). Unknown stays「—」, never 0 %.
+      const d = TL.resource(R.cov).data; const body = $('#set .body');
+      if (body && d && d.available) {
+        const pct = (x) => (x == null ? '—' : (x > 0 && x < 0.01 ? '<1' : Math.round(x * 100)) + '%');
+        const se = d.sessions || {}, mc = d.model_call || {}, ex = d.excluded_sessions || {};
+        const reasons = (ex.reasons_labelled || []).map((r) => kv('<span class="cap" style="padding-left:12px">' + esc(r.label) + '</span>', '<b class="mono" style="font-size:12px">' + TLU.num(r.count) + ' 个</b>')).join('');
+        const exCost = ex.cost_usd != null ? TLU.money(ex.cost_usd) + (ex.cost_share != null ? '，占已计价花费 ' + pct(ex.cost_share) : '') : '花费未知';
+        body.insertAdjacentHTML('beforeend', '<div class="col" style="gap:12px;margin-top:4px">' + cardHTML('数据覆盖', '分析口径之外的部分，单独列出', '<div class="col" style="gap:0">' +
+          kv('会话结果已知', '<b class="mono" style="font-size:12px">' + pct(se.status_known_share) + '</b><span class="cap" style="font-size:11px;margin-left:6px">' + TLU.num(se.status_known_rows) + ' / ' + TLU.num(se.rows) + ' 个会话</span>') +
+          kv('模型名未识别', '<b class="mono" style="font-size:12px">' + pct(mc.unmapped_model_share) + '</b><span class="cap" style="font-size:11px;margin-left:6px">' + TLU.num(mc.unmapped_model_rows) + ' / ' + TLU.num(mc.rows) + ' 次调用</span>') +
+          kv('未纳入分析的会话', '<b class="mono" style="font-size:12px">' + TLU.num(ex.rows || 0) + ' 个</b><span class="cap" style="font-size:11px;margin-left:6px">' + (ex.rows ? exCost : '') + '</span>') + reasons +
+          '</div>', 'coverage') + '</div>');
       }
     }
     if (t === 'about') {
@@ -574,6 +603,7 @@ if (TL.mode === 'live') {
       if (!f || f.cancelled || !f.path) return;
       const ag = agentId || (GUESS.find((g) => g[0].test(f.path)) || [])[1];
       if (!ag) { toast('认不出这个文件夹属于哪个 Agent：在「未检测到」那一行点「指定…」'); return; }
+      if (!LV.importable(ag)) { toast(lvAgentOf(ag).name + ' 暂不支持导入会话：Orbit 还没有它的会话连接器'); return; }
       return TL.send('POST', '/v1/app/sources', { agent: ag, root: f.path, enabled: true }).then((x) => {
         const src = x.data || {}; TL.invalidate((q) => q.path === R.state || q.path === R.disc);
         toast('已添加 ' + lvAgentOf(ag).name + ' 来源，正在索引');

@@ -72,6 +72,8 @@ function lvSpineProgress() {
 function lvSpineBadge() {
   if (LV.failed) return '<span class="tl-badge" data-tl="unavailable">' + esc(TLU.reason(LV.failed.reason)) + (ALL.length ? ' · 显示上次结果' : '') + '</span>' + lvRecBtn();
   if (LV.state === 'connecting') return '<span class="tl-badge" data-tl="connecting">正在连接本机服务</span>';
+  // the first import is still being published (projection_pending): normal progress, not an error
+  if (LV.pending && (LV.state === 'computing' || LV.stale)) return '<span class="tl-badge" data-tl="pending">正在整理数据…' + (ALL.length ? ' · 显示上次结果' : '') + '</span>';
   if (LV.state === 'computing') return '<span class="tl-badge" data-tl="computing">分析中' + lvSpineProgress() + '</span>';
   if (LV.state === 'error') return '<span class="tl-badge" data-tl="error">' + (ALL.length ? '刷新失败 · 显示上次结果' : '读取失败 · 稍后自动重试') + '</span>';
   if (LV.stale) return '<span class="tl-badge" data-tl="stale">分析中 · 显示上次结果</span>';
@@ -85,7 +87,9 @@ function lvStrip(route) {
       : LV.feedState(route) === 'computing' ? '<span class="tl-badge" data-tl="computing">分析中' + lvFeedProgress(route) + '</span>' : '';
   // the wanted range is wider than the window served so far (first-open fast path): say so, calmly
   const hint = LV.windowHint(route);
-  const b = (lvSpineBadge() || page) + (hint ? '<span class="tl-badge" data-tl="window"' + (lvSpineBadge() || page ? ' style="margin-left:8px"' : '') + '>' + esc(hint) + '</span>' : '');
+  // 「正在整理数据…」 already stands in the banner (or the import note above says it): no second 分析中 / 整理中 badge
+  const calm = (x) => (TLU.pending && (TL.isPending && TL.isPending()) && /data-tl="(computing|pending)"/.test(x) ? '' : x);
+  const b = (calm(lvSpineBadge()) || calm(page)) + (hint ? '<span class="tl-badge" data-tl="window"' + (calm(lvSpineBadge()) || calm(page) ? ' style="margin-left:8px"' : '') + '>' + esc(hint) + '</span>' : '');
   // offline / unavailable banner: 重试 refetches now (failed resources also retry by themselves with backoff, R4-11)
   let banner = TLU.banner(TL);
   if (banner && (TL.error || TL.failure)) banner = banner.replace(/<\/div>$/, '<button type="button" class="btn sm" data-act="lvRetry" data-tl="retry" style="margin-left:auto">重试</button></div>');
@@ -105,12 +109,18 @@ if (LV.live) {
   }, 20000);
   const baseRender = render;
   render = function () {
+    if (TL.markRender) TL.markRender();
     LV.pump(S.route);
     baseRender();
     const c = $('#content'); if (!c) return;
+    // the page restored its scroll before the strip went back in on top: put it back once more (scroll anchoring would
+    // otherwise push the page down by the strip's height on every render)
+    const top = c.scrollTop;
     const old = c.querySelector(':scope > [data-tl="strip"]'); if (old) old.remove();
     const strip = lvStrip(S.route);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
+    c.scrollTop = top;
+    ddFollow();
   };
   // sidebar indicator, in order: gateway unreachable / connecting, collection paused, spine read failed, computing; once ready
   // the index mode — S.paused / S.index mirror the gateway's collection.paused and settings.sync_mode (97-live-studio-settings)

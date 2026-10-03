@@ -2,17 +2,17 @@
 
 Rules: ``goal`` (first human message), ``lexical_correction`` (correction lexicon hit),
 ``failure_streak`` (same tool + command head fails >= 3 times in a row), ``validation_command``
-(a test / lint / build style shell command that succeeded) and ``compaction``.
+(a test / lint / type-check / build shell command that succeeded, judged by the same
+``facts.is_validation_command`` the persona's V axis and the facts rows use) and
+``compaction``.
 """
 
 from __future__ import annotations
 
-import re
+from .facts import is_validation_command
 
 MAX_MOMENTS = 6
 STREAK_MIN = 3
-VALIDATION_RE = re.compile(
-    r"\b(test|tests|pytest|vitest|jest|lint|ruff|eslint|typecheck|tsc|mypy|build|check)\b", re.I)
 # Higher priority survives the cap first; output is then re-sorted by time.
 PRIORITY = {"goal": 0, "failure_streak": 1, "lexical_correction": 2,
             "validation_command": 3, "compaction": 4}
@@ -46,7 +46,7 @@ def failure_streaks(calls: list[dict]) -> list[dict]:
 def is_validation(call: dict) -> bool:
     return (call.get("tool_kind") == "shell" and not call.get("err")
             and call.get("status") in ("success", "completed")
-            and bool(VALIDATION_RE.search(call.get("cmd") or "")))
+            and is_validation_command(call.get("cmd")))
 
 
 def detect(users: list[dict], calls: list[dict], compactions: list[dict]) -> list[dict]:

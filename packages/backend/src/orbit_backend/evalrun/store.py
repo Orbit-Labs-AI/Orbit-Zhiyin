@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 
+from . import registry
+
 KEEP_RUNS = 200
 
 
@@ -27,7 +29,7 @@ def queue(db, run_id: str, suites: list[str], fail_under: float | None, params: 
 
 
 def finish(db, report: dict) -> None:
-    summary = {"suites": [{k: s[k] for k in ("suite", "skipped", "score", "metrics")}
+    summary = {"suites": [{k: s.get(k) for k in ("suite", "kind", "skipped", "score", "metrics")}
                           for s in report["suites"]]}
     with db.write() as conn:
         conn.execute("UPDATE eval_run SET finished_at=?, status=?, score=?, passed=?, summary=? "
@@ -86,9 +88,12 @@ def get_run(db, run_id: str) -> dict | None:
         by_suite.setdefault(c["suite"], []).append(
             {"id": c["check_id"], "passed": bool(c["passed"]), "value": c["value"],
              "threshold": c["threshold"], "detail": c["detail"]})
-    report["suites"] = [{**s, "checks": by_suite.get(s["suite"], [])}
+    # Runs stored before suites carried a kind get it from the registry table.
+    report["suites"] = [{**s, "kind": s.get("kind") or registry.kind(s["suite"]),
+                         "checks": by_suite.get(s["suite"], [])}
                         for s in summary.get("suites") or []] or \
-                       [{"suite": s, "skipped": None, "score": None, "checks": [], "metrics": {}}
+                       [{"suite": s, "kind": registry.kind(s), "skipped": None, "score": None,
+                         "checks": [], "metrics": {}}
                         for s in report["suites"]]
     if summary.get("error"):
         report["error"] = summary["error"]

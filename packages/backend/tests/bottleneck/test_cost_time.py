@@ -63,7 +63,10 @@ def test_snapshot_latest_not_sum_and_same_key_in_other_session_not_overwritten(m
 
 def test_partial_requests_keep_known_subtotal_but_not_complete_total(make_session):
     r = usage([request()], [], [make_session()], Scope(), records_complete=False)
-    assert r["known_call_tokens"] == 210 and r["total_tokens"] is None
+    # Known rows are a lower-bound total, marked incomplete (audit B13), not a complete total.
+    assert r["known_call_tokens"] == 210 and r["total_tokens"] == 210
+    assert r["total_basis"] == "call_delta_known_rows" and r["total_complete"] is False
+    assert r["total_unknown"]["records_incomplete"] is True
 
 
 def test_reliable_duration_sum_union_and_log_estimates_stay_separate(make_call, make_event):

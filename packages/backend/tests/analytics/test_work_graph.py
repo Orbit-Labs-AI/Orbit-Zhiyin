@@ -290,3 +290,52 @@ def test_instruction_replacements_require_same_task_and_prior_matching_requireme
                              instructions, [])
     assert len([e for e in graph["edges"] if e["kind"] == "SUPERSEDES"]) == 1
     assert any(r["previous_uid"] == "valid" for r in graph["summary"]["invalid_instruction_replacements"])
+
+
+def _bare_event(uid, seq, kind, **attrs):
+    return {"event_uid": uid, "session_uid": "s", "turn_uid": "t", "seq": seq, "ts": seq * 100, "kind": kind,
+            "actor": "human" if kind == "message.user" else "tool" if kind == "tool.result" else "assistant",
+            "text": "请修复代码" if kind == "message.user" else None, "attrs": attrs}
+
+
+def test_result_keeps_its_own_typed_task_when_paired_call_has_none():
+    from orbit_backend.models import stable_id
+
+    # The call precedes every task boundary (no task); a human request then opens a
+    # local task span that also covers the result.
+    sessions = [{"session_uid": "s", "root_uid": "s", "kind": "main", "source_id": "src", "project_id": "p", "started_at": 0}]
+    calls = [{"call_uid": "c", "session_uid": "s", "call_event_uid": "c", "result_event_uid": "r", "status": "success"}]
+    typed = [_bare_event("c", 0, "tool.call", name="x"), _bare_event("u", 1, "message.user", origin="human"),
+             _bare_event("r", 2, "tool.result", status="success", task_id="job", task_id_source="native")]
+    index = build_work_index(typed, sessions, calls, None)
+    assert index.membership.get(("s", "c")) is None
+    own = index.membership[("s", "r")]
+    assert own["task_uid"] == stable_id("task", "src", "p", "job")
+    assert own["task_evidence_uids"] == ["r"] and own["task_relation_source"] == "native_task_id"
+    # Without its own reference the later span must not adopt the result of an earlier call.
+    untyped = [*typed[:2], _bare_event("r", 2, "tool.result", status="success")]
+    assert ("s", "r") not in build_work_index(untyped, sessions, calls, None).membership
+
+
+def test_acceptance_sets_combine_like_criteria_within_one_set():
+    from orbit_backend.analytics.work_graph.graph import combine_acceptance
+
+    assert combine_acceptance([None, False]) is False   # a known failure is not hidden by an unknown set
+    assert combine_acceptance([True, False]) is False
+    assert combine_acceptance([True, None]) is None
+    assert combine_acceptance([True, True]) is True
+    assert combine_acceptance([]) is None
+
+
+def test_retry_without_graph_call_nodes_is_not_counted():
+    bundle = trajectory_bundle()
+    context = AnalysisContext.select(bundle, Scope())
+    families = context.families(set(context.session_map))
+    respond = copy.deepcopy(families["respond"])
+    link = respond["retry_links"][0]
+    respond["retry_links"].append({**link, "to_call_uid": "missing-call"})
+    graph = build_work_graph(context.work_index, context.sessions, respond, families["outcome"], [], [])
+    task = next(t for t in graph["task_trajectories"] if t["task_uid"] == link["task_uid"])
+    retries = [e for e in graph["edges"] if e["kind"] == "RETRIES"]
+    assert len(retries) == 1
+    assert task["counts"][link["state"] + "_retries"] == 1

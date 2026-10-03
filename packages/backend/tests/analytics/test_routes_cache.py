@@ -254,19 +254,23 @@ def test_presentation_window_is_stable_within_a_day_and_moves_across_days(tmp_pa
 
 @pytest.mark.serial  # gateway with worker processes and wall-clock waits
 def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path, monkeypatch):
-    from orbit_backend.services import routes_catalog
     from orbit_catalog import get_service
 
-    # Router bootstrap publishes its small offline sources synchronously. This test
-    # needs a stable catalog between reads: the background seed/network publisher is
-    # tested separately and a publication between these reads correctly returns 200.
-    monkeypatch.setattr(routes_catalog, "_refresher", lambda *_: None)
+    # No network sync in tests. The gateway imports the bundled library snapshot in the
+    # background after start, and every source it publishes moves the catalog generation
+    # (so the ETag rightly changes); wait for that bootstrap before taking the first tag.
+    monkeypatch.setenv("ORBIT_CATALOG_AUTOSYNC", "0")
     url = "/v1/catalog/match-analysis?wait_ms=3000"
     with imported_gateway(tmp_path) as (client, gateway):
+        service = get_service(gateway.home / "catalog.db")
+        deadline = time.monotonic() + 60
+        while service.first_sync_state()["state"] != "disabled" and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert service.first_sync_state()["state"] == "disabled"
         first = poll(client, url, fresh)
         tag = first.headers["ETag"]
         assert client.get(url, headers={"If-None-Match": tag}).status_code == 304
-        store = get_service(gateway.home / "catalog.db").store
+        store = service.store
         with store.connect() as conn:  # what a catalog refresh does to the generation
             conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 "
                          "WHERE key='generation'")
@@ -286,10 +290,24 @@ class _Analysis:
         return type("Task", (), {"id": f"job-{len(self.submitted)}"})()
 
 
+class _Snapshots:
+    """Snapshot store stub: ``ready`` holds the scope hashes with a fresh snapshot."""
+
+    def __init__(self):
+        self.ready = set()
+
+    def get(self, key):
+        return object() if key.scope_hash in self.ready else None
+
+    def latest(self, *_):
+        return None
+
+
 class _Gateway:
     def __init__(self, data_rev):
         self.data_rev = data_rev
         self.supervisor = type("Supervisor", (), {"analysis": _Analysis()})()
+        self.snapshots = _Snapshots()
         outer = self
 
         class revisions:  # noqa: N801 - mirrors the Gateway attribute
@@ -330,6 +348,36 @@ def test_recompute_hashes_like_the_get_route(monkeypatch, section, get_url, para
                                    json={"sections": [section], "params": params})
     assert queued.status_code == 202, queued.text
     assert queued.json()["jobs"][0]["scope_hash"] == get_hash
+
+
+@pytest.mark.parametrize("query,scope", [
+    ("", {}),                       # fast path: nothing ready, no event probe -> 7-day window
+    ("?days=0", {"days": 0}),       # explicit all time
+    ("?days=30", {"days": 30}),
+    ("?from_ts=1000", {"from_ts": 1000}),
+])
+def test_recompute_overview_targets_the_window_the_get_route_serves(query, scope):
+    get = _client(_Gateway(None)).get("/v1/analytics/overview" + query).json()["meta"]
+    queued = _client(_Gateway(1)).post("/v1/analytics/recompute",
+                                       json={"sections": ["overview"], "scope": scope})
+    assert queued.status_code == 202, queued.text
+    assert queued.json()["jobs"][0]["scope_hash"] == get["scope_hash"]
+
+
+def test_recompute_overview_follows_the_ready_all_time_window():
+    from dataclasses import asdict
+
+    from orbit_backend.services.routes_analytics import analytics_scope
+    from orbit_backend.services.snapshots import scope_hash
+
+    gateway = _Gateway(1)
+    all_time = scope_hash(asdict(analytics_scope()), {})
+    gateway.snapshots.ready.add(all_time)   # the fast path now serves all time
+    queued = _client(gateway).post("/v1/analytics/recompute", json={"sections": ["overview"]})
+    assert queued.json()["jobs"][0]["scope_hash"] == all_time
+    # A non-fast-path section keeps the literal (all-time) scope.
+    tools = _client(_Gateway(1)).post("/v1/analytics/recompute", json={"sections": ["tools"]})
+    assert tools.json()["jobs"][0]["scope_hash"] == all_time
 
 
 @pytest.mark.parametrize("section,params", [

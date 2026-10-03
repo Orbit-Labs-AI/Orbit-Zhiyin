@@ -28,6 +28,10 @@ class EmbeddingRequest(Contract):
     all_passages: bool = False
 
 
+class ModelDownloadRequest(Contract):
+    allow_download: bool
+
+
 def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None,
                    profile: Callable[[dict], dict | None] | None = None,
                    installed_summary: Callable[[], dict | None] | None = None,
@@ -76,6 +80,15 @@ def catalog_router(service, decorate: Callable[[list[dict]], None] | None = None
     def embeddings(request: EmbeddingRequest):
         return invoke(lambda: service.start_embeddings(request.max_chunks, scope=request.scope,
                                                        all_passages=request.all_passages))
+
+    @router.get("/embeddings/status")
+    def embeddings_status():
+        return service.vector_status()
+
+    @router.put("/embeddings/model")
+    def embeddings_model(request: ModelDownloadRequest):
+        """User consent for the one-time pinned E5 download (118 MB model + 17 MB tokenizer)."""
+        return invoke(lambda: service.set_model_download(request.allow_download))
 
     @router.get("/jobs/{job_id}")
     def job(job_id: str):

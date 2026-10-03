@@ -3,6 +3,7 @@
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from .contracts import MatchRequest, SourceSpec
@@ -16,7 +17,7 @@ from .vectors import index_embeddings_parallel
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Orbit 推荐资源数据模块")
     parser.add_argument("--home", type=Path, default=default_home())
-    parser.add_argument("--model-dir", type=Path, help="已下载的 E5 模型目录；不自动联网下载")
+    parser.add_argument("--model-dir", type=Path, help="E5 模型目录；缺省自动发现 <home>/models、$ORBIT_HOME/models 与 Application Support/Orbit/models")
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init")
     init.add_argument("--sources", type=Path, help="可选的 SourceSpec JSON 数组")
@@ -55,6 +56,8 @@ def main(argv=None):
     embed.add_argument("--workers", type=int, choices=range(1, 5), default=1, help="互不重复的资源分片数，每个进程独立加载模型")
     embed.add_argument("--model-batch-size", type=int, default=8, help="模型每批 token 窗口数")
     embed.add_argument("--progress", action="store_true", help="向 stderr 输出已持久化向量的进度")
+    model = sub.add_parser("model-download", help="下载固定 revision 的 int8 E5（约 135 MB，逐文件 SHA-256 校验）")
+    model.add_argument("--allow", action="store_true", required=True, help="显式同意下载并记录到 <home>/models")
     query = sub.add_parser("search")
     query.add_argument("text", nargs="?", default="")
     query.add_argument("--request", type=Path, help="完整 MatchRequest JSON，含分析特征和证据 ID")
@@ -78,7 +81,11 @@ def main(argv=None):
                 service.store.register([SourceSpec.model_validate(s) for s in json.loads(args.sources.read_text())])
             result = {"database": str(service.store.path), "sources": service.store.sources()}
         elif args.command == "status":
-            result = {"catalog": service.store.stats(), "sources": service.store.sources()}
+            try:
+                service.encoder()  # load a discovered model so the coverage line is filled in
+            except RuntimeError:
+                pass  # reported as vector.status=unavailable
+            result = {"catalog": service.store.stats(), "vector": service.vector_status(), "sources": service.store.sources()}
         elif args.command == "sync":
             result = CatalogSync(service.store, service.http).sync(args.source, force=args.force, max_pages=args.max_pages,
                                                                    concurrency=args.concurrency, progress=progress)
@@ -99,16 +106,23 @@ def main(argv=None):
             service.store.register([spec.model_copy(update={"config": {**spec.config, "file": str(args.file.resolve())}})])
             result = CatalogSync(service.store, service.http).sync([args.source], force=True)
         elif args.command == "embed":
-            if not service.model_dir:
+            if service.model_directory() is None:
                 parser.error("embed requires --model-dir with a local E5 snapshot")
             if args.all_passages:
                 policy = service.store.enable_all_embeddings()
                 if progress:
                     progress(policy)
-            result = index_embeddings_parallel(service.store, service.model_dir, workers=args.workers,
+            result = index_embeddings_parallel(service.store, service.model_directory(), workers=args.workers,
                                                threads=args.threads, encoder_batch_size=args.model_batch_size,
                                                max_chunks=args.max_chunks, scope=args.scope,
                                                batch_size=args.batch_size, progress=progress)
+        elif args.command == "model-download":
+            from . import embedding_model
+            embedding_model.set_download_allowed(service.model_roots[0], True)
+            started = time.perf_counter()
+            directory = embedding_model.download(service.model_roots[0])
+            result = {"model_dir": str(directory), "bytes": embedding_model.DOWNLOAD_BYTES,
+                      "seconds": round(time.perf_counter() - started, 1)}
         elif args.command == "search":
             request = MatchRequest.model_validate_json(args.request.read_text()) if args.request else MatchRequest(text=args.text, types=args.type, limit=args.limit)
             result = service.match(request)

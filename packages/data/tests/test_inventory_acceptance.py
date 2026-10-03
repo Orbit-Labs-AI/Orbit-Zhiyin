@@ -31,14 +31,14 @@ NATIVE_MCP = [
         "config.toml",
         '[mcp_servers.sample]\ncommand="tool"\nenabled=false',
         "AGENTS.md",
-        {"skill", "mcp", "hook", "plugin", "rule", "scheduled_task"},
+        {"skill", "mcp", "hook", "plugin", "rule", "scheduled_task", "command"},
     ),
     (
         "claude_code",
         ".mcp.json",
         '{"mcpServers":{"sample":{"command":"tool","disabled":true}}}',
         "CLAUDE.md",
-        {"skill", "mcp", "hook", "plugin", "rule"},
+        {"skill", "mcp", "hook", "plugin", "rule", "command", "agent"},
     ),
     (
         "dsh",
@@ -66,7 +66,7 @@ NATIVE_MCP = [
         "opencode.jsonc",
         '{/*comment*/ "mcp":{"sample":{"type":"local","command":["tool"],"enabled":false}},}',
         "AGENTS.md",
-        {"skill", "mcp", "plugin", "rule"},
+        {"skill", "mcp", "plugin", "rule", "command", "agent"},
     ),
     (
         "kimi",
@@ -76,7 +76,7 @@ NATIVE_MCP = [
         {"skill", "mcp", "hook", "plugin", "rule", "scheduled_task"},
     ),
 ]
-ALL_KINDS = {"skill", "mcp", "hook", "plugin", "rule", "scheduled_task"}
+ALL_KINDS = {"skill", "mcp", "hook", "plugin", "rule", "scheduled_task", "command", "agent"}
 
 
 def write(root, name, value):
@@ -475,7 +475,8 @@ def test_acceptance_failed_scan_recovery_replaces_diagnostics(tmp_path):
         path.write_text('[mcp_servers.healthy]\ncommand="tool"')
         recovered = scan_inventory(store, InventoryRequest("codex", root))
         result = read_inventory(store.home)
-        assert result["coverage"]["status"] == "available"
+        # Only the kind Codex layouts never scan (agent) is incomplete.
+        assert result["coverage"]["reason_counts"] == {"inventory_layout_incomplete": 1}
         assert result["scans"][0]["diagnostics"] == []
         assert result["scans"][0]["scan_id"] == recovered["scan_id"]
         old = store.db.execute(

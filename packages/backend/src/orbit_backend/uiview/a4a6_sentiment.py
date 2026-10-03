@@ -15,28 +15,22 @@ import sqlite3
 import time
 import unicodedata
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from datetime import time as dt_time
 from zoneinfo import ZoneInfo
 
 from ..analytics.common import quantile
-from ..analytics.interaction.rules import correction_terms
-from ..analytics.outcome_subjective.extraction import classify_feedback
+from ..analytics.interaction.rules import correction_kind, correction_verdict
 from ..analytics.products.feedback import classify_emotion
 from ..features.vocab import command_info
 from ..privacy import direct_user_text, redact
+from . import metrics
 from .a4a6_common import ManyQuery
 from .a6_terms import build_terms
 
 DAY_MS = 86_400_000
-DEFINITION_VERSION = "a6-corr-v2"  # v2: correction_terms 合并 zh-en-lexicon-v1
+DEFINITION_VERSION = "a6-corr-v3"  # v3: 复用 analytics.interaction.rules 的唯一纠偏判定
 EXPERIMENTAL_NOTE = "词面候选规则，未经人工标注验证；仅供趋势参考"
-
-# 待验证 EV-02：约束/纠偏式表达；只在引文剥离后的文本上匹配。
-EXTRA_CORRECTION = re.compile(
-    r"别用|别再|不要再?(?:改|用|动)|不是.{0,6}而是|用\s?\S.{0,20}?不是\s?\S|你改错|改错了|回滚|撤销"
-    r"|\bstop\b|that'?s wrong|\bdon'?t |instead of", re.I)
-_EXAMPLE = re.compile(r"比如|例如|举例|示例|假如|如果|假设|\b(?:e\.g\.|for example|suppose)\b", re.I)
-_QUOTES = re.compile(r'“[^”]*”|「[^」]*」|『[^』]*』|"[^"\n]*"|`[^`\n]*`')
 
 # 待验证 V-A13：语言占比阈值。
 ZH_MIN, EN_MAX, MIN_CHARS = 0.7, 0.1, 3
@@ -54,7 +48,7 @@ FRICTION_LABELS = {
     "quota_interrupt": "额度中断", "other": "其他",
 }
 READ_ONLY_KINDS = {"read", "search", "file.read", "list"}
-FAILED = ("failed", "error")
+FAILED = metrics.TOOL_FAILED  # same failure class as A1 / A3 / A4
 
 PHRASE_MAX = 40
 PHRASE_RULES = (  # priority: 纠偏 > 验证 > 规划 > 风格 > 偏好
@@ -74,20 +68,16 @@ def semantic_text(text: str | None) -> str:
 
 
 def corrections(text: str | None) -> list[dict]:
-    """Union of the three legacy correction definitions plus ``EXTRA_CORRECTION``."""
-    raw = text or ""
-    hits: list[dict] = []
-    for term in correction_terms(raw):
-        hits.append({"detector": "interaction.correction_terms", "term": term})
-    feedback = classify_feedback(raw)
-    if feedback and (feedback.get("user_acceptance") in ("rejected", "mixed")
-                     or feedback.get("rework_feedback")):
-        hits.append({"detector": "outcome_subjective.classify_feedback",
-                     "term": feedback.get("evidence_text")})
-    stripped = _QUOTES.sub(" ", direct_user_text(raw))
-    if not _EXAMPLE.search(stripped):
-        for match in EXTRA_CORRECTION.finditer(stripped):
-            hits.append({"detector": "a6.extra", "term": match.group(0).strip()})
+    """Per-rule hits of the single correction verdict (``analytics.interaction.rules``);
+    empty unless the message is a correction (result feedback alone is not)."""
+    if correction_kind(text) != "correction":
+        return []
+    hits, seen = [], set()
+    for hit in correction_verdict(text)["hits"]:
+        if hit["term"] not in seen:
+            seen.add(hit["term"])
+            hits.append({"detector": "interaction.correction_terms", "rule": hit["rule"],
+                         "term": hit["term"]})
     return hits
 
 
@@ -126,9 +116,11 @@ def scope_sql(scope: dict | None, alias: str = "s") -> tuple[str, list]:
     scope = scope or {}
     sql, params = [f"{alias}.kind='main'"], []
     if scope.get("project_ids"):
-        ids = list(scope["project_ids"])
-        sql.append(f"{alias}.project_id IN ({','.join('?' * len(ids))})")
-        params += ids
+        from .a4a6_common import project_clause
+
+        clause, values = project_clause(f"{alias}.project_id", scope["project_ids"])
+        sql.append(clause)
+        params += values
     if scope.get("agent_ids"):
         ids = list(scope["agent_ids"])
         sql.append(f"{alias}.source_id IN (SELECT source_id FROM source WHERE agent IN "
@@ -416,19 +408,43 @@ def build_meta(appdb) -> dict:
             "privacy": "脱敏后的文本在启用 AI 引擎时会发往该引擎的服务商"}
 
 
-def _window(params, now_ms):
+def _window(params, now_ms, zone=None):
+    """``[since, until)``. Without ``since``, ``days`` = the last N local calendar days of
+    ``zone`` including today (A1 / A3 ``range`` windows), not N×24 h back from now: a rolling
+    window would start mid-day and give the first day bucket a partial count. An explicit
+    ``since`` / ``until`` of 0 is a bound, not "missing"."""
     until = params["until"] if params.get("until") is not None else now_ms
-    since = params["since"] if params.get("since") is not None else until - int(params.get("days") or 30) * DAY_MS
+    since = params.get("since")
+    if since is None:
+        days = int(params.get("days") or 30)
+        if zone is None:
+            since = until - days * DAY_MS
+        else:
+            end = datetime.fromtimestamp(until / 1000, zone)
+            start = datetime.combine(end.date() - timedelta(days=days - 1), dt_time(0), zone)
+            since = int(start.timestamp() * 1000)
     return int(since), int(until)
+
+
+def _prev_start(params, since, until, zone=None):
+    """Start of the comparison window ``[prev, since)``. A ``days`` window compares with the
+    N local calendar days before it (like A1's previous window); an explicit ``since`` keeps
+    an equal-length span."""
+    if params.get("since") is not None or zone is None:
+        return since - (until - since)
+    days = int(params.get("days") or 30)
+    start = datetime.fromtimestamp(since / 1000, zone).date() - timedelta(days=days)
+    return int(datetime.combine(start, dt_time(0), zone).timestamp() * 1000)
 
 
 def build_sentiment(conn, appdb, scope, params, *, now_ms: int) -> dict:
     params = params or {}
-    since, until = _window(params, now_ms)
     zone = ZoneInfo(params["tz"]) if params.get("tz") else datetime.now().astimezone().tzinfo
+    since, until = _window(params, now_ms, zone)
     base = {k: v for k, v in (scope or {}).items() if k not in ("from_ts", "until_ts")}
     sessions = fetch_sessions(conn, {**base, "from_ts": since, "until_ts": until})
-    prev_sessions = fetch_sessions(conn, {**base, "from_ts": since - (until - since),
+    prev_sessions = fetch_sessions(conn, {**base,
+                                          "from_ts": _prev_start(params, since, until, zone),
                                           "until_ts": since})
     humans = fetch_humans(conn, sessions)
     by_session: dict[str, list[dict]] = defaultdict(list)

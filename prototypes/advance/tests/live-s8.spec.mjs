@@ -4,12 +4,10 @@
 //                no demo session text anywhere; a stream frame calms everything down
 //  2. calm       no realtime route: HUD hidden, panel from /v1/shell/popover (real date, top rec), sim menu off
 //  3. surfaces   ?surface=panel | hud | widgets render only that component, post resizeSurface / openMain
-//  4. export     report .md / CSV / share PNG → save {filename, mime, bytes}; orbit:saved → 在 Finder 中显示 → reveal; 404 → toast
+//  4. export     report .md / share PNG → save {filename, mime, bytes}; orbit:saved → 在 Finder 中显示 → reveal; 404 → toast
 //  5. A3 / A4    resume command, raw log → reveal, exclude with a reason, tool row → real calls
 import { test, expect } from '@playwright/test';
-import fs from 'node:fs';
-import path from 'node:path';
-import { stubGateway, openLive, collectErrors, fx, FIXTURES } from './live-helpers.mjs';
+import { stubGateway, openLive, collectErrors, fx } from './live-helpers.mjs';
 
 const NOW = Date.parse('2026-10-03T12:00:00+08:00');
 const NATIVE = { v: 1, app: '0.0.1', platform: 'macos', features: ['chooseFolder', 'save', 'openExternal', 'reveal', 'window'] };
@@ -80,6 +78,24 @@ test('calm: without realtime the HUD stays hidden, the panel uses /v1/shell/popo
   await page.evaluate(() => simEvent('waiting'));
   await expect(page.locator('#toast')).toContainText('实时模式不模拟事件');
   expect(await page.evaluate(() => [S.waitOpen, MENUS.demo().some((x) => /会话完成/.test(x.t || ''))])).toEqual([false, false]);
+  expect(errors).toEqual([]);
+});
+
+test('opening line: the rule-template hint carries 「规则」, not the purple AI badge', async ({ page }) => {
+  ONLY();
+  const errors = collectErrors(page);
+  const pv = (basis) => { const o = fx('s8/popover.json'); o.opening = { text: '最近「FX 测试失败」出现得最多', refs: [], next: 'studio', basis }; return o; };
+  let basis = 'rule';
+  await setup(page, { 'GET /v1/analytics/realtime': { status: 404 }, 'GET /v1/shell/popover': () => pv(basis) });
+  await openLive(page, 'overview');
+  await expect.poll(() => page.evaluate(() => TLO.off)).toBe(true);
+  await page.evaluate(() => { S.pop = true; render(); });
+  const line = page.locator('#pop [data-tl="opening"]');
+  await expect(line).toContainText('FX 测试失败');
+  await expect(line).toHaveAttribute('data-basis', 'rule');
+  await expect(line.locator('.aib')).toHaveCount(0);
+  await expect(line.locator('.bdg')).toHaveText('规则');
+  expect(await line.evaluate((el) => el.style.background)).toBe('');
   expect(errors).toEqual([]);
 });
 
@@ -168,12 +184,10 @@ test('share card: one gateway card per time span, the persona page period first,
   await expect(page.locator('#modal [data-act="shareSpan"]')).toHaveCount(spans.length);
 });
 
-test('export: report / CSV / share PNG go through save; orbit:saved offers 在 Finder 中显示 → reveal', async ({ page }) => {
+test('export: report / share PNG go through save; orbit:saved offers 在 Finder 中显示 → reveal', async ({ page }) => {
   ONLY();
   const errors = collectErrors(page);
-  const csv = fs.readFileSync(path.join(FIXTURES, 's8', 'export-csv.csv'), 'utf8');
   await setup(page, {}, { native: NATIVE });
-  await page.route(/\/v1\/export\/csv/, (r) => r.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8', body: csv }));
   await openLive(page, 'overview');
   await page.evaluate(() => openReport());
   await expect(page.locator('#repText')).toHaveValue(/合成样本/);
@@ -187,17 +201,11 @@ test('export: report / CSV / share PNG go through save; orbit:saved offers 在 F
   await expect(page.locator('#toast')).toContainText('在 Finder 中显示');
   await page.locator('#toast [data-act="toastAct"]').click();
   await expect.poll(async () => (await msgs(page, 'reveal')).map((m) => m.path)).toEqual(['/Users/fx/Downloads/orbit-report-2026-10-03.md']);
-  await page.evaluate(() => { closeModal(); openCSV(); });
-  await expect(page.locator('#modal textarea[data-tl="csv"]')).toHaveValue(/fx-call-2,fx-s2,Bash,failed/);
-  await page.locator('#modal [data-act="csvSave"]').click();
-  await expect.poll(async () => (await msgs(page, 'save')).length).toBe(2);
-  const s2 = (await msgs(page, 'save'))[1];
-  expect([s2.filename, s2.mime, s2.text]).toEqual(['orbit-tool-calls-2026-10-03.csv', 'text/csv', csv]);
   await page.evaluate(() => { closeModal(); openShare(); });
   await expect(page.locator('#modal [data-tl="share-card"]')).toContainText('指挥家');
   await page.locator('#modal [data-act="shareSave"]').click();
-  await expect.poll(async () => (await msgs(page, 'save')).length, { timeout: 10_000 }).toBe(3);
-  const s3 = (await msgs(page, 'save'))[2];
+  await expect.poll(async () => (await msgs(page, 'save')).length, { timeout: 10_000 }).toBe(2);
+  const s3 = (await msgs(page, 'save'))[1];
   expect([s3.filename, s3.mime]).toEqual(['orbit-persona-90d-DIMV-2026-10-03.png', 'image/png']);
   const png = Buffer.from(s3.base64, 'base64');
   expect(png.subarray(1, 4).toString()).toBe('PNG');

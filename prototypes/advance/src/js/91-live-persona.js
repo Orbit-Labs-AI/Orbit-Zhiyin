@@ -35,50 +35,16 @@ function lvBuildPeriods() {
 function peMonthKeys() { return LV.live ? lvMonths().map((m) => m.k) : ['jun', 'jul', 'aug', 'sep']; }
 const peCurMonth = () => { const k = peMonthKeys(); return k[k.length - 1]; };
 
-/* ---- G1 port of uiview/persona.py (used when facts rows carry dk / dn / vk / op / t0 / t1) ---- */
-function lvWilson(k, n) {
-  if (n <= 0) return [0, 1];
-  const z = 1.96, p = k / n, den = 1 + z * z / n, c = (p + z * z / (2 * n)) / den;
-  const h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den;
-  return [Math.max(0, c - h), Math.min(1, c + h)];
-}
+/* ---- client port of uiview/persona.py (used when facts rows carry the per-session units dk / dn / vk / ik / kn / ol / oa /
+   os / sc / rb / t0 / t1): the multi-signal composite in 15-derive.js (personaCompose), same anchors and weights ---- */
 const lvHasUnits = (L) => L.length > 0 && L.every((s) => s.dn != null);
-function lvUnits(L) {
-  let dk = 0, dn = 0, vk = 0, ik = 0, inn = 0; const byDay = {};
-  L.forEach((s) => {
-    dk += s.dk || 0; dn += s.dn || 0; vk += s.vk || 0;
-    if (s.op != null) { inn++; if (s.op === 0) ik++; }
-    (byDay[s.d] = byDay[s.d] || []).push(s);
-  });
-  let multi = 0; const days = Object.values(byDay);
-  days.forEach((xs) => {
-    if (new Set(xs.map((s) => s.a)).size >= 2) { multi++; return; }
-    const sp = xs.filter((s) => s.t0 != null && s.t1 != null).map((s) => [s.t0, s.t1]).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
-    let end = null; for (const [a, b] of sp) { if (end != null && a < end) { multi++; return; } end = end == null ? b : Math.max(end, b); }
-  });
-  return { D: [dk, dn], I: [ik, inn], M: [multi, days.length], V: [vk, dn] };
-}
-const LVP_LR = { D: ['D 委托', '掌舵 S'], I: ['P 规划', '即兴 I'], M: ['M 多线', '专注 F'], V: ['V 求证', '信任 T'] };
-const LVP_HI = { D: ['D', 'S'], I: ['I', 'P'], M: ['M', 'F'], V: ['V', 'T'] };
-function lvPersonaCompute(L, minN) {
-  const n = L.length; const days = new Set(L.map((s) => s.d)).size;
-  if (!n) return { ok: false, classified: false, n, days, conf: '低' };
-  const u = lvUnits(L);
-  const axes = AXES.map((ax) => {
-    const k = ax.k, kk = u[k][0], nn = u[k][1];
-    const value = nn ? 100 * kk / nn : null; let [lo, hi] = lvWilson(kk, nn); lo = Math.round(lo * 1000) / 10; hi = Math.round(hi * 1000) / 10;
-    const letter = (value == null ? 50 : value) >= 50 ? LVP_HI[k][0] : LVP_HI[k][1], state = value == null ? 'no_data' : 'settled';
-    return { k, value: value == null ? null : Math.round(value * 10) / 10, lo, hi, n_units: nn, k_units: kk, letter, state,
-      strong: value == null ? null : Math.round(Math.max(value, 100 - value)), left: LVP_LR[k][0], right: LVP_LR[k][1], dim: ax.dim, q: ax.q, sig: ax.sig };
-  });
-  const code = axes.map((a) => a.letter).join('');
-  const t = TYPES[code];
-  return { ok: true, classified: !!t, n, days, code, zh: t[0], en: t[1], line: t[2], hint: personaHint(n),
-    v: axes.reduce((o, a) => { o[a.k] = a.value == null ? 50 : a.value; return o; }, {}), axes, conf: n >= 100 ? '高' : n >= PERSONA_SOFT_N ? '中' : '低', method: 'client-port' };
+function lvPersonaCompute(L) {
+  const p = personaCompose(L);
+  if (p.ok) p.method = 'client-port';
+  return p;
 }
 
 // per-axis evidence for the client port (same shape and formulas as uiview/persona.py evidence(); BUG R4-03)
-const LVP_UNIT = { D: 'turn', I: 'session_opening', M: 'active_day', V: 'turn' };
 function lvEvidence(L, p, st) {
   const hist = (vals, n, max) => { const out = new Array(n).fill(0); vals.forEach((v) => { out[Math.max(0, Math.min(n - 1, Math.floor(v / max * n)))]++; }); return out; };
   const byDay = {}; L.forEach((s) => { (byDay[s.d] = byDay[s.d] || []).push(s); }); const days = Object.values(byDay);
@@ -90,10 +56,10 @@ function lvEvidence(L, p, st) {
   const plan = rank(0, 1), check = rank(2, 3);
   const ax = {}; p.axes.forEach((a) => { ax[a.k] = a; }); const openN = ax.I.n_units || 1;
   return {
-    D: { txt: '每会话 ' + f1(st.per) + ' 条消息 · 单轮平均 ' + f1(st.auto) + ' 步', vals: hist(L.map((s) => s.msgs || 0), 10, 20), lbl: '消息数 0 → 20+ 的会话数' },
+    D: { txt: st.msgs ? '每会话 ' + f1(st.per) + ' 条消息 · 单轮平均 ' + f1(st.auto) + ' 步' : '会话里没有你发出的消息', vals: hist(L.map((s) => s.msgs || 0), 10, 20), lbl: '消息数 0 → 20+ 的会话数' },
     I: { txt: '结构化开场占 ' + Math.round((openN - ax.I.k_units) / openN * 100) + '%', vals: plan.map((x) => Math.round(x[0] * 100)), lbl: '项目结构化开场占比 · 低 → 高', projects: plan.map((x) => pname(x[1])) },
     M: { txt: '日均 ' + f1(avgS) + ' 个会话 · 同日 ' + f1(avgA) + ' 个 Agent', vals: hist(days.map((xs) => xs.length), 8, 8), lbl: '每日会话数 1 → 8+ 的天数' },
-    V: { txt: Math.round(st.verify) + '% 会话要求或运行了验证', vals: check.map((x) => Math.round(x[0] * 100)), lbl: '项目验证轮次占比 · 低 → 高', projects: check.map((x) => pname(x[1])) },
+    V: { txt: peVTxt(p), vals: check.map((x) => Math.round(x[0] * 100)), lbl: '项目验证轮次占比 · 低 → 高', projects: check.map((x) => pname(x[1])) },
   };
 }
 
@@ -159,13 +125,16 @@ function lvpFetch(period, path, store) {
 LV.personaFor = function (period, L) {
   const e = lvpFetch(period, '/v1/uiview/persona', LVP.full);
   if (e.data) return lvShape(e.data, L);
-  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: true };
+  // the error itself goes along: projection_pending (first import not published yet) reads 正在整理数据…, not 取不到 (F08);
+  // it is refetched when the publish moves LV.rev
+  if (e.state === 'error') return { ok: false, classified: false, n: L ? L.length : 0, error: e.error || true };
+  if (e.error && persPending(e.error)) return { ok: false, classified: false, n: L ? L.length : 0, error: e.error };
   return { ok: false, classified: false, n: L ? L.length : 0, pending: true };
 };
 LV.reveal = function (period) { return lvpFetch(period, '/v1/uiview/persona/reveal', LVP.full); };
 // single-project subsets: /v1/uiview/projects[].persona (persona_pending until the backend computes it → 样本不足)
 function lvProjPersona(pid, L) {
-  const sc = LV.scope(); const path = LV.withQuery('/v1/uiview/projects', { range: sc.range, agent: sc.agents, display_timezone: TL_TZ || 'UTC' });
+  const sc = LV.scope(); const path = LV.withQuery('/v1/uiview/projects', { agent: sc.agents, since: lvtpFrom(sc.range), tz: sc.tz }); // same window as A5 (93-live-tools-projects)
   let e = LVP.proj.get(path);
   if (!e || (e.rev !== LV.rev && !e.loading)) {
     e = e || { rev: null, loading: false, map: {} }; LVP.proj.set(path, e); e.loading = true; const rev = LV.rev;
@@ -182,10 +151,11 @@ function personaLive(L, minN) {
   L = L || [];
   if (lvHasUnits(L)) {
     const p = lvPersonaCompute(L, minN);
-    if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.unit = LVP_UNIT[a.k]; a.evidence = ev[a.k]; }); }
+    if (p.ok) { p.st = stats(L); Object.assign(p, lvAvg(L)); const ev = lvEvidence(L, p, p.st); p.axes.forEach((a) => { a.evidence = ev[a.k]; }); }
     return p;
   }
-  if (!L.length) return { ok: false, classified: false, n: 0 };
+  // no sessions yet while the first import is still being published (projection_pending) → 正在整理数据…, not 还没有会话 (F08)
+  if (!L.length) return TL.isPending && TL.isPending() ? { ok: false, classified: false, n: 0, error: { code: 'projection_pending' } } : { ok: false, classified: false, n: 0 };
   const period = lvpScopes().get(lvpSig(L));
   if (period) {
     const full = LVP.full.get(lvpKey(period) + '/v1/uiview/persona');
@@ -210,7 +180,69 @@ if (LV.live) {
   const h0 = LV.hydrate;
   LV.hydrate = function (spine) { const r = h0.call(this, spine); lvBuildPeriods(); LV.syncedAt = Date.now(); return r; };
   // days = the range's window once the gateway reports it ready (全部 → 0); auto otherwise, with the strip's hint
-  LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
+  const OV_FEED = LV.feed(['overview', 'l-home'], (sc) => [{ name: 'ov', path: LV.withQuery('/v1/uiview/overview', { range: sc.range, agents: sc.agents ? sc.agents.join(',') : null, project: sc.project,
     topic: sc.topic, outcome: sc.outcome, fric: sc.fric, hour: sc.hour, display_timezone: sc.tz || 'UTC', days: LV.daysFor(LV.rangeDays(sc.range)) }) }],
   (d) => { LV.ov = d.ov || null; });
+
+  /* 「AI 生成 / 重新生成」：POST /v1/ai/jobs 提交 narrate.overview（scope 即 insight.ai_scope，fresh 跳过缓存，
+     真实调用一次本地 Agent），轮询到结束后让 overview 重新读取；卡片只在后端读回模型写成的结果
+     （basis=ai_narrative）时才换成 AI 文字。未开启 AI、引擎不可用、未授权、超出今日花费上限、模型输出未通过校验
+     都如实提示，卡片保持规则模板，不在前端重放旧文字冒充新结果。 */
+  const OV_REGEN_ERR = {
+    ai_disabled: 'AI 未开启：在 设置 › 分析 选择执行者后再生成',
+    engine_unavailable: '本地 Agent 不可用（未安装或未登录），卡片保持规则模板',
+    budget_exhausted: '今日 AI 花费已达上限，明天再试或在 设置 › 分析 调整上限',
+    over_budget: '上下文超出预算，暂时无法生成',
+    invalid_scope: '当前范围无法生成 AI 解读'
+  };
+  // LV.ovRegen = { key, msg, job, stop }：生成中状态放在 LV 上，概览重绘时（SSE 刷新、筛选切换）仍显示进度与「停止」
+  LV.ovRegen = null;
+  const ovRedraw = () => { if (S.route === 'overview' || S.route === 'l-home') render(); };
+  ACT.regen = () => {
+    const ins = LV.ov && LV.ov.insight;
+    if (!ins || !ins.ai_scope) { toast(ins ? '按主题、结果、摩擦、时段筛选或刷选时间段的视图暂不生成 AI 解读：清除这些筛选后再生成（Agent 与项目筛选可以保留）' : '数据载入后可生成'); return; }
+    if (LV.ovRegen) { toast('AI 解读正在生成'); return; }
+    const scope = {}; Object.keys(ins.ai_scope).forEach((k) => { if (ins.ai_scope[k] != null) scope[k] = ins.ai_scope[k]; });
+    const run = LV.ovRegen = { key: JSON.stringify(scope), msg: '已提交给本地 Agent…', job: null, stop: false };
+    const spin = (t) => { if (LV.ovRegen !== run) return; run.msg = t; const g = $('[data-aigen]'); if (g) g.innerHTML = '<span class="spin" style="width:10px;height:10px;vertical-align:-1px"></span> ' + esc(t); };
+    const back = () => { if (LV.ovRegen === run) LV.ovRegen = null; ovRedraw(); };
+    ovRedraw();
+    TL.send('POST', '/v1/ai/jobs', { task_id: 'narrate.overview', scope, fresh: true }).then((r) => {
+      const d = r.data || {}; if (!d.job_id) throw Object.assign(new Error('没有返回作业'), { code: 'no_job' });
+      run.job = d.job_id;
+      if (run.stop) ovCancel(run);
+      return TL.pollJob(d.job_id, (job) => { if (job.status === 'running') spin(run.stop ? '正在停止…' : '本地 Agent 生成中…'); });
+    }).then((job) => {
+      if (job.status === 'ok') {
+        // 作业成功不等于卡片已换成模型文字：重新读取 overview，只有读回 basis=ai_narrative 才说「已更新」
+        spin('读取生成结果…');
+        TL.invalidate((x) => String(x.path).indexOf('/v1/uiview/overview') === 0);
+        const rs = lvFeedRes(OV_FEED);
+        return Promise.all(rs.map((x) => TL.load(x.r))).then(() => {
+          const o = rs[0] && rs[0].r.data; const got = o && o.insight;
+          if (got && got.basis === 'ai_narrative') toast('AI 解读已更新');
+          else if (rs[0] && rs[0].r.state === 'computing') toast('数据已变化，正在重新计算；卡片暂时保持规则模板');
+          else toast('数据已变化或模型结果不完整，卡片保持规则模板');
+        }, () => toast('读取生成结果失败，卡片保持规则模板')).then(() => { if (LV.ovRegen === run) LV.ovRegen = null; TL.changed(); ovRedraw(); });
+      }
+      if (job.status === 'fallback') {
+        const st = (job.stages || []).find((x) => x.status === 'failed');
+        toast('模型这次没有写出可用的解读' + (st && st.message ? '（' + st.message + '）' : '') + '，卡片保持规则模板');
+      } else if (job.status === 'cancelled') toast('AI 解读已停止，卡片保持现有内容');
+      else toast('AI 解读生成失败：' + (job.error || job.status));
+      back();
+    }, (e) => {
+      if (e.code === 'consent_required') toast('需要先授权这些数据类：' + ((e.detail && e.detail.missing) || []).join('、'), { act: '去授权', onAct: () => openSettings('analysis') });
+      else if (TL.unavailable(e) && !OV_REGEN_ERR[e.code]) toast('本地服务暂不提供 AI 解读，卡片保持规则模板');
+      else toast(OV_REGEN_ERR[e.code] || ('AI 解读生成失败：' + (e.message || e.code)), e.code === 'ai_disabled' || e.code === 'budget_exhausted' ? { act: '去设置', onAct: () => openSettings('analysis') } : undefined);
+      back();
+    });
+  };
+  // 「停止」：POST /v1/ai/jobs/{id}/cancel；作业 id 还没返回时记下，拿到后立即取消。轮询读到 cancelled 后如实提示
+  const ovCancel = (run) => TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(run.job) + '/cancel', {}).catch((e) => toast('停止失败：' + (e.message || e.code)));
+  ACT.regenStop = () => {
+    const run = LV.ovRegen; if (!run || run.stop) return;
+    run.stop = true; run.msg = '正在停止…'; ovRedraw();
+    if (run.job) ovCancel(run);
+  };
 }

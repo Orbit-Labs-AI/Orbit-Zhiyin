@@ -105,11 +105,14 @@ class SourceSpec(Contract):
     mcp: publish_every_pages (default 10, partial publication without retirement), max_pages (default 120).
     Any paged kind: max_seconds (wall-clock budget per sync call; mcp 300, others 900; the run pauses).
     clawhub: max_items (default 500). Any file kind: file (absolute local snapshot).
+    awesome: type (default mcp_server), section (h2 heading holding the entries), agents.
+    github_topic: topics, type (default skill), max_pages (<=10 per topic), per_page, min_stars,
+    min_interval (seconds between search calls, default 2.1), agents.
     """
 
     source_id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,79}$")
     kind: Literal["bundle", "github", "mcp", "models_dev", "litellm", "swe_bench", "gemini", "clawhub", "local",
-                  "snapshot", "kb", "bulk"]
+                  "snapshot", "kb", "bulk", "awesome", "github_topic"]
     url: str
     enabled: bool = True
     priority: int = Field(default=50, ge=0, le=100)

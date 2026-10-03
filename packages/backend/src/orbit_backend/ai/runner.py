@@ -67,6 +67,7 @@ class RunContext:
         self.params = job.get("params") or {}
         self.slot = job.get("slot") or self.task["slot"]
         self.cancel_event = job["cancel"]
+        self.fresh = bool(job.get("fresh"))  # 「重新生成」: read no cached output
         self.stages: list[dict] = []
         self.lines: list[str] = []
         self.n = self.total = 0
@@ -91,7 +92,7 @@ class RunContext:
         slot = slot or self.slot
         ttl = task["cache_ttl_s"]
         key = cache_key(task_id, task["prompt_version"], task["schema_version"], system, prompt)
-        if ttl != 0:
+        if ttl != 0 and not self.fresh:
             cached = self.runner.cache_get(key)
             if cached is not None:
                 errors = schema_errors(cached, schema)

@@ -1,7 +1,8 @@
 /* ============ live A3 sessions (slice 2) ============
    Live mode only swaps the data under the polished A3 page (42-a3-sessions.js); every component, class and animation stays.
    - traj(s): GET /v1/uiview/sessions/{uid}?tz= once per session (LRU 30), mapped to the demo's trajectory shape
-     (lanes / phases / moments / ctx / comps / users). Until it arrives the page shows the timeline skeleton.
+     (lanes / phases / moments / ctx / comps / users; tool events keep approval + wait, compaction marks feed the digest card).
+     Until it arrives the page shows the timeline skeleton.
    - 7 stats, model, cwd and the takeaway card read the same detail response; mood stays "—" until G2.
    - list barcodes read the real tick positions from GET /v1/uiview/sessions (rows[].ticks); unknown → an empty barcode.
    - search: local title match at once, then GET /v1/uiview/sessions?q= (message text) adds the server's hits (debounced).
@@ -29,7 +30,7 @@
       if (lane === 'user') { e.mood = x.mood != null ? x.mood : null; e.corr = !!x.corr; e.txt = x.txt || ''; }
       else if (lane === 'reply') e.txt = 'Agent 回复' + (e.w ? ' · ' + Math.max(1, Math.round(e.w * 60)) + ' 秒' : '');
       else if (lane === 'sub') { e.txt = x.txt || '子代理'; if (!e.w) e.w = Math.max(0.05, T * 0.02); }
-      else { e.cmd = x.cmd || x.name || '—'; e.res = x.res || x.status || null; e.err = !!x.err; }
+      else { e.cmd = x.cmd || x.name || '—'; e.res = x.res || x.status || null; e.err = !!x.err; if (x.wait > 0) e.wait = +x.wait; if (x.approval) e.approval = x.approval; }
       if (x.err) e.err = true;
       ev.push(e);
     });
@@ -41,7 +42,8 @@
     let ctx = (t.ctx || []).filter((c) => Array.isArray(c) && c.length >= 2).map((c) => [+c[0], +c[1]]);
     const hasCtx = ctx.length > 0; if (!hasCtx) ctx = [[0, 0]];
     const comps = ctx.map((c, i) => i > 0 && c[1] < ctx[i - 1][1] - 20 ? i : -1).filter((i) => i > 0);
-    return { T, ev, phases, ctx, moments, users, comps, live: true, state: 'ready', hasCtx, stats: (d && d.stats7) || {}, header: (d && d.header) || {}, insight: (d && d.insight) || null };
+    const marks = (t.marks || []).filter((m) => m && m.kind === 'compaction').map((m) => ({ t: +m.t || 0 }));
+    return { T, ev, phases, ctx, moments, users, comps, marks, live: true, state: 'ready', hasCtx, stats: (d && d.stats7) || {}, header: (d && d.header) || {}, insight: (d && d.insight) || null };
   }
   function skeleton(s, state) {
     const T = Math.max(s && s.dur ? +s.dur : 1, 0.05);
@@ -79,7 +81,8 @@
       const tr = traj(s);
       if (tr.state === 'pending') return { text: '正在载入…', actions: [] };
       const x = tr.insight; if (!x || !x.text) return { text: '暂无启示', actions: [] };
-      return { text: x.text, actions: (x.actions || []).map((a) => ({ label: a.label, id: a.rec_id || a.problem_type || '', act: 'lvsRule' })) };
+      // basis 为 l0_template 等规则模板时不标 AI；只有模型生成（basis 含 ai / llm / model）才标
+      return { text: x.text, ai: /\b(ai|llm|model)\b/i.test(String(x.basis || '').replace(/_/g, ' ')), actions: (x.actions || []).map((a) => ({ label: a.label, id: a.rec_id || a.problem_type || '', act: 'lvsRule' })) };
     },
     phasePct: (x, side) => {
       const a = BYID[S.sess.sel], b = BYID[S.sess.cmp]; const c = a && b ? cmpEntry(a, b) : null;

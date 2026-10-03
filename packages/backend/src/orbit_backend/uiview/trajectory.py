@@ -52,7 +52,7 @@ FROM event e WHERE e.session_uid = ? ORDER BY e.seq
 """
 CALLS_SQL = """
 SELECT call_uid, call_event_uid, name_raw, name, kind, command_head, status, exit_code,
-       error_class, started_at, duration_ms, subagent_session_uid
+       error_class, started_at, duration_ms, subagent_session_uid, approval, approval_wait_ms
 FROM tool_call WHERE session_uid = ?
 """
 CHILDREN_SQL = """
@@ -227,7 +227,7 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
     tool_labels: dict[str | None, str | None] = {}
     for call, start in zip(calls, call_start, strict=True):
         (call_uid, call_event_uid, name_raw, name, tkind, head, cstatus, exit_code, error_class,
-         _s, duration_ms, _sub) = call
+         _s, duration_ms, _sub, approval, wait_ms) = call
         t = _mins(start, t0)
         t = 0.0 if t is None else t
         label = head or name_raw
@@ -238,7 +238,10 @@ def build_detail(conn: sqlite3.Connection, session_uid: str, *, overrides: dict 
                 "err": is_failed(cstatus), "corr": False, "cmd": tool_labels[label],
                 "res": _res(exit_code, error_class, cstatus),
                 "txt": None, "seq": None, "event_uid": call_event_uid or call_uid,
-                "call_uid": call_uid, "name": name, "tool_kind": tkind, "status": cstatus}
+                "call_uid": call_uid, "name": name, "tool_kind": tkind, "status": cstatus,
+                # Permission prompt on this call: the decision and how long it waited for you.
+                "approval": approval,
+                "wait": round(wait_ms / 60_000, 3) if wait_ms else None}
         tool_events.append(item)
     tool_events.sort(key=lambda c: (c["t"], c["id"]))
     seq_of = {e[0]: e[1] for e in events}

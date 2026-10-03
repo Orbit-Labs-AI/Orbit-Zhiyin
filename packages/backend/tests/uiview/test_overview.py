@@ -102,7 +102,7 @@ def test_metrics_tools_insight_and_lite():
     insight = payload["insight"]
     assert insight["basis"] == "l0_template" and insight["lede"]
     assert insight["good"]["basis"] == "estimate"
-    assert payload["persona_mini"]["method"] == "uiview-persona-v0"
+    assert payload["persona_mini"]["method"] == "uiview-persona-v1"
 
 
 def test_unknown_steps_tile_shows_unknown_not_zero():
@@ -116,3 +116,78 @@ def test_unknown_steps_tile_shows_unknown_not_zero():
     assert tile["value"] is None and tile["delta"] is None
     assert payload["completion"]["value"] is None and payload["completion"]["n"] == 0
     assert "未知" in payload["insight"]["good"]["text"]
+
+
+def _with_rev(rev):
+    body = analysed()[4]
+    return {**body, "meta": {**(body.get("meta") or {}), "data_rev": rev}}
+
+
+def test_insight_uses_matching_ai_narrative_and_names_it():
+    from orbit_backend.uiview import insight as card
+
+    calls = []
+    narrative = {"job_id": "aj_1", "engine": "fake", "finished_at": 5,
+                 "result": {"summary": "最近验证做得扎实", "source": "fake", "caveats": ["样本少"],
+                            "findings": [{"scene": "good", "text": "多数会话跑了测试。"},
+                                         {"scene": "stuck", "text": "卡在依赖安装。"}]}}
+
+    def provider(scope, data_rev):
+        calls.append((scope, data_rev))
+        return narrative
+
+    base = {"range": 30, "agents": None, "project": None, "compare": False, "metric": "n",
+            "edition": "advance"}
+    l0 = overview.build(_with_rev(7), base, TODAY)["insight"]
+    card.set_ai_provider(provider)
+    ai = overview.build(_with_rev(7), base, TODAY)["insight"]
+    assert calls == [({"days": 30, "project_id": None}, 7)]
+    assert ai["basis"] == "ai_narrative" and ai["lede"] == "最近验证做得扎实"
+    assert ai["source"] == {"task_id": "narrate.overview", "job_id": "aj_1", "engine": "fake",
+                            "finished_at": 5}
+    assert ai["good"]["text"] == "多数会话跑了测试。" and ai["stuck"]["text"] == "卡在依赖安装。"
+    # Counts / refs stay the L0 ones; a scene the model did not write keeps the L0 text.
+    assert ai["good"]["evidence_n"] == l0["good"]["evidence_n"] and ai["next"] == l0["next"]
+    # Filters a narrative cannot describe, or no published data: the provider is not asked.
+    calls.clear()
+    assert overview.build(_with_rev(7), {**base, "topic": "bugfix"}, TODAY)["insight"]["basis"] \
+        == "l0_template"
+    assert overview.build(_with_rev(None), base, TODAY)["insight"]["basis"] == "l0_template"
+    assert calls == []
+    card.set_ai_provider(lambda scope, data_rev: None)
+    assert overview.build(_with_rev(7), base, TODAY)["insight"] == l0
+
+
+def test_insight_names_the_scope_regenerate_posts():
+    """``ai_scope`` is the narrate.overview scope this card reads back (the page's 「重新生成」
+    posts it verbatim). Agent subsets, the project and 「全部」 each get their own scope; only
+    filters the narrative cannot take (topic / outcome / friction / hour / brush) have none."""
+    from orbit_backend.uiview import insight as card
+
+    seen = []
+    card.set_ai_provider(lambda scope, data_rev: seen.append(scope))
+    base = {"range": 7, "agents": None, "project": None, "compare": False, "metric": "n",
+            "edition": "advance"}
+    assert overview.build(_with_rev(3), base, TODAY)["insight"]["ai_scope"] == \
+        {"days": 7, "project_id": None}
+    everything = overview.build(_with_rev(3), {**base, "range": 0}, TODAY)
+    rows = derive.prepare(analysed()[4]["rows"], TODAY)
+    first = TODAY + timedelta(days=min(derive.first_index(rows), 0))
+    start = int(datetime(first.year, first.month, first.day, tzinfo=UTC).timestamp() * 1000)
+    assert everything["insight"]["ai_scope"] == {"start_ms": start, "project_id": None}
+    # Stable across rebuilds (the read-back must find the job it posted).
+    assert overview.build(_with_rev(3), {**base, "range": 0}, TODAY)["insight"]["ai_scope"] == \
+        everything["insight"]["ai_scope"]
+    assert overview.build(_with_rev(3), {**base, "agents": ["codex"]},
+                          TODAY)["insight"]["ai_scope"] == \
+        {"days": 7, "project_id": None, "agent_ids": ["codex"]}
+    # Every known Agent selected is the unfiltered view: same scope, no second paid narrative.
+    assert overview.build(_with_rev(3), {**base, "agents": ["codex", "claude_code"]},
+                          TODAY)["insight"]["ai_scope"] == {"days": 7, "project_id": None}
+    assert overview.build(_with_rev(3), {**base, "project": "p1"}, TODAY)["insight"]["ai_scope"] == \
+        {"days": 7, "project_id": "p1"}
+    assert overview.build(_with_rev(3), {**base, "agents": []}, TODAY)["insight"]["ai_scope"] is None
+    assert overview.build(_with_rev(3), {**base, "topic": "bugfix"}, TODAY)["insight"]["ai_scope"] \
+        is None
+    assert {"days": 7, "project_id": None, "agent_ids": ["codex"]} in seen
+    card.set_ai_provider(None)

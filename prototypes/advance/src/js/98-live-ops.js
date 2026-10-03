@@ -8,7 +8,7 @@
    - panel: /v1/shell/popover (date, today, opening line, top rec, attention); week bars and yesterday come from the spine.
    - A3: 在 X 中继续 → /resume, 更多 › 不计入分析 / 恢复 → /exclude, 在 Finder 中显示日志 / 在原始日志中打开 → /source_location
      → reveal; A4: an expanded tool row lists its real calls (/v1/analytics/tool_calls).
-   - export: report .md, tool-call .csv, share card .png → ORBIT.native.request('save'); a missing route → honest toast. */
+   - export: report .md, share card .png → ORBIT.native.request('save'); a missing route → honest toast. */
 const TLO = { started: false, off: false, d: null, doneUid: null, tc: {}, share: null };
 const TLO_REASON = { test: '测试会话', private: '隐私', duplicate: '重复', other: '其他' };
 const tloAg = (s) => agent(LV.agentOf(s && s.agent).id);
@@ -32,6 +32,7 @@ function tloOpen(uid) {
 }
 
 /* ---------- surfaces: ?surface=panel | hud | widgets ---------- */
+const HUD_PAD = { t: 8, x: 12, b: 16 };   // HUD surface padding = room for the pill / card shadow (0 4px 12px)
 (function surfaces() {
   const sf = ORBIT.native.surface; if (!sf) return;
   document.body.classList.add('native', 'surface', 'surface-' + sf);
@@ -42,21 +43,30 @@ function tloOpen(uid) {
     'body.surface .desk>.wall,body.surface #mbar,body.surface #win,body.surface #set,body.surface .desk>:is(#pop,#hud,#widgets):not(' + keep + '){display:none!important}' +
     'body.surface ' + keep + '{position:relative!important;inset:auto!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;margin:0}' +
     'body.surface-panel #pop{width:100%;max-height:none;border-radius:12px;animation:none}' +
-    'body.surface-hud #hud{align-items:flex-end!important;flex-direction:column!important;padding:4px}' +
+    // the panel is exactly the HUD box: the padding holds the whole shadow (8 top, 12 sides, 16 bottom), so the window edge never
+    // clips it into a grey rectangle around the pill (F22); the shadow is a tighter version of the in-window one for that reason
+    'body.surface-hud #hud{align-items:flex-end!important;flex-direction:column!important;padding:' + HUD_PAD.t + 'px ' + HUD_PAD.x + 'px ' + HUD_PAD.b + 'px}' +
+    'body.surface-hud #hud>:is(.pill,.hcard){box-shadow:0 4px 12px rgba(0,0,0,.26),inset 0 0 0 .5px rgba(255,255,255,.12)}' +
     // intrinsic widths (not viewport-relative): the reported width must not shrink with the panel it resizes
-    'body.surface-hud #hud>.pill{width:max-content;max-width:500px}body.surface-hud .hcard{width:380px}' +
-    'body.surface-widgets #widgets{width:364px;padding:8px}';
+    // 496 + 2*12 = 520 = the widest HUD panel Orbit.swift allows (resizeSurface clamps the width to 120…520)
+    'body.surface-hud #hud>.pill{width:max-content;max-width:' + (520 - 2 * HUD_PAD.x) + 'px}body.surface-hud .hcard{width:380px}' +
+    // widgets: the 8px padding (+ 8 below, see report) holds a 0 2px 8px card shadow; the in-window 0 10px 30px would be
+    // clipped by the panel edge into the same faint rectangle as the HUD's (F22)
+    'body.surface-widgets #widgets{width:364px;padding:8px}body.surface-widgets #widgets .wg{box-shadow:0 2px 8px rgba(0,0,0,.14),0 0 0 .5px var(--wg-edge)}';
   document.head.appendChild(st);
   S.winGone = true; S.pop = sf === 'panel'; S.widgets = sf === 'widgets'; S.hud.show = sf === 'hud';
   const el = () => $(keep);
   let lastH = 0, lastW = 0;
-  // the HUD also reports the pill / card width: its NSPanel shrinks to it, so no transparent margin takes other windows' clicks
+  // the HUD also reports the pill / card width: its NSPanel shrinks to it, so no wide transparent margin takes other windows'
+  // clicks. Trade-off: the padding that holds the shadow (8 top, 12 sides, 16 bottom) is still part of the panel and takes
+  // clicks meant for windows underneath; that thin band is the price of drawing the shadow without clipping it (F22)
   function report() {
     const e = el(); if (!e) return;
     const r = e.getBoundingClientRect();
-    const h = Math.ceil(e.hidden ? 0 : r.height + (sf === 'panel' ? 0 : 8));
+    // HUD: #hud's own box (its padding already holds the shadow); widgets: + 8 below for the last card's shadow
+    const h = Math.ceil(e.hidden ? 0 : r.height + (sf === 'widgets' ? 8 : 0));
     let w = 0;
-    if (sf === 'hud' && !e.hidden) w = Math.ceil(Math.max(0, ...Array.from(e.children).map((k) => k.getBoundingClientRect().width)) + 16);
+    if (sf === 'hud' && !e.hidden) w = Math.ceil(Math.max(0, ...Array.from(e.children).map((k) => k.getBoundingClientRect().width)) + 2 * HUD_PAD.x);
     if (h !== lastH || w !== lastW) { lastH = h; lastW = w; ORBIT.native.post('resizeSurface', w ? { height: h, width: w } : { height: h }); }
   }
   hudPlace = function () { /* the host window is the position */ };
@@ -150,7 +160,9 @@ if (LV.live) {
   popYest = function () { const d = popData(); const iso = d && d.yesterday && d.yesterday.date; if (iso) return tloMD(iso).replace(/ 周.$/, ''); const t = lvUtc(todayIso()) - 864e5; return tloMD(new Date(t).toISOString()).replace(/ 周.$/, ''); };
   popOpening = function () {
     const d = popData(); const o = d && d.opening; const t = o && (typeof o === 'string' ? o : o.text || o.line || o.body); if (!t) return '';
-    return '<div class="sec row" data-tl="opening" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)">' + (o.title ? '<b style="color:var(--ink-1)">' + esc(o.title) + '</b>：' : '') + esc(t) + '</span></div>';
+    // AI 徽标与紫色底只给模型写的句子；/v1/shell/popover 的开场提示是规则模板（basis: rule），标「规则」
+    const ai = o.basis === 'ai' || o.source === 'ai';
+    return '<div class="sec row" data-tl="opening" data-basis="' + (ai ? 'ai' : 'rule') + '" style="align-items:flex-start;gap:8px' + (ai ? ';background:var(--ai-bg)' : '') + '">' + (ai ? '<span class="aib" style="background:var(--surface)">AI</span>' : '<span class="bdg" title="按最近的问题与纠偏数据套用规则生成，未调用模型">规则</span>') + '<span style="font-size:12px;line-height:1.5;color:var(--ink-2)">' + (o.title ? '<b style="color:var(--ink-1)">' + esc(o.title) + '</b>：' : '') + esc(t) + '</span></div>';
   };
   popLiveCard = function () {
     const d = TLO.d; const s = d && d.primary; if (!s || S.paused) return '';
@@ -171,7 +183,7 @@ if (LV.live) {
     const meta = $('#pop .mono.cap');
     if (meta && pv && pv.today && !S.paused && !S.attn.size) {
       const t = pv.today; const n = Math.max(t.sessions || 0, d && d.today ? d.today.sessions_started || 0 : 0);
-      meta.textContent = popDate() + ' · ' + (n ? TLU.num(n) + ' 会话' + (t.duration_s ? ' · ' + dur(Math.round(t.duration_s / 60)) : '') : '还没有会话');
+      meta.textContent = popDate() + ' · ' + (n ? TLU.num(n) + ' 会话' + (t.duration_s ? ' · ' + dur(Math.round(t.duration_s / 60)) : '') : dataBusy() ? busyMeta() : '还没有会话');
     }
     // the top recommendation: the menubar slate (97-live-recs recTop('menubar')); without one, the popover's top_rec
     if (!$('#pop [data-act="popRec"]') && pv && pv.top_rec && pv.top_rec.title && !S.paused && !S.attn.size && !simIdle()) { const f = $('#pop .sec:last-child'); if (f) f.insertAdjacentHTML('beforebegin', recSec(pv.top_rec)); }
@@ -355,14 +367,14 @@ if (LV.live) {
   });
   TL.on('event', (ev) => { if (/^data\b/.test(ev.name)) TLO.tc = {}; });
 
-  /* ---------- export: report .md · tool-call .csv · share card .png ---------- */
+  /* ---------- export: report .md · share card .png ---------- */
   const unavailable = (what) => (e) => toast(TL.unavailable(e) ? '本地服务暂不支持导出' + what + '，请更新 Orbit 后再试' : '导出' + what + '失败：' + ((e && (e.message || e.code)) || ''));
-  const exportFoot = (act, label) => '<div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">由本机服务生成 · 只含统计，不含对话原文</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn" data-act="' + (act === 'repSave' ? 'repCopy' : 'copyCSV') + '">' + ic('copy', 13) + '复制</button><button type="button" class="btn p" data-act="' + act + '">' + ic('down', 13) + label + '</button></div>';
+  const exportFoot = (act, label) => '<div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">由本机服务生成 · 只含统计，不含对话原文</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn" data-act="repCopy">' + ic('copy', 13) + '复制</button><button type="button" class="btn p" data-act="' + act + '">' + ic('down', 13) + label + '</button></div>';
   // B18: every export carries the scope the screen shows — range, the enabled agents and the project filter
   // (S.project; '_none' = sessions without a project has no backend filter and is dropped)
   function tloExportScope() {
-    const sc = lvScope(); const ls = LV.scope(); const pj = S.project && S.project !== '_none' ? S.project : null;
-    return { report: Object.assign({}, sc, { projects: pj ? [pj] : null }), csv: { from_ts: lvtpFrom(S.range) == null ? undefined : lvtpFrom(S.range), agent: ls.agents || undefined, project_id: pj ? [pj] : undefined } };
+    const sc = lvScope(); const pj = S.project && S.project !== '_none' ? S.project : null;
+    return { report: Object.assign({}, sc, { projects: pj ? [pj] : null }) };
   }
   TLO.exportScope = tloExportScope;
   // H4: the sheet opens on the keystroke and fills when the gateway answers. /v1/export/report waits up to 3 s for sections
@@ -386,13 +398,6 @@ if (LV.live) {
   openReport = function () { tloReport(true).catch(unavailable('报告')); };
   wrap('repSec', (base, el) => { const k = el.dataset.k; if (el.checked) S.rep.add(k); else S.rep.delete(k); tloReport(false).catch(unavailable('报告')); });
   ACT.repSave = () => expSave('orbit-report-' + expStamp() + '.md', 'text/markdown', { text: CUR.report || '' });
-  openCSV = function () {
-    TL.ops.csv('tool_calls', Object.assign({ limit: 5000 }, tloExportScope().csv)).then((text) => {
-      CUR.csv = text; const n = Math.max(0, text.split('\n').filter(Boolean).length - 1);
-      openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · tool_calls · ' + n + ' 行 · 也可以复制后粘贴到表格软件') + '<div class="mb"><textarea readonly data-tl="csv" aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(text) + '</textarea></div>' + exportFoot('csvSave', '保存 .csv'), 'wide');
-    }, unavailable('CSV'));
-  };
-  ACT.csvSave = () => expSave('orbit-tool-calls-' + expStamp() + '.csv', 'text/csv', { text: CUR.csv || '' });
   // share card: one gateway card per time span (POST /v1/export/share_card, period = that span, same Agent / project
   // filters as the persona page). Each card shows what the gateway computed for its window — code, axis values (so the
   // flower's proportions), type copy, quote and stats; label / date / day ring come from the spine. A span the gateway

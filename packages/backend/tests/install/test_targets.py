@@ -67,23 +67,62 @@ GRID = {
     ("setting", "claude_code", "user"): ("H/.claude/settings.json", "merge_json", ""),
     ("setting", "claude_code", "project"): ("P/.claude/settings.local.json", "merge_json", ""),
     ("permission_rule", "codex", "user"): ("H/.codex/rules/orbit-demo.rules", "create_file", None),
-    ("permission_rule", "codex", "project"): "codex_project_rules_unsupported_v1",
+    ("permission_rule", "codex", "project"): ("P/.codex/rules/orbit-demo.rules", "create_file", None, True),
     ("rule", "codex", "user"): ("H/.codex/AGENTS.md", "md_block", None),
     ("rule", "codex", "project"): ("P/AGENTS.md", "md_block", None),
-    ("skill", "codex", "user"): ("H/.codex/skills/demo/SKILL.md", "create_file", None),
-    ("skill", "codex", "project"): "codex_project_skills_unsupported_v1",
-    ("hook", "codex", "user"): ("H/.codex/hooks.json", "merge_json", "/hooks/PreToolUse"),
-    ("hook", "codex", "project"): "codex_project_hooks_unsupported_v1",
+    ("skill", "codex", "user"): ("H/.agents/skills/demo/SKILL.md", "create_file", None),
+    ("skill", "codex", "project"): ("P/.agents/skills/demo/SKILL.md", "create_file", None),
+    ("hook", "codex", "user"): ("H/.codex/hooks.json", "merge_json", "/hooks/PreToolUse", True),
+    ("hook", "codex", "project"): ("P/.codex/hooks.json", "merge_json", "/hooks/PreToolUse", True),
     ("mcp", "codex", "user"): ("H/.codex/config.toml", "toml_block", None),
-    ("mcp", "codex", "project"): "codex_project_mcp_unsupported_v1",
+    ("mcp", "codex", "project"): ("P/.codex/config.toml", "toml_block", None, True),
     ("plugin", "codex", "user"): "codex_plugin_install_unsupported_v1",
     ("plugin", "codex", "project"): "codex_plugin_install_unsupported_v1",
     ("subagent", "codex", "user"): "codex_has_no_subagent_files",
     ("subagent", "codex", "project"): "codex_has_no_subagent_files",
-    ("command", "codex", "user"): ("H/.codex/prompts/ship.md", "create_file", None),
-    ("command", "codex", "project"): "codex_project_prompts_unsupported_v1",
+    ("command", "codex", "user"): "codex_custom_prompts_removed",
+    ("command", "codex", "project"): "codex_custom_prompts_removed",
     ("setting", "codex", "user"): "codex_settings_unsupported_v1",
     ("setting", "codex", "project"): "codex_settings_unsupported_v1",
+    # dsh: deepseek-harness skill-filesystem README "Roots and priority", agent-instructions README.
+    ("rule", "dsh", "user"): ("H/.dsh/AGENTS.md", "md_block", None),
+    ("rule", "dsh", "project"): ("P/AGENTS.md", "md_block", None),
+    ("skill", "dsh", "user"): ("H/.dsh/skills/demo/SKILL.md", "create_file", None),
+    ("skill", "dsh", "project"): ("P/.dsh/skills/demo/SKILL.md", "create_file", None),
+    ("mcp", "dsh", "user"): "dsh_cordis_patch_unsupported_v1",
+    ("hook", "dsh", "project"): "dsh_cordis_patch_unsupported_v1",
+    ("command", "dsh", "user"): "not_mappable",
+    # pi: coding-agent config.ts getAgentDir, package-manager.ts auto-discovery, extensions/mcp/config.ts.
+    ("rule", "pi", "user"): ("H/.pi/agent/AGENTS.md", "md_block", None),
+    ("rule", "pi", "project"): ("P/AGENTS.md", "md_block", None),
+    ("skill", "pi", "user"): ("H/.pi/agent/skills/demo/SKILL.md", "create_file", None),
+    ("skill", "pi", "project"): ("P/.pi/skills/demo/SKILL.md", "create_file", None, True),
+    ("command", "pi", "user"): ("H/.pi/agent/prompts/ship.md", "create_file", None),
+    ("command", "pi", "project"): ("P/.pi/prompts/ship.md", "create_file", None, True),
+    ("mcp", "pi", "user"): ("H/.pi/agent/mcp.json", "merge_json", "/mcpServers/gh"),
+    ("mcp", "pi", "project"): ("P/.pi/mcp.json", "merge_json", "/mcpServers/gh", True),
+    ("hook", "pi", "user"): "pi_hooks_are_extensions",
+    ("permission_rule", "pi", "user"): "not_mappable",
+    # hermes: skill_manager_tool.py SKILLS_DIR, skill_utils.py project skills, prompt_builder.py context.
+    ("rule", "hermes", "user"): "hermes_soul_md_is_identity",
+    ("rule", "hermes", "project"): ("P/AGENTS.md", "md_block", None),
+    ("skill", "hermes", "user"): ("H/.hermes/skills/demo/SKILL.md", "create_file", None),
+    ("skill", "hermes", "project"): ("P/.hermes/skills/demo/SKILL.md", "create_file", None, True),
+    ("mcp", "hermes", "user"): "hermes_yaml_config_unsupported_v1",
+    ("hook", "hermes", "user"): "hermes_yaml_config_unsupported_v1",
+    # opencode: core/src/global.ts config dir, config.ts opencode.json, skill/index.ts, config/command.ts.
+    ("rule", "opencode", "user"): ("H/.config/opencode/AGENTS.md", "md_block", None),
+    ("rule", "opencode", "project"): ("P/AGENTS.md", "md_block", None),
+    ("skill", "opencode", "user"): ("H/.config/opencode/skills/demo/SKILL.md", "create_file", None),
+    ("skill", "opencode", "project"): ("P/.opencode/skills/demo/SKILL.md", "create_file", None),
+    ("command", "opencode", "user"): ("H/.config/opencode/commands/ship.md", "create_file", None),
+    ("command", "opencode", "project"): ("P/.opencode/commands/ship.md", "create_file", None),
+    ("mcp", "opencode", "user"): ("H/.config/opencode/opencode.json", "merge_json", "/mcp/gh"),
+    ("mcp", "opencode", "project"): ("P/opencode.json", "merge_json", "/mcp/gh"),
+    ("permission_rule", "opencode", "user"): ("H/.config/opencode/opencode.json", "merge_json", "/permission/bash"),
+    ("permission_rule", "opencode", "project"): ("P/opencode.json", "merge_json", "/permission/bash"),
+    ("subagent", "opencode", "user"): "opencode_subagent_format_differs",
+    ("hook", "opencode", "project"): "opencode_hooks_are_plugins",
 }
 
 
@@ -92,13 +131,20 @@ def test_landing_grid(key, env, info, project):
     kind, agent, scope = key
     expected = GRID[key]
     assert lookup(kind, agent, scope) is TABLE[key]
+    if agent in ("dsh", "pi", "hermes", "opencode"):
+        for d in {"dsh": [".dsh"], "pi": [".pi/agent"], "hermes": [".hermes"],
+                  "opencode": [".config/opencode", ".local/share/opencode"]}[agent]:
+            (env.home / d).mkdir(parents=True, exist_ok=True)
+        if agent == "opencode":  # else fake_home's ~/.claude/CLAUDE.md is the active global file
+            (env.home / ".config/opencode/AGENTS.md").write_text("# oc\n")
+        info = environment(env, refresh=True)
     targets = resolve_targets(spec(kind, [agent], scope, project if scope == "project" else None), info, env=env)
     first = targets[0]
     if isinstance(expected, str):
         assert first == {"idx": 0, "agent": agent, "kind": kind, "mappable": False, "reason": expected,
                          "reason_text": REASON_TEXT[expected]}
         return
-    path, action, pointer = expected
+    path, action, pointer, trust = (*expected, False)[:4]
     if kind == "hook":
         first = targets[-1]  # no script: only the settings target
     want = path.replace("H/", f"{env.home}/").replace("P/", f"{project}/")
@@ -106,7 +152,7 @@ def test_landing_grid(key, env, info, project):
     if pointer is not None:
         token = str(project).replace("~", "~0").replace("/", "~1")
         assert first["pointer"] == pointer.replace("{P}", token)
-    assert first["requires_trust"] == (kind == "hook" and agent == "codex")
+    assert first["requires_trust"] == trust
     assert [t["idx"] for t in targets] == list(range(len(targets)))
     if action in ("md_block", "toml_block"):
         assert first["block_id"] == "orbit:demo"
@@ -120,7 +166,7 @@ def test_rendered_contents(env, info):
     assert claude[0]["content"] == ["Bash(git status:*)", "Bash(git diff:*)"]
     assert claude[1]["content"].splitlines() == ['prefix_rule(pattern=["git","status"], decision="allow")',
                                                  'prefix_rule(pattern=["git","diff"], decision="allow")']
-    assert claude[1]["note"] == "语法待验证 V6"
+    assert claude[1]["note"] is None
     assert codex[0]["content"] == "## Commits\n\nPrefer small commits."
     plugin = resolve_targets(spec("plugin"), info, env=env)
     assert [t["pointer"] for t in plugin] == ["/enabledPlugins", "/extraKnownMarketplaces"]
@@ -213,8 +259,8 @@ def test_path_policy(env, info, project, tmp_path):
 
 
 def test_unsupported_and_undetected_agents(env, info, tmp_path):
-    other = resolve_targets(spec("skill", ["hermes", "unknown"]), info, env=env)
-    assert [t["reason"] for t in other] == ["agent_not_supported_v1"] * 2
+    other = resolve_targets(spec("skill", ["kimi", "unknown"]), info, env=env)
+    assert [t["reason"] for t in other] == ["kimi_unverified_no_source", "agent_not_supported_v1"]
     empty = tmp_path / "nohome"
     empty.mkdir()
     from orbit_backend.install.env import Env

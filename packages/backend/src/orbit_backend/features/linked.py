@@ -25,7 +25,7 @@ DAY_MS = 86_400_000
 UNUSED_WINDOW_DAYS = 90
 MAX_TEXT = 256 * 1024
 CATALOG_TYPE = {"skill": "skill", "mcp": "mcp_server", "hook": "hook", "plugin": "plugin",
-                "rule": "rule"}
+                "rule": "rule", "command": "command", "agent": "subagent"}
 ATTRIBUTABLE = {"skill": "tool_call.skill", "mcp": "tool_call.mcp_server"}
 CJK = re.compile(r"[　-ヿ㐀-鿿가-힯豈-﫿＀-￯]")
 

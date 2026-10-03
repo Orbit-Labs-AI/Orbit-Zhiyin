@@ -41,10 +41,11 @@ function simEvent(k) {
     weekly: { t: '每周报告已生成', b: '9 月第 4 周：' + sel({ range: 7, noExtra: true }).length + ' 个会话 · 人格 ' + (personaNow().ok ? personaNow().code : '—') + ' 没有变化', a1: '查看报告', on1: () => openReport() }
   };
   if (k === 'newsrc') {
-    const has = () => S.extraSrc.some((x) => /cursor/i.test(x.name));
-    if (has()) { toast('Cursor 已经添加过了'); return; }
-    // two banners can be open at once: the second「添加」must not add Cursor again (BUG-43)
-    notify({ t: '发现新的数据来源', b: 'Cursor 的会话数据库：~/Library/Application Support/Cursor', a1: '添加', on1: () => { if (has()) { toast('Cursor 已经添加过了'); return; } S.extraSrc.push({ name: 'Cursor', path: '~/Library/Application Support/Cursor/User/workspaceStorage', fmt: 'sqlite', n: 37 }); render(); toast('已添加 Cursor，正在索引 37 个会话（示例）'); }, a2: '忽略', force: true });
+    // the example source is one Orbit has a session connector for (Hermes Agent, orbit_data MAPPERS), not Cursor (D9)
+    const has = () => S.extraSrc.some((x) => /hermes/i.test(x.name));
+    if (has()) { toast('Hermes Agent 已经添加过了'); return; }
+    // two banners can be open at once: the second「添加」must not add it again (BUG-43)
+    notify({ t: '发现新的数据来源', b: 'Hermes Agent 的会话数据库：~/.hermes/state.db', a1: '添加', on1: () => { if (has()) { toast('Hermes Agent 已经添加过了'); return; } S.extraSrc.push({ name: 'Hermes Agent', path: '~/.hermes/state.db', fmt: 'sqlite', n: 37 }); render(); toast('已添加 Hermes Agent，正在索引 37 个会话（示例）'); }, a2: '忽略', force: true });
     return;
   }
   if (ambient) {

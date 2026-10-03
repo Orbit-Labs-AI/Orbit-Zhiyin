@@ -12,6 +12,7 @@ from typing import Protocol
 import numpy as np
 
 from .contracts import canonical_json, digest
+from .embedding_model import model_files
 
 
 class Encoder(Protocol):
@@ -51,7 +52,9 @@ class LocalE5Encoder:
         self.batch_size, self.max_tokens, self.max_windows = batch_size, max_tokens, max_windows
         ort.disable_telemetry_events()
         directory = Path(directory).expanduser().resolve()
-        model_path, tokenizer_path = directory / "onnx/model.onnx", directory / "onnx/tokenizer.json"
+        model_path, tokenizer_path, manifest = model_files(directory)
+        self.directory = directory
+        self.manifest = manifest
         def sha(path):
             with path.open("rb") as stream:
                 return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -162,6 +165,10 @@ def blocked_scores(matrix: np.ndarray, query: np.ndarray) -> np.ndarray:
 
 def embedding_coverage(conn, model_id: str) -> dict:
     """Count active resources and chunk ownership, never cache hashes as item coverage."""
+    # Both the background service and snapshot readers share one coverage definition.
+    if hasattr(conn, "connect"):
+        with conn.connect(True) as reader:
+            return embedding_coverage(reader, model_id)
     row = conn.execute("""
         WITH per_item AS (
           SELECT i.item_id, count(c.ordinal) AS all_chunks,
@@ -189,6 +196,9 @@ def embedding_coverage(conn, model_id: str) -> dict:
         FROM per_item
         """, (model_id,)).fetchone()
     result = dict(row)
+    result["model_id"] = model_id
+    result["embedded_chunks"] = result["indexed_chunks"]
+    result["ratio"] = round(result["indexed_chunks"] / result["eligible_chunks"], 4) if result["eligible_chunks"] else None
     result["pending_chunks"] = result["eligible_chunks"] - result["indexed_chunks"]
     result["missing_overview_items"] = result["active_items"] - result["overview_items"]
     return result
@@ -222,7 +232,7 @@ def index_embeddings(store, encoder: Encoder, *, batch_size=64, max_chunks=None,
             # Primary-key order avoids repeatedly sorting/scanning the catalog as the
             # cache grows. Each completed pass visits every chunk at most once.
             rows = conn.execute("SELECT c.item_id,c.ordinal,c.text_hash FROM resource_chunk c "
-                                "WHERE (c.item_id,c.ordinal)>(?,?) AND c.embed=1 "
+                                "WHERE (c.item_id,c.ordinal)>(?,?) AND c.embed=1 AND EXISTS (SELECT 1 FROM catalog_item i WHERE i.item_id=c.item_id AND i.status='active') "
                                 + ("AND c.item_id<? " if item_end is not None else "")
                                 + ("AND c.ordinal=0 " if scope == "overview" else "") +
                                 "AND NOT EXISTS (SELECT 1 FROM embedding_cache e "

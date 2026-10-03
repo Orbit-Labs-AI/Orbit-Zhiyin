@@ -1,6 +1,7 @@
 {
   "schema_version": "remedies-v1",
   "origin": "Orbit template library (written and reviewed in this repository; no third-party text)",
+  "agent_support_basis": "remedy.agents 中 claude_code/codex 为人工审阅值；其余 agent 由 orbit_data.capabilities.MATRIX 推导：skill/generate→skills、hook→hooks、subagent→subagents、MCP 移除→mcp、headless 工作流→headless（supported→manual 或 adaptation_required，partial→adaptation_required，unknown→不写，即 unknown）；rule/prompt 与规则文件移除依据上游读取 AGENTS.md 的源码：third_party/opencode/packages/opencode/src/session/instruction.ts、third_party/pi/packages/coding-agent/src/core/resource-loader.ts、third_party/hermes-agent/agent/context_file_sources.py、third_party/deepseek-harness/packages/storage/storage/src/index.ts，写为 manual；Kimi CLI 源码未收录，全部 unknown；permission_rule/builtin/workflow/model 无矩阵依据，只保留人工值。",
   "rules": [
     {
       "id": "readonly-allowlist", "title": "只读命令自动放行",
@@ -8,7 +9,7 @@
       "problem": {"types": ["permission_friction"], "key_prefix": "would_prompt:readonly_shell"},
       "remedy": {"kind": "permission_rule", "dim": "hook", "agents": {"claude_code": "native", "codex": "manual"}, "level": 1,
                  "template": "permission-allow@1", "alternatives": ["fewer-permission-prompts"]},
-      "benefit": {"unit": "次审批", "unit_minutes": 0.5, "prior": {"alpha": 9, "beta": 1}},
+      "benefit": {"unit": "次审批", "unit_minutes": 0.5, "prior": {"alpha": 9, "beta": 1}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：单次审批的代价应取自本机实测的审批等待（tool_call.approval_wait_ms / Codex permission 事件间隔），推荐层尚未接入；KLM（Card, Moran & Newell 1980：M≈1.35s、K≈0.2s）只给出决策加按键约 1.6 秒的下界，不含等待，不作估计。"},
       "cost": {"setup_minutes": 1, "context_tokens": 0, "reversible": true},
       "risk": {"level": "low", "flags": ["writes_settings"]},
       "track": {"triggered": "只读命令审批次数", "mechanical": "白名单命中次数", "guardrail": "误放行的写命令次数"},
@@ -27,7 +28,7 @@
       "problem": {"types": ["permission_friction"]},
       "remedy": {"kind": "builtin", "dim": "hook", "agents": {"claude_code": "native", "codex": "native"}, "level": 1,
                  "alternatives": ["readonly-allowlist"]},
-      "benefit": {"unit": "次审批", "unit_minutes": 0.5, "prior": {"alpha": 6, "beta": 2}},
+      "benefit": {"unit": "次审批", "unit_minutes": 0.5, "prior": {"alpha": 6, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：单次审批的代价应取自本机实测的审批等待（tool_call.approval_wait_ms / Codex permission 事件间隔），推荐层尚未接入；KLM（Card, Moran & Newell 1980：M≈1.35s、K≈0.2s）只给出决策加按键约 1.6 秒的下界，不含等待，不作估计。"},
       "cost": {"setup_minutes": 1},
       "risk": {"level": "medium", "flags": ["broader_permissions"]},
       "track": {"triggered": "审批次数", "mechanical": "使用内置模式的会话数", "guardrail": "非预期写入次数"},
@@ -42,9 +43,9 @@
       "id": "retry-breaker", "title": "重复失败熔断：同一命令失败 2 次先诊断",
       "summary": "同一命令连续失败两次后暂停，先检查认证与环境再继续。",
       "problem": {"types": ["tool_env_failure"]},
-      "remedy": {"kind": "hook", "dim": "hook", "agents": {"claude_code": "native", "codex": "adaptation_required"}, "level": 2,
+      "remedy": {"kind": "hook", "dim": "hook", "agents": {"claude_code": "native", "codex": "adaptation_required", "opencode": "adaptation_required", "pi": "adaptation_required", "hermes": "adaptation_required", "dsh": "adaptation_required"}, "level": 2,
                  "template": "hook-post-tool-use@1", "pairs_with": ["systematic-debugging", "env-quirks-rule"]},
-      "benefit": {"unit": "段重复失败", "unit_minutes": 2, "prior": {"alpha": 8, "beta": 2}},
+      "benefit": {"unit": "段重复失败", "unit_minutes": 2, "prior": {"alpha": 8, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：单次失败/返工的代价应取自会话内失败段到恢复的实测时长（analytics cost_time 事实），推荐层尚未接入；没有可引用的文献值。"},
       "cost": {"setup_minutes": 3, "reversible": true},
       "risk": {"level": "low", "flags": ["runs_script"]},
       "track": {"triggered": "重复失败序列", "mechanical": "熔断触发次数", "guardrail": "任务完成率"},
@@ -61,9 +62,9 @@
       "id": "systematic-debugging", "title": "系统化排错 Skill：复现→假设→最小修复",
       "summary": "把重复试错改为复现、收集证据、单一假设和最小修复。",
       "problem": {"types": ["tool_env_failure", "buggy_output"]},
-      "remedy": {"kind": "skill", "dim": "skill", "agents": {"claude_code": "manual", "codex": "manual"}, "level": 2,
+      "remedy": {"kind": "skill", "dim": "skill", "agents": {"claude_code": "manual", "codex": "manual", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"}, "level": 2,
                  "pairs_with": ["retry-breaker"]},
-      "benefit": {"unit": "次返工", "unit_minutes": 5, "prior": {"alpha": 4, "beta": 3}},
+      "benefit": {"unit": "次返工", "unit_minutes": 5, "prior": {"alpha": 4, "beta": 3}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：单次失败/返工的代价应取自会话内失败段到恢复的实测时长（analytics cost_time 事实），推荐层尚未接入；没有可引用的文献值。"},
       "cost": {"setup_minutes": 5, "context_tokens": 600},
       "track": {"triggered": "同参数重复失败", "mechanical": "Skill 调用次数", "guardrail": "测试通过率"},
       "explain": {"reason_template": "{k} 个会话里出现反复失败或修复后仍出错。",
@@ -78,9 +79,9 @@
       "id": "env-quirks-rule", "title": "AGENTS.md：写明 {software} 的环境约定",
       "summary": "把反复踩到的软件环境问题（登录、版本、路径）写进规则文件。",
       "problem": {"types": ["tool_env_failure"], "key_prefix": "tool_env_failure:"},
-      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 1,
+      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"}, "level": 1,
                  "scope": "project", "template": "agents-md-section@1", "slots": {"software": {"required": true}}},
-      "benefit": {"unit": "次环境失败", "unit_minutes": 2, "prior": {"alpha": 5, "beta": 3}},
+      "benefit": {"unit": "次环境失败", "unit_minutes": 2, "prior": {"alpha": 5, "beta": 3}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：单次失败/返工的代价应取自会话内失败段到恢复的实测时长（analytics cost_time 事实），推荐层尚未接入；没有可引用的文献值。"},
       "cost": {"setup_minutes": 2, "context_tokens": 80},
       "track": {"triggered": "{software} 相关失败", "mechanical": "规则被引用次数", "guardrail": "会话时长"},
       "explain": {"reason_template": "{software} 在 {k} 个会话里失败，约 {weekly} 次/周。",
@@ -95,9 +96,9 @@
       "id": "verify-checklist", "title": "完成前自检清单",
       "summary": "要求 Agent 在声称完成前运行测试/编译并贴出结果。",
       "problem": {"types": ["missing_verification"]},
-      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 1,
+      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"}, "level": 1,
                  "template": "agents-md-section@1", "pairs_with": ["stop-verify-hook"]},
-      "benefit": {"unit": "次漏验", "unit_minutes": 6, "prior": {"alpha": 5, "beta": 3}},
+      "benefit": {"unit": "次漏验", "unit_minutes": 6, "prior": {"alpha": 5, "beta": 3}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次漏验或晚构建的代价取决于后续返工时长，需要按会话实测（cost_time 返工段），尚未接入；没有可引用的文献值。"},
       "cost": {"setup_minutes": 1, "context_tokens": 60},
       "track": {"triggered": "缺验收证据的完成声明", "mechanical": "回复中贴出验证结果的比例", "guardrail": "会话时长"},
       "explain": {"reason_template": "{k} 个会话在没有验证证据时就宣布完成。",
@@ -113,9 +114,9 @@
       "id": "stop-verify-hook", "title": "Stop hook：没有验证结果不结束",
       "summary": "在会话结束前检查是否运行过测试，没有则提醒 Agent 补验证。",
       "problem": {"types": ["missing_verification"]},
-      "remedy": {"kind": "hook", "dim": "hook", "agents": {"claude_code": "native", "codex": "unsupported"}, "level": 3,
+      "remedy": {"kind": "hook", "dim": "hook", "agents": {"claude_code": "native", "codex": "unsupported", "opencode": "adaptation_required", "pi": "adaptation_required", "hermes": "adaptation_required", "dsh": "adaptation_required"}, "level": 3,
                  "template": "hook-stop@1", "pairs_with": ["verify-checklist"]},
-      "benefit": {"unit": "次漏验", "unit_minutes": 6, "prior": {"alpha": 4, "beta": 2}},
+      "benefit": {"unit": "次漏验", "unit_minutes": 6, "prior": {"alpha": 4, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次漏验或晚构建的代价取决于后续返工时长，需要按会话实测（cost_time 返工段），尚未接入；没有可引用的文献值。"},
       "cost": {"setup_minutes": 5},
       "risk": {"level": "medium", "flags": ["runs_script", "may_block_stop"]},
       "track": {"triggered": "缺验收证据的完成声明", "mechanical": "hook 拦截次数", "guardrail": "会话被卡住次数"},
@@ -131,9 +132,9 @@
       "id": "completion-contract", "title": "开场模板：先写完成条件",
       "summary": "新任务先写目标、完成条件、不要做和验证方式四行。",
       "problem": {"types": ["wrong_approach"]},
-      "remedy": {"kind": "prompt", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 2,
+      "remedy": {"kind": "prompt", "dim": "rule", "agents": {"claude_code": "native", "codex": "native", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"}, "level": 2,
                  "template": "prompt-snippet@1"},
-      "benefit": {"unit": "次纠偏", "unit_minutes": 4, "prior": {"alpha": 3, "beta": 3}},
+      "benefit": {"unit": "次纠偏", "unit_minutes": 4, "prior": {"alpha": 3, "beta": 3}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次纠偏或重复说明的代价取决于消息长度与往返等待，尚无实测口径；没有可引用的文献值。"},
       "cost": {"setup_minutes": 0},
       "track": {"triggered": "纠偏次数", "mechanical": "首条消息写明完成条件的比例", "guardrail": "首轮完成率"},
       "explain": {"reason_template": "{k} 个会话出现方向纠偏。",
@@ -151,7 +152,7 @@
       "problem": {"types": ["wrong_approach"]},
       "remedy": {"kind": "workflow", "dim": "flow", "agents": {"claude_code": "native", "codex": "native"}, "level": 2,
                  "pairs_with": ["completion-contract"]},
-      "benefit": {"unit": "段纠偏循环", "unit_minutes": 8, "prior": {"alpha": 3, "beta": 2}},
+      "benefit": {"unit": "段纠偏循环", "unit_minutes": 8, "prior": {"alpha": 3, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次纠偏或重复说明的代价取决于消息长度与往返等待，尚无实测口径；没有可引用的文献值。"},
       "cost": {"setup_minutes": 0},
       "track": {"triggered": "连续纠偏段数", "mechanical": "纠偏后重启次数", "guardrail": "任务完成率"},
       "explain": {"reason_template": "{k} 个会话出现连续纠偏。",
@@ -166,9 +167,9 @@
       "id": "repeated-instruction-rule", "title": "把重复说的要求写进规则：{instruction}",
       "summary": "你在多个会话里重复同一要求，写进 AGENTS.md 一次即可。",
       "problem": {"types": ["repeated_instruction"]},
-      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 1,
+      "remedy": {"kind": "rule", "dim": "rule", "agents": {"claude_code": "native", "codex": "native", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"}, "level": 1,
                  "template": "agents-md-section@1", "slots": {"instruction": {"required": true}}},
-      "benefit": {"unit": "次重复说明", "unit_minutes": 1, "prior": {"alpha": 6, "beta": 2}},
+      "benefit": {"unit": "次重复说明", "unit_minutes": 1, "prior": {"alpha": 6, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次纠偏或重复说明的代价取决于消息长度与往返等待，尚无实测口径；没有可引用的文献值。"},
       "cost": {"setup_minutes": 1, "context_tokens": 40},
       "track": {"triggered": "重复说明次数", "mechanical": "规则行被遵守的会话比例", "guardrail": "纠偏次数"},
       "explain": {"reason_template": "{k} 个会话里你重复提出相同要求。",
@@ -183,8 +184,8 @@
       "id": "humanizer-zh", "title": "中文表达润色 Skill",
       "summary": "让回复更自然、少术语堆砌，必要时附解释。",
       "problem": {"types": ["communication_gap"]},
-      "remedy": {"kind": "skill", "dim": "skill", "agents": {"claude_code": "manual", "codex": "manual"}, "level": 2},
-      "benefit": {"unit": "次改写请求", "unit_minutes": 2, "prior": {"alpha": 3, "beta": 3}},
+      "remedy": {"kind": "skill", "dim": "skill", "agents": {"claude_code": "manual", "codex": "manual", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"}, "level": 2},
+      "benefit": {"unit": "次改写请求", "unit_minutes": 2, "prior": {"alpha": 3, "beta": 3}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次纠偏或重复说明的代价取决于消息长度与往返等待，尚无实测口径；没有可引用的文献值。"},
       "cost": {"setup_minutes": 3, "context_tokens": 500},
       "track": {"triggered": "要求改写/解释的次数", "mechanical": "Skill 调用次数", "guardrail": "回复长度"},
       "explain": {"reason_template": "{k} 个会话里你要求改写或解释术语。",
@@ -200,9 +201,9 @@
       "id": "split-rules-file", "title": "拆分过长的规则文件",
       "summary": "把超过 200 行的 AGENTS.md / CLAUDE.md 按目录拆分，减少每个会话的常驻上下文。",
       "problem": {"types": ["resident_cost"], "key_prefix": "resident_cost:rules_file"},
-      "remedy": {"kind": "removal", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 3,
+      "remedy": {"kind": "removal", "dim": "rule", "agents": {"claude_code": "native", "codex": "native", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"}, "level": 3,
                  "alternatives": ["trim-resident"]},
-      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 4, "beta": 2}},
+      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 4, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：常驻 token 的时间代价未实测，卡片只按 token 计（narrate 对 removal 不折算分钟）。"},
       "cost": {"setup_minutes": 15},
       "risk": {"level": "medium", "flags": ["edits_rules"]},
       "track": {"triggered": "每会话常驻 tokens", "mechanical": "规则文件行数", "guardrail": "纠偏次数"},
@@ -218,8 +219,8 @@
       "id": "trim-resident", "title": "精简常驻上下文",
       "summary": "移除或缩短每个会话都加载但很少用到的内容。",
       "problem": {"types": ["resident_cost"]},
-      "remedy": {"kind": "removal", "dim": "rule", "agents": {"claude_code": "native", "codex": "native"}, "level": 2},
-      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 4, "beta": 2}},
+      "remedy": {"kind": "removal", "dim": "rule", "agents": {"claude_code": "native", "codex": "native", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"}, "level": 2},
+      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 4, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：常驻 token 的时间代价未实测，卡片只按 token 计（narrate 对 removal 不折算分钟）。"},
       "cost": {"setup_minutes": 5},
       "track": {"triggered": "每会话常驻 tokens", "mechanical": "常驻 tokens", "guardrail": "相关失败次数"},
       "explain": {"reason_template": "{name} 每个会话常驻约 {tokens} tokens。",
@@ -233,8 +234,8 @@
       "id": "disable-unused", "title": "停用长期未用的组件",
       "summary": "停用安装后从未调用的 skill / MCP，释放上下文与启动时间。",
       "problem": {"types": ["installed_unused"]},
-      "remedy": {"kind": "removal", "dim": "mcp", "agents": {"claude_code": "native", "codex": "native"}, "level": 2},
-      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 6, "beta": 1}},
+      "remedy": {"kind": "removal", "dim": "mcp", "agents": {"claude_code": "native", "codex": "native", "opencode": "manual", "pi": "adaptation_required", "hermes": "manual", "dsh": "manual"}, "level": 2},
+      "benefit": {"unit": "k tokens/会话", "unit_minutes": 0.2, "prior": {"alpha": 6, "beta": 1}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：常驻 token 的时间代价未实测，卡片只按 token 计（narrate 对 removal 不折算分钟）。"},
       "cost": {"setup_minutes": 1},
       "track": {"triggered": "每会话常驻 tokens", "mechanical": "已停用组件数", "guardrail": "重新启用次数"},
       "explain": {"reason_template": "{name} 在 {k} 个会话里从未被调用。",
@@ -249,7 +250,7 @@
       "summary": "长会话在自动压缩前先写交接摘要，避免丢失约定。",
       "problem": {"types": ["context_loss"]},
       "remedy": {"kind": "workflow", "dim": "flow", "agents": {"claude_code": "native", "codex": "native"}, "level": 2},
-      "benefit": {"unit": "次重复说明", "unit_minutes": 3, "prior": {"alpha": 4, "beta": 2}},
+      "benefit": {"unit": "次重复说明", "unit_minutes": 3, "prior": {"alpha": 4, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次纠偏或重复说明的代价取决于消息长度与往返等待，尚无实测口径；没有可引用的文献值。"},
       "cost": {"setup_minutes": 1, "context_tokens": 50},
       "track": {"triggered": "压缩后重复说明", "mechanical": "主动总结次数", "guardrail": "长会话摩擦率"},
       "explain": {"reason_template": "{k} 个会话出现上下文压力后丢失约定。",
@@ -267,7 +268,7 @@
       "problem": {"types": ["missing_verification", "buggy_output"]},
       "remedy": {"kind": "workflow", "dim": "flow", "agents": {"claude_code": "native", "codex": "native"}, "level": 2,
                  "pairs_with": ["verify-checklist"]},
-      "benefit": {"unit": "次返工", "unit_minutes": 6, "prior": {"alpha": 3, "beta": 2}},
+      "benefit": {"unit": "次返工", "unit_minutes": 6, "prior": {"alpha": 3, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次漏验或晚构建的代价取决于后续返工时长，需要按会话实测（cost_time 返工段），尚未接入；没有可引用的文献值。"},
       "cost": {"setup_minutes": 2},
       "track": {"triggered": "交付后返工", "mechanical": "逐级验证的会话比例", "guardrail": "会话时长"},
       "explain": {"reason_template": "{k} 个会话缺验证或交付后仍有错误。",
@@ -283,7 +284,7 @@
       "summary": "多个不相关任务混在同一会话时，拆成独立会话或 worktree。",
       "problem": {"types": ["wrong_approach"]},
       "remedy": {"kind": "workflow", "dim": "flow", "agents": {"claude_code": "native", "codex": "native"}, "level": 2},
-      "benefit": {"unit": "次纠偏", "unit_minutes": 4, "prior": {"alpha": 3, "beta": 2}},
+      "benefit": {"unit": "次纠偏", "unit_minutes": 4, "prior": {"alpha": 3, "beta": 2}, "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次纠偏或重复说明的代价取决于消息长度与往返等待，尚无实测口径；没有可引用的文献值。"},
       "cost": {"setup_minutes": 0},
       "track": {"triggered": "混合会话比例", "mechanical": "每会话任务数", "guardrail": "会话数"},
       "explain": {"reason_template": "{k} 个会话出现纠偏，且不少会话同时处理多个任务。",
@@ -306,10 +307,7 @@
       "remedy": {
         "kind": "skill",
         "dim": "skill",
-        "agents": {
-          "claude_code": "native",
-          "codex": "adaptation_required"
-        },
+        "agents": {"claude_code": "native", "codex": "adaptation_required", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"},
         "level": 2,
         "template": "procedure@1",
         "path": "~/.claude/skills/pr-review-cap/SKILL.md"
@@ -320,7 +318,8 @@
         "prior": {
           "alpha": 4,
           "beta": 2
-        }
+        },
+          "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：没有实测口径，也没有可引用的文献值。"
       },
       "cost": {
         "setup_minutes": 3,
@@ -408,10 +407,7 @@
       "remedy": {
         "kind": "workflow",
         "dim": "flow",
-        "agents": {
-          "claude_code": "manual",
-          "codex": "manual"
-        },
+        "agents": {"claude_code": "manual", "codex": "manual"},
         "level": 3
       },
       "benefit": {
@@ -420,7 +416,8 @@
         "prior": {
           "alpha": 4,
           "beta": 2
-        }
+        },
+          "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：没有实测口径，也没有可引用的文献值。"
       },
       "cost": {
         "setup_minutes": 5
@@ -473,10 +470,7 @@
       "remedy": {
         "kind": "subagent",
         "dim": "agent",
-        "agents": {
-          "claude_code": "native",
-          "codex": "adaptation_required"
-        },
+        "agents": {"claude_code": "native", "codex": "adaptation_required", "opencode": "adaptation_required", "pi": "adaptation_required", "hermes": "adaptation_required", "dsh": "adaptation_required"},
         "level": 2,
         "template": "reviewer@1",
         "path": "~/.claude/agents/readonly-reviewer.md"
@@ -487,7 +481,8 @@
         "prior": {
           "alpha": 3,
           "beta": 2
-        }
+        },
+          "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：没有实测口径，也没有可引用的文献值。"
       },
       "cost": {
         "setup_minutes": 3,
@@ -572,10 +567,7 @@
       "remedy": {
         "kind": "generate",
         "dim": "skill",
-        "agents": {
-          "claude_code": "native",
-          "codex": "adaptation_required"
-        },
+        "agents": {"claude_code": "native", "codex": "adaptation_required", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"},
         "level": 2,
         "template": "procedure@1",
         "slots": {
@@ -593,7 +585,8 @@
         "prior": {
           "alpha": 3,
           "beta": 2
-        }
+        },
+          "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：没有实测口径，也没有可引用的文献值。"
       },
       "cost": {
         "setup_minutes": 10,
@@ -643,10 +636,7 @@
       "remedy": {
         "kind": "hook",
         "dim": "hook",
-        "agents": {
-          "claude_code": "native",
-          "codex": "manual"
-        },
+        "agents": {"claude_code": "native", "codex": "manual", "opencode": "adaptation_required", "pi": "adaptation_required", "hermes": "adaptation_required", "dsh": "adaptation_required"},
         "level": 2,
         "scope": "project",
         "template": "post-edit-check@2",
@@ -662,7 +652,8 @@
         "prior": {
           "alpha": 4,
           "beta": 2
-        }
+        },
+          "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：一次漏验或晚构建的代价取决于后续返工时长，需要按会话实测（cost_time 返工段），尚未接入；没有可引用的文献值。"
       },
       "cost": {
         "setup_minutes": 3
@@ -763,10 +754,7 @@
       "remedy": {
         "kind": "workflow",
         "dim": "flow",
-        "agents": {
-          "claude_code": "native",
-          "codex": "native"
-        },
+        "agents": {"claude_code": "native", "codex": "native", "opencode": "adaptation_required", "pi": "adaptation_required", "hermes": "adaptation_required"},
         "level": 4
       },
       "benefit": {
@@ -775,7 +763,8 @@
         "prior": {
           "alpha": 2,
           "beta": 2
-        }
+        },
+          "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：没有实测口径，也没有可引用的文献值。"
       },
       "cost": {
         "setup_minutes": 15
@@ -832,10 +821,7 @@
       "remedy": {
         "kind": "rule",
         "dim": "rule",
-        "agents": {
-          "claude_code": "native",
-          "codex": "native"
-        },
+        "agents": {"claude_code": "native", "codex": "native", "opencode": "manual", "pi": "manual", "hermes": "manual", "dsh": "manual"},
         "level": 1,
         "scope": "project",
         "template": "paragraph@2"
@@ -846,7 +832,8 @@
         "prior": {
           "alpha": 3,
           "beta": 2
-        }
+        },
+          "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：没有实测口径，也没有可引用的文献值。"
       },
       "cost": {
         "setup_minutes": 2,
@@ -912,9 +899,7 @@
       "remedy": {
         "kind": "model",
         "dim": "model",
-        "agents": {
-          "codex": "native"
-        },
+        "agents": {"codex": "native"},
         "level": 1,
         "path": "~/.codex/config.toml model_reasoning_effort"
       },
@@ -924,7 +909,8 @@
         "prior": {
           "alpha": 3,
           "beta": 2
-        }
+        },
+          "unit_minutes_note": "数值为产品默认、未校准，只用于候选内部排序，卡片显示「未估算」。未估算原因：没有实测口径，也没有可引用的文献值。"
       },
       "cost": {
         "setup_minutes": 1
