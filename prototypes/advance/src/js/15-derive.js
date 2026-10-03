@@ -69,7 +69,7 @@ const PSIG = [
   ['per_day', 'M', 0.25, 'mean', 'day', [[1, 20], [2, 40], [3, 52], [5, 70], [10, 90]], '每日会话数'],
   ['agents_day', 'M', 0.25, 'mean', 'day', [[1, 30], [2, 70], [3, 88], [5, 95]], '同日使用的 Agent 数'],
   ['subagents', 'M', 0.15, 'ratio', 'session', [[0, 40], [0.1, 55], [0.3, 75], [0.6, 92], [1, 95]], '子代理并行度（≥ 2 个子代理同时运行的会话占比）'],
-  ['verify', 'V', 0.70, 'ratio', 'turn', [[0, 5], [1, 95]], '要求或运行测试 / 编译 / 检查的轮次占比'],
+  ['verify', 'V', 0.70, 'ratio', 'turn', [[0, 5], [0.05, 25], [0.3, 50], [0.6, 85], [1, 95]], '你要求测试 / 编译 / 检查的轮次占比（Agent 自行跑的不算）'],
   ['rework', 'V', 0.30, 'ratio', 'session', [[0, 40], [0.1, 60], [0.25, 80], [0.5, 95], [1, 95]], '回滚与重做率（有回滚 / 重做的会话占比）']
 ];
 const PSIGK = {}; PSIG.forEach((x) => { PSIGK[x[0]] = x; });
@@ -77,6 +77,12 @@ function pl(x, an) {
   if (x <= an[0][0]) return an[0][1];
   for (let i = 1; i < an.length; i++) if (x <= an[i][0]) { const [x0, y0] = an[i - 1], [x1, y1] = an[i]; return y0 + (y1 - y0) * (x - x0) / (x1 - x0); }
   return an[an.length - 1][1];
+}
+// 线上 facts 行 → 会话上供人格计算读取的字段（msgs / corr 记 0 供别处求和，原行留在 raw 里，未知仍是未知）。
+// LV.hydrate（90-live-core.js）与前后端对拍工具 tools/persona-eval.mjs 共用这一份映射
+function psRowFields(r) {
+  return { msgs: r.msgs || 0, corr: r.corr || 0, dk: r.dk, dn: r.dn, vk: r.vk, op: r.op, t0: r.t0, t1: r.t1,
+    ik: r.ik, kn: r.kn, ol: r.ol, oa: r.oa, os: r.os, sc: r.sc, rb: r.rb, raw: r };
 }
 // one session's contributions: ratio signals as (k, n) clusters, mean signals as a mapped score
 function psContrib(s) {

@@ -132,7 +132,7 @@ def facts(overview_body: dict | None, extra: dict | None = None) -> list[dict]:
          "detail": friction and f"{friction['n']} 次工具失败"},
         {"stage": "verification", "label": "验证占比",
          "value": None if verify is None else round(verify, 3),
-         "detail": "运行过测试/构建命令的会话占比"},
+         "detail": "运行过测试、lint、类型检查或构建命令的会话占比"},
     ]
 
 
@@ -211,6 +211,7 @@ def _page(gw, scope_dict: dict, submit: bool):
 def _sql_extra(gw, scope_dict: dict) -> tuple[tuple, dict]:
     """First/last session start, per-agent hours, top error class and verification share
     within the scope window (analysed main sessions only)."""
+    from ..uiview.facts import is_validation_command
     from . import main_where
 
     if not has_db(gw):
@@ -237,22 +238,23 @@ def _sql_extra(gw, scope_dict: dict) -> tuple[tuple, dict]:
                 f"SELECT error_class, COUNT(*) n FROM tool_call WHERE error_class IS NOT NULL "
                 f"AND session_uid IN (SELECT s.session_uid FROM session s WHERE {where}) "
                 f"GROUP BY error_class ORDER BY n DESC, error_class LIMIT 1", args).fetchone()
-            tests = " OR ".join(f"t.command_head LIKE '{p}%'" for p in VERIFY_HEADS)
-            total, verified = db.execute(
-                f"SELECT COUNT(*), SUM(EXISTS(SELECT 1 FROM tool_call t WHERE "
-                f"t.session_uid = s.session_uid AND ({tests}))) FROM session s WHERE {where}",
-                args).fetchone()
+            total = db.execute(f"SELECT COUNT(*) FROM session s WHERE {where}",
+                               args).fetchone()[0]
+            # One criterion for "ran a validation command" across the App: the facts rows,
+            # the persona V axis and key moments all use ``facts.is_validation_command``.
+            verified: set[str] = set()
+            for uid, head in db.execute(
+                    f"SELECT DISTINCT t.session_uid, t.command_head FROM tool_call t WHERE "
+                    f"t.command_head IS NOT NULL AND t.session_uid IN (SELECT s.session_uid "
+                    f"FROM session s WHERE {where})", args):
+                if uid not in verified and is_validation_command(head):
+                    verified.add(uid)
     except Exception:  # noqa: BLE001 - facts degrade to unknown, the reveal still renders.
         return (None, None), {}
     return (first, last), {
         "agent_hours": {k: v for k, v in agent_hours.items() if v > 0},
         "top_error_class": {"class": row[0], "n": row[1]} if row else None,
-        "verification_share": (verified or 0) / total if total else None}
-
-
-VERIFY_HEADS = ("pytest", "npm test", "pnpm test", "yarn test", "npx jest", "npx vitest",
-                "cargo test", "go test", "swift test", "make test", "xcodebuild test",
-                "uv run pytest", "python -m pytest", "npm run test", "pnpm check")
+        "verification_share": len(verified) / total if total else None}
 
 
 def load(gw, scope_dict: dict, *, submit: bool = True) -> dict:

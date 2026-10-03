@@ -244,6 +244,27 @@ test('empty spine and missing endpoints: owned routes render honest empty states
   expect(errors).toEqual([]);
 });
 
+test('G1 port on the live stub: core facts carry every persona unit, so A2 shows the multi-signal structure', async ({ page }) => {
+  const errors = collectErrors(page);
+  const gw = await stubGateway(page, 'core');
+  await openLive(page, 'persona');
+  await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  await expect(page.locator('.persona-hero .letters')).toBeVisible();
+  const p = await page.evaluate(() => ({ method: CUR.persona && CUR.persona.method, code: CUR.persona && CUR.persona.code,
+    units: ALL.every((s) => s.dn != null && s.oa !== undefined && s.rb !== undefined),
+    axes: CUR.persona.axes.map((a) => [a.k, a.state, a.signals.map((x) => x.key)]) }));
+  // computed in the App from the rows (no /v1/uiview/persona in the core manifest), every axis from ≥ 2 signals
+  expect(p.method).toBe('client-port');
+  expect(p.units).toBe(true);
+  expect(gw.seen.some((x) => x.path === '/v1/uiview/persona')).toBe(false);
+  p.axes.forEach(([, state, keys]) => { expect(state).toBe('settled'); expect(keys.length).toBeGreaterThanOrEqual(2); });
+  await expect(page.locator('.persona-hero .letters .L')).toHaveText(p.code.split(''));
+  // 算法说明: V counts only turns where you asked for verification
+  await page.locator('[data-act="method"]').first().click();
+  await expect(page.locator('.modal')).toContainText('Agent 自己主动跑的测试不算');
+  await expect(page.locator('.modal')).toContainText('你要求测试 / 编译 / 检查的轮次占比');
+  expect(errors).toEqual([]);
+});
 test('G1 port: rows with unit counts compute the persona client-side (multi-signal axes) without a server round trip', async ({ page }) => {
   test.skip(!!PASS, 'synthetic rows');
   await stubGateway(page, 's1', routes());

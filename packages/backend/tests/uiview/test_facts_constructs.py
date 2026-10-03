@@ -53,7 +53,7 @@ def test_evidence_splits_requested_and_agent_run_verification():
     p = {"axes": [{"k": "I", "n_units": 1, "k_units": 0}]}
     ev = persona.evidence(rows, aux, p, {"verify": 100.0, "verify_n": 1}, {})
     assert ev["V"]["requested_turns"] == 1 and ev["V"]["agent_only_turns"] == 1
-    assert ev["V"]["detail"] == "用户要求验证 1 轮 · 仅 Agent 自行运行 1 轮"
+    assert ev["V"]["detail"] == "你要求验证 1 轮 · 仅 Agent 自行运行 1 轮"
     # Old two-element turns: the split is unknown, not 0.
     old = persona.evidence(rows, {"s1": {"open": 1, "turns": [[1, 1]]}}, p,
                            {"verify": 100.0, "verify_n": 1}, {})

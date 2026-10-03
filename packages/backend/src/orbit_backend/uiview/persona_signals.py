@@ -56,8 +56,8 @@ SIGNALS = (
      ((1, 30), (2, 70), (3, 88), (5, 95)), "同日使用的 Agent 数"),
     ("subagents", "M", 0.15, "ratio", "session",
      ((0, 40), (0.1, 55), (0.3, 75), (0.6, 92), (1, 95)), "子代理并行度（≥ 2 个子代理同时运行的会话占比）"),
-    ("verify", "V", 0.70, "ratio", "turn", ((0, 5), (1, 95)),
-     "要求或运行测试 / 编译 / 检查的轮次占比"),
+    ("verify", "V", 0.70, "ratio", "turn", ((0, 5), (0.05, 25), (0.3, 50), (0.6, 85), (1, 95)),
+     "你要求测试 / 编译 / 检查的轮次占比（Agent 自行跑的不算）"),
     ("rework", "V", 0.30, "ratio", "session",
      ((0, 40), (0.1, 60), (0.25, 80), (0.5, 95), (1, 95)), "回滚与重做率（有回滚 / 重做的会话占比）"),
 )
@@ -79,27 +79,45 @@ def pl(x: float, anchors) -> float:
 
 
 # -- per-session units ------------------------------------------------------------------------
+# Meaning of the per-row unit columns on the wire (dk dn vk ...). Part of
+# ``services.sections.rules_digest``: bump it when a unit changes meaning so cached
+# uiview_facts snapshots are recomputed instead of serving the old unit to new anchors.
+# v2: ``vk`` counts only turns where the user asked for verification (was: asked or ran).
+UNITS_VERSION = "persona-units-v2"
+
+
+def requested_turns(turns) -> int:
+    """V axis unit: turns in which *the user* asked for a test / build / check.
+
+    The axis asks how the user makes sure the work is right, so validation commands the agent
+    runs on its own (Claude Code and Codex often run tests unprompted) are not counted; they
+    stay visible as evidence (``agent_only_turns``). A turn is ``[steps, verify, requested,
+    ran, …]``; snapshots from before that split carry ``[steps, verify]`` only and fall back
+    to ``verify``.
+    """
+    return sum(1 for t in turns if (t[2] if len(t) >= 4 else t[1]))
+
+
 def session_units(row: dict, a: dict | None) -> dict:
     """The persona inputs of one session, from a facts row + its aux, or (``a is None``) from
     a wire row that already carries ``dk`` / ``dn`` / … from ``facts.aux_units``."""
     if a is not None:
         turns = a.get("turns") or []
         u = {"dk": sum(1 for t in turns if t[0] >= STEP_THRESHOLD), "dn": len(turns),
-             "vk": sum(1 for t in turns if t[1]),
+             "vk": requested_turns(turns),
              "ik": sum(1 for t in turns if len(t) >= 6 and t[4] and t[5]),
              "kn": sum(1 for t in turns if len(t) >= 6 and t[5]),
              "op": a.get("open"), "ol": a.get("olen"), "oa": a.get("oacc"),
              "os": a.get("ospec"), "sc": a.get("sub"), "rb": a.get("rb"),
              "t0": a.get("t0"), "t1": a.get("t1")}
-        # Snapshots from before the split carry only ``open``: it stands in for ``oa``.
-        if u["oa"] is None and u["op"] is not None and "oacc" not in a:
-            u["oa"] = u["op"]
     else:
         src = row
         u = {k: src.get(k) for k in ("dk", "dn", "vk", "ik", "kn", "op", "ol", "oa", "os",
                                      "sc", "rb", "t0", "t1")}
-        if u["oa"] is None and u["op"] is not None and "oa" not in src:
-            u["oa"] = u["op"]
+    # Snapshots from before the split carry only ``open``: it stands in for ``oa`` (new
+    # snapshots set both or neither, so this is the same rule as 15-derive.js psContrib).
+    if u["oa"] is None and u["op"] is not None:
+        u["oa"] = u["op"]
     u["msgs"], u["corr"] = row.get("msgs"), row.get("corr")
     return u
 

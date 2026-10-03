@@ -48,7 +48,10 @@ test('unknown outcome / verify never shows as 0 % or 完成', async ({ page }) =
   // A2 persona: facts line, V-axis evidence and the per-agent fit rows never read 0 % / 完成 0%
   await page.evaluate(() => edSet('advance', 'persona'));
   await expect(page.locator('#main .pe-facts')).toBeVisible();
-  await expect(page.locator('#main .pe-facts')).toContainText('— 要求验证');
+  // the facts line reads the V axis's own turn unit (vk / dn), which this stub still carries; only the session-level
+  // verify flag is unknown here, so it must not surface as 0 %
+  await expect(page.locator('#main .pe-facts')).toContainText('轮次你要求验证');
+  expect(await page.locator('#main .pe-facts').textContent()).not.toMatch(/(?<!\d)0% 轮次/);
   await expect(page.locator('#main')).not.toContainText('0% 要求验证');
   await expect(page.locator('#main')).not.toContainText('0% 会话要求或运行了验证');
   await expect(page.locator('#main')).not.toContainText('完成 0%');
