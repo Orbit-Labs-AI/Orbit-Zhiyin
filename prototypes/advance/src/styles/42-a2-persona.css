@@ -9,6 +9,11 @@
 .fp2 .fps:hover path:first-child,.fp2 .fps:focus-visible path:first-child{fill:var(--field);fill-opacity:.6}
 .fp2 .fps.sel path:first-child{fill:transparent}
 .fp2 .fps:focus-visible path:first-child{stroke:var(--focus);stroke-width:2}
+/* 轨道色带：只有色带本身着色（低饱和、略透），基线以内与色带之外都直接是纸面，没有底盘或衬带 */
+:root{--fp-base:var(--h1);--fp-bo:.9}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fp-base:var(--h2);--fp-bo:.85}}
+:root[data-theme="dark"]{--fp-base:var(--h2);--fp-bo:.85}
+.fp2 .fpo{fill-opacity:var(--fp-bo)}
 .fp2 .fp-orbw{transition:opacity .2s}
 .fp2.fp-sel :is(.fp-orbw,.fp-pls){opacity:.28}
 .fp2 .fp-pls{transition:opacity .2s}
