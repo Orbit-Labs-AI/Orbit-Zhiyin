@@ -1,20 +1,30 @@
-# TOKEN_REPORT — online、offline 与研究成本
+# TOKEN_REPORT — history 处理、online 与研发成本
 
-正式 held-out：Ours 4/4、LLM 4/4、Vanilla 3/4。**成本比较同时计入 online 执行与 offline 学习。** LLM 为 693,808 + 207,305 = **901,113 tokens**；Ours 按相同口径为 1,177,452 + 347,171 = **1,524,623 tokens**，相对 LLM 增加 **69.19%**，相对 vanilla 增加 110.78%。
+**Offline 指正式方法对给定 history 的一次处理成本，debug、失败重试和 validation 修订不计入这项比较。** LLM 首次从 history 生成个性化 Skill 的实测为 **98,443 tokens**（90,857 input + 7,586 output），加上正式 online 693,808，按此费用口径合计 **792,251 tokens**。此前 207,305 的数字包含 108,862 validation 修订，属于累计学习调用账本，不能当作一次 history 处理成本。
 
-| arm | 通过 / 全部 | online tokens | offline tokens | online + offline | 总 tokens / success |
+必须区分两条 ours 路径：原统计分析与推荐算法不调用模型，**offline = 0**；但本轮 4/4 的正式 ours 在此之外使用了 `recommend.learn` 生成 Skill，首次成功调用为 **113,376 tokens**。因此，本轮结果是“LLM 辅助技能学习 + 算法检索”，不能把其 4/4 成绩标为纯算法、0-token 的 history→Skill 路径。纯算法路径在这四道 test 上没有独立运行成绩。
+
+| history 处理路径 / 阶段 | 模型调用 | 一次成功处理 tokens | 适用范围 |
+| --- | ---: | ---: | --- |
+| Ours：统计分析、推荐与确定性检索 | 0 | **0** | 原算法路径；冻结 E2E 验收本身也为 0 模型调用 |
+| 本轮 Ours：额外从 history 生成 Skill | 1 | **113,376** | `adaptation-v1/ours-attempt-2/model/call-02` |
+| LLM：从 history 生成个性化 Skill | 1 | **98,443** | `adaptation-v1/llm/model/call-01` |
+
+下表把现有正式 online 费用与一次成功 history 处理费用相加，按用户指定口径排除 debug。Offline 每组只计一次，不对每道题重复添加。
+
+| arm | 正式通过 / 全部 | online tokens | 一次 history 处理 | 口径内合计 | 合计 / success |
 | --- | --- | --- | --- | --- | --- |
 | Vanilla | 3/4 | 723,323 | 0 | 723,323 | 241,108 |
-| Ours | 4/4 | 1,177,452 | 347,171 | 1,524,623 | 381,156 |
-| LLM | 4/4 | 693,808 | 207,305 | 901,113 | 225,278 |
+| 本轮 Ours（LLM 辅助） | 4/4 | 1,177,452 | 113,376 | 1,290,828 | 322,707 |
+| LLM | 4/4 | 693,808 | 98,443 | 792,251 | 198,063 |
 
-这里的 offline 指两轮归纳/修订的 adaptation 调用，包含已消耗的被拒调用；每组累计一次，再在本轮 4 道 test 上摊销，不对每道题重复添加。共享 history、headroom 和验证研究成本在后文研究账本单列，因此上表不是整个研究或真实部署的完整总拥有成本。
+按此费用归类，本轮 ours 比 LLM 高 62.93%。**版本边界：online 成绩来自 validation 修订后的 v2 资产，history-only 费用来自 v1 首次成功调用。** 此表是排除研发费用后的账面归类，不是“只用 v1 资产即可复现相同成绩”的实测，也不是从零重建冻结 v2 资产的完整费用。不能把未运行的纯算法 ours 与本轮 online 成绩拼接成新的实验组。
 
-所有正式 cohort usage 完整。Ours 相对 LLM 的成功率持平，但 online 和 offline 都更高，因此本样本下不存在靠重复同分布任务回收额外学习成本的 token 盈亏平衡点。不能用 validation 的节省率替代 test 的实测。
+共享 history 的生成、headroom、validation、失败重试和修订均在后文研发账本保留，不计入上述比较。所有正式 online cohort usage 完整；不能用 validation 的节省率替代 test 实测。
 
 ## 正式逐题 tokens
 
-本节仅列 online 执行成本：Ours 相对 LLM 增加 69.71%，相对 vanilla 增加 62.78%；含 offline 的比较以上方总成本表为准。
+本节仅列 online 执行成本：Ours 相对 LLM 增加 69.71%，相对 vanilla 增加 62.78%；加入一次 history 处理的费用归类见上表。
 
 | task | Vanilla | Ours | LLM | Ours / vanilla | Ours / LLM |
 | --- | --- | --- | --- | --- | --- |
@@ -43,21 +53,23 @@
 
 有错误请求未报告 usage 时，总量为 UNKNOWN，单独保留 `known_total_tokens` 下限，不能把缺失当作 0。正常任务失败照常计入 token；额度错误、开发拒绝、预检、学习、headroom 和消融均在全尝试 ledger 中保留。正式 online 统计只使用 `cohorts/<task>.json` 按预先规则选定的完整同 provider 三组，绝不按成功与否或 token 高低选运行。
 
-逐任务 ratio 为 ours / baseline；合计 ratio 是两臂总 token 之比；二者平均方式不同，均明确标注。`online tokens/success = 该臂所有正式任务 online token / 通过题数`；首表的 `总 tokens/success = (该臂所有正式任务 online token + offline token) / 通过题数`，均包含该臂失败题的执行成本。通过题数不同的组不宜仅按这个商推断因果效率。
+逐任务 ratio 为 ours / baseline；合计 ratio 是两臂总 token 之比；二者平均方式不同，均明确标注。`online tokens/success = 该臂所有正式任务 online token / 通过题数`；费用归类表的 `合计/success = (该臂所有正式任务 online token + 一次成功 history 处理 token) / 通过题数`，均包含该臂失败题的执行成本。通过题数不同的组不宜仅按这个商推断因果效率。
 
-## 离线学习（offline / adaptation）成本
+## 学习调用归类：正式 history 处理与 debug 分开
 
-| 阶段 | Ours | LLM self-personalization |
-| --- | ---: | ---: |
-| v1：首次归纳及被拒调用 | 225,834（112,458 被拒 + 113,376 接受） | 98,443 |
-| v2：同 validation 反馈修订 | 121,337 | 108,862 |
-| 实测合计 | **347,171** | **207,305** |
+| 阶段 | 本轮 Ours | LLM self-personalization | 是否计入一次 history 处理 |
+| --- | ---: | ---: | --- |
+| v1：首次成功从 history 生成 | 113,376 | 98,443 | 是；纯统计 ours 另为 0 |
+| v1：引用检查误拒的失败调用 | 112,458 | 0 | 否，属于 debug |
+| v2：同 validation 反馈修订 | 121,337 | 108,862 | 否，属于开发修订 |
+| 被排除的 debug / 修订合计 | **233,795** | **108,862** | 不纳入正式成本比较 |
+| 全部学习调用账本 | **347,171** | **207,305** | 仅保留实际支出记录 |
 
-Ours 比 LLM 多 139,866 adaptation tokens。首次引用校验误拒消耗的 112,458 已计入；修复后可能避免该开销，但不能把“未来可以省”从本轮实测中扣除。两次投影不可用的尝试在模型调用前失败，不虚构 token；其错误仍留存。检索本身不调用模型。
+费用边界变化不删除已发生的调用。112,458 的误拒费用从正式方法比较中排除，仍保留在研发账本；validation 修订对两组按同一规则排除。两次投影不可用的尝试在模型调用前失败，不虚构 token。确定性检索本身不调用模型。逐调用 usage 和正文哈希见 `evidence.json` 的 `adaptation_call_integrity`，其中 `adaptation` 汇总仍代表全部学习调用，而非新的正式成本口径。
 
 五条 history 的已知 token 合计为 921,952，其中一次 429 缺少 usage，因此只是下限。这批历史是两种学习 arm 的共享开发输入，未加到某一组的 online 或 adaptation。Oracle、verification、transport 预检、开发验证、Skill-only 对照也作为研究成本单列，不隐藏在最终 online 比较之外。
 
-## 实际余额与研究总成本
+## 研发账本与实际余额（不纳入上述方法成本比较）
 
 | key slot | 研究初始余额（元） | 正式 test 前（元） | 最终余额（元） | test 实扣（元） | 本轮实扣（元） |
 | --- | --- | --- | --- | --- | --- |

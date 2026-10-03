@@ -2,6 +2,8 @@
 
 正式 held-out：Ours 4/4、LLM 4/4、Vanilla 3/4。Ours online 为 1,177,452 tokens，相对 LLM 增加 69.71%，相对 vanilla 增加 62.78%。
 
+本报告的 Ours 是本轮新增的“LLM 根据 history 生成 Skill，再由算法检索”路径；两个 Skill 不是从原有 Catalog 直接选出的。原统计分析与资源库推荐路径本身是 0 token，但没有在这四道 test 上独立运行，不能用它的成本替代本轮 Ours。按“一次成功 history 分析 + 各 test task 执行”、排除 debug 的费用归类，本轮 Ours 合计 1,290,828、LLM 合计 792,251 tokens；具体调用来源与 v1 费用 / v2 资产的版本边界见 [TOKEN_REPORT](TOKEN_REPORT.md)。
+
 本轮修复了 history 到 Skill 的链路，并在成功率上优于 vanilla；但与 LLM 成功率持平、成本更高，**未达到 ours 全面优于 LLM / vanilla 的目标**。不再依据这批 test 调整实现或重跑到有利结果。
 
 | arm | 通过 / 全部 | 失败 / 未知 | online tokens | tokens / success |
