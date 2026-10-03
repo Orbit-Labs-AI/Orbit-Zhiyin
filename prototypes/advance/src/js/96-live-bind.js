@@ -103,7 +103,7 @@ if (LV.live) {
     TL.invalidate((r) => r === TL.statusResource());
     TL.ensureStatus().catch(() => { /* the strip keeps the last status */ });
   }, 20000);
-  const baseRender = render, baseSide = renderSide;
+  const baseRender = render;
   render = function () {
     LV.pump(S.route);
     baseRender();
@@ -112,10 +112,12 @@ if (LV.live) {
     const strip = lvStrip(S.route);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
-  renderSide = function () {
-    baseSide();
-    const el = $('#side') && $('#side').querySelector('.sb-foot .pv .row.cap span');
-    if (el) el.textContent = LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务';
+  // sidebar indicator: the gateway's state instead of the demo index mode; the count is the live session spine
+  sideIdx = function () {
+    if (LV.state === 'connecting') return TL.error ? { st: 'err', n: null, t: '本机服务未连接' } : { st: 'busy', n: null, t: '正在连接本机服务' };
+    if (LV.state === 'error') return { st: 'err', n: ALL.length || null, t: '本机服务未连接' };
+    if (LV.state === 'computing') return { st: 'busy', n: ALL.length || null, t: '索引中' };
+    return { st: 'live', n: ALL.length, t: '实时' };
   };
   TL.start();
 }

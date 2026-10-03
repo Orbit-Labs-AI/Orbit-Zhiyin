@@ -11,33 +11,41 @@ function spark(arr, w, h) {
 }
 function weekly(fn, endDay, n) { const out = []; for (let k = n - 1; k >= 0; k--) { const b = endDay - k * 7, a = b - 6; out.push(fn(ALL.filter((s) => s.d >= a && s.d <= b && pass(s, { noExtra: true })))); } return out; }
 const pt = (C, r, a) => [C + r * Math.sin(a), C - r * Math.cos(a)];
-function petal(C, deg, L) {
-  const a = deg * Math.PI / 180, w = 0.42;
-  const tip = pt(C, L, a), c1 = pt(C, L * 0.62, a + w), c2 = pt(C, L * 0.62, a - w);
-  return 'M' + C + ' ' + C + 'Q' + c1[0].toFixed(1) + ' ' + c1[1].toFixed(1) + ' ' + tip[0].toFixed(1) + ' ' + tip[1].toFixed(1) + 'Q' + c2[0].toFixed(1) + ' ' + c2[1].toFixed(1) + ' ' + C + ' ' + C + 'Z';
+// 协作人格的花：16 型各一朵。四个维度各管一个花型特征，形状由四字母决定，比例随该轴强度（50 → 85+）微调：
+//   M 多线 / F 专注 → 12 瓣 / 5 瓣
+//   I 即兴 / P 规划 → 花瓣顺时针旋卷、圆头 / 端正、尖头
+//   D 委托 / S 掌舵 → 长瓣、小花心 / 短阔瓣、大花心（花心里一圈舵环）
+//   V 求证 / T 信任 → 重瓣（身后再一轮，错开半格）/ 单瓣
+// 以 (C, C) 为圆心、R 为最大半径；领瓣（lead）的瓣尖朝 0°（12 点），由调用方整体旋转。major = 其余前排花瓣，minor = 身后一轮，
+// hr = 花心半径，helm = 是否画舵环。字母取 p.axes 的结论（live 里未定的轴是「?」），没有时按分值以 50 为界取一极。
+const BLOOM_K = ['D', 'I', 'M', 'V'];
+function bloomCode(p) { return BLOOM_K.map((k, i) => (p.axes && p.axes[i] && p.axes[i].letter) || axisView(p, i).letter).join(''); }
+function bloom(p, C, R) {
+  const av = BLOOM_K.map((k, i) => axisView(p, i)), u = (i) => clamp((av[i].strong - 50) / 35, 0, 1);
+  const D = av[0].letter === 'D', I = av[1].letter === 'I', M = av[2].letter === 'M', V = av[3].letter === 'V';
+  const n = M ? 12 : 5, L = D ? 0.88 + 0.12 * u(0) : 0.78 - 0.06 * u(0), hr = D ? 0.1 : 0.19 + 0.06 * u(0);
+  const w = (M ? 0.13 : 0.3) * (D ? 1 : 1.22), tw = I ? (24 + 22 * u(1)) * Math.PI / 180 : 0, r0 = hr * 0.92;
+  const f = (v) => v.toFixed(1);
+  // 一片花瓣：瓣轴上的点 (x 横向, y 径向) 绕圆心转到 th，旋卷时越靠瓣尖转得越多；即兴的前缘更饱满（风车）
+  const pet = (th, len, wid) => {
+    const h = len - r0, wr = wid * (I ? 1.18 : 1), wl = wid * (I ? 0.8 : 1), sd = I ? [[1.2, 0.34], [0.86, 1]] : [[1.15, 0.3], [0.62, 0.84]];
+    const P = (x, y) => { const a = th + tw * Math.pow(clamp((y - r0) / h, 0, 1.05), 1.3); return f(C + R * (y * Math.sin(a) + x * Math.cos(a))) + ' ' + f(C + R * (-y * Math.cos(a) + x * Math.sin(a))); };
+    return 'M' + P(0, r0) + 'C' + P(wr * sd[0][0], r0 + sd[0][1] * h) + ' ' + P(wr * sd[1][0], r0 + sd[1][1] * h) + ' ' + P(0, len) +
+      'C' + P(-wl * sd[1][0], r0 + sd[1][1] * h) + ' ' + P(-wl * sd[0][0], r0 + sd[0][1] * h) + ' ' + P(0, r0) + 'Z';
+  };
+  const st = Math.PI * 2 / n; let major = '', minor = '', lead = '';
+  for (let k = 0; k < n; k++) { const d = pet(k * st - tw, L, w * L); if (k) major += d; else lead = d; }
+  if (V) for (let k = 0; k < n; k++) minor += pet((k + 0.5) * st - tw, L * (0.8 + 0.1 * u(3)), w * L * 0.92);
+  return { major, minor, lead, hr: hr * R, helm: !D, n };
 }
-const DIRS = { D: 0, S: 180, I: 90, P: 270, M: 45, F: 225, V: 315, T: 135 };
-function petals(p, C, scale) {
-  let major = '', minor = '';
-  const vals = { D: p.v.D, S: 100 - p.v.D, I: p.v.I, P: 100 - p.v.I, M: p.v.M, F: 100 - p.v.M, V: p.v.V, T: 100 - p.v.V };
-  Object.keys(DIRS).forEach((k) => { const big = vals[k] >= 50; const d = petal(C, DIRS[k], (16 + vals[k] * 0.56) * scale); if (big) major += d; else minor += d; });
-  return { major, minor };
-}
+// 一个类型的代表花（算法说明的 16 型表）：四个维度都取该极、强度 72
+const typeP = (code) => ({ v: { D: code[0] === 'D' ? 72 : 28, I: code[1] === 'I' ? 72 : 28, M: code[2] === 'M' ? 72 : 28, V: code[3] === 'V' ? 72 : 28 } });
+// 小尺寸花（菜单栏、小组件、分享卡，80 视框）：领瓣并入前排；花瓣从花心外缘长出，花心不用填底色
+function bloomGlyph(p) { const g = bloom(p, 40, 36); return { major: g.lead + g.major, minor: g.minor, hr: +g.hr.toFixed(1) }; }
 function glyphSVG(p, size) {
-  const g = petals(p, 40, 0.68);
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 80 80" aria-hidden="true"><path d="' + g.minor + '" fill="var(--h2)"/><path d="' + g.major + '" fill="var(--ink-1)"/></svg>';
-}
-function fpSVG(L, p, size, opt) {
-  opt = opt || {};
-  const C = 200;
-  let hours = '';
-  const hc = new Array(24).fill(0); L.forEach((s) => { hc[s.h]++; });
-  const hm2 = Math.max(1, ...hc);
-  for (let k = 0; k < 48; k++) { const h = Math.floor(k / 2); const v = (k % 2 === 0 ? hc[h] : (hc[h] + hc[(h + 1) % 24]) / 2) / hm2; const a = (k + 0.5) / 48 * Math.PI * 2; const p1 = pt(C, 100, a), p2 = pt(C, 104 + v * 24, a); hours += 'M' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + 'L' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1); }
-  const dots = L.map((s) => { const a = (s.h + s.mi / 60) / 24 * Math.PI * 2; const q = pt(C, 140 + Math.min(s.dur, 126) / 126 * 40, a); const r = (2.3 + Math.min(s.msgs, 20) / 20 * 2).toFixed(1); return '<circle class="fpd" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + r + '" fill="' + agent(s.a).c + '" stroke="var(--surface)" stroke-width="1.2"' + (opt.interactive ? ' data-tf="sess|' + s.id + '" data-act="openSession" data-id="' + s.id + '" style="cursor:pointer"' : '') + '/>'; }).join('');
-  const g = petals(p, C, 1);
-  const lbl = opt.labels ? Object.keys(DIRS).map((k) => { const vals = { D: p.v.D, S: 100 - p.v.D, I: p.v.I, P: 100 - p.v.I, M: p.v.M, F: 100 - p.v.M, V: p.v.V, T: 100 - p.v.V }; const q = pt(C, 16 + vals[k] * 0.56 + 11, DIRS[k] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 4).toFixed(1) + '" text-anchor="middle" font-size="11" font-family="var(--font-num)" font-weight="' + (vals[k] >= 50 ? 700 : 500) + '" fill="' + (vals[k] >= 50 ? 'var(--ink-1)' : 'var(--ink-3)') + '">' + k + '</text>'; }).join('') + [['00', 0], ['06', 90], ['12', 180], ['18', 270]].map((h) => { const q = pt(C, 194, h[1] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 3.5).toFixed(1) + '" text-anchor="middle" font-size="9.5" font-family="var(--font-num)" fill="var(--ink-3)">' + h[0] + '</text>'; }).join('') : '';
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：内核是四个维度，中环是 24 小时节律，外环每个点是一个会话" style="overflow:visible;max-width:100%;height:auto"><circle cx="200" cy="200" r="186" fill="var(--surface)" stroke="var(--line)"/><circle cx="200" cy="200" r="132" fill="none" stroke="var(--hair)"/><circle cx="200" cy="200" r="96" fill="none" stroke="var(--line)"/><circle cx="200" cy="200" r="68" fill="var(--bg)" stroke="var(--hair)"/><g class="hours"><path d="' + hours + '" fill="none" stroke="var(--ink-3)" stroke-width="3.2" stroke-linecap="round"/></g><g class="dots">' + dots + '</g><g class="pet"><path d="' + g.minor + '" fill="var(--h2)"/><path d="' + g.major + '" fill="var(--ink-1)"/></g><circle cx="200" cy="200" r="5" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.5"/>' + lbl + '</svg>';
+  const g = bloomGlyph(p);
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 80 80" aria-hidden="true" data-bloom="' + bloomCode(p) + '"><path d="' + g.minor + '" fill="var(--h2)"/><path d="' + g.major + '" fill="var(--ink-1)"/>' +
+    '<circle cx="40" cy="40" r="' + g.hr + '" fill="none" stroke="var(--ink-1)" stroke-width="1.6"/><circle cx="40" cy="40" r="1.6" fill="var(--ink-1)"/></svg>';
 }
 TIPS.sess = (id) => { const s = BYID[id]; if (!s) return ''; return '<b>' + esc(s.title) + '</b>\n<span class="mono" style="opacity:.8;font-size:11px">' + agent(s.a).name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + dur(s.dur) + '</span>'; };
 TIPS.def = (k) => ({ n: '会话数：所选范围内开始的会话。', h: '协作时长：会话从第一条消息到最后一次 Agent 输出的时间之和。', m: '你发出的消息：只计你本人输入，不含 Agent 回复。', a: '自主比 = Agent 步数 ÷ 你的消息数。\nAgent 步数 = 工具调用 + 文字回复。', f: '摩擦率 = 纠偏与不满消息 ÷ 你的消息数。\n分类由本地 Agent 判定。' })[k];

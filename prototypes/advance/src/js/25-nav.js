@@ -14,6 +14,8 @@ function go(route, keepScroll) {
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
   edRemember(route);   // App: the page to come back to next launch (26-edition.js)
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
+  // a fresh visit starts the page and each of its panes (88-panes.css) at the top instead of restoring the last scroll
+  if (!keepScroll) UI_SCROLLED.forEach((el) => { if (!el.closest('#side')) UI_SCROLLED.delete(el); });
   render();
   if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
@@ -65,6 +67,7 @@ function render() {
   // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
   placeDeps();
   uiRestore(snap);
+  paneSync();
   if (window.__lvRendered) window.__lvRendered();
 }
 function renderMain() {
@@ -131,8 +134,8 @@ function renderWtop() {
   $('#wtop').innerHTML = '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="winClose" aria-label="关闭窗口"></button><button type="button" class="y" data-act="winMin" aria-label="最小化"></button><button type="button" class="g" data-act="winZoom" aria-label="' + (S.win.full ? '退出全屏' : '进入全屏；按住 ⌥ 点击为缩放') + '"></button></div>' +
     '<button type="button" class="ib sbtoggle" data-act="sideToggle" aria-label="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + '" aria-pressed="' + shown + '" aria-keyshortcuts="Control+Meta+S" data-tip="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + ' ' + kb('⌃⌘S') + '">' + ic('sidebar') + '</button>';
 }
-/* sidebar: collapsible groups in a scrolling middle; fixed footer = the published privacy card (local only · 0 B uploaded ·
-   redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
+/* sidebar: collapsible groups in a scrolling middle; fixed footer = the index indicator light (state dot · session count · index mode,
+   no card, on the sidebar's own background) and the user row (avatar · account · persona code), compacted onto the type scale */
 /* sidebar building blocks, shared by both editions (Advance shows every group, Lite the same groups with fewer pages) */
 const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
 // SIDE_EXTRA(): optional row under the edition switch, shared by both editions (live: import progress / reopen onboarding)
@@ -163,13 +166,16 @@ function renderSide() {
     group('agents', 'Agents', sideAgents(), '会话') +
     group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
 }
-// the published footer, shared by both editions: privacy card (local only · 0 B uploaded · redaction rules · index state) + user row
+// the published footer, shared by both editions: index indicator light (live / paused / manual) + session count, then the user row
+// sideIdx() → { st: 'live' | 'busy' | 'off' | 'err', n: session count or null, t: state label }; live mode (96-live-bind) swaps in the gateway state
+function sideIdx() {
+  if (S.paused) return { st: 'off', n: null, t: '采集已暂停' };
+  return { st: S.index === 'live' ? 'live' : 'off', n: 2416 + S.extraSrc.length * 37, t: S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动' };
+}
 function sideFoot() {
-  const idx = S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
-  const nRules = Object.values(S.rules).filter(Boolean).length, me = personaNow();
-  return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
-    '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +
-    '<span class="row cap" style="gap:6px">' + ic('sync', 13) + '<span>' + idx + '</span></span></button>' +
+  const x = sideIdx(), me = personaNow();
+  return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="sources" data-st="' + x.st + '" data-tip="打开设置 › 数据源">' +
+    '<span class="pv-dot" aria-hidden="true"></span>' + (x.n == null ? '' : '<span class="pv-n">' + fmt(x.n) + ' 个会话</span><span class="pv-sep" aria-hidden="true">·</span>') + '<span class="pv-t">' + x.t + '</span></button>' +
     '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? '<span class="tcode">' + me.code + '</span> · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
 }
 function personaNow() { return persona(sel({ noExtra: true })); }

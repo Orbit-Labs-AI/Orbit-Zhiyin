@@ -107,8 +107,8 @@ test('A2: code, axes and evidence equal /v1/uiview/persona; months from LASTDAY 
   await expect(evo.nth(0)).toContainText('样本不足');
   // evidence text per axis is the server's
   await expect(page.locator('.pe-evt').first()).toHaveText(P.axes[0].evidence.txt);
-  // compass: the unsettled M axis prints '?', rose and planets are drawn for real agents only
-  await expect(page.locator('svg.fp2 .fp-ax[data-k="M"] text').first()).toHaveText('?');
+  // compass: the unsettled M axis prints '?' in the flower's code (a grey flower), badges are drawn for real agents only
+  expect(await page.locator('svg.fp2 .fp-flower').first().getAttribute('data-code')).toMatch(/^..\?.$/);
   const pl = await page.locator('svg.fp2 .fp-pl').evaluateAll((els) => els.map((e) => e.dataset.a));
   expect(pl.length).toBeGreaterThan(3); expect(pl.every((a) => ['cc', 'cx', 'ds', 'pi', 'km', 'hm', 'oc'].includes(a))).toBe(true);
   await expect(page.locator('[data-act="vs"][data-v="pop"]')).toHaveCount(0);

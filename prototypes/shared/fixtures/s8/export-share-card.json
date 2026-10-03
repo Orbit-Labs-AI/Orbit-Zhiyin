@@ -2,37 +2,113 @@
   "eligible": true,
   "blocked_reason": null,
   "gate": {
-    "min_units": 30,
-    "min_active_days": 10,
+    "min_units": {
+      "D": 0,
+      "I": 0,
+      "M": 0,
+      "V": 0
+    },
+    "min_active_days": 1,
+    "min_sessions": 1,
     "axes": [
       {
-        "axis": "autonomy",
-        "n_units": 44
+        "axis": "D",
+        "n_units": 44,
+        "state": "settled"
       },
       {
-        "axis": "structure",
-        "n_units": 41
+        "axis": "I",
+        "n_units": 41,
+        "state": "settled"
       },
       {
-        "axis": "concurrency",
-        "n_units": 52
+        "axis": "M",
+        "n_units": 21,
+        "state": "settled"
       },
       {
-        "axis": "verification",
-        "n_units": 38
+        "axis": "V",
+        "n_units": 38,
+        "state": "settled"
       }
     ],
+    "sessions": 96,
     "active_days": 21
   },
   "code": "DIMV",
   "type_name": "指挥家",
   "copy": {
     "headline": "把目标交出去，把验收留给自己。",
+    "quote": [
+      "把目标交出去，",
+      "把验收留给自己。"
+    ],
+    "en": "The Conductor",
+    "line": "统揽全局的领军人，多个 Agent 齐头并进，亲自守住验收，速度与质量兼得。",
     "lines": [
       "指挥家 · The Conductor",
-      "整段目标交给 Agent，多线并进，坚持亲自验收。"
+      "统揽全局的领军人，多个 Agent 齐头并进，亲自守住验收，速度与质量兼得。"
     ]
   },
+  "axes": [
+    {
+      "k": "D",
+      "value": 71.0,
+      "letter": "D",
+      "strong": 71,
+      "left": "D 委托",
+      "right": "掌舵 S",
+      "state": "settled"
+    },
+    {
+      "k": "I",
+      "value": 62.0,
+      "letter": "I",
+      "strong": 62,
+      "left": "P 规划",
+      "right": "即兴 I",
+      "state": "settled"
+    },
+    {
+      "k": "M",
+      "value": 68.0,
+      "letter": "M",
+      "strong": 68,
+      "left": "M 多线",
+      "right": "专注 F",
+      "state": "settled"
+    },
+    {
+      "k": "V",
+      "value": 64.0,
+      "letter": "V",
+      "strong": 64,
+      "left": "V 求证",
+      "right": "信任 T",
+      "state": "settled"
+    }
+  ],
+  "v": {
+    "D": 71.0,
+    "I": 62.0,
+    "M": 68.0,
+    "V": 64.0
+  },
+  "period": "90",
+  "period_label": "近 90 天",
+  "window": [
+    "2026-07-06",
+    "2026-10-03"
+  ],
+  "span": {
+    "key": "90",
+    "kind": "quarter",
+    "label": "近 90 天",
+    "tag": "季卡",
+    "tag_en": "QUARTERLY",
+    "days": 90
+  },
+  "method": "uiview-persona-v0",
   "stats": [
     {
       "label": "会话",
@@ -47,9 +123,15 @@
       "hidden": false
     },
     {
-      "label": "任务",
-      "value": 58,
+      "label": "Agent",
+      "value": 3,
       "unit": "个",
+      "hidden": false
+    },
+    {
+      "label": "对话轮次",
+      "value": 44,
+      "unit": "轮",
       "hidden": false
     }
   ],

@@ -11,12 +11,13 @@ from orbit_backend.uiview import fetch
 
 
 def page(code="DPMV", n=30, days=10, units=30, ok=True):
-    axes = [{"k": k, "value": 70.0, "letter": ch, "left": "l", "right": "r",
+    axes = [{"k": k, "value": 70.0, "letter": ch, "strong": 70, "left": "l", "right": "r",
              "n_units": units, "state": "settled" if units else "no_data"}
             for k, ch in zip("DIMV", code, strict=True)]
-    return {"meta": {"period": "30", "method": "uiview-persona-v0", "scope_hash": "h" * 32},
-            "ok": ok and n >= 1, "n": n, "days": days, "code": code, "zh": "页面类型",
-            "axes": axes}
+    return {"meta": {"period": "30", "period_label": "近 30 天", "window": ["2026-09-04", "2026-10-03"],
+                     "method": "uiview-persona-v0", "scope_hash": "h" * 32},
+            "ok": ok and n >= 1, "n": n, "days": days, "agents_n": 3, "code": code,
+            "zh": "页面类型", "v": {"D": 70.0, "I": 30.0, "M": 70.0, "V": 70.0}, "axes": axes}
 
 
 @pytest.fixture
@@ -49,7 +50,13 @@ def test_eligible_card_with_copy_and_snapshot(env, canned):
     assert body["gate"]["min_sessions"] == 1 and body["gate"]["active_days"] == 10
     assert body["method"] == "uiview-persona-v0" and [a["k"] for a in body["axes"]] == list("DIMV")
     assert {s["label"]: s["value"] for s in body["stats"]} == {"会话": 30, "活跃天数": 10,
-                                                              "对话轮次": 30}
+                                                              "Agent": 3, "对话轮次": 30}
+    assert body["copy"]["quote"] == ["先把规格写清楚，", "再让每个 Agent 各司其职。"]
+    assert body["copy"]["line"] == TYPES["DPMV"][2] and body["copy"]["en"] == TYPES["DPMV"][1]
+    assert body["v"] == {"D": 70.0, "I": 30.0, "M": 70.0, "V": 70.0}
+    assert [a["strong"] for a in body["axes"]] == [70] * 4
+    assert body["period_label"] == "近 30 天" and body["window"] == ["2026-09-04", "2026-10-03"]
+    assert body["span"]["tag"] == "月卡" and body["span"]["kind"] == "month"
     items = client.get("/v1/export/snapshots", params={"kind": "share_card"}).json()["items"]
     assert [i["snapshot_id"] for i in items] == [body["snapshot_id"]]
     assert items[0]["summary"] == "DPMV 总设计师"
@@ -102,3 +109,44 @@ def test_snapshot_crud_and_prune(env):
     assert client.delete(f"/v1/export/snapshots/{other}").status_code == 404
     assert client.get("/v1/export/snapshots", params={"kind": "nope"}).status_code == 422
     assert len(client.get("/v1/export/snapshots").json()["items"]) == 20
+
+
+def test_every_type_has_its_own_quote():
+    from orbit_backend.exporting.type_copy import DEFAULT_QUOTE, SHARE_QUOTES
+
+    assert set(SHARE_QUOTES) == set(TYPES)
+    assert DEFAULT_QUOTE not in SHARE_QUOTES.values()
+    assert len(set(SHARE_QUOTES.values())) == len(TYPES)
+
+
+@pytest.mark.parametrize(("period", "label", "tag", "kind"), [
+    ("7", "近 7 天", "周卡", "week"), ("30", "近 30 天", "月卡", "month"),
+    ("90", "近 90 天", "季卡", "quarter"), ("all", "全部", "全时卡", "all"),
+    ("2026-09", "2026-09", "9 月卡", "calendar"), ("14", "近 14 天", "14 天卡", "days")])
+def test_span_names_the_card(period, label, tag, kind):
+    from orbit_backend.exporting.sharecard import span
+
+    s = span(period, label)
+    assert (s["tag"], s["kind"], s["label"]) == (tag, kind, label)
+
+
+def test_hide_numbers_drops_axis_strengths(env, canned):
+    client, _, _ = env
+    body = card(client, hide_numbers=True)
+    assert all(a["strong"] is None for a in body["axes"]) and body["v"]
+    assert all(s["value"] is None and s["hidden"] for s in body["stats"])
+
+
+def test_share_quotes_match_the_prototype_table():
+    import re
+    from pathlib import Path
+
+    from orbit_backend.exporting.type_copy import DEFAULT_QUOTE, SHARE_QUOTES
+
+    js = (Path(__file__).resolve().parents[4] / "prototypes" / "advance" / "src" / "js"
+          / "55-exports.js").read_text(encoding="utf-8")
+    table = js[js.index("const SHAREQ = {"):js.index("};", js.index("const SHAREQ = {"))]
+    parsed = {code: (a, b) for code, a, b in re.findall(r"(\w{4}): \['([^']*)', '([^']*)'\]", table)}
+    assert parsed == SHARE_QUOTES
+    default = re.search(r"const SHAREQ0 = \['([^']*)', '([^']*)'\]", js)
+    assert default and default.groups() == DEFAULT_QUOTE
