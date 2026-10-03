@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { watchCodex } from '../src/watch.ts';
 import { promisify } from 'node:util';
-import { execFile,spawn } from 'node:child_process';
+import { execFile,spawn,spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
@@ -211,6 +211,8 @@ test('a stale maintenance file does not block ingestion; malformed records and d
   assert.equal((await stat(join(s.root,'tandem','raw'))).mode&0o777,0o700);
 }));
 test('an actually held maintenance lock defers ingest without acquiring a lock in the connector',async t=>sandbox(async s=>{
+  // The lock holder is a python3 flock child; without python3 the scenario cannot be staged.
+  if (spawnSync('python3',['-c','import fcntl'],{stdio:'ignore'}).status!==0) {t.skip('python3 with fcntl unavailable');return;}
   await writeFile(s.file,await fixture());await mkdir(join(s.home,'.tmp'));
   const lock=join(s.home,'.tmp','rollout-maintenance.lock');await writeFile(lock,'');
   const holder=spawn('python3',['-c','import sys,fcntl; f=open(sys.argv[1],"rb"); fcntl.flock(f,fcntl.LOCK_EX); print("held",flush=True); sys.stdin.read()',lock]);
@@ -419,7 +421,7 @@ test('v1 staging migration rebuilds nullable L2/L3 without losing archived origi
   }
   db.close();const migrated=new ConnectorStore(directory);
   try {
-    assert.equal(migrated.db.prepare('PRAGMA user_version').get()?.user_version,2);
+    assert.equal(migrated.db.prepare('PRAGMA user_version').get()?.user_version,3);
     assert.equal(migrated.db.prepare('SELECT count(*) n FROM model_call').get()?.n,1);
     assert.deepEqual(await readRawRecord(migrated,uid(file,0)),Buffer.from(native.split('\n')[0]+'\n'));
   } finally {migrated.close();}
@@ -437,4 +439,149 @@ test('a redaction upgrade re-cleans cached L1 and republishes L2 without touchin
     assert.ok(!JSON.stringify(upgraded.db.prepare('SELECT attrs,ext FROM event').all()).includes('opaque-old-cache-secret'));
     assert.deepEqual(await readRawRecord(upgraded,String(row.record_uid)),original);
   } finally {upgraded.close();}
+}));
+
+test('exact thread_token_usage is the session snapshot; its last value equals the sum of model calls across turns and counter resets',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture('usage-reset'));await s.connector.ingest();
+  // Hand-computed from the fixture: fresh input = input - cached - cache_write per response.
+  // r1 (1000-400) + r2 (2000-1500) + r3 (500-0) = 1600; cached 400+1500+0; output 100+200+50; reasoning 20+50+0.
+  const calls=s.store.db.prepare('SELECT sum(input_tokens) i,sum(cache_read_tokens) c,sum(output_tokens) o,sum(reasoning_tokens) r,count(*) n FROM model_call').get()!;
+  assert.deepEqual([calls.n,calls.i,calls.c,calls.o,calls.r],[3,1600,1900,350,70]);
+  assert.equal(scalar(s,'SELECT count(DISTINCT snapshot_key) n FROM usage_snapshot'),1);
+  assert.equal(scalar(s,'SELECT count(*) n FROM usage_snapshot'),3);
+  const last=s.store.db.prepare('SELECT input_tokens i,cache_read_tokens c,output_tokens o,reasoning_tokens r FROM usage_snapshot ORDER BY observation_seq DESC LIMIT 1').get()!;
+  assert.deepEqual([last.i,last.c,last.o,last.r],[calls.i,calls.c,calls.o,calls.r]);
+  // The legacy token_count total fell from 3000 to 500 in turn t2; it must not produce a competing snapshot.
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='model.usage' AND json_extract(attrs,'$.counter_cycle') LIKE 'thread_total%'"),0);
+}));
+test('legacy token_count totals that fall open a new counter cycle marked reset',async()=>sandbox(async s=>{
+  const total=(input:number,output:number)=>({total_token_usage:{input_tokens:input,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:output,total_tokens:input+output},model_context_window:200000});
+  await writeFile(s.file,jsonLine('session_meta',{id:'legacy-reset'},0)+jsonLine('event_msg',{type:'token_count',info:total(1000,100)},1)+
+    jsonLine('event_msg',{type:'token_count',info:total(3000,300)},2)+jsonLine('event_msg',{type:'token_count',info:total(500,50)},3)+
+    jsonLine('event_msg',{type:'token_count',info:total(800,80)},4));
+  await s.connector.ingest();
+  const rows=s.store.db.prepare('SELECT snapshot_key k,input_tokens i,observation_seq q FROM usage_snapshot ORDER BY observation_seq').all();
+  assert.deepEqual(rows.map(row=>row.i),[1000,3000,500,800]);
+  assert.equal(rows[0]!.k,rows[1]!.k);assert.equal(rows[2]!.k,rows[3]!.k);assert.notEqual(rows[1]!.k,rows[2]!.k);
+  const resets=s.store.db.prepare("SELECT json_extract(attrs,'$.reset') reset FROM event WHERE kind='model.usage' ORDER BY seq").all().map(row=>row.reset);
+  assert.deepEqual(resets,[null,null,1,null]);
+  // Session total = last value of each cycle: 3000 + 800.
+  assert.equal(scalar(s,'SELECT sum(i) n FROM (SELECT max(input_tokens) i FROM usage_snapshot GROUP BY snapshot_key)'),3800);
+}));
+test('command_head comes from the zsh -lc payload and the full line stays out of session features',async()=>sandbox(async s=>{
+  const run=(id:string,command:string[],ordinal:number)=>jsonLine('event_msg',{type:'item_completed',turn_id:'t1',item:{type:'CommandExecution',id,command,cwd:'/sample',status:'completed',exit_code:0,
+    parsed_cmd:[{type:'unknown',cmd:command.at(-1)}]}},ordinal);
+  await writeFile(s.file,jsonLine('session_meta',{id:'commands'},0)+jsonLine('event_msg',{type:'task_started',turn_id:'t1'},1)+
+    run('c1',['/bin/zsh','-lc','cd x && rg foo src'],2)+run('c2',['/bin/zsh','-lc','set -e\nuv run python scripts/check.py\npnpm test'],3)+
+    jsonLine('response_item',{type:'function_call',name:'exec_command',call_id:'c3',arguments:JSON.stringify({cmd:'cd /repo && git status --short'})},4));
+  await s.connector.ingest();
+  const heads=Object.fromEntries(s.store.db.prepare("SELECT json_extract(attrs,'$.name') name,call_id,json_extract(attrs,'$.command_head') head,json_extract(attrs,'$.command_line') line FROM event WHERE kind='tool.call'").all().map(row=>[row.call_id,[row.head,row.line]]));
+  assert.deepEqual(heads.c1,['rg','cd x && rg foo src']);
+  assert.deepEqual(heads.c2,['uv run','set -e\nuv run python scripts/check.py\npnpm test']);
+  assert.deepEqual(heads.c3,['git status','cd /repo && git status --short']);
+  const features=s.store.db.prepare("SELECT value FROM session_feature WHERE feature='command' ORDER BY value").all().map(row=>row.value);
+  assert.deepEqual(features,['git status','rg','uv run']);
+  for (const value of features) assert.match(String(value),/^[A-Za-z0-9._+-]+(?: [a-z][a-z0-9:_-]*)?$/);
+}));
+test('one session failing validation is isolated: others rebuild, it stays dirty with a diagnostic, and the CLI exits 2',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture());
+  // exit_code 1.5 violates the contract's integer exit_code, so validateEvent throws for this session only.
+  await writeFile(join(s.home,'sessions','rollout-broken.jsonl'),jsonLine('session_meta',{id:'broken'},0)+
+    jsonLine('event_msg',{type:'item_completed',turn_id:'b1',item:{type:'CommandExecution',id:'bad',command:['pwd'],status:'completed',exit_code:1.5}},1));
+  const result=await s.connector.ingest();
+  const broken=sessionUid(s.connector.sourceId,'broken'),main=sessionUid(s.connector.sourceId,'main');
+  assert.equal(result.rebuild_failed,1);assert.equal(result.sessions_rebuilt,1);
+  assert.ok(Number(s.store.db.prepare('SELECT count(*) n FROM event WHERE session_uid=?').get(main)?.n)>0);
+  assert.equal(s.store.db.prepare('SELECT count(*) n FROM event WHERE session_uid=?').get(broken)?.n,0);
+  assert.equal(s.store.db.prepare('SELECT count(*) n FROM dirty_session WHERE session_uid=?').get(broken)?.n,1);
+  const message=String(s.store.db.prepare("SELECT message FROM diagnostic WHERE code='rebuild_failed'").get()?.message);
+  assert.ok(message.includes(broken));assert.match(message,/exit_code/);
+  const run=promisify(execFile),cli=fileURLToPath(new URL('../src/cli.ts',import.meta.url));
+  await assert.rejects(run(process.execPath,[cli,'ingest','--codex-home',s.home,'--data-dir',join(s.root,'cli-broken')]),(error:{code:number,stdout:string})=>{
+    assert.equal(error.code,2);assert.equal(JSON.parse(error.stdout).rebuild_failed,1);return true;});
+}));
+test('events carry only index data in ext; the native record is reachable through raw_record',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture());await s.connector.ingest();
+  const rows=s.store.db.prepare('SELECT e.ext,r.native_type,r.body FROM event e JOIN raw_record r USING(record_uid)').all();
+  assert.ok(rows.length>0);
+  for (const row of rows) { assert.deepEqual(JSON.parse(String(row.ext)),{native_type:row.native_type}); assert.ok(row.body); }
+  // String tool outputs live once, in event.text; attrs.output only carries structured outputs.
+  const result=s.store.db.prepare("SELECT text,attrs FROM event WHERE kind='tool.result' AND call_id='c1'").get()!;
+  assert.equal(result.text,'test failure');assert.equal(JSON.parse(String(result.attrs)).output,undefined);
+}));
+test('format_drift compares against the field union: a missing optional field is silent, a new field or type change reports',async()=>sandbox(async s=>{
+  const item=(ordinal:number,extra:Record<string,unknown>)=>jsonLine('event_msg',{type:'item_completed',turn_id:'t1',item:{type:'AgentMessage',id:`a${ordinal}`,content:[{type:'Text',text:'x'}],...extra}},ordinal);
+  const drift=()=>scalar(s,"SELECT count(*) n FROM diagnostic WHERE code='format_drift'");
+  await writeFile(s.file,jsonLine('session_meta',{id:'drift',cli_version:'0.1.0'},0)+item(1,{phase:'commentary',memory_citation:null})+item(2,{}));
+  await s.connector.ingest(); assert.equal(drift(),0);
+  await appendFile(s.file,item(3,{phase:'final_answer'})+item(4,{memory_citation:'m'})); await s.connector.ingest(); assert.equal(drift(),0);
+  await appendFile(s.file,item(5,{brand_new:true})); await s.connector.ingest(); assert.equal(drift(),1);
+  await appendFile(s.file,item(6,{phase:{nested:true}})); await s.connector.ingest(); assert.equal(drift(),2);
+  assert.match(String(s.store.db.prepare("SELECT message FROM diagnostic WHERE code='format_drift' AND message LIKE '%->%'").get()?.message),/item\.phase string -> object/);
+}));
+test('turn timing from task_complete reaches L3; per-call timing is only attributed where the turn determines it',async()=>sandbox(async s=>{
+  await writeFile(s.file,await fixture('usage-reset'));await s.connector.ingest();
+  assert.deepEqual(s.store.db.prepare('SELECT duration_ms,ttft_ms FROM turn ORDER BY idx').all().map(row=>[row.duration_ms,row.ttft_ms]),[[4000,700],[1500,300]]);
+  // t1 has two requests: the first gets the turn TTFT, neither gets a latency. t2 is one request without tools.
+  assert.deepEqual(s.store.db.prepare('SELECT request_id,ttft_ms,latency_ms FROM model_call ORDER BY ts').all().map(row=>[row.request_id,row.ttft_ms,row.latency_ms]),
+    [['r1',700,null],['r2',null,null],['r3',300,1500]]);
+  assert.deepEqual(s.store.db.prepare('SELECT DISTINCT counter_cycle FROM usage_snapshot').all().map(row=>row.counter_cycle),['thread_token_usage']);
+  const columns=(table:string)=>s.store.db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all().map(row=>String(row.name));
+  for (const dead of ['approval_wait_ms','error_class','skill','subagent_session_uid']) assert.ok(!columns('tool_call').includes(dead));
+  assert.ok(!columns('session').includes('spawn_call_uid'));
+}));
+
+test('Codex usage without a cache_write field counts writes as 0 and flags the assumption',async()=>sandbox(async s=>{
+  await writeFile(s.file,jsonLine('session_meta',{id:'no-write'},0)+jsonLine('event_msg',{type:'task_started',turn_id:'t1'},1)+
+    jsonLine('token_usage_record',{turn_id:'t1',response_id:'r1',usage:{input_tokens:100,cached_input_tokens:30,output_tokens:10,reasoning_output_tokens:2}},2));
+  await s.connector.ingest();
+  assert.deepEqual({...s.store.db.prepare('SELECT input_tokens,cache_read_tokens,cache_write_tokens FROM model_call').get()},{input_tokens:70,cache_read_tokens:30,cache_write_tokens:0});
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='model.usage' AND json_extract(attrs,'$.cache_write_assumed_zero')=1"),1);
+}));
+test('pre-item_completed protocol events: errors, exec/patch/MCP end events complete their calls',async()=>sandbox(async s=>{
+  await writeFile(s.file,jsonLine('session_meta',{id:'old-protocol'},0)+jsonLine('event_msg',{type:'task_started',turn_id:'t1'},1)+
+    jsonLine('response_item',{type:'function_call',name:'shell',call_id:'s1',arguments:JSON.stringify({command:['bash','-lc','cargo test']})},2)+
+    jsonLine('event_msg',{type:'exec_command_end',call_id:'s1',exit_code:101,duration:{secs:3,nanos:500000000},aggregated_output:'failed'},3)+
+    jsonLine('response_item',{type:'function_call',name:'shell',call_id:'s2',arguments:JSON.stringify({command:['ls']})},4)+
+    jsonLine('event_msg',{type:'exec_command_end',call_id:'s2',exit_code:0,stdout:'a'},5)+
+    jsonLine('response_item',{type:'custom_tool_call',name:'apply_patch',call_id:'p1',input:'*** Begin Patch'},6)+
+    jsonLine('event_msg',{type:'patch_apply_end',call_id:'p1',success:true,stdout:'ok'},7)+
+    jsonLine('response_item',{type:'function_call',name:'mcp__docs__search',call_id:'m1',arguments:'{}'},8)+
+    jsonLine('event_msg',{type:'mcp_tool_call_end',call_id:'m1',invocation:{server:'docs',tool:'search'},result:{Err:'boom'}},9)+
+    jsonLine('event_msg',{type:'stream_error',message:'reconnecting'},10)+jsonLine('event_msg',{type:'error',message:'context window exceeded'},11));
+  const result=await s.connector.ingest();assert.equal(result.accounting.unparsed??0,0);
+  const calls=Object.fromEntries(s.store.db.prepare('SELECT name_raw,status,exit_code,duration_ms,command_head FROM tool_call').all().map(row=>[row.name_raw+':'+row.exit_code,[row.status,row.duration_ms,row.command_head]]));
+  assert.deepEqual(calls,{'shell:101':['failed',3500,'cargo test'],'shell:0':['completed',null,'ls'],'apply_patch:null':['completed',null,null],'mcp__docs__search:null':['failed',null,null]});
+  assert.deepEqual(s.store.db.prepare("SELECT text,json_extract(attrs,'$.reason') reason FROM event WHERE kind='error' ORDER BY seq").all().map(row=>[row.text,row.reason]),
+    [['reconnecting','stream_error'],['context window exceeded',null]]);
+  assert.equal(scalar(s,"SELECT count(*) n FROM event WHERE kind='unknown'"),0);
+}));
+test('exit_code -1 defers to the native status; any other non-zero exit is a failure',async()=>sandbox(async s=>{
+  const run=(id:string,extra:Record<string,unknown>,ordinal:number)=>jsonLine('event_msg',{type:'item_completed',turn_id:'t1',item:{type:'CommandExecution',id,command:['pwd'],...extra}},ordinal);
+  await writeFile(s.file,jsonLine('session_meta',{id:'exit-codes'},0)+run('x1',{exit_code:-1},1)+run('x2',{exit_code:-1,status:'interrupted'},2)+run('x3',{exit_code:1,status:'completed'},3)+run('x4',{exit_code:0,status:'completed'},4));
+  await s.connector.ingest();
+  assert.deepEqual(s.store.db.prepare('SELECT t.status FROM tool_call t JOIN event e ON e.event_uid=t.call_event_uid ORDER BY e.seq').all().map(row=>row.status),['unknown','interrupted','failed','completed']);
+}));
+test('tool categories are table-driven over real Codex names; unclassified names are diagnosed',async()=>sandbox(async s=>{
+  const names=['append_to_file','write_file','write_stdin','wait','list_agents','interrupt_agent','send_message_to_thread','view_image','clock.sleep','mystery_tool'];
+  await writeFile(s.file,jsonLine('session_meta',{id:'categories'},0)+names.map((name,index)=>jsonLine('response_item',{type:'function_call',name,call_id:`c${index}`,arguments:'{}'},index+1)).join('')+
+    jsonLine('response_item',{type:'custom_tool_call',name:'exec',call_id:'w1',input:'await tools.exec_command({cmd:"pwd"})'},20));
+  await s.connector.ingest();
+  const kinds=Object.fromEntries(s.store.db.prepare('SELECT name_raw,kind FROM tool_call').all().map(row=>[row.name_raw,row.kind]));
+  assert.deepEqual(kinds,{append_to_file:'file.edit',write_file:'file.edit',write_stdin:'shell',wait:'subagent',list_agents:'subagent',interrupt_agent:'subagent',
+    send_message_to_thread:'subagent',view_image:'image.view','clock.sleep':'sleep',mystery_tool:'other',exec:'wrapper'});
+  assert.deepEqual(s.store.db.prepare("SELECT message FROM diagnostic WHERE code='unknown_tool_name'").all().map(row=>row.message),['Unclassified tool name: mystery_tool']);
+}));
+test('a repeated legacy running total is a re-emission and never becomes a model call',async()=>sandbox(async s=>{
+  const count=(input:number,output:number,lastInput:number,lastOutput:number)=>({type:'token_count',info:{
+    total_token_usage:{input_tokens:input,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:output},
+    last_token_usage:{input_tokens:lastInput,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:lastOutput},model_context_window:200000}});
+  await writeFile(s.file,jsonLine('session_meta',{id:'repeat'},0)+jsonLine('event_msg',{type:'task_started',turn_id:'t1'},1)+
+    jsonLine('response_item',{type:'message',id:'a1',role:'assistant',content:[{type:'output_text',text:'one'}]},2)+jsonLine('event_msg',count(100,10,100,10),3)+
+    jsonLine('response_item',{type:'message',id:'a2',role:'assistant',content:[{type:'output_text',text:'two'}]},4)+jsonLine('event_msg',count(100,10,100,10),5)+
+    jsonLine('response_item',{type:'message',id:'a3',role:'assistant',content:[{type:'output_text',text:'three'}]},6)+jsonLine('event_msg',count(250,30,150,20),7));
+  await s.connector.ingest();
+  // Two billed requests (totals 100 -> 250): 100 + 150 input, 10 + 20 output; the repeated total adds nothing.
+  assert.deepEqual({...s.store.db.prepare('SELECT count(*) n,sum(input_tokens) i,sum(output_tokens) o FROM model_call').get()},{n:2,i:250,o:30});
+  assert.equal(s.store.db.prepare('SELECT input_tokens FROM usage_snapshot ORDER BY observation_seq DESC LIMIT 1').get()?.input_tokens,250);
 }));

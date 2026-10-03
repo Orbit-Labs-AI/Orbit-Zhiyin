@@ -4,7 +4,8 @@ import { basename, join, resolve } from 'node:path';
 import { hash, uid, sessionUid, timestamp, stableJson } from './util.ts';
 import { object, string, number, array } from './types.ts';
 import type { Obj, Watermark, SourceFile, RawRecord, IngestResult } from './types.ts';
-import { sanitize } from './privacy.ts';
+import { sanitize, redact } from './privacy.ts';
+const reason = (error: unknown): string => redact(error instanceof Error ? error.message : String(error)).slice(0,500);
 import { linesFromStream } from './lines.ts';
 import { Readable } from 'node:stream';
 import { decompressFrames } from './zstd.ts';
@@ -26,6 +27,8 @@ export class CodexConnector {
   readonly root: string;
   readonly sourceId: string;
   private running = false;
+  /** Per (version,native_type): every field name seen so far and its non-null JSON types. Reset per ingest. */
+  private shapes = new Map<string,Map<string,Set<string>>>();
   constructor(store: ConnectorStore, root: string) {
     this.store = store; this.root = realpathSync(resolve(root)); this.sourceId = `codex:${uid(this.root).slice(0,20)}`;
     if (within(this.root,realpathSync(store.directory))) throw new Error('Tandem data directory must be outside CODEX_HOME');
@@ -34,8 +37,8 @@ export class CodexConnector {
   }
   async ingest(options: IngestOptions = {}): Promise<IngestResult> {
     if (this.running) throw new Error('An ingest is already running for this connector');
-    this.running = true;
-    const result: IngestResult = {source_id:this.sourceId,files_seen:0,files_changed:0,files_failed:0,records_added:0,sessions_rebuilt:0,
+    this.running = true; this.shapes.clear();
+    const result: IngestResult = {source_id:this.sourceId,files_seen:0,files_changed:0,files_failed:0,records_added:0,sessions_rebuilt:0,rebuild_failed:0,
       maintenance_skipped:false,accounting:{},diagnostics:0};
     try {
       const discovery = await discoverCodex(this.root);
@@ -61,7 +64,7 @@ export class CodexConnector {
               if (within(this.root,canonical)) discovery.files.push(canonical);
             }
           }
-        } catch { result.files_failed++; this.store.diagnostic(this.sourceId,'index_unavailable','State index could not be read consistently; transcripts remain usable'); }
+        } catch (error) { result.files_failed++; this.store.diagnostic(this.sourceId,'index_unavailable',`State index could not be read consistently; transcripts remain usable: ${reason(error)}`); }
       }
       const ledgerPath = join(this.root,'external_agent_session_imports.json');
       if (options.includeMetadata!==false && await exists(ledgerPath)) {
@@ -73,7 +76,7 @@ export class CodexConnector {
           const ledger = object(JSON.parse(bytes.toString('utf8')));
           const records = array(ledger.records).map(payload => ({type:'import_ledger',payload}) as Obj);
           const id = await this.snapshot(ledgerPath,'import_ledger',records,result,bytes); seen.add(id);
-        } catch { result.files_failed++; this.store.diagnostic(this.sourceId,'ledger_unavailable','External import ledger is invalid or unreadable'); }
+        } catch (error) { result.files_failed++; this.store.diagnostic(this.sourceId,'ledger_unavailable',`External import ledger is invalid or unreadable: ${reason(error)}`); }
       }
       const titleIndex = join(this.root,'session_index.jsonl');
       if (options.includeMetadata!==false && await exists(titleIndex)) {
@@ -98,7 +101,9 @@ export class CodexConnector {
         this.store.db.prepare('INSERT INTO source_boundary VALUES(?,?,?) ON CONFLICT(source_id) DO UPDATE SET last_ingest_scope=excluded.last_ingest_scope,observed_at=excluded.observed_at')
           .run(this.sourceId,JSON.stringify({root:this.root,selected_files:selection?[...selection].sort():null,metadata:options.includeMetadata===false?'excluded':'included',selection_only_affects_this_read:true}),Date.now());
       });
-      result.sessions_rebuilt = rebuildSource(this.store,this.sourceId);
+      const failed: string[] = [];
+      result.sessions_rebuilt = rebuildSource(this.store,this.sourceId,failed);
+      result.rebuild_failed = failed.length;
       result.accounting = this.store.accounting(this.sourceId);
       result.diagnostics = Number(this.store.db.prepare('SELECT count(*) AS n FROM diagnostic WHERE source_id=?').get(this.sourceId)?.n);
       return result;
@@ -163,10 +168,10 @@ export class CodexConnector {
         this.store.db.exec('COMMIT');
         result.records_added += added; result.files_changed++;
       } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
-    } catch {
+    } catch (error) {
       result.files_failed++;
       this.store.db.prepare("UPDATE source_file SET status='error' WHERE file_id=?").run(id);
-      this.store.diagnostic(this.sourceId,'file_retry','Source could not be read consistently; cursor retained for retry',id);
+      this.store.diagnostic(this.sourceId,'file_retry',`Source could not be read consistently; cursor retained for retry: ${reason(error)}`,id);
     }
   }
   private record(id: string, generation: number, line: Line, state: Watermark, role: string, sourceBody?: Obj): void {
@@ -208,15 +213,41 @@ export class CodexConnector {
       body ? JSON.stringify(body) : null,disposition,null,note);
     if (session) this.store.dirty(session);
     if (note && disposition==='unparsed') this.store.diagnostic(this.sourceId,note,'Raw record retained in L0; see its source position',id,recordUid);
-    if (body) {
-      const keys = [...Object.keys(body).map(key=>`line.${key}`),...Object.keys(payload).map(key=>`payload.${key}`),...Object.keys(object(payload.item)).map(key=>`item.${key}`)].sort();
-      const fingerprint = hash(stableJson(keys));
-      const prior = this.store.db.prepare('SELECT fingerprint FROM format_fingerprint WHERE source_id=? AND harness_version=? AND native_type=?').all(this.sourceId,version??'unknown',nativeType);
-      if (prior.length && !prior.some(row=>row.fingerprint===fingerprint)) this.store.diagnostic(this.sourceId,'format_drift',`New field shape: ${nativeType}`,id,recordUid);
-      this.store.db.prepare('INSERT OR IGNORE INTO format_fingerprint VALUES(?,?,?,?,?,?)')
-        .run(this.sourceId,version ?? 'unknown',nativeType,fingerprint,JSON.stringify(keys),Date.now());
-    }
+    if (body) this.trackShape(body,payload,version ?? 'unknown',nativeType,id,recordUid);
     if (eventType && ['task_complete','turn_complete','turn_aborted'].includes(eventType)) state.turn = null;
+  }
+  /**
+   * format_drift compares against the union of fields seen for the same (version,native_type): a record
+   * that omits optional fields is not drift; an unseen field name, or a field whose non-null JSON type
+   * changes (string -> object), is. Each distinct key set is still recorded in format_fingerprint.
+   */
+  private trackShape(body: Obj, payload: Obj, version: string, nativeType: string, file: string, record: string): void {
+    const kind = (value: unknown): string => value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+    const entries = [...Object.entries(body).map(([key,value])=>`line.${key}:${kind(value)}`),...Object.entries(payload).map(([key,value])=>`payload.${key}:${kind(value)}`),
+      ...Object.entries(object(payload.item)).map(([key,value])=>`item.${key}:${kind(value)}`)].sort();
+    const cacheKey = `${version}\u0000${nativeType}`;
+    let union = this.shapes.get(cacheKey);
+    if (!union) {
+      union = new Map();
+      for (const row of this.store.db.prepare('SELECT keys FROM format_fingerprint WHERE source_id=? AND harness_version=? AND native_type=?').all(this.sourceId,version,nativeType)) {
+        for (const entry of JSON.parse(String(row.keys)) as string[]) {
+          const split = entry.lastIndexOf(':'), name = split < 0 ? entry : entry.slice(0,split), type = split < 0 ? null : entry.slice(split+1);
+          const types = union.get(name) ?? new Set<string>(); if (type && type !== 'null') types.add(type); union.set(name,types);
+        }
+      }
+      this.shapes.set(cacheKey,union);
+    }
+    const known = union.size > 0;
+    const drift: string[] = [];
+    for (const entry of entries) {
+      const split = entry.lastIndexOf(':'), name = entry.slice(0,split), type = entry.slice(split+1);
+      const types = union.get(name);
+      if (!types) { drift.push(`new field ${name}`); union.set(name,new Set(type==='null'?[]:[type])); continue; }
+      if (type !== 'null' && !types.has(type)) { if (types.size) drift.push(`${name} ${[...types].join('|')} -> ${type}`); types.add(type); }
+    }
+    if (known && drift.length) this.store.diagnostic(this.sourceId,'format_drift',`New field shape: ${nativeType} (${drift.slice(0,5).join(', ')})`,file,record);
+    this.store.db.prepare('INSERT OR IGNORE INTO format_fingerprint VALUES(?,?,?,?,?,?)')
+      .run(this.sourceId,version,nativeType,hash(stableJson(entries)),JSON.stringify(entries),Date.now());
   }
   private async snapshot(path: string, role: string, records: Obj[], result: IngestResult, original?: Buffer): Promise<string> {
     const id = uid(this.sourceId,role);
