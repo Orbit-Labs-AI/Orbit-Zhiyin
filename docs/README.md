@@ -70,6 +70,7 @@
 | [推荐模块](plans/recommendation-module.md) | 用分析结果做匹配推荐 |
 | [AI 接入](plans/ai-module.md) | 分析侧与推荐侧如何用模型 |
 | [评测](plans/evaluation-module.md) | Benchmark 与评测（EV） |
+| [历史技能学习与隔离评测](plans/history-skill-learning.md) | 推荐漏斗、validation 迭代、冻结与 held-out 评测协议 |
 | [分析补全建议](plans/analysis-review.md) | 八族边界与 Lite / Advance 的分析功能缺口 |
 | [UI ↔ 后端对齐报告](plans/ui-backend-parity.md) | 第 4 轮：UI 元素的后端支撑、资料库完整度、推荐与分析还原度 |
 
