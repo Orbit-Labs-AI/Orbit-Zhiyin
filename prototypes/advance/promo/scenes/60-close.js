@@ -45,7 +45,7 @@ scene('60-close', () => {
   tween(2, 74.2, 1.2, { s: 1 }, E.inOut);
   tween(2, 75.8, 1.0, { o: 0 }, E.inOut);                     // 6.4：螺旋长出时罗盘环淡出（drawCompass 继续到 b80）
   let degMe = null;
-  // drawCompass 每帧调用到 b80（AGD 的 compass 编队要读点位，直到 row 在 b80.32 落定）；一切都是 b 的纯函数
+  // drawCompass 每帧调用到 b80（AGD 的 compass 编队要读点位，直到 row 在 b80.16 落定）；一切都是 b 的纯函数
   drive(2, HB, 80.0, (p, b) => {
     if (degMe == null) { const D = compassData(); degMe = D.mineIdx >= 0 ? D.mineIdx * 22.5 + 11.25 : 11.25; }
     const open = E.inOut(lp(b, SP_END, 1.6)), fold = E.inOut(lp(b, 74.2, 1.2));
@@ -73,17 +73,20 @@ scene('60-close', () => {
     const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]), th = (dc - G * (1 - e)) * Math.PI / 180;
     return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r / decks[2].C.s, e) };
   }, { blend: .2 });
-  // H16 / 7.1：沿圆环两侧慢慢滑到底部、收成一行（cc 在右），b80.32 落定（标志在正中立成 45° 并停留时，点在它下方）
-  AGD.key(78.0, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: [4, 3, 2, 1, 0], dur: 2.0, stag: .08, polar: PC });
+  // H16 / 7.1：沿圆环两侧慢慢滑到底部、收成一行（cc 在右），b80.16 落定（标志在正中立成 45° 并停留时，点在它下方）。
+  // 一行从左到右按罗盘上的方位排（gm 288° · cp 221° · ds 118° · cx 62° · cc 43°，左半边的点往左、右半边的点往右），
+  // 沿圆环滑下时谁也不越过谁；sine 缓起、错开 .04 拍，cc 不会追上 cx（原 [4,3,2,1,0]、.08 拍：gm 穿过 cp、ds，cc 叠上 cx）
+  const ROW = [4, 3, 0, 2, 1], LTR = [2, 4, 3, 1, 0];          // ROW[i] = 点 i 的位次；LTR[k] = 第 k 位（从左数）的点
+  AGD.key(78.0, 'row', { cx: 960, y: 780, gap: 72, r: 20, order: ROW, dur: 2.0, ease: E.sine, stag: .04, polar: PC });
   // v17.4：标语出现时（b85.0）点收成标语下方的一小行，b86.9 落定
-  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 736, gap: 50, r: 13, order: [4, 3, 2, 1, 0], dur: 1.4, ease: E.sine, stag: .06 });
+  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 736, gap: 50, r: 13, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
   // 7.4：片尾不定格——字标、字、点一起以 (960, 540) 为中心慢推（push），点另有 2px 漂移；follow 到 END + 1 才淡出（混回不落在片内）
   AGD.follow(TURN0 - .6, END + 1, (i, b, q) => {
     const s = push(b);
     return { x: 960 + (q.x - 960) * s + 2 * Math.sin(2 * Math.PI * (b / (9 + 3 * hash01(i, 8)) + hash01(i, 9))), y: 540 + (q.y - 540) * s + 2 * Math.sin(2 * Math.PI * (b / (11 + 3 * hash01(i, 10)) + hash01(i, 11))), r: q.r * s };
   }, { blend: .6 });
   // 7.3：「agent」出现时 5 个点从左到右依次亮起，间隔 .16 拍、各亮 .5 拍（.3 拍渐起渐落），像一道光扫过这一行
-  for (let k = 0; k < 5; k++) AGD.glow(4 - k, TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .9);
+  for (let k = 0; k < 5; k++) AGD.glow(LTR[k], TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .9);
   // H17：原地缩小淡出
   AGD.key(FADE0, 'off', { dur: 1.6, stag: 0 });
 
