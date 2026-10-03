@@ -19,6 +19,7 @@ from ..analytics.interaction.rules import correction_terms
 from ..analytics.outcome_subjective.extraction import classify_feedback
 from ..analytics.products.feedback import classify_emotion
 from ..analytics.task.taxonomy import DOMAIN_DETAILS, domain_matches
+from ..features.vocab import command_info
 from ..privacy import direct_user_text, redact
 from ..recommend.outcomes import welch
 from .a4a6_common import ManyQuery
@@ -49,9 +50,6 @@ FRICTION_LABELS = {
     "permission_friction": "权限询问打断", "context_loss": "上下文丢失",
     "quota_interrupt": "额度中断", "other": "其他",
 }
-READ_ONLY_HEAD = re.compile(
-    r"^(?:ls|cat|head|tail|grep|rg|find|pwd|wc|tree|which|less|stat|du|df|echo"
-    r"|git (?:status|log|diff|show|branch|remote)|sed -n)\b")
 READ_ONLY_KINDS = {"read", "search", "file.read", "list"}
 FAILED = ("failed", "error")
 
@@ -217,7 +215,8 @@ def fetch_calls(conn, session_ids) -> list[dict]:
     for chunk in _chunks(session_ids):
         for r in conn.execute(
                 f"SELECT t.call_uid, t.root_uid, t.session_uid, t.name, t.name_raw, t.kind, "
-                f"t.command_head, t.files, t.status, t.approval, t.started_at, e.seq "
+                f"t.command_head, t.files, t.status, t.approval, t.started_at, e.seq, "
+                f"json_extract(e.attrs, '$.input.command') AS command "
                 f"FROM v_analysis_tool_call t LEFT JOIN event e ON e.event_uid=t.call_event_uid "
                 f"WHERE t.root_uid IN ({_in(chunk)})", chunk):
             out.append(dict(r))
@@ -326,9 +325,10 @@ def _rule_frictions(calls) -> dict[str, set[str]]:
     for c in calls:
         if c["status"] in FAILED:
             failed[c["root_uid"]] += 1
+        # One read-only definition with A4 (features.vocab.command_info, argument-aware).
         if c["approval"] is not None and (
-                READ_ONLY_HEAD.match((c["command_head"] or "").strip())
-                or c["kind"] in READ_ONLY_KINDS):
+                (c["command_head"] and command_info(c["command_head"], c.get("command"))["cls"]
+                 == "readonly") or c["kind"] in READ_ONLY_KINDS):
             asked[c["root_uid"]] += 1
     out: dict[str, set[str]] = defaultdict(set)
     for uid, n in failed.items():
