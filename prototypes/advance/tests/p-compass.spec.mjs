@@ -53,7 +53,8 @@ test('persona dial: bezel ticks, type flower turned to the collaboration centre,
   const m = await page.evaluate(() => getComputedStyle(document.querySelector('#main svg.fp2 .fp-bloom')).transform);
   const [c, s] = rot(n.hd); const v = m.match(/matrix\(([^)]+)\)/)[1].split(',').map(Number);
   expect(Math.abs(v[0] - c) + Math.abs(v[1] - s)).toBeLessThan(0.01);
-  await expect(page.locator('#main .pe-fp-legend')).toContainText('协作重心 ' + n.title.split(' ')[1]);
+  await expect(page.locator('#main .pe-fp-legend')).toHaveCount(0);
+  await expect(page.locator('#main .pe-line .aib')).toHaveCount(0);
   // hour ring: 24 segments, clicking one expands its session dots, again collapses
   await expect(fp.locator('.fps')).toHaveCount(24);
   const h = await page.evaluate(() => CUR.fp.byH.findIndex((x) => x.length > 0));
@@ -90,7 +91,7 @@ test('persona dial: bezel ticks, type flower turned to the collaboration centre,
       setTheme(t);
       const want = getComputedStyle(document.documentElement).getPropertyValue('--orbit').trim();
       const probe = document.createElement('i'); probe.style.color = want; document.body.appendChild(probe); const rgb = getComputedStyle(probe).color; probe.remove();
-      const ok = (el) => el.matches('.fp-lead, .fp-n0') || !!el.closest('.orbit-mark') || (el.closest('.pe-fp-legend') && el.tagName === 'SPAN');
+      const ok = (el) => el.matches('.fp-lead, .fp-n0') || !!el.closest('.orbit-mark');
       const hits = [...document.querySelectorAll('#desk *')].filter((el) => { const c = getComputedStyle(el); return [c.fill, c.stroke, c.backgroundColor, el.closest('svg') ? '' : c.color].includes(rgb); });
       return { rgb, needle: hits.some((el) => el.matches('#main .fp-lead')), tri: hits.some((el) => el.matches('#main .fp-n0')), bad: hits.filter((el) => !ok(el)).map((el) => el.tagName + '.' + el.getAttribute('class')) };
     }, theme);

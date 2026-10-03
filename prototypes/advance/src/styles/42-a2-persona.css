@@ -10,7 +10,6 @@
 .fp2 .fps.sel path:first-child{fill:var(--field);stroke:var(--ink-1);stroke-width:1.5}
 .fp2 .fps:focus-visible path:first-child{stroke:var(--focus);stroke-width:2}
 .fp2 .fpd{transform-box:fill-box;transform-origin:center;animation:grow .25s ease-out both}
-.pe-fp-legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:11px;color:var(--ink-2);margin-top:4px}
 .pe-evo{margin-top:12px}
 .pe-ev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hair)}
 .pe-evi{display:flex;flex-direction:column;gap:3px;min-width:0}
@@ -38,7 +37,6 @@
 .pe-evrow button>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .persona-hero .fp-wrap{justify-content:center;padding:40px 12px 24px}
 .pe-fpc{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
-.pe-fp-legend{flex-direction:column;align-items:flex-start;gap:6px;justify-content:flex-start;margin-top:0;max-width:360px;line-height:16px}
 .pe-fp-legend>.row{align-items:center}
 /* fit card: title on one line, scale note beneath; meta as two fixed lines (sample · CI / friction · completion) */
 .pe-fit-h{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
