@@ -77,7 +77,7 @@ scene('60-close', () => {
   // T13：b69.2 起底下是罗盘编队（.4 拍内把合并点的五色细环淡掉；x / y / r 由下面的螺旋 follow 全权接管），
   // follow 从 b69.0 挂上（b69.2 前返回 null，不影响 50-tools），b69.2 时权重已是 1，起点就是交来的合并点；
   // e_i = 1 之后 follow 的结果与罗盘编队完全重合，b71.2–71.4 的退出混合看不出来，点继续骑在展开的罗盘外圈上
-  AGD.key(HB, 'compass', { dur: .4, stag: 0 });
+  AGD.key(HB, 'compass', { dur: .7, stag: 0 });            // v17.7：.4 → .7，orb 拆开与 head 冒出同段（不先闪成一颗 cc 大点）
   AGD.follow(69.0, 71.4, (i, b) => {
     if (b < HB) return null;
     // R = 徽章到中心的实际距离 = 圆环当帧半径（deck 2 的 s 已随点放大，不再乘 e_i）；徽章大小按 s 1 的 19 取
@@ -126,6 +126,15 @@ scene('60-close', () => {
     while (n > 0 && acc < dpx) { acc += Math.hypot(q[n][0] - q[n - 1][0], q[n][1] - q[n - 1][1]) * P.R; n--; }
     return n / ORB.N;
   };
+  // 串里第 k 位的屏幕位置：曲线还不够长（起笔时）就沿内端切线往回延长剩下的像素——珠子在内端排成一小列「排队喂墨」，不叠在一起
+  const backXY = (P, t, dpx) => {
+    const u = backT(P, t, dpx), [x, y] = curveAt(P, u);
+    if (u > 0) return [x, y];
+    const q = PTS.q; let n = Math.round(clamp(t) * ORB.N), acc = 0;
+    for (let j = n; j > 0; j--) acc += Math.hypot(q[j][0] - q[j - 1][0], q[j][1] - q[j - 1][1]) * P.R;
+    const m = Math.min(4, ORB.N), dx = q[0][0] - q[m][0], dy = q[0][1] - q[m][1], L = Math.hypot(dx, dy) || 1, rest = Math.max(0, dpx - acc);
+    return [x + dx / L * rest, y + dy / L * rest];
+  };
   const penBearing = (b) => { const [x, y] = curveAt(pose(b), strokeT(b)); return Math.atan2(x - PC[0], -(y - PC[1])) * DEG; };
   // v17.7 笔串：第 k 位（0 = 串头 gm）到笔头的像素距离与半径。串头是 head（尖朝后），圆头离笔头柔光外缘约 8 px，不盖住它；
   // 其余是 bead（rot 'vel'，ls 1.05：r 15–17 时 logo ≈ 20 px）。尺寸串尾到串头 × 1 / .96 / .92 / .88 / .84（基数 r 17）
@@ -135,7 +144,7 @@ scene('60-close', () => {
   // 落位直接奔向一行的最终格位（静态），不追 row 键还在极坐标过渡中的位置——否则点会穿过图标中间、互相叠住、到位前排不齐
   const ROWP = AGD.pts('row', ROW0);
   AGD.follow(75.3, 81.2, (i, b) => {
-    const P = pose(b), k = ROW[i], [x, y] = curveAt(P, backT(P, strokeT(b), STR_D[k])), e = E.inOut(lp(b, D1 + .5, 1.3));
+    const P = pose(b), k = ROW[i], [x, y] = backXY(P, strokeT(b), STR_D[k]), e = E.inOut(lp(b, D1 + .5, 1.3));
     // a 1：罗盘上没有数据的 Agent（徽章 a 0）在飞向笔头时淡入，五个点一起推笔
     return { x: lerp(x, ROWP[i][0], e), y: lerp(y, ROWP[i][1], e), r: lerp(STR_R[k], ROW0.r, e), a: 1 };
   }, { blend: 1.0 });
@@ -165,7 +174,7 @@ scene('60-close', () => {
     AGD.glow(i, TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .5);
   });
   // v17.7 H17：不再原地缩小——五点在约 1 拍内向行中心合成 orb（r 30，与开场 b0.2 的 orb 同大），再与字标、标语一起淡到全黑
-  AGD.key(FADE0, 'merge', { x: 960, y: 736, r: 30, a: (b) => 1 - E.inOut(lp(b, FADE0, 1.8)), dur: .5, stag: .03, spin: 6 });
+  AGD.key(FADE0, 'merge', { x: 960, y: 736, r: (b) => lerp(16, 30, E.inOut(lp(b, FADE0 + .45, .55))), a: (b) => 1 - E.inOut(lp(b, FADE0, 1.8)), dur: .85, stag: .04, spin: 6 });
 
   /* ---------- 标志：画曲线 → 45° 图标 → 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
   // 白线 = App 图标黑夜版（#fff）；字标 = 深色底的香槟黄 #d6c7a1（brand.md），转身 v 0 → 1 时由白过渡到香槟黄
