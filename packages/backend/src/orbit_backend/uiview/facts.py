@@ -94,6 +94,8 @@ ROLLBACK_GIT = {"revert", "reset", "restore", "checkout"}
 GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 # Words in a pasted log or code block are not the user asking for a redo: only short messages count.
 REDO_MAX_CHARS = 400
+# Turn statuses that say nothing about how the turn ended (the persona "known outcome" share).
+UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
 # Turn statuses that mean the user (or the user's approval policy) stopped the agent. ``failed`` /
 # ``error`` are tool, API or environment failures, not steering, so the D axis does not count them.
 USER_STOPPED = frozenset(("interrupted", "aborted", "cancelled", "rejected"))

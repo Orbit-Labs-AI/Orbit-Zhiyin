@@ -55,7 +55,7 @@ function openAsk(ctx) {
     '<div class="mb col" style="gap:10px"><div class="row" style="flex-wrap:wrap;gap:6px">' + ASKQ[c].map((q, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(q) + '</button>').join('') + '</div>' +
     '<div class="ask-a" id="askA" aria-live="polite"><span class="cap ask-empty">选一个问题，或在下方输入你自己的问题</span></div>' +
     '<div class="row"><label class="vh" for="askIn">你的问题</label><input id="askIn" placeholder="输入问题，回车发送" autocomplete="off" style="' + FIELD + ';height:32px"><button type="button" class="btn p" data-act="askSend" style="height:32px">发送</button></div></div>' +
-    '<div class="mf"><span class="row cap" style="margin-right:auto;font-size:11px">' + ic('shield', 13, 'color:var(--good)') + '预置问题在本机查询；自由提问经本机 Agent 发给其模型服务，只含脱敏摘要</span><button type="button" class="btn" data-act="askCopy">复制回答</button><button type="button" class="btn ai" data-act="askStudio">' + ic('spark', 13) + '交给生成工坊</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
+    '<div class="mf"><span class="row cap" style="margin-right:auto;font-size:11px">依据所选会话与分析结果回答</span><button type="button" class="btn" data-act="askCopy">复制回答</button><button type="button" class="btn ai" data-act="askStudio">' + ic('spark', 13) + '交给生成工坊</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
   MODAL_KEY = 'ask';
 }
 function askStream(q, txt) {

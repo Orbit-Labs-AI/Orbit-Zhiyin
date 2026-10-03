@@ -96,6 +96,12 @@ class Collection:
         except (JobConflict, ValueError):
             self.catch_up_pending = True
             return None
+        # submit records runner-start failures as failed jobs instead of raising.
+        # Keep the catch-up intent even in manual mode, and never advertise a
+        # failed dispatch as a running import to the UI.
+        if isinstance(job, dict) and job.get("status") in ("failed", "interrupted", "cancelled"):
+            self.catch_up_pending = True
+            return None
         self.catch_up_pending = False
         return job.get("id") if isinstance(job, dict) else None
 

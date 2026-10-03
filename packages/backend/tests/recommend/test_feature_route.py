@@ -17,12 +17,12 @@ class FakeStore:
         with sqlite3.connect(path) as conn:
             conn.execute("CREATE TABLE catalog_item (item_id TEXT, type TEXT, name TEXT, summary TEXT, url TEXT,"
                          " agents TEXT, license TEXT, difficulty INTEGER, metadata TEXT, content_hash TEXT,"
-                         " latest_version TEXT, status TEXT)")
+                         " latest_version TEXT, status TEXT, risk TEXT, risk_level INTEGER, language TEXT)")
             for item_id, type_ in (("fix-perm", "skill"), ("py-style", "rule"), ("gone", "skill")):
-                conn.execute("INSERT INTO catalog_item VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                conn.execute("INSERT INTO catalog_item VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                              (item_id, type_, item_id.upper(), "s", None, json.dumps(["claude_code"]), "MIT", 2,
                               json.dumps({"risk": []}), "h-" + item_id, "v1",
-                              "removed" if item_id == "gone" else "active"))
+                              "removed" if item_id == "gone" else "active", json.dumps(["runs_command"]), 3, "any"))
 
     @contextmanager
     def connect(self, readonly=False):
@@ -65,6 +65,7 @@ def test_feature_route_ties_friction_matches_to_problems(tmp_path):
     by_key = {c["rec_key"]: c for c in result["candidates"]}
     perm, style = by_key["catalog:fix-perm"], by_key["catalog:py-style"]
     assert perm["problem"]["type"] == "permission_friction" and perm["match_basis"] == "catalog_feature"
+    assert perm["risk"]["level"] == "high" and "runs_command" in perm["risk"]["flags"]
     assert perm["feature_overlap"]["matched"] == ["friction:permission_friction"]
     assert style["problem"] is None and style["match_basis"] == "profile" and style["tags"] == ["bash", "python"]
     assert result["profile"]["tags"] == {"python": 1.0, "bash": .5}

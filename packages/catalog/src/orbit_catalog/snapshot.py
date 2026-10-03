@@ -206,6 +206,19 @@ def bundled_seed() -> bytes | None:
     return resource.read_bytes() if resource.is_file() else None
 
 
+def snapshot_changed(store: CatalogStore, data: bytes | dict) -> bool:
+    """A bundled update has a new source/revision not superseded by a live sync."""
+    doc = load_seed(data)
+    existing = {s["source_id"]: s for s in store.sources()}
+    for source_id, source in doc["sources"].items():
+        if (existing.get(source_id) or {}).get("completed_at"):
+            continue
+        revision = source.get("revision") or digest(source.get("items", []))
+        if (existing.get(seed_source_id(source_id)) or {}).get("revision") != revision:
+            return True
+    return False
+
+
 def import_snapshot(store: CatalogStore, data: bytes | dict, *, skip_synced: bool = True) -> dict:
     """Publish each snapshot source as ``seed-<source_id>``; idempotent and offline.
 
@@ -214,15 +227,19 @@ def import_snapshot(store: CatalogStore, data: bytes | dict, *, skip_synced: boo
     """
     doc = load_seed(data)
     existing = {s["source_id"]: s for s in store.sources()}
-    plan, skipped = [], []
+    plan, skipped, unchanged = [], [], []
     for source_id, source in sorted(doc["sources"].items()):
         if skip_synced and (existing.get(source_id) or {}).get("completed_at"):
             skipped.append(source_id)
             continue
+        revision = source.get("revision") or digest(source.get("items", []))
+        if (existing.get(seed_source_id(source_id)) or {}).get("revision") == revision:
+            unchanged.append(source_id)
+            continue
         records = [Record(native_id=r["item_id"], resource=Resource.model_validate(r)) for r in source.get("items", [])]
         spec = SourceSpec(source_id=seed_source_id(source_id), kind="snapshot", url="bundled:" + SEED_FILE, priority=10,
                           refresh_seconds=SEED_REFRESH, config={"origin": source_id})
-        plan.append((spec, records, source.get("revision") or digest(source.get("items", []))))
+        plan.append((spec, records, revision))
     if plan:
         store.register([spec for spec, _, _ in plan])
     imported, by_kind = {}, {}
@@ -236,7 +253,7 @@ def import_snapshot(store: CatalogStore, data: bytes | dict, *, skip_synced: boo
             for record in records:
                 by_kind[record.resource.type] = by_kind.get(record.resource.type, 0) + 1
     return {"format": doc["format"], "built_at": doc.get("built_at"), "sources": imported, "skipped": skipped,
-            "items": sum(by_kind.values()), "by_kind": by_kind}
+            "items": sum(by_kind.values()), "by_kind": by_kind, "unchanged": unchanged}
 
 
 def retire_seeds(store: CatalogStore, source_ids) -> int:

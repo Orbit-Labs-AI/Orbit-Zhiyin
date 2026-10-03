@@ -565,3 +565,14 @@ def test_scope_whitelist_matches_analytics_scope():
     from orbit_backend.services.routes_analytics import analytics_scope
 
     assert routes_recommend.SCOPE_KEYS == set(inspect.signature(analytics_scope).parameters)
+
+
+def test_recommendation_level_change_invalidates_cached_run(env, monkeypatch):
+    client, gw, _ = env
+    monkeypatch.setattr(runs, "_engine", lambda: (_engine_slate, "rec-level-cache-test"))
+    gw.rec_settings = {"level": 1}
+    first = runs.run(gw, {})
+    assert runs.run(gw, {})["reused"]
+    gw.rec_settings = {"level": 3}
+    changed = runs.run(gw, {})
+    assert not changed["reused"] and changed["run_id"] != first["run_id"]

@@ -18,9 +18,10 @@ from .admission import ADMIT_FRICTION_WEIGHT, ADMIT_MAX_RISK, ADMIT_TYPES, revie
 from .compat import support_matrix
 from .contracts import Feature, MatchRequest, canonical_json
 from .features import VOCABULARY, lexical_tokens
+from .quality import assess as assess_quality
 from .vectors import blocked_scores, normalize_vectors
 
-RANKING_VERSION = "hybrid-bm25f-abs-mmr80-v4"
+RANKING_VERSION = "hybrid-bm25f-abs-mmr80-v5"
 ROUTE_WEIGHTS = {"remedy": 1.5, "feature": 1.2, "lexical": 1.0, "semantic": 2.0}
 # Han function words, Lucene's EnglishAnalyzer default stop set (a an and are as at be but by for
 # if in into is it no not of on or such that the their then there these they this to was will with),
@@ -479,7 +480,8 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
         # Noisy-OR: independent routes agreeing raise confidence; one strong route suffices.
         evidence = 1.0 - math.prod(1.0 - v for v in strengths.values())
         coverage = parts[item_id].get("feature", {}).get("raw_score", 0.0)
-        quality = 1.0 if row["body_policy"] == "licensed" else 0.5
+        quality_report = assess_quality(row)
+        quality = quality_report["score"]
         risk = json.loads(row["risk"])
         penalty = min(0.1, len(risk) * 0.02)
         # Content quality scales the evidence (metadata-only rows lose up to 5%) but never creates it.
@@ -498,6 +500,7 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
                            "agent_support": {a: m["support"] for a, m in matrix.items() if m["support"] != "unknown"},
                            "support_basis": matrix, "admission": index.admission(item_id, request.problem_type),
                            "difficulty": row["difficulty"], "last_seen": row["last_seen"], "version_id": row["latest_version"],
+                           "quality": quality_report,
                            "content_hash": row["content_hash"], "score": relevance, "score_parts": {"routes": parts[item_id],
                            "evidence": evidence, "rrf": fusion[item_id], "feature_coverage": coverage,
                            "content_quality": quality, "risk_penalty": penalty},

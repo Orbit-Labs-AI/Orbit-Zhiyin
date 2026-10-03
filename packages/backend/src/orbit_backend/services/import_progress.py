@@ -50,7 +50,12 @@ def detail(frame: dict) -> str:
         "map",
     ):
         parts.append(SCOPE_NAMES[frame["scope"]])
-    if (frame.get("attempt") or 1) > 1:
+    if frame.get("stage") == "capture_retry":
+        reason = ("源文件在读取时变化" if frame.get("source_status") == "changed"
+                  else "来源数据库暂时被锁定" if frame.get("sqlite_errorname")
+                  else "来源暂时出现 I/O 错误")
+        parts.append(f"第 {frame.get('attempt', 2)} 次尝试：{reason}，重新读取；持续失败则保留上次事实")
+    elif (frame.get("attempt") or 1) > 1:
         parts.append(f"第 {frame['attempt']} 次尝试：源文件在导入途中变化，保留其上次的事实")
     if frame.get("stage") == "map" and frame.get("records"):
         parts.append(f"已解析 {frame['records']:,} 条记录")

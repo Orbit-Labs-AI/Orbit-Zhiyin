@@ -412,9 +412,9 @@ def _window(params, now_ms, zone=None):
     """``[since, until)``. Without ``since``, ``days`` = the last N local calendar days of
     ``zone`` including today (A1 / A3 ``range`` windows), not N×24 h back from now: a rolling
     window would start mid-day and give the first day bucket a partial count."""
-    until = params.get("until") or now_ms
+    until = params["until"] if params.get("until") is not None else now_ms
     since = params.get("since")
-    if not since:
+    if since is None:
         days = int(params.get("days") or 30)
         if zone is None:
             since = until - days * DAY_MS
@@ -429,7 +429,7 @@ def _prev_start(params, since, until, zone=None):
     """Start of the comparison window ``[prev, since)``. A ``days`` window compares with the
     N local calendar days before it (like A1's previous window); an explicit ``since`` keeps
     an equal-length span."""
-    if params.get("since") or zone is None:
+    if params.get("since") is not None or zone is None:
         return since - (until - since)
     days = int(params.get("days") or 30)
     start = datetime.fromtimestamp(since / 1000, zone).date() - timedelta(days=days)

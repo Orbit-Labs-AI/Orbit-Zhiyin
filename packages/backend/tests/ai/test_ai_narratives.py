@@ -112,3 +112,70 @@ def test_fresh_job_skips_the_cache_and_replaces_it(client, ai_svc):
     assert job["result"]["source"] == "ai" and job["result"]["clusters"][0]["name"] == "样式调整"
     again = submit(client, "cluster.topic_names", {"topic_clusters": CLUSTERS})
     assert again["cached"] and again["result"]["clusters"][0]["name"] == "样式调整"
+
+
+def test_narrative_binds_scope_even_when_key_is_omitted(client, ai_svc):
+    ai_svc.fake.responses["cluster.topic_names"] = NAMES
+    submitted = client.post("/v1/ai/jobs", json={"task_id": "cluster.topic_names",
+                            "slots": {"topic_clusters": CLUSTERS}, "scope": {"source_ids": ["allowed"]}})
+    job = wait_job(client, submitted.json()["job_id"])
+    assert job["status"] == "ok"
+    assert ai_svc.narrative("topic_names", scope={"source_ids": ["allowed"]})["job_id"] == job["job_id"]
+    for scope in ({"source_ids": []}, {"source_ids": ["other"]}, None):
+        assert ai_svc.narrative("topic_names", scope=scope)["job_id"] is None
+
+
+def test_narrative_rejects_changed_pack_digest(client, ai_svc, monkeypatch):
+    ai_svc.fake.responses["cluster.topic_names"] = NAMES
+    job = submit(client, "cluster.topic_names", {"topic_clusters": CLUSTERS})
+    original = ai_svc._pack
+
+    def changed(task, req):
+        current = original(task, req)
+        return {**current, "content": {**current["content"], "data_revision": "new-import"},
+                "preview_digest": "sha256:new-import"}
+
+    monkeypatch.setattr(ai_svc, "_pack", changed)
+    body = ai_svc.narrative("topic_names", key="scan-1")
+    assert body["job_id"] is None and body["source"] == "template"
+    assert ai_svc.job(job["job_id"])["status"] == "ok"  # historical job remains inspectable
+
+
+def test_relative_window_fingerprint_ignores_only_same_day_label_drift(monkeypatch):
+    import importlib
+
+    from orbit_backend.ai import registry
+    from orbit_backend.ai.service import narrative_input_fingerprint
+
+    module = importlib.import_module("orbit_backend.ai.service")
+    day = 86_400_000
+    monkeypatch.setattr(module, "now_ms", lambda: day * 20000 + 1000)
+    task = registry.get("narrate.weekly")
+    first = {"content": {"snapshot": {"key": f"{day * 19970 + 1000}:{day * 20000 + 1000}:",
+             "window": {"start_ms": day * 19970 + 1000, "end_ms": day * 20000 + 1000},
+             "metrics": {"sessions": 2}}}}
+    later = {"content": {"snapshot": {"key": f"{day * 19970 + 5000}:{day * 20000 + 5000}:",
+             "window": {"start_ms": day * 19970 + 5000, "end_ms": day * 20000 + 5000},
+             "metrics": {"sessions": 2}}}}
+    assert narrative_input_fingerprint(task, first, {}) == narrative_input_fingerprint(task, later, {})
+    assert narrative_input_fingerprint(task, first, {"end_ms": day * 20000}) != narrative_input_fingerprint(
+        task, later, {"end_ms": day * 20000})
+    later["content"]["snapshot"]["metrics"]["sessions"] = 3
+    assert narrative_input_fingerprint(task, first, {}) != narrative_input_fingerprint(task, later, {})
+
+
+def test_stale_narrative_rebuilds_at_most_one_history_pack(client, ai_svc, monkeypatch):
+    ai_svc.fake.responses["cluster.topic_names"] = NAMES
+    for _ in range(3):
+        submit(client, "cluster.topic_names", {"topic_clusters": CLUSTERS})
+    original = ai_svc._pack
+    calls = []
+
+    def changed(task, req):
+        calls.append(req)
+        current = original(task, req)
+        return {**current, "content": {**current["content"], "data_revision": "new-import"}}
+
+    monkeypatch.setattr(ai_svc, "_pack", changed)
+    assert ai_svc.narrative("topic_names")["job_id"] is None
+    assert len(calls) == 2  # one history candidate plus the current L0 fallback
