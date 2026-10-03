@@ -46,13 +46,11 @@ function edSwitch() {
 // Lite uses the Advance sidebar components as they are (same groups, rows, Agents list, footer) and only carries fewer pages:
 // the two editions differ in how much they show, not in how it looks.
 function renderSideLite() {
-  const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
-  const n = sel({ noExtra: true }).length;
   const nav = (i, ct, bd) => sideNavBtn(LITE_ROUTES[i][0], LITE_ROUTES[i][1], LITE_ROUTES[i][2], ct, bd);
-  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
-    sideGroup('action', '行动', nav(3, '', recN || '')) +
-    sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
+  rgPut($('#side'), edSwitch() + sideImport() + '<div class="sb-scroll">' +
+    sideGroup('insight', '洞察', region('side:l-insight', SIDE_NAV_DEPS, () => nav(0) + nav(1) + nav(2, sel({ noExtra: true }).length), { wrap: true })) +
+    sideGroup('action', '行动', region('side:l-action', SIDE_NAV_DEPS, () => { const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length; return nav(3, '', recN || ''); }, { wrap: true })) +
+    sideGroup('agents', 'Agents', sideAgentsR(), '会话') + '</div>' + sideFootR());
 }
 // edSet(ed, route?): route = the page to land on in the new edition (a menu / notification route). The swap runs after the
 // thumb animation, so the target is passed in instead of calling go(route) next to edSet (that go would run first, while

@@ -53,9 +53,14 @@ function uiRestore(snap) {
 }
 const UI_DEBUG = (() => { try { return new URLSearchParams(location.search).get('debug') === 'render'; } catch (e) { return false; } })();
 window.__renderCount = 0;
+/* render() brings the window up to date. It rebuilds the page (a full render, counted in __renderCount) only on the first
+   render, a route or edition change, or on a page that is not region-built yet; on a region-built page (RG.pages,
+   24-regions.js) it re-evaluates the shell and the page regions instead and only changed regions are morphed in place.
+   RG.only (set by the live core for one call) narrows the pass to the invalidated dep keys. */
 function render() {
-  window.__renderCount++; if (UI_DEBUG) console.debug('[render]', window.__renderCount, S.route);
-  const snap = uiSnap();
+  const full = !RG.canRefresh() || ROUTE_ENTER;
+  if (full) { window.__renderCount++; if (UI_DEBUG) console.debug('[render]', window.__renderCount, S.route, RG.only ? 'via ' + Array.from(RG.only).join(',') : ''); }
+  const snap = full ? uiSnap() : null;
   agentSync();
   applyWin(); renderMbar(); renderWtop(); renderSide(); renderMain(); renderWidgets(); renderHud();
   if (S.pop) renderPop(); else $('#pop').hidden = true;
@@ -64,17 +69,23 @@ function render() {
   // the window rect cannot change while the page renders (stageSize is cached, 22-window.js): re-place only the dependants
   // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
   placeDeps();
-  uiRestore(snap);
+  if (snap) uiRestore(snap);
   if (window.__lvRendered) window.__lvRendered();
 }
+// returns true when #main was rebuilt (false: the page's regions were refreshed in place)
 function renderMain() {
+  if (RG.canRefresh() && !ROUTE_ENTER) { RG.refreshNow(RG.only || '*', RG.only ? 'live' : 'render'); return false; }
   const m = $('#main'); const c = $('#content'); const top = c ? c.scrollTop : 0;
+  RG.begin(); RG.afterQ = [];
   m.innerHTML = PAGES[S.route]();
+  RG.view = RG.viewKey();
   const nc = $('#content'); if (nc) nc.scrollTop = top;
   tbarFit();
   if (PAGES[S.route].after) PAGES[S.route].after();
+  RG.runAfter();
   const entered = ROUTE_ENTER; ROUTE_ENTER = false;
   RENDER_HOOKS.forEach((fn) => { try { fn(m, entered); } catch (e) { console.error(e); } });
+  return true;
 }
 /* toolbar overflow, in order: the search field collapses to its icon as soon as the meta text would be clipped; the meta
    then shrinks (ellipsis); items that still do not fit move (right to left) into a » popover. The page title never
@@ -119,17 +130,17 @@ function renderMbar() {
   const badge = S.paused || S.sim === 'idle' ? 'transparent' : S.sim === 'stuck' ? 'var(--crit-m)' : S.sim === 'waiting' || S.sim === 'ctx' ? 'var(--warn-m)' : S.sim === 'done' ? 'var(--good-m)' : 'var(--a1)';
   const shape = S.sim === 'waiting' ? 'border-radius:1.5px' : S.sim === 'stuck' ? 'border-radius:1.5px;transform:rotate(45deg)' : '';
   const m = (id, label) => '<button type="button" data-act="menu" data-m="' + id + '">' + label + '</button>';
-  $('#mbar').innerHTML = '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Orbit</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
+  rgPut($('#mbar'), '<button type="button" class="apple" data-act="menu" data-m="apple" aria-label="Apple 菜单">' + APPLE + '</button><button type="button" class="app" data-act="menu" data-m="app">Orbit</button>' + m('file', '文件') + m('edit', '编辑') + m('view', '显示') + m('window', '窗口') + m('help', '帮助') +
     '<span class="sp"></span><span class="status"><button type="button" class="glyph" data-act="menu" data-m="demo" aria-label="演示菜单" data-tip="演示菜单：模拟会话事件、播放首次启动与人格揭晓">' + ic('flask', 15) + '<span class="mark" style="background:var(--ai)"></span></button>' +
     '<button type="button" class="glyph' + (S.pop ? ' on' : '') + '" data-act="pop" aria-label="打开菜单栏面板" aria-expanded="' + S.pop + '">' + GLYPH + (S.paused || S.sim === 'idle' ? '' : '<span class="badge' + (S.sim === 'running' ? ' live' : '') + '" style="background:' + badge + ';' + shape + '"></span>') + '</button>' +
-    SYS_ICONS + '<span class="clock" data-clock>' + nowText() + '</span></span>';
+    SYS_ICONS + '<span class="clock" data-clock>' + nowText() + '</span></span>');
 }
 /* title row: traffic lights + sidebar toggle (floats over the sidebar material, stays when the sidebar is hidden) */
 function renderWtop() {
   const narrow = $('#win').classList.contains('narrow');
   const shown = narrow ? S.sideOver : S.side;
-  $('#wtop').innerHTML = '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="winClose" aria-label="关闭窗口"></button><button type="button" class="y" data-act="winMin" aria-label="最小化"></button><button type="button" class="g" data-act="winZoom" aria-label="' + (S.win.full ? '退出全屏' : '进入全屏；按住 ⌥ 点击为缩放') + '"></button></div>' +
-    '<button type="button" class="ib sbtoggle" data-act="sideToggle" aria-label="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + '" aria-pressed="' + shown + '" aria-keyshortcuts="Control+Meta+S" data-tip="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + ' ' + kb('⌃⌘S') + '">' + ic('sidebar') + '</button>';
+  rgPut($('#wtop'), '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="winClose" aria-label="关闭窗口"></button><button type="button" class="y" data-act="winMin" aria-label="最小化"></button><button type="button" class="g" data-act="winZoom" aria-label="' + (S.win.full ? '退出全屏' : '进入全屏；按住 ⌥ 点击为缩放') + '"></button></div>' +
+    '<button type="button" class="ib sbtoggle" data-act="sideToggle" aria-label="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + '" aria-pressed="' + shown + '" aria-keyshortcuts="Control+Meta+S" data-tip="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + ' ' + kb('⌃⌘S') + '">' + ic('sidebar') + '</button>');
 }
 /* sidebar: collapsible groups in a scrolling middle; fixed footer = the published privacy card (local only · 0 B uploaded ·
    redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
@@ -152,20 +163,26 @@ function sideAgents() {
   }).join('');
 }
 function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
+// sidebar regions (24-regions.js): the import entry, the page lists with their counts, the Agents list, the pinned projects
+// and the footer refresh on their own (a job frame only touches side:import); renderSide() morphs the whole sidebar in place
+const SIDE_NAV_DEPS = ['facts', 'filters', 'S.route', 'S.installed', 'S.recs.gone', 'S.studio.run', 'S.ed', 'tl'];
+const sideImport = () => region('side:import', ['job', 'live', 'facts', 'tl'], () => sideExtra());
+const sideAgentsR = () => region('side:agents', ['facts', 'filters', 'S.agentOff', 'tl'], () => sideAgents(), { wrap: true });
+const sideFootR = () => region('side:foot', ['facts', 'live', 'filters', 'S.paused', 'S.extraSrc', 'S.index', 'S.rules', 'tl'], () => sideFoot());
 function renderSide() {
   if (S.ed === 'lite') { renderSideLite(); return; }
-  const n = sel({ noExtra: true }).length;
-  const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
-  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪与语义', 'sentiment') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools')) +
-    group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
-    group('agents', 'Agents', sideAgents(), '会话') +
-    group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
+  rgPut($('#side'), edSwitch() + sideImport() + '<div class="sb-scroll">' +
+    group('insight', '洞察', region('side:insight', SIDE_NAV_DEPS, () => { const n = sel({ noExtra: true }).length; return navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪与语义', 'sentiment') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools'); }, { wrap: true })) +
+    group('action', '行动', region('side:action', SIDE_NAV_DEPS, () => { const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length; return navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : ''); }, { wrap: true })) +
+    group('agents', 'Agents', sideAgentsR(), '会话') +
+    group('pins', '置顶项目', region('side:pins', ['facts', 'filters', 'S.route', 'tl'], () => sidePins(), { wrap: true })) + '</div>' + sideFootR());
 }
+// live: the footer's index line reads the gateway (96-live-bind.js sets this)
+let SIDE_IDX = null;
 // the published footer, shared by both editions: privacy card (local only · 0 B uploaded · redaction rules · index state) + user row
 function sideFoot() {
-  const idx = S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
+  const idx = SIDE_IDX ? SIDE_IDX() : S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
   const nRules = Object.values(S.rules).filter(Boolean).length, me = personaNow();
   return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
     '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +

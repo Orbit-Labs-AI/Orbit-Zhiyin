@@ -9,7 +9,7 @@
      main <  800  → metric tiles 3 + 2; .two .proj .recs .sess .persona-hero stack; .three / .lib-feat auto-fit; .ov-ai 2×2
      main <  640  → metric tiles 2 per row, .stats7 4 + 3, persona axes tighten
    Media queries stay only for accessibility settings (reduced motion / transparency, more contrast) and tiny stages. */
-@container main (min-width:1900px){.content>*{max-width:1800px;margin-inline:auto}}
+@container main (min-width:1900px){.content>*,.content>.rg-wrap>*{max-width:1800px;margin-inline:auto}}
 @container main (max-width:999px){.studio{grid-template-columns:minmax(0,1fr)}}
 @container main (max-width:899px){.tsearch{width:28px;padding:0;justify-content:center}.tsearch span,.tsearch kbd{display:none}}
 @container main (max-width:799px){.pg-guide-s{display:none}.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.two,.proj,.recs{grid-template-columns:minmax(0,1fr)!important}.sess,.persona-hero{grid-template-columns:minmax(0,1fr)}.slist{max-height:320px}.three,.lib-feat{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))!important}.ov-ai{grid-template-columns:repeat(2,minmax(0,1fr))}}
