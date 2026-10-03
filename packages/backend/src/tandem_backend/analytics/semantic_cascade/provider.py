@@ -126,6 +126,12 @@ def _run_bounded(command, payload, folder, timeout):
                         if len(chunk) > available:
                             raise ValueError(f"semantic {key.data} byte budget exceeded")
                 process.wait(timeout=max(0.001, deadline - time.perf_counter()))
+            # The leader is reaped; helpers that dropped the pipes still share its
+            # group and would otherwise outlive a successful call (best effort).
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
         except BaseException as exc:
             try:
                 _terminate_group(process)
@@ -244,8 +250,11 @@ class CodexProvider:
             usage = None
             for line in result.stdout.splitlines():
                 item = json.loads(line)
+                if not isinstance(item, dict):
+                    raise RuntimeError("provider emitted an unknown activity")
                 native = item.get("item")
-                if native and native.get("type") not in ("agent_message", "reasoning"):
+                if native and (not isinstance(native, dict)
+                               or native.get("type") not in ("agent_message", "reasoning")):
                     raise RuntimeError("provider emitted a prohibited tool or unknown activity")
                 if item.get("type") == "turn.completed":
                     usage = item.get("usage")
