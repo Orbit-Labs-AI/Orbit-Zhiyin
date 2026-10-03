@@ -55,7 +55,7 @@ def test_awesome_source_yields_metadata_only_unverified_items():
     assert page.complete and [r.native_id for r in page.records] == ["acme/agg", "bob/blender-mcp"]
     agg = page.records[0].resource
     assert agg.item_id == "mcp_server:awesome:github.com/acme/agg" and agg.url == "https://github.com/acme/agg"
-    assert agg.body == "" and agg.body_policy == "metadata" and agg.official
+    assert agg.body == "" and agg.body_policy == "metadata" and not agg.official and agg.metadata["vendor_official"]
     assert agg.metadata["verification"] == "listed_only" and agg.metadata["category"] == "Aggregators"
     assert {(f.feature, f.value) for f in agg.features} == {("category", "Aggregators"), ("language", "typescript"),
                                                            ("transport", "remote")}
@@ -153,3 +153,12 @@ def test_plain_403_is_final(tmp_path):
     http = HttpClient(tmp_path, opener=LimitedOpener({}), sleep=lambda s: None)
     with pytest.raises(FetchError, match="http_403"):
         http.json("https://api.github.com/repos/o/r")
+
+
+def test_rule_summary_falls_back_to_first_prose_paragraph():
+    from tandem_catalog.sources.github import first_paragraph
+    body = "# Title\n\n```py\nx = 1\n\nprint(x)\n```\n\n- list item\n\nYou are an expert in FastAPI.\nWrite typed code.\n\nMore."
+    assert first_paragraph(body) == "You are an expert in FastAPI. Write typed code."
+    assert first_paragraph("# Only a heading\n\n- and a list") == ""
+    assert first_paragraph("[ComponentName](https://v0.dev/chat?q={encoded_prompt})\n\nSee [the docs](https://x) for every rule.") \
+        == "See the docs for every rule."

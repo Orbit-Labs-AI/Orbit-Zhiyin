@@ -425,8 +425,11 @@ class StructuredConnector:
                                         origin="declared", evidence="awesome list legend"))
             r = Resource(item_id=f"{kind}:awesome:github.com/{native_id}", type=kind, name=entry["name"][:300],
                          summary=entry["summary"][:12000], url="https://github.com/" + entry["repo"], agents=agents,
-                         official=entry["official"], features=features,
+                         features=features,
+                         # 🎖️ = "official implementation" by the integrated service's vendor, which is not
+                         # the catalog's ``official`` (published by an agent vendor's own source).
                          metadata={"verification": "listed_only", "resolution": "repository_pointer",
+                                   "vendor_official": entry["official"],
                                    "list": self.source.url, "category": entry["category"],
                                    "author": entry["repo"].split("/")[0]})
             records.append(Record(native_id=native_id, resource=r, raw=entry))

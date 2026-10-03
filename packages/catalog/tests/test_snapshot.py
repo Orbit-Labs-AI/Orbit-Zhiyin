@@ -290,3 +290,17 @@ def test_bundled_seed_has_fixed_source_mappings():
     assert len(by_kind["mcp_server"]) >= 100 and len({r["item_id"] for r in items}) == len(items)
     keys = [(r["type"], r["name"].lower(), r.get("summary", "")) for r in items]
     assert len(set(keys)) == len(keys)
+
+
+def test_pick_stratifies_by_source_and_declared_agent(monkeypatch):
+    from tandem_catalog import snapshot
+    monkeypatch.setattr(snapshot, "MIN_PER_AGENT", 2)
+    monkeypatch.setattr(snapshot, "MIN_PER_SOURCE", 1)
+    # Ranked best first: ten big-source claude_code items, then a small source with two hermes items.
+    ranked = [{"item_id": f"big{n}", "source_id": "big", "agents": ["claude_code"]} for n in range(10)]
+    ranked += [{"item_id": f"small{n}", "source_id": "small", "agents": ["hermes"]} for n in range(3)]
+    picked = [r["item_id"] for r in snapshot._pick(ranked, 5)]
+    # 1. best per source: big0, small0; 2. two per agent: big1 (claude_code), small1 (hermes);
+    # 3. one per source: already met; 4. fill by rank: big2. Returned in rank order.
+    assert picked == ["big0", "big1", "big2", "small0", "small1"]
+    assert [r["item_id"] for r in snapshot._pick(ranked, 1)] == ["big0"]

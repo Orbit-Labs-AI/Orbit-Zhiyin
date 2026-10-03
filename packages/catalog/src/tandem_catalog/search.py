@@ -24,11 +24,14 @@ RANKING_VERSION = "hybrid-bm25f-abs-mmr80-v4"
 ROUTE_WEIGHTS = {"remedy": 1.5, "feature": 1.2, "lexical": 1.0, "semantic": 2.0}
 # Han function words, Lucene's EnglishAnalyzer default stop set (a an and are as at be but by for
 # if in into is it no not of on or such that the their then there these they this to was will with),
-# plus conversational query filler (pronouns, question words, modal verbs, "help" mirroring 帮助).
+# plus conversational query filler (pronouns, question words, modal verbs, "help" mirroring 帮助)
+# and catalog-domain filler ("tool", "best": the 2026-10-03 seed scored "the best tool" at 0.20).
 STOP_WORDS = set("的 和 为 是 在 与 及 了 把 中 从 到 用 做 对 将 并 要 如何 是否 以及 进行 帮助 我 你 我们 怎么 一下 "
                  "a an and are as at be but by for if in into is it no not of on or such that the their then there "
                  "these they this to was will with i me my you your we our its those how what why when which who "
-                 "do does did can could should would please help".split())
+                 "do does did can could should would please help "
+                 # Catalog-domain filler: every item is a tool/resource, so these words select nothing.
+                 "tool tools best".split())
 # Han query words -> English phrases. Generated from features.VOCABULARY (every Han word of a
 # key expands to the Latin words of the same key), plus query-only aliases that are not
 # extraction features. Expansions only add lexical alternatives; they never become features.
