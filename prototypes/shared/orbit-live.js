@@ -30,6 +30,11 @@ const OrbitLive = (function () {
   // projection_pending: the first import has not published yet (or a job ran before it did). That is a normal state while
   // data is being organised, not a failure: no error banner, the resource reads as computing and reloads quietly.
   const isPending = (e) => !!e && (e.code === 'projection_pending' || e.reason === 'projection_pending');
+  // 503 service_unavailable 'Database busy' (SQLite locked by the import writer, Retry-After 1): during an import this is the
+  // writer holding the lock, not an outage → retried quietly like projection_pending, up to BUSY_MAX times in a row (then
+  // it is a real failure and raises the banner as before)
+  const isBusy = (e) => !!e && e.status === 503 && e.code === 'service_unavailable' && /^Database busy/.test(e.message || '');
+  const BUSY_MAX = 8;
   // scope keys POST /v1/analytics/recompute accepts (the analytics scope), used to rebuild a scope from a resource query
   const SCOPE_KEYS = ['display_timezone', 'project_ids', 'legacy_project_ids', 'model_ids', 'effort_raw', 'from_ts', 'until_ts', 'root_session_uids', 'excluded_session_uids', 'include_children', 'scene', 'source_ids', 'agent_ids'];
   const JOB_DONE = ['completed', 'failed'];
@@ -213,9 +218,12 @@ const OrbitLive = (function () {
       r.touchedAt = now();
       return r;
     };
+    // an import is running: a job frame says so, or the host knows (C.importing, e.g. the first-run overlay's own job)
+    const importJobActive = () => !!(C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0);
+    const importingNow = () => { if (importJobActive()) return true; try { return !!(C.importing && C.importing()); } catch (e) { return false; } };
     C.stateOf = function (r) {
       if (!r) return 'idle';
-      const importing = C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0;
+      const importing = importJobActive();
       if (importing && (r.state === 'empty' || (r.data == null && (r.state === 'loading' || r.state === 'idle')))) return 'importing';
       return r.state;
     };
@@ -232,7 +240,7 @@ const OrbitLive = (function () {
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
         // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
         const jid = res.meta && res.meta.job_id; if (jid && (res.state === 'computing' || res.state === 'stale')) watchJob(r, jid);
-        C.failure = null; r.fails = 0;
+        C.failure = null; r.fails = 0; r.busy = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
@@ -244,6 +252,13 @@ const OrbitLive = (function () {
           retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : Math.min(5000, 1000 * r.fails));
           return;
         }
+        if (isBusy(e) && importingNow() && (r.busy = (r.busy || 0) + 1) <= BUSY_MAX) {
+          r.error = { status: 503, code: 'service_unavailable', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null, busy: true };
+          r.state = r.data != null ? 'stale' : 'computing';
+          retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : 1000);
+          return;
+        }
+        if (!isBusy(e)) r.busy = 0;
         r.error = { status: e.status || 0, code: e.code || 'network', message: e.message, retryable: e.retryable !== false, retryAfter: e.retryAfter, reason: e.reason || null };
         r.state = 'error';
         if (r === statusRes) C.error = r.error;

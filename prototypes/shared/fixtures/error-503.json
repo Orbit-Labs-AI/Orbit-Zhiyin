@@ -1,7 +1,7 @@
 {
   "error": {
     "code": "service_unavailable",
-    "message": "Database busy",
+    "message": "analytics is not running",
     "retryable": true
   },
   "retry_after_s": 2

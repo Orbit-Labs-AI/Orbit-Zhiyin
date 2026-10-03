@@ -90,6 +90,9 @@ function lvSchedule() {
   lvFrameT = setTimeout(lvFlush, 120);
 }
 const TL = OrbitLive.create({ onChange: () => lvSchedule() });
+// the first-run overlay runs its own import job (no job frame on TL yet): tell the client so a 'Database busy' 503 while it
+// writes is retried quietly instead of raising the outage banner (F08)
+TL.importing = () => lvImporting();
 const TLU = OrbitLive.ui;
 const TL_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
 

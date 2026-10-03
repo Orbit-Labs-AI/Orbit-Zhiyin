@@ -241,6 +241,32 @@ test('F08: projection_pending is not an outage — no banner error, reads as com
   assert.equal(OrbitLive.ui.banner(C), '');
 });
 
+test('F08: a Database busy 503 while an import writes is retried quietly; outside an import (or past the cap) it is an outage', async () => {
+  let busy = true;
+  const BUSY = { error: { code: 'service_unavailable', message: 'Database busy: database is locked', retryable: true } };
+  const gw = gateway({ '/v1/analytics/overview': () => busy ? json(BUSY, 503, { 'Retry-After': '1' }) : json(FX('overview')) });
+  const t = timers();
+  const C = live(gw, { timers: t });
+  C.bind('overview', [{ name: 'ov', path: '/v1/analytics/overview' }], (d) => d.ov.overview.counts);
+  C.markRender();
+  let importing = true; C.importing = () => importing;   // the host's own import (first-run overlay), no job frame
+  C.view('overview', null); await tick();
+  let v = C.view('overview', null);
+  assert.equal(v.state, 'computing');
+  assert.equal(C.failure, null);
+  assert.doesNotMatch(OrbitLive.ui.banner(C), /服务暂时不可用/);
+  const retry = t.long.find((x) => x.ms === 1000);
+  assert.ok(retry, 'quiet retry on Retry-After');
+  busy = false; retry.f(); await tick(); await tick();
+  assert.equal(C.view('overview', null).state, 'ready');
+  // no import running: the same 503 is an outage again
+  importing = false; busy = true; C.invalidate();
+  C.view('overview', null); await tick(); await tick();
+  v = C.view('overview', null);
+  assert.equal(v.state, 'error');
+  assert.match(OrbitLive.ui.banner(C), /服务暂时不可用（service_unavailable）/);
+});
+
 test('SSE: exponential backoff, Last-Event-ID resume and resync on a gap', async () => {
   const f = FX('events').frames;
   const gw = gateway({
