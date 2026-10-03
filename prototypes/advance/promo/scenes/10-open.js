@@ -1,4 +1,4 @@
-/* 1 片头：两个问题（b0–7.9）+ 2 标志 → 字标 → 俯视螺旋下潜（b7.9–22.6；之后各场景整体后移 INTRO = 8 拍）. STORYBOARD.md KF 1.1–2.4.
+/* 1 片头：两个问题（b0–7.9）+ 2 标志 → 字标 → 俯视螺旋下潜（b7.9–22.6；之后各场景按 promo.js 的 SHIFT 表后移）. STORYBOARD.md KF 1.1–2.4.
    Words cut in on the beat and the line refits; the five Agent chips pop under it, then collapse into the five planets
    that orbitAt draws; two questions swap in the middle; the planets fall onto the mark's tail, the mark is traced,
    tips over and the camera dives into its hole (OPEN timings, drawn by orbitAt in promo.js). */
@@ -12,8 +12,8 @@ scene('10-open', () => {
 .op-q .w,.op-q .ln>span{will-change:auto}
 .ochip{position:absolute;left:0;top:0;display:flex;align-items:center;gap:16px;padding:14px 30px 14px 22px;border-radius:999px;
   border:1.5px solid rgba(255,255,255,.22);background:rgba(255,255,255,.045);font:500 40px var(--mono);color:#fff;white-space:nowrap;will-change:transform,opacity}
-.ocov{position:absolute;left:0;top:0;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:#000}
-.ochip i{width:16px;height:16px;border-radius:50%;flex:none}
+.ocov{position:absolute;left:0;top:0;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:#000}
+.ochip .ologo{flex:none;overflow:visible}
 `);
   const Y = 470;                                                     // the sentence's centre line
 
@@ -37,7 +37,7 @@ scene('10-open', () => {
   // chip hides on arrival, where orbitAt's planet takes over at the same point
   const AGS = [['Claude Code', 'var(--a1)'], ['Codex', 'var(--a2)'], ['Gemini CLI', 'var(--a3)'], ['DeepSeek', 'var(--a4)'], ['Copilot', 'var(--a5)']];
   const planet = (i, b) => { const a = ((b - OPEN.planets) * 95 + i * 72) * Math.PI / 180; return [960 + Math.cos(a) * 380, 790 + Math.sin(a) * 64]; };
-  txt(1.2, 3.6, [['op-chips', AGS.map(() => '<div class="ocov"></div>').join('') + AGS.map((a) => '<div class="ochip"><i style="background:' + a[1] + '"></i><span>' + a[0] + '</span></div>').join('')]], { x: 0, y: 0 }, {
+  txt(1.2, 3.6, [['op-chips', AGS.map(() => '<div class="ocov"></div>').join('') + AGS.map((a, i) => '<div class="ochip"><svg class="ologo" width="34" height="34" viewBox="-17 -17 34 34">' + agBadge(i, 0, 0, 15) + '</svg><span>' + a[0] + '</span></div>').join('')]], { x: 0, y: 0 }, {
     anim: (el, tl, life, t) => {
       const b = t / BEAT, cs = [...el.querySelectorAll('.ochip')];
       el.style.transform = 'none';
@@ -48,13 +48,13 @@ scene('10-open', () => {
       // until a chip lands, a black disc in the type layer hides orbitAt's planet underneath, so each Agent is only one dot
       el.querySelectorAll('.ocov').forEach((v, i) => { const f = clamp((b - 3.0 - i * .03) / .42), q = planet(i, b); v.style.display = b >= OPEN.planets && f < 1 ? '' : 'none'; v.style.transform = 'translate(' + q[0].toFixed(1) + 'px,' + q[1].toFixed(1) + 'px)'; });
       cs.forEach((c, i) => {
-        const L0 = el._lay[i], dot = [L0.x + 30, 664];                 // the dot's centre at rest (padding 22 + radius 8)
+        const L0 = el._lay[i], dot = [L0.x + 39, 664];                 // the logo's centre at rest (padding 22 + radius 17)
         const pop = clamp((b - 1.2 - i * .2) / .3), sc0 = pop >= 1 ? 1 : lerp(.6, 1, ease.back(pop));
         const f0 = 3.0 + i * .03, f = clamp((b - f0) / .42), fe = E.inOut(f);
         const tg = planet(i, Math.max(b, f0)), px = lerp(dot[0], tg[0], fe), py = lerp(dot[1], tg[1], fe) - Math.sin(fe * Math.PI) * 40;
-        const sc = sc0 * lerp(1, 14 / 16, fe), lab = 1 - E.out(clamp(f * 2.2));
-        c.style.transformOrigin = '30px 50%';
-        c.style.transform = 'translate(' + (px - 30).toFixed(1) + 'px,' + (py - L0.h / 2).toFixed(1) + 'px) scale(' + sc.toFixed(4) + ')';
+        const sc = sc0 * lerp(1, 15 / 17, fe), lab = 1 - E.out(clamp(f * 2.2));
+        c.style.transformOrigin = '39px 50%';
+        c.style.transform = 'translate(' + (px - 39).toFixed(1) + 'px,' + (py - L0.h / 2).toFixed(1) + 'px) scale(' + sc.toFixed(4) + ')';
         c.style.opacity = f >= 1 ? '0' : Math.min(1, pop * 2).toFixed(3);
         c.querySelector('span').style.opacity = lab.toFixed(3);
         c.style.borderColor = 'rgba(255,255,255,' + (.22 * lab).toFixed(3) + ')';
