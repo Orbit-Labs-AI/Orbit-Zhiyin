@@ -11,6 +11,11 @@ import time
 
 # stage -> (label, unit of completed/total or None, what the step does)
 STAGES = {
+    "capture_retry": (
+        "重新读取变化文件",
+        None,
+        "来源在读取时变化或暂时不可用，最多重新读取一次；持续失败保留旧事实",
+    ),
     "capture": (
         "读取会话文件",
         "files",

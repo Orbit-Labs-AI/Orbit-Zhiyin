@@ -335,9 +335,25 @@ class OpenCodeMapper(BaseMapper):
                         "created",
                     )
                 if typ == "assistant":
-                    for index, block in enumerate(message.get("content", [])):
-                        if block.get("type") == "tool":
-                            events.extend(self._v2_tool(record, block, key, index))
+                    blocks = message.get("content", [])
+                    if isinstance(blocks, dict):
+                        blocks = [blocks]
+                    for index, block in enumerate(blocks if isinstance(blocks, list) else []):
+                        if isinstance(block, dict) and block.get("type") == "tool":
+                            try:
+                                events.extend(self._v2_tool(record, block, key, index))
+                            except (KeyError, TypeError, AttributeError, ValueError):
+                                # One malformed tool must not discard the answer and
+                                # healthy tools beside it. Keep its complete evidence.
+                                events.append(
+                                    self.make(
+                                        record,
+                                        "unknown",
+                                        f"content[{index}].tool",
+                                        native_key=key,
+                                        ext={"block": block},
+                                    )
+                                )
                     if message.get("error"):
                         text, attrs = error_event_fields(message["error"])
                         events.append(

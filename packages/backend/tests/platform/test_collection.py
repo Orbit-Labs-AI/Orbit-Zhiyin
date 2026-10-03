@@ -164,3 +164,63 @@ def test_latest_job_returns_only_the_newest_of_an_origin(gw):
     newest["results"].append("mutated")  # a copy: state untouched
     assert gw.state.state["jobs"]["j3"]["results"] == []
     assert gw.state.latest_job("nope") is None
+
+
+def test_failed_resume_dispatch_retries_in_manual_mode_with_backoff(gw, clock, monkeypatch):
+    import threading
+    from types import SimpleNamespace
+
+    from orbit_backend.services import gateway
+    from orbit_backend.services.jobs import JobService
+
+    enable_sources(gw, "a")
+    gw.state.update_settings({"sync_mode": "off"})
+    attempts = []
+
+    def unavailable(*_):
+        attempts.append(1)
+        raise RuntimeError("synthetic worker unavailable")
+
+    runner = SimpleNamespace(start=unavailable, cancel=lambda *_: None)
+    gw.jobs = JobService(gw.state, runner, lambda *_: None)
+    gw.stopping, gw.sync_interval_s = threading.Event(), (2.0, 30.0)
+    c = Collection(gw, clock=clock)
+    c.pause()
+    out = c.resume()
+    assert out["catch_up_job_id"] is None and out["catch_up_pending"]
+    assert gw.state.latest_job("sync")["status"] == "failed"
+    assert gateway._sync_round(gw, c, 2.0) > 0
+    assert len(attempts) == 1  # Failure does not create a tight dispatch loop.
+
+    # A retry that also fails must not consume the pending intent.
+    failed_at = gw.state.latest_job("sync")["finished_at"]
+    monkeypatch.setattr(gateway.time, "time", lambda: failed_at / 1000 + 31)
+    gateway._sync_round(gw, c, 2.0)
+    assert len(attempts) == 2 and c.catch_up_pending
+
+    # Once the worker returns, the same explicit catch-up runs with sync still off.
+    next_at = gw.state.latest_job("sync")["finished_at"]
+    monkeypatch.setattr(gateway.time, "time", lambda: next_at / 1000 + 31)
+    runner.start = lambda *_: attempts.append(1)
+    gateway._sync_round(gw, c, 2.0)
+    assert len(attempts) == 3 and not c.catch_up_pending
+    assert gw.state.latest_job("sync")["status"] == "queued"
+
+
+def test_latest_job_timestamp_ties_use_persisted_insertion_order(tmp_path, monkeypatch):
+    from orbit_backend.services import jobs
+
+    monkeypatch.setattr(jobs, "now_ms", lambda: 123456)
+    state = jobs.AppState(tmp_path / "app-state.json")
+    first, _ = state.create_job("verify", origin="sync")
+    state.transition(first["id"], "failed")
+    second, _ = state.create_job("verify", origin="sync")
+    assert first["created_at"] == second["created_at"]
+    assert state.latest_job("sync")["id"] == second["id"]
+    assert state.latest_job("sync")["status"] == "queued"
+    assert [job["id"] for job in state.jobs()] == [second["id"], first["id"]]
+
+    # Serialization and restart must retain the same tie order, not UUID order.
+    restored = jobs.AppState(state.path)
+    assert restored.latest_job("sync")["id"] == second["id"]
+    assert [job["id"] for job in restored.jobs()] == [second["id"], first["id"]]

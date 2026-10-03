@@ -1,6 +1,7 @@
 """Small application boundary: public catalog operations and cancellable background jobs."""
 
 import hashlib
+import os
 import threading
 import time
 import uuid
@@ -21,7 +22,7 @@ from .contracts import (
 )
 from .network import HttpClient
 from .search import query_text, remember_queries, search
-from .snapshot import OFFLINE_KINDS, bundled_seed, import_snapshot, retire_seeds
+from .snapshot import OFFLINE_KINDS, bundled_seed, import_snapshot, retire_seeds, snapshot_changed
 from .sources import default_sources
 from .store import CatalogBusy, CatalogStore
 from .sync import CatalogSync
@@ -37,6 +38,15 @@ def default_home() -> Path:
     return orbit_default_home()
 
 
+# Codes ``CatalogService.encoder`` raises for a model that cannot load; any other failure
+# (e.g. query encoding) is reported by exception type, never by its free-form message.
+MODEL_LOAD_ERRORS = ("embedding_runtime_missing", "embedding_model_unloadable")
+
+
+def vector_failure(exc: Exception) -> str:
+    return str(exc) if isinstance(exc, RuntimeError) and str(exc) in MODEL_LOAD_ERRORS else type(exc).__name__
+
+
 class CatalogService:
     def __init__(self, path: str | Path, *, model_dir=None, http=None, encoder=None):
         self.store = CatalogStore(path)
@@ -48,7 +58,10 @@ class CatalogService:
             except CatalogBusy:  # Another process is syncing; defaults are registered next start.
                 pass
         self.http = http or HttpClient(self.store.path.parent / "catalog-http-cache")
-        self.model_dir = model_dir
+        # The App gateway creates CatalogService without constructor options. An explicit
+        # local path (ORBIT_CATALOG_MODEL_DIR) enables the same encoder there; otherwise the
+        # first complete model under ``model_roots`` is used. Never download weights automatically.
+        self.model_dir = model_dir if model_dir is not None else os.environ.get("ORBIT_CATALOG_MODEL_DIR") or None
         self.model_roots = embedding_model.default_roots(self.store.path.parent)
         self._encoder = encoder
         self._model_lock = threading.Lock()
@@ -90,28 +103,35 @@ class CatalogService:
 
     def match(self, request: MatchRequest) -> dict:
         try:
-            encoder = self.encoder()
+            return search(self.store, request, self.encoder())
         except Exception as exc:
+            # Loading and query encoding can both fail (missing files, corrupt weights,
+            # changed model identity). Keep independent keyword/feature retrieval usable.
             result = search(self.store, request)
-            result["vector"] = {"status": "unavailable",
-                                "reason": str(exc) if isinstance(exc, RuntimeError) else type(exc).__name__}
+            reason = vector_failure(exc)
+            result["vector"] = {"status": "unavailable", "reason": reason}
+            result.setdefault("degraded", []).append("semantic:" + reason)
             return result
-        return search(self.store, request, encoder)
 
     def match_many(self, requests: list[MatchRequest]) -> list[dict]:
-        """Batch-encode all query texts once, then run searches in parallel; order is preserved."""
+        """Batch-encode query texts; vector failure preserves every non-vector route."""
         if not requests:
             return []
         try:
             encoder = self.encoder()
-        except Exception:
-            encoder = None
-        if encoder is not None:
-            texts = list(dict.fromkeys(query_text(r) for r in requests
-                                       if query_text(r) and r.model_id in (None, encoder.model_id)))
-            if texts:
-                vectors = normalize_vectors(encoder.encode(texts, query=True), len(texts), encoder.dimensions)
-                remember_queries(encoder, texts, vectors)
+            if encoder is not None:
+                texts = list(dict.fromkeys(query_text(r) for r in requests
+                                           if query_text(r) and r.model_id in (None, encoder.model_id)))
+                if texts:
+                    vectors = normalize_vectors(encoder.encode(texts, query=True), len(texts), encoder.dimensions)
+                    remember_queries(encoder, texts, vectors)
+        except Exception as exc:
+            reason = vector_failure(exc)
+            results = [search(self.store, request) for request in requests]
+            for result in results:
+                result["vector"] = {"status": "unavailable", "reason": reason}
+                result.setdefault("degraded", []).append("semantic:" + reason)
+            return results
         if len(requests) == 1:
             return [self.match(requests[0])]
         with ThreadPoolExecutor(max_workers=min(4, len(requests)), thread_name_prefix="orbit-match") as pool:
@@ -218,8 +238,8 @@ class CatalogService:
         """First start: publish the offline sources (package data, KB) and the bundled snapshot.
 
         Never touches the network. Safe to call on every start: offline sources are published
-        on every start (no-op when unchanged), the snapshot only while the library has no
-        network data and no seed yet (``needs_seed``).
+        on every start (no-op when unchanged); a bundled snapshot source is imported when its
+        revision is new and that source has not completed a network sync (``snapshot_changed``).
         """
         sources = {s["source_id"]: s for s in self.store.sources()}
         # Re-published every start (an unchanged revision is a cheap no-op), so an app update
@@ -229,10 +249,11 @@ class CatalogService:
         if due:
             # Offline kinds read package files only; a failing source is reported, not raised.
             result["offline"] = CatalogSync(self.store, self.http).sync(due, force=True, concurrency=1)
-        if import_seed and self.needs_seed():
+        if import_seed:
             seed = bundled_seed() if seed is None else seed
-            if seed:
+            if seed and snapshot_changed(self.store, seed):
                 result["seed"] = import_snapshot(self.store, seed)
+        self.store.ensure_projections()
         return result
 
     def needs_seed(self) -> bool:

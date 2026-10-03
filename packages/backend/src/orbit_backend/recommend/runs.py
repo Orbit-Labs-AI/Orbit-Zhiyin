@@ -170,9 +170,20 @@ def ai_rerank(gw, slate: dict, scope: dict) -> None:
         slate["diagnostics"].append({"source": "rerank.fit", "status": "unavailable",
                                      "reason": str(error)})
         return
-    body = result.get("result") or {}
-    order = [key for key in body.get("order") or [] if isinstance(key, str)]
-    fits = {i.get("candidate_id"): i for i in body.get("items") or []}
+    except Exception as error:  # Optional enrichment cannot fail the whole recommendation run.
+        slate.setdefault("diagnostics", []).append({"source": "rerank.fit", "status": "failed",
+                                                     "reason": type(error).__name__})
+        return
+    body = result.get("result") if isinstance(result, dict) else None
+    if not isinstance(body, dict):
+        slate.setdefault("diagnostics", []).append({"source": "rerank.fit", "status": "failed",
+                                                     "reason": "invalid_result"})
+        return
+    ids = {c["rec_key"] for c in ranked}
+    order = list(dict.fromkeys(key for key in body.get("order") or [] if isinstance(key, str) and key in ids))
+    order += [c["rec_key"] for c in ranked if c["rec_key"] not in order]
+    fits = {i.get("candidate_id"): i for i in body.get("items") or []
+            if isinstance(i, dict) and isinstance(i.get("candidate_id"), str) and i["candidate_id"] in ids}
     position = {key: i for i, key in enumerate(order, 1)}
     for cand in ranked:
         cand["display_rank"] = position.get(cand["rec_key"], len(order) + cand["rank"])
@@ -234,7 +245,8 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         if generation is None and same:
             generation = previous["catalog_generation"]
         # AI on/off changes the slate (generation cards, display order), so it keys the run.
-        memory_rev = f"{memory_rev}:ai{int(memory['settings']['ai_generate'])}"
+        settings_key = hashlib.sha256(json.dumps(settings, sort_keys=True, default=str).encode()).hexdigest()[:16]
+        memory_rev = f"{memory_rev}:settings:{settings_key}"
         digest = inputs_digest(data, engine_version, kb_version, generation, memory_rev)
         if not force:
             with gw.appdb.read() as conn:
@@ -254,6 +266,12 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
             slate["diagnostics"].append({"source": "engine", "status": "failed",
                                          "reason": f"{type(error).__name__}: {error}"})
         if memory["settings"]["ai_generate"]:
+            from .expert import enrich
+            try:
+                enrich(gw, slate, data, memory, catalog, scope_dict)
+            except Exception as error:
+                slate.setdefault("diagnostics", []).append({"source": "recommend.expert", "status": "failed",
+                                                             "reason": type(error).__name__})
             ai_rerank(gw, slate, scope_dict)
         _mark_generate(slate, memory["settings"]["ai_generate"])
         duration = int((time.perf_counter() - started) * 1000)

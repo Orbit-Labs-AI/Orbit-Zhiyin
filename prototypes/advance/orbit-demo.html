@@ -2784,11 +2784,13 @@ const OrbitLive = (function () {
       if (C.mode !== 'live') return Promise.resolve(r);
       if (r.loading) return r.loading;
       const prev = r.state;
+      const mutationVersion = r.mutationVersion || 0;
       r.dirty = false;
       if (r.data == null && r.state !== 'computing') r.state = 'loading';
       r.refreshing = true;
       if (r.retryTimer) { timers.clearTimeout(r.retryTimer); r.retryTimer = null; }
       r.loading = C.get(r.path, { scope: r.scope, query: r.query, waitMs: r.waitMs, signal }).then((res) => {
+        if ((r.mutationVersion || 0) !== mutationVersion) return;
         if (res.state === 'computing') { r.state = 'computing'; r.meta = Object.assign({}, r.meta || {}, res.meta || {}); r.computingSince = now(); }
         else { r.data = res.data; r.meta = res.meta; r.state = res.state; r.updatedAt = now(); r.error = null; }
         // 202 (or a stale 200 being recomputed) names its job: poll it instead of refetching blindly
@@ -2796,6 +2798,7 @@ const OrbitLive = (function () {
         C.failure = null; r.fails = 0; r.busy = 0;
         if (r === statusRes) { C.status = r.data; C.error = null; }
       }, (e) => {
+        if ((r.mutationVersion || 0) !== mutationVersion) return;
         if (isAbort(e)) { r.dirty = true; r.state = r.data != null ? prev : 'idle'; return; }
         if (isPending(e)) {
           // nothing published yet: keep the last data (stale) or read as computing; retry on Retry-After without a banner
@@ -3910,7 +3913,7 @@ function openModal(html, cls) {
   MODAL_HOST = pal ? null : sheetHost();
   if (MODAL_HOST === $('#win') && S.winGone) { S.winGone = false; render(); }
   m.className = 'modal' + (cls ? ' ' + cls : ''); m.innerHTML = html; m.hidden = false;
-  if (!pal && !m.querySelector('[data-act="closeModal"]')) { const mh = m.querySelector('.mh'); if (mh) mh.insertAdjacentHTML('beforeend', '<button type="button" class="ib mx" data-act="closeModal" aria-label="关闭">' + ic('x', 14) + '</button>'); }
+  if (!pal) { const mh = m.querySelector('.mh'); if (mh && !mh.querySelector('[data-act="closeModal"]')) mh.insertAdjacentHTML('beforeend', '<button type="button" class="ib mx" data-act="closeModal" aria-label="关闭对话框" data-tip="关闭（Esc）">' + ic('x', 14) + '</button>'); }
   $('#scrim').hidden = pal; closeDD(); tipOff(); sheetPlace();
   const f = m.querySelector('[autofocus]') || m.querySelector('.mf .btn.p:not([disabled])') || m.querySelector('input:not([type="checkbox"]):not([type="radio"]),textarea') || m.querySelector('button.p:not([disabled])') || m.querySelector('button:not([disabled]):not(.mx)');
   if (f) setTimeout(() => { if (!m.hidden && m.contains(f)) f.focus({ preventScroll: true }); }, 20);
@@ -9300,7 +9303,7 @@ function openAsk(ctx) {
     '<div class="mb col" style="gap:10px"><div class="row" style="flex-wrap:wrap;gap:6px">' + ASKQ[c].map((q, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(q) + '</button>').join('') + '</div>' +
     '<div class="ask-a" id="askA" aria-live="polite"><span class="cap ask-empty">选一个问题，或在下方输入你自己的问题</span></div>' +
     '<div class="row"><label class="vh" for="askIn">你的问题</label><input id="askIn" placeholder="输入问题，回车发送" autocomplete="off" style="' + FIELD + ';height:32px"><button type="button" class="btn p" data-act="askSend" style="height:32px">发送</button></div></div>' +
-    '<div class="mf"><span class="row cap" style="margin-right:auto;font-size:11px">' + ic('shield', 13, 'color:var(--good)') + '预置问题在本机查询；自由提问经本机 Agent 发给其模型服务，只含脱敏摘要</span><button type="button" class="btn" data-act="askCopy">复制回答</button><button type="button" class="btn ai" data-act="askStudio">' + ic('spark', 13) + '交给生成工坊</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
+    '<div class="mf"><span class="row cap" style="margin-right:auto;font-size:11px">' + ic('shield', 13, 'color:var(--good)') + '依据所选会话与分析结果；自由提问经本机 Agent 发给其模型服务，只含脱敏摘要</span><button type="button" class="btn" data-act="askCopy">复制回答</button><button type="button" class="btn ai" data-act="askStudio">' + ic('spark', 13) + '交给生成工坊</button><button type="button" class="btn p" data-act="closeModal">完成</button></div>', 'wide');
   MODAL_KEY = 'ask';
 }
 function askStream(q, txt) {
@@ -9719,7 +9722,7 @@ function drawOB() {
   let b = '';
   if (s === 0) {
     b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div>' + wordmark(18) + '<h2 class="serif" style="margin:8px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
-      [['eye', '只读本地日志', '不碰凭据文件，也不需要「完全磁盘访问」'], ['shield', '数据不出本机', '0 B 上传；匿名贡献默认关闭'], ['bot', 'Orbit 不自带云端模型', 'AI 功能默认关闭；开启后交给你自己的本地 Agent，只发送脱敏摘要']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
+      [['eye', '整理会话轨迹', '只读本地日志，汇总对话、工具调用与任务结果，保留来源证据'], ['chart', '看见协作习惯', '先计算统计指标，再查看卡点、反馈和改进方向'], ['bot', '按需连接本地 Agent', 'AI 功能默认关闭；开启后用专业模板深入分析，沿用 Agent 自己的模型配置，只发送脱敏摘要']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
   } else if (s === 1 && OB.live) {
     b = obLiveStep();
@@ -10643,7 +10646,7 @@ function hudCard() {
   const s = hudSess(); const tip = !S.hud.tipOff && S.live.ctx >= 60;
   const d = liveBuckets(20, 30); const errs = sum(d.b, (x) => x.err), msgs = sum(d.b, (x) => x.user);
   const cell = (l, v, attr) => '<div class="hcell"><div style="font-size:11px;color:var(--hud-ink-3)">' + l + '</div><b class="mono" style="font-size:15px"' + (attr || '') + '>' + v + '</b></div>';
-  return '<div class="hcard" role="dialog" aria-label="会话详情"><div class="row"><span class="dot live" style="background:' + agent(s.a).c + '"></span><b style="font-size:13px">' + esc(agent(s.a).name) + '</b><span style="color:var(--hud-ink-3);font-size:12px">· ' + esc(sessProjName(s)) + '</span><span style="flex:1"></span><span class="mono" data-live style="font-size:12px">' + liveElapsed() + '</span></div>' +
+  return '<div class="hcard" role="dialog" aria-label="会话详情"><div class="row"><span class="dot live" style="background:' + agent(s.a).c + '"></span><b style="font-size:13px">' + esc(agent(s.a).name) + '</b><span style="color:var(--hud-ink-3);font-size:12px">· ' + esc(sessProjName(s)) + '</span><span style="flex:1"></span><span class="mono" data-live style="font-size:12px">' + liveElapsed() + '</span><button type="button" class="hg hud-close" data-act="hudCollapse" aria-label="收起会话详情" data-tip="收起详情，保留悬浮组件">' + ic('x', 14) + '</button></div>' +
     '<div class="col" style="gap:3px"><div class="serif" style="font-size:17px;font-weight:600;line-height:22px">' + esc(s.title) + '</div><div class="row" style="font-size:12px;color:var(--hud-ink-2)"><span style="padding:1px 6px;border-radius:4px;background:rgba(180,168,255,.18);color:#c9c0ff;font-weight:600">进行中</span><span class="mono" data-hudtool>' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span></div></div>' +
     hudBand() +
     '<div class="hgrid">' + ctxBar(S.live.ctx, { cls: 'dk' }) + cell('工具', S.live.tools, ' data-livetools') + cell('失败', errs) + cell('消息', msgs) + '</div>' +
@@ -10751,6 +10754,7 @@ window.addEventListener('pointerup', hudDragEnd);
 window.addEventListener('pointercancel', (e) => { if (HDRAG) { HDRAG.moved = true; hudDragEnd(e); } });
 window.addEventListener('blur', () => { if (HDRAG) { HDRAG.moved = true; hudDragEnd({ altKey: false }); } });
 Object.assign(ACT, {
+  hudCollapse: () => { S.hud.open = false; renderHud(); const pill = $('#hudPill'); if (pill) pill.focus({ preventScroll: true }); },
   hudGo: (el) => {
     const v = el.dataset.v;
     if (v === 'waiting') { simClear('waiting'); render(); toast('已切换到 Codex 所在的终端标签页（演示）；批准仍由你在终端里完成'); }
@@ -13247,7 +13251,7 @@ const liLink = (url, label, cls) => '<button type="button" class="' + (cls || 'l
 // card text: the item's own summary; a search hit without one gets its snippet minus the index's `key: value` tag dump
 const LI_TAGDUMP = /(?:^|\s)(?:agent|command|dimension|domain|file_type|friction|software|tag|kind|lang|language|topic|scene|tool|ftype|cmd):\s*\S+/gi;
 const liDesc = (x) => { const t = String(x.summary || x.snippet || ''); return t.replace(LI_TAGDUMP, '').replace(/\s{2,}/g, ' ').trim(); };
-const liSrc = (x) => x.official ? 'Orbit 官方' : x.origin === 'local' ? '本地生成' : esc(x.author || '社区') + ' · ' + esc(x.license || '许可未知');
+const liSrc = (x) => x.official ? esc(!x.author || /^orbit$/i.test(x.author) ? 'Orbit' : x.author) + ' 官方' : x.origin === 'local' ? '本地生成' : esc(x.author || '社区') + ' · ' + esc(x.license || '许可未知');
 const liReq = () => TL.li.listRequest({ tab: S.lib.tab, kind: S.lib.kind, q: S.li.q });
 const liReqKey = (r) => r.path + '|' + JSON.stringify(r.query);
 const liInvalidate = () => TL.invalidate((r) => /^\/v1\/(catalog|install)\//.test(r.path));
@@ -13384,6 +13388,8 @@ function liDetailDraw(id) {
     openModal(head + '<div class="mb col" style="gap:10px" data-tl="lib-detail">' + body + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">关闭</button></div>', 'wide'); MODAL_KEY = 'libDetail'; return;
   }
   const p = x.permissions || {}; const ins = x.install || {};
+  const q = x.quality; const qNames = { source_read: '已读取来源', license_declared: '许可明确', body_available: '正文可用', compatibility_listed: '兼容范围明确', source_version_recorded: '固定版本可追溯' };
+  const quality = q && Number.isFinite(q.score) ? '<div class="col" data-tl="lib-quality" style="gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px"><b style="font-size:13px">资料完整度 ' + Math.round(q.score * 100) + ' / 100</b><div class="row" style="flex-wrap:wrap;gap:6px">' + Object.keys(qNames).map((k) => '<span class="tag">' + esc(qNames[k]) + ' · ' + ((q.dimensions || {})[k] ? '有' : '待补') + '</span>').join('') + '</div><span class="cap" style="font-size:11px">反映来源与文档是否齐全，实际适用性和效果需要验证。</span></div>' : '';
   const facts = [['类型', esc(TL.li.kindLabel(x.kind))], ['许可', esc(x.license || '未知')], ['作者', esc(x.author || '—')], ['Agent', esc(liAgents(x.agents))], ['风险', TLU.num(p.level != null ? p.level : x.risk_level) + (p.flags && p.flags.length ? ' · ' + esc(p.flags.join('、')) : '') + (p.estimate ? '<span class="cap">（估计）</span>' : '')], ['工具', esc((p.allowed_tools || []).join('、') || '—')], ['环境变量', esc((p.declared_env || []).join('、') || '—')], ['常驻', x.resident_tokens_est != null ? '约 ' + TLU.num(x.resident_tokens_est) + ' token' : '—']];
   const readme = x.readme ? '<div class="code" data-tl="lib-readme" style="max-height:min(260px,36vh)">' + x.readme.split('\n').map((l, i) => '<div><span class="n">' + (i + 1) + '</span><span class="t">' + (esc(l) || ' ') + '</span></div>').join('') + '</div>' : '<div class="cap" data-tl="lib-readme">许可不允许内嵌正文' + (x.url ? '，' + liLink(x.url, '查看来源') : '') + '</div>';
   const versions = (x.versions || []).length ? x.versions.slice(0, 8).map((r) => '<div class="row" style="justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--hair);font-size:12.5px;gap:8px"><b class="mono" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(String(r.version || r.version_id || '—').slice(0, 24)) + '</b><span class="mono cap">' + esc((r.commit_sha || '').slice(0, 7) || '—') + ' · ' + TLU.num(r.size) + ' B · ' + liDay(r.created_at) + '</span></div>').join('') : '<span class="cap">—</span>';
@@ -13391,7 +13397,7 @@ function liDetailDraw(id) {
   const why = !ins.installable ? (!ins.license_ok ? '许可不允许自动安装' : '该资源当前不可安装') : '';
   openModal(head + '<div class="mb col" style="gap:12px" data-tl="lib-detail"><div class="lb-desc">' + esc(x.summary || '') + '</div>' +
     '<div class="form" style="grid-template-columns:64px minmax(0,1fr);gap:6px 12px">' + facts.map((f) => '<span class="l">' + f[0] + '</span><span style="font-size:12.5px;min-width:0;word-break:break-word">' + f[1] + '</span>').join('') + '</div>' +
-    '<span class="eb">README</span>' + readme + '<span class="eb">版本</span><div data-tl="lib-versions">' + versions + '</div>' + (related ? '<span class="eb">相关资源</span><div class="row" style="flex-wrap:wrap;gap:6px">' + related + '</div>' : '') + '</div>' +
+    quality + '<span class="eb">README</span>' + readme + '<span class="eb">版本</span><div data-tl="lib-versions">' + versions + '</div>' + (related ? '<span class="eb">相关资源</span><div class="row" style="flex-wrap:wrap;gap:6px">' + related + '</div>' : '') + '</div>' +
     '<div class="mf">' + (String(x.item_id).indexOf('local:') === 0 ? '<button type="button" class="btn gh" data-act="liRemoveLocal" data-id="' + esc(x.item_id) + '">移除本地条目</button>' : '') + (x.url ? liLink(x.url, ic('ext', 13) + '查看来源', 'btn gh') : '') + '<span style="flex:1"></span>' + (why ? '<span class="cap">' + why + '</span>' : '') + '<button type="button" class="btn" data-act="closeModal">关闭</button>' + (liInstalledId(x) ? '<span class="tag">已安装</span>' : '<button type="button" class="btn p" data-act="getLib" data-id="' + esc(x.item_id) + '"' + (why ? ' disabled' : '') + '>获取</button>') + '</div>', 'wide');
   MODAL_KEY = 'libDetail';
 }
@@ -13649,6 +13655,7 @@ if (TL.mode === 'live' && !LV.demo) {
 // Cand → RECS row: the shared mapper (OrbitLive.recs.row) plus real agents, ui.save / ui.tok_pct and the source link.
 function lvRecRow(c) {
   const r = OrbitLive.recs.row(c); const u = c.ui || {};
+  r.expertAdvice = Array.isArray(c.expert_advice) ? c.expert_advice.slice(0, 3) : [];
   const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
   const ids = [], parts = []; r.native = Object.keys(nat).filter((k) => nat[k] === 'native').map((b) => LV.agentOf(b).id);
   bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
@@ -13799,6 +13806,11 @@ if (TL.mode === 'live') {
     const c = $('#content'); if (!c) return;
     const surface = LVR_ROUTES[S.route];
     if (!surface) return;
+    const selected = RECI[S.recs.sel];
+    if (S.route === 'recs' && S.recs.tab === 'why' && selected && (selected.expertAdvice || []).length) {
+      const ev = c.querySelector('.rc-ev');
+      if (ev && !c.querySelector('[data-tl="expert-advice"]')) ev.insertAdjacentHTML('beforebegin', '<div class="col" style="gap:10px;margin-bottom:14px" data-tl="expert-advice"><b style="font-size:13px">AI 补充建议 · 待验证</b>' + selected.expertAdvice.map((a, i) => '<div class="col" style="gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px"><b style="font-size:13px">' + esc(a.title) + '</b><div style="font-size:12px;line-height:1.6">' + esc(a.summary) + '</div><ol style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">' + (a.steps || []).map((s) => '<li>' + esc(s) + '</li>').join('') + '</ol><div class="cap" style="font-size:11px">依据：' + esc((a.evidence_ids || []).join('、') || '尚无具体证据') + '</div>' + (a.limitations || []).map((s) => '<div class="cap" style="font-size:11px">' + esc(s) + '</div>').join('') + '<div class="row"><span class="cap" style="font-size:11px;flex:1">效果尚未实测，先审阅再应用</span><button type="button" class="btn sm" data-act="recExpertStudio" data-id="' + esc(selected.id) + '" data-i="' + i + '">交给生成工坊</button></div></div>').join('') + '</div>');
+    }
     if (S.route === 'recs' && S.recs.tab === 'why' && LVR.rel[S.recs.sel]) {
       const ev = c.querySelector('.rc-ev');
       if (ev && !c.querySelector('[data-tl="rec-rel"]')) ev.insertAdjacentHTML('beforebegin', '<div class="row" style="flex-wrap:wrap" data-tl="rec-rel">' + LVR.rel[S.recs.sel].map((p) => { const o = RECI[p.a === S.recs.sel ? p.b : p.a]; return o ? '<span class="tag" data-tip="' + esc(p.reason || '') + '">' + (p.relation === 'conflicts' ? '与「' : '可搭配「') + esc(o.title.split('：')[0]) + '」' + (p.relation === 'conflicts' ? '冲突' : '') + '</span>' : ''; }).join('') + '</div>');
@@ -13820,6 +13832,13 @@ if (TL.mode === 'live') {
   const A = Object.assign({}, ACT);
   ACT.selRec = (el, e) => { const was = S.recs.sel; A.selRec(el, e); if (S.recs.sel !== was) ex(S.recs.sel, 'A7', 'open'); };
   ACT.openRec = (el) => { const sf = el.closest && el.closest('.ov-recs') ? 'A1' : S.pop ? 'menubar' : 'A7'; A.openRec(el); ex(el.dataset.id, sf, 'open'); };
+  ACT.recExpertStudio = (el) => {
+    const r = RECI[el.dataset.id], advice = r && r.expertAdvice[+el.dataset.i]; if (!advice) return;
+    if (S.studio.run && !S.studio.run.done && !S.studio.run.stopped) { toast('生成工坊正在运行，先停止或等它完成'); return; }
+    S.studio.type = { skill: 'Skill', hook: 'Hook', prompt: '规则', workflow: '工作流' }[advice.kind] || '规则';
+    S.studio.goal = [advice.title, advice.summary, ...(advice.steps || []), ...(advice.limitations || []).map((s) => '约束：' + s)].filter(Boolean).join('\n');
+    S.studio.from = 'AI 建议「' + advice.title + '」'; S.studio.run = null; go('studio');
+  };
   // 预览并安装: the real install sheet (plan → preview → apply with the preview digest); 撤销 reverts by install_id
   ACT.install = (el) => {
     const r = RECI[el.dataset.id];
@@ -13897,12 +13916,34 @@ const tlsDemo = (r) => !!(r && r.data == null && r.error && TL.unavailable(r.err
 function tlsBytes(n) { if (n == null || !Number.isFinite(n)) return TLU.DASH; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(n < 10 ? 1 : 0) : n) + ' ' + u[i]; }
 function tlsDate(ts) { const d = new Date(ts); return isNaN(d) ? TLU.DASH : (d.getMonth() + 1) + '/' + String(d.getDate()).padStart(2, '0'); }
 function tlsErr(e, what) { toast(what + '失败：' + (e.message || e.code)); }
-// optimistic write against a cached GET resource: patch r.data now, replace it with the answer, roll back on any failure
-function tlsWrite(path, patch, req, label, ok) {
-  const r = TL.resource(path); const prev = r.data; if (prev == null) return false;
-  r.data = Object.assign({}, prev, patch);
-  req().then((x) => { if (x && x.data && typeof x.data === 'object') r.data = Object.assign({}, prev, x.data); if (ok) ok(x && x.data); render(); },
-    (e) => { r.data = prev; render(); toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code)); });
+// Serialize writes to the same resource. Keep later clicks visible while an earlier request is in flight;
+// neither an older response nor a rollback may undo the user's latest choice.
+const TLS_WRITES = new Map();
+function tlsWriteView(w) {
+  let value = w.base;
+  w.pending.forEach((p) => { value = p.patch(value); });
+  w.resource.data = value;
+}
+function tlsWrite(path, patch, req, label, ok, field) {
+  const r = TL.resource(path); if (r.data == null) return false;
+  let w = TLS_WRITES.get(path);
+  if (!w) { w = { resource: r, base: r.data, pending: [], tail: Promise.resolve() }; TLS_WRITES.set(path, w); }
+  const apply = (value, update) => field ? Object.assign({}, value, { [field]: Object.assign({}, value[field], update) }) : Object.assign({}, value, update);
+  const p = { patch: (value) => apply(value, patch) };
+  r.mutationVersion = (r.mutationVersion || 0) + 1;
+  w.pending.push(p); tlsWriteView(w);
+  w.tail = w.tail.then(req).then((x) => {
+    w.base = apply(w.base, x && x.data && typeof x.data === 'object' ? x.data : patch);
+    if (ok) ok(x && x.data);
+  }, (e) => {
+    toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code));
+  }).finally(() => {
+    r.mutationVersion++;
+    w.pending.shift(); tlsWriteView(w);
+    if (!w.pending.length) TLS_WRITES.delete(path);
+    TLS.stateAt = null;
+    render();
+  });
   return true;
 }
 
@@ -14164,41 +14205,78 @@ if (TL.mode === 'live') {
   };
 
   /* ---------- 问本地 Agent ---------- */
+  const ASK_TEMPLATES = [['', '自由提问'], ['analyze.collaboration', '协作与反馈'], ['analyze.quality', '验证与交付'], ['analyze.workflow', '流程与工具'], ['analyze.cost', '成本与时间']];
+  function tlsAskScope() {
+    const scope = LV.scope(); const end = Date.now();
+    const range = scope.range > 0 ? scope.range : 0;
+    const start = range ? new Date(new Date(end).getFullYear(), new Date(end).getMonth(), new Date(end).getDate() - range + 1).getTime() : 0;
+    const out = { start_ms: start, end_ms: end, excluded_session_uids: Array.from(S.excluded || []) };
+    if (scope.project) out.project_id = scope.project;
+    if (scope.agents != null) out.source_ids = OrbitLive.sourceIdsFor(scope.agents, TL.status);
+    return out;
+  }
+  function tlsCancelQuestion() {
+    const q = TLS.question; if (!q) return;
+    TLS.question = null; q.ctl.abort();
+    if (q.job) TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(q.job) + '/cancel', {}).catch(() => {});
+  }
+  const tlsCloseAskBase = closeModal;
+  closeModal = function () { if (MODAL_KEY === 'ask') { tlsCancelQuestion(); clearInterval(ASKT); } tlsCloseAskBase(); };
   const tlsAskOpenBase = openAsk;
   openAsk = function (ctx) {
+    tlsCancelQuestion();
     TLS.ask = null; tlsAskOpenBase(ctx); if (!ASK) return;
-    const c = ASK.ctx;
-    TL.send('GET', '/v1/ai/ask/presets', null, { query: { context: c } }).then((r) => {
+    const owner = ASK, c = ASK.ctx;
+    ASK.scope = tlsAskScope(); ASK.session_uid = c === 'session' ? S.sess.sel : null; ASK.template = '';
+    const input = $('#askIn');
+    if (input) input.parentElement.insertAdjacentHTML('beforebegin', '<label class="row" style="gap:8px;font-size:12px">分析方式<select id="askTemplate" data-chg="askTemplate" style="' + FIELD + ';width:auto">' + ASK_TEMPLATES.map((t) => '<option value="' + t[0] + '">' + t[1] + '</option>').join('') + '</select><span class="cap">沿用当前时间、项目与 Agent 范围</span></label>');
+    TL.send('GET', '/v1/ai/ask/presets', null, { query: { context: c, session_uid: ASK.session_uid } }).then((r) => {
       const xs = Array.isArray(r.data) ? r.data : (r.data && (r.data.items || r.data.presets)) || [];
       const first = $('#modal [data-act="askPick"]');
-      if (!xs.length || !ASK || ASK.ctx !== c || !first) return;
+      if (!xs.length || ASK !== owner || MODAL_KEY !== 'ask' || !first) return;
       TLS.ask = { ctx: c, presets: xs };
       const box = first.parentElement; box.setAttribute('data-tl', 'ask-presets');
       box.innerHTML = xs.map((p, i) => '<button type="button" class="chip sm" data-act="askPick" data-i="' + i + '">' + esc(p.question) + '</button>').join('');
     }, () => { /* the generic questions stay; answers still go through POST /v1/ai/ask */ });
   };
-  // 来源如实写在回答末尾：预置问题是规则模板在本机查询出的（没有调用模型）；自由提问由本地 Agent 作答；
+  // 来源如实写在回答末尾：预置问题是规则模板在本机查询出的（没有调用模型）；自由提问与专业分析由本地 Agent 作答；
   // 模型失败时后端回 status=fallback 与说明文字，照样显示说明，不当成回答
   const tlsAskSrc = (d) => d.source === 'ai' || d.source === 'cache' ? '本地 Agent 回答' + (d.source === 'cache' ? '（缓存）' : '') + ' · 只发送了脱敏后的查询结果'
-    : d.error_code ? '本地 Agent 没有答成（' + d.error_code + '），以上是说明，不是回答' : '规则模板 · 在本机查询你的数据生成，没有调用模型';
-  const tlsAnswer = (d) => (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '') + '\n\n— ' + tlsAskSrc(d);
+    : d.error_code ? '本地 Agent 没有答成（' + d.error_code + '），以上是说明，不是回答'
+    : d.analysis_session && d.analysis_session.validation === 'fallback' ? '没有通过校验的 AI 分析 · 以上是本机统计给出的保底说明'
+    : '规则模板 · 在本机查询你的数据生成，没有调用模型';
+  const tlsAnswer = (d) => (d.summary != null ? [d.summary, ...(d.findings || []).map((f) => (f.kind === 'hypothesis' ? '待验证的推测：' : '观察：') + f.text + ((f.evidence_ids || []).length ? '\n证据：' + f.evidence_ids.join('、') : '')), (d.next_steps || []).length ? '下一步：\n' + d.next_steps.join('\n') : '', (d.limitations || []).length ? '分析边界：\n' + d.limitations.join('\n') : ''].filter(Boolean).join('\n\n') : (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '')) + '\n\n— ' + tlsAskSrc(d);
   function tlsThinking(q, preset) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">' + (preset ? '正在本机查询…' : '本地 Agent 正在回答…') + '</span>'; }
   function tlsAsk(body, q) {
-    clearInterval(ASKT); tlsThinking(q, body.preset_index != null);
-    TL.send('POST', '/v1/ai/ask', body).then((r) => {
+    tlsCancelQuestion();
+    const request = { owner: ASK, ctl: new AbortController(), job: null }; TLS.question = request;
+    const current = () => TLS.question === request && ASK === request.owner && MODAL_KEY === 'ask';
+    const task = ASK.template;
+    const preset = !task && body.preset_index != null;
+    body = Object.assign({}, body, { scope: ASK.scope, session_uid: ASK.session_uid });
+    const path = task ? '/v1/ai/jobs' : '/v1/ai/ask';
+    const payload = task ? { task_id: task, scope: ASK.scope, goal: q, goal_source: 'ask', params: { question: q, session_uid: ASK.session_uid } } : body;
+    clearInterval(ASKT); tlsThinking(q, preset);
+    TL.send('POST', path, payload).then((r) => {
       const d = r.data || {};
+      if (!current()) { if (d.job_id) TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(d.job_id) + '/cancel', {}).catch(() => {}); return null; }
       if (d.answer != null) return d;
       if (!d.job_id) throw Object.assign(new Error('没有返回作业'), { status: 500, code: 'no_job' });
-      return TL.pollJob(d.job_id, null).then((job) => {
-        if (job.status === 'fallback' && job.result && job.result.answer) return job.result;
+      request.job = d.job_id;
+      return TL.pollJob(d.job_id, null, { signal: request.ctl.signal }).then((job) => {
+        request.job = null;
+        if (job.status === 'fallback' && job.result) return job.result;
         if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error(job.status === 'cancelled' ? '已取消' : (job.error && (job.error.message || job.error.code || job.error)) || '回答失败'), { status: 500, code: 'job_' + job.status });
         return job.result || {};
       });
-    }).then((d) => { if (ASK) askStream(q, tlsAnswer(d)); }, (e) => {
-      if (TL.unavailable(e)) { if (ASK) askStream(q, '本地服务暂不提供问答接口，暂时无法回答。'); return; }
-      if (ASK) askStream(q, '无法回答：' + (e.message || e.code) + (e.code === 'consent_required' ? '\n\n到 设置 › 分析 授权后再试。' : ''));
+    }).then((d) => { if (current() && d) { TLS.question = null; askStream(q, tlsAnswer(d)); } }, (e) => {
+      if (!current() || e.name === 'AbortError') return;
+      TLS.question = null;
+      if (TL.unavailable(e)) { askStream(q, '本地服务暂不提供问答接口，暂时无法回答。'); return; }
+      askStream(q, '无法回答：' + (e.message || e.code) + (e.code === 'consent_required' ? '\n\n到 设置 › 分析 授权后再试。' : ''));
     });
   }
+  ACT.askTemplate = (el) => { if (ASK && ASK_TEMPLATES.some((t) => t[0] === el.value)) ASK.template = el.value; };
   ACT.askPick = (el) => {
     if (!ASK) return;
     const a = TLS.ask; const i = +el.dataset.i;
@@ -14228,6 +14306,7 @@ if (TL.mode === 'live') {
   // server state → the demo's S fields (skipped while a demo handler is mid-way, see TLS.hold)
   function tlsSync() {
     if (TLS.hold) return;
+    TLS_WRITES.forEach(tlsWriteView);
     if (setOpen()) (TAB_RES[S.setTab] || []).forEach((k) => tlsRes(R[k]));
     const col = tlsRes(R.col), pol = tlsRes(R.pol), snz = tlsRes(R.snz), attn = tlsRes(R.attn), st = tlsRes(R.state);
     // a collection frame is newer than a GET that was already in flight: it patches the cached answer once it lands
@@ -14262,10 +14341,9 @@ if (TL.mode === 'live') {
   const ago = (ts) => { if (!ts) return '—'; const m = Math.round((Date.now() - ts) / 60000); return m < 1 ? '刚刚' : m < 60 ? m + ' 分钟前' : m < 1440 ? Math.round(m / 60) + ' 小时前' : Math.round(m / 1440) + ' 天前'; };
   // PATCH /v1/app/settings, optimistic on the cached /v1/app/state
   function tlsSetting(patch, label) {
-    const r = TL.resource(R.state); const prev = r.data;
-    if (prev) r.data = Object.assign({}, prev, { settings: Object.assign({}, prev.settings, patch) });
-    TL.send('PATCH', '/v1/app/settings', patch).then((x) => { const p2 = r.data || prev; if (p2 && x.data && typeof x.data === 'object') { r.data = Object.assign({}, p2, { settings: x.data }); TLS.stateAt = null; } },
-      (e) => { if (prev) r.data = prev; TLS.stateAt = null; render(); toast(TL.unavailable(e) ? label + '未同步：本地服务暂不可用，只在本机生效' : label + '失败：' + (e.message || e.code)); });
+    if (!tlsWrite(R.state, patch, () => TL.send('PATCH', '/v1/app/settings', patch), label, null, 'settings')) {
+      tlsRes(R.state); toast(label + '未保存：正在读取设置，请稍后重试');
+    }
   }
 
   // 数据源: one row per discovered source (GET /v1/app/discovery), else the spine's agents without a status
@@ -14420,7 +14498,7 @@ if (TL.mode === 'live') {
     const unpause = () => { const rt = TL.ops && TL.ops.rt; if (!to && rt && (rt.status === 'paused' || rt.reason === 'collection_paused')) TL.ops.rt = Object.assign({}, rt, { status: 'idle', reason: null }); };
     if (tlsWrite(R.col, { paused: to }, req, label, after)) { unpause(); base(el, ev); return; }
     // the collection setting is not loaded here (menu-bar panel / HUD / widgets surface): write first, flip after the answer
-    req().then((x) => { TL.invalidate((r) => r.path === R.col); unpause(); base(el, ev); after(x && x.data); },
+    req().then((x) => { TL.invalidate((r) => r.path === R.col); unpause(); S.paused = to; render(); toast(to ? '已暂停采集' : '已恢复采集'); after(x && x.data); },
       (e) => toast(TL.unavailable(e) ? label + '未保存：本地服务暂不可用' : label + '失败：' + (e.message || e.code)));
   });
   // 隐私

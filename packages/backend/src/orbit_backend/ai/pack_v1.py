@@ -41,14 +41,17 @@ def feedback_items(c: _Ctx) -> dict:
     if c.conn is None:
         return {"key": "default", "items": []}
     event_uids = list(c.params.get("event_uids") or [])
+    where, params = c.where()
     if event_uids:
         rows = c.conn.execute(
             f"SELECT h.session_uid, h.event_uid, h.text, s.title FROM v_human_message h JOIN session s"
-            f" ON s.session_uid=h.session_uid WHERE h.event_uid IN ({placeholders(event_uids)})"
-            f" ORDER BY h.ts LIMIT ?", [*event_uids, FEEDBACK_MAX]).fetchall()
+            f" ON s.session_uid=h.session_uid WHERE {where} AND h.event_uid IN ({placeholders(event_uids)})"
+            f" ORDER BY h.ts LIMIT ?", [*params, *event_uids, FEEDBACK_MAX]).fetchall()
     else:
         uids = list(c.params.get("session_uids") or [])
-        where, params = (f"s.session_uid IN ({placeholders(uids)})", uids) if uids else c.where()
+        if uids:
+            where += f" AND s.session_uid IN ({placeholders(uids)})"
+            params = [*params, *uids]
         rows = [r for r in c.conn.execute(
             f"SELECT h.session_uid, h.event_uid, h.text, s.title FROM v_human_message h JOIN session s"
             f" ON s.session_uid=h.session_uid WHERE {where} ORDER BY h.ts DESC LIMIT 400", params)
@@ -86,7 +89,8 @@ def unknown_failures(c: _Ctx) -> dict:
         return {"key": "default", "items": []}
     call_uids = list(c.params.get("call_uids") or [])
     if call_uids:
-        cond, params = f"t.call_uid IN ({placeholders(call_uids)})", call_uids
+        where, params = c.where()
+        cond, params = f"{where} AND t.call_uid IN ({placeholders(call_uids)})", [*params, *call_uids]
     else:
         where, params = c.where()
         cond = f"{where} AND t.status IN ('failed','error') AND COALESCE(t.error_class,'unknown')='unknown'"
@@ -120,7 +124,7 @@ def _key_moments(rows) -> list[dict]:
 def session_review(c: _Ctx) -> dict:
     """One session's facet, AN-02-style row, signals and key moments (AI-05.2)."""
     uid = c.params.get("session_uid") or ""
-    if c.conn is None or not uid:
+    if c.conn is None or not uid or not c.allowed_sessions([uid]):
         return {"key": uid, "session_uid": uid}
     payload = facet_payload(c.conn, uid)
     facet = _facet_rows(c.appdb, [uid]).get(uid)
@@ -130,6 +134,7 @@ def session_review(c: _Ctx) -> dict:
         others = [r[0] for r in c.conn.execute(
             "SELECT session_uid FROM session WHERE project_id=? AND session_uid<>? AND kind='main'"
             " ORDER BY started_at DESC LIMIT 5", (project[0], uid))]
+        others = c.allowed_sessions(others)
         facets = _facet_rows(c.appdb, others)
         recent = [{"session_uid": o, "summary": facets[o].get("summary")} for o in others
                   if facets.get(o, {}).get("summary")]

@@ -2,6 +2,8 @@
 
 import os
 import re
+import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -47,7 +49,33 @@ def candidates(home: Path | None = None) -> list[dict]:
     return [{"agent": agent, "root": root} for agent, root in sorted(found)]
 
 
+def _codex_index_paths(index: Path, root: Path):
+    """Read only rollout pointers; an unavailable index must not block glob discovery.
+
+    The regular capture path still reads this index and records its failure. Never
+    follow pointers outside the explicitly enabled home or through symlink files.
+    """
+    try:
+        with closing(sqlite3.connect(index.as_uri() + "?mode=ro", uri=True, timeout=3)) as db:
+            db.execute("PRAGMA query_only=ON")
+            rows = db.execute("SELECT rollout_path FROM threads").fetchall()
+    except sqlite3.Error:
+        return
+    for (value,) in rows:
+        if not isinstance(value, str) or not value:
+            continue
+        path = root / value
+        if not re.fullmatch(r"rollout-.*\.jsonl(?:\.zst)?", path.name):
+            continue
+        if path.is_symlink():
+            continue
+        path = path.resolve()
+        if path.is_relative_to(root) and path.is_file():
+            yield path
+
+
 def inputs(agent: str, root: Path):
+    root = root.resolve()
     patterns = {
         "claude_code": (
             "projects/**/*.jsonl",
@@ -122,6 +150,8 @@ def inputs(agent: str, root: Path):
             states = [p for p in found if re.fullmatch(r"state_\d+\.sqlite", p.name)]
             latest = max(states, key=lambda p: int(p.stem.split("_")[-1]), default=None)
             found = [p for p in found if p.suffix != ".sqlite" or p == latest]
+            if latest is not None:
+                found = sorted(set(found).union(_codex_index_paths(latest, root)))
         for path in found:
             yield InputFile(
                 path,

@@ -171,7 +171,7 @@ test('ask: presets and answers from the gateway; ask route missing answers hones
   await expect(page.locator('#modal .mh')).not.toContainText('Demo');
   await page.locator('#modal [data-act="askPick"]').nth(1).click();
   await expect(page.locator('#askA')).toContainText('FX 合成回答');
-  expect(posted('POST', '/v1/ai/ask')[0].body).toEqual({ context: 'overview', preset_index: 1 });
+  expect(posted('POST', '/v1/ai/ask')[0].body).toMatchObject({ context: 'overview', preset_index: 1, scope: { excluded_session_uids: [] } });
   await page.evaluate(() => closeModal());
   await page.route(/\/v1\/ai\/ask$/, (r) => r.fulfill({ status: 404, contentType: 'application/json', body: '{"error":{"code":"not_found"}}' }));
   await page.evaluate(() => openAsk('tools'));

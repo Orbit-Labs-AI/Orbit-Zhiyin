@@ -59,7 +59,7 @@ def out_of_scope(question: str) -> dict:
     return {"answer": OUT_OF_SCOPE, "refs": [], "next": "none", "pages": route_pages(question)}
 
 
-SCOPE_KEYS = ("days", "start_ms", "end_ms", "project_id", "source_ids")
+SCOPE_KEYS = ("days", "start_ms", "end_ms", "project_id", "source_ids", "excluded_session_uids", "session_uids")
 
 
 class _Q:
@@ -71,7 +71,7 @@ class _Q:
 
     def __call__(self, api: str, **params) -> list[dict]:
         if "scope" in queries.SCHEMAS[api]["properties"]:
-            scope = {k: self.scope[k] for k in SCOPE_KEYS if self.scope.get(k) not in (None, [])}
+            scope = {k: self.scope[k] for k in SCOPE_KEYS if self.scope.get(k) is not None}
             if scope:  # Forwarded as given (days/start_ms/end_ms/project_id/source_ids).
                 params.setdefault("scope", scope)
         try:
