@@ -1067,6 +1067,8 @@ const TandemLive = (function () {
       }
       emit('event', { name, data: p });
     }
+    // one parsed SSE frame, exactly as the stream delivers it (debug / tests: simulate job frames without a stream)
+    C.dispatch = dispatch;
     function frame(raw) {
       let id = null, name = 'message'; const data = [];
       raw.split('\n').forEach((line) => {

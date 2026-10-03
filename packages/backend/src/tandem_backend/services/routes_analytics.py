@@ -285,6 +285,28 @@ def router(gw: Gateway) -> APIRouter:
         params = {"task_id": task_id} if task_id is not None else {}
         return serve("preferences", scope, params, wait_ms, if_none_match)
 
+    @api.get("/v1/analytics/work-graph")
+    def work_graph(scope=scope_dependency, wait_ms: int = wait,
+                   if_none_match: str | None = Header(None)):
+        return serve("work_graph", scope, {}, wait_ms, if_none_match)
+
+    @api.get("/v1/analytics/tasks/{task_uid}/trajectory")
+    def task_trajectory(task_uid: str, scope=scope_dependency, wait_ms: int = wait,
+                        if_none_match: str | None = Header(None)):
+        from hashlib import sha256
+
+        from ..analytics.work_graph import task_subgraph
+
+        def view(body: dict) -> dict:
+            graph = body.pop("work_graph")
+            trajectory = next((t for t in graph["task_trajectories"] if t["task_uid"] == task_uid), None)
+            if trajectory is None:
+                raise ApiError(404, "not_found", "任务不在本次分析范围内")
+            return {**body, "trajectory": trajectory, **task_subgraph(graph, trajectory)}
+
+        tag = f"/trajectory?{sha256(task_uid.encode()).hexdigest()[:12]}"
+        return serve("work_graph", scope, {}, wait_ms, if_none_match, view=(tag, view))
+
     @api.post("/v1/analytics/warmup")
     def warmup():
         """Queue the first-screen prewarm (7 days → 30 days → all time) on the analysis

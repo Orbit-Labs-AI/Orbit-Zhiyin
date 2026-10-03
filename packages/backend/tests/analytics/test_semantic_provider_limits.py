@@ -128,3 +128,34 @@ print("not-json")
     )
     with pytest.raises(ValueError):
         provider(batch(), Budget(timeout_seconds=3))
+
+
+def test_successful_call_reaps_helpers_left_in_its_process_group(tmp_path):
+    marker = tmp_path / "helper-survived"
+    provider = fake_cli(
+        tmp_path,
+        f"""
+import subprocess
+subprocess.Popen([sys.executable, "-c", "import time; from pathlib import Path; time.sleep(1); "
+                  "Path({str(marker)!r}).write_text('survived')"],
+                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+Path(sys.argv[sys.argv.index("-o") + 1]).write_text('{{"observations":[]}}')
+print(json.dumps({{"type":"turn.completed", "usage":{{"input_tokens":1,"output_tokens":1}}}}))
+""",
+    )
+    provider(batch(), Budget(timeout_seconds=5))
+    time.sleep(1.5)
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("line", ['["agent_message"]', '{"item": "agent_message"}'])
+def test_non_object_trace_lines_are_unknown_activity(tmp_path, line):
+    provider = fake_cli(
+        tmp_path,
+        f"""
+Path(sys.argv[sys.argv.index("-o") + 1]).write_text('{{"observations":[]}}')
+print({line!r})
+""",
+    )
+    with pytest.raises(RuntimeError, match="unknown activity"):
+        provider(batch(), Budget(timeout_seconds=3))

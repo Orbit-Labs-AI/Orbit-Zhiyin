@@ -25,6 +25,7 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。产品名 **Or
 
 - `main` 仅通过 PR 更新：任何人（含 `yhyfhgs`）不得直接提交、推送、强推或删除。分支从最新 `main` 创建，命名 `<type>/<简述>`（feat／fix／docs／refactor／chore）。
 - PR 标题用 `type(scope): 描述`，正文包含改动摘要、验证方式与关联 Issue。
+- PR 一律以正常（ready for review）状态创建，不开 draft：`gh pr create` 不加 `--draft`，网页端选 Create pull request。PR 应在本地检查通过后再开；尚未完成的工作留在分支上继续提交，不用 draft 占位。误开的 draft 用 `gh pr ready <N>` 转为正常状态。
 - 本仓库不再要求 AI 触发、读取、等待或跟进 Codex review（`chatgpt-codex-connector`），也不将其完成状态或意见处理作为合并前置条件；本条覆盖全局指令中的 Codex review 流程。
 - 其他成员提交的 PR 由 `yhyfhgs` 统一管理；未经其明确指派，AI 不主动审查、修改、回复评论、合并或关闭这些 PR。
 - merge 与 close 仅由 `yhyfhgs` 决定。AI 须得到 `yhyfhgs` 对该 PR 的明确指示后执行，合并使用 `gh pr merge --merge --match-head-commit <当前 head SHA>`。

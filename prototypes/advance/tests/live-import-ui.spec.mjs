@@ -21,6 +21,8 @@ test('import frames do not re-render the page; scroll and the Agent dropdown sta
   await frame(page, 'job', job(1, 40));
   await expect(page.locator('#content .tl-progress')).toBeVisible();
   await expect(page.locator('#side [data-side="import"]')).toContainText('导入中');
+  // the entry uses the system-font tokens (an undefined var() would drop the whole font shorthand)
+  expect(await page.locator('#side [data-side="import"]').evaluate((el) => { const cs = getComputedStyle(el); return [cs.fontSize, cs.fontWeight]; })).toEqual(['12px', '500']);
   // user scrolls the page and the sidebar, then opens the Agent dropdown
   // a long page and a short sidebar list (synthetic data is small): both survive re-renders as CSS
   await page.addStyleTag({ content: '#content::after{content:"";display:block;height:3000px} #side .sb-scroll{max-height:120px}' });
