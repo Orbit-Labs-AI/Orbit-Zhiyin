@@ -5,7 +5,7 @@
 Sections (beats), v7, same grid as promo.js and the 声音 table in STORYBOARD.md: 0-3.4 open (a blip per word,
 odometer, five chips) · 3.4-7.9 half time, highlighter, sentence swap · 7.9-14.6 the mark is traced and we dive ·
 14.6-21.6 groove A under the sentiment ride, push-through riser · 21.2-28 numbers (ratchets) and particles ·
-28-44 half time, a tick + scale note per type the needle passes (sweep_at = sweepAt in scenes/30-persona.js),
+28-44 half time, a tick + scale note per type the lead petal passes (sweep_at = sweepAt in scenes/30-persona.js),
 four locks at 37.6/39.1/40.6/42.1, riser + snare roll · 44 DROP, full groove to 52 · 53-57.4 checks, warnings,
 the click and the portal · 57.4-63.4 conveyor, 63.4 landing chord · 64-77 install, 7 days, before/after ·
 79.4 DROP · 83.4-101 groove B montage · 101-113 half time close, 107.6 end card, tail 1.5 s.
@@ -384,8 +384,9 @@ for i in range(8):                                                  # particles 
     put(pluck(SCALE[8 + i % 6], 0.25), 27.4 + i * 0.18, 0.07, -0.6 + i * 0.17, to='verbsend')
 
 
-# 4c · the needle sweeps the 16 types: half time; a tick and a scale note each time it passes a type
+# 4c · the lead petal sweeps the 16 types: half time; a tick and a scale note each time it passes a type
 SW0, SW1 = 30, 44
+OFF = 11.25                                                         # = OFF in scenes/30-persona.js (lands mid-sector)
 
 
 def sweep_at(b):
@@ -400,11 +401,11 @@ def sweep_at(b):
 groove(28.0, 44.0, style='half', lvl=0.95)
 bed(27.0, 44.0, 0.36)
 pads(28.0, 44.0, 0.24, 1700)
-prev = np.floor(sweep_at(SW0) / 22.5)
+prev = np.floor((sweep_at(SW0) + OFF) / 22.5)
 NT = 14000
 for k in range(1, NT + 1):
     bb = SW0 + k * (SW1 - SW0) / NT
-    cur = np.floor(sweep_at(bb) / 22.5)
+    cur = np.floor((sweep_at(bb) + OFF) / 22.5)
     if cur != prev:
         idx = int(cur) % 16
         put(tick(), bb, 0.22, 0.1)

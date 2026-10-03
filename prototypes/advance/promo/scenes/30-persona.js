@@ -1,4 +1,4 @@
-/* 01 人格分析（b21.2–57.4）：数字 → 粒子 → 罗盘 → 指针扫 16 型 → 四条证据锁定字母 → 揭晓 → 优势与盲点 → 点「建议 →」打开穿越门
+/* 01 人格分析（b21.2–57.4）：数字 → 粒子 → 罗盘 → 领瓣扫 16 型 → 四条证据逐条排除扇区 → 揭晓 → 优势与盲点 → 点「建议 →」打开穿越门
    Shots, keyframes and hand-offs: STORYBOARD.md. Decks: 2 = the promo's compass, 1 = the app's persona page (4f only).
    Particles are drawn on a canvas between #orbit and #fx; they are projected through deck 2's camera by hand, in an fx
    anim (fx anims run after the cameras are applied, so particles and dial never drift apart by a frame). */
@@ -13,7 +13,7 @@ scene('30-persona', () => {
 .pe-slot{position:relative;display:inline-block;width:5em;height:1.16em;overflow:hidden;vertical-align:bottom}
 .pe-slot .pn{position:absolute;left:0;top:.02em;white-space:nowrap;background:linear-gradient(180deg,#fff 35%,#b4b8c2);-webkit-background-clip:text;background-clip:text;color:transparent}
 .ln.sv>span:has(.pe-slot){background:none;color:#fff}
-.pe-code{font-family:var(--mono);font-size:30px;letter-spacing:.42em;color:var(--acc)}
+.pe-code{font-family:var(--type);font-weight:700;font-size:34px;letter-spacing:.32em;color:var(--acc)}
 .pe-code>span{color:var(--acc)}
 .tag .pchip{position:relative;display:inline-flex;align-items:center;gap:22px;padding:12px 14px 12px 32px;border-radius:999px;background:rgba(11,12,15,.94);border:2px solid rgba(255,255,255,.2);font-size:40px;color:rgba(255,255,255,.86);white-space:nowrap}
 .tag .pchip.col{flex-direction:column;align-items:flex-start;gap:12px;border-radius:30px;padding:20px 28px}
@@ -27,23 +27,26 @@ scene('30-persona', () => {
 .lt.pe-sc{font-size:48px}
 `);
   const SW0 = 30, SW1 = 44;
-  // needle bearing (deg) — the SAME curve must be used by scenes/30-persona.js and music.py (needle ticks)
+  // lead-petal bearing (deg) — the SAME curve must be used by scenes/30-persona.js and music.py (needle ticks). It ends
+  // on the middle of your type's sector: OFF = (index of DIMV in the dial's Gray-code order + .5) × 22.5
+  const OFF = 11.25;
   function sweepAt(b) {
     if (b < SW0) return -150;
     const p = clamp((b - SW0) / (SW1 - SW0));
     const e = p < .4 ? .4 * Math.pow(p / .4, 3) : 1 - .6 * Math.pow(1 - (p - .4) / .6, 3);   // C1: fastest at b35.6, long slow arrival
     return -150 + 1230 * e + (b > SW1 ? 5 * Math.sin((b - SW1) * 5) * Math.exp(-(b - SW1) * 2.2) : 0);   // 1230 = 1080 + 150: ends at north
   }
-  // a tick (and a scale note) sounds each time Math.floor(sweepAt(b) / 22.5) changes, b in [30, 44]
+  // a tick (and a scale note) sounds each time Math.floor((sweepAt(b) + OFF) / 22.5) changes, b in [30, 44]
 
-  // 4b: before the big sweep the needle runs once round at an even speed (from 210° back to 210°), revealing the aurora
+  // 4b: before the big sweep the closed bud runs once round at an even speed (from 210° back to 210°), revealing the band
   const N0 = 27.2, N1 = 29.4;
   const needle4b = (b) => -510 + 360 * clamp((b - N0) / (N1 - N0));
-  const needleAt = (b) => (b < SW0 ? needle4b(b) : sweepAt(b));
+  const needleAt = (b) => (b < SW0 ? needle4b(b) : sweepAt(b)) + OFF;
 
   const D0 = compassData(), ME = D0.me, STR = 'DIMV'.split('').map((x, i) => axisOf(ME.v, i));
+  // each evidence rules out the types with the other letter on its axis: 16 → 8 → 4 → 2 → 1 lit sectors
   const LOCK = { D: 37.6, I: 39.1, M: 40.6, V: 42.1 };
-  const OPP = { D: 'S', I: 'P', M: 'F', V: 'T' };
+  const keepAt = (b) => CODES.map((c) => 'DIMV'.split('').reduce((m, x, i) => m * (c[i] === ME.code[i] ? 1 : 1 - E.out(lp(b, LOCK[x], .6))), 1));
 
   /* ---------- 4a: three odometers rise out of the vanishing point (b21.2–25.6) ---------- */
   const NUMS = [[186, '个会话'], [142, '小时'], ['1,284', '条消息']];
@@ -70,11 +73,11 @@ scene('30-persona', () => {
 
   /* ---------- 4b: 186 → particles on a tilted orbit → the compass (b24.9–30) ---------- */
   const W0 = decks[0].W, AGID = W0.eval('AG').map((a) => a.id), HEX = ['#e2602b', '#2a78d6', '#009f6b', '#c27800', '#d0658f'];
-  const SES = W0.eval('sel({ noExtra: true })').map((s) => ({ ag: AGID.indexOf(s.a), deg: (s.h + s.mi / 60) / 24 * 360 }))
+  const SES = D0.L.map((s) => ({ ag: AGID.indexOf(s.a), deg: D0.cls.by[s.id].a }))
     .sort((a, b) => a.ag - b.ag || a.deg - b.deg);
   const PT = SES.map((s, i) => {
-    const frac = (((s.deg - 210) % 360) + 360) % 360 / 360;
-    return { c: s.ag, beta: s.deg, rr: CP.R0 + CP.BAND * (.15 + .6 * hash01(i, 21)), ro: 418 + 34 * hash01(i, 22), ph: hash01(i, 23) * 360, w: 70 + 30 * hash01(i, 24), land: N0 + (N1 - N0) * frac, dl: hash01(i, 25) * .18 };
+    const frac = (((s.deg - 210 - OFF) % 360) + 360) % 360 / 360;
+    return { c: s.ag, beta: s.deg, rr: CP.R0 + CP.RH * (.15 + .6 * hash01(i, 21)), ro: 418 + 34 * hash01(i, 22), ph: hash01(i, 23) * 360, w: 70 + 30 * hash01(i, 24), land: N0 + (N1 - N0) * frac, dl: hash01(i, 25) * .18 };
   });
   // compass point (800 × 800 frame) → stage px through deck 2's camera (same maths as the CSS: perspective · Z · X · Y · Z)
   function proj(px, py) {
@@ -160,24 +163,16 @@ scene('30-persona', () => {
   tween(2, 27.6, 9, () => ({ s: decks[2].C.s * 1.035 }), E.sine);
 
   /* ---------- 4c–4e: the compass, one draw per frame (b24.9–57.5) ---------- */
-  const flipLetter = (x, b) => {
-    const land = LOCK[x], i = 'DIMV'.indexOf(x), fin = STR[i].letter;
-    if (b < land - .3) return null;
-    const q = clamp((b - (land - .3)) / .4), j = Math.floor(q * 4 + .5);
-    const k = b < land ? 0 : 1 + .14 * Math.sin(Math.PI * clamp((b - land) / .45)) ;     // petal: overshoot, settle
-    const kk = b < land ? 0 : Math.min(k, lerp(0, k, E.out(clamp((b - land) / .2))));
-    const fl = clamp((b - land) / .3), col = b < land ? '' : 'rgb(' + Math.round(lerp(226, 255, fl)) + ',' + Math.round(lerp(96, 255, fl)) + ',' + Math.round(lerp(43, 255, fl)) + ')';
-    return { k: kk, s: STR[i].strong, letter: q >= 1 ? fin : ((4 - j) % 2 ? OPP[fin] || fin : fin), sy: q >= 1 ? 1 : Math.abs(Math.cos(Math.PI * q * 4)), fill: col, fill2: col };
-  };
+  // the bud closes and turns with the band reveal (b27.2–29.4), opens as the sweep starts, and hands over to your own
+  // flower when it lands (b44)
   drive(2, 24.9, 57.5, (p, b) => {
-    const deg = needleAt(b), speed = (needleAt(b + .04) - needleAt(b - .04)) / .08;
-    const lock = {}; for (const x of 'DIMV') { const l = flipLetter(x, b); if (l) lock[x] = l; }
+    const deg = needleAt(b);
     drawCompass({
-      deg, speed, mine: E.inOut(lp(b, 44, 1.4)), grow: E.out(lp(b, 26.8, 1.2)),
-      sweep: b < 30 ? clamp((deg + 510) / 360) : 1, sweepFrom: 210,
-      orbit: (b - 27) * 28 + deg * .3, settle: E.inOut(lp(b, 44.8, 1.6)), tip: 0,
+      deg, mine: E.inOut(lp(b, 44, 1.4)), grow: E.out(lp(b, 29.4, 1.2)), keep: keepAt(b),
+      sweep: b < 30 ? clamp((needle4b(b) + 510) / 360) : 1, sweepFrom: 210 + OFF,
+      orbit: (b - 27) * 28 + deg * .3, settle: E.inOut(lp(b, 44.8, 1.6)),
       needle: E.out(lp(b, 26.9, .5)), core: E.out(lp(b, 26.7, 1)), dial: E.out(lp(b, 25.7, .9)),
-      ticks: E.inOut(lp(b, 26.4, 1.2)), trace: lp(b, 26.4, 1.2), traceA: 1 - E.out(lp(b, 27.5, .5)), lock
+      ticks: E.inOut(lp(b, 26.4, 1.2)), trace: lp(b, 26.4, 1.2), traceA: 1 - E.out(lp(b, 27.5, .5))
     });
   });
 
@@ -190,9 +185,9 @@ scene('30-persona', () => {
   /* 4c: 你是 ___ — one name at a time, rolling with the needle; the code below in sync; leaves without the answer */
   txt(33.65, 37.6, [['lt', '你是'], ['hv sv', '<span class="pe-slot"><span class="pn"></span></span>'], ['pe-code', '<span class="pc"></span>']], { x: 150, y: 530 }, {
     st: .15, inB: .8, outB: .6, spread: 1, tick: (el, tl, life, t) => {
-      // from b37.0 the slot freezes on the name it shows then (搭档): while the line spreads out the needle passes north,
+      // from b37.0 the slot freezes on the name it shows then: while the line spreads out the needle passes north,
       // which must not give the answer away, and a short name keeps the spreading line clear of the moving dial
-      const b = Math.min(t / BEAT, 37.0), u = needleAt(b) / 22.5 + .5, fr = u - Math.floor(u), code = CODES[((Math.floor(u) % 16) + 16) % 16];
+      const b = Math.min(t / BEAT, 37.0), u = needleAt(b) / 22.5, fr = u - Math.floor(u), code = CODES[((Math.floor(u) % 16) + 16) % 16];
       const pn = el.querySelector('.pn'), pc = el.querySelector('.pc');
       if (pn.dataset.c !== code) { pn.dataset.c = code; pn.textContent = D0.TYPES[code][0]; pc.textContent = code; }
       // enter in the first 30 % of its sector, hold, leave in the last 30 %: never two names in the slot
@@ -204,12 +199,13 @@ scene('30-persona', () => {
     }
   });
 
-  /* ---------- 4d: four evidence chips fly to the four sides and lock the letters (b36.6–45.4) ---------- */
+  /* ---------- 4d: four evidence chips fly to the four sides; each rules out half of the types left (b36.6–45.4).
+     委托 comes in on the right and 即兴 on top, where those poles sit on the dial ---------- */
   tween(2, 36.6, 1.0, () => framing(2, 'all', [960, 560, 700, 700]), E.inOut);
   tween(2, 37.7, 6.3, () => ({ s: decks[2].C.s * 1.02 }), E.sine);
   const EVI = [
-    ['D', 'top', '每会话 <b>6.9</b> 条消息 · 每轮自主 <b>11.8</b> 步', '委托', 72, [0, -560]],
-    ['I', 'right', '规划型项目只占 <b>32%</b> 时长', '即兴', 61, [760, 0]],
+    ['D', 'right', '每会话 <b>6.9</b> 条消息<br>每轮自主 <b>11.8</b> 步', '委托', 72, [760, 0]],
+    ['I', 'top', '规划型项目只占 <b>32%</b> 时长', '即兴', 61, [0, -560]],
     ['M', 'bottom', '日均 <b>6.2</b> 个会话 · 同日 <b>3.1</b> 个 Agent', '多线', 73, [0, 420]],
     ['V', 'left', '<b>58%</b> 的会话要求验证', '求证', 67, [-760, 0]]
   ];
@@ -261,10 +257,11 @@ scene('30-persona', () => {
   const BLK = { x: 1800, align: 'r' };
   const SWBOX = [1320, 560, 850, 960], EBY = 90;   // 4f: the card's screen box and the top-right eyebrow's y
   txt(45.2, 52.8, [['eb', '你的协作人格 · YOUR TYPE']], Object.assign({ y: 300 }, BLK), { anim: K.all(K.rise({ out: .01 }), shrink(300)) });
-  txt(45.4, 52.8, [['xl sv serif', ME.code]], Object.assign({ y: 432 }, BLK), { anim: K.all(K.centerOut({ step: .12, dur: .4, out: 0 }), shrink(432)) });
-  txt(46.4, 52.8, [['md pe-name', ME.zh + ' <span class="serif"><i>' + ME.en + '</i></span>']], Object.assign({ y: 590 }, BLK), { anim: K.all(K.rise({ out: .01 }), shrink(590)) });
+  txt(45.4, 52.8, [['xl sv tcode', ME.code]], Object.assign({ y: 432 }, BLK), { anim: K.all(K.centerOut({ step: .12, dur: .4, out: 0 }), shrink(432)) });
+  txt(46.4, 52.8, [['md pe-name', ME.zh + ' <span class="display"><i>' + ME.en + '</i></span>']], Object.assign({ y: 590 }, BLK), { anim: K.all(K.rise({ out: .01 }), shrink(590)) });
   // decode with a narrow start spacing: the line is right-aligned, so its extra width grows left towards the dial
-  txt(47.0, 52.8, [['lt', '整段交出，多线并进，亲自验收。']], Object.assign({ y: 680 }, BLK), { anim: K.all(K.decode({ step: .05, dur: .4, out: 0, from: .15 }), shrink(680)) });
+  // the first clause of the app's one-liner for the type (TYPES[code][2])
+  txt(47.0, 52.8, [['lt', ME.line.split('，')[0] + '。']], Object.assign({ y: 680 }, BLK), { anim: K.all(K.decode({ step: .05, dur: .4, out: 0, from: .15 }), shrink(680)) });
   txt(47.6, 52.8, [['lt pe-sc', STR.map((a, i) => CPD.AXES[i][a.letter === CPD.AXES[i].L ? 'Ln' : 'Rn'] + ' <b>' + Math.round(a.strong) + '</b>').join(' · ')]], Object.assign({ y: 780 }, BLK), { anim: K.all(K.blurIn({ spread: .4, out: 0 }), shrink(780)) });
   // leaves by b56.2, before the opening portal (centred on 「建议 →」) reaches the top right
   txt(52.4, 56.2, [['eb', ME.code + ' · ' + ME.zh]], { x: 1800, y: EBY, align: 'r' }, { inB: .7, outB: .5 });
