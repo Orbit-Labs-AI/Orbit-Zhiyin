@@ -37,14 +37,29 @@ scene('30-persona', () => {
   const typeDeg = (code) => (CODES.indexOf(code) + .5) * 22.5;
   const PC = [960, 540];
 
-  /* ---------- Agent 点：轨道椭圆张开成罗盘外圈（H9；交接汇总：b26.4 的 key 由接手方写） ---------- */
-  AGD.key(26.4, 'compass', { dur: 1.4, stag: .06, polar: PC });
+  /* ---------- Agent 点：轨道椭圆张开成罗盘外圈（H9；交接汇总：compass key 由接手方写） ---------- */
+  // 点领着标志翻平：排速后 20-orbit 的翻平从 b25.9 起（sine 1.5 拍），原来 b26.4 的 key 让点在标志已翻开一半时
+  // 还停在扁轨道上。key 改到 HB = b25.7（比翻平早 .2 拍，点先动、标志跟上）、sine，dur 2.0（峰速 1450 → ≈ 900 px/拍；
+  // 最后一个点 b27.94 落定：徽章沿外圈滑过类型码时类型码还没淡入（b27.7 起），落定后接花苞绽开、b29.5 慢推）。0.0.4 徽章方位不均匀
+  // （cc 43 / cx 62 / gm 288 / ds 118 / cp 221°），gm 必须越过 ds、cp：它顺时针从外侧绕过（径向外推 96px 的
+  // cos² 鼓包，e .1–1，落定时归零），离 ds / cp 最近约 52 / 59px，不再在底部和它们相撞。
+  const HB = 25.7, HD = 2.0, HS = .06;
+  AGD.key(HB, 'compass', { dur: HD, ease: E.sine, stag: HS, polar: PC });
+  AGD.follow(HB, HB + HS * 2 + HD, (i, b, q) => {
+    if (i !== 2) return null;
+    const e = E.sine(clamp((b - HB - HS * 2) / HD)), x = (e - .55) / .45;
+    if (Math.abs(x) >= 1) return null;
+    const cy = lerp(552, 540, e), dx = q.x - 960, dy = q.y - cy, d = Math.hypot(dx, dy) || 1, o = 96 * Math.cos(x * Math.PI / 2) ** 2;
+    return { x: q.x + dx / d * o, y: q.y + dy / d * o };
+  }, { blend: .01 });
 
   /* ---------- deck 2 相机（H9 / H10 / H11） ---------- */
   // 节奏（v17 放慢）：罗盘 b30.9–32.3 左移（比原来早 .5 拍），省下的时间和原来揭晓的定格一起给右侧滚动列；
   // 标题期间与滚动列期间都慢推，不定格
   const MV = 30.9, MVD = 1.4;
   // 罗盘中心 (400, 400) → 舞台 (960, 540)，s .86：描边光半径 381 × .86 = 328 = 俯视标志外圈 R；描边光与标志 b28.4 前收完，b29.5 起才慢推
+  // 相机几何在 HB 先就位（仍透明），compass key 从 HB 起读 cpBadge 就是最终的舞台坐标；b26.4 才显示 deck 2
+  tween(2, HB, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0 });
   tween(2, 26.4, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
   tween(2, 29.5, MV - 29.5, { s: .875 }, E.sine);
   tween(2, MV, MVD, { ax: 600, ay: 560, s: .78 }, E.inOut);
