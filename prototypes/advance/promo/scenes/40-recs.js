@@ -1,9 +1,9 @@
-/* 40-recs 4（b39.4–55.6） — STORYBOARD.md v17「4 优化建议」, hand-offs H11 (in) / H12 (out).
+/* 40-recs 4（b39.4–55.1） — STORYBOARD.md v17「4 优化建议」, hand-offs H11 (in) / H12 (out).
    Left: the five AGD dots in one column (x 220, cp 260 / cc 400 / ds 540 / cx 680 / gm 820). Middle: six real recommendation
    cards of deck 0 (Advance, light) in one column that scrolls up evenly; entry n (big type word + card) reaches the centre
    line at b42 + 2n, links to 2–3 Agent dots (solid = the app's recAgents, dashed = a filled-in neighbour) and adds its
    share to one of the two counters on the right (recTotal of the rows that arrived, time / token alternating). The last
-   entry holds b52.4–54.2, then the column scrolls out. Numbers are read from recPct / recTotal at run time. */
+   entry holds b52.4–54.0, then the column scrolls out. Numbers are read from recPct / recTotal at run time. */
 scene('40-recs', () => {
   css(`
 .ln.xl.r4-w{font-size:128px;line-height:1}
@@ -56,7 +56,7 @@ scene('40-recs', () => {
     prevSet = [...solid, ...dash].sort().join();
     LINKS.push({ solid, dash });
   });
-  const LIVE = IDS.map((_, n) => [ARR[n] - .15, n < 5 ? ARR[n] + 1.3 : 54.5]);   // link window (retracts 1 beat after it leaves)
+  const LIVE = IDS.map((_, n) => [ARR[n] - .15, n < 5 ? ARR[n] + 1.3 : 54.3]);   // link window (retracts 1 beat after it leaves)
   const toCard = (id) => (b) => { const p = elXY(0, sel(id), 0, .5); return [p[0] - 4, p[1]]; };
   IDS.forEach((id, n) => {
     const [b0, b1] = LIVE[n], all = [...LINKS[n].solid.map((i) => [i, false]), ...LINKS[n].dash.map((i) => [i, true])];
@@ -78,7 +78,7 @@ scene('40-recs', () => {
   };
   AGD.follow(41.4, 55.0, (i, b) => ({ a: .6 + .4 * lit(i, b) }), { blend: .6 });
 
-  /* ---------- deck 0: six cards in one column (b40.0 set-up, b40.6–55.4 on screen: the first card rises while the dots still fly, H11) ---------- */
+  /* ---------- deck 0: six cards in one column (b40.0 set-up, b40.6–55.1 on screen: the first card rises while the dots still fly, H11) ---------- */
   const advLight = (d) => { const Wd = decks[d].W; if (Wd.eval('S.ed') !== 'advance') Wd.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); Wd.setTheme('light'); };
   const still = (D) => D.getAnimations().forEach((a) => { const t = a.effect && a.effect.target; if (t && t.closest && t.closest('.recs')) a.cancel(); });
   const unscroll = (D) => { for (let e = D.querySelector('#content'); e; e = e.parentElement) { if (e.scrollTop) e.scrollTop = 0; if (e.scrollLeft) e.scrollLeft = 0; } };
@@ -107,14 +107,14 @@ scene('40-recs', () => {
   tween(0, 40.6, 0, () => CAM || { x: 400, y: 500, s: 2, ax: CX, ay: CY, o: 1 }, E.lin);
 
   // scroll position u (entries): entry n's centre is at CY + GAP·(n − u). Even 245 px/beat; eases into the hold on the
-  // last entry (b51 → 52.4), holds to b54.2, then accelerates up and out
+  // last entry (b51 → 52.4), holds to b54.0, then accelerates up and out (gone by b55.1: the trajectory card enters at b55.4, H12)
   const herm = (s, p0, m0, p1) => { const s2 = s * s, s3 = s2 * s; return (2 * s3 - 3 * s2 + 1) * p0 + (s3 - 2 * s2 + s) * m0 + (3 * s2 - 2 * s3) * p1; };
-  const U = (b) => b < 51 ? (b - 42) / 2 : b < 52.4 ? herm((b - 51) / 1.4, 4.5, .7, 5) : b < 54.2 ? 5 : 5 + 2.2 * E.in(lp(b, 54.2, 1.4));
+  const U = (b) => b < 51 ? (b - 42) / 2 : b < 52.4 ? herm((b - 51) / 1.4, 4.5, .7, 5) : b < 54.0 ? 5 : 5 + 2.2 * E.in(lp(b, 54.0, 1.3));
   const FOC = IDS.map(() => ({ a: 0, bl: 0 }));                  // per entry: opacity and blur, shared by its card and its word
   const MK = { t: 'rc', k: 'rk' };
-  drive(0, 40.55, 55.4, (p, b, D) => {
+  drive(0, 40.55, 55.1, (p, b, D) => {
     still(D); unscroll(D);
-    const u = U(b), gIn = E.out(lp(b, 40.6, .9)), gOut = 1 - E.inOut(lp(b, 54.6, .8));
+    const u = U(b), gIn = E.out(lp(b, 40.6, .9)), gOut = 1 - E.inOut(lp(b, 54.4, .7));
     IDS.forEach((id, n) => {
       const el = card(D, id); if (!el) return;
       narrow(el);
@@ -135,11 +135,11 @@ scene('40-recs', () => {
       }
     });
   });
-  tween(0, 55.38, 0, { o: 0 }, E.lin);
+  tween(0, 55.08, 0, { o: 0 }, E.lin);
 
   // the type word of each entry rides 24 px above its card's top-left corner, blurred and dimmed with it
   IDS.forEach((id, n) => {
-    const b0 = Math.max(40.55, ARR[n] - 3.4), b1 = Math.min(55.4, n < 5 ? ARR[n] + 3.4 : 55.4);
+    const b0 = Math.max(40.55, ARR[n] - 3.4), b1 = Math.min(55.1, n < 5 ? ARR[n] + 3.4 : 55.1);
     txt(b0, b1, [['xl sv r4-w', WORD[n]]], { x: CX, y: -400 }, {
       anim: (el) => {
         const F = FOC[n], p = elXY(0, sel(id), 0, 0);
@@ -152,13 +152,13 @@ scene('40-recs', () => {
   });
 
   /* ---------- eyebrow and the two running totals ---------- */
-  txt(40.2, 55.2, [['eb', '02 · 优化建议']], { x: 160, y: 100 }, { outB: .6 });
+  txt(40.2, 55.1, [['eb', '02 · 优化建议']], { x: 160, y: 100 }, { outB: .6 });
   const pct = (v) => v <= 0 ? '0.0%' : v < 10 ? v.toFixed(1) + '%' : Math.round(v) + '%';   // = fmtPct above .1 %; no「<0.1%」mid-roll
   const val = (f, b) => STEP.reduce((v, s, n) => v + (s.f === f ? s.d * E.out(lp(b, ARR[n], .8)) : 0), 0);
   const num = (f) => (el, tl, life, t) => { const n = el.querySelector('.r4-v'); if (n) n.textContent = pct(val(f, t / BEAT)); };
-  txt(40.4, 55.4, [['eb', '协作时间']], { x: 1640, y: 390, align: 'c' }, { outB: .8 });
-  txt(40.55, 55.4, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 470, align: 'c' }, { outB: .8, tick: num('t') });
-  txt(40.7, 55.4, [['eb', 'Token']], { x: 1640, y: 650, align: 'c' }, { outB: .8 });
-  txt(40.85, 55.4, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 730, align: 'c' }, { outB: .8, tick: num('k') });
-  txt(41.0, 55.4, [['lt r4-s', '预计节省 · 按真实轨迹估算的占比']], { x: 1640, y: 880, align: 'c' }, { outB: .8 });
+  txt(40.4, 55.1, [['eb', '协作时间']], { x: 1640, y: 390, align: 'c' }, { outB: .7 });
+  txt(40.55, 55.1, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 470, align: 'c' }, { outB: .7, tick: num('t') });
+  txt(40.7, 55.1, [['eb', 'Token']], { x: 1640, y: 650, align: 'c' }, { outB: .7 });
+  txt(40.85, 55.1, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1640, y: 730, align: 'c' }, { outB: .7, tick: num('k') });
+  txt(41.0, 55.1, [['lt r4-s', '预计节省 · 按真实轨迹估算的占比']], { x: 1640, y: 880, align: 'c' }, { outB: .7 });
 });

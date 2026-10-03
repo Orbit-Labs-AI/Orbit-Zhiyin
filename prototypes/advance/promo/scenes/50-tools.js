@@ -35,17 +35,17 @@ scene('50-tools', () => {
   line(56.6, 'hv sv t5h', '回放每一次协作', '交给本地 Agent，写成 Skill', 190, 61.85);
   line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '边写边验', 270, 62.0);
 
-  /* ---------- 5.2–5.3 trajectory card (deck 0, b55.42–62.2) ---------- */
+  /* ---------- 5.2–5.3 trajectory card (deck 0, b55.12–62.2; enters b55.4 while the dots still merge, H12) ---------- */
   const TL = '.tl-card svg.vz-t-timeline', PH = (D) => D.querySelector(TL + ' .vz-playhead');
-  tween(0, 55.42, 0, { o: 0 });                             // 40-recs has faded deck 0 out by b55.4
-  at(55.42, () => {
+  tween(0, 55.12, 0, { o: 0 });                             // 40-recs has faded deck 0 out by b55.1
+  at(55.12, () => {
     advLight(0); const a = app(0); a.go('sessions');
     if (a.S.sess.playing) a.W.eval('stopPlay()');
     a.S.sess.ph = 0; a.W.eval('tlFrame(false)'); solo(0, '.tl-card');
   });
   let PAN = 0;                                              // frame px the camera drifts with the playhead
   const trajCam = () => { const T = framing(0, '.tl-card', [1100, 640, 1360, 560], { max: 1.6 }); PAN = rectOf(0, '.tl-card').w * .05; T.x -= PAN; T.mx = 0; return T; };
-  tween(0, 56.0, 1.0, trajCam, E.quart, IN.fromR);
+  tween(0, 55.4, 1.0, trajCam, E.quart, IN.fromR);
   tween(0, 57.0, 4.6, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.04 }), E.sine);
   // the merged dot owns this session: a thin wire to the card's left edge
   AGD.link(56.4, 61.9, 0, () => elXY(0, '.tl-card', 0, .5), { color: WIRE, width: 1.5, draw: .4, out: .3 });
