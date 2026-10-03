@@ -1,6 +1,6 @@
 # Orbit 宣传片
 
-约 54 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../tandem-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
+约 54 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../orbit-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
 - **人格罗盘**：App 的 Orbit 表盘（`fp2SVG`：16 型扇区、按会话四维分布的 Agent 轨道与标志、人格之花），直接调用 App 的 `fpClassify` / `fpOrbit` / `bloom` / `typeP` / `agLogo` 绘制，App 改了表盘或花型，宣传片随之更新。
 - **Orbit 标志**：与 `docs/design/logo/orbit-spec.json` 同一条锥形螺旋、同一套线宽规则（近粗远细、两端渐细、交叉处断开，按 `orbit.py` 计算）实时生成，任何视角都是 App 图标曲线的整体等比缩放。标志与字标一律白色。片头：描出 45° 标志 → 原样播放 `docs/design/logo/kit/motion/orbit-reveal.html` 的展开帧（绕轴转一周、转为 O 并展开 rbit·知音）→ 字母收回，O 转为俯视螺旋并旋转下潜进入功能展示。片尾：罗盘轨道收成圆环 → 圆环倾倒成带 5 颗 Agent 行星的轨道 → 沿轨道长出螺旋 → 回到 45° 标志，下方只有标语，不再放字标。
 

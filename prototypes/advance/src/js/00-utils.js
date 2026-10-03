@@ -3,6 +3,8 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// persona type codes (DPMV …) inside escaped text → .tcode (SF Pro Rounded), like every other place a code appears
+const tcodes = (html) => String(html).replace(/\b([DS][PI][MF][VT])\b/g, '<span class="tcode">$1</span>');
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const f1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

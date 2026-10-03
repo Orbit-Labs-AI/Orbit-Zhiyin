@@ -1,5 +1,5 @@
 /* ============ Agent logos ============
- * 协作指纹上的 Agent 行星画成对应 Agent 的标志（单色，用该 Agent 的识别色）。路径取自 lobe-icons（MIT，lobehub），
+ * 协作指纹表盘上的 Agent 徽章画成对应 Agent 的标志（单色，用该 Agent 的识别色）。路径取自 lobe-icons（MIT，lobehub），
  * 经 codexbar（MIT，Copyright (c) 2026 Peter Steinberger）docs/logos 整理；标志本身是各公司 / 项目的商标，只用来指认来源。
  * Codex 只取图形本身（不含白底），Gemini 只取星形轮廓，OpenCode 只取外框。
  * 没有标志的 Agent（如 Hermes）画首字母。值：[viewBox, path, evenodd?] */
@@ -19,7 +19,7 @@ function agGlyph(id, cx, cy, s, color) {
   return lg ? '<svg x="' + x + '" y="' + y + '" width="' + s.toFixed(1) + '" height="' + s.toFixed(1) + '" viewBox="' + lg[0] + '" overflow="visible"><path d="' + lg[1] + '" fill="' + color + '"' + (lg[2] ? ' fill-rule="evenodd"' : '') + '/></svg>'
     : '<text x="' + (+cx).toFixed(1) + '" y="' + (+cy).toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (s * 0.95).toFixed(1) + '" font-weight="700" fill="' + color + '">' + esc((agent(id).short || id).slice(0, 1).toUpperCase()) + '</text>';
 }
-// 一枚 Agent 徽章（中心 cx, cy、半径 r）：圆底（默认 --surface，罗盘上用纸色 --bg）+ Agent 色细环 + 单色标志；没有标志时是首字母
+// 一枚 Agent 徽章（中心 cx, cy、半径 r）：圆底（默认 --surface，表盘上用纸色 --bg）+ Agent 色细环 + 单色标志；没有标志时是首字母
 function agLogo(id, cx, cy, r, color, bg) {
   return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + (bg || 'var(--surface)') + '" stroke="' + color + '" stroke-width="1.1"/>' + agGlyph(id, cx, cy, r * 1.3, color);
 }

@@ -249,7 +249,7 @@ try {
       store.set('guideOff', true); setTheme(theme); go('overview');
     }, theme);
     await settle(page);
-    const c = await page.evaluate(() => ({ ink: __kit.token('--ink-1'), ink2: __kit.token('--ink-2'), gray: __kit.token('--h2'), lead: __kit.token('--orbit'), bg: __kit.token('--bg') }));
+    const c = await page.evaluate(() => ({ ink: __kit.token('--ink-1'), ink2: __kit.token('--ink-2'), gray: __kit.token('--petal2'), lead: __kit.token('--orbit'), bg: __kit.token('--bg') }));
     colors[theme] = c;
 
     // 16 型花：两色（墨色主瓣 + 浅灰小瓣），透明底；PNG 是同一 SVG 的整体缩放

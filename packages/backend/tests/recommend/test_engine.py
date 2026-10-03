@@ -55,7 +55,7 @@ def fake_recall(cands, problems=None):
 def test_slate_shape_and_ui_keys():
     gated = raw("kb:risky", risk={"level": "high"})
     slate = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([raw("kb:ro-allow"), gated]))
-    assert slate["engine_version"] == "rec-engine-v2" and slate["status"] == "ready"
+    assert slate["engine_version"] == "rec-engine-v2.1" and slate["status"] == "ready"
     assert slate["kb_version"] == "kb-1" and slate["catalog_generation"] == 7 and slate["routes"] == {"kb": 2}
     top, low = slate["candidates"]
     assert top["rank"] == 1 and top["gates"]["passed"] and set(top["ui"]) == UI_KEYS
