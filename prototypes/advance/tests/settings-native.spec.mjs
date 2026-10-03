@@ -114,8 +114,8 @@ test('4. keyboard: settings dialog takes and returns focus; sheets have names', 
   await page.locator('.tsearch').first().focus();
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('tandem:command', { detail: { cmd: 'settings' } })));
   await expect(set).toHaveAttribute('role', 'dialog');
-  await expect(set).toHaveAttribute('aria-labelledby', 'setTitle');
-  await expect(page.locator('#setTitle')).toContainText('设置');
+  await expect(set).toHaveAttribute('aria-labelledby', 'setName setTitle');
+  await expect(page.locator('#setName')).toHaveText('设置');
   const inside = () => page.evaluate(() => document.getElementById('set').contains(document.activeElement));
   expect(await inside()).toBe(true);
   let out = 0;
