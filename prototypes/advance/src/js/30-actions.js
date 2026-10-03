@@ -31,14 +31,16 @@ Object.assign(ACT, {
   agentToggle: (el, e) => {
     const id = el.dataset.a;
     if (S.srcOff.has(id)) { toast(agent(id).name + (agent(id).all ? ' 已在设置中停用' : ' 还没有接入') + '，先到「设置 › 数据源」启用', { act: '打开设置', onAct: () => openSettings('sources') }); return; }
-    if (e.altKey) { if (S.agents.has(id) && S.agents.size > 1) S.agents.delete(id); else S.agents.add(id); }
-    else if (S.agents.size === 1 && S.agents.has(id)) AG.forEach((a) => S.agents.add(a.id));
-    else { S.agents.clear(); S.agents.add(id); }
+    if (e && e.altKey) { ACT.agentOnly(el); return; }
+    if (S.agents.has(id)) S.agents.delete(id); else S.agents.add(id);
+    if (!agentPickedIds().length) AG.forEach((a) => S.agents.add(a.id));   // nothing left checked = every agent
     render();
   },
+  agentOnly: (el) => { const id = el.dataset.a; if (!AGI[id] || S.srcOff.has(id)) return; S.agents.clear(); S.agents.add(id); render(); },
+  agentAll: () => { AG.forEach((a) => S.agents.add(a.id)); render(); },
   agentMenu: (el) => openDD(el, [{ h: '多选；全部取消时恢复全部' }].concat(agentLegendItems()).concat([{ sep: 1 }, { t: '全部 Agent', v: '*' }]), (v) => {
     if (v === '*') AG.forEach((a) => S.agents.add(a.id));
-    else if (S.agents.has(v)) { S.agents.delete(v); if (!S.agents.size) AG.forEach((a) => S.agents.add(a.id)); } else S.agents.add(v);
+    else if (S.agents.has(v)) { S.agents.delete(v); if (!agentPickedIds().length) AG.forEach((a) => S.agents.add(a.id)); } else S.agents.add(v);
     render();
   }, { keep: true, refresh: () => [{ h: '多选；全部取消时恢复全部' }].concat(agentLegendItems()).concat([{ sep: 1 }, { t: '全部 Agent', v: '*' }]) }),
   // project filter (C): projects with sessions in the range first; 0-session and scratch-* ones fold into 「其他」 (one click
@@ -70,6 +72,7 @@ Object.assign(ACT, {
   }),
   clearFilter: (el) => { const k = el.dataset.k; if (k === 'hour') S.hour = null; else S[k] = null; render(); },
   pinProject: (el) => { S.proj.sel = el.dataset.p; go('projects'); },
+  pinToggle: (el) => pinToggle(el.dataset.p),
   palette: () => openPalette(),
   menu: (el) => {
     if (DD && DD.anchor === el) { closeDD(); return; }

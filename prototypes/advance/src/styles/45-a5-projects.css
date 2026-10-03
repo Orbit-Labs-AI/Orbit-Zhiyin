@@ -9,7 +9,14 @@
 .pj-tbl col.pj-c-n{width:48px}.pj-tbl col.pj-c-h{width:60px}.pj-tbl col.pj-c-f{width:112px}.pj-tbl col.pj-c-s{width:96px}.pj-tbl col.pj-c-p{width:60px}
 .pj-tbl td{overflow:hidden}
 .pj-name{min-width:0}
-.pj-title{font-weight:600;font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-title{font-weight:600;font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.pj-tn{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pj-title .bdg{flex:none}
+.pj-pin{flex:none;display:grid;place-items:center;width:18px;height:18px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--ink-3);opacity:0;transition:opacity .12s}
+.pj-tbl tr:hover .pj-pin,.pj-pin:focus-visible,.pj-pin.on{opacity:1}
+.pj-pin.on{color:var(--ink-1)}
+.pj-pin:hover{background:var(--sel-off);color:var(--ink-1)}
+@media (prefers-reduced-motion:reduce){.pj-pin{transition:none}}
 .pj-path{font-size:11px;line-height:15px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pj-pers{text-align:right;letter-spacing:.06em;white-space:nowrap}
 .pj-fric{gap:6px}

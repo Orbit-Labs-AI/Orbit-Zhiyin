@@ -1,6 +1,6 @@
 /* ============ navigation & render ============ */
 // order = the Advance「洞察」sidebar group; ⌥1…⌥9, the 窗口 menu and the palette's 页面 rows all follow it
-const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sentiment', '情绪与语义'], ['sessions', '会话与轨迹'], ['projects', '项目习惯'], ['tools', '工具调用'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
+const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sentiment', '情绪语义'], ['projects', '项目习惯'], ['sessions', '会话轨迹'], ['tools', '工具调用'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
 const PAGES = {};
 // RENDER_HOOKS: fn(mainEl, entered) after every page render; entered = true only when go() changed the page (route enter
 // motion runs once per visit, not on every filter re-render). go() also translates a route to the current edition
@@ -145,26 +145,70 @@ const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !==
 // sidebar agents (B): 未接入 (never imported: source off and no sessions at all) vs 停用 (imported, then turned off in settings);
 // an agent with no sessions in the selected range fades (.idle) instead of looking like a filter choice
 function agentState(a) { return S.srcOff.has(a.id) ? (a.all ? 'off' : 'none') : 'on'; }
+// Agents list = a multi-select over S.agents (the same set the filter-row Agent menu edits; live requests carry the subset,
+// LV.scope / lvScope): a click checks or unchecks the row, the 「仅此」 button that appears on hover (or ⌥ click) keeps only
+// that agent, and the group head offers 「全部」 while a subset is picked. Unchecking the last one brings every agent back.
+// Each row shows the agent's own logo (34-agent-logos.js) in its identity colour; unchecked rows fade it, 停用 / 未接入 rows
+// draw it in grey with the state as the count.
+const agentOnIds = () => AG.filter((a) => agentState(a) === 'on').map((a) => a.id);
+const agentPickedIds = () => agentOnIds().filter((id) => S.agents.has(id));
+function agentIcon(a, st) { return '<svg class="ag-ic" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">' + agGlyph(a.id, 8, 8, 13, st === 'on' ? a.c : 'var(--ink-4)') + '</svg>'; }
 function sideAgents() {
-  const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
+  // each row counts its own sessions whether or not it is checked (sel() would give 0 for an unchecked agent), so the
+  // number says what checking it adds
+  const w = win(S.range);
+  const agCount = (id) => ALL.reduce((n, s) => n + (!s.live && s.a === id && s.d >= w[0] && s.d <= w[1] && (!S.project || s.p === S.project) ? 1 : 0), 0);
+  const onIds = agentOnIds(), picked = agentPickedIds();
   return AG.map((a) => {
     const st = agentState(a), off = st !== 'on', n = off ? 0 : agCount(a.id);
-    const dim = !off && !S.agents.has(a.id), idle = !off && !dim && !n;
-    const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' : (idle ? rangeLabel() + '内没有会话 · ' : '') + '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选';
-    return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + tip + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>';
+    const on = !off && S.agents.has(a.id), dim = !off && !on, idle = on && !n;
+    const last = on && picked.length === 1;
+    const only = !off && onIds.length > 1 && !last;
+    const pk = on && picked.length < onIds.length; // a subset is picked: checked rows get the sidebar's light selected tint
+    const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' :
+      (idle ? rangeLabel() + '内没有会话 · ' : '') + (last ? '点击：恢复全部 Agent' : on ? '点击：移出筛选' : '点击：加入筛选') + (only ? '；⌥ 点击：只看 ' + a.name : '');
+    return '<div class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + (pk ? ' pk' : '') + '" data-a="' + a.id + '">' +
+      '<button type="button" class="ag-b" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + esc(tip) + '" aria-pressed="' + on + '">' + agentIcon(a, st) + '<span class="lb">' + esc(a.name) + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>' +
+      (only ? '<button type="button" class="ag-only" data-act="agentOnly" data-a="' + a.id + '" aria-label="只看 ' + esc(a.name) + '" data-tip="只看 ' + esc(a.name) + '">仅此</button>' : '') + '</div>';
   }).join('');
 }
-function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
+// group head of the Agents list: the count column label, or 「全部」 while only some agents are picked
+function sideAgentsRight() { return agentPickedIds().length < agentOnIds().length ? '<button type="button" class="sr-btn" data-act="agentAll" data-tip="恢复全部 Agent">全部</button>' : '会话'; }
+/* pinned projects (F26): the user pins / unpins a project from the sidebar row (hover pin button) or the 项目习惯 page
+   (row pin, detail 置顶 button); S.pins is kept in the UI prefs (store 'pins': native prefs in the App, localStorage in the
+   browser — the same in live and demo). Without manual pins the group shows the rule it uses: the 3 projects with the most
+   sessions in the selected range and Agent filter, named in the group head. Ids not (yet) in PJ stay stored and are skipped. */
+S.pins = (() => { const v = store.get('pins', []); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; })();
+const pinsManual = () => S.pins.filter((id) => PJI[id]);
+const isPinned = (id) => S.pins.indexOf(id) >= 0;
+function pinsAuto() { return PJ.filter((p) => p.id !== '_none').map((p) => ({ id: p.id, n: sel({ noExtra: true, project: p.id }).length })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3).map((x) => x.id); }
+function pinToggle(id) {
+  if (!id || id === '_none') return; // '_none' = live sessions without a project: not a project, so not pinnable
+  const i = S.pins.indexOf(id); if (i >= 0) S.pins.splice(i, 1); else S.pins.push(id);
+  store.set('pins', S.pins.slice());
+  render();
+  toast(i >= 0 ? '已取消置顶「' + (PJI[id] ? PJI[id].name : id) + '」' : '已置顶「' + (PJI[id] ? PJI[id].name : id) + '」到侧栏');
+}
+function sidePinsRight() {
+  if (pinsManual().length) return '<span data-tip="你置顶的项目（悬停项目点图钉取消）。全部取消后，自动显示' + rangeLabel() + '会话最多的 3 个项目">已置顶</span>';
+  return '<span data-tip="没有手动置顶时，自动显示' + rangeLabel() + '（按当前 Agent 筛选）会话最多的 3 个项目；悬停项目点图钉可置顶">' + rangeLabel() + '会话最多</span>';
+}
+function sidePins() {
+  const man = pinsManual(), ids = man.length ? man : pinsAuto();
+  if (!ids.length) return '<div class="sb-note">' + rangeLabel() + '内没有项目会话</div>';
+  return ids.map((id) => { const pin = isPinned(id); return '<div class="pjp" data-p="' + esc(id) + '"><button type="button" data-act="pinProject" data-p="' + esc(id) + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + esc(PJI[id].name) + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>' +
+    (id === '_none' ? '' : '<button type="button" class="pin-b' + (pin ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(id) + '" aria-pressed="' + pin + '" aria-label="' + (pin ? '取消置顶 ' : '置顶 ') + esc(PJI[id].name) + '" data-tip="' + (pin ? '取消置顶' : '置顶到侧栏') + '">' + ic('pin', 13) + '</button>') + '</div>'; }).join('');
+}
 function renderSide() {
   if (S.ed === 'lite') { renderSideLite(); return; }
   const n = sel({ noExtra: true }).length;
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
   $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪与语义', 'sentiment') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools')) +
+    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪语义', 'sentiment') + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('sessions', '会话轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
-    group('agents', 'Agents', sideAgents(), '会话') +
-    group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
+    group('agents', 'Agents', sideAgents(), sideAgentsRight()) +
+    group('pins', '置顶项目', sidePins(), sidePinsRight()) + '</div>' + sideFoot();
 }
 // the published footer, shared by both editions: index indicator light (live / paused / manual) + session count, then the user row
 // sideIdx() → { st: 'live' | 'busy' | 'off' | 'err', n: session count or null, t: state label }; live mode (96-live-bind) swaps in the
