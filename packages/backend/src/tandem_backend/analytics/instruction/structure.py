@@ -1,11 +1,28 @@
 """Observable prompt structure for the Instruction feature family."""
 
 import re
+from functools import cache
 
 from .text import instruction_text
 
 CONSTRAINT = re.compile(r"必须|不要|只能|要求|\b(?:must|do not|don't|only|require)\b", re.I)
-FILE = re.compile(r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(py|ts|tsx|js|jsx|tex|md|json|yaml|yml|rs|go|java|cpp|c|h|sh|html|css|ipynb|swift|kt|rb|php|toml|sql|txt|csv)\b", re.I)
+
+
+# File mentions that are not a programming/markup language in ``features.LANG`` but are
+# still files a prompt points at.
+NON_LANGUAGE_FILE_EXTENSIONS = ("txt", "log")
+
+
+@cache
+def file_pattern() -> re.Pattern:
+    """A path-like token ending in a ``features.LANG`` extension (the session family's
+    ``FILE_REFERENCE`` table, Linguist-named) or a ``NON_LANGUAGE_FILE_EXTENSIONS`` one.
+
+    Built lazily: ``analytics.features`` imports this module."""
+    from ..features import LANG
+
+    extensions = sorted({*LANG, *NON_LANGUAGE_FILE_EXTENSIONS}, key=lambda e: (-len(e), e))
+    return re.compile(r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(" + "|".join(extensions) + r")\b", re.I)
 
 
 def structure(e):
@@ -24,7 +41,7 @@ def structure(e):
            "numbered_list_count": len(re.findall(r"(?m)^\s*\d+[.)、]\s*", text)),
            "code_block_count": None,  # Legacy normalization removed fenced material.
            "url_count": len(re.findall(r"https?://[^\s<>]+", text)),
-           "file_reference_count": len(FILE.findall(text)),
+           "file_reference_count": len(file_pattern().findall(text)),
            "explicit_format_request_count": len(re.findall(r"(?:请|用|输出为|写成).{0,8}(?:表格|列表|JSON|Markdown|分点)", text, re.I)),
            "explicit_tool_mention_count": len(re.findall(r"(?:使用|调用|用)\s*`?[\w.]*?(?:MCP|工具|skill|pytest|git|bash)\b", text, re.I)),
            "constraint_marker_count": len(CONSTRAINT.findall(text))}

@@ -215,3 +215,16 @@ def test_every_supported_english_scope_verb_detects_a_contradiction(verb):
     result = resolve_instruction_scope(rows, {"session_uid": "s", "task_id": "task"})
     assert result["conflicts"]
     assert not any(c["feature"] in ("allowed_scope", "prohibited_actions") for c in result["active"])
+
+
+def test_file_reference_count_uses_the_session_language_table():
+    # Hand count: App.swift (Swift), build.gradle (Groovy), schema.proto (Protocol Buffer),
+    # notes.txt (non-language file) -> 4; "v1.2" and "e.g." are not files.
+    text = "改 Sources/App.swift、build.gradle 和 schema.proto，记录到 notes.txt；版本 v1.2，e.g. 见上"
+    result = structure({"event_uid": "e", "text": text, "attrs": {}})
+    assert result["file_reference_count"] == 4
+    from tandem_backend.analytics.features import LANG
+    from tandem_backend.analytics.instruction.structure import file_pattern
+
+    assert {"swift", "gradle", "proto"} <= set(LANG)
+    assert file_pattern().findall("a.tsx b.ts") == ["tsx", "ts"]
