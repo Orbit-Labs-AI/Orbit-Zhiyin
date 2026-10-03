@@ -1,23 +1,30 @@
-/* 10-intro 1a–1c（b0–11.8 for the dots, b12.6 for the type and icons） — STORYBOARD.md v17.1「V1」「V2 T0–T3′」「V4」, v17「1a」「1b」「1c」.
+/* 10-intro 1a–1c（b0–11.8 for the dots, b12.75 for the type and icons） — STORYBOARD.md v17.2 (copy + entrances), v17.1「V1」
+   「V2 T0–T3′」「V4」, v17「1a」「1b」「1c」.
+   The opening is one causal chain (v17.2): 用 AI Agent，正在成为每个人的日常 → 从想法到交付 (the picture of it) → We Are
+   Redesigning Everything / 人们正在用 Agent 重新设计一切 → (15-redesign) 但，交互本身也需要被重新定义 → So … Assistant.
    Pacing (v17 pace pass): every change is slow enough to follow — words wipe in over .45 beat, typing runs ≈ 8.5
    characters a beat, bubbles rise out of their dot over .6 beat and stay ≥ 1.25 beats, icons fly 1 beat — and nothing
    freezes: the type keeps a slow push, bubbles float, the dots drift / breathe and the halo turns.
    The five dots are one tight group the eye follows, and the content comes out of it:
-   1a 现在，每天无数人在使用 AI Agent（b0–4.2）：a cluster (R 60) pops in the middle of the black, 「现在，」 above it; from b0.8
-      the dots are a ∪ pen under the headline, gliding under each word just before it wipes in, back to the centre and up
-      with the line's exit.
+   1a 用 AI Agent，/ 正在成为每个人的日常（b0–4.2）：a cluster (R 60) pops in the middle of the black and 「用 AI Agent，」
+      floats up out of it; from b0.8 the dots are a ∪ pen under the headline, gliding under each word just before it wipes
+      in; 「日常」 (orange) comes last and settles like a stamp (b2.7, lands on b3.0); the pen returns to the centre and
+      rises with the line's exit.
    1b 从想法到交付（b4–8.8）：the pen turns over into the narrow ∩ arc (b3.6); the input box grows out of the dots (b4.0) and
       shrinks back into them (b7.3–7.7); 3 typed sends + each dot's own prompt, one bubble slot per dot in two layers;
       b6.95 12 App icons spray from the dots and the box along arcs (1 beat) onto the halo (960, 520, rx 760, ry 380).
    1c We Are Redesigning Everything（b8.6–12.6）：the arc folds into a caret (b8.2) that leads the type word by word, then
       walks an L to the right of 「Everything」 and rests there; each word draws the 3 nearest icons 40 px in; b10.3 the
-      icons turn outward and shrink to .7, b11.7 they fly out along the radius. The b11.8 AGD key (caret → arc) belongs
+      icons turn outward and shrink to .7, b11.7 they fly out along the radius. b11.1 (0.3 beat after 「Everything」 is
+      whole) the gloss 「人们正在用 Agent 重新设计一切」 fades in under it. The b11.8 AGD key (caret → arc) belongs
       to 15-redesign; this scene writes no key after b8.2.
    The icons are drawn in #agdBack (AGD.back, under the Agent dots), so they burst from behind the dots and the box. */
 scene('10-intro', () => {
   css(`
-.ln.lt.in-now{color:rgba(255,255,255,.6)}
-.in-big{font-size:120px}
+.ln.lt.in-s{font-size:46px;color:rgba(255,255,255,.74)}
+.ln.in-big{font-size:120px;overflow:visible}
+.ln.sv .w.in-hot{background:none;color:var(--a1)}
+.ln.lt.in-gloss{font-size:44px;color:rgba(255,255,255,.74)}
 .in-t1{font-size:132px}
 .in-w1{font-size:120px}
 .in-ev{font-size:150px;color:var(--a1)}
@@ -26,11 +33,26 @@ scene('10-intro', () => {
   // Words wipe in left → right over o.dur beats (.45): each word grows its own width, so a centred line re-centres
   // smoothly instead of jumping, and the glyphs past the growing edge stay clipped. The block keeps a slow push
   // (o.push = scale gained over the text's life) so it never sits frozen; o.fit = max width; it leaves over o.out beats
-  // (blur + fade, o.up px upwards, o.spread = letters drift apart).
+  // (blur + fade, o.up px upwards, o.spread = letters drift apart). o.stamp = index of a word that lands like a stamp
+  // instead: its slot opens over .35 beat (the line re-centres as smoothly as for a wipe) while the glyphs come down
+  // unclipped from 1.3× to .97× (E.io, .3 beat — the hit) and settle back to 1 (E.io, .3 beat); opacity and blur only
+  // ever go one way, so nothing flashes.
+  const STAMP = (u) => (u < .3 ? lerp(1.3, .97, E.inOut(u / .3)) : lerp(.97, 1, E.inOut(clamp((u - .3) / .3))));
   const wipe = (o) => (el, tl, life) => {
     const ws = [...el.querySelectorAll('.w')], dur = o.dur ?? .45;
     if (!el._ww || !el._ww.some((v) => v > 0)) { ws.forEach((w) => { w.style.display = ''; w.style.width = ''; }); el._ww = ws.map((w) => w.offsetWidth); }
     ws.forEach((w, i) => {
+      if (i === o.stamp) {
+        const u = (tl - BB(o.at[i])) / BEAT, p = E.out(clamp(u / .35)), a = clamp(u / .2);
+        w.style.display = u > 0 ? '' : 'none';
+        w.style.width = p < 1 ? (el._ww[i] * p).toFixed(1) + 'px' : '';
+        w.style.clipPath = '';
+        w.style.opacity = E.out(a).toFixed(3);
+        w.style.filter = u < .3 ? 'blur(' + ((1 - clamp(u / .3)) * 6).toFixed(1) + 'px)' : 'none';
+        w.style.transform = u < .6 ? 'scale(' + STAMP(clamp(u)).toFixed(4) + ')' : '';
+        w.style.transformOrigin = '50% 58%';
+        return;
+      }
       const p = E.out(clamp((tl - BB(o.at[i])) / BB(dur)));
       w.style.display = p > 0 ? '' : 'none';
       w.style.width = p < 1 ? (el._ww[i] * p).toFixed(1) + 'px' : '';
@@ -67,17 +89,18 @@ scene('10-intro', () => {
   // T0 (b0.2–0.98): a tight cluster in the middle of the black, popping in one after another (E.back .3 beats, stag .12):
   // cc (960, 500) / cx (1017, 541) / gm (995, 609) / ds (925, 609) / cp (903, 541), turning 8°/beat
   AGD.key(0.2, 'ring', { ...AGD.P.cluster, ph: 0, dur: .3, stag: .12 });
-  // 1a.2: 「现在，」 blurs in from b0.4 over the cluster (y 430, the cluster's top edge is y 466); the headline wipes in a word
-  // on b0.9 / 1.5 / 2.1 / 2.7 (.45 beat each, ≤ 1600). 1a.3: both lines leave b3.6–4.2 — fade + blur, drifting up 60 px;
-  // until then both keep a slow push (+6 %)
+  // 1a.2: 「用 AI Agent，」 (the subject, small) floats up out of the cluster from b0.4 — characters blur in while the line
+  // rises 18 px onto y 430 (the cluster's top edge is y 466); the headline 「正在成为每个人的日常」 wipes in a word on
+  // b0.9 / 1.5 / 2.1 (.45 beat each, ≤ 1600) and 「日常」 (orange) stamps in on b2.7 and hits on b3.0. 1a.3: both lines leave
+  // b3.6–4.2 — fade + blur, drifting up 60 px; until then both keep a slow push (+6 %)
   const up60 = (tl, life) => -60 * E.inOut(clamp((tl - (life - BB(.6))) / BB(.6)));
-  txt(0.4, 4.2, [['lt in-now', '现在，']], { x: 960, y: 430, align: 'c' }, {
-    anim: K.blurIn({ spread: .8, dur: .5, out: .6 }),
-    tick: (el, tl, life) => { el.style.transform = 'translate(-50%,-50%) translateY(' + up60(tl, life).toFixed(1) + 'px) scale(' + (1 + .06 * tl / life).toFixed(4) + ')'; }
+  txt(0.4, 4.2, [['lt in-s', '用 AI Agent，']], { x: 960, y: 430, align: 'c' }, {
+    anim: K.blurIn({ spread: .6, dur: .5, out: .6 }),
+    tick: (el, tl, life) => { el.style.transform = 'translate(-50%,-50%) translateY(' + (18 * (1 - E.out(clamp(tl / BB(.9)))) + up60(tl, life)).toFixed(1) + 'px) scale(' + (1 + .06 * tl / life).toFixed(4) + ')'; }
   });
-  const HEAD = ['hv sv in-big', '<span class="w">每天</span><span class="w">无数人</span><span class="w">在使用</span><span class="w"> AI Agent</span>'];
+  const HEAD = ['hv sv in-big', '<span class="w">正在</span><span class="w">成为</span><span class="w">每个人的</span><span class="w in-hot">日常</span>'];
   const HB0 = .5, HB1 = 4.2, HAT = [.4, 1.0, 1.6, 2.2];
-  txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: HAT, fit: 1600, push: .06, up: 60, out: .6 }) });
+  txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: HAT, stamp: 3, fit: 1600, push: .06, up: 60, out: .6 }) });
   // T0′ the pen (b0.8–3.6): a ∪ arc (gap 56, sag −14, r 28) 112 px under the headline, centred under the newest word. A
   // centred line re-centres as a word grows, so word k sits at 960 + (width of the words before it) / 2 for its whole
   // wipe (× the push); the pen glides there (E.io .45) and arrives .1 beat before the word starts, then returns to 960
@@ -93,8 +116,9 @@ scene('10-intro', () => {
   // (y 480–600) while 「每天」 is still wiping in: at b1.0 the dots are ≈ 75 % of the way down
   const PEN_E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
   AGD.key(0.8, 'arc', { cx: penX, cy: penY, gap: 56, sag: -14, r: 28, dur: .5, stag: .04, ease: PEN_E });
-  // every dot breathes (1.06, .5 beats) as each word lands
-  for (const k of [0, 1, 2, 3]) for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[k] + .03 * i, 1.06, .5);
+  // every dot breathes (1.06, .5 beats) as each word lands; under 「日常」 the pen gives a firmer press (1.1) on the hit, b3.0
+  for (const k of [0, 1, 2]) for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[k] + .03 * i, 1.06, .5);
+  for (let i = 0; i < 5; i++) AGD.pulse(i, HB0 + HAT[3] + .3 + .02 * i, 1.1, .5);
   // T1 (b3.6 → 4.76): the ∪ pen turns over into the ∩ arc in place (the centre moves 16 px) and opens to gap 112:
   // cc (736, 632) / cx (848, 614) / gm (960, 608) / ds (1072, 614) / cp (1184, 632); from b4.6 the dots drift ≤ 6 px
   const drift = (b) => 6 * E.inOut(clamp((b - 4.6) / 1.0));
@@ -239,4 +263,15 @@ scene('10-intro', () => {
   for (const w of [8.8, 9.3, 9.8, 10.3, 10.85, 11.4]) for (let i = 0; i < 5; i++) AGD.pulse(i, w + .04 * i, 1.06, .5);
   txt(10.3, 12.6, [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
     { anim: wipe({ at: [0], dur: .5, push: .03, out: .8, spread: true }) });
+  // the gloss (v17.2): 「人们正在用 Agent 重新设计一切」 fades in 0.3 beat after 「Everything」 is whole (b11.1; .45 beat, rising
+  // 14 px out of a light blur) at y 728 under it, and leaves a touch after the English (b12.15–12.75) so it can be read;
+  // 15-redesign's first type (b12.8) is not under it
+  txt(11.1, 12.75, [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 728, align: 'c' }, {
+    anim: (el, tl, life) => {
+      const p = E.out(clamp(tl / BB(.45))), q = E.inOut(clamp((tl - (life - BB(.6))) / BB(.6)));
+      el.style.transform = 'translate(-50%,-50%) translateY(' + (14 * (1 - p) - 20 * q).toFixed(1) + 'px)';
+      leave(el, p * (1 - q));
+      if (p < .999 && q < .001) el.style.filter = 'blur(' + ((1 - p) * 5).toFixed(1) + 'px)';
+    }
+  });
 });
