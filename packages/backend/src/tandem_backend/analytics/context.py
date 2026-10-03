@@ -33,25 +33,28 @@ class AnalysisContext:
     calls: list[Record] | None
     model_calls: list[Record] | None
     diagnostics: Record
+    # Workers receive rows the parent already projected: re-projecting them is wasted
+    # work and not idempotent for supplied canonical task UIDs (evidence changes).
+    work_index: WorkIndex | None = None
     event_groups: dict[str, list[Record]] = field(init=False)
     call_groups: dict[str, list[Record]] = field(init=False)
     model_groups: dict[str, list[Record]] = field(init=False)
     context_groups: dict[str, list[Record]] = field(init=False)
     session_map: dict[str, Record] = field(init=False)
     children: dict[str, set[str]] = field(init=False)
-    work_index: WorkIndex = field(init=False)
     _families: dict[tuple[str, ...], Record] = field(default_factory=dict, init=False)
     _call_pieces: dict[str, tuple] = field(default_factory=dict, init=False)
     _pieces_handed_out: set[str] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
-        self.work_index = build_work_index(
-            self.events if self.bundle.events is not None else None,
-            self.sessions, self.calls, self.model_calls,
-        )
-        self.events, self.calls, self.model_calls = (
-            self.work_index.events, self.work_index.calls, self.work_index.model_calls,
-        )
+        if self.work_index is None:
+            self.work_index = build_work_index(
+                self.events if self.bundle.events is not None else None,
+                self.sessions, self.calls, self.model_calls,
+            )
+            self.events, self.calls, self.model_calls = (
+                self.work_index.events, self.work_index.calls, self.work_index.model_calls,
+            )
         self.event_groups = group_sessions(self.events)
         self.call_groups = group_sessions(self.calls)
         self.model_groups = group_sessions(self.model_calls)

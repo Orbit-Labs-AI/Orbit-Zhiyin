@@ -155,6 +155,28 @@ def test_native_projection_is_idempotent_for_parallel_row_workers():
     assert second.events == first.events and second.calls == first.calls
 
 
+
+def test_workers_reuse_the_parent_projection_with_canonical_task_references():
+    # Re-projecting projected rows is not idempotent for a supplied canonical task UID,
+    # so a process-pool job must reuse the parent's index instead of rebuilding it.
+    from tandem_backend.analytics import service
+
+    bundle = trajectory_bundle(native=False)
+    for event in bundle.events:
+        if event["event_uid"] == "request":
+            event["attrs"]["task_uid"] = "C1"
+    context = AnalysisContext.select(bundle, Scope())
+    worker = service._whole_selection_job(service._context_blob(context), "families")
+    assert worker == context.families(set(context.session_map))
+
+
+def test_legacy_inferred_task_ids_never_become_explicit_tasks():
+    bundle = trajectory_bundle(native=False, spawn=False)
+    for event in bundle.events:
+        event["attrs"].update(task_id="legacy-heuristic", task_id_source="legacy_inferred")
+    graph = analyze(bundle)["work_graph"]
+    assert "legacy-heuristic" not in {n["entity_uid"] for n in graph["nodes"] if n["kind"] == "Task"}
+
 def test_explicit_canonical_task_references_survive_missing_human_text():
     bundle = trajectory_bundle(spawn=False)
     bundle.events = [e for e in bundle.events if e["kind"] in ("tool.call", "tool.result")]

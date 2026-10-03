@@ -42,3 +42,25 @@ def test_legacy_analyses_are_queued_paged_and_bounded(client_factory, codex_root
     assert bad.status_code == 422
     # On demand only: a publish must not prewarm minutes of products work.
     assert not {"products", "presentation", "statistics", "lexical"} & set(LIGHT + HEAVY)
+
+
+def test_work_graph_and_trajectories_are_worker_snapshots(client_factory, codex_root, monkeypatch):
+    def in_gateway(*args, **kwargs):
+        raise AssertionError("the gateway process must not build the work graph itself")
+
+    monkeypatch.setattr("tandem_backend.analytics.work_graph.graph.build_work_graph", in_gateway)
+    client, gateway = client_factory()
+    source = add_codex(client, codex_root)
+    job = run_job(client, "import", [source], phase="head")
+    assert wait_job(client, job["id"])["status"] == "completed"
+
+    queued = client.get("/v1/analytics/work-graph")
+    assert queued.status_code == 202, queued.text
+    _ready(gateway, "work_graph")
+    graph = client.get("/v1/analytics/work-graph")
+    assert graph.status_code == 200 and graph.json()["meta"]["freshness"] == "fresh"
+    tag = graph.headers["etag"]
+    assert client.get("/v1/analytics/work-graph", headers={"If-None-Match": tag}).status_code == 304
+    assert client.get("/v1/analytics/tasks/absent/trajectory").status_code == 404
+    assert client.get("/v1/analytics/work-graph", params={"bogus": 1}).status_code == 422
+    assert "work_graph" not in set(LIGHT + HEAVY)
