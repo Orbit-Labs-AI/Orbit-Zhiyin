@@ -225,6 +225,8 @@ test('A6 高频词: word cloud layout, Top 10, tooltip, click to search, window 
   // 最小窗口 960×640：词云与 Top 10 仍各自完整，内容不横向溢出
   await page.evaluate(() => { Object.assign(S.win, { x: 40, y: 40, w: 960, h: 640 }); render(); });
   await expect.poll(async () => (await cloudGeo(page)).w).toBeLessThan(g.w);
+  // the cloud re-flows on its ResizeObserver (next frame) instead of a page rebuild
+  await expect.poll(async () => (await cloudGeo(page)).out).toBe(0);
   const gs = await cloudGeo(page);
   expect(gs).toMatchObject({ ov: 0, out: 0 });
   expect(gs.shown).toBeGreaterThanOrEqual(Math.floor(gs.n * 0.9));

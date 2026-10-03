@@ -84,16 +84,21 @@ function wordCard(xs, V) {
   const head = '<div class="hd"><div class="grow"><span class="ct">高频词</span>' + badge + '<span class="cap">你日常消息里最常用的词 · 已脱敏 · 点击词搜索</span></div></div>';
   if (!xs.length) return '<div class="card pad sn-wcard" data-wc-empty="1">' + head + '<div class="sn-wempty cap">所选范围内的消息太少，还形成不了高频词<br>换一个时间范围或 Agent 再看看</div></div>';
   const t = wordScale(xs); const max = xs[0].n;
-  const cloud = xs.map((x) => { const k = t(x.n); return '<button type="button" class="sn-w t' + (k >= 0.8 ? 1 : k >= 0.5 ? 2 : 3) + '" role="listitem" data-act="wordGo" data-k="' + esc(x.t) + '" data-n="' + x.n + '" data-tip="' + wordTip(x) + '" aria-label="' + wordTip(x) + '">' + esc(x.t) + '</button>'; }).join('');
+  // the last layout of these same terms (WC.cache) goes into the markup, so a refresh that morphs this card keeps every word
+  // where it is; wordMountR re-flows only for new terms or a new width
+  const wk = wordKey(xs); const C = WC.cache && WC.cache.key === wk ? WC.cache : null;
+  const pos = (x) => { if (!C) return ''; const at = C.at[x.t]; if (at === undefined) return ''; const f = 'font-size: ' + at[0] + 'px;'; return at[1] == null ? ' style="' + f + '" aria-hidden="true" tabindex="-1"' : ' style="' + f + ' left: ' + at[1] + 'px; top: ' + at[2] + 'px;" tabindex="0"'; };
+  const cloud = xs.map((x) => { const k = t(x.n); const off = C && C.at[x.t] && C.at[x.t][1] == null; return '<button type="button" class="sn-w t' + (k >= 0.8 ? 1 : k >= 0.5 ? 2 : 3) + (off ? ' off' : '') + '" role="listitem" data-act="wordGo" data-k="' + esc(x.t) + '" data-n="' + x.n + '" data-tip="' + wordTip(x) + '" aria-label="' + wordTip(x) + '"' + pos(x) + '>' + esc(x.t) + '</button>'; }).join('');
   const top = xs.slice(0, 10).map((x, i) => '<button type="button" class="sn-tw" data-act="wordGo" data-k="' + esc(x.t) + '" data-tip="' + wordTip(x) + '"><span class="mono sn-tw-r">' + (i + 1) + '</span><span class="sn-tw-t">' + esc(x.t) + '</span><span class="sn-tw-bar" aria-hidden="true"><i style="width:' + (x.n / max * 100).toFixed(0) + '%"></i></span><span class="mono sn-tw-n">' + fmt(x.n) + ' 次</span><span class="mono sn-tw-d">' + x.d + ' 天</span></button>').join('');
-  return '<div class="card pad sn-wcard">' + head + '<div class="sn-words"><div class="sn-cloud" data-wc role="list" aria-label="高频词云，共 ' + xs.length + ' 个词">' + cloud + '</div>' +
+  return '<div class="card pad sn-wcard">' + head + '<div class="sn-words"><div class="sn-cloud" data-wc data-wk="' + wk + '" role="list" aria-label="高频词云，共 ' + xs.length + ' 个词"' + (C ? ' style="height: ' + C.H + 'px;"' : '') + '>' + cloud + '</div>' +
     '<div class="sn-top"><div class="sn-tw sn-tw-h cap" aria-hidden="true"><span>#</span><span>Top 10</span><span></span><span>次数</span><span>天数</span></div>' + top + '</div></div>' +
     '<div class="cap sn-foot">字号按出现次数取对数 · 只统计你发出的消息，不含 Agent 回复、工具输出与代码' + (xs.length >= 60 ? ' · 显示前 60 个' : '') + '</div></div>';
 }
 // spiral + rectangle collision: words in count order, each from the centre outwards along an elliptical Archimedean
 // spiral (start angle hashed per word, so the cloud is stable across re-renders) until its box overlaps nothing.
 // Words that find no room are hidden (aria-hidden) and stay in the Top 10 / tooltip data.
-const WC = { ro: null, w: 0 };
+const WC = { ro: null, w: 0, box: null, cache: null };
+const wordKey = (xs) => String(hash(xs.map((x) => x.t + ':' + x.n).join('|')));
 function wordLayout(box, animate) {
   const els = $$('.sn-w', box); if (!els.length) return;
   const W = box.clientWidth; if (W < 40) return;
@@ -107,13 +112,18 @@ function wordLayout(box, animate) {
     if (rects.filter(Boolean).length >= els.length * 0.9 || maxF <= 15) break;
     maxF = Math.max(15, maxF * 0.86); minF = Math.max(10, minF * 0.96);
   }
+  const cache = { key: box.dataset.wk || '', W, H, at: {} };
   els.forEach((el, i) => {
     const at = rects[i]; el.classList.toggle('off', !at); el.tabIndex = at ? 0 : -1;
     if (at) { el.removeAttribute('aria-hidden'); el.style.left = at[0].toFixed(1) + 'px'; el.style.top = at[1].toFixed(1) + 'px'; } else el.setAttribute('aria-hidden', 'true');
+    cache.at[el.dataset.k] = [+parseFloat(el.style.fontSize).toFixed(1), at ? +at[0].toFixed(1) : null, at ? +at[1].toFixed(1) : null];
   });
-  if (animate && !reduceMotion() && typeof els[0].animate === 'function') {
-    els.forEach((el, i) => { if (el.classList.contains('off')) return; el.animate([{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 120 + Math.min(i, 36) * 14, easing: EASE_OUT, fill: 'backwards' }); });
-  }
+  WC.cache = cache;
+  if (animate) wordIn(box);
+}
+function wordIn(box) {
+  const els = $$('.sn-w', box); if (!els.length || reduceMotion() || typeof els[0].animate !== 'function') return;
+  els.forEach((el, i) => { if (el.classList.contains('off')) return; el.animate([{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 120 + Math.min(i, 36) * 14, easing: EASE_OUT, fill: 'backwards' }); });
 }
 // one placement pass at the current font sizes → [left, top] per word (null = no room)
 function wordPlace(els, W, H) {
@@ -135,12 +145,18 @@ function wordPlace(els, W, H) {
   });
   return out;
 }
-function wordMount(entered) {
-  if (WC.ro) { WC.ro.disconnect(); WC.ro = null; }
-  const box = $('#content .sn-cloud'); if (!box) return;
-  wordLayout(box, entered);
-  if (typeof ResizeObserver !== 'function') return;
-  let raf = 0;
+// region after (a6:words): lay the cloud out when its terms or its width changed since the last layout (a refresh that only
+// morphed the card keeps the cached positions); the enter cascade plays on a page enter only. One ResizeObserver per box.
+function wordMountR(el) {
+  const box = el.querySelector('.sn-cloud');
+  if (WC.ro && WC.box !== box) { WC.ro.disconnect(); WC.ro = null; WC.box = null; }
+  if (!box) return;
+  const C = WC.cache;
+  const fresh = !(C && C.key === box.dataset.wk && Math.abs(box.clientWidth - C.W) <= 1 && box.style.height);
+  if (fresh) wordLayout(box, ROUTE_ENTER);
+  else { WC.w = C.W; if (ROUTE_ENTER) wordIn(box); }
+  if (WC.ro || typeof ResizeObserver !== 'function') return;
+  let raf = 0; WC.box = box;
   WC.ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (box.isConnected && Math.abs(box.clientWidth - WC.w) > 1) wordLayout(box, false); }); });
   WC.ro.observe(box);
 }
@@ -149,13 +165,19 @@ function wordSearch(term) {
   openPalette(); const q = $('#palQ'); if (!q || !PAL) return;
   q.value = term; PAL.q = term; PAL.i = 0; drawPal();
 }
-PAGES.sentiment = () => {
+// Region-built (24-regions.js): toolbar, filter row, the off / pending shells and the four cards refresh on their own deps.
+// The word cloud keeps its layout (positions are written into the markup from WC.cache) and only re-flows when its terms
+// or its width change; the mood chart redraws only when its buckets change (snMountMood).
+RG.pages.add('sentiment');
+const SN_DEPS = ['facts', 'filters', 'feed:sentiment', 'live', 'S.engine'];
+// which layout the page shows (cheap: the same tests snCtx makes): 'off' engine, 'wait' for the feed, 'ready' cards
+const snMode = () => (!LV.live && S.engine === 'stats' ? 'off' : LV.live && !LVS.sent ? 'wait' : 'ready');
+const snCtx = () => RG.memo('a6', () => {
   // live: the view model comes from /v1/uiview/sentiment (94-live-sentiment-search.js); mock: derived from the demo rows
   const V = LV.live ? (LVS.view = lvSentView(sel())) : null;
-  const head = tbar('情绪与语义', V ? (V.state === 'ready' ? V.lang : '你的消息') : '你的消息 · 中文 62% · 英文 31% · 混合 7%', '<button type="button" class="btn gh" data-act="moodHow">' + ic('info', 14) + '情绪如何计算</button><button type="button" class="btn ai" data-act="phrasesToRule">' + ic('spark', 14) + '把高频纠偏写成规则</button>');
-  if (!LV.live && S.engine === 'stats') return head + '<div class="content" id="content">' + empty('语义分析已关闭：分析引擎设为「仅统计」。<br><br><button type="button" class="btn p" data-act="openSettings" data-tab="analysis">去设置开启</button>') + '</div>';
-  const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + (V && V.state === 'ready' ? lvSentShield(V) : '语义分析由本地 Agent 完成，原文不离开本机') + '</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');
-  if (V && V.state !== 'ready') { CUR.mood = null; return head + '<div class="content" id="content">' + filterRow(shield) + lvSentShell(V) + '</div>'; }
+  const off = !LV.live && S.engine === 'stats';
+  const wait = !!(V && V.state !== 'ready');
+  if (off || wait) { CUR.mood = null; return { V, off, wait, mode: off ? 'off' : 'wait' }; }
   const L = sel(); const ms = V ? V.ms : moodSeries(L, S.range); CUR.mood = ms;
   const weeklyB = (win(S.range)[1] - win(S.range)[0] + 1) > 31;   // 按周聚合（BUG-69）
   const pw = prevWin(S.range); const LP = !V && pw ? sel({ win: pw }) : null;
@@ -167,21 +189,52 @@ PAGES.sentiment = () => {
   const phrases = V ? V.phrases : PHRASES.map((p) => [p[0], Math.max(1, Math.round(p[1] * scale)), p[2]]).sort((a, b) => b[1] - a[1]); const phMax = phrases.length ? phrases[0][1] : 1;
   const words = V ? V.words : demoWords(L);
   const noMood = !!(V && V.allNull);
-  return head + '<div class="content" id="content">' + filterRow(shield) +
-    '<div class="stack"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪分布与纠偏</span>' + (V ? lvSentBadge(V, 'mood', 'AI 打分') : AIB('AI 打分')) + '<span class="cap sn-mood-cap">' + (weeklyB ? '每周' : '每日') + '桶 · 会话情绪 −1 沮丧 … +1 满意</span></div><button type="button" class="btn sm gh" data-act="moodView" aria-pressed="' + (S.sent.view === 'table') + '">' + (S.sent.view === 'table' ? '看图表' : '看表格') + '</button></div>' +
-      (S.sent.view === 'table' ? '' : '<div class="row sn-leg">' + (noMood ? '<span class="row cap" data-lv="mood-null">情绪尚未打分 · 分布暂不显示</span>' : '<span class="row"><i class="ln"></i>中位数</span><span class="row"><i class="bd"></i>P25–P75</span>') + '<span class="row"><i class="br" style="background:' + VZ.sem.corr + '"></i>纠偏 ≥ 你的 P75</span><span class="row" data-tip="情绪为负（情绪负色）或纠偏 ≥ 你的 P90（琥珀）的' + (weeklyB ? '周' : '日') + '"><i class="pt" style="background:' + VZ.sem.corr + '"></i>标注 = 异常' + (weeklyB ? '周' : '日') + '</span></div>') + '<div class="vz" data-vz="mood"></div></div>' +
-    '<div class="two sn-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">摩擦分类</span>' + (V ? lvSentBadge(V, 'fric') : AIB()) + '<span class="cap" data-tip="Δ 为较上期 · 悬停看' + (V ? '典型表述' : '典型会话') + '">出现该摩擦的会话数 · 点击回看</span></div></div><div class="col" style="gap:2px">' + (fr.length ? '<div class="sn-fric sn-fric-h" aria-hidden="true"><span class="cap">类别</span><span></span><span class="cap">会话</span><span class="cap">Δ 上期</span><span class="cap">均值情绪</span></div>' + fr.map((f, i) => { const prev = f.prev; const dlt = prev == null ? '' : prev === f.n ? '± 0' : (f.n > prev ? '▲ ' : '▼ ') + Math.abs(f.n - prev); return '<button type="button" class="sn-fric" data-act="fricGo" data-k="' + esc(f.k) + '" data-tf="fricx|' + esc(f.k) + '"><span class="sn-fric-n">' + esc(f.k) + '</span><span class="sn-fric-bar"><i style="width:' + (f.n / frMax * 100) + '%;background:' + (i < 2 ? 'var(--ink-1)' : 'var(--ink-4)') + '"></i></span><span class="mono sn-fric-v">' + f.n + '</span><span class="mono sn-fric-d ' + (prev == null ? 'na' : f.n > prev ? 'vz-bad' : f.n < prev ? 'vz-good' : 'flat') + '">' + (prev == null ? '—' : dlt) + '</span><span class="mono sn-fric-m" style="color:' + (f.mood != null && f.mood < 0 ? VZ.sem.neg : 'var(--ink-3)') + '">' + (f.mood == null ? '—' : (f.mood > 0 ? '+' : '') + f1(f.mood)) + '</span></button>'; }).join('') : '<span class="cap">没有摩擦记录</span>') + '</div><div class="cap sn-foot">' + (fr.length >= 2 ? '前两类占全部摩擦的 ' + Math.round((fr[0].n + fr[1].n) / frTot * 100) + '%，都可以用规则前置' : fr.length ? '摩擦都来自「' + esc(fr[0].k) + '」，可以用规则前置' : '') + '</div></div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">你的高频反馈语</span>' + (V ? lvSentBadge(V, 'phrase') : AIB()) + '<span class="cap">已脱敏 · 点击查看出处</span></div></div><div class="col" style="gap:4px">' + (phrases.length ? phrases.map((p) => '<button type="button" class="sn-ph" data-act="phrase" data-k="' + esc(p[0]) + '" data-c="' + esc(p[2]) + '"><span class="sn-ph-t">「' + esc(p[0]) + '」</span><span class="sn-ph-bar"><i style="width:' + (p[1] / phMax * 100).toFixed(0) + '%"></i></span><span class="mono sn-ph-n">×' + p[1] + '</span><span class="sn-ph-c"><i style="background:' + (p[2] === '纠偏' ? VZ.sem.corr : 'var(--ink-4)') + '"></i>' + esc(p[2]) + '</span></button>').join('') : '<span class="cap">还没有足够的反馈语</span>') + '</div><div class="row sn-act"><span class="sn-note" data-tip="让 Agent 先遵守，而不是等你提醒">' + phrases.filter((p) => p[2] === '纠偏').length + ' 条纠偏语可以直接写成规则</span><button type="button" class="btn sm" data-act="phrasesToRule">生成规则草稿</button></div></div></div>' +
-    wordCard(words, V) + '</div></div>';
-};
-PAGES.sentiment.after = () => {
-  wordMount(ROUTE_ENTER);
-  const ms = CUR.mood; if (!ms || (!LV.live && S.engine === 'stats')) return;
+  return { V, mode: 'ready', L, ms, weeklyB, fr, frMax, frTot, phrases, phMax, words, noMood };
+});
+function snTbar() {
+  const V = snCtx().V;
+  return tbar('情绪与语义', V ? (V.state === 'ready' ? V.lang : '你的消息') : '你的消息 · 中文 62% · 英文 31% · 混合 7%', '<button type="button" class="btn gh" data-act="moodHow">' + ic('info', 14) + '情绪如何计算</button><button type="button" class="btn ai" data-act="phrasesToRule">' + ic('spark', 14) + '把高频纠偏写成规则</button>');
+}
+function snFilters() {
+  const c = snCtx(); const V = c.V; if (c.mode === 'off') return '';
+  const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + (V && V.state === 'ready' ? lvSentShield(V) : '语义分析由本地 Agent 完成，原文不离开本机') + '</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');  return filterRow(shield);
+}
+function snMood() {
+  const c = snCtx(); const V = c.V, weeklyB = c.weeklyB, noMood = c.noMood;
+  return '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">情绪分布与纠偏</span>' + (V ? lvSentBadge(V, 'mood', 'AI 打分') : AIB('AI 打分')) + '<span class="cap sn-mood-cap">' + (weeklyB ? '每周' : '每日') + '桶 · 会话情绪 −1 沮丧 … +1 满意</span></div><button type="button" class="btn sm gh" data-act="moodView" aria-pressed="' + (S.sent.view === 'table') + '">' + (S.sent.view === 'table' ? '看图表' : '看表格') + '</button></div>' +
+      (S.sent.view === 'table' ? '' : '<div class="row sn-leg">' + (noMood ? '<span class="row cap" data-lv="mood-null">情绪尚未打分 · 分布暂不显示</span>' : '<span class="row"><i class="ln"></i>中位数</span><span class="row"><i class="bd"></i>P25–P75</span>') + '<span class="row"><i class="br" style="background:' + VZ.sem.corr + '"></i>纠偏 ≥ 你的 P75</span><span class="row" data-tip="情绪为负（情绪负色）或纠偏 ≥ 你的 P90（琥珀）的' + (weeklyB ? '周' : '日') + '"><i class="pt" style="background:' + VZ.sem.corr + '"></i>标注 = 异常' + (weeklyB ? '周' : '日') + '</span></div>') + '<div class="vz" data-vz="mood"></div></div>';
+}
+function snFric() {
+  const c = snCtx(); const V = c.V, fr = c.fr, frMax = c.frMax, frTot = c.frTot;
+  return '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">摩擦分类</span>' + (V ? lvSentBadge(V, 'fric') : AIB()) + '<span class="cap" data-tip="Δ 为较上期 · 悬停看' + (V ? '典型表述' : '典型会话') + '">出现该摩擦的会话数 · 点击回看</span></div></div><div class="col" style="gap:2px">' + (fr.length ? '<div class="sn-fric sn-fric-h" aria-hidden="true"><span class="cap">类别</span><span></span><span class="cap">会话</span><span class="cap">Δ 上期</span><span class="cap">均值情绪</span></div>' + fr.map((f, i) => { const prev = f.prev; const dlt = prev == null ? '' : prev === f.n ? '± 0' : (f.n > prev ? '▲ ' : '▼ ') + Math.abs(f.n - prev); return '<button type="button" class="sn-fric" data-act="fricGo" data-k="' + esc(f.k) + '" data-tf="fricx|' + esc(f.k) + '"><span class="sn-fric-n">' + esc(f.k) + '</span><span class="sn-fric-bar"><i style="width:' + (f.n / frMax * 100) + '%;background:' + (i < 2 ? 'var(--ink-1)' : 'var(--ink-4)') + '"></i></span><span class="mono sn-fric-v">' + f.n + '</span><span class="mono sn-fric-d ' + (prev == null ? 'na' : f.n > prev ? 'vz-bad' : f.n < prev ? 'vz-good' : 'flat') + '">' + (prev == null ? '—' : dlt) + '</span><span class="mono sn-fric-m" style="color:' + (f.mood != null && f.mood < 0 ? VZ.sem.neg : 'var(--ink-3)') + '">' + (f.mood == null ? '—' : (f.mood > 0 ? '+' : '') + f1(f.mood)) + '</span></button>'; }).join('') : '<span class="cap">没有摩擦记录</span>') + '</div><div class="cap sn-foot">' + (fr.length >= 2 ? '前两类占全部摩擦的 ' + Math.round((fr[0].n + fr[1].n) / frTot * 100) + '%，都可以用规则前置' : fr.length ? '摩擦都来自「' + esc(fr[0].k) + '」，可以用规则前置' : '') + '</div></div>';
+}
+function snPhr() {
+  const c = snCtx(); const V = c.V, phrases = c.phrases, phMax = c.phMax;
+  return '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">你的高频反馈语</span>' + (V ? lvSentBadge(V, 'phrase') : AIB()) + '<span class="cap">已脱敏 · 点击查看出处</span></div></div><div class="col" style="gap:4px">' + (phrases.length ? phrases.map((p) => '<button type="button" class="sn-ph" data-act="phrase" data-k="' + esc(p[0]) + '" data-c="' + esc(p[2]) + '"><span class="sn-ph-t">「' + esc(p[0]) + '」</span><span class="sn-ph-bar"><i style="width:' + (p[1] / phMax * 100).toFixed(0) + '%"></i></span><span class="mono sn-ph-n">×' + p[1] + '</span><span class="sn-ph-c"><i style="background:' + (p[2] === '纠偏' ? VZ.sem.corr : 'var(--ink-4)') + '"></i>' + esc(p[2]) + '</span></button>').join('') : '<span class="cap">还没有足够的反馈语</span>') + '</div><div class="row sn-act"><span class="sn-note" data-tip="让 Agent 先遵守，而不是等你提醒">' + phrases.filter((p) => p[2] === '纠偏').length + ' 条纠偏语可以直接写成规则</span><button type="button" class="btn sm" data-act="phrasesToRule">生成规则草稿</button></div></div>';
+}
+function snMountMood(el) {
+  const c = snCtx(); const ms = c.ms; if (!ms) return;
+  const box = el.querySelector('[data-vz="mood"]'); if (!box) return;
   const weeklyB = (win(S.range)[1] - win(S.range)[0] + 1) > 31;
   const spec = { type: 'moodcorr', title: '情绪分布与纠偏次数', height: 236, buckets: ms, view: S.sent.view || 'chart', label: (b) => b.a === b.b ? mdz(b.a) + ' 周' + WD[wd(b.a)] : md(b.a) + ' – ' + md(b.b) + (weeklyB ? '（周）' : ''), empty: '所选范围内没有会话' };
   if (LV.live) { spec.live = true; if (LVS.view && LVS.view.allNull) spec.moodNote = '情绪尚未打分'; }
-  VZ.mount('mood', spec);
-};
+  // redraw only when what the chart shows changed (keeps hover / the cursor across unrelated refreshes)
+  const sig = rgJSON([spec.view, spec.moodNote || '', !!spec.live, weeklyB, ms.map((b) => [b.a, b.b, b.lbl, b.n, b.corr, b.dist !== undefined ? b.dist : moodDist(b.xs)])]);
+  if (box._vzSig === sig && box.firstChild) return;
+  VZ.mount(box, spec); box._vzSig = sig;
+}
+PAGES.sentiment = () => region('a6:tbar', SN_DEPS, snTbar, { after: () => tbarFit() }) +
+  '<div class="content" id="content">' +
+  region('a6:filters', SN_DEPS, snFilters, { wrap: true }) +
+  region('a6:off', ['live', 'S.engine'], () => (snCtx().mode === 'off' ? empty('语义分析已关闭：分析引擎设为「仅统计」。<br><br><button type="button" class="btn p" data-act="openSettings" data-tab="analysis">去设置开启</button>') : '')) +
+  region('a6:shell', SN_DEPS, () => (snCtx().mode === 'wait' ? lvSentShell(snCtx().V) : '')) +
+  // the cards exist once the data is there; the row region follows only that switch (snMode), so a feed, filter or facts
+  // change refreshes the cards one by one
+  region('a6:body', [snMode], () => (snCtx().mode !== 'ready' ? '' : '<div class="stack">' +
+    region('a6:mood', SN_DEPS.concat(['S.sent.view']), snMood, { after: (el) => snMountMood(el) }) +
+    '<div class="two sn-two">' + region('a6:fric', SN_DEPS, snFric) + region('a6:phr', SN_DEPS, snPhr) + '</div>' +
+    region('a6:words', SN_DEPS.concat([() => (LV.live ? 0 : WORDS.length)]), () => wordCard(snCtx().words, snCtx().V), { after: (el) => wordMountR(el) }) + '</div>')) +
+  '</div>';
 TIPS.fricx = (k) => { if (LV.live) return lvFricTip(k); const xs = sel().filter((s) => s.fric === k).sort((a, b) => (b.d - a.d) || (b.h - a.h)).slice(0, 3); if (!xs.length) return ''; return '<b>「' + esc(k) + '」典型会话</b>\n' + xs.map((s) => md(s.d) + ' · ' + esc(s.title) + ' · ' + s.corr + ' 次纠偏').join('\n') + '\n<span style="opacity:.7">点击筛选全部相关会话</span>'; };
 Object.assign(ACT, {
   fricGo: (el) => { if (LV.live && lvFricGo(el)) return; S.fric = el.dataset.k; go('sessions'); toast('已筛选出现「' + el.dataset.k + '」的会话'); },

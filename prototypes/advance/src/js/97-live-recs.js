@@ -181,6 +181,8 @@ if (TL.mode === 'live') {
   PAGES['l-home'] = function () { lvRecSync(['lite']); return baseLiteHome.apply(this, arguments); };
   ['overview', 'l-home'].forEach((k) => { const b = k === 'overview' ? baseOv : baseLiteHome; if (b.after) PAGES[k].after = b.after; });
   RG.prep('overview', () => lvRecSync(['A1']));   // a region pass of the overview (24-regions.js) does not call the page function
+  RG.prep('l-home', () => lvRecSync(['lite']));
+  RG.prep('l-recs', () => { lvRecSync(['lite']); lvRecInstalls(); });
 
   // ---- render: 示例数据 when degraded, relations tags, view exposure ----
   const lvBaseRender = render;

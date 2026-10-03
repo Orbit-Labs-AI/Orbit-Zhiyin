@@ -166,13 +166,13 @@ test('Lite: home, persona, sessions and recs run on the real agents; persona mon
   // R4-14: a session without key moments says so instead of drawing a bare rail
   // (stubbed trajectory: a ready trace with zero moments; a pending one says it is loading, not that there are none)
   await page.evaluate(() => { const s = liteSessList()[0]; S.sess.sel = s.id; window.__t0 = traj;
-    traj = (x) => (x === s ? Object.assign({}, window.__t0(x), { moments: [], state: window.__ts }) : window.__t0(x)); window.__ts = 'ready'; render(); });
+    traj = (x) => (x === s ? Object.assign({}, window.__t0(x), { moments: [], state: window.__ts }) : window.__t0(x)); window.__ts = 'ready'; TL.changed(); });
   await expect(page.locator('.l-tlc [data-lv="no-moments"]')).toHaveText('这个会话没有关键时刻');
   await expect(page.locator('.l-tlc .l-tl')).toHaveCount(0);
-  await page.evaluate(() => { window.__ts = 'pending'; render(); });
+  await page.evaluate(() => { window.__ts = 'pending'; TL.changed(); });
   await expect(page.locator('.l-tlc [data-lv="pending"]')).toBeVisible();
   await expect(page.locator('.l-tlc [data-lv="no-moments"]')).toHaveCount(0);
-  await page.evaluate(() => { traj = window.__t0; render(); });
+  await page.evaluate(() => { traj = window.__t0; TL.changed(); });
   await page.evaluate(() => go('l-recs'));
   await expect(page.locator('.l-rhero')).toBeVisible();
   for (const r of ['l-home', 'l-persona', 'l-sessions', 'l-recs']) {
