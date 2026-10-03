@@ -525,7 +525,7 @@ padlvl(20.6, 0.20, 2600)
 padlvl(25.8, 0.18, 2200)
 groove(11.8, 19.85, style='half', lvl=0.82, bed=0.24)
 HATS_OFF.append((12.95 + SH, 17.95 + SH))                                   # the keys are the hats while 1d is typed
-hits(12.8, 15.9, 21.9, 22.3, 22.7)
+hits(12.8, 15.9, 22.5, 22.9, 23.3)                                         # v18.2: the three cuts moved .6 later (CUT in 15-redesign)
 motif(13.1, 0.035, notes=(81, 79, 76, 74), times=(0, 2, 4, 6), held=2.0, cutoff=1800)   # 1d answers: A G E D, one per 2 beats
 put(puff(0.8), 12.6, 0.04, 0.0, to='verbsend')                              # the box grows out of the dots
 put(kick(0.35, 0.6), 12.8, 0.22, to='kick')                                 # 「但，」 lands alone, the dots flinch
@@ -549,15 +549,18 @@ put(swell(0.6 * BEAT), 20.0, 0.4)
 breath(19.85, 20.6)                                                         # the pre-drop breath (film b26.75–27.5): no groove
 hits(20.6)
 peak(20.6, 'C+', 1.0)                                                       # 「So，」 lands in the ring centre — first peak (film b27.5)
-motif(20.6, 0.07, notes=M[:3], times=(0, 0.85, 1.05), held=1.0)  # E on 「So，」, G on 「我们做了一个」 (21.45), A on 「Assistant」 (21.65); again at film b30
-motif(23.1, 0.07, held=1.5)
+motif(20.6, 0.07, notes=M[:3], times=(0, 0.85, 1.02), held=0.85)  # E on 「So，」, G on 「我们做了一个」 (21.45), A on 「Assistant」 (21.62), held into Redesign
+motif(23.6, 0.07, times=(0, 0.5, 1.0, 2.0), held=0.75)                     # again after the cuts: E on the everyone glow (23.6), A held, back to E at 25.6
 words((21.42,), 0.06)                                                       # 「我们做了一个」 (b21.45)
-put(pluck(tone(21.65, 3, 72), 0.6), 21.65, 0.08, 0.2, to='verbsend')        # 「Assistant」 (b21.65)
-for k, b_ in enumerate((21.9, 22.3, 22.7)):                                 # Redesign / Agent Workflow / for everyone (hard cuts)
+put(pluck(tone(21.62, 3, 72), 0.6), 21.62, 0.08, 0.2, to='verbsend')        # 「Assistant」 (b21.62)
+put(settle(0.8), 21.5, 0.05, -0.1)                                          # 「So，」 settles in its slot (b21.5)
+for k, b_ in enumerate((22.5, 22.9, 23.3)):                                 # Redesign / Agent Workflow / for everyone (hard cuts, v18.2 CUT)
     put(stab(tuple(tone(b_, j, 64) for j in range(3)) + (tone(b_, 2 + k, 67),), 0.6), b_, 0.11, -0.2 + 0.2 * k, to='verbsend')
-groove(20.6, 21.65, style='half', lvl=0.9, arp16=True)                      # the drop breathes while the line assembles
-groove(21.65, 26.4, lvl=1.0, arp16=True)
-put(hat(True), 21.65, 0.24, 0.25)
+groove(20.6, 21.62, style='half', lvl=0.9, arp16=True)                      # the drop breathes while the line assembles
+groove(21.62, 26.4, lvl=1.0, arp16=True)
+put(hat(True), 21.62, 0.24, 0.25)
+for j in range(3):                                                           # 「everyone」 glows (b23.6): a soft bell chord
+    put(bell(tone(23.6, 2 + j, 72), 1.6), 23.6, 0.035, -0.3 + 0.3 * j, to='verbsend')
 shimmer(21.0, 0.7, 14, 0.035)                                               # the dashed circle draws from the beads (b21.0–21.7)
 put(whoosh(0.6 * BEAT), 25.8, 0.08, 0.2)                                    # the lines spread out, the circle brightens
 
@@ -613,6 +616,7 @@ for b_ in (29.1, 33.1, 37.1):                                               # th
     motif(b_, 0.05, times=(0, 1, 2, 3), held=1.0)
 put(lead(lq(84, 41.42), 2.0 * BEAT), 41.42, 0.06, 0.0, to='lead')           # and its C lands on DIMV
 put(crash(2.0), 28.1, 0.12, -0.2)
+put(settle(0.8), 28.4, 0.05, 0.0)                                           # v18.2: the dial settles (b28.4)
 roll(28.6, 5, 0.06, 0.25, 64, 1.2)                                          # the bud slows and lands (b29.6)
 words((29.0,), 0.07)                                                        # 「引入协作人格分析」
 for k in range(10):                                                         # 精准识别你的交互特征 decodes
@@ -680,6 +684,9 @@ put(lead(lq(81, 62.35), 2.5 * BEAT), 62.35, 0.07, 0.0, to='lead')           # th
 counter(62.35, 0.8, 8, 0.05)
 put(whoosh(1.1 * BEAT), 61.9, 0.12, 0.2)                                    # the column speeds up and leaves
 put(stab(tuple(tone(63.4, j, 55) for j in range(4)), 1.4), 63.4, 0.1, 0.0, to='verbsend')   # V under the held A (the 9th), resolving to Am at film b86.8
+put(settle(0.9), 61.8, 0.07, 0.15)                                          # v18.2: 提高效率 wipes in orange (b61.8)
+put(puff(0.8), 63.2, 0.045, -0.5, to='verbsend')                            # and closes into a stack (b63.2)
+put(tick(1.0), 63.8, 0.04, -0.5)                                            # the stack hands on to the merge (b63.8)
 
 # ================= 50-tools: merge, session trajectory, studio (b55.0–75.2)
 section('50-tools')
@@ -703,6 +710,9 @@ for j, g in enumerate((0.08, 0.05)):                                        # �
     put(bell(tone(65.0, 2 * j + 1, 72), 1.8), 65.0, g, 0.3, to='verbsend')
 put(puff(), 65.0, 0.03, 0.3, to='verbsend')
 put(whoosh(1.4 * BEAT), 67.0, 0.1, -0.3)                                    # trajectory out, studio in (b67.1 / 67.3)
+put(tick(1.0), 67.3, 0.05, -0.3)                                            # v18.2: the card leaves with its title (b67.3)
+put(settle(0.8), 67.55, 0.06, 0.1)                                          # 「04 · 生成工坊」 rises in (b67.55)
+put(puff(0.9), 67.75, 0.04, 0.3, to='verbsend')                             # the studio comes in from the right (b67.75)
 put(whoosh(0.7 * BEAT), 68.2, 0.05, 0.1)                                   # the camera pushes in on 开始生成 (b68.2)
 arp(68.5, 68.8, 0.1, 0.05, base=72, span=3)                                 # the .3-beat hover: a rising up-beat into the press
 put(press(), 68.8, 0.16, 0.2)                                               # the dot presses 开始生成
@@ -730,6 +740,7 @@ padlvl(TURN0 + 3.8, 0.20, 2000)
 padlvl(TURN0 + 5.3, 0.22, 2300)
 padlvl(FADE0, 0.22, 2000)
 put(whoosh(1.0 * BEAT), 69.2, 0.12, -0.2)                                   # the merged dot spirals out
+pops((69.25,), 0.06, 1.1)                                                   # v18.2: the full orb bursts into five badges (b69.25)
 shimmer(69.4, 1.6, 12, 0.03)                                                # the ring draws on behind the dots
 groove(69.2, 75.4, style='half', clap_on=False, lvl=0.72, bed=0.2)
 roll(71.04, 5, 0.05, 0.1, 60)                                               # the ring opens into the compass
@@ -835,7 +846,7 @@ mcues([(0.2, 'low'), (0.35, 'air'), (1.46, 'pluck'), (1.91, 'pluck'), (2.45, 'cl
        (10.3, 'air'), (10.56, 'air'), (11.15, 'spark'), (11.65, 'bell'), (13.2, 'air')])
 section('15-redesign')
 mcues([(11.8, 'air'), (12.2, 'bell'), (13.72, 'pluck'), (14.4, 'air'), (15.9, 'click'), (19.85, 'bell'), (20.4, 'pluck'),
-       (21.9, 'air'), (22.1, 'air'), (22.3, 'air'), (22.7, 'air'), (23.0, 'spark')])
+       (21.0, 'air'), (22.5, 'air'), (22.9, 'air'), (23.3, 'air'), (23.6, 'spark')])   # v18.2: circle from the beads b21.0, bead steps on CUT, glow CUT[2] + .3
 section('20-orbit')
 mcues([(21.6, 'air'), (23.3, 'bell'), (25.25, 'pluck'), (26.25, 'air'), (26.7, 'air'), (30.45, 'pluck'),
        (32.1, 'bell'), (33.0, 'spark')])
@@ -849,7 +860,7 @@ section('40-recs')
 mcues([(39.5, 'pluck'), (39.64, 'pluck'), (39.78, 'pluck'), (40.52, 'air'), (40.66, 'air'),
        (41.6, 'air'), (42.7, 'air'), (43.8, 'air')]
       + [x for p in (44.6, 47.1, 50.1, 53.1, 56.1, 59.1) for x in ((p, 'pluck'), (p + 0.8, 'air'))]   # pill out, ✓ tick
-      + [(62.0, 'air')])
+      + [(62.8, 'air')])                                                     # v18.2: bullets → round badges (b62.8)
 section('50-tools')
 mcues([(55.3, 'low'), (56.2, 'air'), (56.9, 'low'), (57.1, 'pluck'), (57.65, 'click'), (59.85, 'click'), (62.15, 'click'),
        (64.85, 'click'), (67.6, 'bell'), (68.8, 'click'), (68.95, 'spark'), (73.75, 'low')])
