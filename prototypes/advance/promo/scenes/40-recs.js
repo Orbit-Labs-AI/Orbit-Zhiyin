@@ -405,8 +405,11 @@ scene('40-recs', () => {
   const KS = STEP.find((st) => st.f === 'k'), KB = KS ? RL[KS.n] : 45.1;   // first token roll
   txt(45.05, POUT, [['r4-l', '累计可节省的协作时间']], { x: 1740, y: 535, align: 'c' }, { anim: place('tl') });
   txt(44.9, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1740, y: 450, align: 'c' }, { anim: place('tv'), tick: num('t') });
-  txt(KB + .1, POUT, [['r4-l', '累计可节省的 Token']], { x: 1740, y: 785, align: 'c' }, { anim: place('kl', .12) });
-  txt(KB, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1740, y: 700, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
+  // v18.5 QA: the Token pair is fully in (b45.0 / 45.15, as the time pair) before its first roll and「+x%」at KB, so the
+  // chip never rises over a counter still wiping in
+  const KI = Math.min(KB, 45.0);
+  txt(KI + .15, POUT, [['r4-l', '累计可节省的 Token']], { x: 1740, y: 785, align: 'c' }, { anim: place('kl', .12) });
+  txt(KI, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1740, y: 700, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
   // v18.5: each roll is announced by its own share — an orange「+x%」(the card's marked figure) rises in above the counter
   // as the ✓ lands and fades as the roll settles, so card and running total read as part + sum, never as two different numbers
   STEP.forEach((st) => {
