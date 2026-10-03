@@ -41,17 +41,18 @@ test('A6 reads /v1/uiview/sentiment; null mood shows "—" and hides the mood di
   // friction: server categories, sorted by sessions, mood "—"
   const fr = await page.locator('#main .sn-fric[data-act="fricGo"]').evaluateAll((els) => els.map((e) => [e.querySelector('.sn-fric-n').textContent, e.querySelector('.sn-fric-v').textContent, e.querySelector('.sn-fric-d').textContent, e.querySelector('.sn-fric-m').textContent]));
   expect(fr).toEqual([['方向错误', '18', '—', '—'], ['工具 / 环境失败', '10', '▲ 7', '—']]);
-  const tp = await page.locator('#main .sn-topic').evaluateAll((els) => els.map((e) => [e.querySelector('b').textContent, e.querySelector('.mono:last-child').textContent]));
-  expect(tp).toEqual([['Git 与版本管理', '—'], ['测试与调试', '—']]);
+  // topics / drivers are gone; 高频词 reads terms.items
+  await expect(page.locator('#main .sn-topic, #main .sn-drv')).toHaveCount(0);
+  await expect(page.locator('#main .sn-w')).toHaveCount(14);
+  const top = await page.locator('#main .sn-tw:not(.sn-tw-h)').evaluateAll((els) => els.slice(0, 2).map((e) => [e.querySelector('.sn-tw-t').textContent, e.querySelector('.sn-tw-n').textContent, e.querySelector('.sn-tw-d').textContent]));
+  expect(top).toEqual([['提交', '24 次', '9 天'], ['测试', '21 次', '8 天']]);
+  await expect(page.locator('#main .sn-tw:not(.sn-tw-h)')).toHaveCount(10);
   await expect(page.locator('#main .sn-ph')).toHaveCount(3);
   await expect(page.locator('#main .sn-ph').first()).toContainText('示例：继续下一步');
   await expect(page.locator('#main .sn-note')).toContainText('1 条纠偏语');
-  const drv = await page.locator('#main .sn-drv:not(.sn-drv-ax)').evaluateAll((els) => els.map((e) => [e.querySelector('.sn-drv-n').textContent, e.querySelector('.sn-drv-v').textContent, e.querySelector('.sn-drv-k').textContent]));
-  expect(drv).toEqual([['会话超过 90 分钟', '−0.21', 'n=6'], ['连续失败 ≥ 2 次', '—', 'n=2']]);
   // in-place constants for the other readers
-  const k = await page.evaluate(() => ({ ph: PHRASES.map((p) => p[0]), dr: DRIVERS.slice(), neg: QUOTES.neg.slice() }));
+  const k = await page.evaluate(() => ({ ph: PHRASES.map((p) => p[0]), neg: QUOTES.neg.slice() }));
   expect(k.ph).toEqual(['示例：继续下一步', '示例：不是这个意思', '示例：测试都过了']);
-  expect(k.dr).toEqual([['会话超过 90 分钟', -0.21]]);
   expect(k.neg).toContain('「示例：不是这个意思」');
   await expect(page.locator('#main')).not.toContainText(MOCK_A6);
   await noPlain(page);
@@ -73,7 +74,6 @@ test('A6 mood series: medians and bands from the server buckets, signed mood gly
   await expect(page.locator('#main [data-vz="mood"] .vz-line')).toHaveCount(1);
   expect(await page.locator('#main [data-vz="mood"] .vz-line').getAttribute('d')).toMatch(/^M/);
   await expect(page.locator('#main .sn-fric[data-k="工具 / 环境失败"] .sn-fric-m')).toHaveText('-0.3');
-  await expect(page.locator('#main .sn-topic').first().locator('.mono').last()).toHaveText('+0.4');
   // 90 days → weekly buckets keep only the weighted median (no invented band)
   await page.evaluate(() => { S.range = 90; render(); });
   await expect.poll(() => page.evaluate(() => CUR.mood && CUR.mood.length)).toBeLessThan(20);
@@ -84,23 +84,18 @@ test('A6 mood series: medians and bands from the server buckets, signed mood gly
   expect(errors).toEqual([]);
 });
 
-// B13: a topic at +1.0 keeps its bar inside the ruler (the value text is not covered); one friction class reads as one
-test('A6 B13: ±1 topic bars stay inside the ruler; a single friction class is not called "前两类"', async ({ page }) => {
+// B13: one friction class reads as one; empty terms show the word-cloud empty state
+test('A6 B13: a single friction class is not called "前两类"; no terms → 高频词 empty state', async ({ page }) => {
   test.skip(!!PASS, 'fixture values');
   const d = fx('s4/sentiment-mood.json');
-  d.topics[0].avg_balance = 1; d.topics[1].avg_balance = -1;
+  d.terms = { items: [], n_messages: 0, n_tokens: 0, limit: 60 };
   d.friction = d.friction.slice(0, 1);
   const { errors } = await openSent(page, { 'GET /v1/uiview/sentiment': d });
   await expect(page.locator('#main .sn-fric[data-act="fricGo"]')).toHaveCount(1);
   await expect(page.locator('#main .sn-foot').first()).not.toContainText('前两类');
   await expect(page.locator('#main .sn-foot').first()).toContainText(await page.locator('#main .sn-fric-n').first().textContent());
-  await expect(page.locator('#main .sn-topic').first().locator('.mono').last()).toHaveText('+1.0');
-  const geo = await page.locator('#main .sn-topic').evaluateAll((els) => els.map((e) => {
-    const div = e.querySelector('.sn-div').getBoundingClientRect(); const bar = e.querySelector('.sn-div .bar').getBoundingClientRect();
-    const val = e.querySelector('.row > .mono:last-child').getBoundingClientRect();
-    return { inL: bar.left >= div.left - 0.5, inR: bar.right <= div.right + 0.5, clear: bar.right <= val.left + 0.5 };
-  }));
-  geo.forEach((g) => expect(g).toEqual({ inL: true, inR: true, clear: true }));
+  await expect(page.locator('#main [data-wc-empty]')).toBeVisible();
+  await expect(page.locator('#main .sn-w, #main .sn-tw')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -124,12 +119,12 @@ test('A6 interactions: friction / phrase sources navigate to real sessions', asy
   expect(gw.seen.some((x) => x.path === '/v1/search' && /kinds=message/.test(x.query))).toBe(true);
   await dd.locator('button', { hasText: '整理示例仓库的测试 #20' }).click();
   await expect.poll(() => page.evaluate(() => [S.route, S.sess.sel])).toEqual(['sessions', 'session_fx020']);
-  // topic the spine does not carry: no filter that would empty every page
+  // a word in the cloud opens the palette with that word: /v1/search?q=<word>
   await page.evaluate(() => { go('sentiment'); });
-  await page.locator('#main .sn-topic[data-k="software.testing_debugging"]').click();
-  expect(await page.evaluate(() => S.topic)).toBe(null);
-  await page.locator('#main .sn-topic[data-k="git"]').click();
-  expect(await page.evaluate(() => S.topic)).toBe('git');
+  await page.locator('#main .sn-w[data-k="提交"]').click();
+  await expect(page.locator('#palQ')).toHaveValue('提交');
+  await expect.poll(() => gw.seen.some((x) => x.path === '/v1/search' && new URLSearchParams(x.query).get('q') === '提交')).toBe(true);
+  await page.keyboard.press('Escape');
   // rule draft uses the real correction phrases
   await page.evaluate(() => ACT.phrasesToRule());
   expect(await page.evaluate(() => S.studio.goal)).toContain('「示例：不是这个意思」');
@@ -229,7 +224,7 @@ test('A6 R4-13: rule-based data is badged as rules; AI only when the server says
   const { errors, gw } = await openSent(page);
   await expect(page.locator('#main .sn-fric[data-act="fricGo"]')).toHaveCount(2);
   await expect(page.locator('#main .aib')).toHaveCount(0);
-  await expect(page.locator('#main [data-lv="rule-badge"]')).toHaveCount(4);
+  await expect(page.locator('#main [data-lv="rule-badge"]')).toHaveCount(4);   // mood · friction · phrases · 高频词
   await expect(page.locator('#main')).toContainText('按词面规则在本机统计，不调用模型');
   await expect(page.locator('#main')).not.toContainText('语义分析由本地 Agent 完成');
   // the 仅统计 engine (as Settings › 分析 reads it) keeps the rule-based page instead of the mock "已关闭" state
@@ -240,12 +235,12 @@ test('A6 R4-13: rule-based data is badged as rules; AI only when the server says
   await expect(page.locator('#modal')).toContainText('不调用模型');
   await expect(page.locator('#modal')).not.toContainText('由本地 Agent 打');
   await page.keyboard.press('Escape');
-  // agent mode with AI topic labels: friction + topics carry the AI badge, mood / phrases stay rules
-  const ai = JSON.parse(JSON.stringify(base)); ai.meta.mode = 'agent'; ai.topics[0].label_source = 'ai';
+  // agent mode: friction (AI facets) carries the AI badge, mood / phrases / 高频词 stay rules
+  const ai = JSON.parse(JSON.stringify(base)); ai.meta.mode = 'agent';
   gw.set('GET /v1/uiview/sentiment', ai);
   await page.evaluate(() => { S.engine = 'agent'; S.range = 7; render(); });
-  await expect(page.locator('#main .aib')).toHaveCount(2);
-  await expect(page.locator('#main [data-lv="rule-badge"]')).toHaveCount(2);
+  await expect(page.locator('#main .aib')).toHaveCount(1);
+  await expect(page.locator('#main [data-lv="rule-badge"]')).toHaveCount(3);
   await expect(page.locator('#main')).toContainText('语义分析由本地 Agent 完成');
   expect(errors).toEqual([]);
 });
