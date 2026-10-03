@@ -197,7 +197,11 @@ def test_tokens_cache_buckets_reasoning_and_invalid_requests():
     for mutation in ({"usage_scope": "session_snapshot"}, {"measurement": "cumulative"}, {"boundary_reliable": False}):
         u = usage([request(**mutation)], [], [session()], Scope())
         assert u["total_tokens"] is None and u["request_count"] is None
-    assert usage([request()], [], [session()], Scope(), records_complete=False)["total_tokens"] is None
+    partial = usage([request()], [], [session()], Scope(), records_complete=False)
+    # Incomplete records no longer erase the total: the known row is a lower bound.
+    assert (partial["total_tokens"], partial["total_basis"], partial["total_complete"]) == (
+        2000, "call_delta_known_rows", False)
+    assert partial["total_unknown"]["records_incomplete"] is True
     assert usage([request(cost_usd=1, cost_source="estimate")], [], [session()], Scope())["cost_usd"] is None
 
 
