@@ -6,7 +6,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [品牌](brand.md) | 产品名 Orbit、代码标识的沿用规则、标志与 App 图标、字体、备选与历史版本 |
+| [品牌](brand.md) | 产品名 Orbit、代码标识与旧名兼容、标志、字标与 App 图标、字体、备选与历史版本 |
 | [路演组件素材](ppt-assets/README.md) | 从现行 UI 提取 PPT 可用的透明 PNG、SVG、页面与素材索引 |
 | [Demo 说明](demo.md) | 统一 App（Lite + Advance）怎么看、有哪些交互、怎么修改与发布 |
 | [画板与设计决定](boards.md) | Advance v1 画板索引、原始设计决定、v1 之后的现行决定、假设 |
@@ -37,5 +37,6 @@
 | Lite + Advance | v1.4 | 2026-10-02 | 两版合为同一个 App：侧栏顶部一键切换；Lite 收敛为四页并复用 Advance 组件；共用换页编排、数字滚动、页面导读与微动效；首次启动改为连贯的 Genesis 序列 | `prototypes/advance/`（`26-edition.js`、`37-motion.js`、`39-lite-pages.js`、`56-onboarding.js`） |
 | Lite + Advance | v1.5 | 2026-10-02 | 产品改名 **Orbit**：菜单栏与 App 图标换成锥形螺旋标志、品牌色 `--orbit`；协作指纹改为罗盘表盘（玫瑰、协作重心指针、Agent 轨道环带与行星）；Genesis 统一为 Orbit 母题 | `prototypes/advance/`、[品牌](brand.md)、[`logo/`](logo/orbit-mark.svg) |
 | Advance | v1.6 | 2026-10-02 | 画板文字改为 Orbit，标志换成原型 `orbitMark` 的原样输出；在线画布与在线 Demo 重新发布 | 在线画布、`visual-cases-v1/`、在线 Demo |
+| Lite + Advance | v1.7 | 2026-10-03 | 字标 Orbit·知音进入首次启动欢迎页、关于 Orbit 与设置 › 关于（`--orbit-word`：浅色板岩灰、深色香槟黄）；macOS App 图标改用素材包的 Dock 网格版，菜单栏用素材包模板图；代码标识统一改为 orbit，Demo 文件改名 `orbit-demo.html` | `prototypes/advance/`、`apps/desktop/`、[品牌](brand.md) |
 
 画板与 Demo 的数值都是示例数据，不替代 MVP 范围；当前实现边界见[产品与交付边界](../product/scope.md)。

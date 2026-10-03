@@ -2,7 +2,7 @@
 
 ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。产品名 **Orbit**（原暂定名 Tandem / 同频），目标为本地 macOS App；当前采用 Python workspace、TypeScript 连接器与 UI 原型。
 
-- 文档、界面文案与提交说明里的产品名一律写 Orbit。代码标识（`orbit_*` 包、`orbit` CLI、`ORBIT_HOME`、`Application Support/Orbit`、`OrbitLive`、`@orbit/*`、`orbit-demo.html` 等）暂不改名，对照见 [品牌](docs/design/brand.md)。
+- 文档、界面文案与提交说明里的产品名一律写 Orbit，全名带字标时写 Orbit·知音。代码标识自 2026-10-03 起同样统一为 orbit（`orbit_*` 包、`orbit` CLI、`ORBIT_*` 环境变量、`Application Support/Orbit`、`orbit.db`、`OrbitLive`、`@orbit/*`、`orbit-demo.html` 等），不再新增 tandem 命名；旧数据与旧设置的兼容集中在 `packages/data/src/orbit_data/legacy.py`，见 [品牌](docs/design/brand.md#名称)。改名前开出的分支先运行 `python3 scripts/orbit-rename.py` 再合并 main，`--check` 列出残留。
 - 标志与 App 图标以 `docs/design/logo/` 为准：参数只在 `orbit-spec.json`，`generate.py` 写出矢量、`export.mjs` 渲染位图，素材在 `logo/kit/`。所有尺寸都是 App 图标曲线的整体等比缩放，不重绘、不改线宽；App 原型与 App 构建原样引用这些文件。
 
 ## App 版本与设计归属

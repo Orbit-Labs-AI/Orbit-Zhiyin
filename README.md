@@ -1,4 +1,5 @@
-<p align="center"><img src="docs/design/logo/orbit-icon.png" width="96" alt="Orbit"></p>
+<p align="center"><img src="docs/design/logo/kit/dock/png/orbit-dock-256.png" width="112" alt="Orbit App 图标"></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/design/logo/kit/wordmark/png/orbit-wordmark-night-128.png"><img src="docs/design/logo/kit/wordmark/png/orbit-wordmark-ink-128.png" height="48" alt="Orbit·知音"></picture></p>
 
 # Orbit
 
@@ -13,7 +14,7 @@
 
 ActionMesh-AI 的本地跨 Agent 会话分析 macOS App：读取本机 Claude Code、Codex 等 Agent 的会话记录，生成协作人格画像与会话轨迹，并推荐 Skills、Hooks、规则等可一键安装、可撤销的改进。数据只在本机处理。
 
-当前可运行部分是统一数据层、Python 后端、CLI、本机 API 和一个 UI 原型（Lite / Advance 同一个 App，示例数据）；尚无原生 App target 或安装包。产品名为 Orbit，代码标识（`orbit_*` 包、`orbit` CLI、数据目录）暂沿用旧代号，见[品牌](docs/design/brand.md#名称)。
+仓库包含统一数据层、Python 后端、CLI、本机 API、Lite / Advance 统一 App 界面和原生 macOS 宿主（[`apps/desktop`](apps/desktop/README.md)，安装包见 GitHub Releases）。产品名 Orbit，全名 Orbit·知音；代码标识统一为 `orbit`（`orbit_*` 包、`orbit` CLI、`ORBIT_*` 环境变量、`Application Support/Orbit`），改名前的数据目录与设置会自动迁移，见[品牌](docs/design/brand.md#名称)。
 
 ## 开始开发
 
@@ -45,7 +46,7 @@ Demo 只使用虚构数据。API 默认监听本机 8765 端口，接口说明�
 | [scripts](scripts/README.md) | 启动、检查与安装验证入口 |
 | [docs](docs/README.md) | 全部文档导航：产品与设计、架构与契约、开发、模块、方案、审计、调研与历史 |
 
-正式桌面入口未来放在 `apps/desktop/`；Catalog 和 Swift 客户端已接入，但仍没有原生 App target。
+原生 macOS 宿主在 [`apps/desktop/`](apps/desktop/README.md)（构建与发布见 [Mac App](docs/development/mac-app.md)）；Catalog 和 Swift 客户端已接入。
 
 ## 验证
 

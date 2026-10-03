@@ -4,7 +4,7 @@
 
 本页列出 `docs/` 下的全部文档。先看「现行」再看「方案」：**现行**描述当前代码与约定；**方案**是设计与待完成工作，不能直接等同当前能力；**审计**是某一基线上的核对结果；**调研**与**历史**只作参考。
 
-产品名统一写 **Orbit**；Python 包、CLI、数据目录等代码标识沿用 `orbit`，对照见[品牌](design/brand.md#名称)。
+产品名统一写 **Orbit**（全名 Orbit·知音）；Python 包、CLI、环境变量、数据目录等代码标识自 2026-10-03 起同样统一为 `orbit`，旧名的兼容见[品牌](design/brand.md#名称)。
 
 ## 1. 产品与设计（现行）
 
@@ -12,7 +12,7 @@
 | --- | --- |
 | [产品与交付边界](product/scope.md) | 已实现的数据链路、原型与正式 App 的差距 |
 | [设计资料](design/README.md) | Lite / Advance 设计归属、存档记录与设计文档入口 |
-| [品牌](design/brand.md) | Orbit 名称、代码标识沿用规则、标志与 App 图标、字体 |
+| [品牌](design/brand.md) | Orbit 名称、代码标识与旧名兼容、标志、字标与 App 图标、字体 |
 | [路演组件素材](design/ppt-assets/README.md) | UI 页面、独立组件、品牌与矢量素材的提取和使用 |
 | [Demo 说明](design/demo.md) | 统一 App 怎么看、交互清单、修改与发布 |
 | [画板与设计决定](design/boards.md) | Advance v1 画板索引、设计决定、v1 之后的现行决定 |

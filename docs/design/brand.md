@@ -1,21 +1,28 @@
 # Orbit 品牌：名称、标志与字体
 
-状态：现行 · 维护者 `yhyfhgs` · 2026-10-02 起生效（标志素材包 2026-10-03 更新） · 适用：Lite / Advance（同一个 App）
+状态：现行 · 维护者 `yhyfhgs` · 2026-10-02 起生效（标志素材包与代码标识改名 2026-10-03） · 适用：Lite / Advance（同一个 App）
 
 ## 名称
 
-产品名为 **Orbit**，取代暂定名 Tandem / 同频。界面可见的文字、文档正文、路演与宣传材料一律写 Orbit。
+产品名为 **Orbit**，全名 **Orbit·知音**（见[字标](#字标)），取代暂定名 Tandem / 同频。界面可见的文字、文档正文、路演与宣传材料一律写 Orbit。
 
-代码标识暂不改名，文档引用它们时按原样书写：
+2026-10-03 起代码标识也统一为 orbit：Python 包 `orbit_backend`、`orbit_data`、`orbit_catalog`，命令 `orbit`、`orbit-data`、`orbit-catalog`、`orbit-helper`，环境变量 `ORBIT_*`，数据目录 `~/Library/Application Support/Orbit/` 与主库 `orbit.db`，前端 `OrbitLive`、`OrbitCatalogClient`、`@orbit/*` workspace 包、`X-Orbit-*` 响应头，文件 `prototypes/advance/orbit-demo.html`、`prototypes/lite/orbit-benchmark-demo.html`。App bundle 为 `Orbit.app`（`ai.actionmesh.orbit`）。
 
-| 类别 | 保持原样的标识 |
+改名前（v0.0.3 及更早）的旧名就是把 orbit 换回 tandem（大小写对应），例如 `tandem_backend`、`TANDEM_HOME`、`Application Support/Tandem`、`tandem.db`。改名由 [`scripts/orbit-rename.py`](../../scripts/orbit-rename.py) 机械完成：改名前开出的分支先在自身运行一次、提交，再合并 main；`--check` 列出残留，第三方代码、锁文件和指向旧提交的永久链接不改。
+
+已有的数据与设置由 [`orbit_data/legacy.py`](../../packages/data/src/orbit_data/legacy.py) 兼容，新代码不再出现旧名：
+
+| 旧数据或设置 | 新版的处理 |
 | --- | --- |
-| Python 包与 CLI | `orbit_backend`、`orbit_data`、`orbit_catalog`，命令 `orbit`、`orbit-data` |
-| 数据目录与环境变量 | `~/Library/Application Support/Orbit/`、`.orbit/`、`ORBIT_HOME`、`orbit.db` |
-| 前端与客户端 | `OrbitLive`、`OrbitCatalogClient`、`@orbit/*` workspace 包名、`X-Orbit-Freshness` 响应头、localStorage 前缀 |
-| 文件名 | `prototypes/advance/orbit-demo.html`、`prototypes/lite/orbit-benchmark-demo.html` |
+| 数据目录 | 新目录不存在而旧目录存在时整体移动，旧路径留一个指向新目录的符号链接，因为旧版装进 Agent 的采集 hook 与安装备份用的是旧绝对路径；App 宿主（`Orbit.swift`）与 `default_home()` 都会做 |
+| 主库 | 旧库文件（含 `-wal`、`-shm`）在打开前改名为 `orbit.db`；库内契约 ID 改写为 `orbit-session-v1`，读端在改写前也接受旧 ID |
+| 环境变量 | 旧前缀的变量在对应 `ORBIT_*` 未设置时继续生效；App 宿主也读旧的数据目录变量 |
+| Orbit 自己的 AI 会话 | 旧的首行标记与 `agent-cwd` 里的旧标记文件仍被识别，照常排除在分析之外 |
+| 资源库 `catalog.db` | 两个内置来源的旧 ID 原地改为 `orbit-seeds`、`orbit-kb`，条目与同步记录保留 |
+| 安装台账 `app.db` | 实时采集的旧安装记录改记为 `orbit-collect`，仍算已安装；旧 AI 产物里的 hooks 目录占位符与规则块标记在安装时换成新名 |
+| 浏览器 Demo | localStorage 前缀改为 `orbit-demo:`，旧偏好不迁移；App 的偏好在数据目录的 `ui-prefs.json`，不受影响 |
 
-规划中的 App bundle 写作 `Orbit.app`。若日后统一改代码标识，需要同时迁移已有数据目录，届时另行记录。
+已经写进 Agent 配置的 hook 脚本与规则块不改写，撤销仍按安装台账逐字节还原。
 
 ## 标志
 
@@ -25,7 +32,7 @@
 - App 图标是暖纸底（`#f5f4f0`）圆角方块，标志居中；黑夜版是黑底（`#000000`）白线（`#ffffff`）。
 - **所有尺寸、所有底色都是 App 图标那条曲线的整体等比缩放**：线宽变化（近粗远细、两端渐细）与断口宽度随标志一起缩放，不为小尺寸单独加粗或拉平线宽。2026-10-03 起取消此前的小尺寸加粗版 `orbit-mark-small.svg`；主标志 `orbit-mark.svg` 的线宽也从原来较细的 2.6–11 统一为 App 图标的 4–14（设计坐标）。
 - 标志是矢量轮廓：一条由三次贝塞尔曲线组成的 SVG path（两段闭合轮廓，对应交叉处断开的两段线），放大不出现折线棱角。每个 SVG、PDF 都内嵌同一条 path，外层只套平移与等比缩放。
-- App 原型的菜单栏图标、App 图标与 favicon 由 `prototypes/advance/tools/brand-icon.mjs` 从 `orbit-icon.svg`、`orbit-mark.svg` 生成 `src/js/01-brand.js`，各尺寸都用同一条 path；macOS App 构建（`apps/desktop/build.py`）同样只原样渲染这两个文件。
+- App 原型的菜单栏图标、App 图标、favicon 与字标由 `prototypes/advance/tools/brand-icon.mjs` 从 `orbit-icon.svg`、`orbit-mark.svg` 和 `kit/wordmark/orbit-wordmark-ink.svg` 生成 `src/js/01-brand.js`，各尺寸都用同一条 path；字标出现在首次启动欢迎页、关于 Orbit 与设置 › 关于，颜色 token `--orbit-word`（浅色板岩灰、深色香槟黄）。macOS App 构建（`apps/desktop/build.py`）原样复制素材包里的 `kit/dock/Orbit.icns`（Apple 图标网格版）与 `kit/nav/orbit-nav-template-16*.png`（菜单栏模板图），不另行渲染。
 
 ### 文件
 

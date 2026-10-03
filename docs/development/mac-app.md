@@ -17,7 +17,7 @@ uv run python apps/desktop/build.py --skip-helper  # 复用上次 PyInstaller �
 1. `node prototypes/advance/build.mjs --out Resources/orbit.html` 生成单文件 UI。页面只用 macOS 系统字体（SF Pro、PingFang SC、SF Mono，见 [品牌](../design/brand.md#字体)），不内联网页字体；产物若含远程字体链接则构建失败。
 2. PyInstaller 6.22.3（`uv run --with`，不新增锁文件）以 onedir 打包 `apps/desktop/server_entry.py` 为 `Resources/backend/orbit-helper`；`--collect-all` 工作区包（含 SQL/JSON/模板等包数据）与 jieba，`--copy-metadata` 读取发行元数据的包，并显式加入 uvicorn 与 worker 模块。
 3. `swiftc -O -target arm64-apple-macos14.0` 编译 `Orbit.swift`（AppKit、WebKit、Security、UserNotifications）。
-4. 图标 `Orbit.icns` 只用现有原稿：1024 px 直接取 `docs/design/logo/orbit-icon.png`，其他尺寸由 `render_svg.swift` 原样渲染 `orbit-icon.svg`，各尺寸都是同一图标的整体缩放。菜单栏图标 `StatusIcon.png`/`@2x` 由 `render_svg.swift` 按原始宽高比原样渲染 `orbit-mark.svg`（16 pt 高），宿主作为模板图使用。不重绘、不调整线宽。
+4. 图标原样取自标志素材包 `docs/design/logo/kit/`：`Orbit.icns` 复制 `kit/dock/Orbit.icns`（Apple 图标网格版，1024 画布中央 824 方块带投影），菜单栏图标 `StatusIcon.png`/`@2x` 复制 `kit/nav/orbit-nav-template-16.png`/`@2x`（16 pt 高的模板图）。各尺寸都是同一条曲线的整体缩放，构建时不渲染、不重绘、不调整线宽；标志改动后先运行 `docs/design/logo/export.mjs` 更新素材包。
 5. 扫描 `.app` 内全部 Mach-O 的最低系统版本（`LC_BUILD_VERSION` / `LC_VERSION_MIN_MACOSX`），任一高于 `MIN_MACOS`（14.0，同时决定 swiftc target 与 `LSMinimumSystemVersion`）即构建失败；helper 的下限来自第三方 wheel（当前 numpy/scipy 为 14.0），升级依赖时据此发现兼容性回退。
 6. `codesign --force --deep` 签名并 `--verify --deep --strict` 校验。
 7. 输出到 `.local/macos-build/`（已忽略）：`Orbit.app`、`Orbit-0.0.3-arm64.zip`（ditto）、`Orbit-0.0.3-arm64.dmg`（UDZO，含 `/Applications` 链接）。
@@ -83,7 +83,7 @@ helper 异常退出时宿主重启一次：新 token 与端口重新注入每个
 
 ## 数据目录
 
-默认 `~/Library/Application Support/Orbit`；环境变量 `ORBIT_HOME` 可覆盖。演示与验收使用独立目录，例如：
+默认 `~/Library/Application Support/Orbit`；环境变量 `ORBIT_HOME` 可覆盖。从改名前的版本（v0.0.3 及更早）升级时，宿主启动时把旧数据目录整体移到这里，旧路径留一个符号链接，helper 再把旧主库文件改名为 `orbit.db`，见[品牌](../design/brand.md#名称)。演示与验收使用独立目录，例如：
 
 ```sh
 open -n --env ORBIT_HOME=/absolute/private/demo .local/macos-build/Orbit.app

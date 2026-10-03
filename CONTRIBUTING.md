@@ -34,7 +34,7 @@ type(scope): 描述改动及原因
 
 常用类型为 `feat`、`fix`、`docs`、`refactor`、`chore`、`test`、`perf`；分支类型遵循 [AGENTS.md](AGENTS.md) 中的约定。每个提交只做一件可独立说明的事，完成并通过相应检查后提交、推送。已推送的提交用新提交修正，不 amend 或强推。
 
-文档和界面使用产品名 Orbit；既有 `orbit_*`、`orbit` 等代码标识暂不改名。依赖锁文件仅在仓库根维护；第三方源码引用保留原项目的许可与归属。
+文档、界面和代码标识统一使用 Orbit / `orbit`，不再新增 tandem 命名；改名前开出的分支合并 main 前先运行 `python3 scripts/orbit-rename.py`。依赖锁文件仅在仓库根维护；第三方源码引用保留原项目的许可与归属。
 
 ## 验证与 PR
 

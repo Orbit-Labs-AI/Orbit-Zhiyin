@@ -27,6 +27,15 @@
 
 最后五行是 2026-10-02 的文档整理（产品改名 Orbit）。活跃分支 merge 时若遇到这些文件的 rename/modify 冲突，把改动应用到新位置；不要恢复旧路径。
 
+## Orbit 改名（2026-10-03）
+
+main 已把代码标识由 tandem 统一改为 orbit（包、命令、环境变量、数据目录、文件名、`@orbit/*`、`X-Orbit-*` 等，对照见[品牌](../design/brand.md#名称)）。改名前开出的分支先在自身完成同样的机械替换，再合并 main：
+
+1. 在分支根目录运行 `python3 scripts/orbit-rename.py`（从 main 取脚本：`git checkout origin/main -- scripts/orbit-rename.py`），再运行 `uv lock`、`pnpm install --lockfile-only`、`uv run ruff check --fix packages tests scripts evals benchmarks`、`uv run ruff format packages/data`，改过原型的再运行 `node prototypes/advance/build.mjs`；单独提交。
+2. merge main。冲突只剩各自的真实改动；锁文件与生成的 `orbit-demo.html` 以重新生成为准。
+3. 改过 AI 模板（`ai/assets/templates/*@1.*`）的，把改动移到对应的 `@2` 文件并更新 `manifest.json` 的 sha256。
+4. `python3 scripts/orbit-rename.py --check` 应输出 `no Tandem names left`；有意读取旧名的兼容代码只放在 `packages/data/src/orbit_data/legacy.py`，或在行内标 `orbit-rename: keep`。
+
 ## 合并步骤
 
 1. 在自己的功能分支 merge 更新后的 main，保留合并历史。
