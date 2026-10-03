@@ -64,9 +64,9 @@ AGENT_EXPECTATIONS = {
     "codex": {"sessions": 3, "tool_calls": 3, "usage": None},
     "claude_code": {"sessions": 1, "tool_calls": 1, "usage": 35},
     "pi": {"sessions": 1, "tool_calls": 1, "usage": "unknown"},
-    "dsh": {"sessions": 1, "tool_calls": 1, "usage": "unknown"},
-    "kimi": {"sessions": 1, "tool_calls": 1, "usage": "unknown"},
-    "opencode": {"sessions": 1, "tool_calls": 1, "usage": "unknown"},
+    "dsh": {"sessions": 1, "tool_calls": 1, "usage": 35},
+    "kimi": {"sessions": 1, "tool_calls": 1, "usage": 35},
+    "opencode": {"sessions": 1, "tool_calls": 1, "usage": 35},
     "hermes": {"sessions": 1, "tool_calls": 1, "usage": "snapshot"},
 }
 
@@ -112,11 +112,14 @@ def test_all_supported_agents_feed_the_same_analysis_contract(tmp_path):
         e["sessions"] for e in AGENT_EXPECTATIONS.values())
     usage = result["overview"]["usage"]
     unknown = [a for a, e in AGENT_EXPECTATIONS.items() if e["usage"] == "unknown"]
-    assert usage["request_count"] == 1
+    bounded = [e["usage"] for e in AGENT_EXPECTATIONS.values() if isinstance(e["usage"], int)]
+    assert usage["request_count"] == len(bounded)
     assert usage["invalid_request_reasons"] == {"unreliable_request_boundary": len(unknown)}
-    assert usage["known_call_tokens"] == 35
-    # One unbounded request row makes the scope total unknown rather than an undercount.
-    assert usage["total_tokens"] is None and usage["status"] == "partial"
+    assert usage["known_call_tokens"] == sum(bounded)
+    # An unbounded request row keeps the total a marked lower bound (audit B13), never complete.
+    assert (usage["total_tokens"], usage["total_basis"], usage["total_complete"]) == (
+        sum(bounded), "call_delta_known_rows", False)
+    assert usage["status"] == "partial"
     assert maintain(home, "verify")["unparsed"] == 0
 
 

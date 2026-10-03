@@ -66,25 +66,23 @@ def test_requests_with_native_ids_are_summed_exactly_across_agents(tmp_path):
 
 
 def test_rows_without_a_request_boundary_are_excluded_with_a_reason(tmp_path):
-    """dsh/kimi/opencode usage rows carry no request id today: they must not be summed as if
-    they were requests, and the exclusion must be reported, not silent."""
+    """pi usage rows carry no request id: they must not be summed as if they were requests, and
+    the exclusion must be reported, not silent. dsh / kimi / opencode now record their native step
+    ids as request_id (see the next test)."""
     roots = create_sources(tmp_path / "sources")
     home = tmp_path / "data"
-    for agent in ("claude_code", "dsh", "kimi", "opencode"):
+    for agent in ("claude_code", "pi"):
         ingest(home, agent, roots[agent])
     result = usage_of(home)
     assert result["request_count"] == 1  # only Claude's message id "r"
-    assert result["invalid_request_rows"] == 3
-    assert result["invalid_request_reasons"] == {"unreliable_request_boundary": 3}
+    assert result["invalid_request_rows"] == 1
+    assert result["invalid_request_reasons"] == {"unreliable_request_boundary": 1}
     assert result["known_call_tokens"] == 35
     assert result["status"] == "partial"
-    assert result["total_tokens"] is None  # never a partial sum presented as the total
+    # The known rows are a marked lower bound (audit B13), never presented as a complete total.
+    assert (result["total_tokens"], result["total_complete"]) == (35, False)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "follow-up (data connectors): dsh seq / kimi usage.record ordinal / opencode message id "
-    "identify one request each but are not recorded as request_id, so boundary_quality is "
-    "'unknown' and the App overview total is null for these agents"))
 @pytest.mark.parametrize("agent", ["dsh", "kimi", "opencode"])
 def test_native_step_ids_establish_a_request_boundary(tmp_path, agent):
     roots = create_sources(tmp_path / "sources")
