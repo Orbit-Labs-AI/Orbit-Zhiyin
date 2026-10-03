@@ -10,9 +10,7 @@ from typing import Any
 
 from ..context import AnalysisContext
 from .detectors import SessionView, build_views, detect_all
-from .dictionary import FIELDS, RULES_VERSION, SIGNAL_KINDS
 from .facts import session_facts
-from .inventory import inventory_facts
 from .moments import key_moments
 from .outcome import synthesize_outcome
 from .problems import upgrade_problems
@@ -54,15 +52,4 @@ def build_signal_layer(context: AnalysisContext, result: Record | None = None, *
     return SignalLayer(views, detected, signals, outcomes, facts, moments, calls)
 
 
-def analyze_signals(context: AnalysisContext, result: Record | None = None, *,
-                    labels: list[Record] | None = None,
-                    facets: dict[str, str] | None = None) -> Record:
-    """One JSON-ready summary of the layer (signals, problems, facts, moments, AN-11)."""
-    layer = build_signal_layer(context, result, facets=facets)
-    return {"rules_version": RULES_VERSION, "signal_kinds": SIGNAL_KINDS, "fields": FIELDS,
-            "signals": layer.signals, "problems": layer.problems(labels),
-            "facts": list(layer.facts.values()), "moments": layer.moments,
-            "inventory": inventory_facts(context, layer.calls)}
-
-
-__all__ = ["SignalLayer", "analyze_signals", "build_signal_layer"]
+__all__ = ["SignalLayer", "build_signal_layer"]

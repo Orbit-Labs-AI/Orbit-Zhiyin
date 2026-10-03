@@ -228,3 +228,13 @@ def test_file_reference_count_uses_the_session_language_table():
 
     assert {"swift", "gradle", "proto"} <= set(LANG)
     assert file_pattern().findall("a.tsx b.ts") == ["tsx", "ts"]
+
+
+def test_code_block_count_from_the_raw_message():
+    # Hand count: one ``` fence and one ~~~ fence; the indented line is a list continuation,
+    # not a code block (CommonMark), and inline `x` is not a block -> 2.
+    text = "改一下：\n```py\nx = 1\n```\n- 步骤\n    继续\n\n~~~\nlog\n~~~\n用 `x`"
+    assert structure({"event_uid": "e", "text": text, "attrs": {}})["code_block_count"] == 2
+    assert structure({"event_uid": "e", "text": "没有代码", "attrs": {}})["code_block_count"] == 0
+    legacy = structure({"event_uid": "e", "text": "x", "attrs": {"fences_removed": True}})
+    assert legacy["code_block_count"] is None

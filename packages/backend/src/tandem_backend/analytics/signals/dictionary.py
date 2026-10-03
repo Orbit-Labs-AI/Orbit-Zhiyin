@@ -6,7 +6,9 @@ backend encodes ``signal.kind → problem.type``. Thresholds change ``RULES_VERS
 
 import re
 
+from ..common import MIN_STATUS_COVERAGE
 from ..interaction.rules import CORRECTION_CHARS as _CORRECTION_CHARS
+from ..lexicon import POSITIVE_CLAUSE_CHARS, POSITIVE_CLAUSE_WORDS
 
 RULES_VERSION = "signals-v1.2"
 
@@ -119,6 +121,50 @@ RISKY_COMMANDS: tuple[tuple[str, re.Pattern], ...] = (
 
 MOMENT_KINDS = ("goal", "correction", "failure_streak", "verify_pass", "compaction", "end")
 MAX_MOMENTS = 8
+# retry_loop: a same-argument retry chain of at least this many calls with at least this many
+# failed results (``detect_retry_loop``).
+RETRY_LOOP_MIN_CHAIN = 3
+RETRY_LOOP_MIN_FAILURES = 3
+# Problem ``weekly`` frequency: occurrences in the last N weeks before the reference time / N.
+WEEKLY_WINDOW_WEEKS = 4
+
+PRODUCT_DEFAULT = "产品默认，未校准（无真实分布或标注集依据）"
+# Every numeric threshold of the signal layer and the lexical rules it reuses, with its source.
+# ``calibrated`` is True only when the value comes from a measured distribution or a cited
+# method; everything else is an explicit, uncalibrated product default (audit B11).
+THRESHOLDS: dict[str, dict] = {
+    "correction_chars": {
+        "value": CORRECTION_CHARS, "calibrated": False, "where": "interaction.rules.CORRECTION_CHARS",
+        "source": PRODUCT_DEFAULT + "；2 = 最短中文否定（「错了」「不对」），200 沿用原 ai.pack 上限"},
+    "frustration_streak_chars": {
+        "value": FRUSTRATION_STREAK_CHARS, "calibrated": False, "where": "detectors.detect_frustration",
+        "source": PRODUCT_DEFAULT + "；连续两条 ≤40 字的纠偏/结果反馈"},
+    "retry_loop_min_chain": {
+        "value": RETRY_LOOP_MIN_CHAIN, "calibrated": False, "where": "detectors.detect_retry_loop",
+        "source": PRODUCT_DEFAULT},
+    "retry_loop_min_failures": {
+        "value": RETRY_LOOP_MIN_FAILURES, "calibrated": False, "where": "detectors.detect_retry_loop",
+        "source": PRODUCT_DEFAULT},
+    "max_moments": {
+        "value": MAX_MOMENTS, "calibrated": False, "where": "moments.key_moments",
+        "source": PRODUCT_DEFAULT + "；会话详情时间线的展示预算"},
+    "weekly_window_weeks": {
+        "value": WEEKLY_WINDOW_WEEKS, "calibrated": False, "where": "problems.upgrade_problems",
+        "source": PRODUCT_DEFAULT},
+    "problem_min_sessions": {
+        "value": {k: v["min_sessions"] for k, v in PROBLEM_TYPES.items()}, "calibrated": False,
+        "where": "PROBLEM_TYPES[*].min_sessions",
+        "source": PRODUCT_DEFAULT + "；unsafe_operation=1 因单次即需提示"},
+    "wilson_lo_min": {
+        "value": WILSON_LO_MIN, "calibrated": True, "where": "problems.upgrade_problems",
+        "source": "95% Wilson 得分区间（Wilson 1927，z=1.96）下界 > 0，即区间不含 0；不设背景率"},
+    "min_status_coverage": {
+        "value": MIN_STATUS_COVERAGE, "calibrated": False, "where": "common.MIN_STATUS_COVERAGE",
+        "source": PRODUCT_DEFAULT + "；已知状态不足一半时失败率不具代表性"},
+    "positive_clause_chars_words": {
+        "value": (POSITIVE_CLAUSE_CHARS, POSITIVE_CLAUSE_WORDS), "calibrated": False,
+        "where": "lexicon.emotion_cues", "source": PRODUCT_DEFAULT + "；正向情绪只认短感叹子句"},
+}
 OUTCOMES = ("completed", "partial", "failed", "abandoned", "unknown")
 OUTCOME_BASES = ("explicit_feedback", "verify_pass", "verify_fail", "facet", "structural",
                  "unknown")

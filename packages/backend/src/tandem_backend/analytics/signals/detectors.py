@@ -28,6 +28,8 @@ from .dictionary import (
     GIT_BRANCH_LIST,
     GIT_BRANCH_WRITE,
     READONLY_COMMANDS,
+    RETRY_LOOP_MIN_CHAIN,
+    RETRY_LOOP_MIN_FAILURES,
     RISKY_COMMANDS,
     RM_DANGEROUS_TARGETS,
     RM_REGENERABLE_DIRS,
@@ -416,7 +418,8 @@ def _expected_failure_context(view: SessionView, call: Record) -> bool:
 
 
 def detect_retry_loop(view: SessionView) -> list[Record] | None:
-    """Adapter over ``respond.retry_links``: ≥2 same-argument links in one turn, ≥3 failures."""
+    """Adapter over ``respond.retry_links``: a same-argument chain of ``RETRY_LOOP_MIN_CHAIN``
+    calls with ``RETRY_LOOP_MIN_FAILURES`` failures (see ``dictionary.THRESHOLDS``)."""
     if view.calls is None or view.retry_links is None:
         return None
     by_uid = {c["call_uid"]: c for c in view.calls}
@@ -439,7 +442,7 @@ def detect_retry_loop(view: SessionView) -> list[Record] | None:
             chain.append(eligible[chain[-1]])
         calls = [by_uid[uid] for uid in chain]
         failures = sum(c.get("tool_result_status") == "failed" for c in calls)
-        if len(chain) < 3 or failures < 3:
+        if len(chain) < RETRY_LOOP_MIN_CHAIN or failures < RETRY_LOOP_MIN_FAILURES:
             continue
         if _expected_failure_context(view, calls[0]):
             expected += 1

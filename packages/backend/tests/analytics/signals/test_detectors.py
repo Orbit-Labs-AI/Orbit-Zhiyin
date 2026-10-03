@@ -302,3 +302,18 @@ def test_signal_ids_are_stable_across_recomputation():
     second = analyze(bundle(sessions))[2].signals
     assert [s["signal_id"] for s in first] == [s["signal_id"] for s in second]
     assert len({s["signal_id"] for s in first}) == len(first)
+
+
+def test_threshold_table_names_a_source_for_every_value():
+    from tandem_backend.analytics.common import MIN_STATUS_COVERAGE
+    from tandem_backend.analytics.interaction.rules import CORRECTION_CHARS
+    from tandem_backend.analytics.signals import dictionary as D
+
+    for name, row in D.THRESHOLDS.items():
+        assert row["source"] and row["where"] and isinstance(row["calibrated"], bool), name
+    # The table reports the values the code actually uses.
+    assert D.THRESHOLDS["correction_chars"]["value"] == CORRECTION_CHARS == (2, 200)
+    assert D.THRESHOLDS["min_status_coverage"]["value"] == MIN_STATUS_COVERAGE
+    assert D.THRESHOLDS["retry_loop_min_chain"]["value"] == D.RETRY_LOOP_MIN_CHAIN
+    assert D.THRESHOLDS["weekly_window_weeks"]["value"] == D.WEEKLY_WINDOW_WEEKS
+    assert [k for k, r in D.THRESHOLDS.items() if r["calibrated"]] == ["wilson_lo_min"]
