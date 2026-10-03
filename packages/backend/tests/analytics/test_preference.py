@@ -136,3 +136,54 @@ def test_global_revision_without_repeating_future_marker(fixtures):
         e("所有项目改用英文", "b", 1, ts=20)], [s()])["records"]
     assert [r["value"] for r in resolve_effective_preferences(records, at=15)["applicable"]] == ["zh"]
     assert [r["value"] for r in resolve_effective_preferences(records, at=25)["applicable"]] == ["en"]
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("以后用pytest跑测试", ("tool", "pytest", "prefer")),
+    ("默认用markdown输出", ("format", "markdown", "prefer")),
+    ("以后用English回答", ("language", "en", "prefer")),
+    ("以后用json格式输出", ("format", "json", "prefer")),
+    ("from now on use pytest", ("tool", "pytest", "prefer")),
+])
+def test_ascii_keywords_adjacent_to_cjk_are_detected(text, expected):
+    # Python's \b sees no boundary between 用 and p; the ASCII-only boundary does.
+    assert expected in preference_values(text)
+
+
+def test_ascii_boundary_still_rejects_embedded_words():
+    assert preference_values("以后用pytesting跑") == []
+    assert preference_values("以后用 digit 输出") == []  # "git" inside "digit"
+
+
+def test_mentioning_a_tool_is_not_a_tool_preference():
+    assert preference_values("以后 git diff 要简洁") == [("detail", "brief", "prefer")]
+    assert ("tool", "git", "prefer") in preference_values("以后用 git 提交")
+
+
+def test_elif_suffix_is_not_reported_speech(fixtures):
+    s, e, _ = fixtures
+    out = extract_explicit_preferences([e("以后这个项目都用中文，代码里 elif 分支保持原样")], [s()])
+    assert [p["value"] for p in out["records"]] == ["zh"]
+    # A real "if " clause still marks hypothetical speech.
+    assert extract_explicit_preferences([e("if 以后这个项目都用中文")], [s()])["records"] == []
+
+
+def test_revise_on_multivalued_dimensions_keeps_other_values(fixtures):
+    s, e, _ = fixtures
+    es = [e("这个项目以后用 git 提交", "a", 0, ts=10),
+          e("这个项目改用 pytest 跑测试", "b", 1, ts=20),
+          e("这个项目以后用表格输出", "c", 2, ts=30),
+          e("这个项目改用 json 格式", "d", 3, ts=40)]
+    history = extract_explicit_preferences(es, [s()])["records"]
+    assert all(not r["preference_history"] for r in history)
+    applicable = resolve_effective_preferences(history, {"project_id": "p"})["applicable"]
+    assert sorted(p["value"] for p in applicable) == ["git", "json", "pytest", "table"]
+
+
+def test_revise_on_exclusive_dimension_still_supersedes(fixtures):
+    s, e, _ = fixtures
+    es = [e("这个项目以后用简短回答", "a", 0, ts=10), e("这个项目改成详细回答", "b", 1, ts=20)]
+    history = extract_explicit_preferences(es, [s()])["records"]
+    assert history[1]["preference_history"][0]["relation"] == "supersedes"
+    applicable = resolve_effective_preferences(history, {"project_id": "p"})["applicable"]
+    assert [p["value"] for p in applicable] == ["detailed"]

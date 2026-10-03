@@ -18,6 +18,7 @@ from ..analytics.outcome_subjective.extraction import classify_feedback
 from ..install.env import AGENTS, capabilities
 from ..privacy import redact
 from ..recommend.outcomes import newcombe, welch, wilson
+from . import metrics
 from .a4a6_common import ManyQuery
 from .a4a6_sentiment import (
     FAILED,
@@ -30,7 +31,10 @@ from .a4a6_sentiment import (
 
 HOUR_MS = 3_600_000
 DAY_MS = 86_400_000
-HOURS_BASIS = "observed_span_union_incl_idle"
+# hours = 活跃时长 (uiview.metrics.active_ms, same as A1/A3 ``dur``); the old wall-clock
+# span union (idle included) is kept as ``span`` and never presented as working time.
+HOURS_BASIS = "active_estimate"
+SPAN_BASIS = "observed_span_union_incl_idle"
 SCATTER_MIN_SESSIONS = 5
 COMPARE_MIN_N = 5
 SCATTER_NOTE = "相关不等于因果"
@@ -69,8 +73,28 @@ def union_ms(intervals) -> int:
     return total
 
 
-def hours_of(sessions) -> float:
+def hours_of(sessions) -> float | None:
+    """Summed active time (hours); ``None`` when no session has a timestamped event."""
+    known = [s["active_ms"] for s in sessions if s.get("active_ms") is not None]
+    return round(sum(known) / HOUR_MS, 2) if known else None
+
+
+def span_hours_of(sessions) -> float:
+    """Wall-clock union of session spans, idle time included (``SPAN_BASIS``)."""
     return round(union_ms((s["started_at"], s["end"]) for s in sessions) / HOUR_MS, 2)
+
+
+def _active(conn, session_ids) -> dict[str, int | None]:
+    stamps: dict[str, list[int]] = {uid: [] for uid in session_ids}
+    ids = list(session_ids)
+    for i in range(0, len(ids), 500):
+        chunk = ids[i:i + 500]
+        for root, ts in conn.execute(
+                f"SELECT s.root_uid, e.ts FROM event e JOIN session s ON s.session_uid = "
+                f"e.session_uid WHERE e.ts IS NOT NULL AND s.root_uid IN "
+                f"({','.join('?' * len(chunk))})", chunk):
+            stamps[root].append(ts)
+    return {uid: metrics.active_ms(values) for uid, values in stamps.items()}
 
 
 def _ext(path: str) -> str | None:
@@ -89,8 +113,9 @@ def load(conn, scope) -> dict:
     sessions = fetch_sessions(conn, scope)
     humans = fetch_humans(conn, sessions)
     calls = fetch_calls(conn, sessions)
+    active = _active(conn, sessions)
     for s in sessions.values():
-        s.update(msgs=0, corr=0, calls=0, verify=False, accepted=False, reworked=False,
+        s.update(active_ms=active.get(s["session_uid"]), msgs=0, corr=0, calls=0, verify=False, accepted=False, reworked=False,
                  feedback=False, exts=Counter(), heads=[], human_events=[])
     for m in humans:
         s = sessions[m["session_uid"]]
@@ -174,7 +199,9 @@ def project_row(pid, rows, project, persona_lookup) -> dict:
             "path": _most_common(s["cwd"] for s in rows) or project.get("key"),
             "git": project.get("git_remote") or _most_common(s["git_remote"] for s in rows),
             "identity_quality": project.get("key_type"),
-            "sessions": len(rows), "hours": {"value": hours_of(rows), "basis": HOURS_BASIS},
+            "sessions": len(rows), "hours": {"value": hours_of(rows), "basis": HOURS_BASIS,
+                                             "span": span_hours_of(rows),
+                                             "span_basis": SPAN_BASIS},
             "agents": agents_of(rows), "friction": friction_of(rows),
             "tools_per_human_message": _round(calls / msgs, 2) if msgs else None,
             "tags": [name for name, _ in exts.most_common(2)],
@@ -197,6 +224,7 @@ def build_projects(conn, scope, params, *, inventory_items=None, persona_lookup=
               for r in rows if r["sessions"] >= SCATTER_MIN_SESSIONS
               and r["tools_per_human_message"] is not None and r["friction"]["value"] is not None]
     body = {"meta": {"contract": "tandem-uiview-a4a6-v1", "hours_basis": HOURS_BASIS,
+                     "span_basis": SPAN_BASIS,
                      "friction_basis": "lexical_candidate",
                      "n_sessions": len(data["sessions"])},
             "projects": rows, "scatter": {"points": points, "note": SCATTER_NOTE}}
@@ -218,8 +246,8 @@ def build_projects(conn, scope, params, *, inventory_items=None, persona_lookup=
 def _metric_values(rows):
     days = Counter(_day(s["started_at"]) for s in rows if s["started_at"] is not None)
     return {
-        "avg_session_minutes": [((s["end"] or s["started_at"]) - s["started_at"]) / 60_000
-                                for s in rows if s["started_at"] is not None],
+        "avg_session_minutes": [s["active_ms"] / 60_000 for s in rows
+                                if s.get("active_ms") is not None],
         "messages_per_session": [s["msgs"] for s in rows],
         "autonomy": (sum(s["calls"] for s in rows), sum(s["calls"] + s["msgs"] for s in rows)),
         "verify_rate": (sum(s["verify"] for s in rows), len(rows)),
@@ -435,7 +463,7 @@ def _linked_items(project_ids):
 
 
 def register(api, gw) -> None:
-    from fastapi import Query
+    from fastapi import Depends, Query
 
     from ..services.auth import ApiError
     from ..services.routes_data import mark_empty
@@ -448,6 +476,8 @@ def register(api, gw) -> None:
                 "from_ts": since, "until_ts": until,
                 "excluded_cwd_prefix": str(Path(gw.home) / "agent-cwd")}
 
+    range_dependency = Depends(common.range_scope)
+
     def lookup():
         return getattr(gw, "persona_lookup", None)
 
@@ -456,7 +486,8 @@ def register(api, gw) -> None:
                  since: int | None = None, until: int | None = None, group: str = "project",
                  topic: str | None = None, outcome: str | None = None,
                  fric: str | None = None, hour: int | None = Query(None, ge=0, le=23),
-                 tz: str | None = None, wait_ms: int = Query(0, ge=0, le=3000)):
+                 tz: str | None = None, wait_ms: int = Query(0, ge=0, le=3000),
+                 ranges: dict = range_dependency):
         if group not in ("project", "folder"):
             raise ApiError(400, "invalid_request", "group 只接受 project|folder")
         ids, early = common.facet_sessions(
@@ -464,15 +495,16 @@ def register(api, gw) -> None:
         if early is not None:
             return early
         scope = {**scope_of(project_id, common.agent_list(agent, agents), since, until),
-                 "session_uids": ids}
+                 **ranges, "session_uids": ids}
         with gw.reads.read(empty=True) as conn:
             body = build_projects(conn, scope, {"group": group}, persona_lookup=lookup())
             return mark_empty(body) if gw.reads.is_empty(conn) else body
 
     @api.get("/v1/uiview/projects/{project_id}")
     def project(project_id: str, agent: ManyQuery = None, since: int | None = None,
-                until: int | None = None, compare: str = "overall"):
-        scope = scope_of(None, agent, since, until)
+                until: int | None = None, compare: str = "overall",
+                ranges: dict = range_dependency):
+        scope = {**scope_of(None, agent, since, until), **ranges}
         items = _linked_items([project_id])
         with gw.reads.read(empty=True) as conn:  # nothing imported yet: 404, not 503
             body = build_project(conn, scope, project_id, {"compare": compare},

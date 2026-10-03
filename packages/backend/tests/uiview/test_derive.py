@@ -90,3 +90,32 @@ def test_outcome_mix_and_tool_rows():
     assert tools[0] == {"name": "shell", "kind": "shell", "n": 15, "fails": 3,
                         "err": pytest.approx(0.2), "known": 15}
     assert tools[1]["err"] is None and tools[1]["fails"] is None
+
+
+def test_ratios_only_use_rows_with_known_inputs():
+    """UT-04: steps / verify / out = None are unknown, not zero, in their denominators."""
+    rows = [row(1, "2026-10-01", msgs=10, steps=50, verify=True, out="ok"),
+            row(2, "2026-10-01", msgs=10, steps=None, verify=None, out=None)]
+    st = derive.stats(rows)
+    assert st["auto"] == 5.0 and st["auto_n"] == 1  # 50 steps / 10 msgs of the stepped row
+    assert st["verify"] == 100.0 and st["verify_n"] == 1
+    assert st["ok"] == 100.0 and st["ok_n"] == 1
+    assert st["msgs"] == 20 and st["per"] == 10.0  # totals still count every row
+
+
+def test_mixed_known_rows_share():
+    rows = [row(1, "2026-10-01", verify=True, out="ok"),
+            row(2, "2026-10-01", verify=False, out="part"),
+            row(3, "2026-10-01", verify=None, out="fail"),
+            row(4, "2026-10-01", verify=None, out=None)]
+    st = derive.stats(rows)
+    assert st["verify"] == pytest.approx(50.0) and st["verify_n"] == 2  # 1 of 2 known
+    assert st["ok"] == pytest.approx(100 / 3) and st["ok_n"] == 3  # 1 of 3 known
+
+
+def test_all_unknown_ratios():
+    rows = [row(1, "2026-10-01", steps=None, verify=None, out=None)]
+    assert derive.stats(rows)["auto"] == 0  # numeric contract for legacy callers
+    st = derive.stats(rows, unknown=None)
+    assert (st["auto"], st["verify"], st["ok"]) == (None, None, None)
+    assert (st["auto_n"], st["verify_n"], st["ok_n"]) == (0, 0, 0)
