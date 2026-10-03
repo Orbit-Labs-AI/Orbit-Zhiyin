@@ -29,6 +29,17 @@ def test_provider_errors_are_unknown_and_task_budget_failures_are_retained():
     assert completion_state(trajectory, {"passed": True}) == (False, "budget_exhausted")
 
 
+def test_report_does_not_turn_unknown_usage_into_a_total():
+    from evals.skill_learning.report import usage_total
+
+    known = {"known_total_tokens": 40, "total_tokens": 40, "complete": True}
+    missing = {"known_total_tokens": 17, "total_tokens": None, "complete": False}
+    result = usage_total([known, missing])
+    assert result["known_tokens_lower_bound"] == 57 and result["total_tokens"] is None
+    assert result["unknown_usage_attempts"] == 1
+    assert usage_total([])["total_tokens"] is None
+
+
 @pytest.mark.parametrize("last", [{"stopReason": "error"}, {"stopReason": "aborted"},
                                  {"usage": None}, {"usage": {"input": -1}}])
 def test_unreported_or_failed_request_usage_stays_unknown(last):
