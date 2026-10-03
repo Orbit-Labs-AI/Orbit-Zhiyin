@@ -33,12 +33,31 @@ const recGain = (r) => { const p = recPct(r.id); return p ? pctLabel(p) : r.live
 // 对应操作占比: what the rec's operations take of the real trajectory before the effectiveness
 const recShare = (r) => { const p = recPct(r.id); if (!p || (p.st == null && p.sk == null)) return r.gain; return '对应操作占' + [p.st != null ? '时间 ' + fmtPct(p.st) : '', p.sk != null ? 'token ' + fmtPct(p.sk) : ''].filter(Boolean).join(' · '); };
 const recBasis = (r) => { const p = recPct(r.id); return p && p.basis ? p.basis : p ? recShare(r) + ' × 生效率 ' + p.p : r.saveBasis || '没有可折算的问题证据'; };
-// several recs on one problem are alternatives: a total takes the best of each problem (key) and adds across problems
+// The combined saving of several recs (Lite 开屏合计 …), never above what the operations really take — the same total as
+// recommend/narrate.py total_saving: alternatives on one problem (key) count once (the best); problems on one operation
+// pool (g: tool calls, approval waits, rework turns, resident context) share at most the pool's share of the trajectory
+// (cap), so overlapping shares are scaled down in proportion; all pools together never exceed the whole trajectory;
+// each rec keeps its own effectiveness. (The old Σ clamped at 100 printed「100%」once a few large shares added up, F10.)
 function recTotal(rows) {
   const best = {};
-  rows.forEach((r) => { const p = recPct(r.id); if (!p) return; const k = p.key || r.id; const b = best[k] || (best[k] = { t: null, k: null }); if (p.t != null) b.t = Math.max(b.t || 0, p.t); if (p.k != null) b.k = Math.max(b.k || 0, p.k); });
-  const vs = Object.values(best); const add = (f) => vs.some((b) => b[f] != null) ? Math.min(100, vs.reduce((a, b) => a + (b[f] || 0), 0)) : null;
-  return vs.length ? { t: add('t'), k: add('k') } : null;
+  rows.forEach((r) => {
+    const p = recPct(r.id); if (!p) return; const key = p.key || r.id;
+    [['t', 'st'], ['k', 'sk']].forEach(([f, sf]) => {
+      if (p[f] == null) return;
+      const cap = p.cap && p.cap[f] != null ? p.cap[f] : 100;
+      const e = { pct: p[f], share: p[sf] != null ? p[sf] : p[f], g: p.g || key, cap };
+      const id = key + '\u0000' + f; if (!best[id] || e.pct > best[id].pct) best[id] = Object.assign(e, { f });
+    });
+  });
+  const es = Object.values(best); if (!es.length) return null;
+  const sum = (f) => {
+    const xs = es.filter((e) => e.f === f); if (!xs.length) return null;
+    const pools = {}; xs.forEach((e) => { const q = pools[e.g] || (pools[e.g] = { used: 0, cap: 100 }); q.used += e.share; q.cap = Math.min(q.cap, e.cap); });
+    const sc = (e) => { const q = pools[e.g]; return q.used > 0 ? Math.min(1, q.cap / q.used) : 1; };
+    const whole = xs.reduce((a, e) => a + e.share * sc(e), 0); const all = whole > 0 ? Math.min(1, 100 / whole) : 1;
+    return xs.reduce((a, e) => a + e.pct * sc(e) * all, 0);
+  };
+  return { t: sum('t'), k: sum('k') };
 }
 const recTok = (id) => { const t = recX(id).tokp; return t == null ? '—' : t > 0 ? '+' + fmtPct(t) : t < 0 ? '−' + fmtPct(-t) : '0'; };
 // Which agents a rec applies to, parsed from its compat string (identity colours only).

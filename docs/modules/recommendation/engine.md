@@ -59,7 +59,7 @@ engine v2 流程：`recall/multi.recall_all`（`problems.build` 把信号与 SQL
 | `resident_cost`、`installed_unused`（精简卡） | 常驻上下文 | 常驻 tokens × 对应 Agent 的请求数；时间未实测 |
 | 其余（纠偏、重复说明、压缩、review 轮次等） | 返工轮次 | 一轮用户对话的平均 token 与时间 |
 
-对应操作占比 = 观测窗口内的次数 × 每次成本 ÷ 总 token / 总协作时长（不超过该类操作的实测总量）；预计节省 = 占比 × 生效率（Beta 先验均值），区间取先验约 90% 范围，是情景边界而不是置信区间，也不扣除未知的配置成本。`ui.save` 给出 `time_pct`、`token_pct`、两者的区间、`share`（占比）、`effect`、`op`、`key` 与中文 `basis`；`ui.gain` 是同一组百分比的标题（如「省时 1.5% · 省 token 0%」），`ui.tok_pct` 是卡片自身常驻上下文占全部 token 的比例。同一问题的替代方案共用 `key`，界面合计时每个问题只取最大值。没有问题证据的 catalog / model 卡和还没有轨迹账本的旧快照显示「未估算」。
+对应操作占比 = 观测窗口内的次数 × 每次成本 ÷ 总 token / 总协作时长（不超过该类操作的实测总量）；预计节省 = 占比 × 生效率（Beta 先验均值），区间取先验约 90% 范围，是情景边界而不是置信区间，也不扣除未知的配置成本。`ui.save` 给出 `time_pct`、`token_pct`、两者的区间、`share`（占比）、`effect`、`op`、`key` 与中文 `basis`；`ui.gain` 是同一组百分比的标题（如「省时 1.5% · 省 token 0%」），`ui.tok_pct` 是卡片自身常驻上下文占全部 token 的比例。同一问题的替代方案共用 `key`，界面合计时每个问题只取最大值。`group` 与 `cap` 标出操作所在的池及该池占全部轨迹的比例（失败调用与工具调用同属「工具调用」池，审批等待、返工轮次与常驻上下文各自成池）；合计（`narrate.total_saving`，App 的 `recTotal` 同口径）在同一池内按占比等比缩到不超过池的上限，所有池加起来也不超过 100%，再乘各自生效率，所以合计不会超过这些操作真实占用的比例。问题的次数只取计数类指标（次数、事件、调用、会话）：比例、token 量、时长和请求数不当作次数，否则一个 `context_pressure` 信号的输入 token 数会被当成几百万次返工，把单卡占比顶到 100%。没有问题证据的 catalog / model 卡和还没有轨迹账本的旧快照显示「未估算」。
 
 问题层的分母：信号或 SQL 事实给出的会话数 k 大于 `sessions.main`（或没有主会话总数）时，k 截断为 main，`vars.count_mismatch` 记录原值，问题保持 `insufficient`，不会因 k/n = 100% 被判为 active。`installed_unused` 与 `features.linked` 同口径：观测窗口不足 90 天（`UNUSED_WINDOW_DAYS`）或 linked 已标 `insufficient_history` 时不判「未使用」；置信度从 90 天的 0.5 线性升到 180 天的 0.9（产品默认，未校准）。
 
