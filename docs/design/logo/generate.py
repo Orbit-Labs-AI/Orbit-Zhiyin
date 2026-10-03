@@ -101,10 +101,14 @@ class Brand:
         x, y, w, h = self.box
         return self._svg(f"{num(x, 1)} {num(y, 1)} {num(w, 1)} {num(h, 1)}", f"{w:.0f}", f"{h:.0f}", self._mark(fill))
 
-    def at_pitch(self, pitch: float, tolerance: float | None = None) -> Orbit:
-        """同一条螺旋、同一线宽规则，只换俯仰视角。"""
+    def at_pitch(self, pitch: float, tolerance: float | None = None, yaw: float | None = None, fit=None) -> Orbit:
+        """同一条螺旋、同一线宽规则，只换视角（俯仰；动效帧另可绕轴转 yaw，并沿用给定缩放与中心）。"""
         spec = copy.deepcopy(self.spec)
         spec["view"]["pitch"] = pitch
+        if yaw is not None:
+            spec["view"]["yaw"] = yaw
+        if fit is not None:
+            spec["view"]["fit"] = fit
         if tolerance is not None:
             spec["vector"]["tolerance"] = tolerance
         return Orbit(spec)
@@ -149,18 +153,25 @@ class Brand:
         return self._svg(f"0 0 {w} {h}", w, h, f'<rect width="{w}" height="{h}" fill="{bg}"/>' + self._mark(ink, tr))
 
     def motion(self) -> str:
-        """交互页：点击标志 → 转为俯视并移到 O 的位置 → rbit·知音依次出现；再点击收回。帧由同一套参数预先算好。"""
+        """交互页：点击标志 → 绕轴旋转一周的同时转为俯视并移到 O 的位置 → rbit·知音依次出现；再点击收回。帧由同一套参数预先算好。"""
         m, c = self.spec["motion"], self.c
         p0, p1 = self.spec["view"]["pitch"], self.spec["wordmark"]["o_pitch"]
+        yaw0 = self.spec["view"]["yaw"]
         x, y, w, h = self.wm_box
         half = self.spec["design"]["size"] / 2
         dx0 = x + w / 2 - half  # 起点：标志居中于整个字标宽度；终点与字标 O 重合（平移为 0）
         frames = []
         for k in range(m["frames"]):
             u = k / (m["frames"] - 1)
-            o = self.at_pitch(p0 + (p1 - p0) * u, m["tolerance"])
+            if k in (0, m["frames"] - 1):
+                frames.append(self.d if k == 0 else self.o_d)
+                continue
+            pitch = p0 + (p1 - p0) * u
+            still = self.at_pitch(pitch, m["tolerance"])  # 不旋转时的缩放与中心
+            # 绕螺旋自身的轴转 spin 度（整圈，首尾朝向不变）；轴上的点投影不随转角移动，所以沿用 still 的中心
+            o = self.at_pitch(pitch, m["tolerance"], yaw0 + m["spin"] * u, (still.scale, still.cx, still.cy))
             o.digits = m["digits"]
-            frames.append(o.path() if 0 < k < m["frames"] - 1 else (self.d if k == 0 else self.o_d))
+            frames.append(o.path())
         letters = "".join(
             f'<path class="l" style="--i:{i};--j:{len(TEXT) - 1 - i}" d="{self.wm.path(self.digits, ch)}"/>' for i, ch in enumerate(TEXT))
         css = (f":root{{--bg:{c['paper']};--ink:{c['ink']};--sub:#8a9497}}"

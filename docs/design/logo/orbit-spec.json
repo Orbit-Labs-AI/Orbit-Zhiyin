@@ -82,11 +82,12 @@
     }
   },
   "motion": {
-    "note": "点击标志：视角 pitch 由 view.pitch 转到 wordmark.o_pitch，同时移到字标 O 的位置，随后 rbit 依次出现；再点击按相反顺序收回",
-    "frames": 49,
+    "note": "点击标志：视角 pitch 由 view.pitch 转到 wordmark.o_pitch，同时绕螺旋自身的轴旋转 spin 度（整圈，首尾朝向不变）并移到字标 O 的位置，随后 rbit·知音依次出现；再点击按相反顺序收回",
+    "frames": 121,
+    "spin": 360,
     "tolerance": 0.05,
     "digits": 1,
-    "turn_ms": 900,
+    "turn_ms": 1500,
     "letter_delay_ms": 110,
     "letter_ms": 420
   },

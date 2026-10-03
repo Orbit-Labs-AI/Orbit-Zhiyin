@@ -53,7 +53,7 @@
 | [`favicon/`](logo/kit/favicon/favicon.svg) | 网页图标：`favicon.svg`（随浏览器深色模式切换黑夜配色）、`favicon.ico`（16/32/48）、`apple-touch-icon.png`（180，方形不加圆角，由系统裁切）、PWA `icon-192/512.png` | SVG、ICO、PNG |
 | [`wordmark/`](logo/kit/wordmark/orbit-wordmark-ink.svg) | 字标 Orbit·知音：俯视螺旋作 O；板岩灰、黑、暖纸与深色底用的香槟黄（`night`）四色，透明底 | SVG、PDF；PNG 高 32、48、64、128、256、512 |
 | [`compare/`](logo/kit/compare/orbit-zhiyin-fonts.html) | 中文字体对比页：16 种开源中文字体与字重逐一排成完整字标（浅色 / 深色），由 [`compare_cjk.py`](logo/compare_cjk.py) 生成，供选定「知音」字体 | 单文件 HTML |
-| [`motion/`](logo/kit/motion/orbit-reveal.html) | 交互动效页：点击 45° 标志 → 转为俯视正圆并移到 O 的位置 → r、b、i、t、·、知、音 依次升起淡入（深色模式为香槟黄）；再点击按相反顺序收回。转动的每一帧都由同一套参数算出（pitch 45°→75°，`motion` 一节记录帧数与时长），支持深色模式与减少动态效果 | 单文件 HTML |
+| [`motion/`](logo/kit/motion/orbit-reveal.html) | 交互动效页：点击 45° 标志 → 绕螺旋自身的轴旋转一周（`motion.spin` 360°，首尾朝向不变、旋转中大小不跳动），同时转为俯视正圆并移到 O 的位置 → r、b、i、t、·、知、音 依次升起淡入（深色模式为香槟黄）；再点击按相反顺序收回。转动的每一帧都由同一套参数算出（pitch 45°→75°、yaw 转 360°，`motion` 一节记录帧数 121、时长 1.5 s），支持深色模式与减少动态效果 | 单文件 HTML |
 | [`social/`](logo/kit/social/orbit-social.svg) | 分享图 1280×640：图标居中于同色底 | SVG、PNG |
 
 PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xcode 资源目录（勾选 Preserve Vector Data）。
