@@ -133,6 +133,8 @@ def command_spec(command, *, cwd=None, project_id=None):
     """Keep a complete direct check distinct from a command mention or truncated head."""
     if not isinstance(command, str) or not command.strip():
         return None
+    if not isinstance(cwd, str):
+        cwd = None  # Tool arguments are model output: a non-path workdir is no cwd.
     spec = {
         "schema_version": VERSION,
         "executable": None,
