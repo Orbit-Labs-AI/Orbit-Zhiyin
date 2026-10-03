@@ -93,3 +93,20 @@ test('command heads name the effective program, never a path, assignment or whol
   ];
   for (const [command,expected] of cases) assert.equal(commandHead(command),expected,JSON.stringify(command));
 });
+test('vendor token formats are redacted while counters, token types and look-alike identifiers survive',()=>{
+  const fill=(n:number,c='A')=>c.repeat(n);
+  const secrets:[string,string][]=[
+    ['xoxb-'+'123456789012-'+fill(24,'a'),'<redacted:token>'],['xoxp-'+fill(30,'9'),'<redacted:token>'],
+    ['AIza'+fill(35,'B'),'<redacted:api_key>'],['sk_live_'+fill(24,'c'),'<redacted:api_key>'],['sk_test_'+fill(24,'d'),'<redacted:api_key>'],
+    ['eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.'+fill(43,'e'),'<redacted:jwt>'],
+    ['npm_'+fill(36,'f'),'<redacted:api_key>'],['glpat-'+fill(20,'g'),'<redacted:api_key>'],['hf_'+fill(34,'h'),'<redacted:api_key>'],
+    ['ya29.'+fill(40,'i'),'<redacted:token>'],
+  ];
+  for (const [secret,label] of secrets) {
+    const clean=String(sanitize(`value ${secret} end`));
+    assert.ok(!clean.includes(secret),secret);assert.equal(clean,`value ${label} end`);
+  }
+  const keep={max_tokens:4096,token_type:'bearer',input_tokens:12,output_tokens:3,text:'max_tokens=4096 token_type: bearer input_tokens: 12',
+    words:'hf_hub_download npm_config_cache sk_test glpat- eyJhbGci AIzaShort self_hf_'+fill(34,'h')};
+  assert.deepEqual(sanitize(keep),keep);
+});
