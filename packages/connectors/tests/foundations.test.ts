@@ -8,6 +8,7 @@ import { lines } from '../src/lines.ts';
 import { sanitize } from '../src/privacy.ts';
 import { ConnectorStore } from '../src/store.ts';
 import { validateEvent } from '../src/contract.ts';
+import { commandHead } from '../src/shell.ts';
 
 test('streaming JSONL retries an incomplete tail and handles concatenated zstd frames', async () => {
   const dir = await mkdtemp(join(tmpdir(),'tandem-lines-'));
@@ -74,4 +75,21 @@ test('all authorization schemes and raw image-generation media stay out of sanit
     text:'Authorization: Digest response="opaque-digest"\nProxy-Authorization: Negotiate opaque-negotiate\nAuthorization: AWS4-HMAC-SHA256 Signature=opaque-signature'}));
   for(const secret of [rawImage,'opaque-digest','opaque-negotiate','opaque-signature'])assert.ok(!result.includes(secret));
   assert.ok(result.includes('attachment:sha256:'));
+});
+test('command heads name the effective program, never a path, assignment or whole script',()=>{
+  const cases:[unknown,string|null][]=[
+    [['/bin/zsh','-lc','cd x && rg foo'],'rg'],
+    [['/bin/zsh','-lc','set -e\nuv run python scripts/check.py\npnpm test'],'uv run'],
+    [['bash','-c','S=/tmp/x; ls $S'],'ls'],
+    ['cd /repo && git -C sub status --short','git status'],
+    ['/usr/local/bin/pnpm --dir packages/connectors check','pnpm check'],
+    ['npx tsc --noEmit','npx tsc'],
+    ['timeout 30 env FOO=1 pytest -q tests','pytest'],
+    ['tail -n 5 .local/main-integration-progress.log','tail'],
+    ['echo "unterminated','echo'],
+    [['pnpm','test'],'pnpm test'],
+    ['for f in *.py; do black "$f"; done','black'],
+    ['$HOME/bin/tool',null],[[],null],[42,null],
+  ];
+  for (const [command,expected] of cases) assert.equal(commandHead(command),expected,JSON.stringify(command));
 });

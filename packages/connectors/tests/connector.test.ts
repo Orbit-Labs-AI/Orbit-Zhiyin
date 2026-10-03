@@ -466,3 +466,18 @@ test('legacy token_count totals that fall open a new counter cycle marked reset'
   // Session total = last value of each cycle: 3000 + 800.
   assert.equal(scalar(s,'SELECT sum(i) n FROM (SELECT max(input_tokens) i FROM usage_snapshot GROUP BY snapshot_key)'),3800);
 }));
+test('command_head comes from the zsh -lc payload and the full line stays out of session features',async()=>sandbox(async s=>{
+  const run=(id:string,command:string[],ordinal:number)=>jsonLine('event_msg',{type:'item_completed',turn_id:'t1',item:{type:'CommandExecution',id,command,cwd:'/sample',status:'completed',exit_code:0,
+    parsed_cmd:[{type:'unknown',cmd:command.at(-1)}]}},ordinal);
+  await writeFile(s.file,jsonLine('session_meta',{id:'commands'},0)+jsonLine('event_msg',{type:'task_started',turn_id:'t1'},1)+
+    run('c1',['/bin/zsh','-lc','cd x && rg foo src'],2)+run('c2',['/bin/zsh','-lc','set -e\nuv run python scripts/check.py\npnpm test'],3)+
+    jsonLine('response_item',{type:'function_call',name:'exec_command',call_id:'c3',arguments:JSON.stringify({cmd:'cd /repo && git status --short'})},4));
+  await s.connector.ingest();
+  const heads=Object.fromEntries(s.store.db.prepare("SELECT json_extract(attrs,'$.name') name,call_id,json_extract(attrs,'$.command_head') head,json_extract(attrs,'$.command_line') line FROM event WHERE kind='tool.call'").all().map(row=>[row.call_id,[row.head,row.line]]));
+  assert.deepEqual(heads.c1,['rg','cd x && rg foo src']);
+  assert.deepEqual(heads.c2,['uv run','set -e\nuv run python scripts/check.py\npnpm test']);
+  assert.deepEqual(heads.c3,['git status','cd /repo && git status --short']);
+  const features=s.store.db.prepare("SELECT value FROM session_feature WHERE feature='command' ORDER BY value").all().map(row=>row.value);
+  assert.deepEqual(features,['git status','rg','uv run']);
+  for (const value of features) assert.match(String(value),/^[A-Za-z0-9._+-]+(?: [a-z][a-z0-9:_-]*)?$/);
+}));

@@ -3,6 +3,7 @@ import type { Obj, Json, RawRecord, StandardEvent, Disposition } from './types.t
 import { uid, hash, sessionUid, timestamp, durationMs, pathValue, stableJson } from './util.ts';
 import { validateEvent } from './contract.ts';
 import { projectFor } from './project.ts';
+import { commandHead } from './shell.ts';
 import type { ConnectorStore } from './store.ts';
 import { basename } from 'node:path';
 
@@ -237,7 +238,10 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
       let args: Json = p.arguments ?? p.action ?? p.input ?? null;
       if (typeof args==='string' && subtype==='function_call') { try { args=JSON.parse(args) as Json; } catch { /* native string retained */ } }
       const wrapper = subtype==='custom_tool_call' && ['exec','wait'].includes(name);
-      tool(call,name,args,undefined,undefined,null,null,nonNull({is_wrapper:wrapper,input:subtype==='custom_tool_call'?string(p.input):null,
+      const shellArgs=!wrapper&&toolCategory(name)==='shell'?object(args):{};
+      const line=shellArgs.cmd??shellArgs.command??null;
+      tool(call,name,args,undefined,undefined,null,null,nonNull({is_wrapper:wrapper,command_head:line===null?null:commandHead(line),
+        command_line:typeof line==='string'?line:Array.isArray(line)&&line.length?line.map(String).join(' '):null,input:subtype==='custom_tool_call'?string(p.input):null,
         attribution:object(body.metadata),mcp_server:name.startsWith('mcp__')?name.split('__')[1]:null,mcp_tool:name.startsWith('mcp__')?name.split('__').slice(2).join('__'):null}),10);
     } else if (['function_call_output','custom_tool_call_output','tool_search_output'].includes(subtype)) {
       const name = string(p.name) ?? 'unknown';
@@ -296,7 +300,9 @@ function mapRecord(row: RawRecord, ctx: Context): Candidate[] {
           output=item.aggregated_output ?? item.formatted_output ?? item.stdout ?? item.stderr;
           const command = array(item.command);
           const parsed = array(item.parsed_cmd).map(object).find(v=>typeof v.cmd==='string');
-          extra=nonNull({command,cwd:pathValue(item.cwd),command_head:string(parsed?.cmd) ?? command.map(String).join(' ')});
+          // command_head is the effective program (vocabulary key); the whole line stays in command_line.
+          extra=nonNull({command,cwd:pathValue(item.cwd),command_head:commandHead(command)??commandHead(string(parsed?.cmd)),
+            command_line:string(parsed?.cmd) ?? (command.length?command.map(String).join(' '):null)});
         } else if (itemType==='McpToolCall') {
           name=`mcp__${string(item.server) ?? 'unknown'}__${string(item.tool) ?? 'unknown'}`; output=item.result ?? item.error;
           extra=nonNull({mcp_server:string(item.server),mcp_tool:string(item.tool),is_error:Boolean(item.error)||Boolean(object(item.result).isError)});

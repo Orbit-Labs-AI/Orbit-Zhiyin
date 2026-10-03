@@ -1359,6 +1359,9 @@
             "literal_redacted",
             "unavailable"
           ]
+        },
+        "command_line": {
+          "type": "string"
         }
       },
       "required": [
