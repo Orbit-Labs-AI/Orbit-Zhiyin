@@ -244,7 +244,14 @@ scene('10-intro', () => {
   // each), slow push meanwhile; 1c.4: the letters drift apart as both lines leave (b11.8–12.6)
   const W1 = ['xl sv in-w1', '<span class="w">We</span><span class="w"> Are</span><span class="w"> Redesigning</span>'];
   const CB0 = 8.8, CB1 = 12.6, CAT = [0, .5, 1.0];
-  txt(CB0, CB1, [W1], { x: 960, y: 470, align: 'c' }, { anim: wipe({ at: CAT, fit: 1150, push: .04, out: .8, spread: true }) });
+  // 1c → 1d: as 15-redesign's caret lies down (b11.8) its arc path runs through the 30 px gap between this line's
+  // descenders (y ≈ 530) and 「Everything」's ascenders (≈ 560) while both are still ≥ 50 % opaque, so this line lifts 48 px
+  // out of the dots' way with their own front-loaded ease (PEN_E = 15-redesign's H3E, b11.8–12.4; 「Everything」 stays,
+  // the gloss is under it)
+  txt(CB0, CB1, [W1], { x: 960, y: 470, align: 'c' }, {
+    anim: wipe({ at: CAT, fit: 1150, push: .04, out: .8, spread: true }),
+    tick: (el, tl, life) => { el.style.transform += ' translateY(' + (-48 * PEN_E(clamp((tl - (life - BB(.8))) / BB(.6)))).toFixed(1) + 'px)'; }
+  });
   // T3 / T3′ the caret (b8.2–11.8): the arc folds into a short column (gap 34, r 16, ≈ 168 px tall like the 120 px type;
   // cc on top, cp at the bottom, paths don't cross) standing 52 px right of the line's right edge once the next word is
   // in (fit 1150, × the push), so each word wipes in to its left; it steps on (E.io .4) .1 beat before each word:
@@ -261,8 +268,10 @@ scene('10-intro', () => {
   AGD.key(8.2, 'column', { x: caretX, y0: (b) => caretY(b) - 68, gap: 34, r: 16, dur: .55, stag: .03, arc: 20 });
   // the caret ripples (1.06, top to bottom) as each word lands and its icons are drawn in, then keeps breathing at rest
   for (const w of [8.8, 9.3, 9.8, 10.3, 10.85, 11.4]) for (let i = 0; i < 5; i++) AGD.pulse(i, w + .04 * i, 1.06, .5);
-  txt(10.3, 12.6, [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
-    { anim: wipe({ at: [0], dur: .5, push: .03, out: .8, spread: true }) });
+  // it leaves over b11.8–12.4 (.6, not .8): the lower dots rise across its 「ng」 on their way left (b12.0–12.3), so it is
+  // under half opacity by b12.1 instead of .77
+  txt(10.3, 12.4, [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
+    { anim: wipe({ at: [0], dur: .5, push: .03, out: .6, spread: true }) });
   // the gloss (v17.2): 「人们正在用 Agent 重新设计一切」 fades in 0.3 beat after 「Everything」 is whole (b11.1; .45 beat, rising
   // 14 px out of a light blur) at y 728 under it, and leaves a touch after the English (b12.15–12.75) so it can be read;
   // 15-redesign's first type (b12.8) is not under it
