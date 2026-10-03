@@ -47,7 +47,7 @@ scene('40-recs', () => {
   // 「提高效率」wipes in on their left and the caption settles under them — one large centred % statement (shares only, never
   // hours). v18.2: held .8 beat longer (whole statement readable b62.35–63.4, exit b63.4–64.0, film b86.3–86.9, before
   // 50-tools' trajectory card fades in at film b87.05); the dot merge and the hand-off move with it (+.8)
-  const PO = 59.6, POD = .65, POX = .6, POUT = 64.0, PE = (b) => E.inOut(lp(b, PO, POD));
+  const PO = 59.6, POD = .65, POX = .45, POUT = 63.85, PE = (b) => E.inOut(lp(b, PO, POD));
   // v18.1: the column is framed ≈1.35× closer than v17.7 (card body 12 app px → ≈30 px on screen, footer 11 → ≈27 px): the
   // cards are 1000 px wide at x 520 (right edge 1520, the counters sit right of it at 1720), the entry pitch follows the
   // tallest entry (set at b40.0, ≥ 490), so the 3-beat cadence is unchanged and only the scroll speed in px grows
