@@ -10,7 +10,7 @@
 
 | 目录 | 内容 | 格式 |
 | --- | --- | --- |
-| [`flowers/svg/`](kit/flowers/svg/DIMV-light.svg) | 16 型花：`<类型码>-light`、`-dark` 为两色（墨色 + 浅灰）加领瓣（`--orbit`）；`-ink` 为单色墨稿（`#17181b`），供印刷、描摹或改色 | SVG，180 × 180 方形视框，透明底 |
+| [`flowers/svg/`](kit/flowers/svg/DIMV-light.svg) | 16 型花：`<类型码>-light`、`-dark` 为两色（墨色主瓣 + 浅灰小瓣）；`-ink` 为单色墨稿（`#17181b`），供印刷、描摹或改色 | SVG，180 × 180 方形视框，透明底 |
 | [`flowers/png/`](kit/flowers/png/DIMV-light-512.png) | 浅色、深色两套花 | PNG 512、128，透明底 |
 | [`sheet/`](kit/sheet/types-light.png) | 16 型总览 4 × 4：花、类型码（App 的 `.tcode`，SF Pro Rounded）与中文名，铺在 App 纸面 / 深色底上 | PNG 1968 × 2060 |
 | [`dial/`](kit/dial/dial-light.svg) | 画像页表盘，示例数据，入场动画结束后的静止状态 | SVG（以圆心为中心的方形视框，包住表盘外的三角）；PNG 1440 × 1440（720 px 的 2 倍）；透明底 |

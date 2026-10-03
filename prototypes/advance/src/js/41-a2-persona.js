@@ -1,7 +1,7 @@
 /* ============ A2 persona ============
- * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（Orbit 罗盘：外框是 16 型（格雷码顺序）/
+ * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（Orbit 表盘：外框是 16 型（格雷码顺序）/
  * 轨道是每个会话按自己的四个维度归到的类型分布（每个 Agent 一层平滑曲线）+ 16 个类型热区，点击展开该型的会话点 / Agent 标志徽章 /
- * 内盘是协作人格的花（16 型各一朵，领瓣指向你的类型））→ 四个维度（VZ 双向条：以 50 为界取一极、对照刻度、
+ * 内盘是协作人格的花（16 型各一朵，旋转对称，整朵转到一片主瓣指向你的类型））→ 四个维度（VZ 双向条：以 50 为界取一极、对照刻度、
  * 数值跟随胜出极、每轴证据微型图）+ 优势与盲点 + 契合度（中性条、透明度随 n、95% 区间、Agent 色只在圆点）。
  * 人格口径统一走 personaScope（BUG-06）；1 个会话即出完整 4 字母，少于 30 个只在徽标旁温和提示；没有会话时列出放宽哪个筛选能补到多少（A2-V08），全部来源停用时引导到设置（BUG-50）。 */
 const PERIODS = { sep: [90, 119, '9 月'], '90': [30, 119, '近 90 天'], all: [0, 119, '全部'], jun: [0, 27, '6 月'], jul: [28, 58, '7 月'], aug: [59, 89, '8 月'] };
@@ -41,8 +41,8 @@ function peScopeTag(per) {
   const same = (S.persona.period === '90' && S.range === 90) || (S.persona.period === 'all' && S.range === 0);
   return '<span class="cap pe-scope" data-pe-scope title="协作人格按本页的统计周期计算；概览人格卡跟随全局范围">统计周期 · ' + per[2] + (same ? '' : '（本页单独设置，全局为' + rangeLabel() + '）') + '</span>';
 }
-// 罗盘几何（400 视框，圆心 200）：外框 196（刻度贴着它向内）、轨道基线 R0、最大起伏 RH 与谷底的最小厚度 HM、花的最大半径 RR、
-// 花苞比例 BUD（Genesis 01–02 花合拢旋转，03 开花）、首次启动 Orbit 内弧收拢成的领瓣长度 NL、Agent 徽章的轨道半径 PR 与徽章
+// 表盘几何（400 视框，圆心 200）：外框 196（刻度贴着它向内）、轨道基线 R0、最大起伏 RH 与谷底的最小厚度 HM、花的最大半径 RR、
+// 花苞比例 BUD（Genesis 01–02 花合拢旋转，03 开花）、首次启动 Orbit 内弧收拢成的主瓣中线长度 NL、Agent 徽章的轨道半径 PR 与徽章
 // 半径 PB（PR − PB − 描边 > 色带最高处 R0 + 1 + RH，PR + PB + 描边 < 型分界刻度的内端 189.5）。Genesis（56-onboarding.js）的
 // 粒子落点、环带扫描与开花共用这一组常量。
 const FPG = { R0: 104, RH: 64, HM: 4, RR: 80, BUD: 0.34, NL: 56, PR: 179.5, PB: 9 };
@@ -156,10 +156,10 @@ const fpLayerD = (ly) => fpCR(ly.outer, false, 'M') + fpCR(ly.inner, true, 'L') 
 const fpMute = (c, k) => 'color-mix(in oklab, ' + c + ' ' + (k || 46) + '%, var(--h3))';
 const fpFill = (c) => 'color-mix(in oklab, ' + c + ' 28%, var(--fp-base))';
 const fpLine = (c) => 'color-mix(in oklab, ' + c + ' 38%, var(--h4))';
-// 协作指纹 · Orbit 罗盘：表盘没有底色，直接落在页面纸面上。外框是一圈细线与 128 道细刻度（16 型的分界稍长），四个方位只标
+// 协作指纹 · Orbit 表盘：表盘没有底色，直接落在页面纸面上。外框是一圈细线与 128 道细刻度（16 型的分界稍长），四个方位只标
 // 即兴 / 委托 / 规划 / 掌舵，你的类型有 --orbit 基准三角；轨道是每个会话按自己四个维度落到的方位的密度（每个 Agent 一条
 // 色带 + 一条细线），上有 16 个透明的类型热区（选中展开该型会话的 Agent 标志）与 Agent 标志徽章；内盘是协作人格的花，
-// 整朵花旋转（--hd），领瓣指向你的类型。环带的 .fp-sweep 遮罩与徽章的 --pa 留给入场动画。
+// 整朵花旋转（--hd），一片主瓣指向你的类型。环带的 .fp-sweep 遮罩与徽章的 --pa 留给入场动画。
 function fp2SVG(L, p, size, opt) {
   opt = opt || {}; const C = 200; const R0 = FPG.R0, RH = FPG.RH, RR = FPG.RR; const sm = size < 340; const uid = 'fpm' + (++FP_UID);
   const cls = fpClassify(L), byT = cls.byT, orb = fpOrbit(L, cls, sm);
@@ -205,13 +205,13 @@ function fp2SVG(L, p, size, opt) {
   const tk = ['', '', '']; for (let i = 0; i < 128; i++) { const w = i % 32 === 0 ? 2 : i % 8 === 0 ? 1 : 0; tk[w] += 'M' + f(fpPt(196, i * 2.8125)) + 'L' + f(fpPt([192.5, 189.5, 185][w], i * 2.8125)); }
   const lbl = FP_POLES.map((x) => { const q = fpPt(sm ? 173 : 177, x[0]); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (sm ? 14 : 11.5) + '" font-weight="600" fill="var(--ink-2)">' + x[1] + '</text>'; }).join('');
   // 内盘：协作人格的花。.fp-flower（Genesis 淡入）› .fp-bloom（--hd 旋转，Genesis 逐帧写）› .fp-bd（入场晃动、悬停轻颤）›
-  // .fp-back 后排 / .fp-front 领瓣、前排与花心（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
+  // .fp-back 浅灰小瓣 / .fp-front 墨色主瓣（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
   const g = bloom(p, C, RR), un = !p.ok || (p.code || '').includes('?'), ink = un ? 'var(--ink-3)' : 'var(--ink-1)';
   const lay = bloomParts(g, C, C, { ink, gray: 'var(--h2)', lead: un ? 'var(--ink-4)' : 'var(--orbit)', bg: 'var(--bg)', hw: 1.4 });
   const flower = '<g class="fp-flower" data-code="' + (p.code || code) + '"><g class="fp-bloom" data-hd="' + hd + '" style="--hd:' + hd + 'deg"><title>你的类型 ' + code + ' ' + (TYPES[code] ? TYPES[code][0] : '') + '</title><g class="fp-bd">' +
     (lay.back ? '<g class="fp-pw fp-back">' + lay.back + '</g>' : '') + '<g class="fp-pw fp-front">' + lay.front + '</g></g></g><g class="fp-heart">' + lay.heart + '</g></g>';
   const tn = TYPES[code];
-  return '<svg class="fp2' + (sel != null ? ' fp-sel' : '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 16 种类型，右半是委托、左半是掌舵、上半是即兴、下半是规划；外圈是每个会话按它自己的四个维度落到的方位，按 Agent 分层，色带越宽占比越高；Agent 标志停在外圈同一条轨道上，方位是该 Agent 全部会话的平均方向；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，领瓣指向你的类型" style="overflow:visible;max-width:100%;height:auto">' +
+  return '<svg class="fp2' + (sel != null ? ' fp-sel' : '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 16 种类型，右半是委托、左半是掌舵、上半是即兴、下半是规划；外圈是每个会话按它自己的四个维度落到的方位，按 Agent 分层，色带越宽占比越高；Agent 标志停在外圈同一条轨道上，方位是该 Agent 全部会话的平均方向；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，一片主瓣与外框上的三角指向你的类型" style="overflow:visible;max-width:100%;height:auto">' +
     '<defs><mask id="' + uid + '" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle class="fp-sweep" cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="#fff" stroke-width="' + (RH + 30) + '" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="0" transform="rotate(-90 200 200)"/></mask>' +
     (sel != null ? '<clipPath id="' + uid + 'c"><path d="' + sector(R0 - 2, RO + 2, sel * 22.5, (sel + 1) * 22.5) + '"/></clipPath>' : '') + '</defs>' +
     '<g class="fp-base"><circle cx="200" cy="200" r="196" fill="none" stroke="var(--ink-4)" stroke-width=".8"/>' +
@@ -358,7 +358,7 @@ function fpOrbitIn(svg) {
 }
 RENDER_HOOKS.push((m, entered) => { if (entered && !OVL) { const svg = m.querySelector('svg.fp2'); fpWobble(svg); fpOrbitIn(svg); } });
 
-// live reveal: GET /v1/uiview/persona/reveal for the shown scope first; a settled code plays the same compass / genesis reveal
+// live reveal: GET /v1/uiview/persona/reveal for the shown scope first; a settled code plays the same dial / Genesis reveal
 // on the real rows (openReveal → persona(L) → personaLive); only an empty scope (0 sessions) has nothing to reveal
 function peLiveReveal() {
   const period = S.route === 'persona' ? S.persona.period : ({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range];

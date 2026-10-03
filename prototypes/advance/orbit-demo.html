@@ -12,9 +12,9 @@
    PingFang SC (Chinese); titles are larger 600-weight sans; SF Mono only for code, paths, commands, IDs and keycaps. Controls are monochrome: --accent / --pri are the ink (black in light, near-white in
    dark) and drive filled buttons, switches, badges, selected tokens, menu highlight and chart selection; colour only
    carries identity (agent hues) and status (good / warn / crit, AI purple). The focus ring (--focus) is the only blue.
-   --orbit is the brand slate of the Orbit mark; it is used only by the mark, the lead petal of the persona flower and the
-   00 reference triangle on the persona compass. --orbit-word colours the wordmark Orbit·知音: the same slate on light,
-   champagne #d6c7a1 on dark (docs/design/brand.md).
+   --orbit is the brand slate of the Orbit mark; it is used only by the mark (and its arc in the Genesis intro) and the
+   triangle on the persona dial that points at your type. --orbit-word colours the wordmark Orbit·知音: the same slate on
+   light, champagne #d6c7a1 on dark (docs/design/brand.md).
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
    Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono, plus --font-type (SF Pro Rounded) for persona type codes. */
@@ -875,7 +875,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 @container main (min-width:640px) and (max-width:799px){#ovTiles{grid-template-columns:repeat(6,minmax(0,1fr))}#ovTiles>:nth-child(-n+3){grid-column:span 2}#ovTiles>:nth-child(n+4){grid-column:span 3}}
 @container main (max-width:639px){#ovTiles>:last-child:nth-child(odd){grid-column:1/-1}}
 
-/* A2 persona: low-sample relax chips, fingerprint v2 Orbit dial on a transparent face (hairline bezel / per-Agent aurora ribbons around 16 type sectors + type hit areas + Agent logo badges / type flower whose lead petal points at your type), axis evidence grid, fit rows */
+/* A2 persona: low-sample relax chips, fingerprint v2 Orbit dial on a transparent face (hairline bezel / per-Agent aurora ribbons around 16 type sectors + type hit areas + Agent logo badges / rotationally symmetric type flower turned so one petal points at your type), axis evidence grid, fit rows */
 .pe-low{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:32px}
 .pe-relax{display:flex;gap:6px;flex-wrap:wrap}
 .pe-relax .chip b{margin-left:6px;font-size:11px}
@@ -909,7 +909,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .pe-evl{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @container main (max-width:1100px){.letters .L{font-size:72px}.persona-hero{grid-template-columns:minmax(0,1fr) 380px}}
 @container main (max-width:639px){.pe-ev{grid-template-columns:minmax(0,1fr)}}
-/* 内盘的花：.fp-bloom 按 --hd（你的类型所在扇区的中线）旋转，领瓣朝它；.fp-bd 留给晃动（进入页面的 WAAPI 阻尼晃动、悬停颤动 ±3°）；
+/* 内盘的花：.fp-bloom 按 --hd（你的类型所在扇区的中线）旋转，一片主瓣朝它；.fp-bd 留给晃动（进入页面的 WAAPI 阻尼晃动、悬停颤动 ±3°）；
    .fp-pw 是 Genesis 开花的缩放层 */
 .fp2 .fp-bloom{transform:rotate(var(--hd,0deg));transform-origin:200px 200px;transform-box:view-box}
 .fp2 :is(.fp-bd,.fp-pw){transform-origin:200px 200px;transform-box:view-box}
@@ -1756,7 +1756,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .g-wedge{fill:var(--ink-1);opacity:.07}
 .gen:not(.run) .g-over{display:none}
 .gen.run .g-fp :is(.fp-base,.fp-hours,.fp-band,.fp-core,.fp-flower,.fps,.fp-n0){opacity:0}
-/* 首次启动 01：.g-fp 与 .g-over 同步从倾斜轨道视角翻正（js 逐帧写 transform）；Orbit 内弧收拢成领瓣 */
+/* 首次启动 01：.g-fp 与 .g-over 同步从倾斜轨道视角翻正（js 逐帧写 transform）；Orbit 内弧收拢成 12 点方向那片主瓣的中线 */
 .g-fp,.g-over{transform-origin:50% 50%}
 .g-arc{fill:none;stroke:var(--orbit);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
 .gen .g-fp :is(.fps,.fp-core,.fp-flower){transform-origin:200px 200px;transform-box:view-box}
@@ -6320,9 +6320,9 @@ function reindex() {
 }
 
 /* ============ A2 persona ============
- * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（Orbit 罗盘：外框是 16 型（格雷码顺序）/
+ * 结构：hero（四字母 + 名称 + 「实验性」+ 演变：月份码 + 四轴折线）与协作指纹（Orbit 表盘：外框是 16 型（格雷码顺序）/
  * 轨道是每个会话按自己的四个维度归到的类型分布（每个 Agent 一层平滑曲线）+ 16 个类型热区，点击展开该型的会话点 / Agent 标志徽章 /
- * 内盘是协作人格的花（16 型各一朵，领瓣指向你的类型））→ 四个维度（VZ 双向条：以 50 为界取一极、对照刻度、
+ * 内盘是协作人格的花（16 型各一朵，旋转对称，整朵转到一片主瓣指向你的类型））→ 四个维度（VZ 双向条：以 50 为界取一极、对照刻度、
  * 数值跟随胜出极、每轴证据微型图）+ 优势与盲点 + 契合度（中性条、透明度随 n、95% 区间、Agent 色只在圆点）。
  * 人格口径统一走 personaScope（BUG-06）；1 个会话即出完整 4 字母，少于 30 个只在徽标旁温和提示；没有会话时列出放宽哪个筛选能补到多少（A2-V08），全部来源停用时引导到设置（BUG-50）。 */
 const PERIODS = { sep: [90, 119, '9 月'], '90': [30, 119, '近 90 天'], all: [0, 119, '全部'], jun: [0, 27, '6 月'], jul: [28, 58, '7 月'], aug: [59, 89, '8 月'] };
@@ -6362,8 +6362,8 @@ function peScopeTag(per) {
   const same = (S.persona.period === '90' && S.range === 90) || (S.persona.period === 'all' && S.range === 0);
   return '<span class="cap pe-scope" data-pe-scope title="协作人格按本页的统计周期计算；概览人格卡跟随全局范围">统计周期 · ' + per[2] + (same ? '' : '（本页单独设置，全局为' + rangeLabel() + '）') + '</span>';
 }
-// 罗盘几何（400 视框，圆心 200）：外框 196（刻度贴着它向内）、轨道基线 R0、最大起伏 RH 与谷底的最小厚度 HM、花的最大半径 RR、
-// 花苞比例 BUD（Genesis 01–02 花合拢旋转，03 开花）、首次启动 Orbit 内弧收拢成的领瓣长度 NL、Agent 徽章的轨道半径 PR 与徽章
+// 表盘几何（400 视框，圆心 200）：外框 196（刻度贴着它向内）、轨道基线 R0、最大起伏 RH 与谷底的最小厚度 HM、花的最大半径 RR、
+// 花苞比例 BUD（Genesis 01–02 花合拢旋转，03 开花）、首次启动 Orbit 内弧收拢成的主瓣中线长度 NL、Agent 徽章的轨道半径 PR 与徽章
 // 半径 PB（PR − PB − 描边 > 色带最高处 R0 + 1 + RH，PR + PB + 描边 < 型分界刻度的内端 189.5）。Genesis（56-onboarding.js）的
 // 粒子落点、环带扫描与开花共用这一组常量。
 const FPG = { R0: 104, RH: 64, HM: 4, RR: 80, BUD: 0.34, NL: 56, PR: 179.5, PB: 9 };
@@ -6477,10 +6477,10 @@ const fpLayerD = (ly) => fpCR(ly.outer, false, 'M') + fpCR(ly.inner, true, 'L') 
 const fpMute = (c, k) => 'color-mix(in oklab, ' + c + ' ' + (k || 46) + '%, var(--h3))';
 const fpFill = (c) => 'color-mix(in oklab, ' + c + ' 28%, var(--fp-base))';
 const fpLine = (c) => 'color-mix(in oklab, ' + c + ' 38%, var(--h4))';
-// 协作指纹 · Orbit 罗盘：表盘没有底色，直接落在页面纸面上。外框是一圈细线与 128 道细刻度（16 型的分界稍长），四个方位只标
+// 协作指纹 · Orbit 表盘：表盘没有底色，直接落在页面纸面上。外框是一圈细线与 128 道细刻度（16 型的分界稍长），四个方位只标
 // 即兴 / 委托 / 规划 / 掌舵，你的类型有 --orbit 基准三角；轨道是每个会话按自己四个维度落到的方位的密度（每个 Agent 一条
 // 色带 + 一条细线），上有 16 个透明的类型热区（选中展开该型会话的 Agent 标志）与 Agent 标志徽章；内盘是协作人格的花，
-// 整朵花旋转（--hd），领瓣指向你的类型。环带的 .fp-sweep 遮罩与徽章的 --pa 留给入场动画。
+// 整朵花旋转（--hd），一片主瓣指向你的类型。环带的 .fp-sweep 遮罩与徽章的 --pa 留给入场动画。
 function fp2SVG(L, p, size, opt) {
   opt = opt || {}; const C = 200; const R0 = FPG.R0, RH = FPG.RH, RR = FPG.RR; const sm = size < 340; const uid = 'fpm' + (++FP_UID);
   const cls = fpClassify(L), byT = cls.byT, orb = fpOrbit(L, cls, sm);
@@ -6526,13 +6526,13 @@ function fp2SVG(L, p, size, opt) {
   const tk = ['', '', '']; for (let i = 0; i < 128; i++) { const w = i % 32 === 0 ? 2 : i % 8 === 0 ? 1 : 0; tk[w] += 'M' + f(fpPt(196, i * 2.8125)) + 'L' + f(fpPt([192.5, 189.5, 185][w], i * 2.8125)); }
   const lbl = FP_POLES.map((x) => { const q = fpPt(sm ? 173 : 177, x[0]); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (sm ? 14 : 11.5) + '" font-weight="600" fill="var(--ink-2)">' + x[1] + '</text>'; }).join('');
   // 内盘：协作人格的花。.fp-flower（Genesis 淡入）› .fp-bloom（--hd 旋转，Genesis 逐帧写）› .fp-bd（入场晃动、悬停轻颤）›
-  // .fp-back 后排 / .fp-front 领瓣、前排与花心（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
+  // .fp-back 浅灰小瓣 / .fp-front 墨色主瓣（Genesis 从花苞开到全开）；花心不随旋转。有未定的轴（live 的「?」）时花是灰色
   const g = bloom(p, C, RR), un = !p.ok || (p.code || '').includes('?'), ink = un ? 'var(--ink-3)' : 'var(--ink-1)';
   const lay = bloomParts(g, C, C, { ink, gray: 'var(--h2)', lead: un ? 'var(--ink-4)' : 'var(--orbit)', bg: 'var(--bg)', hw: 1.4 });
   const flower = '<g class="fp-flower" data-code="' + (p.code || code) + '"><g class="fp-bloom" data-hd="' + hd + '" style="--hd:' + hd + 'deg"><title>你的类型 ' + code + ' ' + (TYPES[code] ? TYPES[code][0] : '') + '</title><g class="fp-bd">' +
     (lay.back ? '<g class="fp-pw fp-back">' + lay.back + '</g>' : '') + '<g class="fp-pw fp-front">' + lay.front + '</g></g></g><g class="fp-heart">' + lay.heart + '</g></g>';
   const tn = TYPES[code];
-  return '<svg class="fp2' + (sel != null ? ' fp-sel' : '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 16 种类型，右半是委托、左半是掌舵、上半是即兴、下半是规划；外圈是每个会话按它自己的四个维度落到的方位，按 Agent 分层，色带越宽占比越高；Agent 标志停在外圈同一条轨道上，方位是该 Agent 全部会话的平均方向；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，领瓣指向你的类型" style="overflow:visible;max-width:100%;height:auto">' +
+  return '<svg class="fp2' + (sel != null ? ' fp-sel' : '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：外框是 16 种类型，右半是委托、左半是掌舵、上半是即兴、下半是规划；外圈是每个会话按它自己的四个维度落到的方位，按 Agent 分层，色带越宽占比越高；Agent 标志停在外圈同一条轨道上，方位是该 Agent 全部会话的平均方向；内盘是' + (tn ? ' ' + code + ' ' + tn[0] + ' ' : '协作人格') + '的花，一片主瓣与外框上的三角指向你的类型" style="overflow:visible;max-width:100%;height:auto">' +
     '<defs><mask id="' + uid + '" maskUnits="userSpaceOnUse" x="0" y="0" width="400" height="400"><circle class="fp-sweep" cx="200" cy="200" r="' + (R0 + RH / 2) + '" fill="none" stroke="#fff" stroke-width="' + (RH + 30) + '" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="0" transform="rotate(-90 200 200)"/></mask>' +
     (sel != null ? '<clipPath id="' + uid + 'c"><path d="' + sector(R0 - 2, RO + 2, sel * 22.5, (sel + 1) * 22.5) + '"/></clipPath>' : '') + '</defs>' +
     '<g class="fp-base"><circle cx="200" cy="200" r="196" fill="none" stroke="var(--ink-4)" stroke-width=".8"/>' +
@@ -6679,7 +6679,7 @@ function fpOrbitIn(svg) {
 }
 RENDER_HOOKS.push((m, entered) => { if (entered && !OVL) { const svg = m.querySelector('svg.fp2'); fpWobble(svg); fpOrbitIn(svg); } });
 
-// live reveal: GET /v1/uiview/persona/reveal for the shown scope first; a settled code plays the same compass / genesis reveal
+// live reveal: GET /v1/uiview/persona/reveal for the shown scope first; a settled code plays the same dial / Genesis reveal
 // on the real rows (openReveal → persona(L) → personaLive); only an empty scope (0 sessions) has nothing to reveal
 function peLiveReveal() {
   const period = S.route === 'persona' ? S.persona.period : ({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range];
@@ -8649,14 +8649,14 @@ async function sharePNG(m, dark, noNum) {
  * 首次启动：0 欢迎 → 1 选择来源 → 2/3 Genesis；菜单「播放人格揭晓」与画像页「重播揭晓」复用 Genesis 的 2–5 段（openReveal）。
  * Genesis 是同一个盒子里的一段连贯序列，步骤之间不整体替换 innerHTML：
  *   01 导入  Orbit 母题：表盘先以倾斜轨道的视角出现（Orbit 标志的倾斜椭圆，CSS rotateX 64° + 转角 + 缩小），放大并翻正成表盘外框（细线 + 刻度）；
- *            标志的内弧收拢成领瓣，合拢的花苞随后自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
+ *            标志的内弧收拢成 12 点方向那片主瓣的中线，合拢的花苞随后自由快转（寻找方向）。选中来源行的 Agent 色点化作会话粒子，沿倾斜的椭圆轨道螺旋汇入中央；
  *            来源列表收拢淡出，计数器累加；粒子汇入时花苞逐渐减速，转满整圈停在 12 点接上 02
- *   02 归类  花苞（领瓣在前）匀速扫一圈（身后拖一道淡扇形），粒子在领瓣扫过处落到各自最接近的类型（扇区里按开始时间铺开，
+ *   02 归类  花苞匀速扫一圈（朝 12 点的那片主瓣在前，身后拖一道淡扇形），粒子在扫过处落到各自最接近的类型（扇区里按开始时间铺开，
  *            半径 = 典型程度），再汇入轨道；
- *            按 Agent 分层的轨道色带在扫过处长出（.fp-sweep 遮罩），Agent 标志徽章随扫描依次出现、跟着领瓣公转，扫完走最短弧滑到
- *            各自多数会话所在的类型（fp2SVG 的几何，FPG）
+ *            按 Agent 分层的轨道色带在扫过处长出（.fp-sweep 遮罩），Agent 标志徽章随扫描依次出现、跟着扫描公转，扫完走最短弧滑到
+ *            各自会话的平均方向（fp2SVG 的几何，FPG）
  *   03 开花  花苞开成该类型的花（前排先开、身后一轮稍晚，带回弹）；字母位在两极之间翻牌时花左右寻向，
- *            最后一个字母锁定时领瓣摆向你的类型，阻尼振荡后停住；外框上指向你的类型的 --orbit 三角此时才出现
+ *            最后一个字母锁定时花摆到一片主瓣指向你的类型，阻尼振荡后停住；外框上指向你的类型的 --orbit 三角此时才出现
  *   04 匹配  最接近的 6 种类型卡绕表盘出现、按相似度排序（花轻颤），其余淡出，胜出的一张飞入四字母（花定住），给出匹配度
  *   05 落地  「查看完整画像」：大人格码与指纹（含花）FLIP 到画像页 [data-hero="code"] / [data-hero="fp"]，overlay 同时淡出
  * 粒子画在 overlay 的 canvas 上（devicePixelRatio、颜色取计算样式），翻正、内弧、色带扫描与 Agent 徽章在 rAF 里逐帧写，其余是 CSS keyframes + WAAPI，节点只建一次。
@@ -8868,9 +8868,9 @@ function genBloom(g, x) {
   const k = g.p.ok ? x : 0;
   set(g.front, k <= 0 ? 0 : genBack(k)); set(g.back, k <= 0.18 ? 0 : genBack((k - 0.18) / 0.82));
 }
-// 花（领瓣）的角度（度，顺时针，0 = 12 点）：01 三次 Hermite 从快转减速，转满整圈落在 12 点并接上扫描的速度；02 匀速扫一圈；
+// 花的角度（度，顺时针，0 = 一片主瓣朝 12 点）：01 三次 Hermite 从快转减速，转满整圈落在 12 点并接上扫描的速度；02 匀速扫一圈；
 // 03 滑停后左右寻向（中心缓慢偏向重心），最后一个字母锁定时从当前位置摆向你的类型，阻尼振荡；04 候选卡竞争时轻颤，匹配卡并入后定住
-// 首次启动：Orbit 内弧先在 12 点收拢成领瓣（G_HOLD 之前花苞停在 12 点），再从静止起转，快转两圈后减速落到 12 点
+// 首次启动：Orbit 内弧先收拢成 12 点方向那片主瓣的中线（G_HOLD 之前花苞停在 12 点），再从静止起转，快转两圈后减速落到 12 点
 const G_HOLD = 960;
 function genNeedle(g, t) {
   const T = g.T, P = T.place, sw = g.sweep, ws = 360 / sw, ob = g.mode === 'ob', t0 = ob ? G_HOLD : 0, w0 = ob ? 0 : 1.25;
@@ -8905,7 +8905,7 @@ function genProj(q, k) {
 function genTilt(g, t) {
   const k = genTiltAt(t), done = t >= G_TILT;
   g.tiltEls.forEach((el) => { el.style.transform = done ? '' : 'rotate(' + k.z.toFixed(2) + 'deg) scale(' + k.s.toFixed(4) + ') rotateX(' + k.a.toFixed(2) + 'deg)'; });
-  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 12 点方向的领瓣：每个采样点从弧上滑到领瓣中线上对应的位置
+  // 内弧（标志里半径 9/16 的那一段，左下 → 上 → 右）收拢成 12 点方向那片主瓣的中线：每个采样点从弧上滑到中线上对应的位置
   if (g.arc) {
     const u = genIO((t - 420) / 540), n = 28, f = (q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1); let d = '';
     for (let i = 0; i <= n; i++) { const A = pt(200, 112, (235 + i / n * 225) * Math.PI / 180), B = [200, 200 - FPG.NL * i / n]; d += (i ? 'L' : 'M') + f([A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u]); }
@@ -9029,7 +9029,7 @@ function genTick(g) {
   if (t >= T.grow && !g.roseDone) { const u = (t - T.grow) / ((T.match - T.grow) * 0.7); genBloom(g, Math.min(u, 1)); if (u >= 1) g.roseDone = true; }
   if (g.nd) g.nd.style.transform = 'rotate(' + genNeedle(g, t).toFixed(2) + 'deg)';
   if (g.mode === 'ob' && !g.flat) { genTilt(g, t); if (t >= G_TILT + 200) g.flat = true; }
-  // 02：轨道在领瓣扫过处长出（比领瓣晚 450 ms，等粒子落位）；徽章依次出现、跟在领瓣后公转，扫完走最短弧滑到各自的类型
+  // 02：轨道在花苞扫过处长出（比扫描晚 450 ms，等粒子落位）；徽章依次出现、跟在扫描后公转，扫完走最短弧滑到各自的平均方向
   const P = T.place, sw = g.sweep;
   if (g.sweepEl && !g.swept) { const v = clamp((t - P - 450) / sw, 0, 1); g.sweepEl.style.strokeDashoffset = (1 - v).toFixed(4); if (v >= 1) { g.sweepEl.style.strokeDashoffset = ''; g.swept = true; } }
   if (g.pls.length && !g.settled) {
@@ -9106,11 +9106,11 @@ function genPlay(g) {
   qa('.g-fp .fp-base').forEach((el) => A(el, fade, { duration: 600, delay: ob ? 700 : 250 }));
   A(q('.g-fp .fp-core'), [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }], { duration: 520, delay: ob ? 700 : 80 });
   A(q('.g-fp .fp-flower'), [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 480, delay: ob ? 860 : 120, easing: G_SPRING });
-  // 02：扫掠扇形跟着花苞转一圈，会话点在领瓣扫过处落到各自的类型；四个方位字淡入（轨道色带与 Agent 徽章在 genTick 里跟着扫描写）
+  // 02：扫掠扇形跟着花苞转一圈，会话点在扫过处落到各自的类型；四个方位字淡入（轨道色带与 Agent 徽章在 genTick 里跟着扫描写）
   A(q('.g-hand'), [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(21.6deg)', opacity: 1, offset: 0.06 }, { transform: 'rotate(338.4deg)', opacity: 1, offset: 0.94 }, { transform: 'rotate(360deg)', opacity: 0 }], { duration: sw, delay: T.place, easing: 'linear' });
   qa('.g-fp .fp-band, .g-fp .fp-hours').forEach((el) => A(el, fade, { duration: 700, delay: T.place }));
   A(q('.g-over'), [{ opacity: 1 }, { opacity: 0 }], { duration: 500, delay: T.grow + 200 });
-  // 03：花苞在 rAF 里开成该类型的花；字母位翻牌（花寻向），按顺序锁定；最后一个字母锁定、领瓣摆向你的类型时，外框上的
+  // 03：花苞在 rAF 里开成该类型的花；字母位翻牌（花寻向），按顺序锁定；最后一个字母锁定、花转到一片主瓣指向你的类型时，外框上的
   // --orbit 三角才淡入（之前就亮出来会提前剧透类型）
   A(q('.g-fp .fp-n0'), [{ opacity: 0 }, { opacity: 1 }], { duration: 420, delay: g.lockAt });
   [0, 1, 2, 3].forEach((i) => at(T.grow + gl * 0.32 + i * gl * 0.15, () => genLock(g, i)));
