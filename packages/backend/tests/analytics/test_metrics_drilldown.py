@@ -197,3 +197,29 @@ def test_resident_tokens_honour_includes_cache_and_unknown_buckets():
                   "input_tokens": 5, "cache_read_tokens": None, "cache_write_tokens": 20000})
     resident = _resident(calls)
     assert resident["value"] == 12002 and resident["n"] == 5
+
+
+def _status_session(sid, failed, success, unknown):
+    s = Session(sid)
+    s.user("跑一下")
+    for i, status in enumerate(["failed"] * failed + ["success"] * success + [None] * unknown):
+        s.tool(f"cmd{i}", status=status, digest=f"d{i}")
+    return s
+
+
+@pytest.mark.parametrize("failed,success,unknown,expected", [
+    (3, 5, 2, 3 / 8),   # coverage 8/10 = 80% >= 50%: 3 failed of 8 known
+    (2, 1, 7, None),    # coverage 3/10 = 30% < 50%: the known subset is not representative
+])
+def test_tool_failure_rate_uses_status_coverage_gate(failed, success, unknown, expected):
+    from tandem_backend.analytics.respond.features import tool_summary
+
+    context, result, layer = analyze(bundle([_status_session("a", failed, success, unknown)]))
+    overall = metrics(context, result, ["tool_failure_rate"], layer=layer)["metrics"]["tool_failure_rate"]["overall"]
+    summary = tool_summary(layer.views[0].calls)["totals"]
+    assert summary["failure_rate"] == expected
+    if expected is None:
+        assert overall["value"] is None and overall["unknown_n"] == 1
+    else:
+        assert overall["value"] == pytest.approx(expected) and overall["n"] == failed + success
+        assert overall["unknown_n"] == 0

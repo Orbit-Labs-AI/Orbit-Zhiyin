@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from .common import human
+from .common import covered_ratio, human
 from .context import AnalysisContext
 from .signals import SignalLayer, build_signal_layer
 from .signals.dictionary import RULES_VERSION, SIGNAL_KINDS
@@ -64,8 +64,17 @@ def _session_rate(kind: str) -> Callable[[Unit], tuple[int, int] | None]:
 
 
 def _tool_failure(unit: Unit):
+    """Same gate as ``respond.tool_summary``: below ``MIN_STATUS_COVERAGE`` the session is unknown.
+
+    When an agent only reports status on errors the known subset is all failures; pooling it
+    would show a ~100% failure rate, so such sessions count in ``unknown_n`` instead.
+    """
     failed, ok = _calls_status(unit, "failed"), _calls_status(unit, "success")
-    return None if failed is None else (failed, failed + ok)
+    if failed is None:
+        return None
+    if covered_ratio(failed, failed + ok, _calls_status(unit, "unknown")) is None:
+        return None
+    return failed, failed + ok
 
 
 def _correction(unit: Unit):
@@ -92,7 +101,7 @@ METRICS: dict[str, MetricSpec] = {
     "sessions": MetricSpec("count", "根会话数（子代理并入根）", lambda u: 1),
     "human_messages": MetricSpec("count", "确认真人消息数", lambda u: u.human_messages),
     "tool_calls": MetricSpec("count", "工具调用数", lambda u: None if u.calls is None else len(u.calls)),
-    "tool_failure_rate": MetricSpec("proportion", "失败调用 / 已知成功+失败调用", _tool_failure,
+    "tool_failure_rate": MetricSpec("proportion", "失败调用 / 已知成功+失败调用（状态覆盖率<50% 的会话计入 unknown）", _tool_failure,
                                     denominator="已知结果的工具调用"),
     "correction_rate": MetricSpec("proportion", "纠偏消息 / 确认真人消息", _correction, "proxy",
                                   "确认真人消息"),
