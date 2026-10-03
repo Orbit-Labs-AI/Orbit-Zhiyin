@@ -14,7 +14,11 @@ css(`
 `);
 scene('15-redesign', () => {
   /* ---------- Agent 点 ---------- */
-  AGD.key(12.4, 'pts', { pts: AGD.P.arc, r: 40, a: 1, dur: 1.0, stag: .06 });                                   // H3
+  // H3: same 1.0 beat / stag .06, but the same front-loaded ease as H2 (zero speed at both ends): with E.inOut the dots
+  // barely leave scatterC until b12.8, which reads as a dead hold after 1c's text clears, and gm (960, 110 → 492) is
+  // still at y ≈ 170 when 「我们认为，」 (y 150) blurs in at b12.8; this way it is at y ≈ 290
+  const H3E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
+  AGD.key(12.4, 'pts', { pts: AGD.P.arc, r: 40, a: 1, dur: 1.0, stag: .06, ease: H3E });                       // H3
   // H4 starts at b17.4 (not 17.8) so gm, which rises straight up the middle, is above 「So，」 (y 400) before K.big lands it at
   // b18.2; ph 207 = 209 − 5·0.4 keeps the b19.4 landing and the b21.6 angle (228) that 20-orbit hands on from
   AGD.key(17.4, 'ring', { cx: 960, cy: 540, R: 420, ph: 207, spin: 5, r: 40, dur: 1.4, stag: .05, polar: [960, 540] });   // H4
