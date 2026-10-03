@@ -97,8 +97,10 @@ scene('40-recs', () => {
      hidden from MC0 and a copy of it (same paths, frozen at that frame) does the flight ---------- */
   const MC0 = 39.6, MC1 = 40.2, mcE = (b) => E.inOut(lp(b, MC0, MC1 - MC0));
   const meFl = () => decks[2].svg && decks[2].svg.querySelector('.cp-flower .fl[data-i="me"]');
-  drive(2, 39.0, 40.6, (p, b) => {
-    const g = decks[2].svg && decks[2].svg.querySelector('.cp-flower'); if (g) g.style.visibility = b >= MC0 ? 'hidden' : '';
+  // the dial's flower is hidden only while its copy flies (the dial has faded out by 40.2); from 40.6 it is visible again,
+  // because 60-close reuses the same .cp-flower for the compass reprise and would otherwise inherit 'hidden'
+  drive(2, 39.0, 41.2, (p, b) => {
+    const g = decks[2].svg && decks[2].svg.querySelector('.cp-flower'); if (g) g.style.visibility = b >= MC0 && b < 40.6 ? 'hidden' : '';
     const col = stage.querySelector('.pe-col'); if (col) col.style.translate = (-30 * E.inOut(lp(b, 39.2, 1.1))).toFixed(1) + 'px 0';
   });
   txt(MC0, MC1 + .05, [['', '']], { x: 0, y: 0 }, {
