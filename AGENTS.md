@@ -47,7 +47,8 @@ ActionMesh-AI 组织的私有比赛仓库，默认分支 `main`。产品名 **Or
 - 重负载命令一律经闸门：`python3 scripts/heavy.py <命令>`，包括全量 `pnpm check`、`pnpm check:ui` / Playwright、整包 pytest、Benchmark、Swift 构建与 wheel 安装验收。默认全机同时最多 2 个，其余排队；单个模块的小范围测试与 typecheck 可直接运行。
 - 合并串行：`HEAVY_NAME=merge HEAVY_SLOTS=1 python3 scripts/heavy.py <合并脚本或命令>`，一次只合一个 PR；合并后立即 ff 本地 `main`，再把新 `main` 合入仍在进行的后续分支。
 - 测试不用固定端口、全局目录或固定文件名；并行跑 pytest 时 worker 数不超过 `-n 4`，避免与其他会话叠加压满 CPU。
-- 多 agent 编排时按条目流水线推进（一项完成即进入下一阶段），不设全局屏障；同时活跃的子代理控制在 10 个以内。
+- 不另起 Claude 程序：不在命令行运行 `claude` / `claude -p`、不新开桌面会话、不通过任务卡片（spawn_task）派生会话；并行只用当前会话内的子代理或 workflow。能在当前会话完成的不开子代理，需要并行时同时活跃的子代理不超过 4 个。
+- 多 agent 编排时按条目流水线推进（一项完成即进入下一阶段），不设全局屏障。
 
 ## 提交
 
