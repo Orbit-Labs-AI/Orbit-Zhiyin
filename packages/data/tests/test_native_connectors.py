@@ -1964,3 +1964,55 @@ def test_session_title_precedence_ranks_agent_name_between_custom_and_native(
         assert (session["title"], session["title_source"]) == expected
     (analysed,) = read_analysis(store.home, AnalysisScope("UTC"))["sessions"]
     assert (analysed["title"], analysed["title_source"]) == expected
+
+
+def test_import_reprojects_files_mapped_by_an_older_mapper(tmp_path):
+    """A MAPPER_VERSION bump must re-map unchanged files, not keep stale L2/L3 rows."""
+    from tandem_data import MAPPER_VERSION
+    from tandem_data.service import ImportRequest, ImportService
+
+    root = tmp_path / "claude"
+    file = root / "projects/-fixture/s1.jsonl"
+    file.parent.mkdir(parents=True)
+    common = {"sessionId": "s1", "cwd": "/fixture", "version": "2.1.284", "entrypoint": "cli"}
+    file.write_text(
+        "\n".join(
+            canonical(row)
+            for row in [
+                {
+                    **common,
+                    "type": "user",
+                    "uuid": "u",
+                    "timestamp": ISO,
+                    "message": {"content": "hi"},
+                },
+                {"type": "agent-name", "agentName": "named run", "sessionId": "s1"},
+                {"type": "ai-title", "aiTitle": "summary", "sessionId": "s1"},
+            ]
+        )
+        + "\n"
+    )
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store, workers=1)
+        service.import_source(ImportRequest("claude_code", root))
+        assert store.db.execute("SELECT title FROM session").fetchone()[0] == "named run"
+        # Simulate a library written by the previous mapper (1.5.1), whose agent-name
+        # rows were labelled "ai" so the later ai-title won.
+        store.db.execute("UPDATE session SET title='summary', title_source='ai'")
+        store.db.execute(
+            "UPDATE source_file SET watermark=json_set(watermark,'$.mapper_version','1.5.1')"
+        )
+        store.db.execute("UPDATE projection_run SET mapper_version='1.5.1'")
+        result = service.import_source(ImportRequest("claude_code", root))
+        assert result["changed"] == 0 and "projection" in result
+        assert tuple(store.db.execute("SELECT title,title_source FROM session").fetchone()) == (
+            "named run",
+            "agent_name",
+        )
+        versions = {
+            row[0]
+            for row in store.db.execute(
+                "SELECT json_extract(watermark,'$.mapper_version') FROM source_file"
+            )
+        }
+        assert versions == {MAPPER_VERSION}
