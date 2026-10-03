@@ -17,6 +17,8 @@ import time
 from collections import deque
 from typing import Any
 
+from orbit_data.privacy import sanitize
+
 TYPES = ("awaiting_approval", "failing", "context_pressure", "just_finished", "ai_job_done",
          "weekly", "new_source", "system")
 PRIORITY = {name: rank for rank, name in enumerate(TYPES)}
@@ -253,6 +255,7 @@ class Notifier:
 
     # -- producers -----------------------------------------------------------------------
     def _normalize(self, event: dict) -> dict:
+        event = sanitize(event)
         kind = normalize_type(str(event.get("type") or ""))
         title = str(event.get("title") or "").strip()
         if not title:
@@ -454,7 +457,7 @@ class Notifier:
                   "count": r["count"], "since": r["ts"], "last_ts": r["last_ts"],
                   "payload": json.loads(r["payload"])} for r in rows]
         items.sort(key=lambda item: (PRIORITY[item["type"]], -item["last_ts"]))
-        return items[:50]
+        return sanitize(items[:50])
 
     def listing(self, state: str | None = None, type: str | None = None, limit: int = 50,
                 before_id: int | None = None) -> list[dict]:
@@ -469,8 +472,8 @@ class Notifier:
                f"{'WHERE ' + ' AND '.join(where) if where else ''} ORDER BY id DESC LIMIT ?")
         with self.gw.appdb.read() as db:
             rows = db.execute(sql, (*args, max(1, min(limit, 200)))).fetchall()
-        return [{**dict(r), "payload": json.loads(r["payload"]),
-                 "channels": json.loads(r["channels"])} for r in rows]
+        return sanitize([{**dict(r), "payload": json.loads(r["payload"]),
+                          "channels": json.loads(r["channels"])} for r in rows])
 
     # -- feeds ---------------------------------------------------------------------------
     def observe(self, topic: str, event: str, data: dict) -> None:

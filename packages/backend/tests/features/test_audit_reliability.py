@@ -8,6 +8,7 @@ from orbit_backend.features import sessfeat
 from orbit_backend.services.routes_features import scope_from
 from orbit_backend.sessionops import exclusion
 
+
 def rows(svc, uid):
     with svc.hub.read() as db:
         return dict(db.execute("SELECT v.name,f.n FROM sess_feat f JOIN feat_vocab v "
