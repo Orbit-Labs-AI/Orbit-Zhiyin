@@ -87,7 +87,8 @@ def test_exclude_kind_and_local_tab(service):
     assert hooks and all(i["kind"] == "hook" and i["kind_label"] == "Hook" for i in hooks)
     local = service.library(profile=PROFILE, tab="local")
     assert local["total"] == 1 and all(i["local"] and i["source_kind"] == "local" for i in local["items"])
-    assert local["items"][0]["parts"]["feature_overlap"] == 1  # .pdf in local body matches the profile.
+    # .pdf matches (weight 1.0) but not the 0.8 friction: absolute share 1.0 / 1.8.
+    assert local["items"][0]["parts"]["feature_overlap"] == round(1.0 / 1.8, 4)
 
 
 def test_without_profile_no_personal_reasons(service):
@@ -131,3 +132,15 @@ def test_detail_labels_scan_and_hook_install_reason(service):
     assert detail["license_spdx"] == "MIT" and detail["stars_scope"] == "repo" and detail["scan"]["verdict"] == "caution"
     batch = query.cards_by_id(service.store, ["lib02", "nope", "lib01"])
     assert [c["item_id"] for c in batch["items"]] == ["lib02", "lib01"] and batch["missing"] == ["nope"]
+
+
+def test_search_match_is_absolute_not_relative_to_best_candidate(service):
+    # "retry loop" occurs once in the summary of the n%3==0 items, never in a name: a body-only
+    # hit saturates at 1/(1.2+1) = 0.45 per term, so the strength stays well below 1 and
+    # m <= 100 · (0.5 · 0.45 + 0.2 · 1) = 42.5 even for the best candidate.
+    view = service.library(profile=None, q="retry loop", limit=50)
+    assert view["items"]
+    assert all(i["parts"]["feature_overlap"] <= 0.45 and i["m"] <= 43 for i in view["items"])
+    skills = service.library(profile=None, q="retry loop", kinds=["skill"], limit=50)
+    m = {i["id"]: (i["m"], i["parts"]["feature_overlap"]) for i in view["items"]}
+    assert skills["items"] and all(m[i["id"]] == (i["m"], i["parts"]["feature_overlap"]) for i in skills["items"])
