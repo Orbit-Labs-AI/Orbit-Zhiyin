@@ -8,7 +8,7 @@ and the kit reveal of the end card (film b119) — are IV → V → I cadences o
 reveal in 20-orbit and the persona reveal also land on I, and the recommendations peak is a deceptive V → Am9.
 Every pitched cue (badges, plucks, stabs, arps, bells, letters, entry notes) is quantised to the chord sounding at its
 beat (`q()` / `tone()`), there are no glides, semitone rubs or chromatic slides, and rapid events (word settles, bubble
-pops, typing, counter ticks, dial ticks, flap rolls) are soft unpitched textures under the groove, so they never form a
+pops, keystrokes, counter ticks, dial ticks, flap rolls) are soft unpitched textures under the groove, so they never form a
 melody. The petal-by-petal flower changes are gentle rolled chords; the closing stroke is a rising filtered swell.
 
 SHIFT-aware: every cue below is written in its scene file's own beats inside `section('<scene>')`; put(), the chord
@@ -308,10 +308,38 @@ def shimmer(b0, dur, n, gain, base=84):
         put(blip(tone(b, int(rng.integers(0, 4)), base), 0.15), b, gain * (0.5 + 0.5 * rng.random()), rng.random() * 1.4 - 0.7, to='verbsend')
 
 
-def typing(b0, n, dur, gain=0.07):
-    """n characters typed evenly over dur beats (AGD.chat: character k at b0 + dur * k / n)."""
-    for k in range(1, n + 1):
-        put(key_click(), b0 + dur * k / n, gain * (0.8 + 0.4 * rng.random()), 0.15 * (rng.random() - 0.5))
+def hash01(i, seed=1):
+    """= hash01 in scenes/00-kit.js."""
+    x = np.sin(i * 127.1 + seed * 311.7) * 43758.5453
+    return x - np.floor(x)
+
+
+def type_on(k0, text, seed):
+    """= typeOn in scenes/10-intro.js: the scene beats of each typed character (K[0] = k0, then .22–.28 apart)."""
+    K = [k0]
+    for k in range(1, len(text)):
+        K.append(K[-1] + 0.22 + 0.06 * hash01(k, seed))
+    return K
+
+
+def keystroke(bright=1.0, full=0.0):
+    """One soft key press, unpitched: a short band-passed noise click + a tiny low thump; full > 0 = the send key."""
+    d = 0.09
+    t = tt(d)
+    click = bp(noise(d), 1800 * bright, 5200 * bright) * np.exp(-t * (520 - 180 * full)) * np.minimum(1, t * 4000)
+    thump = np.sin(2 * np.pi * (115 - 20 * full) * t) * np.exp(-t * (90 - 30 * full)) * (0.35 + 0.45 * full)
+    return click * 0.8 + thump
+
+
+def keys(K, gain=0.2, pan=-0.1):
+    """A keystroke on every beat in K, each a little different in level, brightness and timing (≤ 8 ms)."""
+    for b in K:
+        jit = (rng.random() - 0.5) * 2 * 0.008 / BEAT
+        put(keystroke(0.8 + 0.4 * rng.random()), b + jit, gain * (0.7 + 0.5 * rng.random()), pan + 0.1 * (rng.random() - 0.5), to='keys')
+
+
+def send_key(b, gain=0.26, pan=-0.1):
+    put(keystroke(0.9, 1.0), b, gain, pan, to='keys')
 
 
 def pops(beats, gain, bright=1.0):
@@ -391,12 +419,14 @@ put(whoosh(0.8 * BEAT), 6.6, 0.12, -0.2)                                    # th
 groove(7.0, 13.2, clap_on=False, lvl=0.66)                                  # light four on the floor
 put(puff(0.8), 7.0, 0.04, 0.0, to='verbsend')                               # the box grows out of the dots
 words((7.0, 7.35), 0.06)                                                    # 「从想法」「到交付」
-typing(7.15, 9, 1.6)                                                        # 做一个记账 App
-typing(8.95, 5, 0.55)                                                       # 写份路演稿
-typing(9.7, 6, 0.65)                                                        # 生成产品官网
-for b_ in (8.9, 9.65, 10.5):                                                # sends
-    put(press(), b_, 0.08, -0.3)
-pops((7.55, 7.85, 8.1, 9.05, 9.3, 9.8, 10.2, 10.65), 0.07)                  # bubbles rise out of the dots (prompts and sends)
+K1 = type_on(7.2, '做一个记账 App', 31)                                       # typed key by key (typeOn), b7.2–9.16
+S1 = K1[-1] + 0.22                                                          # sent b9.38
+K2 = type_on(S1 + 0.17, '写份路演稿', 32)                                    # b9.55–10.54
+S2 = K2[-1] + 0.22                                                          # sent b10.76
+keys(K1 + K2)
+for b_ in (S1, S2):                                                         # sends: a fuller press
+    send_key(b_)
+pops((7.55, 7.85, 8.1, 8.8, S1 + 0.15, 10.1, 10.45, S2 + 0.15), 0.07)       # bubbles rise out of the dots (prompts and sends)
 pops((11.7, 11.95, 12.65, 12.8, 13.2), 0.035, 0.7)                          # and retract after the burst (softer, darker)
 put(swell(0.6 * BEAT), 10.75, 0.32)                                         # b11.35 the App icons burst out
 arp(11.35, 11.75, 0.0333, 0.07, base=72, span=6)                            # one quick upward chord run as they spray
@@ -429,12 +459,10 @@ put(puff(0.8), 12.6, 0.04, 0.0, to='verbsend')                              # th
 put(kick(0.35, 0.6), 12.8, 0.22, to='kick')                                 # 「但，」 lands alone, the dots flinch
 put(stab(tuple(tone(12.8, j, 57) for j in range(3)), 0.9), 12.8, 0.08, 0.0, to='verbsend')
 words((13.4, 13.85), 0.08)                                                  # 「人与 Agent 的」「交互本身，」
-typing(13.0, 4, 0.8)                                                        # 请你修改
-typing(14.13, 3, 0.8)                                                       # fix
-typing(15.43, 4, 1.06)                                                      # 请你继续
-typing(16.9, 4, 1.15)                                                       # 看清需求 (never sent)
-for b_ in (13.95, 15.26, 16.78):                                            # sends
-    put(press(), b_, 0.08, -0.2)
+keys(type_on(12.95, '请你修改', 41) + type_on(14.55, 'fix', 42)                # typed key by key (typeOn), as 15-redesign
+     + type_on(15.8, '请你继续', 43) + type_on(17.15, '看清需求', 44))          # 看清需求 is never sent
+for b_ in (13.95, 15.26, 16.78):                                            # sends: a fuller press
+    send_key(b_)
 FIX = [14.1, 14.55, 15.08, 15.41, 15.96, 16.25, 16.5, 16.73, 16.93, 17.12]
 for k, b_ in enumerate(FIX):                                                # corrections pile up: denser, a touch brighter
     put(puff(1.0 + 0.04 * k), b_, 0.055 + 0.004 * k, -0.6 + 0.12 * (k % 11), to='verbsend')
@@ -716,20 +744,22 @@ ir = rng.standard_normal(len(ir_t)) * np.exp(-ir_t * 2.6)
 ir = lp(ir, 5500)
 ir /= np.sqrt(np.sum(ir ** 2))
 
-out_l = bus('dry')[0] + bus('kick')[0] + bus('verbsend')[0] + (bus('duck')[0] + bus('duckverb')[0]) * duck
-out_r = bus('dry')[1] + bus('kick')[1] + bus('verbsend')[1] + (bus('duck')[1] + bus('duckverb')[1]) * duck
+out_l = bus('dry')[0] + bus('keys')[0] + bus('kick')[0] + bus('verbsend')[0] + (bus('duck')[0] + bus('duckverb')[0]) * duck
+out_r = bus('dry')[1] + bus('keys')[1] + bus('kick')[1] + bus('verbsend')[1] + (bus('duck')[1] + bus('duckverb')[1]) * duck
 send_l = bus('verbsend')[0] + bus('duckverb')[0] * duck * 0.6
 send_r = bus('verbsend')[1] + bus('duckverb')[1] * duck * 0.6
 out_l += signal.fftconvolve(send_l, ir)[:N] * 0.3
 out_r += signal.fftconvolve(send_r, np.roll(ir, 211))[:N] * 0.3
 
 mix = np.stack([out_l, out_r])
+KEYS = np.stack(bus('keys'))   # for the level report below
 for b0, b1, b2, b3, fc in LPF:                      # low-pass automation: zero-phase copy, crossfaded in and out
     w = np.interp(np.arange(N), [at(b0), at(b1), at(b2), at(b3)], [0, 1, 1, 0], left=0, right=0)
     sos = signal.butter(2, fc, 'low', fs=SR, output='sos')
     mix = mix * (1 - 0.8 * w) + signal.sosfiltfilt(sos, mix) * 0.8 * w
 mix = hp(mix, 25)
-mix /= np.max(np.abs(mix)) + 1e-9
+norm = 1 / (np.max(np.abs(mix)) + 1e-9)
+mix *= norm
 mix = np.tanh(mix * 1.6) / np.tanh(1.6)
 p = np.clip((np.arange(N) - at(FADE[0])) / (at(FADE[1]) - at(FADE[0])), 0, 1)
 mix *= 0.5 * (1 + np.cos(np.pi * p)) * 0.85         # cosine fade to exactly 0 at END, silence in the tail
@@ -749,3 +779,9 @@ FILM = [(n, b + SHIFT[n]) for n, b in START] + [('', END)]
 for (name, b0), (_, b1) in zip(FILM[:-1], FILM[1:], strict=True):
     seg = mix[:, at(b0):at(b1)]
     print(f'  {name:12s} b{b0:5.1f}-{b1:5.1f}  peak {np.max(np.abs(seg)):.3f}  rms {np.sqrt(np.mean(seg ** 2)):.3f}')
+# the typing passages (film beats): keys alone vs everything else, after the same normalisation + drive gain
+for name, b0, b1 in (('1b typing', 7.2, 10.8), ('1d typing', 12.95 + 6.9, 17.95 + 6.9)):
+    i0, i1 = at(b0), at(b1)
+    kr = np.sqrt(np.mean((KEYS[:, i0:i1] * norm * 1.6 / np.tanh(1.6) * 0.85) ** 2))
+    tr = np.sqrt(np.mean(mix[:, i0:i1] ** 2))
+    print(f'  {name}: keys {20 * np.log10(kr):6.1f} dBFS, full mix {20 * np.log10(tr):6.1f} dBFS, keys under mix by {20 * np.log10(tr / kr):5.1f} dB')
