@@ -1,5 +1,5 @@
 /* ============ shared bits for overlays ============ */
-S.attn = new Set(); S.numOnly = false; S.login = true; S.weekly = true; S.shareDark = true; S.shareNoNum = false;
+S.attn = new Set(); S.numOnly = false; S.login = false; S.weekly = true; S.shareDark = true; S.shareNoNum = false;
 S.rep = new Set(['ov', 'persona', 'proj', 'fric', 'recs']); S.addSrc = false; S.addSrcFmt = 'jsonl'; S.ruleTest = false;
 S.rules['自定义正则 2 条'] = true;
 S.ruleSample = 'cd /Users/alex/Projects/demo && git push\n联系 alex@example.com，token = sk-demo-0000aaaa1111\n服务器 192.168.1.20，构建机 build-01.local\n电话 13800001234，内部代号-X7，工号 004213';

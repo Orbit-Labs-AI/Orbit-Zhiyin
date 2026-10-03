@@ -7489,7 +7489,7 @@ Object.assign(ACT, {
 });
 
 /* ============ shared bits for overlays ============ */
-S.attn = new Set(); S.numOnly = false; S.login = true; S.weekly = true; S.shareDark = true; S.shareNoNum = false;
+S.attn = new Set(); S.numOnly = false; S.login = false; S.weekly = true; S.shareDark = true; S.shareNoNum = false;
 S.rep = new Set(['ov', 'persona', 'proj', 'fric', 'recs']); S.addSrc = false; S.addSrcFmt = 'jsonl'; S.ruleTest = false;
 S.rules['自定义正则 2 条'] = true;
 S.ruleSample = 'cd /Users/alex/Projects/demo && git push\n联系 alex@example.com，token = sk-demo-0000aaaa1111\n服务器 192.168.1.20，构建机 build-01.local\n电话 13800001234，内部代号-X7，工号 004213';
@@ -8588,6 +8588,48 @@ function redact(text) {
   Object.keys(RULE_RE).forEach((k) => { if (!S.rules[k]) return; const rr = RULE_RE[k]; t = t.replace(rr[0], (...m) => { n++; const pre = rr[1].startsWith('$1') ? m[1] : ''; return pre + '\u0001' + rr[1].replace('$1', '') + '\u0002'; }); });
   return { n, html: esc(t).replace(/\u0001/g, '<mark class="rd">').replace(/\u0002/g, '</mark>') };
 }
+// Native capabilities of the shell (contract: native-shell batch). A control shows only when the host lists the feature in
+// __ORBIT_NATIVE__.features and a message handler exists; in a browser or an older shell the row is hidden, never broken.
+// NATV.ask(type, payload) posts {type, id, ...} and resolves the reply event 'tandem:<type>' (or 'tandem:reply') with that id.
+const NATV = {
+  on() { const n = window.ORBIT && window.ORBIT.native; return !!(n && n.isNative && n.hasHost()); },
+  has(f) { const n = window.ORBIT && window.ORBIT.native; return NATV.on() && n.has(f); },
+  seq: 0,
+  ask(type, payload, ms) {
+    const n = window.ORBIT && window.ORBIT.native;
+    if (!NATV.on()) return Promise.reject(Object.assign(new Error('no host'), { code: 'no_host' }));
+    const id = type + '-n' + (++NATV.seq) + '-' + Date.now().toString(36);
+    return new Promise((resolve, reject) => {
+      const evs = ['tandem:' + type, 'tandem:reply'];
+      const done = (fn, v) => { evs.forEach((x) => window.removeEventListener(x, h)); clearTimeout(t); fn(v); };
+      const h = (e) => { const d = (e && e.detail) || {}; if (d.id === id) done(resolve, d); };
+      const t = setTimeout(() => done(reject, Object.assign(new Error('timeout'), { code: 'timeout' })), ms || 4000);
+      evs.forEach((x) => window.addEventListener(x, h));
+      if (!n.post(type, Object.assign({}, payload || {}, { id }))) done(reject, Object.assign(new Error('no host'), { code: 'no_host' }));
+    });
+  },
+  // 登录时启动: the switch mirrors SMAppService; S.login stays false until the host answered
+  loginGet() {
+    if (!NATV.has('loginItem')) return;
+    NATV.ask('loginItem', { op: 'get' }).then((r) => { S.login = !!r.enabled; S.loginStatus = r.status || null; renderSet(); }, () => { /* older host: keep off */ });
+  },
+  loginSet() {
+    if (!NATV.has('loginItem') || S.loginBusy) return;
+    const prev = !!S.login, to = !prev; S.login = to; S.loginBusy = true; renderSet();
+    const fail = (why) => { S.login = prev; toast('没能' + (to ? '开启' : '关闭') + '登录时启动' + (why ? '：' + why : '')); };
+    NATV.ask('loginItem', { op: 'set', enabled: to }).then((r) => {
+      S.loginStatus = r.status || null;
+      if (r.ok === false || (r.enabled != null && !!r.enabled !== to)) fail(r.reason || r.error || (r.status === 'requiresApproval' ? '需要在「系统设置 › 通用 › 登录项」中允许 Orbit' : ''));
+      else if (r.status === 'requiresApproval') toast('请在「系统设置 › 通用 › 登录项」中允许 Orbit');
+    }, (e) => fail(e.code === 'timeout' ? '系统没有响应' : e.message)).then(() => { S.loginBusy = false; renderSet(); });
+  },
+  // system notification permission (settings › 通知)
+  notifGet() {
+    if (!NATV.has('notificationStatus')) return;
+    NATV.ask('notificationStatus', {}).then((r) => { const v = r.status || r.value; if (v && v !== S.notifAuth) { S.notifAuth = v; renderSet(); } }, () => { /* unknown */ });
+  }
+};
+S.loginStatus = null; S.notifAuth = null;
 // settings › 数据源 / 隐私 rows; live mode (97-live-studio-settings.js) swaps these for the gateway's sources and rules
 let srcRows = () => AG.map((a) => ({ name: a.name, ver: a.ver, path: a.path, n: fmt(a.all), st: SRC_ST[a.id] || ['—', 'minus', 'var(--ink-3)', '—'], on: !S.srcOff.has(a.id), t: a.t, c: a.c, attrs: ' data-a="' + a.id + '"' }));
 let srcMissing = () => (S.extraSrc.some((x) => /cursor/i.test(x.name)) ? [] : [{ name: 'Cursor', v: 'Cursor', hint: '未检测到 · 可以手动指定数据库位置' }]);
@@ -8596,7 +8638,7 @@ let ruleRows = () => Object.keys(S.rules).map((k) => ({ k, label: k, ph: RULE_RE
 // A sheet left open by the previous tab (工具名映射表, 协作人格如何计算 …) or by the main window would cover the settings window and
 // swallow every pointer event, so opening settings or switching tabs closes it first (palette excluded: it has no host).
 function setDropSheet() { if (!$('#modal').hidden && MODAL_HOST) closeModal(); tipOff(); }
-function openSettings(tab) { if (tab) S.setTab = tab; S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
+function openSettings(tab) { if (tab) S.setTab = tab; NATV.loginGet(); S.pop = false; closeDD(); setDropSheet(); S.keyWin = 'set'; $('#set').hidden = false; render(); setPlace(); keyWinApply(); }
 function closeSettings() { if (MODAL_HOST === $('#set')) closeModal(); $('#set').hidden = true; S.keyWin = 'main'; keyWinApply(); }
 /* centred horizontally, 60px under the menu bar (or wherever it was dragged to), always fully inside the stage */
 function setPlace() {
@@ -8615,7 +8657,7 @@ function renderSet() {
   const card = (title, sub, inner, right) => '<div class="card"><div class="row set-ch"><div style="flex:1;min-width:200px"><div class="ct">' + title + '</div>' + (sub ? '<div class="cap set-cs">' + sub + '</div>' : '') + '</div>' + (right || '') + '</div><div class="set-cb">' + inner + '</div></div>';
   let body = '';
   if (t === 'general') {
-    body = card('外观与组件', '', '<div class="form">' + row('外观', seg('setTheme', S.theme, [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']], '外观')) + row('悬浮组件', swBtn(S.hud.show, 'setHud', '', '悬浮组件'), kb('⌥⌘P') + ' 显示或隐藏 · 拖动吸附到 6 个位置，按住 ⌥ 自由放置') + row('桌面小组件', swBtn(S.widgets, 'setWidgets', '', '桌面小组件'), '<span data-tip="屏幕宽度不小于 1500 时主窗口默认让出左侧一列；更窄时小组件在主窗口之下，移动或缩小主窗口可以看到">显示在桌面层，主窗口之下 · 宽屏时主窗口让出左侧一列</span>') + row('小组件尺寸', seg('wgSize', S.wgSize || 'm', WG_SIZES, '小组件尺寸'), '小：人格、今日 · 中：+ 本周、建议 · 大：+ 运行中、7 天趋势') + row('小组件只显示数字', swBtn(S.numOnly, 'setNumOnly', '', '小组件只显示数字'), '隐藏项目名与会话标题，适合录屏与演示') + row('登录时启动', swBtn(S.login, 'setLogin', '', '登录时启动'), '只在菜单栏常驻，不打开主窗口') + '</div>') +
+    body = card('外观与组件', '', '<div class="form">' + row('外观', seg('setTheme', S.theme, [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']], '外观')) + row('悬浮组件', swBtn(S.hud.show, 'setHud', '', '悬浮组件'), kb('⌥⌘P') + ' 显示或隐藏 · 拖动吸附到 6 个位置，按住 ⌥ 自由放置') + row('桌面小组件', swBtn(S.widgets, 'setWidgets', '', '桌面小组件'), '<span data-tip="屏幕宽度不小于 1500 时主窗口默认让出左侧一列；更窄时小组件在主窗口之下，移动或缩小主窗口可以看到">显示在桌面层，主窗口之下 · 宽屏时主窗口让出左侧一列</span>') + row('小组件尺寸', seg('wgSize', S.wgSize || 'm', WG_SIZES, '小组件尺寸'), '小：人格、今日 · 中：+ 本周、建议 · 大：+ 运行中、7 天趋势') + row('小组件只显示数字', swBtn(S.numOnly, 'setNumOnly', '', '小组件只显示数字'), '隐藏项目名与会话标题，适合录屏与演示') + (NATV.has('loginItem') ? row('登录时启动', swBtn(S.login, 'setLogin', S.loginBusy ? ' disabled' : '', '登录时启动'), S.loginStatus === 'requiresApproval' ? '等待你在「系统设置 › 通用 › 登录项」中允许' : '登录 Mac 时自动打开 Orbit') : '') + '</div>') +
       card('统计', '', '<div class="form">' + row('默认时间范围', seg('setRange', String(S.range), [['7', '7 天'], ['30', '30 天'], ['90', '90 天'], ['0', '全部']], '默认时间范围')) + row('键盘快捷键', '<button type="button" class="btn sm" data-act="openKeys">查看全部</button>') + '</div>');
   } else if (t === 'sources') {
     body = card('已检测到的 Agent', '自动扫描默认目录 · 只读会话日志，不读凭据文件', srcRows().map((r) => '<div class="srcrow" style="opacity:' + (r.on ? 1 : 0.55) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + r.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + r.c) + '</span><div style="min-width:0"><div class="row" style="gap:6px;flex-wrap:wrap"><b style="font-size:13px">' + r.name + '</b><span class="mono cap" style="font-size:11px">' + r.ver + '</span><span class="row" style="gap:3px;font-size:11px;color:' + r.st[2] + '">' + ic(r.st[1], 12) + r.st[0] + '</span></div><div class="mono cap" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + r.path + ' · ' + r.n + ' 个会话</div></div><span class="mono cap when" style="font-size:11px">' + r.st[3] + '</span>' + swBtn(r.on, 'setSrc', r.attrs, '启用 ' + r.name) + '</div>').join('') +
@@ -8666,7 +8708,7 @@ Object.assign(ACT, {
   setHud: () => toggleHud(),
   setWidgets: () => { S.widgets = !S.widgets; render(); },
   setNumOnly: () => { S.numOnly = !S.numOnly; render(); },
-  setLogin: () => { S.login = !S.login; renderSet(); },
+  setLogin: () => NATV.loginSet(),
   setRange: (el) => { S.range = +el.dataset.v; store.set('range', S.range); render(); },
   setSrc: (el) => { const id = el.dataset.a; if (S.srcOff.has(id)) S.srcOff.delete(id); else S.srcOff.add(id); render(); toast(S.srcOff.has(id) ? agent(id).name + ' 已停用：数据在所有页面隐藏，但不删除' : agent(id).name + ' 已重新启用'); },
   setAddSrc: (el) => { S.addSrc = el.dataset.v || '自定义'; S.addSrcFmt = S.addSrc === 'Cursor' ? 'sqlite' : 'jsonl'; renderSet(); const n = $('#srcPath'); if (n) n.focus(); },
