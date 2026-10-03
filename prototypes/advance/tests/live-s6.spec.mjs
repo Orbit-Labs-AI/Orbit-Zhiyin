@@ -58,10 +58,14 @@ test('settings: 通用 / 数据源 / 隐私 / 分析 / 通知 read the gateway a
   await expect(page.locator('#set')).toContainText('/fx/fx-src/opencode');
   await expect(page.locator('#set')).not.toContainText(MOCK_WORDS);
   await expect(page.locator('#set [data-act="setIdx"][data-v="manual"]')).toHaveAttribute('aria-checked', 'true');   // sync_mode off
+  const foot = page.locator('#side .sb-foot .pv');   // the sidebar indicator follows the server's sync_mode, not a fixed 实时
+  await expect(foot).toHaveAttribute('data-st', 'off');
+  await expect(foot).toContainText('手动');
   await page.locator('#set [data-act="setSrc"][data-ag="hermes"]').click();
   await expect.poll(() => posted('POST', '/v1/app/sources').map((b) => b.body)).toEqual([{ agent: 'hermes', root: '/fx/fx-src/hermes', enabled: false }]);
   await page.locator('#set [data-act="setIdx"][data-v="hour"]').click();
   await expect.poll(() => posted('PATCH', '/v1/app/settings').map((b) => b.body).slice(-1)).toEqual([{ sync_mode: 'hour' }]);
+  await expect(foot).toContainText('每小时');
   await page.locator('#set [data-act="setAddSrc"]').last().click();
   await expect.poll(() => page.evaluate(() => window.__nativeMsgs.filter((m) => m.type === 'chooseFolder').length)).toBe(1);
   await page.evaluate(() => { const m = window.__nativeMsgs.find((x) => x.type === 'chooseFolder'); window.dispatchEvent(new CustomEvent('orbit:folder', { detail: { id: m.id, path: '/fx/extra/.codex/sessions', cancelled: false } })); });
