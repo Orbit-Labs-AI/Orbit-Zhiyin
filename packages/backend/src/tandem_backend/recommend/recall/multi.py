@@ -1,4 +1,4 @@
-"""Nine-route recall with weighted RRF: the general, deterministic candidate generator.
+"""Eleven-route recall with weighted RRF: the general, deterministic candidate generator.
 
 recall_all(inputs, memory, catalog=None) builds problems, runs every route
 (each isolated: a failing route becomes a diagnostic, never a failed run),
@@ -21,11 +21,18 @@ from . import (
 )
 from .fusion import fuse
 
-WEIGHTS = {"kb": 1., "subtract": 1., "template": .8, "catalog": .7, "model": .6, "dense": .5, "profile": .4,
-           "feature": .4, "graph": .4, "generative": .3, "generic": .2}
+# Weighted RRF (Cormack, Clarke & Büttcher, SIGIR 2009): score = Σ_route w_route / (k + rank).
+# RRF_K = 60 is the constant from that paper. The per-route WEIGHTS are NOT calibrated: they
+# encode a hand-set trust order (problem-specific KB / inventory evidence > templates > catalog >
+# lexical / profile / graph > AI drafts > cold-start generic). evals.recommendation's ablation
+# reports route deltas but the synthetic replay set is too small to fit weights; override per run
+# with recall_all(weights=..., rrf_k=...) to test alternatives.
+WEIGHTS = {"kb": 1., "subtract": 1., "template": .8, "catalog": .7, "model": .6, "hashed_lexical": .5,
+           "profile": .4, "feature": .4, "graph": .4, "generative": .3, "generic": .2}
+RRF_K = 60
 # Whose payload wins when several routes return the same rec_key.
-PAYLOAD_ORDER = ["kb", "template", "subtract", "catalog", "feature", "dense", "model", "profile", "graph", "generative",
-                 "generic"]
+PAYLOAD_ORDER = ["kb", "template", "subtract", "catalog", "feature", "hashed_lexical", "model", "profile", "graph",
+                 "generative", "generic"]
 COLD_START_SESSIONS, MAX_CANDIDATES = 10, 200
 _STATUS = {"active": 0, "below_threshold": 1, "insufficient": 2}
 
@@ -74,8 +81,14 @@ def _merge(key: str, payloads: dict[str, dict[str, dict]]) -> dict:
     return cand
 
 
-def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_path=None, features=None) -> dict:
-    """``features`` is the module-level features API (profile / match_items) when bound."""
+def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_path=None, features=None,
+               weights: dict[str, float] | None = None, rrf_k: int = RRF_K,
+               hashed_threshold: float = hashed.THRESHOLD) -> dict:
+    """``features`` is the module-level features API (profile / match_items) when bound.
+
+    ``weights`` overrides individual route weights (missing routes keep WEIGHTS); ``rrf_k`` and
+    ``hashed_threshold`` override the fusion constant and the hashed-lexical cut-off."""
+    route_weights = {**WEIGHTS, **(weights or {})}
     memory = memory or {}
     diagnostics: list[dict] = []
     problems = problems_mod.build(inputs, memory)
@@ -108,9 +121,10 @@ def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_pat
         run("profile", lambda: (meta["profile_rows"], meta["profile_payload"]))
     if (meta.get("vector") or {}).get("status") != "ready":
         legacy = catalog_route.legacy_items() if catalog is None else ()
-        run("dense", lambda: hashed.recall(problems, rules, inputs, memory, legacy))
+        run("hashed_lexical", lambda: hashed.recall(problems, rules, inputs, memory, legacy,
+                                                     threshold=hashed_threshold))
     else:
-        diagnostics.append({"source": "dense", "status": "skipped", "reason": "catalog_vector_ready"})
+        diagnostics.append({"source": "hashed_lexical", "status": "skipped", "reason": "catalog_vector_ready"})
     run("subtract", lambda: subtract.recall(problems, rules, inputs, memory))
     run("template", lambda: templates.recall(problems, rules, inputs, memory))
     run("model", lambda: models.recall(inputs))
@@ -121,7 +135,7 @@ def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_pat
     covered = {key: cand for route, payload in payloads.items() if route != "generic" for key, cand in payload.items()}
     run("generative", lambda: generative.recall(problems, rules, inputs, memory, covered))
 
-    fused = fuse(routes, k=60, weights={route: WEIGHTS.get(route, .2) for route in routes})
+    fused = fuse(routes, k=rrf_k, weights={route: route_weights.get(route, .2) for route in routes})
     candidates = []
     for item in fused[:MAX_CANDIDATES]:
         if not any(item.item_id in payloads.get(route, {}) for route in PAYLOAD_ORDER):

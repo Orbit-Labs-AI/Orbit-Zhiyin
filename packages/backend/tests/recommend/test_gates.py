@@ -63,10 +63,12 @@ def test_source_and_license():
     g = run(cat)
     assert g["checks"]["source_verified"] is False and g["checks"]["license_ok"] is False
     assert "无许可证，只提供链接" in g["reasons"]
-    ok = raw(source={"origin": "catalog", "item_id": "c1", "license": "MIT"},
-             item={"license": "MIT", "content_hash": "ab" * 32})
-    g = run(ok)
-    assert g["checks"]["source_verified"] is True and g["checks"]["license_ok"] is True
+    hashed = raw(source={"origin": "catalog", "item_id": "c1", "license": "MIT"},
+                 item={"license": "MIT", "content_hash": "ab" * 32})
+    g = run(hashed)  # licence + hash without the catalog's review is not verification
+    assert g["checks"]["source_verified"] is False and g["checks"]["license_ok"] is True
+    ok = raw(source={"origin": "catalog", "item_id": "c1", "license": "MIT", "verified": True})
+    assert run(ok)["checks"]["source_verified"] is True
     assert run(raw(source={"origin": "legacy", "verified": False}))["checks"]["source_verified"] is False
 
 
@@ -122,3 +124,28 @@ def test_audience_and_requirements():
     assert run(r, inputs={"profile": {"tools": ["git"]}})["checks"]["requirements_ok"] is False
     assert run(r, inputs={"profile": {"tools": ["LaTeXmk"]}})["checks"]["requirements_ok"] is True
     assert run(r)["checks"]["requirements_ok"] == NA
+
+
+def test_unverified_catalog_row_is_rejected():
+    from tandem_backend.recommend.recall.catalog_route import _normalise_catalog, from_item
+
+    row = {"item_id": "x", "type": "skill", "name": "X", "license": "MIT", "content_hash": "ab" * 32,
+           "agents": ["claude_code"]}
+    assert _normalise_catalog(row)["verified"] is False
+    assert _normalise_catalog(row | {"verification": "metadata_only"})["verified"] is False
+    assert _normalise_catalog(row | {"verification": "repository_and_skill_read"})["verified"] is True
+    cand = from_item(_normalise_catalog(row), None, INPUTS, match_basis="profile")
+    g = run(raw(source=cand["source"], item=cand["item"]))
+    assert g["checks"]["source_verified"] is False and "来源未核验（资源库未标记为已审阅）" in g["reasons"]
+
+
+def test_catalog_agents_without_declaration_are_unknown():
+    from tandem_backend.recommend.recall.catalog_route import from_item
+
+    item = {"item_id": "x", "kind": "skill", "name": "X", "agents": ["claude_code", "codex"], "verified": True}
+    cand = from_item(item, None, INPUTS, match_basis="profile")
+    assert cand["agents"] == {} and cand["target"]["agents_listed"] == ["claude_code", "codex"]
+    g = run(raw(agents=cand["agents"]))
+    assert g["checks"]["agent_supported"] is True and "needs_context" in g["notes"]
+    declared = from_item(item | {"support": {"claude_code": "native"}}, None, INPUTS, match_basis="profile")
+    assert run(raw(agents=declared["agents"]))["notes"] == []

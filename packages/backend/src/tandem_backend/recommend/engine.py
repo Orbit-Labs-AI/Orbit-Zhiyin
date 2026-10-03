@@ -16,6 +16,7 @@ from .ranking import slate as slate_mod
 
 ENGINE_VERSION = "rec-engine-v2"
 NO_BENEFIT = "没有可估算的收益"
+NET_NON_POSITIVE = "net_non_positive"
 INTERNAL = ("kb", "item", "prior", "cost", "requirements", "gates_hint", "explain_hints")
 
 
@@ -95,12 +96,16 @@ def rank_candidates(raws: list[dict], inputs: dict, memory: dict, *, limit: int 
         score = rank_mod.score(raw, gates, inputs, memory, max_fusion=max_fusion)
         if gates["passed"] and score["benefit"] <= 0:  # nothing to gain is not a recommendation
             gates = {**gates, "passed": False, "reasons": [*gates["reasons"], NO_BENEFIT]}
+        elif gates["passed"] and score["utility"] <= 0:  # risk/cost outweigh the expected value
+            gates = {**gates, "passed": False, "reasons": [*gates["reasons"], NET_NON_POSITIVE]}
         cand = _cand(raw, gates, score)
         if gates["passed"]:
             cand["explain"] = narrate.explain(raw, raw.get("problem"), gates)
             by_key.setdefault(cand["rec_key"], raw)
             passing.append(cand)
         else:
+            if NET_NON_POSITIVE in gates["reasons"]:
+                cand["excluded"] = NET_NON_POSITIVE
             gated.append(_compact(cand))
     for cand in [c for c in passing if c["basis"] == "catalog_only" and not hygiene.profile_overlap(by_key[c["rec_key"]])]:
         passing.remove(cand)

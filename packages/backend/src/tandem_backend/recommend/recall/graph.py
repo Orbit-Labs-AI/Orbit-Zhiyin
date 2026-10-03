@@ -1,8 +1,9 @@
 """Route ④: graph and co-occurrence around what the user already has installed.
 
 KB ``pairs_with`` edges propose complements of installed remedies; tag Jaccard
-against the installed set re-scores the candidate pool. Relation hints feed
-the slate's complements/conflicts display.
+against the installed set re-scores the candidate pool. Complements carry
+``match_basis="complement"`` so the slate keeps (at most one of) them next to
+problem-driven cards instead of suppressing them as generic.
 """
 
 from .kb_route import from_rule
@@ -33,7 +34,7 @@ def recall(rules, inputs: dict, memory: dict, pool: dict[str, dict]) -> tuple[li
                 continue
             scores[key] = max(scores.get(key, 0), .6)
             if key not in pool:
-                payload[key] = from_rule(by_id[target], None, inputs, rec_key=key, match_basis="inventory_fact")
+                payload[key] = from_rule(by_id[target], None, inputs, rec_key=key, match_basis="complement")
                 payload[key]["explain_hints"]["reason_template"] = f"与已安装的「{by_id[rule_id].title}」搭配使用。"
     tags: set[str] = set()
     for key in installed:
@@ -50,23 +51,3 @@ def recall(rules, inputs: dict, memory: dict, pool: dict[str, dict]) -> tuple[li
             if jaccard > .1:
                 scores[key] = max(scores.get(key, 0), round(jaccard, 6))
     return sorted(scores.items(), key=lambda row: (-row[1], row[0])), payload
-
-
-def relation_hints(cands: list[dict]) -> list[tuple[str, str, str, str]]:
-    """(a, b, relation, reason) for candidate pairs linked by KB pairs_with / conflicts_with."""
-    by_rule: dict[str, list[str]] = {}
-    for cand in cands:
-        if cand.get("kb"):
-            by_rule.setdefault(cand["kb"]["id"], []).append(cand["rec_key"])
-    hints = []
-    for cand in cands:
-        kb = cand.get("kb")
-        if not kb:
-            continue
-        for relation, refs in (("complements", kb["remedy"]["pairs_with"]), ("conflicts", kb["remedy"]["conflicts_with"])):
-            for ref in refs:
-                for other in by_rule.get(ref, ()):
-                    pair = tuple(sorted((cand["rec_key"], other)))
-                    reason = "搭配使用效果更好" if relation == "complements" else "两者作用重叠，只选其一"
-                    hints.append((pair[0], pair[1], relation, reason))
-    return sorted(set(hints))
