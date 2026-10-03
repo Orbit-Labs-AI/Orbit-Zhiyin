@@ -5,6 +5,7 @@ inventory_fact``). Items that cannot be observed through tool-call names (hooks,
 rules, scheduled tasks) are ``not_matchable`` and never counted as unused.
 """
 
+import re
 from collections import defaultdict
 from typing import Any
 
@@ -21,16 +22,35 @@ def _norm(value) -> str:
     return str(value or "").strip().lower()
 
 
+def _mcp_name(value) -> str:
+    """Claude's MCP tool-name normalization: every non-alphanumeric character becomes ``_``."""
+    return re.sub(r"[^a-z0-9]", "_", _norm(value))
+
+
+def _mcp_server_matches(server: str, name: str) -> bool:
+    """``github`` owns ``mcp__github__*`` and plugin servers ``mcp__plugin_<plugin>_github__*``."""
+    return bool(server) and (server == name or (server.startswith("plugin_") and server.endswith(f"_{name}")))
+
+
+def _skill_matches(value: str, name: str) -> bool:
+    """Exact skill name, or a plugin-qualified ``plugin:skill``; never a substring (pdf ≠ pdf-extractor)."""
+    return bool(value) and (value == name or (":" not in name and value.rpartition(":")[2] == name
+                                              and ":" in value))
+
+
 def _uses(item: Record, call: Record) -> bool:
     name, kind = _norm(item.get("name")), item.get("type")
     if not name:
         return False
     if kind == "skill":
-        return _norm(call.get("skill")) == name or (
-            call.get("kind") == "skill" and name in _norm(call.get("name_raw")))
+        return _skill_matches(_norm(call.get("skill")), name) or (
+            call.get("kind") == "skill" and _skill_matches(_norm(call.get("name_raw")), name))
     if kind == "mcp":
-        return _norm(call.get("mcp_server")) == name or _norm(call.get("name_raw")).startswith(
-            f"mcp__{name}__")
+        target = _mcp_name(name)
+        raw = _norm(call.get("name_raw"))
+        server = raw.split("__")[1] if raw.startswith("mcp__") and raw.count("__") >= 2 else ""
+        return _mcp_server_matches(_mcp_name(call.get("mcp_server")), target) \
+            or _mcp_server_matches(server, target)
     if kind == "plugin":
         return _norm(call.get("plugin")) == name or f"{name}:" in _norm(call.get("skill")) \
             or f"plugin_{name}_" in _norm(call.get("name_raw"))

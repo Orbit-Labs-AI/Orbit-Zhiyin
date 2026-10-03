@@ -223,3 +223,22 @@ def test_tool_failure_rate_uses_status_coverage_gate(failed, success, unknown, e
     else:
         assert overall["value"] == pytest.approx(expected) and overall["n"] == failed + success
         assert overall["unknown_n"] == 0
+
+
+@pytest.mark.parametrize("item,call,used", [
+    ({"type": "skill", "name": "pdf"}, {"kind": "skill", "skill": "pdf"}, True),
+    ({"type": "skill", "name": "pdf"}, {"kind": "skill", "skill": "anthropic-skills:pdf"}, True),
+    ({"type": "skill", "name": "pdf"}, {"kind": "skill", "skill": "pdf-extractor"}, False),
+    ({"type": "skill", "name": "pdf"}, {"kind": "skill", "name_raw": "pdf-extractor"}, False),
+    ({"type": "skill", "name": "docs:pdf"}, {"kind": "skill", "skill": "pdf"}, False),
+    ({"type": "mcp", "name": "github"}, {"kind": "mcp", "name_raw": "mcp__github__search"}, True),
+    ({"type": "mcp", "name": "github"},
+     {"kind": "mcp", "name_raw": "mcp__plugin_github_github__search"}, True),
+    ({"type": "mcp", "name": "github"}, {"kind": "mcp", "mcp_server": "plugin_github_github"}, True),
+    ({"type": "mcp", "name": "Claude Browser"}, {"kind": "mcp", "name_raw": "mcp__Claude_Browser__navigate"}, True),
+    ({"type": "mcp", "name": "github"}, {"kind": "mcp", "name_raw": "mcp__github_enterprise__search"}, False),
+    ({"type": "mcp", "name": "hub"}, {"kind": "mcp", "name_raw": "mcp__plugin_github_github__search"}, False),
+])
+def test_inventory_name_matching(item, call, used):
+    from tandem_backend.analytics.signals.inventory import _uses
+    assert _uses(item, call) is used
