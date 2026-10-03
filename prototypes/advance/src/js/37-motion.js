@@ -45,8 +45,8 @@ function countFmt(v, dec, group) {
   return group ? v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : v.toFixed(dec);
 }
 // tag VZ.kpi values (plain numbers such as 1,234 / 11.8) so every metric tile counts without touching vizkit
-function countTag(root) {
-  $$('.vz-kpi .v:not([data-count])', root).forEach((el) => {
+function countTag(root, all) {
+  $$(all ? '.vz-kpi .v' : '.vz-kpi .v:not([data-count])', root).forEach((el) => {
     const t = el.textContent.trim(); if (!/^-?[\d,]*\.?\d+$/.test(t)) return;
     el.dataset.count = t.replace(/,/g, ''); const d = t.split('.')[1]; if (d) el.dataset.dec = d.length;
   });
@@ -121,7 +121,8 @@ function guideInsert(mainEl) {
   const c = $('#content', mainEl); if (!c || guideOff() || $('.pg-guide', c)) return;
   const h = guideHTML(S.route); if (h) c.insertAdjacentHTML('afterbegin', h);
 }
-function guideSet(on) { store.set('guideOff', !on); render(); }
+// a region-built page is not rebuilt by render(): the guide (outside every region) is put in / taken out here directly
+function guideSet(on) { store.set('guideOff', !on); render(); if (on) guideInsert($('#main')); else $$('.pg-guide').forEach((x) => x.remove()); }
 ACT.guideOff = (el) => {
   const g = el.closest('.pg-guide');
   const done = () => { store.set('guideOff', true); $$('.pg-guide').forEach((x) => x.remove()); toast('已收起页面导读 · 可在「显示」菜单重新打开'); };
@@ -205,4 +206,30 @@ RENDER_HOOKS.push((mainEl, entered) => {
   }
   MOTION.vt = -1;
   MOTION.chips = chipKeys(mainEl); MOTION.chipsRoute = S.route;
+});
+
+/* ---------- region refresh hook (24-regions.js) ---------- */
+// A region that changed in place gets the same motion a filter re-render gave the page, scoped to that region only:
+// numbers roll from the value the region showed before (old = its data-count values read before the morph), new filter
+// chips pop in, a chart ↔ table switch cross-fades. Untouched regions never replay anything; no cascade (not a page enter).
+RG.hooks.push((el, key, old) => {
+  countTag(el, true);
+  const scope = 'rg:' + key;
+  $$('[data-count]', el).forEach((x, i) => { if (old[i] != null && isFinite(parseFloat(old[i]))) MOTION.prev.set(scope + ':' + i, parseFloat(old[i])); });
+  countUp(el, { scope });
+  if (reduceMotion()) return;
+  const sg = MOTION.seg;
+  if (sg && sg.route === S.route && sg.el.isConnected && el.contains(sg.el)) { MOTION.seg = null; segSlide(sg.el, sg.from); }
+  const main = $('#main');
+  if (MOTION.vt >= 0 && main) {
+    const card = $$('.card', main)[MOTION.vt];
+    if (card && el.contains(card)) { $$('.vz', card).forEach((v) => v.animate([{ opacity: 0, transform: 'scale(.985)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE_OUT, fill: 'backwards' })); MOTION.vt = -1; }
+  }
+  if ($('.frow', el) || el.classList.contains('frow')) {
+    const old2 = new Set(MOTION.chipsRoute === S.route && MOTION.chips ? MOTION.chips : []);
+    $$('.frow [data-act="clearFilter"]', el.parentNode || el).forEach((x) => {
+      if (!old2.has(x.dataset.k + '|' + x.textContent)) x.animate([{ opacity: 0, transform: 'scale(.86)' }, { opacity: 1, transform: 'scale(1.03)', offset: 0.7 }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE_OUT });
+    });
+    if (main) { MOTION.chips = chipKeys(main); MOTION.chipsRoute = S.route; }
+  }
 });

@@ -44,24 +44,36 @@ function lvUserBusy(now) {
   const a = document.activeElement;
   return !!(a && lvImporting() && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest('#main, #side'));
 }
+// On a region-built page (RG.canRefresh, 24-regions.js) a live change is a region pass, not a page rebuild: render() then
+// only re-evaluates the regions whose deps are among the live keys (facts when the spine revision moved, the route's feed,
+// the connection / analysis status, 'tl' for any other TandemLive state) and morphs the changed ones in place, so the
+// user-busy postponement is not needed there; the import spacing (LV_IMPORT_GAP) stays as a guard on both paths.
+let lvRevShown = -1;
 function lvFlush() {
   if (lvFrame) { cancelAnimationFrame(lvFrame); lvFrame = 0; }
   if (lvFrameT) { clearTimeout(lvFrameT); lvFrameT = null; }
   lvPatchProgress();
   const sig = lvSig(); if (sig === lvLastSig) { lvDeferSince = 0; return; }
   const now = Date.now();
+  const soft = RG.canRefresh();
   const gap = lvImporting() && lvLastRenderT ? lvLastRenderT + LV_IMPORT_GAP - now : 0;
-  const busy = lvUserBusy(now) && (!lvDeferSince || now - lvDeferSince < LV_DEFER_MAX);
+  const busy = !soft && lvUserBusy(now) && (!lvDeferSince || now - lvDeferSince < LV_DEFER_MAX);
   if (gap > 0 || busy) { if (!lvDeferSince) lvDeferSince = now; lvFrameT = setTimeout(lvFlush, Math.max(400, Math.min(gap, 2000))); return; }
   lvDeferSince = 0;
-  render();
+  if (soft) {
+    const keys = new Set(['live', 'tl', 'job', 'feed:' + S.route]);
+    if (LV.rev !== lvRevShown) keys.add('facts');
+    RG.only = keys;
+  }
+  lvRevShown = LV.rev;
+  try { render(); } finally { RG.only = null; }
 }
-// the import progress strip (TandemLive.ui.progress) is patched in place on every job frame instead of re-rendering the page
+// the import progress strip (TandemLive.ui.progress) is morphed in place on every job frame instead of re-rendering the page
 function lvPatchProgress() {
   if (typeof document === 'undefined') return;
   const els = document.querySelectorAll('#content .tl-progress'); if (!els.length) return;
   const html = TLU.progress(TL); if (!html) return;
-  els.forEach((el) => { if (el.outerHTML !== html) el.outerHTML = html; });
+  els.forEach((el) => { if (el.outerHTML !== html) rgSwap(el, html); });
 }
 function lvSchedule() {
   if (lvFrame || lvFrameT) return;
@@ -165,6 +177,9 @@ TL.on('event', (ev) => { if (!ev || ev.name !== 'job') lvTick++; });
 // every render (whatever triggered it) records the live state it showed, so the next TL frame can tell whether it is new
 LV.rendered = () => { lvLastRenderT = Date.now(); if (LV.live) { try { lvLastSig = lvSig(); } catch (e) { lvLastSig = null; } } };
 if (LV.live && typeof window !== 'undefined') window.__lvRendered = LV.rendered;
+// region deps (24-regions.js): 'tl' = any TandemLive change, 'live' = the connection / analysis status the strip and badges read
+RG.dep('tl', () => lvTick + ':' + LV.rev);
+RG.dep('live', () => [LV.state, LV.stale, LV.failed && LV.failed.reason, LV.job && LV.job.status, lvId(TL.error), lvId(TL.failure), TL.events && TL.events.connected]);
 LV.backendId = (uiId) => { const a = AGI[uiId]; return a && a.key ? a.key : uiId; };
 // scope for page endpoints: {range, agents (backend ids | null = all), project, tz} + the UI-only filters
 LV.scope = () => {

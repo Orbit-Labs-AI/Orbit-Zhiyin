@@ -374,13 +374,10 @@ if (LV.live) {
       '<span class="sb-imp-ic' + (x.k === 'run' ? ' spin-ic' : '') + '">' + ic(x.ico, 14) + '</span><span class="sb-imp-t">' + esc(x.t) + '</span>' + (x.a ? '<span class="sb-imp-a">' + esc(x.a) + ' ›</span>' : '') + '</button>';
   };
   SIDE_EXTRA = () => { if (ORBIT.native.surface) return ''; const x = LVN.sideState(); return x ? LVN.sideHTML(x) : ''; };
-  // patch the entry in place on a frame; only appearing / disappearing re-renders the sidebar
+  // a job frame refreshes only the side:import region (24-regions.js); appearing / disappearing is the same region
   LVN.sidePatch = function () {
-    const side = $('#side'); if (!side || ORBIT.native.surface) return;
-    const x = LVN.sideState(), el = side.querySelector('[data-side="import"]');
-    if (!x && !el) return;
-    if (!x || !el) { renderSide(); return; }
-    const html = LVN.sideHTML(x); if (el.outerHTML !== html) el.outerHTML = html;
+    if (!$('#side') || ORBIT.native.surface) return;
+    RG.bump('job', 'job frame');
   };
   TL.on('event', (ev) => { if (ev && ev.name === 'job') LVN.sidePatch(); });
   // reveal (help menu, persona page 重播揭晓, onboarding「播放揭晓动画」) plays the server persona
