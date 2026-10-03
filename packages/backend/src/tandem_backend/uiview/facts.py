@@ -607,7 +607,24 @@ AUX_KEYS = ("dk", "dn", "vk", "op", "t0", "t1")
 # The same work can therefore read as more "delegated" under Claude Code; profiling.md
 # lists this under 局限 until per-agent distributions are measured on consented data.
 STEP_THRESHOLD = 5
-WIRE_TITLE_LEN = 40
+WIRE_TITLE_LEN = 48
+
+
+def wire_title(value: str, limit: int = WIRE_TITLE_LEN) -> str:
+    """Trim a title for the wire: collapse whitespace, cut at a word boundary, add ``…``.
+
+    The client shows one line with CSS ellipsis, so the wire value only needs to carry a bit
+    more than fits; a hard ``[:N]`` used to leave mid-word cuts with a trailing space and no
+    ellipsis.
+    """
+    clean = " ".join(value.split())
+    if len(clean) <= limit:
+        return clean
+    cut = clean[:limit]
+    space = cut.rfind(" ")
+    if space >= limit * 2 // 3 and clean[limit] != " ":
+        cut = cut[:space]
+    return cut.rstrip(" ,.;:，。；：、-—") + "…"
 
 
 def overlay_live(body: dict, realtime: dict | None) -> dict:
@@ -665,7 +682,7 @@ def compact(body: dict) -> dict:
                     dicts[key].append(value)
                 value = index[key][value]
             elif key == "title" and isinstance(value, str):
-                value = value[:WIRE_TITLE_LEN]
+                value = wire_title(value)
             elif isinstance(value, bool):
                 value = int(value)
             elif isinstance(value, float):

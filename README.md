@@ -2,6 +2,15 @@
 
 # Orbit
 
+[![App integration](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/backend.yml/badge.svg?branch=main)](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/backend.yml)
+[![Connector runtime matrix](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/connectors.yml/badge.svg?branch=main)](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/connectors.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Stage: Prototype](https://img.shields.io/badge/stage-prototype-orange)](docs/product/scope.md)
+[![Platform: macOS](https://img.shields.io/badge/platform-macOS-000000?logo=apple&logoColor=white)](docs/product/scope.md)
+[![Python: 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![Node.js: ≥24.7](https://img.shields.io/badge/node.js-%E2%89%A524.7-339933?logo=nodedotjs&logoColor=white)](package.json)
+[![Conventional Commits: 1.0.0](https://img.shields.io/badge/commits-Conventional_Commits_1.0.0-FE5196)](https://www.conventionalcommits.org/en/v1.0.0/)
+
 ActionMesh-AI 的本地跨 Agent 会话分析 macOS App：读取本机 Claude Code、Codex 等 Agent 的会话记录，生成协作人格画像与会话轨迹，并推荐 Skills、Hooks、规则等可一键安装、可撤销的改进。数据只在本机处理。
 
 当前可运行部分是统一数据层、Python 后端、CLI、本机 API 和一个 UI 原型（Lite / Advance 同一个 App，示例数据）；尚无原生 App target 或安装包。产品名为 Orbit，代码标识（`tandem_*` 包、`tandem` CLI、数据目录）暂沿用旧代号，见[品牌](docs/design/brand.md#名称)。
@@ -60,3 +69,16 @@ CI 调用同一套命令。测试不自动读取本机 Agent 历史；性能与�
 - [目录迁移说明](docs/development/structure-migration.md)：活跃分支如何接入新结构。
 - [设计资料](docs/design/README.md)：Lite 属于 `genius-FXC`，Advance 属于 `yhyfhgs`，两版是同一个 App；[品牌](docs/design/brand.md)与 [Demo 说明](docs/design/demo.md)。
 - [协作规则](AGENTS.md)：`main` 通过 PR 更新，合并与关闭由 `yhyfhgs` 决定。
+
+## 参与与协作
+
+- [贡献指南](CONTRIBUTING.md)：开发环境、分支与提交规范、验证要求和 PR 流程。
+- [行为准则](CODE_OF_CONDUCT.md)：讨论、审查与协作中的基本约定。
+- [安全政策](SECURITY.md)：安全问题的私下报告方式与数据保护要求。
+- [问题与建议](https://github.com/ActionMesh-AI/Hackathon/issues/new/choose)：使用 Bug / 功能建议模板提供可复现的信息。
+
+CI badges 指向 `main` 的实际工作流状态；私有仓库的状态徽章不能在外部站点展示。
+
+## 许可证
+
+Orbit 原创代码与文档采用 [Apache License 2.0](LICENSE)。仓库当前仍为私有，访问权限与代码许可分别管理。`third_party/` 引用项目及其他带有独立许可声明的第三方材料遵循各自许可证，项目许可证不覆盖这些声明。

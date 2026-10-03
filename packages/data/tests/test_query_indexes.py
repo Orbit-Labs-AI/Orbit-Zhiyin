@@ -6,7 +6,13 @@ import time
 import pytest
 from test_storage_dedup import import_home, write_sessions
 
-from tandem_data.query import current_projection, source_status, trajectory_page
+from tandem_data.query import (
+    UNPROJECTED,
+    current_projection,
+    projection_state,
+    source_status,
+    trajectory_page,
+)
 from tandem_data.store import Store, readonly_connection
 
 
@@ -63,14 +69,18 @@ def test_list_and_tool_queries_avoid_temp_sorts(tmp_path):
             db, "SELECT * FROM tool_call WHERE name='Bash' ORDER BY started_at DESC LIMIT 5"
         )
         # Freshness reads a partial index and an expression index, never every watermark.
-        freshness = plan(
-            db,
-            "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) LIMIT 1",
-        ) + plan(
-            db,
-            "SELECT COUNT(*) FROM source_file WHERE json_extract(watermark,'$.mapper_version')=? "
-            "AND json_extract(watermark,'$.reducer_version')=? AND json_extract(watermark,'$.redaction_version')=?",
-            ("a", "b", "c"),
+        freshness = (
+            plan(
+                db,
+                "SELECT 1 FROM source_file WHERE COALESCE(json_extract(watermark,'$.projected_revision'),-1) <> COALESCE(json_extract(watermark,'$.revision'),0) LIMIT 1",
+            )
+            + plan(db, f"SELECT watermark FROM source_file WHERE {UNPROJECTED}")
+            + plan(
+                db,
+                "SELECT COUNT(*) FROM source_file WHERE json_extract(watermark,'$.mapper_version')=? "
+                "AND json_extract(watermark,'$.reducer_version')=? AND json_extract(watermark,'$.redaction_version')=?",
+                ("a", "b", "c"),
+            )
         )
         assert "source_file_unprojected" in freshness
         assert "source_file_projection_versions" in freshness
@@ -83,10 +93,12 @@ def test_freshness_detects_every_incomplete_file(tmp_path):
     import_home(home, source).db.close()
     with readonly_connection(home / "tandem.db") as db:
         current_projection(db)
-    for change in (
-        "json_remove(watermark,'$.projected_revision')",
-        "json_set(watermark,'$.mapper_version','0.0.0')",
-        "json_remove(watermark,'$.redaction_version')",
+    # An unpublished file only makes the published snapshot stale (pending); facts of an
+    # older mapper or redaction make it unreadable until a rebuild (obsolete).
+    for change, expected in (
+        ("json_remove(watermark,'$.projected_revision')", "pending"),
+        ("json_set(watermark,'$.mapper_version','0.0.0')", "obsolete or incomplete"),
+        ("json_remove(watermark,'$.redaction_version')", "obsolete or incomplete"),
     ):
         with Store(home) as store:
             original = store.db.execute(
@@ -100,7 +112,11 @@ def test_freshness_detects_every_incomplete_file(tmp_path):
                 current_projection(db)
                 raise AssertionError(change)
             except ValueError as error:
-                assert "obsolete or incomplete" in str(error)
+                assert expected in str(error)
+            if expected == "pending":
+                state = projection_state(db)
+                assert state["pending"] and state["pending_files"] == 1
+                assert state["run"]["run_id"] == 1  # The published snapshot stays readable.
         with Store(home) as store:
             store.db.execute("UPDATE source_file SET watermark=? WHERE file_id=?", original[::-1])
 

@@ -317,9 +317,11 @@ class JobService:
     def progress(self, job_id: str, progress: dict, phase: str | None = None) -> None:
         job = self.state.update(job_id, progress=progress, throttle_s=0.5,
                                 **({"current_phase": phase} if phase else {}))
-        # Coalesce: per-file progress would flood the 1000-frame SSE buffer. Stage or phase
-        # changes and completion always go out; otherwise at most one frame per interval.
-        marker = (progress.get("stage"), phase)
+        # Coalesce: per-file progress would flood the 1000-frame SSE buffer. A new stage,
+        # phase, source, batch or rebuild attempt and completion always go out; otherwise at
+        # most one frame per interval.
+        marker = (progress.get("stage"), phase, progress.get("step"), progress.get("batch"),
+                  progress.get("attempt"))
         last = self.progress_sent.get(job_id)
         now = time.monotonic()
         final = progress.get("total") is not None and progress.get("completed") == progress.get(
@@ -328,8 +330,11 @@ class JobService:
                 now - last[1] < self.progress_interval_s):
             return
         self.progress_sent[job_id] = (marker, now)
+        # ``origin`` lets the UI tell a background sync (origin=sync) from an import the user
+        # started; every job frame carries it, not only the status frames.
         self.publish("job", "job", {"id": job_id, "kind": job["kind"], "status": job["status"],
-                                    "progress": progress, "phase": phase})
+                                    "progress": progress, "phase": phase,
+                                    "origin": job.get("origin")})
 
     def published(self, job_id: str | None, entry: dict) -> None:
         if job_id is None:

@@ -1,0 +1,35 @@
+name: 功能建议
+description: 从真实场景出发，提出 Orbit 的改进建议。
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先搜索已有 Issues。新功能及 MVP 范围须由三位成员共同确认；提交建议不代表已纳入实现计划。
+        请使用虚构或脱敏示例，不粘贴真实 Agent 会话。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 使用场景与问题
+      description: 谁在什么情况下遇到什么困难？为什么现有方式不够用？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 最小改进方案
+      description: 描述期望的输入、输出和操作流程，尽量限定范围。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 现有做法与替代方案
+      description: 包括无需新增功能的解决办法。
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收条件
+      description: 如何通过可运行原型判断问题得到解决？
+    validations:
+      required: true
