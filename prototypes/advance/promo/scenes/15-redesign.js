@@ -222,14 +222,14 @@ scene('15-redesign', () => {
   AGD.morph(20.4, 'all', 'bead', { ls: .85, dur: .8, stag: .05, glow: (b) => .5 * plate(b, 23.0, 24.0, .3) });
 
   /* ---------- 1e 虚线圆（#agdBack，跟着 cc 的半径，b26.8–27.4 淡出） ---------- */
-  // 1e → 2 hand-off: while the three lines spread out (b25.8–26.4) the circle brightens .14 → .32, so in b26.4–26.9,
+  // 1e → 2 hand-off: while the three lines spread out (b25.8–26.4) the circle brightens .24 → .32 (v17.7: was .14, too faint to see it drawn out of the beads), so in b26.4–26.9,
   // before the spiral shows, the screen is the ring tightening with the dots (R 420 → 300), not five loose dots; the
   // spiral's tail then starts on this very circle (R 300) as it fades (20-orbit's b21.6 / b22.4, pushed 4.4 by SHIFT)
   // v17.7: the circle is drawn out of the five beads — from each bead's bearing both ways (36° each, b22.1–22.9), so
   // it closes halfway between them; the arcs ride with the beads (their bearings each frame) and their radius
   AGD.back(22.1, 27.4, (b) => {
     const p = AGD.pos(0, b), R = Math.hypot(p.x - 960, p.y - 540);
-    const a = E.inOut(clamp((b - 22.1) / .3)) * (1 - E.inOut(clamp((b - 26.8) / .6))) * (.14 + .18 * E.inOut(clamp((b - 25.8) / .7)));
+    const a = E.inOut(clamp((b - 22.1) / .3)) * (1 - E.inOut(clamp((b - 26.8) / .6))) * (.24 + .08 * E.inOut(clamp((b - 25.8) / .7)));
     const s = 36.4 * E.inOut(clamp((b - 22.1) / .8));
     if (a <= .002 || R < 1 || s < .2) return '';
     const P = (g) => (960 + R * Math.sin(g * Math.PI / 180)).toFixed(1) + ' ' + (540 - R * Math.cos(g * Math.PI / 180)).toFixed(1);
@@ -239,7 +239,7 @@ scene('15-redesign', () => {
       d += 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 1 ' + P(g + s) + 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 0 ' + P(g - s);
     }
     return '<path d="' + d + '" fill="none" stroke="#fff" stroke-opacity="' + a.toFixed(3) +
-      '" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 7"/>';
+      '" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 6"/>';
   });
 
   /* ---------- 1e 环内一行小字 + 三行大字（fit，b25.8–26.4 字距拉开退场） ---------- */
