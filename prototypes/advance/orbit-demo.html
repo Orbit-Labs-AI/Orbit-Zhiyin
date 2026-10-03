@@ -176,13 +176,19 @@ h1.serif,h2.serif,h3.serif{font-weight:600}
 .nav .ag.dim .dot{opacity:.45}
 .nav .ag.off{color:var(--ink-3)}
 .nav .ag.off .ico{color:var(--ink-4)}
-/* footer: the privacy card (surface card, as published) over the user row; both stay on the 10 / 11 / 12px type scale */
+/* footer: the index indicator row (state dot + count, on the sidebar background) over the user row; both stay on the 10 / 11 / 12px type scale */
 .sb-foot{flex:none;display:flex;flex-direction:column;gap:6px;padding:8px;border-top:1px solid var(--hair)}
-.sb-foot .pv{width:100%;display:flex;flex-direction:column;gap:6px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:var(--sh-card);font-size:11px;color:var(--ink-3);text-align:left}
-.sb-foot .pv:hover{border-color:var(--ink-4)}
-.sb-foot .pv b{font-size:12px;line-height:16px;font-weight:600;color:var(--ink-1)}
-.sb-foot .pv .cap{font-size:11px;line-height:14px}
-.sb-foot .pv span{min-width:0}
+.sb-foot .pv{width:100%;display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:7px;font-size:11px;line-height:14px;color:var(--ink-3);text-align:left;white-space:nowrap;border:0;background:transparent}
+.sb-foot .pv:hover{background:var(--sel-off);color:var(--ink-2)}
+.sb-foot .pv-dot{width:7px;height:7px;border-radius:50%;flex:none;margin:0 2px;background:var(--ink-4)}
+.sb-foot .pv[data-st="live"] .pv-dot{background:var(--good-m);animation:pvlive 2s ease-out infinite}
+.sb-foot .pv[data-st="busy"] .pv-dot{background:var(--warn-m);animation:blink 1.2s ease-in-out infinite}
+.sb-foot .pv[data-st="err"] .pv-dot{background:var(--crit-m)}
+.sb-foot .pv-n{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis}
+.sb-foot .pv-sep{color:var(--ink-4)}
+.sb-foot .pv-t{min-width:0;overflow:hidden;text-overflow:ellipsis}
+@keyframes pvlive{0%{box-shadow:0 0 0 0 rgba(12,163,12,.45)}70%{box-shadow:0 0 0 5px rgba(12,163,12,0)}100%{box-shadow:0 0 0 0 rgba(12,163,12,0)}}
+@media (prefers-reduced-motion:reduce){.sb-foot .pv-dot{animation:none!important}}
 .sb-foot .me{display:flex;align-items:center;gap:8px;padding:0 2px 0 4px}
 .sb-foot .av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--ink-1);color:var(--bg);font:600 11px/1 var(--font-num)}
 .sb-foot .nm{font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3968,8 +3974,8 @@ function renderWtop() {
   $('#wtop').innerHTML = '<div class="lights" role="group" aria-label="窗口控制"><button type="button" class="r" data-act="winClose" aria-label="关闭窗口"></button><button type="button" class="y" data-act="winMin" aria-label="最小化"></button><button type="button" class="g" data-act="winZoom" aria-label="' + (S.win.full ? '退出全屏' : '进入全屏；按住 ⌥ 点击为缩放') + '"></button></div>' +
     '<button type="button" class="ib sbtoggle" data-act="sideToggle" aria-label="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + '" aria-pressed="' + shown + '" aria-keyshortcuts="Control+Meta+S" data-tip="' + (shown ? '隐藏侧边栏' : '显示侧边栏') + ' ' + kb('⌃⌘S') + '">' + ic('sidebar') + '</button>';
 }
-/* sidebar: collapsible groups in a scrolling middle; fixed footer = the published privacy card (local only · 0 B uploaded ·
-   redaction rules · index state) and the user row (avatar · account · persona code), compacted onto the type scale */
+/* sidebar: collapsible groups in a scrolling middle; fixed footer = the index indicator light (state dot · session count · index mode,
+   no card, on the sidebar's own background) and the user row (avatar · account · persona code), compacted onto the type scale */
 /* sidebar building blocks, shared by both editions (Advance shows every group, Lite the same groups with fewer pages) */
 const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act="go" data-r="' + id + '"' + (S.route === id ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span class="lb">' + label + '</span>' + (bd ? '<span class="bd">' + bd + '</span>' : ct ? '<span class="ct">' + ct + '</span>' : '') + '</button>';
 // SIDE_EXTRA(): optional row under the edition switch, shared by both editions (live: import progress / reopen onboarding)
@@ -4000,13 +4006,16 @@ function renderSide() {
     group('agents', 'Agents', sideAgents(), '会话') +
     group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
 }
-// the published footer, shared by both editions: privacy card (local only · 0 B uploaded · redaction rules · index state) + user row
+// the published footer, shared by both editions: index indicator light (live / paused / manual) + session count, then the user row
+// sideIdx() → { st: 'live' | 'busy' | 'off' | 'err', n: session count or null, t: state label }; live mode (96-live-bind) swaps in the gateway state
+function sideIdx() {
+  if (S.paused) return { st: 'off', n: null, t: '采集已暂停' };
+  return { st: S.index === 'live' ? 'live' : 'off', n: 2416 + S.extraSrc.length * 37, t: S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动' };
+}
 function sideFoot() {
-  const idx = S.paused ? '采集已暂停' : '已索引 ' + fmt(2416 + S.extraSrc.length * 37) + ' 个会话 · ' + (S.index === 'live' ? '实时' : S.index === 'hour' ? '每小时' : '手动');
-  const nRules = Object.values(S.rules).filter(Boolean).length, me = personaNow();
-  return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
-    '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +
-    '<span class="row cap" style="gap:6px">' + ic('sync', 13) + '<span>' + idx + '</span></span></button>' +
+  const x = sideIdx(), me = personaNow();
+  return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="sources" data-st="' + x.st + '" data-tip="打开设置 › 数据源">' +
+    '<span class="pv-dot" aria-hidden="true"></span>' + (x.n == null ? '' : '<span class="pv-n">' + fmt(x.n) + ' 个会话</span><span class="pv-sep" aria-hidden="true">·</span>') + '<span class="pv-t">' + x.t + '</span></button>' +
     '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? '<span class="tcode">' + me.code + '</span> · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
 }
 function personaNow() { return persona(sel({ noExtra: true })); }
@@ -11891,7 +11900,7 @@ if (LV.live) {
     TL.invalidate((r) => r === TL.statusResource());
     TL.ensureStatus().catch(() => { /* the strip keeps the last status */ });
   }, 20000);
-  const baseRender = render, baseSide = renderSide;
+  const baseRender = render;
   render = function () {
     LV.pump(S.route);
     baseRender();
@@ -11900,10 +11909,12 @@ if (LV.live) {
     const strip = lvStrip(S.route);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
-  renderSide = function () {
-    baseSide();
-    const el = $('#side') && $('#side').querySelector('.sb-foot .pv .row.cap span');
-    if (el) el.textContent = LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务';
+  // sidebar indicator: the gateway's state instead of the demo index mode; the count is the live session spine
+  sideIdx = function () {
+    if (LV.state === 'connecting') return TL.error ? { st: 'err', n: null, t: '本机服务未连接' } : { st: 'busy', n: null, t: '正在连接本机服务' };
+    if (LV.state === 'error') return { st: 'err', n: ALL.length || null, t: '本机服务未连接' };
+    if (LV.state === 'computing') return { st: 'busy', n: ALL.length || null, t: '索引中' };
+    return { st: 'live', n: ALL.length, t: '实时' };
   };
   TL.start();
 }
