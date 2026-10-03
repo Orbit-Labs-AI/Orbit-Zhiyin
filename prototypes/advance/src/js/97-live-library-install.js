@@ -27,7 +27,7 @@ const liLink = (url, label, cls) => '<button type="button" class="' + (cls || 'l
 // card text: the item's own summary; a search hit without one gets its snippet minus the index's `key: value` tag dump
 const LI_TAGDUMP = /(?:^|\s)(?:agent|command|dimension|domain|file_type|friction|software|tag|kind|lang|language|topic|scene|tool|ftype|cmd):\s*\S+/gi;
 const liDesc = (x) => { const t = String(x.summary || x.snippet || ''); return t.replace(LI_TAGDUMP, '').replace(/\s{2,}/g, ' ').trim(); };
-const liSrc = (x) => x.official ? 'Orbit 官方' : x.origin === 'local' ? '本地生成' : esc(x.author || '社区') + ' · ' + esc(x.license || '许可未知');
+const liSrc = (x) => x.official ? esc(!x.author || /^orbit$/i.test(x.author) ? 'Orbit' : x.author) + ' 官方' : x.origin === 'local' ? '本地生成' : esc(x.author || '社区') + ' · ' + esc(x.license || '许可未知');
 const liReq = () => TL.li.listRequest({ tab: S.lib.tab, kind: S.lib.kind, q: S.li.q });
 const liReqKey = (r) => r.path + '|' + JSON.stringify(r.query);
 const liInvalidate = () => TL.invalidate((r) => /^\/v1\/(catalog|install)\//.test(r.path));
@@ -164,6 +164,8 @@ function liDetailDraw(id) {
     openModal(head + '<div class="mb col" style="gap:10px" data-tl="lib-detail">' + body + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">关闭</button></div>', 'wide'); MODAL_KEY = 'libDetail'; return;
   }
   const p = x.permissions || {}; const ins = x.install || {};
+  const q = x.quality; const qNames = { source_read: '已读取来源', license_declared: '许可明确', body_available: '正文可用', compatibility_listed: '兼容范围明确', source_version_recorded: '固定版本可追溯' };
+  const quality = q && Number.isFinite(q.score) ? '<div class="col" data-tl="lib-quality" style="gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px"><b style="font-size:13px">资料完整度 ' + Math.round(q.score * 100) + ' / 100</b><div class="row" style="flex-wrap:wrap;gap:6px">' + Object.keys(qNames).map((k) => '<span class="tag">' + esc(qNames[k]) + ' · ' + ((q.dimensions || {})[k] ? '有' : '待补') + '</span>').join('') + '</div><span class="cap" style="font-size:11px">反映来源与文档是否齐全，实际适用性和效果需要验证。</span></div>' : '';
   const facts = [['类型', esc(TL.li.kindLabel(x.kind))], ['许可', esc(x.license || '未知')], ['作者', esc(x.author || '—')], ['Agent', esc(liAgents(x.agents))], ['风险', TLU.num(p.level != null ? p.level : x.risk_level) + (p.flags && p.flags.length ? ' · ' + esc(p.flags.join('、')) : '') + (p.estimate ? '<span class="cap">（估计）</span>' : '')], ['工具', esc((p.allowed_tools || []).join('、') || '—')], ['环境变量', esc((p.declared_env || []).join('、') || '—')], ['常驻', x.resident_tokens_est != null ? '约 ' + TLU.num(x.resident_tokens_est) + ' token' : '—']];
   const readme = x.readme ? '<div class="code" data-tl="lib-readme" style="max-height:min(260px,36vh)">' + x.readme.split('\n').map((l, i) => '<div><span class="n">' + (i + 1) + '</span><span class="t">' + (esc(l) || ' ') + '</span></div>').join('') + '</div>' : '<div class="cap" data-tl="lib-readme">许可不允许内嵌正文' + (x.url ? '，' + liLink(x.url, '查看来源') : '') + '</div>';
   const versions = (x.versions || []).length ? x.versions.slice(0, 8).map((r) => '<div class="row" style="justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--hair);font-size:12.5px;gap:8px"><b class="mono" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(String(r.version || r.version_id || '—').slice(0, 24)) + '</b><span class="mono cap">' + esc((r.commit_sha || '').slice(0, 7) || '—') + ' · ' + TLU.num(r.size) + ' B · ' + liDay(r.created_at) + '</span></div>').join('') : '<span class="cap">—</span>';
@@ -171,7 +173,7 @@ function liDetailDraw(id) {
   const why = !ins.installable ? (!ins.license_ok ? '许可不允许自动安装' : '该资源当前不可安装') : '';
   openModal(head + '<div class="mb col" style="gap:12px" data-tl="lib-detail"><div class="lb-desc">' + esc(x.summary || '') + '</div>' +
     '<div class="form" style="grid-template-columns:64px minmax(0,1fr);gap:6px 12px">' + facts.map((f) => '<span class="l">' + f[0] + '</span><span style="font-size:12.5px;min-width:0;word-break:break-word">' + f[1] + '</span>').join('') + '</div>' +
-    '<span class="eb">README</span>' + readme + '<span class="eb">版本</span><div data-tl="lib-versions">' + versions + '</div>' + (related ? '<span class="eb">相关资源</span><div class="row" style="flex-wrap:wrap;gap:6px">' + related + '</div>' : '') + '</div>' +
+    quality + '<span class="eb">README</span>' + readme + '<span class="eb">版本</span><div data-tl="lib-versions">' + versions + '</div>' + (related ? '<span class="eb">相关资源</span><div class="row" style="flex-wrap:wrap;gap:6px">' + related + '</div>' : '') + '</div>' +
     '<div class="mf">' + (String(x.item_id).indexOf('local:') === 0 ? '<button type="button" class="btn gh" data-act="liRemoveLocal" data-id="' + esc(x.item_id) + '">移除本地条目</button>' : '') + (x.url ? liLink(x.url, ic('ext', 13) + '查看来源', 'btn gh') : '') + '<span style="flex:1"></span>' + (why ? '<span class="cap">' + why + '</span>' : '') + '<button type="button" class="btn" data-act="closeModal">关闭</button>' + (liInstalledId(x) ? '<span class="tag">已安装</span>' : '<button type="button" class="btn p" data-act="getLib" data-id="' + esc(x.item_id) + '"' + (why ? ' disabled' : '') + '>获取</button>') + '</div>', 'wide');
   MODAL_KEY = 'libDetail';
 }

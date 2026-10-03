@@ -4,7 +4,7 @@ import re
 
 from .contracts import Feature, Resource, digest
 
-FEATURE_VERSION = "features-3"
+FEATURE_VERSION = "features-4"
 CHUNK_VERSION = "heading-1200-120-v1"
 EMBED_CHUNKS = 4
 EXTRACTED_FRICTION_WEIGHT = 0.6  # Below curated (1.0): text mentioning a problem is not proof it solves it.
@@ -62,6 +62,20 @@ VOCABULARY = {
     ("domain", "hooks"): ("hook", "hooks", "pretooluse", "posttooluse"),
     ("domain", "maps"): ("maps", "geocoding", "google maps", "地图"),
     ("domain", "legal"): ("legal", "gdpr", "lawyer", "法律", "合同"),
+    # Operational phases and output forms are text evidence, not audited capabilities.
+    ("task_phase", "plan"): ("implementation plan", "task breakdown", "acceptance criteria", "实施计划", "验收标准"),
+    ("task_phase", "implement"): ("implementation", "code generation", "scaffolding", "实现", "生成代码"),
+    ("task_phase", "verify"): ("regression test", "regression tests", "test suite", "validation", "验收", "回归测试"),
+    ("task_phase", "review"): ("code review", "pull request review", "代码审查", "变更审查"),
+    ("task_phase", "release"): ("release checklist", "deployment", "rollback", "发布检查", "回滚"),
+    ("artifact", "spreadsheet"): ("spreadsheet", "xlsx", "电子表格"),
+    ("artifact", "presentation"): ("presentation", "slide deck", "pptx", "演示文稿"),
+    ("artifact", "document"): ("docx", "pdf document", "word document", "文档报告"),
+    ("artifact", "diagram"): ("mermaid", "architecture diagram", "flowchart", "架构图", "流程图"),
+    ("artifact", "notebook"): ("jupyter notebook", "ipynb", "notebook", "笔记本"),
+    ("practice", "test_driven"): ("test-driven", "test driven", "red-green-refactor", "测试驱动"),
+    ("practice", "evidence_first"): ("root cause", "reproduce", "reproducible", "证据", "复现"),
+    ("practice", "bounded_changes"): ("minimal diff", "small changes", "small commits", "最小修改", "小步提交"),
     # software
     ("software", "github"): ("github", "gh pr"),
     ("software", "gitlab"): ("gitlab",),

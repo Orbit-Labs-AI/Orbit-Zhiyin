@@ -1,0 +1,74 @@
+{
+ "product": "Orbit",
+ "generator": "docs/design/showcase/export.mjs",
+ "sourceCommit": "05049926aaef40bee9cb3078da61232f47dcec85",
+ "scale": 2,
+ "data": "Demo 示例数据与示例界面，不代表真实统计",
+ "boards": [
+  {
+   "id": "hero-light",
+   "title": "主视觉 · 浅色",
+   "file": "orbit-hero-light.png"
+  },
+  {
+   "id": "hero-dark",
+   "title": "主视觉 · 深色",
+   "file": "orbit-hero-dark.png"
+  },
+  {
+   "id": "hero-square",
+   "title": "主视觉 · 方形",
+   "file": "orbit-hero-square.png"
+  },
+  {
+   "id": "01-dial-anatomy",
+   "title": "协作人格罗盘怎么读",
+   "file": "orbit-01-dial-anatomy.png"
+  },
+  {
+   "id": "02-sixteen-types",
+   "title": "四个维度 · 16 型协作人格",
+   "file": "orbit-02-sixteen-types.png"
+  },
+  {
+   "id": "03-how-it-works",
+   "title": "工作原理",
+   "file": "orbit-03-how-it-works.png"
+  },
+  {
+   "id": "04-first-launch",
+   "title": "首次启动与人格揭晓",
+   "file": "orbit-04-first-launch.png"
+  },
+  {
+   "id": "05-bloom-switch",
+   "title": "人格切换：收起再绽开",
+   "file": "orbit-05-bloom-switch.png"
+  },
+  {
+   "id": "06-install-loop",
+   "title": "建议闭环",
+   "file": "orbit-06-install-loop.png"
+  },
+  {
+   "id": "07-session-replay",
+   "title": "会话轨迹回放",
+   "file": "orbit-07-session-replay.png"
+  },
+  {
+   "id": "08-desktop",
+   "title": "菜单栏、悬浮胶囊与小组件",
+   "file": "orbit-08-desktop.png"
+  },
+  {
+   "id": "09-share-cards",
+   "title": "分享卡",
+   "file": "orbit-09-share-cards.png"
+  },
+  {
+   "id": "10-lite-advance",
+   "title": "Lite 与 Advance",
+   "file": "orbit-10-lite-advance.png"
+  }
+ ]
+}

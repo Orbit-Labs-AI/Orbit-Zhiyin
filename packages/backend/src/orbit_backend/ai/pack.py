@@ -84,7 +84,7 @@ def window(scope: dict | None) -> tuple[int, int, str | None]:
     """Scope → (start_ms, end_ms, project_id); default last 30 days."""
     scope = scope or {}
     if scope.get("start_ms") is not None or scope.get("end_ms") is not None:
-        end = int(scope.get("end_ms") or now_ms())
+        end = int(scope["end_ms"] if scope.get("end_ms") is not None else now_ms())
         start = int(scope.get("start_ms") if scope.get("start_ms") is not None else end - 30 * DAY_MS)
     else:
         end = now_ms()
@@ -104,7 +104,7 @@ def session_filter(home: Path | None, alias: str = "s") -> tuple[str, list]:
 
 
 def window_sql(start: int, end: int, project_id, home, alias: str = "s", *,
-               source_ids=None, exclude=None) -> tuple[str, list]:
+               source_ids=None, exclude=None, session_uids=None) -> tuple[str, list]:
     """WHERE fragment selecting analysed main sessions of a window (optionally limited to
     ``source_ids`` and without the ``exclude`` session uids)."""
     sql = f"{alias}.kind='main' AND {alias}.started_at>=? AND {alias}.started_at<?"
@@ -112,9 +112,12 @@ def window_sql(start: int, end: int, project_id, home, alias: str = "s", *,
     if project_id:
         sql += f" AND {alias}.project_id=?"
         params.append(project_id)
-    if source_ids:
-        sql += f" AND {alias}.source_id IN ({placeholders(source_ids)})"
-        params.extend(source_ids)
+    if source_ids is not None:
+        sql += f" AND {alias}.source_id IN (SELECT value FROM json_each(?))"
+        params.append(json.dumps(list(source_ids)))
+    if session_uids is not None:
+        sql += f" AND {alias}.session_uid IN (SELECT value FROM json_each(?))"
+        params.append(json.dumps(list(session_uids)))
     if exclude:
         sql += f" AND {alias}.session_uid NOT IN ({placeholders(exclude)})"
         params.extend(exclude)
@@ -198,9 +201,9 @@ def tool_stats(conn, uids) -> dict[str, list[int]]:
     out: dict[str, list[int]] = {}
     for chunk in _chunks(owner):
         for uid, calls, known, fails in conn.execute(
-                f"SELECT session_uid, COUNT(*), SUM(status NOT IN ({placeholders(UNKNOWN_STATUS)})),"
+                f"SELECT session_uid, COUNT(*), SUM(status IN ({placeholders((*OK_STATUS, *FAIL_STATUS))})),"
                 f" SUM(status IN ({placeholders(FAIL_STATUS)})) FROM tool_call WHERE session_uid IN"
-                f" ({placeholders(chunk)}) GROUP BY session_uid", [*UNKNOWN_STATUS, *FAIL_STATUS, *chunk]):
+                f" ({placeholders(chunk)}) GROUP BY session_uid", [*OK_STATUS, *FAIL_STATUS, *FAIL_STATUS, *chunk]):
             acc = out.setdefault(owner[uid], [0, 0, 0])
             acc[0] += calls
             acc[1] += int(known or 0)
@@ -239,7 +242,7 @@ def _data_rev(conn):
 
 
 def metrics_pair(conn, start: int, end: int, project_id=None, home=None, *, source_ids=None,
-                 exclude=None) -> tuple[dict, dict]:
+                 exclude=None, session_uids=None) -> tuple[dict, dict]:
     """Metrics of ``[start, end)`` and of the preceding window of equal length, in one pass (B9).
 
     Hours are the union of session spans clipped to the window (B7); the tool failure rate uses
@@ -250,11 +253,13 @@ def metrics_pair(conn, start: int, end: int, project_id=None, home=None, *, sour
     key = None
     if rev is not None:
         key = (rev, start // 60_000, end // 60_000, project_id, str(home) if home else None,
-               tuple(source_ids or ()), tuple(sorted(exclude or ())))
+               None if source_ids is None else tuple(source_ids), tuple(sorted(exclude or ())),
+               None if session_uids is None else tuple(session_uids))
         hit = _METRICS_CACHE.get(key)
         if hit and time.monotonic() - hit[0] < _METRICS_TTL_S:
             return hit[1]
-    where, params = window_sql(start - span, end, project_id, home, source_ids=source_ids, exclude=exclude)
+    where, params = window_sql(start - span, end, project_id, home, source_ids=source_ids,
+                               exclude=exclude, session_uids=session_uids)
     rows = conn.execute(f"SELECT s.session_uid, s.started_at, s.ended_at FROM session s WHERE {where}",
                         params).fetchall()
     uids = [r[0] for r in rows]
@@ -288,7 +293,7 @@ def fts_query(text: str, min_len: int = 2) -> str:
     return " OR ".join('"' + w.replace('"', '""') + '"' for w in seen[:24])
 
 
-def fts_human(conn, text: str, limit: int = 5) -> list[dict]:
+def fts_human(conn, text: str, limit: int = 5, *, session_where=None, session_params=()) -> list[dict]:
     # Schema v8 replaced unicode61 ``event_fts`` with trigram ``event_search`` (messages and
     # titles only); a trigram index cannot match terms shorter than three characters.
     table = "event_search" if conn.execute(
@@ -296,10 +301,12 @@ def fts_human(conn, text: str, limit: int = 5) -> list[dict]:
     query = fts_query(text, 3 if table == "event_search" else 2)
     if not query:
         return []
+    selected = (f" AND e.session_uid IN (SELECT s.session_uid FROM session s WHERE {session_where})"
+                if session_where else "")
     rows = conn.execute(
         f"SELECT e.event_uid, e.session_uid, e.text FROM {table} f JOIN event e ON e.rowid = f.rowid"
         f" WHERE {table} MATCH ? AND e.event_uid IN (SELECT event_uid FROM v_human_message)"
-        f" ORDER BY bm25({table}) LIMIT ?", (query, limit)).fetchall()
+        f"{selected} ORDER BY bm25({table}) LIMIT ?", (query, *session_params, limit)).fetchall()
     return [{"event_uid": r[0], "session_uid": r[1], "kind": "human",
              "text": privacy.direct_user_text(r[2] or "")} for r in rows]
 
@@ -317,7 +324,16 @@ def features_profile(scope) -> dict:
     if fn is None:
         return {}
     try:
-        value = fn(scope or {})
+        selected = dict(scope or {})
+        if selected.get("source_ids") == [] or selected.get("session_uids") == []:
+            return {}
+        start, end, pid = window(selected)
+        selected.update(from_ts=start, until_ts=end)
+        if pid:
+            selected["project_ids"] = [pid]
+        if selected.get("session_uids") is not None:
+            selected["root_session_uids"] = selected["session_uids"]
+        value = fn(selected)
         return value if isinstance(value, dict) else {}
     except Exception:  # noqa: BLE001 - features is optional; fall back to orbit.db
         log.debug("features.profile failed", exc_info=True)
@@ -342,15 +358,33 @@ def catalog_search(query: str, k: int = 3) -> list[dict]:
 class _Ctx:
     def __init__(self, conn, task, home, appdb, scope, goal, goal_source, params, slots):
         self.conn, self.task, self.home, self.appdb = conn, task, home, appdb
-        self.scope = scope or {}
+        self.scope = dict(scope or {})
+        if (params or {}).get("session_uid"):
+            uid = params["session_uid"]
+            selected = self.scope.get("session_uids")
+            self.scope["session_uids"] = [uid] if selected is None or uid in selected else []
         self.start, self.end, self.project_id = window(scope)
-        self.goal, self.goal_source = goal or "", goal_source or "manual"
+        self.goal, self.goal_source = goal or (params or {}).get("question") or "", goal_source or "manual"
         self.params, self.slots = params or {}, slots or {}
         self.memo: dict = {}
 
     def where(self, alias="s", start=None, end=None):
         return window_sql(self.start if start is None else start, self.end if end is None else end,
-                          self.project_id, self.home, alias)
+                          self.project_id, self.home, alias,
+                          source_ids=self.scope.get("source_ids"),
+                          exclude=self.scope.get("excluded_session_uids"),
+                          session_uids=self.scope.get("session_uids"))
+
+    def allowed_sessions(self, uids):
+        if self.conn is None or not uids:
+            return []
+        where, params = self.where()
+        rows = self.conn.execute(
+            f"SELECT s.session_uid FROM session s WHERE {where} "
+            "AND s.session_uid IN (SELECT value FROM json_each(?))",
+            [*params, json.dumps(list(uids))])
+        allowed = {r[0] for r in rows}
+        return list(dict.fromkeys(u for u in uids if u in allowed))
 
     def once(self, key, fn):
         if key not in self.memo:
@@ -371,7 +405,7 @@ class _Ctx:
             for uid in list(explicit) + [e["session_uid"] for e in self.evidence()]:
                 if uid and uid not in uids:
                     uids.append(uid)
-            return uids[:5]
+            return self.allowed_sessions(uids)[:5]
         return self.once("evidence_sessions", calc)
 
 
@@ -426,8 +460,10 @@ def _evidence(c: _Ctx) -> list[dict]:
                 out.append({"event_uid": rows[0][0], "session_uid": uid, "kind": "human",
                             "text": privacy.direct_user_text(rows[0][1] or "")})
     elif c.goal:
-        out = fts_human(c.conn, c.goal, 5)
-    return out[:5]
+        where, args = c.where()
+        out = fts_human(c.conn, c.goal, 5, session_where=where, session_params=args)
+    allowed = set(c.allowed_sessions([row["session_uid"] for row in out]))
+    return [row for row in out if row["session_uid"] in allowed][:5]
 
 
 def _events_by_uid(conn, uids) -> list[dict]:
@@ -480,7 +516,8 @@ def _sessions(c: _Ctx):
     where, params = c.where()
     uids = list(c.params.get("session_uids") or [])
     if uids:
-        where, params = f"s.session_uid IN ({placeholders(uids)})", uids
+        where += f" AND s.session_uid IN ({placeholders(uids)})"
+        params = [*params, *uids]
     rows = c.conn.execute(
         f"SELECT s.session_uid, s.title, p.name, s.started_at,"
         f" MAX(COALESCE(s.ended_at,s.started_at)-s.started_at,0) FROM session s"
@@ -682,7 +719,10 @@ def clip_replay(sessions, cap: int = REPLAY_CALLS_MAX, budget: int = REPLAY_TOKE
 def _metrics(c: _Ctx):
     if c.conn is None:
         return {}
-    cur, prev = metrics_pair(c.conn, c.start, c.end, c.project_id, c.home)
+    cur, prev = metrics_pair(c.conn, c.start, c.end, c.project_id, c.home,
+                             source_ids=c.scope.get("source_ids"),
+                             exclude=c.scope.get("excluded_session_uids"),
+                             session_uids=c.scope.get("session_uids"))
     return {**cur, "prev": prev if prev["sessions"] else None}
 
 
@@ -814,13 +854,12 @@ def _profile(c: _Ctx):
 def facet_sessions(c: _Ctx) -> list[str]:
     uids = list(c.params.get("session_uids") or [])
     if uids:
-        return uids
-    end = c.end
-    extra, params = session_filter(c.home)
+        return c.allowed_sessions(uids)
+    where, params = c.where()
     uids = [r[0] for r in c.conn.execute(
-        f"SELECT s.session_uid FROM session s WHERE s.kind='main' AND s.status<>'active'"
-        f" AND s.started_at>=? AND s.started_at<? AND COALESCE(s.ended_at,s.started_at)-s.started_at>=60000"
-        f"{extra} ORDER BY s.started_at DESC", [end - 90 * DAY_MS, end, *params])]
+        f"SELECT s.session_uid FROM session s WHERE {where} AND s.status<>'active'"
+        " AND COALESCE(s.ended_at,s.started_at)-s.started_at>=60000"
+        " ORDER BY s.started_at DESC", params)]
     humans = human_texts(c.conn, uids)
     keep = [u for u in uids if len(humans.get(u, ())) >= 2]
     cand = {u for u in keep if any(map(is_correction, humans[u]))}
@@ -843,25 +882,40 @@ def facet_payload(conn, uid: str) -> dict:
                      " WHERE s.session_uid=? LIMIT 1", (uid,)).fetchone()
     tools = conn.execute("SELECT name, status, error_class FROM tool_call WHERE session_uid=?"
                          " ORDER BY started_at, call_uid LIMIT 400", (uid,)).fetchall()
-    humans = conn.execute("SELECT event_uid, text FROM v_human_message WHERE session_uid=? ORDER BY seq LIMIT 200",
-                          (uid,)).fetchall()
-    replies = conn.execute("SELECT event_uid, text FROM event WHERE session_uid=? AND actor='assistant'"
-                           " AND kind LIKE 'message.%' AND text IS NOT NULL ORDER BY seq LIMIT 200", (uid,)).fetchall()
-    errors = sum(1 for t in tools if t[1] in FAIL_STATUS or t[2])
+    # Keep actual latest delivery/feedback, even after hundreds of earlier messages.
+    head = conn.execute("SELECT event_uid, text, seq, ts FROM v_human_message WHERE session_uid=?"
+                        " ORDER BY seq LIMIT 4", (uid,)).fetchall()
+    tail = conn.execute("SELECT event_uid, text, seq, ts FROM v_human_message WHERE session_uid=?"
+                        " ORDER BY seq DESC LIMIT 8", (uid,)).fetchall()
+    humans = sorted({r[0]: r for r in [*head, *tail]}.values(), key=lambda r: r[2])
+    replies = list(reversed(conn.execute(
+        "SELECT event_uid, text, seq, ts FROM event WHERE session_uid=? AND actor='assistant'"
+        " AND kind LIKE 'message.%' AND text IS NOT NULL ORDER BY seq DESC LIMIT 12", (uid,)).fetchall()))
+    human_n = conn.execute("SELECT COUNT(*) FROM v_human_message WHERE session_uid=?", (uid,)).fetchone()[0]
+    reply_n = conn.execute("SELECT COUNT(*) FROM event WHERE session_uid=? AND actor='assistant'"
+                           " AND kind LIKE 'message.%' AND text IS NOT NULL", (uid,)).fetchone()[0]
+    tool_n, errors = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(status IN ('failed','error') OR error_class IS NOT NULL),0)"
+        " FROM tool_call WHERE session_uid=?", (uid,)).fetchone()
     row = {"title": ((s[0] if s else "") or "")[:60], "project": s[1] if s else None,
            "minutes": round((s[3] if s else 0) / 60000, 1), "status": s[4] if s else None,
-           "client": s[5] if s else None, "tools": len(tools), "tool_errors": errors,
+           "client": s[5] if s else None, "tools": tool_n, "tool_errors": errors,
            "error_classes": sorted({t[2] for t in tools if t[2]})[:5]}
-    texts = [(r[0], privacy.direct_user_text(r[1] or "")) for r in humans]
-    texts = [t for t in texts if t[1]]
-    cands = [{"signal_id": "sig:" + e, "event_uid": e, "kind": "correction", "snippet": t[:120]}
-             for e, t in texts if is_correction(t)][:10]
-    if len(texts) > 12:
-        texts = texts[:4] + texts[-8:]
+    messages = [{"event_uid": r[0], "text": privacy.direct_user_text(r[1] or ""),
+                 "seq": r[2], "ts": r[3], "role": "human"} for r in humans]
+    messages = [m for m in messages if m["text"]]
+    cands = [{"signal_id": "sig:" + m["event_uid"], "event_uid": m["event_uid"],
+              "kind": "correction", "snippet": m["text"][:120]}
+             for m in messages if is_correction(m["text"])][:10]
     return {"row": row, "tool_sequence": _seq([t[0] for t in tools]),
-            "human_messages": [{"event_uid": e, "text": t} for e, t in texts],
-            "assistant_replies": [{"event_uid": r[0], "text": r[1]} for r in replies[-12:]],
-            "candidates": cands}
+            "human_messages": messages,
+            "assistant_replies": [{"event_uid": r[0], "text": r[1], "seq": r[2], "ts": r[3],
+                                   "role": "assistant"} for r in replies],
+            "candidates": cands,
+            "chunked": human_n > len(humans) or reply_n > len(replies) or tool_n > len(tools),
+            "coverage": {"human_messages": human_n, "retained_human_messages": len(messages),
+                         "assistant_replies": reply_n, "retained_assistant_replies": len(replies),
+                         "tool_calls": tool_n, "retained_tool_calls": len(tools)}}
 
 
 def clip_facet(payload: dict) -> dict:
@@ -929,6 +983,7 @@ def _raw(c: _Ctx):
 
 # key: (label, desc, data_class, loader)
 ITEMS = {
+    "problems": ("诊断问题", "已确认的范围内问题摘要；仅接受调用方显式提供", "summary", lambda c: []),
     "goal": ("目标", "本次分析或生成要解决的问题", "summary", _goal),
     "sessions": ("会话摘要", "近期会话的标题、时长、工具与纠偏计数（≤30 条）", "summary", _sessions),
     "friction": ("摩擦统计", "问题、错误类别与纠偏计数", "summary", _friction_item),
@@ -1023,6 +1078,11 @@ def _maybe_conn(reads):
 def build(task: dict, *, reads, appdb, home, scope=None, selection=None, goal=None, goal_source="manual",
           params=None, slots=None) -> dict:
     """Assemble the C3 pack for `task` (a C1 TaskSpec dict)."""
+    from .queries import _excluded
+
+    scope = dict(scope or {})
+    scope["excluded_session_uids"] = sorted(set(scope.get("excluded_session_uids") or []) |
+                                            set(_excluded(appdb)))
     selection = (selection or {}).get("items") or {}
     slots = slots or {}
     home = Path(home) if home is not None else None
@@ -1078,7 +1138,7 @@ def build(task: dict, *, reads, appdb, home, scope=None, selection=None, goal=No
     ordered = [items[k] for k in keys]
     enabled_items = [i for i in ordered if i["enabled"]]
     goal_text = goal or ""
-    return {"task_id": task.get("task_id"), "goal": goal_text, "goal_source": goal_source,
+    return {"task_id": task.get("task_id"), "goal": goal_text, "goal_source": goal_source, "scope": c.scope,
             "items": ordered, "content": content, "refs": refs, "numbers": sorted(numbers),
             "total_tokens": sum(i["tokens"] for i in enabled_items),
             "redaction_hits": sum(i["redaction_hits"] for i in enabled_items),

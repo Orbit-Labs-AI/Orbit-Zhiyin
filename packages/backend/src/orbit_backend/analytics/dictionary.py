@@ -77,3 +77,37 @@ FEATURES.update(PREFERENCE_EVIDENCE_FEATURES)
 FEATURES.update(TASK_FEATURES)
 # Family-owned definitions retain the established global lookup surface.
 FEATURES.update(INSTRUCTION_FEATURES)
+
+# UI-facing expression metrics remain lexical observations, separate from acceptance.
+define("emotion", "human message label", "Explicit positive/negative/mixed/neutral expressions; hypothetical, quoted and truncated input remains unknown", "confirmed direct human text", kind="proxy")
+define("expression_balance", "signed ratio [-1,1]", "(positive expressions - negative expressions) / all recognized explicit expressions, including mixed and explicit neutral", "products.feedback.messages", "recognized explicit expression messages", "proxy")
+define("feedback_signal", "human message label", "Explicit acceptance/completion/rework phrase candidate; only linked subjective outcomes establish a delivery relation", "confirmed direct human text", kind="proxy")
+define("emotion_explicit_n", "human message", "Count recognized explicit expression messages; silence and unrecognized text excluded", "products.feedback.messages", kind="deterministic_derived")
+
+UI_ANALYSIS_MAP = {
+    "version": "ui-analysis-map-v1",
+    "instruction": {"plane": "semantic", "axis": "input", "input": "confirmed direct human messages",
+                    "computation": "instruction extraction + structural counts + optional grounded semantic observations",
+                    "output": "instruction.records / presentation.profile", "unknown": "no explicit signal is not absence of a preference"},
+    "task": {"plane": "semantic", "axis": "input", "input": "human goals + explicit task/session relations",
+             "computation": "task taxonomy, goal history, expected artifacts and topic representation",
+             "output": "tasks.records / presentation.topics", "unknown": "unresolved goals and taxonomy stay null"},
+    "feedback": {"plane": "semantic", "axis": "output", "input": "explicit feedback + preceding delivery/task identity",
+                 "computation": "acceptance, completion and rework classified independently and linked to evidence",
+                 "output": "overview.subjective_outcomes / products.feedback", "unknown": "silence never implies acceptance"},
+    "preference": {"plane": "semantic", "axis": "input", "input": "repeated and scoped explicit human requirements",
+                   "computation": "evidence candidates with scope, confidence and contradictions",
+                   "output": "preferences.records / presentation.profile", "unknown": "task-local instructions are not persistent preference"},
+    "interaction": {"plane": "observed", "axis": "input", "input": "ordered human/assistant events and task boundaries",
+                    "computation": "message structure, feedback candidates, correction links and repetition",
+                    "output": "bottleneck_features.interaction / presentation.diagnostics", "unknown": "lexical correction candidates are not confirmed errors"},
+    "respond": {"plane": "observed", "axis": "output", "input": "tool calls/results, status and lineage",
+                "computation": "known-outcome rates, sequences, transitions and explicit retry links",
+                "output": "bottleneck_features.respond / products.tools", "unknown": "running, rejected, interrupted and unknown excluded from success/failure denominator"},
+    "cost_time": {"plane": "observed", "axis": "output", "input": "request token buckets, explicit cost and reliable timestamps",
+                  "computation": "compatible usage aggregation and interval/latency statistics",
+                  "output": "bottleneck_features.cost_time / presentation.statistics", "unknown": "missing cost is not free; session span is not work duration"},
+    "outcome": {"plane": "observed", "axis": "output", "input": "validation results, delivery records and linked human feedback",
+                "computation": "objective check outcome separate from subjective acceptance",
+                "output": "bottleneck_features.outcome / presentation.diagnostics.outcomes", "unknown": "a successful command or completion claim is not user acceptance"},
+}

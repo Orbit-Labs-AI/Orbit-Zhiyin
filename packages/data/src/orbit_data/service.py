@@ -257,10 +257,20 @@ class ImportService:
                 if cancel and cancel.is_set():
                     result["cancelled"] = True
                     break
+                outcome = {"path": str(item.path.relative_to(root))}
                 try:
-                    captured = self.store.capture_file(source_id, item.path, item.role)
+                    captured, attempts = parallel.capture_with_retry(
+                        lambda item=item: self.store.capture_file(source_id, item.path, item.role),
+                        lambda item=item: self.store.capture_file(source_id, item.path, item.role),
+                        self.progress,
+                        request.agent,
+                        str(item.path.relative_to(root)),
+                    )
                     result["files"] += 1
                     result["changed"] += int(captured["changed"])
+                    outcome.update(
+                        status="captured" if captured["changed"] else "unchanged", attempts=attempts
+                    )
                 except (
                     OSError,
                     RuntimeError,
@@ -268,20 +278,24 @@ class ImportService:
                     sqlite3.Error,
                     zstandard.ZstdError,
                 ) as error:
+                    outcome.update(
+                        status="failed",
+                        **parallel.capture_error_detail(error, str(item.path.relative_to(root))),
+                    )
                     result["capture_errors"] += 1
                     self.store.issue(
                         source_id,
                         "capture_failed",
                         stage="l1",
-                        detail={
-                            "exception": type(error).__name__,
-                            "path": str(item.path.relative_to(root)),
-                        },
+                        detail=parallel.capture_error_detail(
+                            error, str(item.path.relative_to(root))
+                        ),
                     )
                 self.progress(
                     {
                         "stage": "capture",
                         "agent": request.agent,
+                        **outcome,
                         "completed": result["files"] + result["capture_errors"],
                         "total": len(selected),
                     }

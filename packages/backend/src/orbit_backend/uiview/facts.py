@@ -20,6 +20,8 @@ from zoneinfo import ZoneInfo
 from . import CONTRACT, metrics, outcome
 
 UIDS = "(SELECT value FROM json_each(?))"
+# Turn statuses that do not say how a turn ended (tool results are classified by metrics.tool_state).
+UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
 FRIC = ("方向错误", "工具 / 环境失败", "改动过度", "误解需求", "并行会话冲突",
         "流程过重（子代理）", "额度 / 用量中断")
 TOPICS = ("git", "design", "paper", "data", "quant", "net", "other")

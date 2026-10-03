@@ -236,13 +236,13 @@ test('ask live: presets from the gateway, a preset answer and a free question vi
   await chips.nth(1).click();
   await expect(page.locator('#askA')).toContainText('FX 合成回答');
   await expect(page.locator('#askA')).toContainText('规则模板 · 在本机查询你的数据生成，没有调用模型');   // source: template
-  expect(sent(gw, 'POST', '/v1/ai/ask')[0].body).toEqual({ context: 'overview', preset_index: 1 });
+  expect(sent(gw, 'POST', '/v1/ai/ask')[0].body).toMatchObject({ context: 'overview', preset_index: 1, scope: { excluded_session_uids: [] } });
   await page.locator('#askIn').fill('FX 自由问题');
   await page.locator('#modal [data-act="askSend"]').click();
   await expect(page.locator('#askA')).toContainText('FX 自由提问回答');
   await expect(page.locator('#askA')).toContainText('本地 Agent 回答');                                       // source: ai
   await expect(page.locator('#modal .mf')).not.toContainText('本机进程间');
-  expect(sent(gw, 'POST', '/v1/ai/ask')[1].body).toEqual({ context: 'overview', question: 'FX 自由问题' });
+  expect(sent(gw, 'POST', '/v1/ai/ask')[1].body).toMatchObject({ context: 'overview', question: 'FX 自由问题', scope: { excluded_session_uids: [] } });
   expect(errors).toEqual([]);
 });
 

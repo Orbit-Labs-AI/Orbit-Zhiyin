@@ -24,7 +24,7 @@ from . import FEATURE_VERSION
 from .common import human
 from .context import AnalysisContext, Record
 from .coverage import build_coverage_report
-from .dictionary import FEATURES
+from .dictionary import FEATURES, UI_ANALYSIS_MAP
 from .features import activity, session_features, tool_summary, usage, workflow
 from .inputs import AnalysisInputBundle, Scope, legacy_bundle, metadata
 from .instruction import (
@@ -804,6 +804,7 @@ class AnalysisSections:
                 {
                     "feature_schema_version": FEATURE_VERSION,
                     "feature_dictionary": FEATURES,
+                    "ui_analysis_map": UI_ANALYSIS_MAP,
                     "analysis_digest": stable_id(digest, methods, self.with_text),
                     "effective_samples": {
                         "main_sessions": len(self.main_ids),
