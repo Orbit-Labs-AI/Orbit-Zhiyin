@@ -22,6 +22,12 @@ PATHS = {"claude_code": {"permission_rule": "~/.claude/settings.json", "hook": "
                          "rule": "AGENTS.md", "prompt": "AGENTS.md"},
          "codex": {"permission_rule": "~/.codex/config.toml", "hook": "~/.codex/config.toml",
                    "skill": "~/.codex/skills/{id}/SKILL.md", "rule": "AGENTS.md", "prompt": "AGENTS.md"}}
+# Agents with a connector whose skill and instruction-file locations were read from upstream source
+# (orbit_catalog.compat SKILL_DIRS / RULE_FILES). Their hook and permission files are not confirmed,
+# so those kinds stay without a path (the card gives no landing path rather than a guessed one).
+for _agent, _home in (("opencode", "~/.config/opencode/"), ("hermes", "~/.hermes/"), ("dsh", "~/.dsh/"),
+                      ("pi", "~/.pi/agent/")):
+    PATHS[_agent] = {"skill": _home + "skills/{id}/SKILL.md", "rule": "AGENTS.md", "prompt": "AGENTS.md"}
 
 
 class _Keep(dict):
@@ -65,7 +71,8 @@ def project_name(project_id: str | None, inputs: dict) -> str | None:
     return (os.path.basename(str(root).rstrip("/")) if root else None) or info.get("name")
 
 
-AGENT_HOME = {"claude_code": "~/.claude/", "codex": "~/.codex/"}
+AGENT_HOME = {"claude_code": "~/.claude/", "codex": "~/.codex/", "opencode": "~/.config/opencode/",
+              "hermes": "~/.hermes/", "dsh": "~/.dsh/", "pi": "~/.pi/"}
 
 
 def agent_owns_path(path: str, agent: str | None) -> bool:
@@ -76,7 +83,9 @@ def agent_owns_path(path: str, agent: str | None) -> bool:
 
 def path_hint(kind: str, rule_id: str, inputs: dict, project: str | None) -> str | None:
     """Landing path for the top Agent; project scope → ``<project name>/...``; None for other agents."""
-    path = PATHS.get(top_agent(inputs) or "", {}).get(kind)
+    # the most-used Agent that has a landing path for this kind (not only the most-used Agent)
+    used = [a for a, n in sorted((inputs.get("agents") or {}).items(), key=lambda kv: (-kv[1], kv[0])) if n]
+    path = next((PATHS[a][kind] for a in used if kind in PATHS.get(a, {})), None)
     if not path:
         return None
     path = path.format(id=rule_id)
@@ -133,8 +142,9 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
     scope = "project" if rule.remedy.scope == "project" or project else "user"
     path = rule.remedy.path.format(id=rule.id) if rule.remedy.path else path_hint(
         rule.remedy.kind, rule.id, inputs, project if scope == "project" else None)
-    if path and not agent_owns_path(path, top_agent(inputs)):
-        path = None  # e.g. a fixed ~/.claude/... path while the user runs another agent
+    used = [a for a, n in (inputs.get("agents") or {}).items() if n] or [top_agent(inputs)]
+    if path and not any(agent_owns_path(path, a) for a in used):
+        path = None  # e.g. a fixed ~/.claude/... path while the user runs only other agents
     file = [[fill(line, shown), mark] for line, mark in rule.file]
     if rule.remedy.kind == "permission_rule" and values.get("head_list"):
         file = allow_file([str(h) for h in values["head_list"]], top_agent(inputs))

@@ -159,8 +159,10 @@ def _compat(agents: dict, inputs: dict | None = None) -> str:
         name, support = AGENT_NAME.get(agent, agent), agents.get(agent, "unknown")
         if support in {"native", "manual"}:
             parts.append(name)
-        elif support != "unsupported":
+        elif support == "adaptation_required":
             parts.append(f"转换给 {name}")
+        elif support == "unknown":  # e.g. Kimi: no upstream source read, never shown as compatible
+            parts.append(f"{name} 未核实")
     return " · ".join(parts)
 
 

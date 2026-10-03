@@ -28,7 +28,8 @@ function lvRecRow(c) {
   r.expertAdvice = Array.isArray(c.expert_advice) ? c.expert_advice.slice(0, 3) : [];
   const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
   const ids = [], parts = []; r.native = Object.keys(nat).filter((k) => nat[k] === 'native').map((b) => LV.agentOf(b).id);
-  bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
+  // Only known levels read as compatible: native/manual by name, adaptation_required as「转换给」, unknown (e.g. Kimi, no upstream source read) as「未核实」.
+  bids.forEach((b) => { const m = LV.agentOf(b); const lv = nat[b] || 'unknown'; if (ids.indexOf(m.id) >= 0 || lv === 'unsupported') return; ids.push(m.id); parts.push(lv === 'native' || lv === 'manual' ? m.name : lv === 'adaptation_required' ? '转换给 ' + m.short : m.short + ' 未核实'); });
   r.agents = ids; r.bagents = bids;
   if (ids.length) r.compat = parts.join(' · ');
   // r.x.pct (shares of the real trajectory) and r.x.tokp come from ui.save / ui.tok_pct via OrbitLive.recs.row; tok in k

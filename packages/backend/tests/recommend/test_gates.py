@@ -73,7 +73,16 @@ def test_source_and_license():
 
 
 def test_agent_supported():
-    assert run(raw(agents={"claude_code": "unsupported"}))["checks"]["agent_supported"] is False
+    # every Agent the user runs is judged, not only the most used one (claude_code 40, codex 3)
+    assert run(raw(agents={"claude_code": "unsupported", "codex": "unsupported"}))["checks"]["agent_supported"] is False
+    assert run(raw(agents={"claude_code": "unsupported", "codex": "native"}))["checks"]["agent_supported"] is True
+    # a problem seen only in codex sessions is judged against codex
+    facts = {"session_agents": {"s1": "codex", "s2": "codex", "s3": "claude_code"}}
+    in_codex = raw(agents={"claude_code": "native", "codex": "unsupported"}, problem={"evidence": {"session_uids": ["s1", "s2"]}})
+    assert run(in_codex, inputs={**INPUTS, "facts": facts})["checks"]["agent_supported"] is False
+    unknown = run(raw(agents={"claude_code": "unknown"}, problem={"evidence": {"session_uids": ["s3"]}}),
+                  inputs={**INPUTS, "facts": facts})
+    assert unknown["checks"]["agent_supported"] is True and "needs_context" in unknown["notes"]
     g = run(raw(agents={}))
     assert g["checks"]["agent_supported"] is True and "needs_context" in g["notes"]
     pi = run(raw(kind="mcp", agents={"pi": "native"}), inputs={"agents": {"pi": 9}})

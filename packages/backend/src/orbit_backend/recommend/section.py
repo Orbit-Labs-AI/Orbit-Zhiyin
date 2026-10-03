@@ -327,13 +327,15 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
             usage[key][name] = {"calls": calls, "sessions": sessions, "last_ts": last}
     model_mix = _model_mix(conn, uids, root_of, edit_roots, per_root, diagnostics)
     agents: dict[str, int] = defaultdict(int)
+    session_agents: dict[str, str] = {}
     try:
         main = json.dumps([r["session_uid"] for r in roots])
-        for agent, count in conn.execute(
-                f"SELECT src.agent, count(*) FROM session s JOIN source src ON "
-                f"src.source_id = s.source_id WHERE s.session_uid IN {UIDS} "
-                f"GROUP BY src.agent", (main,)):
-            agents[agent] = count
+        for uid, agent in conn.execute(
+                f"SELECT s.session_uid, src.agent FROM session s JOIN source src ON "
+                f"src.source_id = s.source_id WHERE s.session_uid IN {UIDS}", (main,)):
+            agents[agent] += 1
+            if agent:
+                session_agents[uid] = agent
     except Exception as error:  # noqa: BLE001 - facts are optional, never fail the section
         diagnostics.append({"source": "agents", "status": "unavailable", "reason": str(error)})
     problems_by_root = defaultdict(set)
@@ -373,6 +375,8 @@ def _facts(conn, root_of: dict, roots: list[dict], signals: list[dict], diagnost
         "compactions": _guard("compactions", diagnostics, _compactions, conn, uids, root_of)
         or _empty_compactions(),
         "trajectory": _guard("trajectory", diagnostics, _ledger, conn, uids, root_of, flags, waits),
+        # main session → its Agent, so a card is judged against the Agent where its problem occurred
+        "session_agents": dict(sorted(session_agents.items())),
     }
     return facts, dict(agents)
 
@@ -540,7 +544,7 @@ def _attribute(calls: list, requests: list, cap: int, ops: dict, unmeasured: dic
             for i in waiting:
                 cost[i][0] += share
             waiting.clear()
-    for (start, end, wait, (failed, readonly)), (tokens, ms) in zip(calls, cost, strict=True):
+    for (_start, _end, wait, (failed, readonly)), (tokens, ms) in zip(calls, cost, strict=True):
         for name in ("call", "failed") if failed else ("call",):
             ops[name][0] += 1
             ops[name][1] += tokens
