@@ -182,9 +182,19 @@ def test_source_and_time_filters_partition_counts(built):
     windowed = search(home, "refactor", window)
     assert windowed["total"] == 2
     assert all(T0 <= hit["ts"] <= T0 + 86_400_000 + 5000 for hit in windowed["hits"])
-    before = search(home, "refactor", SearchScope(until_ts=T0 - 1))["total"]
+    before = search(home, "refactor", SearchScope(until_ts=T0))["total"]
     after = search(home, "refactor", SearchScope(from_ts=T0))["total"]
     assert before + after == search(home, "refactor")["total"]
+    # Half-open [from_ts, until_ts), as in analysis_input: a hit at the boundary belongs to
+    # the later window only.
+    edge = windowed["hits"][0]["ts"]
+    assert edge not in [
+        h["ts"] for h in search(home, "refactor", SearchScope(until_ts=edge))["hits"]
+    ]
+    assert edge in [h["ts"] for h in search(home, "refactor", SearchScope(from_ts=edge))["hits"]]
+    assert edge in [
+        h["ts"] for h in search(home, "refactor", SearchScope(until_ts=edge + 1))["hits"]
+    ]
 
 
 def test_ranking_prefers_titles_and_recent_hits(built):
