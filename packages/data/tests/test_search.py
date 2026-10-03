@@ -257,6 +257,7 @@ def test_like_wildcards_are_literal(built):
     assert all("_" in hit["snippet"] for hit in underscore["hits"])
 
 
+@pytest.mark.serial
 def test_search_is_fast_enough_on_fixture(built):
     home, _, _ = built
     started = time.perf_counter()

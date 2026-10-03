@@ -163,6 +163,7 @@ def test_vector_ready_skips_dense_route():
     assert {"source": "dense", "status": "skipped", "reason": "catalog_vector_ready"} in result["diagnostics"]
 
 
+@pytest.mark.serial
 def test_hashed_encoder_is_deterministic_and_fast():
     enc = hashed.HashedEncoder()
     a, b = enc.encode("同一命令连续失败 retry bash"), hashed.HashedEncoder().encode("同一命令连续失败 retry bash")
