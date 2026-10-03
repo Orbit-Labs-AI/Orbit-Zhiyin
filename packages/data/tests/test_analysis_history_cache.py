@@ -124,7 +124,7 @@ def test_exclusions_persist_and_can_be_removed(tmp_path):
     assert [e["session_uid"] for e in history.exclusions()] == ["s0"]
 
 
-def test_prune_keeps_three_inputs_per_request_and_old_failures(tmp_path):
+def test_prune_keeps_the_requested_inputs_per_request_and_old_failures(tmp_path):
     history = AnalysisHistory(tmp_path / "analysis.sqlite")
     for index in range(5):
         history.put_sections("rk", f"fp{index}", {"overview": {"i": index}})
@@ -145,7 +145,9 @@ def test_prune_keeps_three_inputs_per_request_and_old_failures(tmp_path):
         db.execute("UPDATE analysis_run SET finished_at=? WHERE run_id=?", (0, old))
     history.put_session_results("full", "algo-old", {"r": ("t", {})})
     history.put_session_results("full", "algo-new", {"q": ("t", {})})
-    stats = history.prune(algo_version="algo-new", now=31 * day + 1)
+    # keep_inputs and idle_ms explicit: this checks the per-request ranking itself (the
+    # defaults keep one input and expire idle requests, see test_analysis_history_retention).
+    stats = history.prune(algo_version="algo-new", now=31 * day + 1, keep_inputs=3, idle_ms=None)
     assert stats["stale_inputs"] == 2 and stats["failed_runs"] == 1
     assert stats["old_session_results"] == 1
     with history.connect() as db:

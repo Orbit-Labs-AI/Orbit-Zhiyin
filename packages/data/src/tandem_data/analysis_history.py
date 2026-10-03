@@ -21,10 +21,19 @@ from typing import Any
 
 Record = dict[str, Any]
 SCHEMA_VERSION = 3
-KEEP_INPUTS = 3
+# An input fingerprint names the projection run, so a newer publication never reads an
+# older input again: one input per request (the most recently used) is all that can hit.
+# Three used to keep two dead copies of every full pass (~430 MB each on a real home).
+KEEP_INPUTS = 1
+# Requests not read for a day are dropped, and so are the filtered (``f:``) session-row
+# classes no computation used for a day: the 7- and 30-day windows start at a UTC day
+# boundary, so yesterday's windows are new request keys and new row classes that nothing
+# reads again (on a real home they held 2.3 GB of a 3.8 GB analysis.sqlite).
+IDLE_MS = 24 * 3600 * 1000
 # A real home's window (sections + session rows) is several hundred MB; 512 MB evicted the
-# result of the computation that had just stored it. Retention keeps it bounded instead.
-MAX_BYTES = 3 * 1024 * 1024 * 1024
+# result of the computation that had just stored it. The caller's own result is protected
+# and retention keeps the rest bounded.
+MAX_BYTES = 2 * 1024 * 1024 * 1024
 FAILED_RETENTION_MS = 30 * 24 * 3600 * 1000
 # Completed runs keep their full result snapshot (often 100+ MB on a real home); only the
 # newest few per request survive retention. The section cache serves reads, not runs.
@@ -623,39 +632,63 @@ class AnalysisHistory:
         keep_runs: int = KEEP_RUNS,
         protect: list[tuple[str, str]] | None = None,
         now: int | None = None,
+        idle_ms: int | None = IDLE_MS,
     ) -> Record:
         """Apply the retention policy.
 
         1. each request_key keeps its ``keep_inputs`` most recently used input fingerprints;
-        2. failed runs older than the retention window are deleted;
-        3. session rows from other algorithm versions are deleted;
-        4. completed runs: the newest ``keep_runs_per_request`` per (engine, request) and
+        2. request keys none of whose sections was read or stored within ``idle_ms`` are
+           deleted, and so are filtered (``f:``) session-row classes no computation stored
+           a row of within ``idle_ms`` (yesterday's 7- / 30-day windows);
+        3. failed runs older than the retention window are deleted;
+        4. session rows from other algorithm versions are deleted;
+        5. completed runs: the newest ``keep_runs_per_request`` per (engine, request) and
            ``keep_runs`` overall keep their snapshots; older runs and the snapshots no run
            references any more are deleted (a full snapshot is often 100+ MB);
-        5. while the database exceeds ``max_bytes``, least recently hit sections are evicted,
-           except the ``protect``ed (request_key, input_fp) pairs (the caller's own result).
+        6. while the database exceeds ``max_bytes``, least recently hit sections are evicted.
+        The ``protect``ed (request_key, input_fp) pairs (the caller's own result) survive
+        every step.
         """
         now = _now() if now is None else now
         stats = {
             "stale_inputs": 0,
+            "idle_requests": 0,
+            "idle_session_results": 0,
             "failed_runs": 0,
             "old_session_results": 0,
             "evicted": 0,
             "old_runs": 0,
             "snapshots": 0,
         }
+        protected = json.dumps([f"{k} {fp}" for k, fp in protect or ()])
+        unprotected = "request_key || ' ' || input_fp NOT IN (SELECT value FROM json_each(?))"
         with self.connect() as connection:
             stats["stale_inputs"] = connection.execute(
-                """DELETE FROM analysis_section WHERE (request_key, input_fp) IN (
+                f"""DELETE FROM analysis_section WHERE (request_key, input_fp) IN (
                      SELECT request_key, input_fp FROM (
                        SELECT request_key, input_fp, row_number() OVER (
                          PARTITION BY request_key
-                         ORDER BY max(last_hit_at) DESC, max(created_at) DESC, input_fp
+                         ORDER BY request_key || ' ' || input_fp IN (
+                           SELECT value FROM json_each(?)) DESC,
+                         max(last_hit_at) DESC, max(created_at) DESC, input_fp
                        ) AS rank
                        FROM analysis_section GROUP BY request_key, input_fp)
-                     WHERE rank > ?)""",
-                (keep_inputs,),
+                     WHERE rank > ?) AND {unprotected}""",
+                (protected, keep_inputs, protected),
             ).rowcount
+            if idle_ms is not None:
+                stats["idle_requests"] = connection.execute(
+                    f"""DELETE FROM analysis_section WHERE request_key IN (
+                         SELECT request_key FROM analysis_section GROUP BY request_key
+                         HAVING max(max(last_hit_at), max(created_at)) < ?) AND {unprotected}""",
+                    (now - idle_ms, protected),
+                ).rowcount
+                stats["idle_session_results"] = connection.execute(
+                    """DELETE FROM session_result WHERE scope_class IN (
+                         SELECT scope_class FROM session_result WHERE scope_class <> 'full'
+                         GROUP BY scope_class HAVING max(computed_at) < ?)""",
+                    (now - idle_ms,),
+                ).rowcount
             stats["failed_runs"] = connection.execute(
                 "DELETE FROM analysis_run WHERE status='failed' AND finished_at < ?",
                 (now - failed_retention_ms,),
@@ -683,10 +716,9 @@ class AnalysisHistory:
         while self.stored_bytes() > max_bytes:
             with self.connect() as connection:
                 oldest = connection.execute(
-                    "SELECT request_key, input_fp, section FROM analysis_section"
-                    " WHERE request_key || ' ' || input_fp NOT IN (SELECT value FROM json_each(?))"
-                    " ORDER BY last_hit_at, created_at LIMIT 1",
-                    (json.dumps([f"{k} {fp}" for k, fp in protect or ()]),),
+                    f"SELECT request_key, input_fp, section FROM analysis_section"
+                    f" WHERE {unprotected} ORDER BY last_hit_at, created_at LIMIT 1",
+                    (protected,),
                 ).fetchone()
                 if oldest is None:
                     break
@@ -707,8 +739,13 @@ class AnalysisHistory:
                 pass
         return total
 
-    def vacuum_if_sparse(self, *, min_bytes: int = 256 * 1024 * 1024, ratio: float = 0.5) -> bool:
-        """VACUUM when more than ``ratio`` of a large file is free pages (after pruning)."""
+    def vacuum_if_sparse(
+        self, *, min_bytes: int = 256 * 1024 * 1024, ratio: float = 0.25
+    ) -> bool:
+        """VACUUM when more than ``ratio`` of a large file is free pages (after pruning).
+
+        Pages freed by pruning are only reused, never returned: at one half the real home
+        above kept 635 MB of free pages in a 3.8 GB file."""
         with self.connect() as connection:
             pages = connection.execute("PRAGMA page_count").fetchone()[0]
             free = connection.execute("PRAGMA freelist_count").fetchone()[0]
