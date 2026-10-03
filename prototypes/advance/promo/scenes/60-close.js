@@ -26,7 +26,7 @@ scene('60-close', () => {
   // v17.6 片尾：画曲线（D0–D1）→ 转身倒成 45° 图标（D1–M1）→ 正中停留 → 转身向左展开成字标 → 标语 → 点一行 → 可读停留 → 淡出（场景拍）
   const D0 = 75.6, D1 = 78.6, M1 = 80.2;
   // v18.5：TURN0 81.0 → 80.4（标语多 .6 拍可读），END / FADE0 写死字面量，片长与淡出点不变；转身自 W0 = TURN0 − .3 起（M1 前 .1 拍，
-  // 倾倒已 99.9 % 到位），v 跨 T + .3 拍，成片 b118.3 起就看得出在转
+  // 倾倒已 99.9 % 到位），v 跨 T + .3 拍；QA：v 用 E.sine（E.inOut 在 b118.3 只有 .01，b118.8 才看得出），成片 b118.3 起就看得出在转
   const TURN0 = 80.4, W0 = TURN0 - .3, LET0 = TURN0 + .75 * WORDMARK.T, TAG0 = TURN0 + 4.0, TAG_AG = TAG0 + 1.4, FADE0 = 92.2;
   END = 94.0;
   // 片尾慢推：字标转身起（TURN0）到 END 由 1 匀速推到 1.06，前 20 % 二次缓起
@@ -267,7 +267,7 @@ scene('60-close', () => {
   markAt(W0, END, (p, b) => {
     if (!WORDMARK.F) return Object.assign(icon(W0), { a: 1 - E.inOut(lp(b, FADE0, 1.8)), color: '#ffffff' });   // frames missing: keep the icon
     P0 = P0 || WORDMARK.place(icon(W0));
-    const v = E.inOut(lp(b, W0, WORDMARK.T + .3)), r = readAt(b);
+    const v = E.sine(lp(b, W0, WORDMARK.T + .3)), r = readAt(b);
     WORDMARK.add(WORDMARK.svg({ a: 1 - E.inOut(lp(b, FADE0, 1.8)), cx: lerp(P0.cx, r.cx, v), cy: lerp(P0.cy, r.cy, v), k: lerp(P0.k, r.k, v), v, b, on: LET0, color: inkAt(v) }));
     return null;
   });
