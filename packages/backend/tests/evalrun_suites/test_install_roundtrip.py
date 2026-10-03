@@ -14,7 +14,8 @@ def test_clean_matrix_passes(tmp_path):
     assert "install.rule.claude_code.roundtrip" in ids
     assert "install.mcp.codex.edit_refused" in ids
     assert "install.real_home_untouched" in ids
-    assert result.metrics["cells"] == 10
+    assert result.metrics["cells"] == len(suite.SPECS) * len(suite.AGENTS)
+    assert set(suite.AGENTS) == {"claude_code", "codex", "dsh", "pi", "hermes", "opencode"}
 
 
 def test_broken_revert_is_caught(tmp_path, monkeypatch):
