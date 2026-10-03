@@ -44,7 +44,7 @@ pnpm check:ui --project=mac-14
 
 分析的性能改动以两件工具对照：`benchmarks/analytics/synthetic.py` 用固定种子生成完全虚构的输入（12 项目、3 来源，含中英请求、纠偏、偏好、反馈、工具失败与重复参数、审批、压缩、中断、模型调用与子代理），也可经公开 ingest 写入临时 `tandem.db`。
 
-- 等价性回归：`uv run pytest -q tests/regression/test_analysis_equivalence.py`。200 会话输入下比较 `analyze_bundle(with_text=False)` 与 `build_products` 的核心 section（overview.counts、sessions 的 features/usage/bottleneck_features、projects、tools、workflow、statistics 样本计数）与金标 `packages/backend/tests/fixtures/analysis-golden-v1.json`。新增字段或 section 不影响断言；删除字段或数值变化会失败。同时断言生成器确定性，且金标不含真实路径或用户名。
+- 等价性回归：`uv run pytest -q tests/regression/test_analysis_equivalence.py`。两类断言：①真值——`benchmarks.analytics.synthetic.generate_bundle_with_truth` 返回生成器注入的会话、subagent、项目、轮次、人类消息、工具调用与失败、token 总数，分析结果必须逐项相等（与实现无关的 oracle；纠偏信号召回不足以 strict xfail 记录）；②金标——200 会话 `analyze_bundle(with_text=False)` 与 `build_products` 的核心 section 及 30 会话 `with_text=True` 的 text/preferences，金标 `tests/regression/fixtures/analysis-golden-v2.json` 保存 key-tree、sha256、可读 summary 与 truth；`--update-golden` 打印新旧差异。新增字段或 section 不影响断言；删除字段或数值变化会失败。同时断言生成器确定性，且金标不含真实路径或用户名。
 - 金标更新：只有结果变化是有意为之时运行 `uv run python tests/regression/test_analysis_equivalence.py --update-golden`，并在 PR 描述中说明原因与差异（哪些 section、哪些数值变化）。不得为让检查通过而放宽断言或重生成金标掩盖回归。
 - 分阶段基准：`uv run python -m benchmarks.analytics.full_pipeline --sizes 500 1000 2500 --repeats 3`，可加 `--with-text`、`--canonical`（测量 read_analysis）与 `--profile`。基准不作 CI 硬门槛，结果连同硬件和口径放 `.local/` 或写入 PR 说明。
 
