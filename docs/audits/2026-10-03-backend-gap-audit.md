@@ -126,6 +126,7 @@
 - **打包**：`onnxruntime` 1.30.0（arm64 约 21.5 MB）与 `tokenizers` 0.23.2 仍只在 `orbit-catalog[embeddings]` 可选依赖里；发布 App 要有语义路，打包的 Python 环境须安装该 extra（约 +25–30 MB，嵌入时 ORT 常驻约 1.1 GB）。模型本身不随包，授权后首次下载（若内置 int8 模型约 +130 MB）（catalog-vector）。
 - **安装详情与兼容显示**：详情页可显示 `install.paths` 与支持级别及依据，unknown/unverified 不得显示成兼容；新增的 agent 标签（Hermes/dsh/pi/Kimi）需要图标（catalog-sources）。`plan._default_agents` 现默认勾选所有已安装的完整支持 agent，需确认默认勾选、`requires_trust` 与 `reason_text` 提示的显示，并显示新的 `install_support=unverified`（install）。
 - **AI 解读卡**：读取 `insight.basis`、`source`、`caveats`；当前没有任何东西自动提交 `narrate.overview`，界面的「重新生成」没有后端，需要调度或 POST 入口，否则卡片在实际中不会显示 `basis=ai_narrative`（ai-platform）。
+  - 2026-10-03 反馈第 4 轮（wip/fb-audit-ai）已接上手动入口：overview 的 insight 带 `ai_scope`，「重新生成」以 `fresh=true` 提交 `narrate.overview`，徽标与来源行按 `basis` 区分 AI 与规则模板。仍没有导入后的自动提交（AI 默认关闭，自动提交需单独的授权开关）。
 - **标签展示**：`features/profile` 的 `stale/rebuilding/current_revs`、evalrun 的 `kind`（`regression_guard` 不得展示成准确率）、`tool_map` 的按 agent 条目（ai-platform）。
 - **纠偏数变化**：结果反馈不再计入纠偏，前端显示的纠偏数会变，文案需确认（analytics-core）。
 - **揭晓响应**：`LVN.personaOf` 读 `c.match ?? c.sim`，后端现返回 `match`（0–100）；响应新增 `conf/hint/axes[].unit/decided/meta.notes`，gate 字段改为 `card_gate` 的 `min_sessions/sessions/axes[].state` 加 `passed`，需另一会话确认（persona-reveal）。
