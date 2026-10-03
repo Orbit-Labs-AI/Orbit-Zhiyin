@@ -86,7 +86,10 @@ scene('30-persona', () => {
   // 相机几何在 HB 先就位（仍透明），compass key 从 HB 起读 cpBadge 就是最终的舞台坐标；b26.4 才显示 deck 2
   tween(2, HB, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0 });
   tween(2, 26.4, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
-  tween(2, 29.5, MV - 29.5, { s: .88 }, E.sine);
+  // v18.2：价值行移到标题下（y 222），描边光收完（b28.4）后表盘用 1.1 拍长缓动下沉 60px、略收（s .86 → .84），
+  // 外圈刻度上沿 ≈ y 262，与价值行（≈ y 200–244）不重叠；之后照旧慢推
+  tween(2, 28.4, 1.1, { ay: 600, s: .84 }, E.inOut);
+  tween(2, 29.5, MV - 29.5, { s: .86 }, E.sine);
   tween(2, MV, MVD, { ax: 600, ay: 560, s: .78 }, E.inOut);
   tween(2, MV + MVD, CO - MV - MVD, { s: .81 }, E.sine);
   // T10（r176b）：40-recs 在 CO − .9 让第一枚徽章离开外圈；表盘同拍起用 2.0 拍长缓动朝点列（x 330）收缩（s .81 → .5，
@@ -250,7 +253,8 @@ scene('30-persona', () => {
   // （MV + .4 = b33.2，罗盘才移出 10%）退场：标题 b29.45–33.2 完整可读 3.75 拍，强调行 b29.1 起解码（步长 .04），b29.85–33.2 约 3.35 拍
   const drift = (px) => (el, tl, life) => { el.style.transform = 'translate(-50%,calc(-50% + ' + (px * clamp(tl / life)).toFixed(1) + 'px))'; };
   txt(29.0, MV + 1.0, [['hv sv pe72', '引入协作人格分析']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
-  txt(29.1, MV + 1.0, [['lt pe44 pe-or', '精准识别你的交互特征']], { x: 960, y: 975, align: 'c' }, { anim: K.all(K.decode({ step: .04, dur: .5, out: .6, spread: true }), drift(10)) });
+  // v18.2：价值行紧贴标题（y 222，原 y 975 画面底），与标题同漂 −12px，读成一组标题块
+  txt(29.1, MV + 1.0, [['lt pe44 pe-or', '精准识别你的交互特征']], { x: 960, y: 222, align: 'c' }, { anim: K.all(K.decode({ step: .04, dur: .5, out: .6, spread: true }), drift(-12)) });
 
   /* ---------- 3.5–3.7 右侧竖向滚动列 ---------- */
   // Y(b)：已滚动的 px。R1 以 VR 慢漂、b32.7 过中心线，之后 RU 拍按余弦加速到 V；SLOW–T6 速度按余弦平滑降到 VR，
@@ -316,6 +320,8 @@ scene('30-persona', () => {
         // 揭晓时前面的条目退暗，让出视线（R5 的字母牌先读满 2 拍）；v18.1：揭晓块到中心线（T6 + .3）时问题行与字母牌
         // （多线、求证—信任、M / V 残影）淡到 0，画面只留你的协作人格 / DIMV / 名字 / 一句话 / 优势·盲点
         if (it.fy == null) a *= 1 - E.inOut(lp(b, T6 - .3, 1.0));
+        // v18.2：顶边到 y 190 起淡、越过 y 120 前 α 归 0，不被画面上沿切出半行残影
+        a *= E.inOut(clamp((y - (node._h ??= node.offsetHeight) / 2 - 120) / 70));
         if (it.r7 != null) { const q = E.out(lp(b, T6 + .05 + .2 * it.r7, .5)); a *= q; y += (1 - q) * 18; }
         node.style.transform = 'translateY(' + (y - 1).toFixed(1) + 'px) translateY(-50%)';
         node.style.opacity = a.toFixed(3);
