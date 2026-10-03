@@ -224,6 +224,13 @@ class Gateway:
         self.sync_thread.start()
         self.platform.start()
 
+    def begin_shutdown(self) -> None:
+        """Called on the exit signal, before uvicorn drains connections: every long-lived
+        stream (bus SSE and the realtime SSE that polls ``stopping``) ends on its own, so
+        the graceful drain does not run into its timeout and cancel them with tracebacks."""
+        self.stopping.set()
+        self.bus.close()
+
     def close(self) -> None:
         self.stopping.set()
         self.platform.close()
@@ -462,12 +469,17 @@ def parent_alive(parent: int) -> bool:
     return True
 
 
-def _watch_parent(parent: int, server) -> None:
+PARENT_POLL_S = 0.5
+
+
+def _watch_parent(parent: int, server, poll_s: float = PARENT_POLL_S) -> None:
     while not server.should_exit:
         if not parent_alive(parent):
-            server.handle_exit(None, None)
+            # Not handle_exit(None, None): uvicorn re-raises every captured signal after
+            # shutdown, and raise_signal(None) ended the helper with a TypeError traceback.
+            server.request_exit()
             return
-        time.sleep(1)
+        time.sleep(poll_s)
 
 
 def run_gateway(home: Path, *, port: int = 0, host: str = "127.0.0.1") -> int:
@@ -490,8 +502,12 @@ def run_gateway(home: Path, *, port: int = 0, host: str = "127.0.0.1") -> int:
 
     class Server(uvicorn.Server):
         def handle_exit(self, sig, frame):
-            gateway.bus.close()  # End SSE streams so graceful shutdown does not wait on them.
+            gateway.begin_shutdown()  # End SSE streams so graceful shutdown does not wait on them.
             super().handle_exit(sig, frame)
+
+        def request_exit(self) -> None:
+            gateway.begin_shutdown()
+            self.should_exit = True
 
     server = Server(config)
     parent = os.environ.get(PARENT_ENV)

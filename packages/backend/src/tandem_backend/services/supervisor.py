@@ -19,11 +19,16 @@ and ``<frozen executable> worker <role>`` from a PyInstaller build.
   RSS) kills it and fails the task ``analysis_scope_too_large``; idle 5 min recycles too
 - analysis runs a killed or crashed worker left ``running`` in ``analysis.sqlite`` are
   failed (the worker reports open runs); at start, runs older than ``max_budget_s`` are too
+- each worker leads its own process group (its process-pool children and the
+  multiprocessing resource tracker included): kills and the post-exit sweep signal the
+  whole group, so no pool child outlives its worker; ``Supervisor.stop`` closes every
+  worker's stdin at once and waits for all of them under one ``term_grace_s`` budget
 """
 
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -90,6 +95,23 @@ class SupervisorConfig:
     plan: dict = field(default_factory=dict)  # ingest_plan overrides (head_sessions, …)
 
 
+def signal_group(proc: subprocess.Popen, sig: int) -> None:
+    """Signal the worker's process group (``start_new_session``); its pid is the group id.
+
+    The resource tracker ignores SIGTERM and unlinks the semaphores of a dead pool when its
+    pipe closes, so a SIGTERM sweep leaves no ``leaked semaphore`` objects behind; SIGKILL
+    goes to the worker alone for the same reason.
+    """
+    try:
+        os.killpg(proc.pid, sig)
+    except (ProcessLookupError, PermissionError):
+        if proc.poll() is None:
+            try:
+                proc.send_signal(sig)
+            except ProcessLookupError:
+                pass
+
+
 def worker_command(role: str, home: Path) -> list[str]:
     if getattr(sys, "frozen", False):  # PyInstaller: re-enter the same executable.
         return [sys.executable, "worker", role, "--home", str(home)]
@@ -151,7 +173,7 @@ class WorkerProcess:
         with open(self.home / "logs" / f"{self.role}.log", "ab") as log:
             self.proc = subprocess.Popen(worker_command(self.role, self.home),
                                          stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                         stderr=log, env=env)
+                                         stderr=log, env=env, start_new_session=True)
         self.expected_exit = None
         self.niced = False
         self.last_hb = self.last_activity = time.monotonic()
@@ -183,6 +205,9 @@ class WorkerProcess:
                     self.last_hb = time.monotonic()
             self.on_message(message)  # Heartbeats too: analysis reads their live RSS.
         proc.wait()
+        # Pool children of a killed or crashed worker would keep mapping files (and their
+        # resource tracker running) with no reader; the group outlives its leader.
+        signal_group(proc, signal.SIGTERM)
         with self.lock:
             if proc is not self.proc:
                 return
@@ -225,11 +250,12 @@ class WorkerProcess:
             if proc is None or proc.poll() is not None:
                 return
             self.expected_exit = reason
-        proc.terminate()
+        signal_group(proc, signal.SIGTERM)
 
         def force():
             if proc.poll() is None:
                 proc.kill()
+                signal_group(proc, signal.SIGTERM)
 
         timer = threading.Timer(self.config.term_grace_s, force)
         timer.daemon = True
@@ -243,6 +269,10 @@ class WorkerProcess:
                 self._set_state("idle")
 
     def stop(self) -> None:
+        self.wait_stopped(self.begin_stop(), time.monotonic() + self.config.term_grace_s)
+
+    def begin_stop(self) -> subprocess.Popen | None:
+        """Mark stopped and close stdin (workers exit on EOF; ingest at a file boundary)."""
         with self.lock:
             self._set_state("stopped")
             if self.timer is not None:
@@ -250,19 +280,27 @@ class WorkerProcess:
                 self.timer = None
             proc = self.proc
             self.expected_exit = "stopped"
+        if proc is not None and proc.stdin is not None:
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+        return proc
+
+    def wait_stopped(self, proc: subprocess.Popen | None, deadline: float) -> None:
+        """Wait for a graceful exit until ``deadline``, then SIGTERM the group, then SIGKILL."""
         if proc is None:
             return
         try:
-            if proc.stdin is not None:
-                proc.stdin.close()  # Workers exit on EOF; ingest stops at a file boundary.
-            proc.wait(self.config.term_grace_s)
-        except (subprocess.TimeoutExpired, OSError):
-            proc.terminate()
+            proc.wait(max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            signal_group(proc, signal.SIGTERM)
             try:
                 proc.wait(self.config.term_grace_s)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait()
+        signal_group(proc, signal.SIGTERM)  # Pool children left behind by the leader.
 
 
 class IngestRunner:
@@ -758,8 +796,20 @@ class Supervisor:
         return {"ingest": self.ingest.worker.info(), "analysis": self.analysis.worker.info()}
 
     def stop(self) -> None:
+        """Stop both workers in parallel: one grace period in total, not one per worker
+        (sequential stops kept the helper alive past the native host's quit deadline)."""
         self.stopping.set()
         if self.thread.is_alive():
             self.thread.join()
-        self.ingest.stop()
+        workers = (self.ingest.worker, self.analysis.worker)
+        procs = [worker.begin_stop() for worker in workers]
+        deadline = time.monotonic() + self.config.term_grace_s
+        waiters = [threading.Thread(target=worker.wait_stopped, args=(proc, deadline),
+                                    daemon=True, name=f"{worker.role}-stop")
+                   for worker, proc in zip(workers, procs, strict=True) if proc is not None]
+        for waiter in waiters:
+            waiter.start()
+        for waiter in waiters:
+            waiter.join()
+        self.ingest.stop()  # Already stopped: only the runner's own bookkeeping remains.
         self.analysis.stop()

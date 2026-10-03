@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import resource
+import signal
 import subprocess
 import sys
 import threading
@@ -22,6 +23,8 @@ from typing import BinaryIO
 PROTOCOL = "tandem-worker-v1"
 HEARTBEAT_ENV = "TANDEM_WORKER_HEARTBEAT_S"
 DEBUG_DELAY_ENV = "TANDEM_WORKER_DEBUG_DELAY_MS"
+ORPHAN_POLL_S = 0.5
+ORPHAN_GRACE_S = 3.0  # after the gateway is gone: time to reach a file boundary on EOF
 
 
 def encode(message: dict) -> bytes:
@@ -92,6 +95,7 @@ class WorkerIO:
     def __init__(self, role: str, stdin: BinaryIO | None = None, stdout: BinaryIO | None = None,
                  heartbeat_s: float | None = None):
         self.role = role
+        self.parent = os.getppid() if stdout is None else None  # Only a real child watches.
         if stdout is None:
             # Keep fd 1 for the protocol and route any library print() to stderr.
             stdout = os.fdopen(os.dup(1), "wb", buffering=0)
@@ -125,7 +129,32 @@ class WorkerIO:
 
         thread = threading.Thread(target=beat, daemon=True, name=f"{self.role}-hb")
         thread.start()
+        if self.parent is not None:
+            threading.Thread(target=self.watch_parent, daemon=True,
+                             name=f"{self.role}-orphan").start()
         return thread
+
+    def watch_parent(self, poll_s: float = ORPHAN_POLL_S, grace_s: float = ORPHAN_GRACE_S) -> None:
+        """Exit when the gateway is gone (SIGKILLed after the host's quit deadline, crashed).
+
+        Stdin EOF already asks the worker to stop at the next file boundary, but an import
+        step or a long analysis can run for minutes, holding ``import.lock`` against the
+        next launch. After ``grace_s`` the worker's whole process group (pool children
+        included) gets SIGTERM.
+        """
+        while os.getppid() == self.parent:
+            time.sleep(poll_s)
+        self.stopping.set()
+        time.sleep(grace_s)
+        print(f"tandem-{self.role}: gateway {self.parent} is gone; exiting", file=sys.stderr,
+              flush=True)
+        try:
+            if os.getpgrp() == os.getpid():
+                os.killpg(os.getpid(), signal.SIGTERM)
+            else:
+                os.kill(os.getpid(), signal.SIGTERM)
+        except OSError:
+            os._exit(1)
 
     def ops(self) -> Iterator[dict]:
         for line in iter(self.stdin.readline, b""):
