@@ -761,6 +761,11 @@ body.native .win.nosb .tbar{padding-left:20px}
 .log{flex:1;min-height:160px;border-radius:9px;background:var(--sunken);border:1px solid var(--line);padding:10px 12px;font:11px/17px var(--font-mono);overflow:auto;max-height:340px}
 .log div{white-space:pre-wrap;word-break:break-all}
 
+/* range widening (empty range, wider history has sessions) */
+.range-note{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;color:var(--ink-2);font-size:13px}
+.range-widen{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.range-note .range-widen{margin-top:0}
+
 /* A1 overview: AI-card micro evidence, KPI tiles, outcome share strip, trend controls, persona card, heat line, tool rows, recs (page styles live here, not in 40-pages.css) */
 /* AI card: every column = header row (label + mini viz / regen) → prose → bottom line (evidence link / provenance), so the four bottoms share a baseline */
 .ov-aic{gap:8px;min-width:0}
@@ -3861,10 +3866,25 @@ function filterRow(right) {
     '<button type="button" class="chip' + (agN !== AG.length ? ' on' : '') + '" data-act="agentMenu">' + ic('bot', 14, agN === AG.length ? 'color:var(--ink-3)' : '') + agLbl + ic('chev', 11, agN === AG.length ? 'color:var(--ink-3)' : '') + '</button>' +
     '<button type="button" class="chip' + (S.project ? ' on' : '') + '" data-act="projectMenu">' + ic('projects', 14) + '项目 · ' + (S.project ? PJI[S.project].name : '全部 ' + PJ.length) + ic('chev', 11) + '</button>' +
     chips.map((c) => '<button type="button" class="chip on" data-act="clearFilter" data-k="' + c[0] + '" aria-label="移除筛选：' + esc(c[1]) + '">' + esc(c[1]) + ic('x', 12) + '</button>').join('') +
-    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>';
+    '<button type="button" class="chip dash" data-act="addFilter">' + ic('plus', 13) + '添加筛选</button>' + (right ? '<span class="frow-r">' + right + '</span>' : '') + '</div>' + rangeWidenNote();
 }
 function agentLegendItems() { return AG.map((a) => ({ t: a.name, v: a.id, on: S.agents.has(a.id) })); }
-function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + '</div>'; }
+// range widening (A): the selected range has no sessions while a wider one has some (e.g. a first import of only older
+// sessions) → offer 扩大到 90 天 / 看全部历史. Advance pages get it under the filter row, Lite (no filter row) in empty().
+function rangeWider() {
+  if (S.range === 0 || !ALL.length || sel({ noExtra: true }).length) return [];
+  const w90 = S.range < 90 && sel({ range: 90, noExtra: true }).length > 0;
+  return sel({ range: 0, noExtra: true }).length ? (w90 ? [90, 0] : [0]) : [];
+}
+function rangeWidenBtns() {
+  const w = rangeWider(); if (!w.length) return '';
+  return '<div class="row range-widen">' + w.map((r, i) => '<button type="button" class="btn' + (i === 0 ? ' p' : '') + '" data-act="range" data-v="' + r + '">' + (r === 0 ? '看全部历史' : '扩大到 ' + r + ' 天') + '</button>').join('') + '</div>';
+}
+function rangeWidenNote() {
+  const b = rangeWidenBtns(); if (!b) return '';
+  return '<div class="card pad range-note" data-range-note><span>' + rangeLabel() + '内没有会话 · 全部历史共 ' + fmt(sel({ range: 0, noExtra: true }).length) + ' 个</span>' + b + '</div>';
+}
+function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
 
 /* ============ editions: Lite / Advance in one app ============ */
 // One window, two editions. Advance = the full desktop app (nine pages, filters, every tool). Lite = genius-FXC's focused
@@ -5826,6 +5846,9 @@ PAGES.overview = () => {
     ['卡在哪', 'alert', 'var(--crit)', ins && ins.stuck ? ins.stuck.text : topF ? topF[1] + ' 个会话出现「' + topF[0] + '」' + (topP.length ? '，集中在 ' + topP.join('、') : '') + '。' : '这段时间没有明显的摩擦。', topF ? '证据 · ' + topF[1] + ' 个会话' : '', 'evBad', ovMini('bars', fr.map((x) => x[1]))],
     ['立刻可做', 'bolt', 'var(--ai)', topR.length ? topR.slice(0, 2).map((r) => r.title.split('：')[0]).join('；') + '。' : ins && ins.next && ins.next.text ? ins.next.text : '建议都已处理。', '查看 ' + topR.length + ' 条建议', 'evRec', ovMini('dots', topR.length, Math.min(4, Array.from(S.installed.keys()).length))]
   ];
+  // 0 sessions in range: no praise / friction verdict (the backend's 「这段时间还没有会话」 next to 「查看 3 条建议」 read as
+  // contradictory); the range note under the filter row offers the wider range instead
+  if (!st.n) { ai[0][3] = '—'; ai[0][4] = ''; ai[1][3] = '—'; ai[1][4] = ''; }
   const ledeKey = S.range + '|' + (pers.ok ? pers.code : '-') + '|' + Array.from(S.agents).join(',');
   const lede = S.ov.lede && S.ov.lede.key === ledeKey ? S.ov.lede.txt : ins && ins.lede ? ins.lede : (pers.ok ? '你像一位' + pers.zh + '：' + pers.line : '样本不足：所选范围只有 ' + pers.n + ' 个会话，至少需要 30 个才给出协作画像。');
   const ledeWhen = S.ov.lede && S.ov.lede.key === ledeKey ? '本地 Claude Code 生成 · 刚刚' : LV.live ? (ins && ins.when ? ins.when : '规则模板 · 本地生成') : '本地 Claude Code 生成 · 9/30 23:10';
@@ -5846,7 +5869,7 @@ PAGES.overview = () => {
   const terr = (t) => t.err == null ? '<span class="mono e"' + (t.why ? ' data-tip="' + esc(t.why) + '"' : '') + '>—</span><span class="eb-bar"><span style="width:0%"></span></span>' : '<span class="mono e' + (t.err > 0.1 ? ' hi' : '') + '">' + f1(t.err * 100) + '%</span><span class="eb-bar' + (t.err > 0.1 ? ' hi' : '') + '"><span style="width:' + Math.min(100, t.err / 0.2 * 100).toFixed(1) + '%"></span></span>';
   const outc = [['ok', '完成'], ['part', '部分完成'], ['fail', '放弃']].map((o) => ({ id: o[0], name: o[1], value: L.filter((s) => s.out === o[0]).length, color: OUT[o[0]][1] }));
   const outLine = outc.map((o) => o.name + ' ' + Math.round(o.value / Math.max(1, st.n) * 100) + '%').join(' · ');
-  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + AG.filter((a) => S.agents.has(a.id)).length + ' 个 Agent',
+  return tbar('概览', winLabel() + ' · ' + st.n + ' 个会话 · ' + (ALL.length ? new Set(L.map((s) => s.a)).size + ' 个 Agent' : '还没有接入 Agent'),
     '<button type="button" class="btn gh" data-act="reindex" data-tip="重新索引（⌘R）">' + ic('sync', 13) + '<span data-sync>' + esc(S.ov.synced) + '</span></button><button type="button" class="btn" data-act="report">' + ic('share', 14) + '分享报告</button><button type="button" class="btn ai" data-act="ask" data-ctx="overview">' + ic('spark', 14) + '问本地 Agent</button><button type="button" class="ib" data-act="ovMore" aria-label="更多操作">' + ic('more', 16, 'stroke-width:2.6') + '</button>') +
     '<div class="content" id="content">' + filterRow('<label class="row cap" style="font-size:12px;color:var(--ink-2)">对比上一周期<button type="button" class="sw' + (S.compare ? ' on' : '') + '" data-act="compare" aria-pressed="' + S.compare + '" aria-label="对比上一周期"></button></label>') +
     '<div class="stack">' +
@@ -9588,6 +9611,20 @@ LV.hydrate = function (spine) {
   if (S.proj.cmp && !PJI[S.proj.cmp]) S.proj.cmp = null;
 };
 
+// first landing (A): when the default range holds no sessions but older history does (a first import of only older
+// sessions), pick the narrowest range that has data (30 → 90 → all) once, instead of every page reading 「没有会话」
+LV.autoRanged = false;
+function lvAutoRange() {
+  if (LV.autoRanged || !ALL.length) return;
+  LV.autoRanged = true;
+  if (S.range === 0 || sel({ noExtra: true }).length) return;
+  const to = [90, 0].find((r) => (r === 0 || r > S.range) && sel({ range: r, noExtra: true }).length);
+  if (to == null) return;
+  const from = rangeLabel();
+  S.range = to;
+  if (typeof toast === 'function') toast(from + '内没有会话，已切换到' + rangeLabel());
+}
+
 let lvSpineAgain = false, lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
 const LV_SECTION = 'uiview_facts';
 LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
@@ -9654,6 +9691,7 @@ LV.loadSpine = function () {
     spine.environment = LV.env.filter((x) => x.installed);
     LV.hydrate(spine);
     LV.state = rows.length ? 'ready' : 'empty';
+    lvAutoRange();
   }, (e) => {
     // 422 analysis_scope_too_large: this window is too big for the machine → 30 days, then 7 (the strip says so)
     if (e && e.code === 'analysis_scope_too_large') {

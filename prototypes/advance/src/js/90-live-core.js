@@ -387,6 +387,20 @@ LV.hydrate = function (spine) {
   if (S.proj.cmp && !PJI[S.proj.cmp]) S.proj.cmp = null;
 };
 
+// first landing (A): when the default range holds no sessions but older history does (a first import of only older
+// sessions), pick the narrowest range that has data (30 → 90 → all) once, instead of every page reading 「没有会话」
+LV.autoRanged = false;
+function lvAutoRange() {
+  if (LV.autoRanged || !ALL.length) return;
+  LV.autoRanged = true;
+  if (S.range === 0 || sel({ noExtra: true }).length) return;
+  const to = [90, 0].find((r) => (r === 0 || r > S.range) && sel({ range: r, noExtra: true }).length);
+  if (to == null) return;
+  const from = rangeLabel();
+  S.range = to;
+  if (typeof toast === 'function') toast(from + '内没有会话，已切换到' + rangeLabel());
+}
+
 let lvSpineAgain = false, lvSpineTimer = null, lvSpineBusy = null, lvSpineFails = 0, lvSpineData = null;
 const LV_SECTION = 'uiview_facts';
 LV.failed = null;   // {reason, message}: the spine's analysis failed for this data (strip: reason + 重新计算)
@@ -453,6 +467,7 @@ LV.loadSpine = function () {
     spine.environment = LV.env.filter((x) => x.installed);
     LV.hydrate(spine);
     LV.state = rows.length ? 'ready' : 'empty';
+    lvAutoRange();
   }, (e) => {
     // 422 analysis_scope_too_large: this window is too big for the machine → 30 days, then 7 (the strip says so)
     if (e && e.code === 'analysis_scope_too_large') {
