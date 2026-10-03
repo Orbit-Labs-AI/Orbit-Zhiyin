@@ -64,10 +64,11 @@ Colima 用户可把 `COLIMA_HOME`、`XDG_CACHE_HOME`、`DOCKER_CONFIG` 设到专
 history、adaptation 和 online execution 的消耗分开记录。
 
 B 仅导入这 12 条新建 Pi history，由产品的 canonical connector、分析、features、
-rec-engine-v2 和生成模板产生建议。依产品排序选中的规则、Skill、Hook、workflow
+rec-engine-v2 和生成模板产生建议。依产品排序选中的规则、Prompt、Skill、Hook、workflow
 转换到 Pi；Hook 执行原产品脚本，事件映射由适配器记录。模型保持固定，MCP/subagent
 等 Pi 不支持的类型沿用产品 gate，并保存每项未物化的原因。目录使用产品自带种子，
 不读取个人 catalog、标签或偏好。C 直接读取相同的完整 history bundle，生成一个 Skill。
+Prompt / workflow 使用产品已有片段；未填写的槽位和只有安装指引的条目记录为不可物化。
 两组产物冻结后写入容器只读卷，原始事件会计量每轮实际注入的输入。
 
 最终输出含逐题 CSV、分组/分任务族统计、配对胜平负、adaptation 摊销和七节报告。

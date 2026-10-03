@@ -219,15 +219,17 @@ def ours(study: dict, output: Path, credentials: Path) -> None:
             if kind in ("permission_rule", "builtin"):
                 row["status"] = "not_applicable_no_permission_prompts"
                 continue
-            if kind == "workflow":
+            if kind in ("workflow", "prompt"):
+                if card.get("unfilled_slots"):
+                    row["status"] = "unavailable_unfilled_product_slots"
+                    row["unfilled_slots"] = card["unfilled_slots"]
+                    continue
                 text = "\n".join(line for line, _ in card.get("file") or [])
-                if not text:
-                    text = "\n".join(f"{i}. {s}" for i, s in enumerate((card.get("trial") or {}).get("steps") or [], 1))
                 if text:
                     manifest["instructions"].append(text)
-                    row["status"] = "workflow_instruction"
+                    row["status"] = f"{kind}_instruction"
                 else:
-                    row["status"] = "unavailable_empty_workflow"
+                    row["status"] = "unavailable_empty_product_snippet"
                 continue
             if kind == "generate":
                 task_id = card["generate"]["task_id"]
