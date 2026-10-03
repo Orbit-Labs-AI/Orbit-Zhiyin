@@ -87,8 +87,9 @@ scene('20-orbit', () => {
   const ang = (p) => ((Math.atan2(p.x - 960, -(p.y - 540)) / agDeg) % 360 + 360) % 360;
   const cpGlow = (b, i) => {
     if (b < FLIP1 - .2 || b > FLIP1 + 1.8) return 0;
-    const u = (b - (FLIP1 + 1.2 * ang(AGD.pos(i, b)) / 360) + .12) / .55;
-    return u > 0 && u < 1 ? .4 * Math.sin(Math.PI * u) : 0;
+    // r177 复查：.4 × 渐变中心 .55 ≈ .22，在描边光旁边几乎看不见——提到 .7、加宽到 .7 拍，峰值对准光经过（晚 .05 拍）
+    const u = (b - (FLIP1 + 1.2 * ang(AGD.pos(i, b)) / 360) + .3) / .7;
+    return u > 0 && u < 1 ? .7 * Math.sin(Math.PI * u) : 0;
   };
   AGD.morph(CK + .8, 'all', 'dot', { dur: .8, stag: .06, ease: E.sine, glow: cpGlow });
 
