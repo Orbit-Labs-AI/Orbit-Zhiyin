@@ -105,7 +105,8 @@ def test_extract_tags_bilingual_friction_as_extracted():
     for text in ("失败后重复同一命令就停下", "Stops a retry storm", "自动重试会被拦截"):
         resource = Resource(item_id="x", type="skill", name="guard", summary=text, url="")
         hits = [f for f in extract(resource) if (f.feature, f.value) == ("friction", "retry_same_call")]
-        assert hits and hits[0].origin == "extracted" and hits[0].weight == 0.6
+        # One name/summary mention: mass 3 → 3/(3+1) = 0.75, times the 0.6 extracted-friction cap.
+        assert hits and hits[0].origin == "extracted" and hits[0].weight == 0.45
     plain = Resource(item_id="y", type="skill", name="prompt helper", summary="improve prompts", url="")
     assert not any(f.feature == "domain" and f.value == "git.pr" for f in extract(plain))
 
