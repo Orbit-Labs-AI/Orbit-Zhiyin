@@ -8,6 +8,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from . import embedding_model
 from .contracts import (
     Feature,
     LocalItem,
@@ -23,7 +24,12 @@ from .snapshot import OFFLINE_KINDS, bundled_seed, import_snapshot, retire_seeds
 from .sources import default_sources
 from .store import CatalogBusy, CatalogStore
 from .sync import CatalogSync
-from .vectors import LocalE5Encoder, index_embeddings, normalize_vectors
+from .vectors import LocalE5Encoder, embedding_coverage, index_embeddings, normalize_vectors
+
+# Chunks per background embedding job. One slice of the int8 E5 on an M-series CPU takes about
+# 10-20 s (validation.md), short enough that a due source sync waits at most one slice.
+EMBED_SLICE = 512
+DOWNLOAD_RETRY_S = 1800  # a failed opt-in download is retried by the background tick after 30 min
 
 
 def default_home() -> Path:
@@ -42,18 +48,43 @@ class CatalogService:
                 pass
         self.http = http or HttpClient(self.store.path.parent / "catalog-http-cache")
         self.model_dir = model_dir
+        self.model_roots = embedding_model.default_roots(self.store.path.parent)
         self._encoder = encoder
         self._model_lock = threading.Lock()
+        self._model_error = None  # (directory, code): a broken model is not reloaded on every search
+        self._download = {"state": "idle", "done_bytes": 0, "total_bytes": embedding_model.DOWNLOAD_BYTES,
+                          "error": None, "finished_at": None}
+        self._vector_idle_generation = None
         self._jobs_lock = threading.Lock()
         self._jobs = {}
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tandem-catalog")
         self.on_job_done = None  # Optional callback(job) for telemetry (set by the gateway).
         self._first_sync = {"state": "pending", "job_id": None, "due_at": None}
 
+    def model_directory(self) -> Path | None:
+        """The explicit ``model_dir`` or the first complete E5 directory under ``model_roots``."""
+        if self.model_dir:
+            return Path(self.model_dir)
+        return embedding_model.discover(self.model_roots)
+
     def encoder(self):
+        """The loaded encoder, None without a model; raises (once per directory) when it cannot load."""
         with self._model_lock:
-            if self._encoder is None and self.model_dir:
-                self._encoder = LocalE5Encoder(self.model_dir)
+            if self._encoder is not None:
+                return self._encoder
+            directory = self.model_directory()
+            if directory is None:
+                return None
+            if self._model_error and self._model_error[0] == str(directory):
+                raise RuntimeError(self._model_error[1])
+            try:
+                self._encoder = LocalE5Encoder(directory)
+            except ImportError:
+                self._model_error = (str(directory), "embedding_runtime_missing")
+                raise RuntimeError("embedding_runtime_missing") from None
+            except Exception as exc:  # noqa: BLE001 - corrupt/foreign files: report, keep lexical search.
+                self._model_error = (str(directory), "embedding_model_unloadable")
+                raise RuntimeError("embedding_model_unloadable") from exc
             return self._encoder
 
     def match(self, request: MatchRequest) -> dict:
@@ -61,7 +92,8 @@ class CatalogService:
             encoder = self.encoder()
         except Exception as exc:
             result = search(self.store, request)
-            result["vector"] = {"status": "unavailable", "reason": type(exc).__name__}
+            result["vector"] = {"status": "unavailable",
+                                "reason": str(exc) if isinstance(exc, RuntimeError) else type(exc).__name__}
             return result
         return search(self.store, request, encoder)
 
@@ -255,10 +287,123 @@ class CatalogService:
                 "last_sync_at": last_sync, "partial_sources": partial}
 
     def start_embeddings(self, max_chunks: int | None = None) -> dict:
-        if not self.model_dir and self._encoder is None:
+        if self._encoder is None and self.model_directory() is None:
             raise ValueError("local_embedding_model_not_configured")
         return self._submit("embed", lambda cancel: index_embeddings(self.store, self.encoder(),
                             max_chunks=max_chunks, cancelled=cancel))
+
+    # Semantic model lifecycle: consent -> download -> load -> background slices -> coverage.
+
+    def set_model_download(self, allowed: bool) -> dict:
+        """Record the user's choice; allowing it also starts the download right away."""
+        embedding_model.set_download_allowed(self.model_roots[0], allowed)
+        if allowed and self.model_directory() is None:
+            try:
+                self.start_model_download()
+            except ValueError as exc:  # another catalog job: the background tick starts it later
+                if str(exc) != "catalog_job_already_active":
+                    raise
+        return self.vector_status()
+
+    def start_model_download(self) -> dict:
+        if not embedding_model.download_allowed(self.model_roots[0]):
+            raise ValueError("model_download_not_allowed")
+
+        def run(cancel):
+            def progress(done, total):
+                self._download.update(done_bytes=done, total_bytes=total)
+            self._download.update(state="downloading", error=None)
+            try:
+                directory = embedding_model.download(self.model_roots[0], cancelled=cancel, progress=progress)
+            except embedding_model.ModelDownloadError as exc:
+                state = "cancelled" if str(exc) == "model_download_cancelled" else "failed"
+                self._download.update(state=state, error=str(exc), finished_at=time.time())
+                raise RuntimeError(str(exc)) from None
+            with self._model_lock:
+                self._model_error = None
+            self._download.update(state="completed", finished_at=time.time())
+            return {"model_dir": str(directory), "bytes": embedding_model.DOWNLOAD_BYTES}
+        return self._submit("model", run)
+
+    def _active_job(self) -> dict | None:
+        with self._jobs_lock:
+            return next(({k: v for k, v in j.items() if k != "cancel"} for j in self._jobs.values()
+                         if j["status"] in ("queued", "running")), None)
+
+    def vector_tick(self, slice_chunks: int = EMBED_SLICE) -> dict | None:
+        """Background step (gateway refresher): download if allowed, else embed one slice.
+
+        Returns the started job or None (busy, nothing to do, or no model). Slices are
+        resumable by construction: vectors are committed per batch and keyed by text hash.
+        """
+        if self._active_job() is not None:
+            return None
+        if self._encoder is None and self.model_directory() is None:
+            retry = (self._download["state"] != "failed" or
+                     time.time() - (self._download["finished_at"] or 0) > DOWNLOAD_RETRY_S)
+            if retry and self._download["state"] != "cancelled" and embedding_model.download_allowed(self.model_roots[0]):
+                return self.start_model_download()
+            return None
+        with self.store.reader() as conn:
+            generation = self.store.generation(conn)
+        if generation == self._vector_idle_generation:
+            return None  # nothing was published since the last complete pass
+        try:
+            encoder = self.encoder()
+        except Exception:  # noqa: BLE001 - reported by vector_status()
+            return None
+        if encoder is None:
+            return None
+        coverage = embedding_coverage(self.store, encoder.model_id)
+        if coverage["pending_chunks"] == 0:
+            self._vector_idle_generation = generation
+            return None
+        try:
+            return self.start_embeddings(slice_chunks)
+        except ValueError:
+            return None
+
+    def vector_status(self) -> dict:
+        """``vector`` block of /v1/catalog/status: model, download and chunk coverage.
+
+        status: not_configured (no model, no consent) / downloading / download_failed /
+        unavailable (model present but cannot load) / not_loaded / indexing / not_indexed /
+        partial / ready. Coverage counts embed chunks of active items (overview + first
+        chunks, see features.EMBED_CHUNKS) that have a vector for the loaded model.
+        """
+        root = self.model_roots[0]
+        directory = self.model_directory()
+        active = self._active_job()
+        result = {"status": "not_configured", "model": None, "coverage": None,
+                  "download": {**self._download, "allowed": embedding_model.download_allowed(root),
+                               "repo": embedding_model.REPO, "revision": embedding_model.REVISION,
+                               "precision": embedding_model.PRECISION, "target": str(root / embedding_model.MODEL_NAME)}}
+        if directory is None and self._encoder is None:
+            if active and active["kind"] == "model":
+                result["status"] = "downloading"
+            elif self._download["state"] == "failed":
+                result["status"] = "download_failed"
+            return result
+        result["model"] = {"dir": str(directory) if directory else None}
+        if self._encoder is None and self._model_error and self._model_error[0] == str(directory):
+            result.update(status="unavailable", reason=self._model_error[1])
+            return result
+        encoder = self._encoder
+        if encoder is None:
+            result["status"] = "not_loaded"
+            return result
+        manifest = getattr(encoder, "manifest", {}) or {}
+        result["model"].update(model_id=encoder.model_id, precision=encoder.descriptor.get("precision"),
+                               revision=manifest.get("revision"), name=manifest.get("name", embedding_model.MODEL_NAME))
+        coverage = embedding_coverage(self.store, encoder.model_id)
+        result["coverage"] = coverage
+        if active and active["kind"] == "embed":
+            result["status"] = "indexing"
+        elif coverage["embedded_chunks"] == 0:
+            result["status"] = "not_indexed"
+        else:
+            result["status"] = "ready" if coverage["pending_chunks"] == 0 else "partial"
+        return result
 
     def _submit(self, kind, operation):
         with self._jobs_lock:
