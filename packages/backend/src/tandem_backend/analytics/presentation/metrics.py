@@ -9,8 +9,30 @@ from zoneinfo import ZoneInfo
 WINDOW_DAYS = {"7d": 7, "30d": 30, "90d": 90}
 
 
+def day_end(now_ts: int, timezone_name: str) -> int:
+    """First local midnight at or after ``now_ts`` (ms) in ``timezone_name``.
+
+    Idempotent on a midnight, so a window anchored here and re-anchored by the worker
+    resolves to the same bounds.
+    """
+    zone = ZoneInfo(timezone_name)
+    local = datetime.fromtimestamp(now_ts / 1000, zone)
+    midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    if midnight.timestamp() * 1000 < now_ts:
+        midnight = datetime.combine(midnight.date() + timedelta(days=1), datetime.min.time(),
+                                    zone)
+    return int(midnight.timestamp() * 1000)
+
+
 def window_scope(scope, window=None, *, now_ts=None):
-    """Rolling N*24h windows, with [from, until) membership and local calendar bins."""
+    """N-day windows with [from, until) membership and local calendar bins.
+
+    With an explicit ``until_ts`` (historical cutoff) the window is a fixed N*24h before it.
+    Anchored on "now" it covers today plus the N-1 previous local calendar days, both ends on
+    local midnights in ``display_timezone`` (same convention as ``fastpath.window_start``):
+    every request within one local day resolves to identical bounds, so snapshots and the
+    analysis cache are reused, and the window moves exactly when the day changes.
+    """
     if window is None:
         return scope
     if window == "all":
@@ -21,10 +43,15 @@ def window_scope(scope, window=None, *, now_ts=None):
         raise ValueError("window 必须是 7d/30d/90d/all")
     if scope.from_ts is not None:
         raise ValueError("window 不能与 from_ts 同时使用；可用 until_ts 指定历史截止时刻")
-    until = scope.until_ts if scope.until_ts is not None else now_ts
-    if until is None:
-        until = time_ns() // 1_000_000
-    return replace(scope, from_ts=until - WINDOW_DAYS[window] * 86_400_000, until_ts=until)
+    days = WINDOW_DAYS[window]
+    if scope.until_ts is not None:
+        return replace(scope, from_ts=scope.until_ts - days * 86_400_000)
+    now = now_ts if now_ts is not None else time_ns() // 1_000_000
+    zone = ZoneInfo(scope.display_timezone)
+    until = day_end(now, scope.display_timezone)
+    end_day = datetime.fromtimestamp(until / 1000, zone).date()
+    start = datetime.combine(end_day - timedelta(days=days), datetime.min.time(), zone)
+    return replace(scope, from_ts=int(start.timestamp() * 1000), until_ts=until)
 
 
 def measure(value, unit, basis, *, status="available", unknown_n=0, reason=None,

@@ -9,7 +9,7 @@ from ..history import recorded
 from ..inputs import AnalysisInputBundle, Scope, legacy_bundle
 from ..instruction import INSTRUCTION_VERSION
 from ..service import analyze_context
-from .contracts import PRODUCT_VERSION, RULE_VERSIONS
+from .contracts import PRODUCT_VERSION, rule_versions
 from .feedback import analyze_feedback
 from .journey import interaction_habits, session_journey, task_index
 from .lexical import compare_vocabulary
@@ -76,7 +76,7 @@ def build_products(
             outcomes=project["bottleneck_features"]["outcome"],
         )
     versions = {
-        **RULE_VERSIONS,
+        **rule_versions(),
         "instruction": INSTRUCTION_VERSION,
         "features": base["feature_schema_version"],
     }

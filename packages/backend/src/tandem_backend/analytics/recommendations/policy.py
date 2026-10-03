@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, fields
 
-ALGORITHM_VERSION = "bottleneck-recommendations-v1"
+ALGORITHM_VERSION = "bottleneck-recommendations-v2"  # v2: retry coverage, repeat evidence
 
 
 @dataclass(frozen=True)

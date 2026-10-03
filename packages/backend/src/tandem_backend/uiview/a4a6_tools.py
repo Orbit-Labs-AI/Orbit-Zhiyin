@@ -67,7 +67,7 @@ SELECT tc.call_uid, tc.session_uid, s.root_uid, s.kind AS session_kind,
        tc.mcp_server, tc.command_head, tc.status, tc.error_class, tc.exit_code, tc.duration_ms,
        tc.duration_quality, tc.started_at, tc.approval, tc.approval_wait_ms,
        tc.argument_digest, tc.subagent_session_uid, tc.result_event_uid, tc.call_event_uid,
-       e.seq
+       e.seq, json_extract(e.attrs, '$.input.command') AS command
 FROM v_analysis_tool_call tc
 JOIN session s ON s.session_uid = tc.session_uid
 LEFT JOIN source src ON src.source_id = s.source_id
@@ -367,7 +367,7 @@ def approvals(rows) -> dict:
             break
     heads = Counter()
     for r in asked:
-        info = command_info(r["command_head"])
+        info = command_info(r["command_head"], r.get("command"))
         if r["command_head"] and info["cls"] == "readonly":
             heads[info["head"]] += 1
     agents = sorted({r["agent"] for r in rows if r["agent"]})

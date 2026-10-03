@@ -28,7 +28,8 @@ log = logging.getLogger(__name__)
 LOG_LINES = 200
 JOB_RETENTION_MS = 90 * 86400 * 1000
 CACHE_ROWS = 2000
-NO_RETRY = ("not_logged_in", "budget_exceeded", "timeout")
+# truncated/refused: the same request would hit the same max_tokens / safety decline again.
+NO_RETRY = ("not_logged_in", "budget_exceeded", "timeout", "truncated", "refused")
 
 
 def now_ms() -> int:
@@ -72,6 +73,11 @@ class RunContext:
         self.tokens = self.calls = self.cache_hits = 0
         self.model_id: str | None = None
         self.started: dict[str, float] = {}
+
+    def granted(self, data_class: str) -> bool:
+        """Whether this job's engine may receive ``data_class`` (tasks that pick their own
+        queries at run time, like ask.question, check this before sending results)."""
+        return self.runner.svc.consent_store.granted(self.engine, data_class)
 
     # -- model calls ---------------------------------------------------------------------
     def call(self, *, system=None, prompt=None, schema=None, slot=None, validate=None,

@@ -1,7 +1,8 @@
 """Selected-scope project inventory and observed-log time, never human work time."""
 
+from bisect import bisect_right
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from math import isfinite
 from statistics import mean, median
 from zoneinfo import ZoneInfo
@@ -9,7 +10,6 @@ from zoneinfo import ZoneInfo
 from .metrics import measure, unavailable
 
 HOUR_MS = 3_600_000
-MAX_HOUR_SEGMENTS = 100_000
 SPAN_BASIS = "selected own-event last_ts-first_ts; includes idle gaps, not human work duration"
 
 
@@ -82,39 +82,61 @@ def _union(intervals):
     return total
 
 
-def _next_hour_or_offset_change(cursor, zone):
-    local = _datetime(cursor, zone)
-    floor = local.replace(minute=0, second=0, microsecond=0)
-    candidates = []
-    for step in range(3):
-        for fold in (0, 1):
-            try:
-                wall = (floor + timedelta(hours=step)).replace(fold=fold)
-                candidate = round(wall.timestamp() * 1000)
-            except (ValueError, OverflowError, OSError):
-                continue
-            actual = _datetime(candidate, zone)
-            if actual is not None and candidate > cursor and actual.minute == actual.second == actual.microsecond == 0:
-                candidates.append(candidate)
-    if not candidates:
-        # Last representable calendar hour: the caller clips this to its valid end.
-        return cursor + HOUR_MS
-    boundary = min(candidates)
-    # Offset changes can occur at a half hour (e.g. Australia/Lord_Howe).
-    # Split there too, rather than assigning the whole crossing to the old hour.
-    if _datetime(boundary - 1, zone).utcoffset() != local.utcoffset():
-        low, high = cursor + 1, boundary
-        while low < high:
-            middle = (low + high) // 2
-            if _datetime(middle, zone).utcoffset() == local.utcoffset():
-                low = middle + 1
-            else:
-                high = middle
-        boundary = low
-    return boundary
+DAY_MS = 24 * HOUR_MS
+
+
+def _offset_ms(ts, zone):
+    local = _datetime(ts, zone)
+    return None if local is None else round(local.utcoffset().total_seconds() * 1000)
+
+
+def _offset_changes(first, last, zone):
+    """UTC instants in (first, last] where the zone's UTC offset changes.
+
+    Scans day by day and bisects to the exact millisecond inside a day whose two ends
+    differ. Real zones never change offset twice within 24 h (DST pairs are months apart),
+    so a day step finds every change; half-hour changes (Australia/Lord_Howe) are exact.
+    """
+    changes, cursor, offset = [], first, _offset_ms(first, zone)
+    while cursor < last:
+        step = min(last, cursor + DAY_MS)
+        after = _offset_ms(step, zone)
+        if after != offset:
+            low, high = cursor + 1, step
+            while low < high:
+                middle = (low + high) // 2
+                if _offset_ms(middle, zone) == offset:
+                    low = middle + 1
+                else:
+                    high = middle
+            changes.append(low)
+            offset = after
+        cursor = step
+    return changes
+
+
+def _allocate_wall(start, end, totals):
+    """Add the wall-clock interval [start, end) (local epoch ms) to ``totals`` by hour."""
+    days, remainder = divmod(end - start, DAY_MS)
+    if days:
+        for hour in range(24):
+            totals[hour] += days * HOUR_MS
+    cursor, stop = start + days * DAY_MS, end
+    while cursor < stop:  # at most 25 hour pieces
+        boundary = min(stop, (cursor // HOUR_MS + 1) * HOUR_MS)
+        totals[(cursor % DAY_MS) // HOUR_MS] += boundary - cursor
+        cursor = boundary
+    return remainder
 
 
 def _span_hours(intervals, zone, status, unknown):
+    """Observed session spans summed per local wall-clock hour.
+
+    Arithmetic, not per-hour stepping: each interval is cut only where the UTC offset
+    changes; within a constant-offset piece the local hour is ((t + offset) mod 24 h) // 1 h,
+    so whole days add 60 min to every hour and only the < 1 day remainder is walked hour by
+    hour. Cost is O(intervals + days scanned for offset changes), independent of span length.
+    """
     basis = "sum of selected own-session spans by local hour; concurrent spans count separately"
     result = {"unit": "minute", "basis": basis, "unknown_n": unknown,
               "meaning": "会话日志跨度估计，包含离开/等待时间与并行重叠，不是人工工时。",
@@ -122,20 +144,20 @@ def _span_hours(intervals, zone, status, unknown):
     if not intervals or status in ("excluded", "unavailable"):
         return {**result, "status": status if status == "excluded" else "unavailable",
                 "rows": None, "reason": "no_observed_session_bounds"}
-    if sum((last - first) / HOUR_MS + 2 for first, last in intervals) > MAX_HOUR_SEGMENTS:
+    lo, hi = min(f for f, _ in intervals), max(last for _, last in intervals)
+    if _offset_ms(lo, zone) is None or _offset_ms(hi, zone) is None:
         return {**result, "status": "unavailable", "rows": None,
-                "reason": "hour_allocation_budget_exceeded", "max_segments": MAX_HOUR_SEGMENTS}
-    totals, steps = Counter(), 0
+                "reason": "span_outside_calendar_range"}
+    changes = _offset_changes(lo, hi, zone)
+    totals = Counter()
     for first, last in intervals:
         cursor = first
+        index = bisect_right(changes, first)
         while cursor < last:
-            steps += 1
-            if steps > MAX_HOUR_SEGMENTS:
-                return {**result, "status": "unavailable", "rows": None,
-                        "reason": "hour_allocation_budget_exceeded", "max_segments": MAX_HOUR_SEGMENTS}
-            end = min(last, _next_hour_or_offset_change(cursor, zone))
-            totals[_datetime(cursor, zone).hour] += end - cursor
-            cursor = end
+            end = min(last, changes[index]) if index < len(changes) else last
+            offset = _offset_ms(cursor, zone)
+            _allocate_wall(cursor + offset, end + offset, totals)
+            cursor, index = end, index + 1
     return {**result, "status": "partial" if status == "partial" or unknown else status,
             "rows": [{"hour": hour, "minutes": totals[hour] / 60_000} for hour in range(24)],
             "known_span_minutes": sum(totals.values()) / 60_000}

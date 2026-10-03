@@ -1,6 +1,6 @@
 {
- "version": "replay-cases-v1",
- "note": "全部为虚构样例，不含真实会话；relevant 等级按 recommendation-module.md §problem 类型表的默认解法优先序给出。",
+ "version": "replay-cases-v2",
+ "note": "全部为虚构样例，不含真实会话；仅用于回归，不能说明推荐对真实用户有效。relevant 由 Claude（AI，audit-recommend 任务，2026-10-03）按各 case 的 label_rationale 独立标注：依据是解法是否直接作用于该问题的成因（机械强制 > 常驻约定 > 需手动触发），未参考 mechanism.REMEDY_PRIORITY 或引擎输出；待 yhyfhgs 复核。expect 字段的 case 为负例：断言 status 与不出现问题驱动卡。",
  "cases": [
   {
    "id": "permission-readonly",
@@ -68,7 +68,8 @@
     "type=permission_friction&kind=permission_rule": 3,
     "type=permission_friction&kind=builtin": 2,
     "type=permission_friction&kind=hook": 1
-   }
+   },
+   "label_rationale": "只读命令被逐次审批：直接放行规则消除摩擦(3)；Agent 内置的权限模式也能解决(2)；自写 PreToolUse hook 可行但成本高(1)。"
   },
   {
    "id": "tool-failure-software",
@@ -116,10 +117,11 @@
     "legacy_cards": []
    },
    "relevant": {
-    "type=tool_env_failure&kind=hook": 3,
-    "type=tool_env_failure&kind=skill": 2,
-    "type=tool_env_failure&kind=rule": 1
-   }
+    "type=tool_env_failure&kind=rule": 3,
+    "type=tool_env_failure&kind=hook": 2,
+    "type=tool_env_failure&kind=skill": 2
+   },
+   "label_rationale": "失败集中在某个软件(wrangler)：根因是环境约定没写下来，写入规则文件最直接(3)；打断重试的 hook 与系统化排错 skill 只缓解症状(2)。"
   },
   {
    "id": "identical-retries",
@@ -254,8 +256,9 @@
    "relevant": {
     "type=tool_env_failure&kind=hook": 3,
     "type=tool_env_failure&kind=skill": 2,
-    "type=tool_env_failure&kind=rule": 1
-   }
+    "type=tool_env_failure&kind=prompt": 1
+   },
+   "label_rationale": "同参数连续重试：机械打断重复调用的 hook 直接命中(3)；排错 skill 改变做法(2)；诊断 prompt 需手动触发(1)。"
   },
   {
    "id": "tool-failures-rate",
@@ -368,10 +371,11 @@
     "legacy_cards": []
    },
    "relevant": {
-    "type=tool_env_failure&kind=hook": 3,
-    "type=tool_env_failure&kind=skill": 2,
+    "type=tool_env_failure&kind=skill": 3,
+    "type=tool_env_failure&kind=hook": 2,
     "type=tool_env_failure&kind=rule": 1
-   }
+   },
+   "label_rationale": "工具失败分散在多处而非同参数重试：先系统化排错(3)；重试打断 hook 次之(2)；规则只能写泛化提醒(1)。"
   },
   {
    "id": "missing-verification",
@@ -504,11 +508,13 @@
     "legacy_cards": []
    },
    "relevant": {
-    "type=missing_verification&kind=rule": 3,
-    "type=missing_verification&kind=hook": 2,
+    "type=missing_verification&kind=hook": 3,
+    "type=missing_verification&kind=rule": 2,
     "type=missing_verification&kind=workflow": 2,
+    "type=missing_verification&kind=skill": 2,
     "type=missing_verification&kind=subagent": 1
-   }
+   },
+   "label_rationale": "改完不验证：Stop hook 机械强制验证(3)；规则/清单、验证阶梯工作流、完成前自检 skill 依赖模型自觉(2)；审查子代理事后补救(1)。"
   },
   {
    "id": "correction-spiral",
@@ -662,9 +668,10 @@
    },
    "relevant": {
     "type=wrong_approach&kind=prompt": 3,
-    "type=wrong_approach&kind=rule": 2,
-    "type=wrong_approach&kind=workflow": 2
-   }
+    "type=wrong_approach&kind=workflow": 2,
+    "type=wrong_approach&kind=rule": 1
+   },
+   "label_rationale": "反复纠偏：当下重述目标/清空重来最有效(3)；先规划再动手的工作流预防(2)；规则只能事前提醒(1)。"
   },
   {
    "id": "repeated-instruction",
@@ -798,9 +805,9 @@
    },
    "relevant": {
     "type=repeated_instruction&kind=rule": 3,
-    "type=repeated_instruction&kind=hook": 2,
     "type=repeated_instruction&kind=prompt": 1
-   }
+   },
+   "label_rationale": "同一要求反复说明：写进常驻规则文件是根治(3)；需求清单类 prompt 需每次调用(1)；hook 无法表达偏好，不标相关。"
   },
   {
    "id": "buggy-output",
@@ -913,11 +920,12 @@
     "legacy_cards": []
    },
    "relevant": {
-    "type=buggy_output&kind=skill": 3,
+    "type=buggy_output&kind=workflow": 3,
+    "type=buggy_output&kind=skill": 2,
     "type=buggy_output&kind=subagent": 2,
-    "type=buggy_output&kind=workflow": 2,
     "type=buggy_output&kind=prompt": 1
-   }
+   },
+   "label_rationale": "验证反复失败：先写/跑测试的验证工作流从流程上减少(3)；排错 skill、审查子代理(2)；prompt(1)。"
   },
   {
    "id": "context-loss",
@@ -1031,9 +1039,11 @@
    },
    "relevant": {
     "type=context_loss&kind=rule": 3,
-    "type=context_loss&kind=skill": 2,
-    "type=context_loss&kind=workflow": 2
-   }
+    "type=context_loss&kind=workflow": 2,
+    "type=context_loss&kind=prompt": 2,
+    "origin=catalog&type=context_loss&kind=skill": 2
+   },
+   "label_rationale": "压缩后丢约定：约定写入规则文件不受压缩影响(3)；交接工作流、检查点 prompt、资源库里把计划写进文件的 skill(writing-plans) 都能保留上下文(2)。"
   },
   {
    "id": "resident-rules-file",
@@ -1078,7 +1088,8 @@
    },
    "relevant": {
     "type=resident_cost&kind=removal": 3
-   }
+   },
+   "label_rationale": "常驻规则文件过大：精简/拆分是唯一直接方案(3)。"
   },
   {
    "id": "installed-unused-mcp",
@@ -1132,7 +1143,8 @@
    },
    "relevant": {
     "type=installed_unused&kind=removal": 3
-   }
+   },
+   "label_rationale": "已装 14 天未用的 MCP：停用(3)。"
   },
   {
    "id": "mixed-permission-and-retries",
@@ -1267,6 +1279,643 @@
     "type=tool_env_failure&kind=hook": 3,
     "type=permission_friction&kind=builtin": 2,
     "type=tool_env_failure&kind=skill": 2
+   },
+   "label_rationale": "两类问题并存：各自的直接解法(3)，次选(2)；评估 top3 是否同时覆盖两类。"
+  },
+  {
+   "id": "verify-kb-muted-catalog",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "mv-sig1",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s1"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e1",
+        "session_uid": "mv-s1"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     },
+     {
+      "signal_id": "mv-sig2",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s2"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e2",
+        "session_uid": "mv-s2"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     },
+     {
+      "signal_id": "mv-sig3",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s3"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e3",
+        "session_uid": "mv-s3"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     },
+     {
+      "signal_id": "mv-sig4",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s4"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e4",
+        "session_uid": "mv-s4"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     },
+     {
+      "signal_id": "mv-sig5",
+      "rule_id": "acceptance_evidence_gap",
+      "scope": {
+       "root_session_uid": "mv-s5"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mv-e5",
+        "session_uid": "mv-s5"
+       }
+      ],
+      "reason": "虚构样例 acceptance_evidence_gap"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "origin=catalog&type=missing_verification&kind=skill": 3,
+    "origin=catalog&type=missing_verification&kind=subagent": 2,
+    "origin=catalog&type=missing_verification&kind=prompt": 1
+   },
+   "label_rationale": "用户静音了 KB 的验证类规则：资源库里完成前自检 skill(3)、代码审查子代理(2)、验证台账 prompt(1) 是剩余的相关方案。",
+   "memory": {
+    "muted_kb_rules": [
+     "verify-checklist",
+     "stop-verify-hook",
+     "systematic-debugging",
+     "completion-contract"
+    ]
+   }
+  },
+  {
+   "id": "repeat-kb-muted-catalog",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 24,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "ri-sig1",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s1"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e1",
+        "session_uid": "ri-s1"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     },
+     {
+      "signal_id": "ri-sig2",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s2"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e2",
+        "session_uid": "ri-s2"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     },
+     {
+      "signal_id": "ri-sig3",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s3"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e3",
+        "session_uid": "ri-s3"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     },
+     {
+      "signal_id": "ri-sig4",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s4"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e4",
+        "session_uid": "ri-s4"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     },
+     {
+      "signal_id": "ri-sig5",
+      "rule_id": "repeated_requirements",
+      "scope": {
+       "root_session_uid": "ri-s5"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "次"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "ri-e5",
+        "session_uid": "ri-s5"
+       }
+      ],
+      "reason": "虚构样例 repeated_requirements"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": null,
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {
+    "origin=catalog&type=repeated_instruction&kind=prompt": 3,
+    "type=repeated_instruction&kind=prompt": 2,
+    "origin=catalog&type=repeated_instruction&kind=skill": 1
+   },
+   "label_rationale": "KB 的规则文件方案被静音：资源库的需求澄清/清单 prompt(3)、其他 prompt(2)、计划 skill(1)。",
+   "memory": {
+    "muted_kb_rules": [
+     "repeated-instruction-rule"
+    ]
+   }
+  },
+  {
+   "id": "neg-no-history",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 0,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": [],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {},
+   "label_rationale": "没有任何会话：不得声称发现问题，只允许冷启动通用规则。",
+   "expect": {
+    "status": "cold_start",
+    "max_problem_cards": 0
+   }
+  },
+  {
+   "id": "neg-four-sessions",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 4,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [],
+    "assessments": [],
+    "tasks": [],
+    "facts": {
+     "readonly_prompts": [
+      {
+       "command_head": "git status",
+       "count": 60,
+       "sessions": 4,
+       "session_uids": [
+        "perm-s0",
+        "perm-s1",
+        "perm-s2",
+        "perm-s3"
+       ]
+      },
+      {
+       "command_head": "ls",
+       "count": 30,
+       "sessions": 4,
+       "session_uids": [
+        "perm-s0",
+        "perm-s1",
+        "perm-s2",
+        "perm-s3"
+       ]
+      }
+     ],
+     "readonly_prompt_sessions": 4
+    },
+    "inventory": [],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {},
+   "label_rationale": "只有 4 个会话（< MIN_DENOMINATOR 5），4 个都有只读审批：证据不足，不得给问题驱动卡。",
+   "expect": {
+    "status": "cold_start",
+    "max_problem_cards": 0
+   }
+  },
+  {
+   "id": "neg-clean-history",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 30,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [],
+    "assessments": [],
+    "tasks": [],
+    "facts": {},
+    "inventory": [],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {},
+   "label_rationale": "30 个会话、无任何摩擦事实：应无推荐。",
+   "expect": {
+    "status": "no_matching",
+    "ranked": 0
+   }
+  },
+  {
+   "id": "neg-muted-type",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 30,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [],
+    "assessments": [],
+    "tasks": [],
+    "facts": {
+     "readonly_prompts": [
+      {
+       "command_head": "git status",
+       "count": 60,
+       "sessions": 9,
+       "session_uids": [
+        "perm-s0",
+        "perm-s1",
+        "perm-s2",
+        "perm-s3",
+        "perm-s4",
+        "perm-s5",
+        "perm-s6",
+        "perm-s7",
+        "perm-s8"
+       ]
+      },
+      {
+       "command_head": "ls",
+       "count": 30,
+       "sessions": 6,
+       "session_uids": [
+        "perm-s0",
+        "perm-s1",
+        "perm-s2",
+        "perm-s3",
+        "perm-s4",
+        "perm-s5"
+       ]
+      }
+     ],
+     "readonly_prompt_sessions": 9
+    },
+    "inventory": [],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {},
+   "label_rationale": "唯一的问题类型已被用户静音：应无推荐。",
+   "memory": {
+    "muted_problem_types": [
+     "permission_friction"
+    ]
+   },
+   "expect": {
+    "status": "no_matching",
+    "ranked": 0
+   }
+  },
+  {
+   "id": "neg-all-muted",
+   "inputs": {
+    "version": "rec-inputs-v1",
+    "scope": {
+     "kind": "all"
+    },
+    "scope_hash": "replay",
+    "data_rev": 1,
+    "inventory_rev": 1,
+    "analysis_digest": "replay",
+    "agents": {
+     "claude_code": 20,
+     "codex": 4
+    },
+    "sessions": {
+     "main": 30,
+     "first_ts": "2026-08-01T00:00:00Z",
+     "last_ts": "2026-09-26T00:00:00Z",
+     "weeks": 8
+    },
+    "signals": [
+     {
+      "signal_id": "mix-sig1",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "mix-s1"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mix-e1",
+        "session_uid": "mix-s1"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "mix-sig2",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "mix-s2"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mix-e2",
+        "session_uid": "mix-s2"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "mix-sig3",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "mix-s3"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mix-e3",
+        "session_uid": "mix-s3"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     },
+     {
+      "signal_id": "mix-sig4",
+      "rule_id": "identical_retries",
+      "scope": {
+       "root_session_uid": "mix-s4"
+      },
+      "metrics": [
+       {
+        "value": 2,
+        "unit": "段"
+       }
+      ],
+      "evidence": [
+       {
+        "id": "mix-e4",
+        "session_uid": "mix-s4"
+       }
+      ],
+      "reason": "虚构样例 identical_retries"
+     }
+    ],
+    "assessments": [],
+    "tasks": [],
+    "facts": {
+     "readonly_prompts": [
+      {
+       "command_head": "gh pr view",
+       "count": 40,
+       "sessions": 7,
+       "session_uids": [
+        "mixp-s0",
+        "mixp-s1",
+        "mixp-s2",
+        "mixp-s3",
+        "mixp-s4",
+        "mixp-s5",
+        "mixp-s6"
+       ]
+      }
+     ],
+     "readonly_prompt_sessions": 7
+    },
+    "inventory": [],
+    "profile": null,
+    "legacy_cards": []
+   },
+   "relevant": {},
+   "label_rationale": "两类问题都被静音：应无推荐。",
+   "memory": {
+    "muted_problem_types": [
+     "permission_friction",
+     "tool_env_failure"
+    ]
+   },
+   "expect": {
+    "status": "no_matching",
+    "ranked": 0
    }
   }
  ]

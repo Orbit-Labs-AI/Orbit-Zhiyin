@@ -6,6 +6,45 @@
 
 偏好排序和条件收益估计已接入同一推荐入口，具体对照与生成案例见[推荐测试报告](validation.md)。在仓库根执行 `bash scripts/test-recommend.sh` 可重跑测试和报告；公共资源评测目录在 `evals/recommendation/fixtures/reviewed-skills.json`，不自动替换全部抓取草稿。
 
+## 两套推荐栈与 engine v2（App 主栈）
+
+仓库里并存两套推荐栈，App 界面使用的是 **engine v2**；本文后续「算法与分数含义」等章节描述的是 **service 栈**。
+
+| 栈 | 入口路由 | 代码 | 用途 |
+| --- | --- | --- | --- |
+| engine v2 | `GET /v1/recommendations`、`/v1/recommendations/{id}`、`/recompute`、`/runs`、`/v1/labels` 等（`services/routes_recommend.py`） | `runs.py` → `engine.build_slate` | App 各 surface 的卡片 |
+| service | `GET/POST /v1/analytics/recommendations`（`api/routes.py`） | `service.recommend` | analytics 展示与 P0 验收 |
+
+engine v2 流程：`recall/multi.recall_all`（`problems.build` 把信号与 SQL 事实提升为问题，Wilson 下界判定 active）→ 11 路召回 → 加权 RRF → `ranking/gates` 13 道门 → `ranking/rank.score` → `ranking/slate.select`（MMR + 配额）→ `narrate` 生成卡片。
+
+召回路线（`recall/multi.py`）与 RRF 权重：
+
+| 路线 | 内容 | 权重 |
+| --- | --- | --- |
+| `kb` | KB 规则按问题类型精确匹配 | 1.0 |
+| `subtract` | 常驻上下文 / 未用组件的精简 | 1.0 |
+| `template` | 谓词模板（验证缺口、纠偏螺旋、混合会话） | 0.8 |
+| `catalog` | `packages/catalog` 资源库（无 catalog.db 时用随包 legacy seed 的 BM25） | 0.7 |
+| `model` | 模型与思考强度配置 | 0.6 |
+| `hashed_lexical` | 512 维符号特征哈希余弦，**词面相似而非语义向量**，仅在 catalog E5 向量未就绪时启用 | 0.5 |
+| `profile` / `feature` / `graph` | 画像匹配、画像 × 资源特征、已装项的搭配补集 | 0.4 |
+| `generative` | 无现成方案时的 AI 草稿占位 | 0.3 |
+| `generic` | <10 个会话时的冷启动通用规则 | 0.2 |
+
+融合为加权 RRF：`Σ w_route / (k + rank)`，`k = 60` 取自 Cormack, Clarke & Büttcher（SIGIR 2009）。**各路权重未经校准**，只表达手写信任序；合成回放集太小，不能拟合权重。`recall_all(weights=, rrf_k=, hashed_threshold=)` 可覆盖权重、k 与 hashed 阈值（默认 0.15，同样未校准）。
+
+排序（`ranking/rank.py`）：
+
+- `value = (B · c · p · f)^(1/4)`：收益 B、置信 c（问题的 Wilson 下界）、生效率 p（Beta 先验 + 标签与效果追踪后验）、匹配度 f 的几何平均，仍在 [0, 1]；任一因子为 0 则为 0。
+- `net = value / (1 + cost) − risk`，`risk ∈ {0.05, 0.25, 0.6}`，`cost = setup_minutes / 30 + context_tokens / 2000`。
+- `priority = 100 · max(0, net) · personal · decay`：量纲是「100 分制的风险调整后期望价值指数」，不是分钟或概率；`personal` 限制在 [0.6, 1.4]，与 `store._weight` 共用常量。
+- `utility ≤ 0` 的候选被 engine 标记为 `net_non_positive` 拦下，slate 里有 rank 的卡 utility 全部 > 0。12 个原回放 case 的 top1 priority 由旧公式的 0–2.02（其中 4 个为 0 且 net 为负）变为 15.1–58.0（中位约 22.9）。
+- 收益 B：有问题证据时 `1 − exp(−每周次数 × 单次分钟 / 30)`；单次分钟未知时按事件频次（`benefit_basis = frequency_only`）；精简卡按 `1 − exp(−常驻 tokens / 2000)`，与添加 tokens 的成本同一换算（`units.CONTEXT_TOKENS_PER_UNIT`）。
+
+节省时间（`narrate._save`）：只有 KB 规则的 `benefit.unit_minutes_source` 写明出处时才显示分钟，口径与 `benefit.py` 相同：观测周次数 × 4.345 × 单次分钟 × 改善比例，low/high 为 Beta 先验约 90% 区间的情景边界，不是置信区间，也不扣除未知的配置成本。catalog / generative / model 卡与精简卡一律显示「未估算」。
+
+来源与兼容：catalog 条目只有 `verification` 为 `repository_and_skill_read` / `repository_and_source_read` 时视为已核验；资源库的 `agents` 列表只作提示，未给出支持矩阵时各 agent 为 unknown（门禁给 needs_context）。只有 Claude Code 与 Codex 有已知落地路径，其他 agent 的 `path_hint` 为空，卡片改为手动方案。
+
 ## 三层偏好与收益输入
 
 `POST /v1/analytics/recommendations` 的 `context.preferences` 接受显式偏好；`state.py` 同时复用 analytics 的偏好历史解析器。作用域优先级为 `task > project > global`，同范围内为本次请求 > 显式偏好历史。Instruction 的历史要求只作为证据，不进入有效偏好；当前任务的明确覆盖通过 `context.preferences` 提供。撤销、修改、生效时间和冲突沿用 analytics 语义。多个值冲突时不任选其一，也不回退到低范围值；根会话有多个未选定任务时不应用某一个任务的偏好。
@@ -73,7 +112,7 @@
 | `families.py` | 七类资源的字段验证，把工具依赖和权限要求送入公共过滤器 |
 | 七个 family 的 `dictionary.py` / `features.py` | 各类资源的专属字段与规范化入口 |
 | `model_configs/benchmarks.py` | 模型、推理配置及 harness 对应的 benchmark observation 合同 |
-| `recall/` | 规则、BM25、效果方向、环境召回，RRF 融合和未启用的 dense 接口 |
+| `recall/` | service 栈：规则、BM25、效果方向、环境召回与 RRF；engine v2 的 11 路召回（见上节）；`dense.py` 只报告 service 栈未配置 embedding |
 | `features.py` | 计算跨 family 的任务、触发、效果方向、环境、证据、成本和风险特征 |
 | `preferences.py` | 按范围及来源解析显式偏好，计算匹配解释并召回候选 |
 | `benefit.py` | 从当前快照的事件计数与显式情景参数计算净收益区间 |
@@ -233,7 +272,7 @@ print(result["recommendations"])
 - `context`：利用已知 Agent、OS、语言、框架和依赖匹配召回相关候选。
 - `preferences`：存在有效偏好时启用，召回有明确匹配元数据的候选，避免其被其他路线的数量上限挤出。
 
-RRF 只融合各路名次：`RRF(i) = Σ 1 / (60 + rank(i))`，名次从 1 开始。它不把 BM25 分数与规则分数直接相加；原始分数保留在卡片中供排查。各路线等权，RRF 特征按已启用路数的理论上限归一化。
+RRF 只融合各路名次：`RRF(i) = Σ 1 / (60 + rank(i))`，名次从 1 开始。它不把 BM25 分数与规则分数直接相加；原始分数保留在卡片中供排查。service 栈各路线等权，RRF 特征按已启用路数的理论上限归一化（engine v2 为加权 RRF，见上文）。
 
 公共评分的默认正向权重是：任务匹配 0.10、触发匹配 0.20、效果方向匹配 0.25、环境匹配 0.10、资源证据质量 0.20、RRF 匹配 0.15；有效偏好存在时增加偏好匹配 0.30。接入/运行成本罚项权重 0.10，风险罚项权重 0.15。
 
@@ -242,7 +281,7 @@ base = max(0, (正向加权和 − 成本罚项 − 风险罚项) / 正向权重
 score = clip(base × 瓶颈证据置信度 × 兼容系数, 0, 1)
 ```
 
-只有匹配到有证据的 trigger 或效果方向时，`score` 才能为正。效果方向特征是点积除以当前瓶颈强度总和；成本特征为 `0.7 × setup_cost + 0.3 × runtime_cost`。兼容系数为 native/manual=1、adaptation_required=0.55、unknown=0.35；明确 unsupported 提前排除。未启用 embedding，因此 `semantic_match=0`，不会假装具有语义相似度。
+只有匹配到有证据的 trigger 或效果方向时，`score` 才能为正。效果方向特征是点积除以当前瓶颈强度总和；成本特征为 `0.7 × setup_cost + 0.3 × runtime_cost`。兼容系数为 native/manual=1、adaptation_required=0.55、unknown=0.35；明确 unsupported 提前排除。service 栈未启用 embedding，候选特征里不提供语义相似度字段。
 
 MMR 使用 `0.8 × score − 0.2 × 与已选项的最大相似度`；相似度是能力、正向效果键和 family 描述集合的 Jaccard 值。最终同资源 ID 只保留一项，每条瓶颈规则最多两项，数量上限为 1–20。相同输入使用稳定顺序，输入不会被算法修改。
 
@@ -259,7 +298,7 @@ MMR 使用 `0.8 × score − 0.2 × 与已选项的最大相似度`；相似度�
 - 审核团队提供的七类资源，记录真实依赖、权限与来源快照；先以合成任务验证接入。
 - 为新瓶颈增加受控 rule ID 与证据门槛，再扩展资源标签；不能只往 JSON 写一个新效果名称就默认算法已支持。
 - 接入来源刷新、缓存陈旧状态和明确的重新审核流程，保持采集与推荐分离。
-- `recall/dense.py` 目前只有 `DenseBackend` Protocol 和 disabled 状态。未来分别建立 task/trigger/capability 三个空间，使用模型修订标识 `space_id` 和固定维数 `dimensions`，验证向量有限、非零且空间一致后再接入；当前服务没有配置或调用 embedding backend。
+- `recall/dense.py` 只返回 disabled 状态；service 栈没有配置或调用 embedding backend。真正的 E5 向量在 `packages/catalog`，engine v2 在其未就绪时用 `hashed_lexical` 词面路线兜底。
 - 使用获授权 benchmark 校准阈值、权重和试用收益；采纳/点击反馈不等于效果改善。模型 benchmark observation 也不能直接宣称对用户任务有效。
 - 按需要增加 LLM rerank、自动 crawler、安装/回滚与效果反馈；这些均不属于当前 P0。
 
