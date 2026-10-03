@@ -27,6 +27,7 @@ from .tail import load_tails
 
 TICK_S = 2.0
 KEEPALIVE_S = 30.0
+PREWARM_JOIN_S = 15.0  # a cold tail query took up to ~8 s on real data
 ORDER = {"awaiting_approval": 0, "failing": 1, "running": 2, "just_finished": 3, "idle": 4}
 ACTIVE = {"awaiting_approval", "failing", "running"}
 NOTIFY_TYPES = ("awaiting_approval", "failing", "context_pressure", "just_finished")
@@ -99,6 +100,7 @@ class Realtime:
         self.requested_at = 0.0
         self.clients = 0
         self.thread: threading.Thread | None = None
+        self.prewarm_thread: threading.Thread | None = None
         self.stop = threading.Event()
         self.last_error: str | None = None  # last logged tick failure (dedupes the log)
         home = getattr(gw, "home", None)
@@ -112,11 +114,23 @@ class Realtime:
             self.thread = threading.Thread(target=self._run, name="realtime", daemon=True)
             self.thread.start()
 
+    def start_prewarm(self) -> None:
+        """Warm the tail query on a background thread that ``close`` waits for."""
+        with self.lock:
+            if self.stop.is_set() or (self.prewarm_thread and self.prewarm_thread.is_alive()):
+                return
+            self.prewarm_thread = threading.Thread(target=self.prewarm, name="realtime-prewarm",
+                                                   daemon=True)
+            self.prewarm_thread.start()
+
     def close(self) -> None:
+        """Stop the tick loop and wait for it and the prewarm: both read orbit.db through
+        the gateway's read pool, which the gateway closes right after (a read still running
+        on a closed SQLite connection could crash the process)."""
         self.stop.set()
-        thread = self.thread
-        if thread and thread.is_alive() and thread is not threading.current_thread():
-            thread.join(TICK_S + 1)
+        for thread, timeout in ((self.thread, TICK_S + 1), (self.prewarm_thread, PREWARM_JOIN_S)):
+            if thread and thread.is_alive() and thread is not threading.current_thread():
+                thread.join(timeout)
 
     def attach(self) -> None:
         with self.lock:
@@ -250,7 +264,7 @@ class Realtime:
     def prewarm(self) -> None:
         """Warm the tail query (page cache, statement cache) without notifying anyone."""
         try:
-            if not self._paused():
+            if not self.stopping() and not self._paused():
                 self._tails(int(self.clock() * 1000))
         except Exception:  # noqa: BLE001 - best effort only
             pass

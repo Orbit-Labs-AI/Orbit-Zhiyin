@@ -286,6 +286,9 @@ class Gateway:
         with self.lock:
             if self.prewarm_timer is not None:
                 self.prewarm_timer.cancel()
+        realtime = getattr(self, "realtime", None)
+        if realtime is not None:  # its loop and prewarm read orbit.db: stop before reads close
+            realtime.close()
         self.bus.close()
         self.supervisor.stop()
         self.state.save()  # Persist the scope MRU used for prewarm.

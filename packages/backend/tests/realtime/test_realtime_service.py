@@ -202,3 +202,58 @@ def test_failing_ticks_are_logged_once_per_distinct_error(orbit, monkeypatch):
     rt._run()  # never raises out of the loop
     assert logged == ["RuntimeError: db locked", "ValueError: bad row"]
     assert rt.last_error is None  # the last tick succeeded
+
+
+class BlockingReads:
+    """A read that holds the connection until released, like a cold tail query."""
+
+    def __init__(self, path):
+        import threading
+
+        self.inner, self.entered, self.release = Reads(path), threading.Event(), threading.Event()
+        self.closed_while_reading = False
+        self.reading = False
+
+    def read(self, check: bool = True):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def held():
+            with self.inner.read(check) as db:
+                self.reading = True
+                self.entered.set()
+                self.release.wait(5)
+                try:
+                    yield db
+                finally:
+                    self.reading = False
+        return held()
+
+
+def test_close_waits_for_the_prewarm_read(orbit):
+    """Gateway teardown closes the read pool right after ``Realtime.close``: the prewarm
+    thread must be finished by then (a read on a closed SQLite connection segfaulted)."""
+    import threading
+
+    seed_failing(orbit)
+    rt, gw, _ = make(orbit, Recorder())
+    gw.reads = BlockingReads(orbit.path)
+    rt.start_prewarm()
+    assert gw.reads.entered.wait(5)
+    threading.Timer(0.2, gw.reads.release.set).start()
+    rt.close()
+    assert not rt.prewarm_thread.is_alive() and not gw.reads.reading
+    rt.start_prewarm()  # a closed service starts nothing
+    assert not rt.prewarm_thread.is_alive()
+
+
+def test_gateway_close_stops_realtime_before_the_read_pool(home):
+    from orbit_backend.services.gateway import Gateway
+
+    gateway = Gateway(home, discovery=lambda: [], prewarm_debounce_s=3600.0)
+    order = []
+    gateway.realtime = SimpleNamespace(close=lambda: order.append("realtime"))
+    reads_close = gateway.reads.close
+    gateway.reads.close = lambda: (order.append("reads"), reads_close())
+    gateway.close()
+    assert order == ["realtime", "reads"]
