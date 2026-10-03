@@ -6,7 +6,7 @@
 
 **本轮代码重构、函数接入和五类测试已完成。** 现有实现采用固定的中英文规则，只能识别部分明确说法。没识别出来时记为未知，不代表用户没有要求。真实数据流程已跑通，但样本中没有指令命中正例，识别质量还需要补充真实样本验证。
 
-2026-10-02，由 `MistyHuang03` 发起，Codex 实现和技术验证。用户已在本次对话确认，三位成员对本次 MVP 范围的确认、`yhyfhgs` 对 PR #16 的合并授权均已满足；独立人工质量评估尚未完成。[PR #16](https://github.com/ActionMesh-AI/Hackathon/pull/16) · [Issue #4](https://github.com/ActionMesh-AI/Hackathon/issues/4) · [五类测试记录](../../../../../../docs/modules/analytics/instruction-validation.md)。
+2026-10-02，由 `MistyHuang03` 发起，Codex 实现和技术验证。用户已在本次对话确认，三位成员对本次 MVP 范围的确认、`yhyfhgs` 对 PR #16 的合并授权均已满足；独立人工质量评估尚未完成。[PR #16](https://github.com/ActionMesh-AI/Hackathon/pull/16) · [Issue #4](https://github.com/ActionMesh-AI/Hackathon/issues/4) · [五类测试记录](../../../../../../docs/audits/instruction-validation.md)。
 
 ## 能看出什么
 
@@ -116,7 +116,7 @@
 | We run tests every day／请解释先给方案是什么意思 | 不作为本次操作指令 |
 | 后续允许修改同一文件但无明确替换关系 | 保留两条版本，冲突待确认 |
 
-完整 48 例及预期标签见 [质量夹具](../../../../tests/fixtures/instruction-quality.json)。五类测试的实测结果、命令和限制见 [验收记录](../../../../../../docs/modules/analytics/instruction-validation.md)。
+完整 48 例及预期标签见 [质量夹具](../../../../tests/fixtures/instruction-quality.json)。五类测试的实测结果、命令和限制见 [验收记录](../../../../../../docs/audits/instruction-validation.md)。
 
 ## 待完成／待测试
 

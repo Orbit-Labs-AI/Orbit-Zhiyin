@@ -6,7 +6,7 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 
 - 仓库初始化：2026-09-30
 - 设计参考：[docs/design](../design/README.md)（Lite / Advance 的设计归属、[Orbit 品牌](../design/brand.md)、[Demo 说明](../design/demo.md)与视觉案例）
-- 数据方案：[docs/plans/data-acquisition.md](../plans/data-acquisition.md)（模块 1、5 的会话与生态数据获取、标准化、基础统计与存储）
+- 数据方案：[docs/archive/plans/data-acquisition.md](../archive/plans/data-acquisition.md)（模块 1、5 的会话与生态数据获取、标准化、基础统计与存储）
 - 会话格式调研：[docs/research/agent-sessions](../research/agent-sessions/README.md)（pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 的会话与轨迹数据形态，源码级对比）
 - 分析开发输入：[docs/contracts/analysis-inputs.md](../contracts/analysis-inputs.md)（输入来源、L2/L3 字段解释、统计口径与当前实现差异）
 - UI 分析与验收：[组合分析说明](../modules/analytics/analysis-products.md)（`analysis-report`、工具占比、调用转移、情绪图表及本地 session 验收）
@@ -18,8 +18,8 @@ ActionMesh AI 团队的 Hackathon 比赛项目。
 
 | 版本 | 设计来源 | 设计参考 |
 | --- | --- | --- |
-| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | [Lite Demo](../../prototypes/lite/orbit-benchmark-demo.html)、[范围与审查](../design/lite-review.md) |
-| **Advance** | `yhyfhgs` 的桌面 App 设计 | [Advance Demo](../../prototypes/advance/orbit-demo.html)、[视觉案例 v1](../design/visual-cases-v1/) |
+| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | [Lite Demo](../../prototypes/lite/orbit-benchmark-demo.html)、[范围与审查](../archive/design/lite-review.md) |
+| **Advance** | `yhyfhgs` 的桌面 App 设计 | [Advance Demo](../../prototypes/advance/orbit-demo.html)、[视觉案例 v1](../design/visual-cases-v1) |
 
 版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。两版已合为同一个 App（[`orbit-demo.html`](../../prototypes/advance/orbit-demo.html) 侧栏顶部切换），Lite 原稿保留为设计来源，具体说明见[设计资料](../design/README.md)。画板与 Demo 仍是使用示例数据的设计参考，MVP 功能范围由三位成员共同确认；现有界面与交互的调整由对应设计任务另行推进。
 
@@ -127,11 +127,11 @@ uv run orbit --home .orbit --max-events 500000 report --output .local/report
 
 ## 看实现与版本报告
 
-- [Preference 与 Task 特征族：实现及五类验证](../modules/analytics/validation.md)
+- [Preference 与 Task 特征族：实现及五类验证](../audits/preference-task-validation.md)
   — 新增 `/v1/analytics/preferences`、`/v1/analytics/tasks`；证据、范围、版本与未知状态可追溯。
 - [Feature Analytics MVP：真实数据案例、特征字典与输入缺口](../modules/analytics/feature-analytics.md)
   — 运行 `.venv/bin/orbit --db .local/history.sqlite analytics --display-timezone Asia/Shanghai --output .local/feature-analytics/analytics.json`；新增 `/v1/analytics/*`，未知值不填零。
-- [先验这条链路](../development/acceptance.md)
+- [先验这条链路](acceptance.md)
 - [今晚先跑通什么](../archive/backend-mvp-plan.md)
 - [当前版本：完整过滤凭据并核对交付证据](../releases/backend/v0.13.6.md)
 - [怎样验“说人话”](../modules/evaluation/reader-review.md)

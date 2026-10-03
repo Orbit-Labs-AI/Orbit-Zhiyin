@@ -1,12 +1,15 @@
 # Orbit 竞品分析
 
+> 文档状态：研究快照。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../README.md)。
+
+
 > 状态：调研 · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
 > 日期：2026-10-02｜读者：`yhyfhgs`、`MistyHuang03`、`genius-FXC` 与路演评审｜范围：以 Advanced 为主，Lite 的边界见 §5.3
 >
 > **依据与核实**：2026-10-02 完成的竞品调研，覆盖 7 类、约 60 个产品与开源项目。外部事实就地附链接，**核实日期均为 2026-10-02**（另注者除外）；GitHub stars、最近推送与发版时间是当日 `gh api` 读数。只有二手来源的事实标「未核实」；需要真实数据或实测才能定的技术假设标「待验证」。
 >
-> **与其他文档的分工**：主流 Agent 的内置功能与扩展点、开源项目的源码级研读见 [research.md](landscape.md) §2、§4，本文只引结论；Orbit 各模块的做法见 [analysis.md](../plans/analysis-module.md)、[recommendation.md](../plans/recommendation-module.md)、[ai.md](../plans/ai-module.md)、[evaluation.md](../plans/evaluation-module.md)，功能与分工映射见 [feature-map.md](../plans/feature-map.md)。
+> **与其他文档的分工**：主流 Agent 的内置功能与扩展点、开源项目的源码级研读见 [research.md](landscape.md) §2、§4，本文只引结论；Orbit 各模块的做法见 [analysis.md](../archive/plans/analysis-module.md)、[recommendation.md](../archive/plans/recommendation-module.md)、[ai.md](../archive/plans/ai-module.md)、[evaluation.md](../archive/plans/evaluation-module.md)，功能与分工映射见 [feature-map.md](../archive/plans/feature-map.md)。
 >
 > **Orbit「现状」的口径**（2026-10-02 各分支）：
 > - main `c97c818`：后端 v0.13.6 + Feature Analytics（`src/orbit_backend/`），只读 Codex，没有 LLM 调用和安装器；
@@ -55,7 +58,7 @@
 | 威胁 | 证据（核实 2026-10-02，出处见 §2） | 可能性 / 影响 | 对策 | 落点 | 代价（复杂度 / token） |
 | --- | --- | --- | --- | --- | --- |
 | **T1 官方下沉** | Claude Code：`/insights` 报告摩擦与建议，`/doctor` 先报告后改配置，`/usage` 按扩展归因，按会话信号推荐插件，`plugin eval` 做有 / 无对照。Codex：Memories 合并阶段可写 `SKILL.md`，Computer History 建议生成 skill，`tool_suggest` 中途推荐插件，`/import` 导入 Claude Code 配置与近 30 天会话。Devin：Session Insights + Coach。Hermes 内置复盘、curator 与 ledger | 高 / 高 | ① 不做单 Agent 叙述报告，也不叫「Insights」；② 官方产物当输入：只读 `~/.claude/usage-data/` 的 session-meta 结构，作派生指标的对照与冷启动；③ 官方功能当一等零安装推荐项（auto mode、`/fewer-permission-prompts`、`/doctor`、Codex memories），推荐前探测版本；④ 与官方已给的建议去重；⑤ 跨 Agent 写入做双向、键级 diff、可回滚，与官方单向 `/import` 区分；⑥ 路演第一分钟正面对比 | 推荐知识库与去重（MVP）；读取 usage-data（v1，待验证）；路演 | 低：只读结构字段与版本探测，0 token；去重靠规则表 |
-| **T2 SpecStory Lore** | 开源（Apache-2.0）；读 7 种 Agent 的历史；beat + 用户回复当结果标签；确定性计数 + 对抗验证者；批准后写 `~/.agents/skills` 并软链到各 Agent | 高 / 中 | ① 不以「会生成 skill」为卖点；② 覆盖 skill 以外的 6 类；③ 先诊断，给可视化证据；④ 装后对照；⑤ 照搬它的四个工程决定（§2.5） | 推荐决策表、AI 生成的四道自检、装后效果（MVP） | 中：决策表 + 模板 + 四道自检；生成调用的 token 预算见 [ai.md](../plans/ai-module.md) |
+| **T2 SpecStory Lore** | 开源（Apache-2.0）；读 7 种 Agent 的历史；beat + 用户回复当结果标签；确定性计数 + 对抗验证者；批准后写 `~/.agents/skills` 并软链到各 Agent | 高 / 中 | ① 不以「会生成 skill」为卖点；② 覆盖 skill 以外的 6 类；③ 先诊断，给可视化证据；④ 装后对照；⑤ 照搬它的四个工程决定（§2.5） | 推荐决策表、AI 生成的四道自检、装后效果（MVP） | 中：决策表 + 模板 + 四道自检；生成调用的 token 预算见 [ai.md](../archive/plans/ai-module.md) |
 | **T3 开源浏览器追平** | agentsview：60+ 种 Agent、本机长期归档、friction 检测、健康分、Quality 卡，2026-09 连发 v0.42–v0.44 | 高 / 中 | 不在「能看会话」上竞争；把它的检测器（MIT）移植为规则 v0 并中文化；差异放在闭环 | 分析的摩擦检测（MVP） | 中：移植检测器并补中文词表、重标阈值，0 token |
 | **T4 记忆产品内置化** | claude-mem 95.2k★；Codex Memories；Hermes 复盘写记忆与 skill | 中 / 中 | 不做记忆；把记忆类插件记为效果追踪的混杂因素；读它们的产物作补充数据源（经授权、只读，待验证） | 效果追踪的混杂记录（MVP）；补充数据源（v1） | 低：记录同期安装清单，0 token |
 | **T5 供应链安全** | 31,132 个 skill 中 26.1% 至少有一处漏洞，带脚本的是纯指令型的 2.12 倍；Snyk 扫描 3,984 个，13.4% 严重、76 个恶意（二手转述，未逐字核实） | 中 / 高 | 只装有来源的条目；装前展示 diff 与权限；静态扫描；一键撤销；不自动运行 skill 自带的脚本 | 安装的风险闸门（MVP） | 中：静态扫描 + diff 预览 + ledger，0 token |
@@ -365,7 +368,7 @@
 | 安全审计与认证 | skills.sh（Gen / Socket / Snyk）、Anthropic verified、Smithery Verified | 静态审计看不到运行时行为 | 未审计或被标记的条目不进一键安装 |
 | 人工精选 | 官方目录、Cursor Marketplace、awesome 列表 | 慢、覆盖窄 | 白名单来源 |
 | 当前会话信号 | Claude 插件 relevance、Codex `tool_suggest` | 只看当前会话，不看历史问题 | 借时机与频控 |
-| **历史问题 → 解法** | **无人在做** | — | 主排序：每周节省 × 适用度 × P(有效) ÷ 成本 − 风险，见 [recommendation.md](../plans/recommendation-module.md) |
+| **历史问题 → 解法** | **无人在做** | — | 主排序：每周节省 × 适用度 × P(有效) ÷ 成本 − 风险，见 [recommendation.md](../archive/plans/recommendation-module.md) |
 
 ## 4. 借鉴与避坑（按模块）
 
@@ -434,13 +437,13 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 | Lite：个人协作 Benchmark | `/insights`（单 Agent 报告）、Wrapped 类（传播）、vibe-log（分析 + 教练 + 分享，已停更） | 跨 Agent；只和过去的自己比；低风险的一键修复；带数字证据的分享卡 |
 | Advanced：专业、全面 | SpecStory Lore、agentsview、Devin Session Insights、Faros（个人版） | 7 类生成 + 安装 ledger + 三层装后效果 + 装前评测 |
 
-**功能边界**（两者共用同一后端与数据层，Lite 是 Advanced 的子集；阶段以 [feature-map.md](../plans/feature-map.md) 为准）：
+**功能边界**（两者共用同一后端与数据层，Lite 是 Advanced 的子集；阶段以 [feature-map.md](../archive/plans/feature-map.md) 为准）：
 
 | 功能面 | Lite | Advanced | 阶段 | 依据 |
 | --- | --- | --- | --- | --- |
 | 数据接入 | 自动发现本机 Agent，默认看近 30 / 90 天；共用 L0 归档 | 全部来源与账号、手动加目录、全量归档与重建 | MVP | 零配置是对可观测平台、Entire 的优势 |
 | 概览 | 会话、时长、消息、纠偏率、星期 × 小时；一句话解读用确定性模板生成 | 加每个数字的来源与新鲜度、上期对比与区间 | MVP | Lite 的一句话不调模型，守住「不靠 LLM 也有结论」 |
-| 协作画像 | 四字母 + 一句话 + 样本门槛，标「实验性」 | 加各维度的证据、按 Agent / 项目拆分、月度演变 | MVP | Spotify 2022 的可解释维度；判定规则以 [analysis.md](../plans/analysis-module.md) 为准 |
+| 协作画像 | 四字母 + 一句话 + 样本门槛，标「实验性」 | 加各维度的证据、按 Agent / 项目拆分、月度演变 | MVP | Spotify 2022 的可解释维度；判定规则以 [analysis.md](../archive/plans/analysis-module.md) 为准 |
 | 会话与轨迹 | 关键任务时间轴 + 会话列表 | 三段式时间线、事件账本、检查器、规则与 AI 两类关键时刻 | MVP | 「能看会话」已被 agentsview、dsh 做成熟，Lite 不在这里竞争 |
 | 工具与项目 | 工具排行、成功率、失败原因；项目卡与配置覆盖 | 转移矩阵与流程挖掘、审批负担、MCP 与子代理、已装未用、跨项目对比 | MVP | 补上 `/usage` 没有的「已装未用」 |
 | 情绪与语义 | 高频反馈语与纠偏类型（词表，确定性） | AI facet、主题聚类命名、情绪（实验性） | MVP；Advanced 的 AI 部分可关 | LangSmith Insights、Cursor Conversation Insights 的做法 |
@@ -462,7 +465,7 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 | 1 | 资源库有「同人格正在用」「社区使用次数」与按「同人格使用比例」排序 | 删除「同人格」；「社区使用」改为标明来源与日期的外部信号（如 skills.sh 安装量） | [docs/design/boards.md](../design/boards.md)「v1 之后的决定」已删除跨用户对比 |
 | 2 | 建议卡写「预计效果 约 30% / 约 45% / 约 20%」 | 改为可数的受影响事件（如「近 30 天 14 次纠偏」，示例）+「效果未测」 | [research.md](landscape.md) §1 第 7、11 条 |
 | 3 | 叫「协作 MBTI」 | 产品文案改用自有名称；路演可以口头类比；保留「非心理测评」「实验性」 | MBTI 是注册商标（§2.13） |
-| 4 | 少于 30 个会话或维度落在 45–55 时不定型 | 30 个会话保留为最低样本；字母改按区间判定（按天 bootstrap 的 95% 区间整体在 50% 一侧才给字母，否则「?」） | [research.md](landscape.md) §5.1、[analysis.md](../plans/analysis-module.md) |
+| 4 | 少于 30 个会话或维度落在 45–55 时不定型 | 30 个会话保留为最低样本；字母改按区间判定（按天 bootstrap 的 95% 区间整体在 50% 一侧才给字母，否则「?」） | [research.md](landscape.md) §5.1、[analysis.md](../archive/plans/analysis-module.md) |
 | 5 | 概览有「AI 一句话」 | 用确定性模板生成（后端 `narrative.py` 已有规则叙述），AI 只作可选润色 | 门槛「不靠 LLM 也有结论」 |
 | 6 | 项目「完成度」=（完成 + 0.5 × 部分完成）/ 会话数 | 改为 outcome（完成 / 放弃 / 出错 / 未知，带置信度），不给项目进度百分比 | 日志里没有独立验收，后端不判成败；outcome 口径见 [research.md](landscape.md) §6.2 |
 | 7 | 所有建议都可模拟安装 | 产品化时 Lite 只对低风险条目开放真实安装，并展示将写入的文件与 diff；hook、权限、MCP 放 Advanced | T5 供应链安全；§0.3「安装安全可逆」 |
@@ -473,9 +476,9 @@ Agent 侧（Hermes 的 ledger 与 curator、Kimi 的 Issues 闭集、pi 的缓�
 | --- | --- | --- |
 | 官方 `/insights` 已经有了，为什么还要 Orbit？ | `/insights` 只看 Claude Code、是一次性快照、报告 30 天后删除，建议停在复制粘贴。Orbit 跨 Agent、长期、能装能撤、装后对照；还会把 `/insights` 已提示过的问题去重，把官方功能当推荐项 | §2.1、§3 |
 | SpecStory Lore 已经开源了「历史 → skill → 安装」？ | Lore 只产 skill，不诊断、不可视化、不追踪效果；Orbit 覆盖 7 类，skill 只是其中之一；Lore 的证据设计我们直接照搬 | §2.5 |
-| 为什么不直接把日志交给 Claude 问？ | 贵且不稳：默认配置的 `claude -p` 每次调用约 2.7 万输入 token 的固定开销，`/insights` 单次上限 200 个会话；LLM 在长轨迹里定位错误的准确率很低；开放标签会漂移。Orbit 先用代码算，模型只判定已定位的短候选，用最小配置、多会话打包、结构化输出，可关闭 | §5.5；[research.md](landscape.md) §2.4；[ai.md](../plans/ai-module.md) |
+| 为什么不直接把日志交给 Claude 问？ | 贵且不稳：默认配置的 `claude -p` 每次调用约 2.7 万输入 token 的固定开销，`/insights` 单次上限 200 个会话；LLM 在长轨迹里定位错误的准确率很低；开放标签会漂移。Orbit 先用代码算，模型只判定已定位的短候选，用最小配置、多会话打包、结构化输出，可关闭 | §5.5；[research.md](landscape.md) §2.4；[ai.md](../archive/plans/ai-module.md) |
 | 数据安全吗？ | 默认不出机，只读日志；AI 可关；开启时走用户本机已登录的 Agent，发送前预览并脱敏，并如实说明内容会经该 Agent 发往其服务商；分享卡不含路径与原文 | §0.3 |
-| 怎么证明有效？ | 不报提速百分比；报可数事件（目标摩擦的复现率）+ 区间 + 混杂；样本不足就写「数据不足」；装前可选有 / 无对照 | §5.5；[evaluation.md](../plans/evaluation-module.md) |
+| 怎么证明有效？ | 不报提速百分比；报可数事件（目标摩擦的复现率）+ 区间 + 混杂；样本不足就写「数据不足」；装前可选有 / 无对照 | §5.5；[evaluation.md](../archive/plans/evaluation-module.md) |
 | 和 cc-switch、skills.sh、插件市场有什么不同？ | 它们管「装什么、怎么装」，按流行度排序；Orbit 管「为什么装、装哪一个、装了有没有用」，并用它们做通道与先验 | §2.9、§2.10 |
 | agentsview 也能跨 Agent、本机、长期归档？ | 能看会话不是差异点；它止于规则文本，Orbit 把诊断连到安装和效果；我们移植了它的检测器（MIT） | §2.8 |
 | 会不会变成监控工具？ | 只做个人工具，不出团队排行、不做跨用户比较；人格命名中性、标「实验性」 | §5.2 |

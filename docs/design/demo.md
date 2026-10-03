@@ -2,7 +2,7 @@
 
 状态：现行 · 维护者 `yhyfhgs` · 适用：统一 App（Lite + Advance），Lite 原稿另注
 
-Lite 与 Advance 自 2026-10-02 起是**同一个 App**，源码在 [`prototypes/advance/`](../../prototypes/advance/)。Demo 使用示例数据，所有统计由同一份示例会话实时计算；写文件、运行命令、调用 Agent 与下载都只是模拟。
+Lite 与 Advance 自 2026-10-02 起是**同一个 App**，源码在 [`prototypes/advance/`](../../prototypes/advance)。Demo 使用示例数据，所有统计由同一份示例会话实时计算；写文件、运行命令、调用 Agent 与下载都只是模拟。
 
 ## 如何查看
 
@@ -10,8 +10,8 @@ Lite 与 Advance 自 2026-10-02 起是**同一个 App**，源码在 [`prototypes
 | --- | --- | --- |
 | 统一 App（本地） | [`prototypes/advance/orbit-demo.html`](../../prototypes/advance/orbit-demo.html) | 单个 HTML，浏览器直接打开，不需构建或联网（联网时加载 Google Fonts）；侧栏顶部切换版本（也可用「显示」菜单、⌘K 或 ⌃⌘L），地址加 `#l-home` 直接以 Lite 打开 |
 | 统一 App（在线） | <https://claude.ai/artifact/7LeNQA95yCZgtC1icS45T8> | 每次 Demo 合入 main 后按下文「修改 Demo」最后一行重新发布 |
-| Lite 原稿 | [`prototypes/lite/orbit-benchmark-demo.html`](../../prototypes/lite/orbit-benchmark-demo.html) | `genius-FXC` 的八页设计来源，直接打开，范围与审查见 [lite-review.md](lite-review.md) |
-| Advance 画板 | 在线画布 <https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>、[`visual-cases-v1/`](visual-cases-v1/) | 版式停在 v1.1，文字与标志已改为 Orbit（v1.6），见 [画板与设计决定](boards.md) |
+| Lite 原稿 | [`prototypes/lite/orbit-benchmark-demo.html`](../../prototypes/lite/orbit-benchmark-demo.html) | `genius-FXC` 的八页设计来源，直接打开，范围与审查见 [lite-review.md](../archive/design/lite-review.md) |
+| Advance 画板 | 在线画布 <https://claude.ai/artifact/DgXdy7dfYpuA7oi2JSv3sV>、[`visual-cases-v1/`](visual-cases-v1) | 版式停在 v1.1，文字与标志已改为 Orbit（v1.6），见 [画板与设计决定](boards.md) |
 
 ## Lite 与 Advance：同一个 App
 
@@ -61,11 +61,11 @@ Demo 把主应用、菜单栏面板、悬浮组件、桌面小组件和关键流
 - 沿用暖白底色、衬线标题、等宽数字、侧栏和 Agent 配色，按个人协作 Benchmark 的需求收敛为八页：概览、协作画像、会话轨迹、工具调用、项目分析、情绪语义、优化建议、资源库。
 - 不含生成工坊、桌面小组件、悬浮面板、首次启动、人格揭晓、会话回放 / 对比和通知模拟；保留全局搜索、浅深色、筛选、同步入口、导出与分享。
 - 日期、Agent、项目筛选共同作用于各页；Markdown 报告、会话 CSV 与 SVG 分享卡支持真实下载；同步、安装和社区推荐均为明确标记的演示。
-- 可运行的 Lite 已并入统一 App；原稿保留为设计来源，检查命令见 [lite-review.md](lite-review.md)。
+- 可运行的 Lite 已并入统一 App；原稿保留为设计来源，检查命令见 [lite-review.md](../archive/design/lite-review.md)。
 
 ## 修改 Demo
 
-`prototypes/advance/orbit-demo.html` 是构建产物，**不要直接改它**：源码在 [`prototypes/advance/src/`](../../prototypes/advance/src/)，下一次构建会覆盖对产物的直接修改。
+`prototypes/advance/orbit-demo.html` 是构建产物，**不要直接改它**：源码在 [`prototypes/advance/src/`](../../prototypes/advance/src)，下一次构建会覆盖对产物的直接修改。
 
 - `src/index.html` 是页面骨架，`/*@css*/` 与 `/*@js*/` 两个占位符各出现一次；`src/styles/*.css` 与 `src/js/*.js` 按文件名排序后拼接进去。
 - 文件名必须是 `NN-名称.css` 或 `NN-名称.js`，两位数字前缀决定拼接顺序；`00-utils.js` 必须排在第一位，它开头的 `"use strict"` 对整段脚本生效。

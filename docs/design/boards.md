@@ -39,7 +39,7 @@ Advance 的画板是 2026-10-01 定下的视觉与交互参考，画板本身没
 
 ## 关键设计决定
 
-以下记录 **Advance** 画板的原始设计决定。Lite 当前的功能与操作边界见 [`lite-review.md`](lite-review.md) 与 [Demo 说明](demo.md)。
+以下记录 **Advance** 画板的原始设计决定。Lite 当前的功能与操作边界见 [`lite-review.md`](../archive/design/lite-review.md) 与 [Demo 说明](demo.md)。
 
 - **视觉语言**延续 Confluo v2 Demo（`Confluo/docs/plan/v2/demo/paper-feed-demo.html`）：暖白纸感底色、衬线标题、等宽数字与小标题，整体以单色为主。
 - **颜色只承载身份与状态**：五个 Agent 用同一套可视化色板中的五色，按固定顺序分配、颜色跟随实体；亮色与暗色下相邻色的色觉差异 ΔE 最差为 9.2 与 8.4（≥ 8），已用校验脚本验证。紫色只用来标记 AI 生成的内容。
@@ -53,7 +53,7 @@ Advance 的画板是 2026-10-01 定下的视觉与交互参考，画板本身没
 
 | v1 的做法 | 现行做法 | 依据 |
 | --- | --- | --- |
-| 以 Agent 为主要分组：A1 按 Agent 堆叠的趋势图、侧边栏 Agent 列表、A2 Agent 契合度 | 按项目、模型与思考档位分组；Agent 只作来源属性，用于去重、兼容性判断与标注数据来自哪里 | [数据方案 §4.5](../plans/data-acquisition.md) |
+| 以 Agent 为主要分组：A1 按 Agent 堆叠的趋势图、侧边栏 Agent 列表、A2 Agent 契合度 | 按项目、模型与思考档位分组；Agent 只作来源属性，用于去重、兼容性判断与标注数据来自哪里 | [数据方案 §4.5](../archive/plans/data-acquisition.md) |
 | 页面里的指标由 Demo 自己从示例数据算出 | 指标来自后端的确定性计算，不开 AI 也能出数；后端 MVP 先读 Codex 记录，按「数据 → 画像 → 瓶颈 → 推荐」输出 | 调研总结第 3 条、[仓库 README](../../README.md) |
 | A3 泳道时间轴，窄窗口需要横向滚动 | 脊柱概览 + 语义泳道 + 按轮次的事件账本 + 检查器；默认按活跃时间投影、折叠空闲、不横向滚动；规则检出的关键时刻画实心，AI 推断的画空心并附引用 | 调研总结第 14 条 |
 | 图表标题描述图表本身，数字不标来源 | 标题写结论句；每个数字标来源与新鲜度（官方、官方缓存、估算、过期、无数据）；样本不够时显示「数据不足」 | 调研总结第 15 条 |
@@ -66,5 +66,5 @@ Advance 的画板是 2026-10-01 定下的视觉与交互参考，画板本身没
 
 - 产品名已定为 Orbit（见[品牌](brand.md)）。2026-10-02 画板文字已改为 Orbit，菜单栏、通知、首次启动、空状态与分享卡里的双圆图标换成原型 `orbitMark` 的原样输出；版式与其余内容未回改。
 - 画板与 Demo 里的数值都是示例数据；项目名与使用习惯参考了 `yhyfhgs` 本机的 Claude Code Insights 报告，数字为虚构。
-- Demo 里 Gemini CLI、Copilot CLI 的会话目录沿用 v1 的写法；实际接入哪些 Agent、各自的会话格式，以[数据方案](../plans/data-acquisition.md)和[会话格式调研](../research/agent-sessions/README.md)为准。
+- Demo 里 Gemini CLI、Copilot CLI 的会话目录沿用 v1 的写法；实际接入哪些 Agent、各自的会话格式，以[数据方案](../archive/plans/data-acquisition.md)和[会话格式调研](../research/agent-sessions/README.md)为准。
 - 人格维度的信号与权重是初版设想，接入真实数据后按区间判定。

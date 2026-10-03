@@ -1,0 +1,193 @@
+# Orbit 品牌：名称、标志与字体
+
+> 文档状态：历史记录。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../../README.md)。
+
+
+状态：现行 · 维护者 `yhyfhgs` · 2026-10-02 起生效（标志素材包与代码标识改名 2026-10-03） · 适用：Lite / Advance（同一个 App）
+
+## 名称
+
+产品名为 **Orbit**，全名 **Orbit·知音**（见[字标](#字标)），取代暂定名 Tandem / 同频。界面可见的文字、文档正文、路演与宣传材料一律写 Orbit。
+
+2026-10-03 起代码标识也统一为 orbit：Python 包 `orbit_backend`、`orbit_data`、`orbit_catalog`，命令 `orbit`、`orbit-data`、`orbit-catalog`、`orbit-helper`，环境变量 `ORBIT_*`，数据目录 `~/Library/Application Support/Orbit/` 与主库 `orbit.db`，前端 `OrbitLive`、`OrbitCatalogClient`、`@orbit/*` workspace 包、`X-Orbit-*` 响应头，文件 `prototypes/advance/orbit-demo.html`、`prototypes/lite/orbit-benchmark-demo.html`。App bundle 为 `Orbit.app`（`ai.actionmesh.orbit`）。
+
+改名前（v0.0.3 及更早）的旧名就是把 orbit 换回 tandem（大小写对应），例如 `tandem_backend`、`TANDEM_HOME`、`Application Support/Tandem`、`tandem.db`。改名由 [`scripts/orbit-rename.py`](../../../scripts/orbit-rename.py) 机械完成：改名前开出的分支先在自身运行一次、提交，再合并 main；`--check` 列出残留，第三方代码、锁文件和指向旧提交的永久链接不改。
+
+已有的数据与设置由 [`orbit_data/legacy.py`](../../../packages/data/src/orbit_data/legacy.py) 兼容，新代码不再出现旧名：
+
+| 旧数据或设置 | 新版的处理 |
+| --- | --- |
+| 数据目录 | 新目录不存在而旧目录存在时整体移动，旧路径留一个指向新目录的符号链接，因为旧版装进 Agent 的采集 hook 与安装备份用的是旧绝对路径；App 宿主（`Orbit.swift`）与 `default_home()` 都会做 |
+| 主库 | 旧库文件（含 `-wal`、`-shm`）在打开前改名为 `orbit.db`；库内契约 ID 改写为 `orbit-session-v1`，读端在改写前也接受旧 ID |
+| 环境变量 | 旧前缀的变量在对应 `ORBIT_*` 未设置时继续生效；App 宿主也读旧的数据目录变量 |
+| Orbit 自己的 AI 会话 | 旧的首行标记与 `agent-cwd` 里的旧标记文件仍被识别，照常排除在分析之外 |
+| 资源库 `catalog.db` | 两个内置来源的旧 ID 原地改为 `orbit-seeds`、`orbit-kb`，条目与同步记录保留 |
+| 安装台账 `app.db` | 实时采集的旧安装记录改记为 `orbit-collect`，仍算已安装；旧 AI 产物里的 hooks 目录占位符与规则块标记在安装时换成新名 |
+| 浏览器 Demo | localStorage 前缀改为 `orbit-demo:`，旧偏好不迁移；App 的偏好在数据目录的 `ui-prefs.json`，不受影响 |
+
+已经写进 Agent 配置的 hook 脚本与规则块不改写，撤销仍按安装台账逐字节还原。
+
+## 标志
+
+标志是一条 1.6 圈的锥形螺旋线：半径由外向内收、同时沿轴向抬升，斜看（yaw 20°、pitch 45°）时内圈从外环下方穿过，像一条正在收拢的轨道。线条语言沿用此前的莫比乌斯带与洛伦茨吸引子版本：一笔画成，近处粗、远处细，投影交叉处较远的一支断开，两端渐细收笔，只用一种颜色。
+
+- 线色是低饱和板岩灰 `#5f6b6f`，App 原型中为品牌 token `--orbit`（浅色 `#5f6b6f`，深色 `#a3adb0`），只用于标志与画像页表盘外侧那枚指向你的类型的基准三角（以及首次启动时收拢成花瓣中线的 Orbit 内弧）。协作人格之花本身只有墨色主瓣（`--ink-1`）与浅灰小瓣（`--petal2`），没有领瓣，不使用 `--orbit`。
+- App 图标是暖纸底（`#f5f4f0`）圆角方块，标志居中；黑夜版是黑底（`#000000`）白线（`#ffffff`）。
+- **所有尺寸、所有底色都是 App 图标那条曲线的整体等比缩放**：线宽变化（近粗远细、两端渐细）与断口宽度随标志一起缩放，不为小尺寸单独加粗或拉平线宽。2026-10-03 起取消此前的小尺寸加粗版 `orbit-mark-small.svg`；主标志 `orbit-mark.svg` 的线宽也从原来较细的 2.6–11 统一为 App 图标的 4–14（设计坐标）。
+- 标志是矢量轮廓：一条由三次贝塞尔曲线组成的 SVG path（两段闭合轮廓，对应交叉处断开的两段线），放大不出现折线棱角。每个 SVG、PDF 都内嵌同一条 path，外层只套平移与等比缩放。
+- App 原型的菜单栏图标、App 图标、favicon 与字标由 `prototypes/advance/tools/brand-icon.mjs` 从 `orbit-icon.svg`、`orbit-mark.svg` 和 `kit/wordmark/orbit-wordmark-ink.svg` 生成 `src/js/01-brand.js`，各尺寸都用同一条 path；字标出现在首次启动欢迎页、关于 Orbit 与设置 › 关于，颜色 token `--orbit-word`（浅色板岩灰、深色香槟黄）。macOS App 构建（`apps/desktop/build.py`）原样复制素材包里的 `kit/dock/Orbit.icns`（Apple 图标网格版）与 `kit/nav/orbit-nav-template-16*.png`（菜单栏模板图），不另行渲染。
+
+### 文件
+
+| 文件 | 用途 |
+| --- | --- |
+| [`logo/orbit-spec.json`](../../design/logo/orbit-spec.json) | **唯一参数来源**：曲线、视角、线宽、断口、矢量精度、图标底板、Dock 网格与配色 |
+| [`logo/orbit.py`](../../design/logo/orbit.py) | 解析几何：螺旋 → 投影 → 线宽与断口 → 贝塞尔轮廓 |
+| [`logo/generate.py`](../../design/logo/generate.py) | 写出全部 SVG、PDF 与 `orbit-geometry.json`；`--check` 只比对 |
+| [`logo/export.mjs`](../../design/logo/export.mjs) | 用 Chromium 把 SVG 渲染成 PNG，并打包 ICO、ICNS，写出 `kit/manifest.json` |
+| [`logo/orbit-geometry.json`](../../design/logo/orbit-geometry.json) | 计算结果记录：交叉点、断口区间、外框、各素材的放置变换、线宽比例与完整 path，供 Swift、Figma、前端复用 |
+| [`logo/orbit-icon.svg`](../../design/logo/orbit-icon.svg)、[`logo/orbit-icon.png`](../../design/logo/orbit-icon.png) | App 图标（1024 px），兼容旧引用 |
+| [`logo/orbit-mark.svg`](../../design/logo/orbit-mark.svg)、[`logo/orbit-mark-light.svg`](../../design/logo/orbit-mark-light.svg) | 透明底主标志（板岩灰 / 暖纸色线），兼容旧引用 |
+| [`logo/kit/`](../../design/logo/kit/manifest.json) | 全部素材，见下表；`manifest.json` 列出每个位图的尺寸与母版 |
+
+![Orbit App 图标](../../design/logo/orbit-icon.png)
+
+### 素材包 `logo/kit/`
+
+| 目录 | 内容 | 格式与尺寸 |
+| --- | --- | --- |
+| [`app-icon/`](../../design/logo/kit/app-icon/orbit-app-icon.svg) | App 图标：暖纸底板岩灰线、黑夜版（黑底白线）；圆角方块满版 1024 | SVG、PDF；PNG 16、32、48、64、128、256、512、1024 |
+| [`dock/`](../../design/logo/kit/dock/orbit-dock.svg) | macOS Dock / Finder 图标：按 Apple 图标网格放在 1024 画布中央 824 方块，带投影；浅色与黑夜版 | SVG；PNG 16–1024；`Orbit.icns`、`Orbit-night.icns` |
+| [`mark/`](../../design/logo/kit/mark/orbit-mark-ink.svg) | 透明底标志：板岩灰、黑、白、暖纸四色；紧凑画布（`orbit-mark-*`）与 App 图标同位置的 1024 方形画布（`orbit-mark-square-*`） | SVG、PDF；PNG 高 64、128、256、512、1024 |
+| [`nav/`](../../design/logo/kit/nav/orbit-nav-template-22@2x.png) | 菜单栏与导航栏：黑色模板图（`template`，macOS `isTemplate` 只取 alpha）、板岩灰、白 | PNG 高 16、18、20、22、24、32 pt，各 @1x @2x @3x；矢量用 `mark/orbit-mark-black.pdf` |
+| [`favicon/`](../../design/logo/kit/favicon/favicon.svg) | 网页图标：`favicon.svg`（随浏览器深色模式切换黑夜配色）、`favicon.ico`（16/32/48）、`apple-touch-icon.png`（180，方形不加圆角，由系统裁切）、PWA `icon-192/512.png` | SVG、ICO、PNG |
+| [`wordmark/`](../../design/logo/kit/wordmark/orbit-wordmark-ink.svg) | 字标 Orbit·知音：俯视螺旋作 O；板岩灰、黑、暖纸与深色底用的香槟黄（`night`）四色，透明底 | SVG、PDF；PNG 高 32、48、64、128、256、512 |
+| [`compare/`](../../design/logo/kit/compare/orbit-zhiyin-fonts.html) | 中文字体对比页：16 种开源中文字体与字重逐一排成完整字标（浅色 / 深色），由 [`compare_cjk.py`](../../design/logo/compare_cjk.py) 生成，供选定「知音」字体 | 单文件 HTML |
+| [`motion/`](../../design/logo/kit/motion/orbit-reveal.html) | 交互动效页（另有 MP4、GIF 录屏与关键帧图，浅色 / 深色）：点击 45° 标志 → 绕螺旋自身的轴旋转一周（`motion.spin` 360°，首尾朝向不变、旋转中大小不跳动），同时转为俯视正圆并移到 O 的位置 → r、b、i、t、·、知、音 依次升起淡入（深色模式为香槟黄）；再点击按相反顺序收回。转动的每一帧都由同一套参数算出（pitch 45°→75°、yaw 转 360°，`motion` 一节记录帧数 121、时长 1.5 s），支持深色模式与减少动态效果 | 单文件 HTML |
+| [`social/`](../../design/logo/kit/social/orbit-social.svg) | 分享图 1280×640：图标居中于同色底 | SVG、PNG |
+
+PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xcode 资源目录（勾选 Preserve Vector Data）。
+
+### 绘制参数
+
+全部数值在 [`logo/orbit-spec.json`](../../design/logo/orbit-spec.json)。改动任何一项都会改变标志，须经 `yhyfhgs` 确认；改后依次运行 `python3 docs/design/logo/generate.py`、`node docs/design/logo/export.mjs`、`node prototypes/advance/tools/brand-icon.mjs && node prototypes/advance/build.mjs`。`pnpm check`（`scripts/check-repository.py`）会比对矢量文件与参数，并核对清单中每个位图的存在与尺寸。
+
+| 组 | 参数 | 值 | 含义 |
+| --- | --- | --- | --- |
+| 曲线 | `turns` / `r_start` / `r_end` / `rise` / `phase` | 1.6 / 9 / 16 / 14 / 0.6 rad | 锥形螺旋 P(t) = (r cos θ, r sin θ, rise·t)，θ = 2π·turns·t + phase，r 由 9 线性变到 16，t ∈ [0, 1] |
+| 视角 | `yaw` / `pitch` | 20° / 45° | 先绕 z 轴、再绕 x 轴旋转后正交投影；深度越大越近 |
+| 设计坐标 | `size` / `pad` | 512 / 48 | 投影后中心线等比缩放进 512 方块、四周留 48 |
+| 线宽 | `w_far` / `w_near` | 4 / 14 | 按深度在最远与最近之间线性插值：近粗远细 |
+| 收笔 | `taper` / `w_floor` | 0.10 / 0.6 | 两端各 10% 弧长按 sin 曲线渐细；最细不小于 0.6 |
+| 断口 | `gap` | 24 | 投影交叉处较远的一支，沿弧长两侧各断开 gap/2 + 该处线宽 |
+| 端点 | `cap` | round | 每段两端为半圆圆头 |
+| 矢量 | `tolerance` / `digits` | 0.002 / 3 | 贝塞尔拟合误差上限（设计单位）与坐标小数位 |
+| 外框 | `box_pad` | 4 | 紧凑画布 = 轮廓外框四周加 4 |
+| 图标底板 | `tile.size` / `radius` / `mark` | 1024 / 230 / 0.68 | 圆角方块；标志外框长边占底板 68%，居中 |
+| Dock | `canvas` / `tile` / `shadow` | 1024 / 824 / dy 10、blur 10、30% | Apple 图标网格：中央 824 方块（四周 100 透明），方块内与 App 图标等比 |
+
+由参数推出、任何尺寸都应保持的比例（相对标志外框长边）：最细线宽 0.92%、最粗线宽 3.24%、断口 5.55%，外框宽高比 1.292。在 1024 图标上对应最细 6.4 px、最粗 22.5 px、断口 38.6 px。
+
+### 字标
+
+![Orbit 字标](../../design/logo/kit/wordmark/png/orbit-wordmark-ink-128.png)
+
+字标的 O 是同一条螺旋换成俯视视角（pitch 75°，宽高比约 1.01，近正圆）的投影：曲线、线宽规则、断口与标志完全相同，只改 `wordmark.o_pitch`。单独使用的标志仍是 45° 斜视。
+
+全名为 **Orbit·知音**。字标依次是：O（俯视螺旋）、rbit、间隔圆点、知音。
+
+- **rbit**：开源字体 **Josefin Sans Regular（400）**，几何复古无衬线，升部修长、x 字高偏低，与俯视螺旋的圆形呼应；b 的升部顶与字高对齐，O 与 r 的墨迹间距 0.16 H。
+- **间隔点**：中文间隔号「·」，取自知音所用的中文字体、与知音同比例缩放；圆心在基线上方 0.38 H（比字高中线略低），与 t、知的墨迹间距各 0.3 H。
+- **知音**：开源字体 **思源黑体（Noto Sans SC）SemiBold 600**，结构干净、分量与 rbit 相称；墨迹高度为字高的 0.86，**墨迹底边与 rbit 的基线对齐**（中英文底部齐平）。
+
+字形不重画，只做等比缩放与排列：[`logo/extract_glyphs.py`](../../design/logo/extract_glyphs.py) 从 google/fonts 下载两款字体，按字重取出 r、b、i、t 与 知、音、· 的轮廓（TrueType 二次曲线精确升为三次贝塞尔），写入 [`logo/wordmark-glyphs.json`](../../design/logo/wordmark-glyphs.json)，并记录来源与 SHA-256；`generate.py` 只读这个文件。两款字体均以 SIL Open Font License 1.1 授权，允许把字形轮廓用于标志。换字体或字重：改 `wordmark.fonts` 后运行 `uv run --no-project --with fonttools python docs/design/logo/extract_glyphs.py`，再运行 `generate.py` 与 `export.mjs`。
+
+配色：浅色底用板岩灰 `#5f6b6f`；**深色底整条字标用香槟黄 `#d6c7a1`（`colors.night_word`），不用纯白**。字标另有纯黑、暖纸色两版。
+
+参数在 `orbit-spec.json` 的 `wordmark` 一节，长度以字高 H 为单位（H = O 墨迹高度去掉上下各 1.5% 的圆形溢出；基线 = O 墨迹底边上移 1.5%）：
+
+| 参数 | 值 | 含义 |
+| --- | --- | --- |
+| `o_pitch` | 75° | 字标 O 的俯仰视角（标志本身为 45°） |
+| `fonts.latin` | Josefin Sans，400 | rbit 的字体与字重 |
+| `fonts.cjk` | Noto Sans SC，600 | 知音与间隔点的字体与字重 |
+| `ascender` | 1.0 | b 的升部顶与字高对齐，由此确定拉丁字体缩放 |
+| `spacing` | O–r 0.16、t–点 0.3、点–知 0.3 | 墨迹间距；rbit 内部按字体步进宽度排列 |
+| `dot.height` | 0.38 | 中文间隔点圆心在基线上方的高度（× H） |
+| `cjk.height` | 0.86 | 知音墨迹高度（× H），底边对齐基线 |
+| `tracking` | 0 | rbit 额外字距 |
+
+### 定稿速查（2026-10-03）
+
+**全名与字体**
+
+| 部分 | 字体 | 字重 | 授权 | 排版规则 |
+| --- | --- | --- | --- | --- |
+| O | 标志螺旋（非字体），俯视 75° | 线宽 4–14（设计单位） | — | 墨迹高度定义字高 H |
+| rbit | Josefin Sans | Regular 400 | OFL 1.1 | b 的升部顶 = 字高；O–r 间距 0.16 H |
+| · | 思源黑体（Noto Sans SC）的中文间隔号 | SemiBold 600 | OFL 1.1 | 与知音同比例；圆心在基线上方 0.38 H；左右空隙各 0.3 H |
+| 知音 | 思源黑体（Noto Sans SC） | SemiBold 600 | OFL 1.1 | 墨迹高 0.86 H；底边与 rbit 基线对齐 |
+
+**字号**：以字标总高（含 4 单位留白的 viewBox 高）为基准，字高 H = 0.952 倍总高；rbit 的字号（1 em）= 1.291 H = 1.229 倍总高，知音与间隔点的字号 = 0.910 H = 0.866 倍总高。网页或 PPT 中用同字体排版近似字标时按下表取字号（正式场合直接用 `kit/wordmark/` 的矢量文件）：
+
+| 字标总高 | 字高 H | rbit 字号（Josefin Sans 400） | 知音字号（思源黑体 600） |
+| --- | --- | --- | --- |
+| 32 px | 30.5 px | 39.3 px | 27.7 px |
+| 48 px | 45.7 px | 59.0 px | 41.6 px |
+| 64 px | 60.9 px | 78.7 px | 55.4 px |
+| 128 px | 121.8 px | 157.3 px | 110.8 px |
+| 256 px | 243.7 px | 314.6 px | 221.7 px |
+
+**配色**：浅色底 `#5f6b6f`（板岩灰，底色 `#f5f4f0` 暖纸）；深色底字标 `#d6c7a1`（香槟黄，底色 `#000000`）；App 图标黑夜版为黑底白线 `#ffffff`。另有纯黑、暖纸色单色字标。
+
+**不同场景**
+
+| 场景 | 浅色 | 深色 |
+| --- | --- | --- |
+| 字标（文档、官网、PPT 标题） | ![](../../design/logo/kit/wordmark/png/orbit-wordmark-ink-64.png) | ![](../../design/logo/kit/wordmark/png/orbit-wordmark-night-64.png) |
+| App 图标（满版圆角） | ![](../../design/logo/kit/app-icon/png/orbit-app-icon-128.png) | ![](../../design/logo/kit/app-icon/png/orbit-app-icon-night-128.png) |
+| macOS Dock（Apple 图标网格，带投影） | ![](../../design/logo/kit/dock/png/orbit-dock-128.png) | ![](../../design/logo/kit/dock/png/orbit-dock-night-128.png) |
+| 透明底标志（45° 螺旋） | ![](../../design/logo/kit/mark/png/orbit-mark-ink-64.png) | ![](../../design/logo/kit/mark/png/orbit-mark-white-64.png) |
+| 菜单栏 / 导航栏（模板图，系统着色） | ![](../../design/logo/kit/nav/orbit-nav-template-22@2x.png) | ![](../../design/logo/kit/nav/orbit-nav-white-22@2x.png) |
+| 网页 favicon / 分享图 | ![](../../design/logo/kit/favicon/favicon-48.png) | [分享图](../../design/logo/kit/social/orbit-social-night.png) |
+
+**动画效果**（[`kit/motion/orbit-reveal.html`](../../design/logo/kit/motion/orbit-reveal.html) 可点击；录屏 [MP4](../../design/logo/kit/motion/orbit-reveal.mp4) / [深色 MP4](../../design/logo/kit/motion/orbit-reveal-night.mp4)）：点击 45° 标志，1.5 s 内绕自身轴旋转一周并转为俯视正圆、移到 O 的位置，随后 r、b、i、t、·、知、音 每隔 0.11 s 依次升起淡入（各 0.42 s）；再点击按反序收回。
+
+![Orbit·知音 展开动效](../../design/logo/kit/motion/orbit-reveal.gif)
+
+![展开动效（深色）](../../design/logo/kit/motion/orbit-reveal-night.gif)
+
+关键帧（转动进度 0、¼、½、¾、1 与展开完成）：
+
+![展开动效关键帧](../../design/logo/kit/motion/orbit-reveal-frames.png)
+
+**与上一版的关系**：上一版（v1）把中心线每 1.5 设计单位取一点、画成折线多边形。矢量版沿用 v1 的离散常数（端点、深度范围、断口区间与外框，记录在 `orbit-geometry.json` 的 `v1`），只把折线换成平滑曲线；轮廓与 v1 顶点的最大偏差为 0.013 设计单位（1024 图标上约 0.02 px），渲染出的 1024 PNG 与旧版逐像素比对，差异只在抗锯齿边缘。
+
+**小尺寸**：等比缩放意味着远处的细线在小尺寸下会很淡。16 px 图标里最细处约 0.1 px，菜单栏 16 pt 高的标志最细约 0.2 pt（@2x 约 0.4 px）。这是保持线宽比例的结果；如需小尺寸更醒目，应作为单独设计决定另行确认，不在导出时调整线宽。
+
+## 字体
+
+2026-10-03 起全站改为一套无衬线系统字体，取代此前「标题用衬线 Source Serif 4、数字与元信息用等宽 JetBrains Mono」的约定。App 只面向 macOS 14+ 且离线运行，因此只用系统自带字体，不打包、不内联网页字体；做法参照 [Apple HIG Typography](https://developer.apple.com/design/human-interface-guidelines/typography)。
+
+| 用途 | 字体 | token（`prototypes/advance/src/styles/00-base.css`） |
+| --- | --- | --- |
+| 正文、控件、眉题 | SF Pro（拉丁、数字）+ PingFang SC（中文） | `--font-sans` |
+| 页面标题、弹窗标题 | 同上，用较大字号和 600 字重，不用衬线 | `--font-display` |
+| 人格类型码（DPMV 等：大字母、卡片、侧栏、项目表、资源库、说明文字、分享卡，以及画像页表盘外框上的 16 个类型码） | SF Pro Rounded（`ui-rounded`）700，圆头笔画呼应 Orbit 字标；中文回退 PingFang SC | `--font-type`（`.tcode` 类；文字里夹带的代号用 `tcodes()` 套上） |
+| KPI、表格、日期范围、计数 | 同 `--font-sans`，加 `font-variant-numeric: tabular-nums` | `--font-num`（`.mono` 类） |
+| 代码、路径、命令、ID、快捷键、原始 CSV/报告文本 | SF Mono（`ui-monospace`），中文回退 PingFang SC | `--font-mono`（`.code-t` 类与 `code`/`kbd`/`.tt-cmd` 等） |
+
+- 字体栈拉丁在前、中文在后（`-apple-system` / SF Pro → PingFang SC → Hiragino Sans GB → sans-serif），中英文各自落到对应字体；`-apple-system` 由系统按字号切换 SF Pro Text / Display。
+- 眉题 `.eb` 为 11 px 600 大写 sans，字距 0.04em；不再用等宽字体的负词距修正。
+- 历史类名 `.mono`（数字/元信息）与 `.serif`（标题）保留以减少改动，含义以上表为准。分享卡 canvas 与 SVG 文字读取同一组 token。
+
+## 备选与历史版本
+
+两个洛伦茨吸引子（σ=10, ρ=28, β=8/3）版本由 [`logo/variants/legacy.py`](../../design/logo/variants/legacy.py) 用 v1 折线画法生成，只作存档，文件组成相同（mark、light、small、icon）：
+
+| 版本 | 位置 | 曲线 |
+| --- | --- | --- |
+| 洛伦茨 | [`logo/variants/lorenz/`](../../design/logo/variants/lorenz/orbit-mark.svg) | 一段左右两翼各绕两圈的吸引子轨道；改名前的 Tandem 主标志 |
+| 洛伦茨（复杂度略增） | [`logo/variants/rich/`](../../design/logo/variants/rich/orbit-mark.svg) | 同一段轨道多取一圈，右翼多绕一圈 |
+
+更早的莫比乌斯带版本见 git 历史（`391203a` 及更早）。

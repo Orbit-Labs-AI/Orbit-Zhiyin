@@ -3,83 +3,74 @@
 
 # Orbit
 
+**看见你与 AI 的协作方式，让下一次合作更顺畅。**
+
+Orbit 是一个开源的本地 macOS App。它把散落在 Claude Code、Codex 等 Agent 中的会话整理到一起，让你回看工作过程、理解协作习惯，并从有证据的改进建议中选择下一步。
+
+[下载 macOS App](https://github.com/ActionMesh-AI/Hackathon/releases/latest) · [开始使用](docs/getting-started/README.md) · [文档](docs/README.md) · [参与贡献](CONTRIBUTING.md) · [反馈问题](https://github.com/ActionMesh-AI/Hackathon/issues/new/choose)
+
 [![App integration](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/backend.yml/badge.svg?branch=main)](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/backend.yml)
-[![Connector runtime matrix](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/connectors.yml/badge.svg?branch=main)](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/connectors.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![Stage: Prototype](https://img.shields.io/badge/stage-prototype-orange)](docs/product/scope.md)
-[![Platform: macOS](https://img.shields.io/badge/platform-macOS-000000?logo=apple&logoColor=white)](docs/product/scope.md)
-[![Python: 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](pyproject.toml)
-[![Node.js: ≥24.7](https://img.shields.io/badge/node.js-%E2%89%A524.7-339933?logo=nodedotjs&logoColor=white)](package.json)
-[![Conventional Commits: 1.0.0](https://img.shields.io/badge/commits-Conventional_Commits_1.0.0-FE5196)](https://www.conventionalcommits.org/en/v1.0.0/)
+[![Connector checks](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/connectors.yml/badge.svg?branch=main)](https://github.com/ActionMesh-AI/Hackathon/actions/workflows/connectors.yml)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](docs/getting-started/installation.md)
 
-ActionMesh-AI 的本地跨 Agent 会话分析 macOS App：读取本机 Claude Code、Codex 等 Agent 的会话记录，生成协作人格画像（四个维度组成 16 型，每型一朵旋转对称的人格之花；画像页的表盘按类型排布会话，每个 Agent 一条曲线）与会话轨迹，并推荐 Skills、Hooks、规则等可一键安装、可撤销的改进。数据只在本机处理。
+![Orbit 协作人格与界面展示，使用示例数据](docs/design/showcase/png/orbit-hero-light.png)
 
-仓库包含统一数据层、Python 后端、CLI、本机 API、Lite / Advance 统一 App 界面和原生 macOS 宿主（[`apps/desktop`](apps/desktop/README.md)，当前版本 0.0.4，安装包见 GitHub Releases）。产品名 Orbit，全名 Orbit·知音；代码标识统一为 `orbit`（`orbit_*` 包、`orbit` CLI、`ORBIT_*` 环境变量、`Application Support/Orbit`），改名前的数据目录与设置会自动迁移，见[品牌](docs/design/brand.md#名称)。
+> Orbit 正在早期迭代。桌面 App 面向 Apple Silicon、macOS 14+；截图和独立 HTML 演示使用示例数据。本文档跟随 `main`，已发布安装包的功能与限制请以对应 Release 为准。
 
-## 开始开发
+## 用 Orbit 做什么
 
-需要 Python 3.13、uv、Node ≥24.7、pnpm 11.25.0；完整检查还需 Swift 5.9+（macOS Command Line Tools）。在仓库根运行：
+- **回看一次协作。** 按项目、Agent 和时间找到会话，查看消息、工具调用、关键时刻和对应证据。
+- **理解自己的工作方式。** 用协作人格、项目习惯、工具调用和情绪语义页面观察模式，结合样本数量与覆盖情况解读结果。
+- **尝试具体的改进。** 从 Skills、规则、Hooks 等资源中查看建议与适用依据，预览支持的安装操作，确认后应用，并在需要时撤销。
+- **关注正在进行的工作。** 通过菜单栏、浮动 HUD 和桌面小组件查看本机可观察到的会话状态。
+- **按需使用 AI。** 授权后调用已配置的本地 Agent 做问答、解读与生成；基础导入和统计不要求启用模型。
+
+Lite 与 Advance 是同一个 App 的两种界面，可在侧栏顶部切换。Lite 聚焦常用页面，Advance 展开更多分析；二者共享数据、组件和设置。协作人格是会话行为的描述，推荐中的估算也需要后续验证。详见[当前能力与边界](docs/product/scope.md)。
+
+## 开始使用
+
+### 在 Mac 上安装
+
+从 [GitHub Releases](https://github.com/ActionMesh-AI/Hackathon/releases/latest) 下载适合 Apple Silicon 的 DMG 或 ZIP，将 Orbit 放入「应用程序」后打开。用户机器无需安装 Python 或 Node。当前构建的签名与公证状态、首次打开和升级步骤见[安装指南](docs/getting-started/installation.md)。
+
+第一次使用时选择允许 Orbit 读取的 Agent 来源，再等待导入发布数据。先从概览或会话轨迹进入，确认样本范围后再看分析和建议。
+
+### 用示例数据体验
+
+克隆仓库后可直接用浏览器打开 [`prototypes/advance/orbit-demo.html`](prototypes/advance/orbit-demo.html)，体验 Lite / Advance 界面，无需连接个人会话。
+
+若要运行后端示例，准备 Python 3.13、uv、Node ≥24.7 和 pnpm 11.25.0：
 
 ```sh
+git clone https://github.com/ActionMesh-AI/Hackathon.git
+cd Hackathon
 bash scripts/bootstrap.sh
 uv run orbit demo
 pnpm dev --home .local/demo/data
 ```
 
-Demo 只使用虚构数据。API 默认监听本机 8765 端口，接口说明位于 <http://127.0.0.1:8765/docs>。
-上面的启动命令读取刚生成的 Demo 数据库。使用自己的已初始化开发库时可运行 `pnpm dev --home .orbit`；实际来源须显式执行 `orbit ingest` 才会导入。
-完整 CLI、真实来源授权和旧库兼容说明见[使用指南](docs/development/usage.md)。
+最后一条命令启动示例库的报告 API，可打开 [API 文档](http://127.0.0.1:8765/docs)。桌面界面的 live 模式使用另一个 App gateway 入口，见[开发环境](docs/development/setup.md)。
 
-## 仓库入口
+## 支持哪些数据
 
-| 位置 | 职责 |
+Orbit 已有 Claude Code、Codex、DeepSeek Harness、pi、Hermes、OpenCode 和 Kimi Code 的原生来源适配。不同 Agent、日志格式与版本提供的信息不同；支持读取某种格式，不代表每类指标都完整可用。[来源说明](docs/guides/importing-data.md)列出标识与边界，[连接器文档](docs/modules/data/agent-connectors.md)说明扩展方法。
+
+会话导入和基础分析在本机进行，来源只有在明确启用后才导入。AI 默认关闭；启用本地 Agent 后，它仍可能使用自己配置的远端模型。目录同步和资源获取也可能联网。数据位置、授权与清理说明见[隐私与数据](docs/guides/privacy.md)。
+
+## 参与开发
+
+欢迎提交可复现的问题、改进文档、补充构造样本或实现经过讨论的功能。先读[贡献指南](CONTRIBUTING.md)，再按关注点进入：
+
+| 关注点 | 入口 |
 | --- | --- |
-| [packages/backend](packages/backend/README.md) | 应用编排、API/CLI、画像、特征分析、推荐、报告 |
-| [packages/data](packages/data/README.md) | 原生来源、L0–L3、canonical SQLite、查询与导入服务 |
-| [packages/catalog](packages/catalog/README.md) | 资源采集、版本、索引与检索 |
-| [packages/catalog-macos](packages/catalog-macos/README.md) | macOS Swift 异步客户端 |
-| [packages/connectors](packages/connectors/README.md) | TypeScript Codex staging producer |
-| [prototypes](prototypes/README.md) | Lite / Advance 统一 App 原型（示例数据） |
-| [tests](tests/README.md) | 跨模块集成与服务流程验收 |
-| [evals](evals/README.md) | 质量评测及显式启用的真实数据验收 |
-| [benchmarks](benchmarks/README.md) | 性能与内存评测 |
-| [scripts](scripts/README.md) | 启动、检查与安装验证入口 |
-| [docs](docs/README.md) | 全部文档导航：产品与设计、架构与契约、开发、模块、方案、审计、调研与历史 |
+| 本地 App 与界面 | [桌面宿主](apps/desktop/README.md)、[UI 源码](prototypes/README.md)、[设计规范](docs/design/README.md) |
+| 数据导入与分析 | [数据包](packages/data/README.md)、[后端](packages/backend/README.md)、[数据契约](docs/contracts/README.md) |
+| 资源检索与推荐 | [Catalog](packages/catalog/README.md)、[推荐引擎](docs/modules/recommendation/engine.md) |
+| 全局结构与验证 | [架构](docs/architecture/README.md)、[测试指南](docs/development/testing.md)、[文档维护](docs/development/documentation.md) |
 
-原生 macOS 宿主在 [`apps/desktop/`](apps/desktop/README.md)（构建与发布见 [Mac App](docs/development/mac-app.md)）；Catalog 和 Swift 客户端已接入。
-
-## 验证
-
-```sh
-pnpm check                 # 模块、跨包、服务流程、文档、构建与安装后验收
-pnpm check:integration     # 只跑跨包与服务流程，自动构建 staging producer
-pnpm --filter @orbit/prototype-advance exec playwright install chromium
-pnpm check:ui              # Lite 数据检查 + Advance 浏览器行为测试
-```
-
-CI 调用同一套命令。测试不自动读取本机 Agent 历史；性能与真实数据评测单独运行。
-分类和执行条件见[测试指南](docs/development/testing.md)。
-
-## 集成约定
-
-- [前端指标计算规则](docs/modules/analytics/presentation-metrics.md)：八族特征、画像与瓶颈的呈现口径。
-- [UI 分析与端到端验收](docs/modules/analytics/analysis-products.md)：工具占比、调用转移、情绪表达及开发者本地 session 验证。
-- [分析补全建议](docs/plans/analysis-review.md)：八族边界与 Lite / Advance 的分析功能缺口。
-- [后端缺口](docs/audits/backend-gap.md)：数据、分析、推荐与横切后端程序对照两版 UI 的差距与补齐顺序。
-- [模块接入表](docs/architecture/module-map.md)：功能、入口、实现、契约、测试与缺口。
-- [目录迁移说明](docs/development/structure-migration.md)：活跃分支如何接入新结构。
-- [设计资料](docs/design/README.md)：Lite 属于 `genius-FXC`，Advance 属于 `yhyfhgs`，两版是同一个 App；[品牌](docs/design/brand.md)与 [Demo 说明](docs/design/demo.md)。
-- [协作规则](AGENTS.md)：`main` 通过 PR 更新，合并与关闭由 `yhyfhgs` 决定。
-
-## 参与与协作
-
-- [贡献指南](CONTRIBUTING.md)：开发环境、分支与提交规范、验证要求和 PR 流程。
-- [行为准则](CODE_OF_CONDUCT.md)：讨论、审查与协作中的基本约定。
-- [安全政策](SECURITY.md)：安全问题的私下报告方式与数据保护要求。
-- [问题与建议](https://github.com/ActionMesh-AI/Hackathon/issues/new/choose)：使用 Bug / 功能建议模板提供可复现的信息。
-
-CI badges 指向 `main` 的实际工作流状态；私有仓库的状态徽章不能在外部站点展示。
+Orbit 由 [ActionMesh-AI](https://github.com/ActionMesh-AI) 发起。维护成员为 [`yhyfhgs`](https://github.com/yhyfhgs)、[`MistyHuang03`](https://github.com/MistyHuang03) 与 [`genius-FXC`](https://github.com/genius-FXC)。参与讨论请遵守[行为准则](CODE_OF_CONDUCT.md)；安全问题请按[安全政策](SECURITY.md)报告。
 
 ## 许可证
 
-Orbit 原创代码与文档采用 [Apache License 2.0](LICENSE)。仓库当前仍为私有，访问权限与代码许可分别管理。`third_party/` 引用项目及其他带有独立许可声明的第三方材料遵循各自许可证，项目许可证不覆盖这些声明。
+Orbit 原创代码与文档采用 [Apache License 2.0](LICENSE)。第三方源码、字体及其他独立声明许可的材料遵循各自许可证；参见 [third_party](third_party/README.md)。

@@ -13,7 +13,7 @@
 
 内置资源种子归本包管理，backend 的旧目录 API 读取相同资源；本包运行时不依赖 orbit_backend。与 backend 的组合测试在根 tests/integration/test_catalog_api.py。Swift 客户端在 [catalog-macos](../catalog-macos/README.md)。
 
-完整边界与入口见 [架构](../../docs/modules/catalog/architecture.md)；历史实测与限制见 [验证记录](../../docs/modules/catalog/validation.md)。
+完整边界与入口见 [架构](../../docs/modules/catalog/architecture.md)；历史实测与限制见 [验证记录](../../docs/audits/catalog-validation.md)。
 
 ## Skill 获取与本地验收
 
