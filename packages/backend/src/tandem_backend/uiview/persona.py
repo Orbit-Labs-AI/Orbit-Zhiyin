@@ -31,10 +31,10 @@ They are product defaults, not calibrated against a population baseline.
 
 from __future__ import annotations
 
-import math
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 
+from ..analytics import stats
 from . import derive, facts
 from .typecopy import AXES, SOURCE, TYPES, copy
 
@@ -59,7 +59,8 @@ SIG_USED = {
     "D": f"单轮步数 ≥ {STEP_THRESHOLD} 的轮次占比（按会话聚类）",
     "I": "首条消息是否无结构（未标执行顺序/验收标准、未达长度阈值、无列表或规格引用）",
     "M": "同日使用 ≥ 2 个 Agent 或会话时间重叠的天数占比",
-    "V": "要求验证或运行验证命令的轮次占比（按会话聚类；含 Agent 自行运行的命令）",
+    "V": "要求验证或运行测试/检查/构建命令的轮次占比（按会话聚类；含 Agent 自行运行的命令，"
+         "证据里分开列出）",
 }
 UNITS = {"D": "turn", "I": "session_opening", "M": "active_day", "V": "turn"}
 LEFT_RIGHT = {"D": ("D 委托", "掌舵 S"), "I": ("P 规划", "即兴 I"), "M": ("M 多线", "专注 F"),
@@ -78,13 +79,9 @@ MONTHS = {k: i + 1 for i, k in enumerate(("jan", "feb", "mar", "apr", "may", "ju
 
 
 def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
-    if n <= 0:
-        return 0.0, 1.0
-    p = k / n
-    denom = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / denom
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
-    return max(0.0, centre - half), min(1.0, centre + half)
+    """``analytics.stats.wilson`` with the persona's no-data convention (0, 1)."""
+    lo, hi = stats.wilson(k, n, z) if n > 0 else (None, None)
+    return (0.0, 1.0) if lo is None else (lo, hi)
 
 
 def _overlap(intervals: list[tuple[int, int]]) -> bool:
@@ -126,13 +123,9 @@ def cluster_interval(clusters: list[tuple[int, int]], z: float = 1.96
 
 
 def wilson_p(p: float, n: float, z: float = 1.96) -> tuple[float, float]:
-    """Wilson interval for proportion p at (possibly effective, non-integer) size n."""
-    if n <= 0:
-        return 0.0, 1.0
-    denom = 1 + z * z / n
-    centre = (p + z * z / (2 * n)) / denom
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
-    return max(0.0, centre - half), min(1.0, centre + half)
+    """``analytics.stats.wilson_p`` at an effective (non-integer) size; (0, 1) at n ≤ 0."""
+    lo, hi = stats.wilson_p(p, n, z)
+    return (0.0, 1.0) if lo is None else (lo, hi)
 
 
 def units(rows: list[dict], aux: dict) -> dict[str, tuple[int, int]]:
@@ -297,15 +290,27 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
     # Unknown message counts stay unknown: they are neither a 0 bin nor a 0 average.
     with_msgs = [r for r in rows if r.get("msgs") is not None]
     msgs = sum(r["msgs"] for r in with_msgs)
-    steps = sum(r.get("steps") or 0 for r in with_msgs)
     per = msgs / len(with_msgs) if with_msgs else None
-    auto = steps / msgs if msgs else None
+    # Steps per message only over rows where both are known: an agent without human turns
+    # has ``steps=None`` and its messages must not dilute the ratio (same rule as
+    # ``derive.stats``'s ``auto``, which additionally requires ``steps``).
+    stepped = [r for r in with_msgs if r.get("steps") is not None]
+    stepped_msgs = sum(r["msgs"] for r in stepped)
+    auto = sum(r["steps"] for r in stepped) / stepped_msgs if stepped_msgs else None
     d_txt = ("消息数未知" if per is None else f"每会话 {per:.1f} 条消息" +
              (f" · 单轮平均 {auto:.1f} 步" if auto is not None else ""))
+    verify = st.get("verify")
+    # Who asked for the verification turns: the user (instruction) or the agent on its own.
+    # Snapshots built before the split carry [steps, verify] only and stay unknown here.
+    split = [t for r in rows for t in (aux.get(r["id"]) or {}).get("turns") or []
+             if len(t) >= 4]
+    asked = sum(1 for t in split if t[2]) if split else None
+    ran = sum(1 for t in split if t[3] and not t[2]) if split else None
     return {
         "D": {"txt": d_txt,
               "vals": _hist([r["msgs"] for r in with_msgs], 10, 20) if with_msgs else None,
-              "lbl": "消息数 0 → 20+ 的会话数", "missing_n": len(rows) - len(with_msgs)},
+              "lbl": "消息数 0 → 20+ 的会话数", "missing_n": len(rows) - len(with_msgs),
+              "auto_n": len(stepped)},
         "I": {"txt": (f"结构化开场占 {round((open_n - axes['I']['k_units']) / open_n * 100)}%"
                       if open_n else "开场结构未知"),
               "vals": [round(v * 100) for v, _ in plan],
@@ -313,7 +318,12 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
               "projects": [derive.project_name(projects, pid) for _, pid in plan]},
         "M": {"txt": f"日均 {avg_s:.1f} 个会话 · 同日 {avg_a:.1f} 个 Agent",
               "vals": _hist(list(by_day.values()), 8, 8), "lbl": "每日会话数 1 → 8+ 的天数"},
-        "V": {"txt": f"{round(st['verify'])}% 会话要求或运行了验证",
+        "V": {"txt": ("验证情况未知" if verify is None
+                      else f"{round(verify)}% 会话要求或运行了验证"),
+              "verify_n": st.get("verify_n"),
+              "requested_turns": asked, "agent_only_turns": ran,
+              "detail": None if asked is None else
+              f"用户要求验证 {asked} 轮 · 仅 Agent 自行运行 {ran} 轮",
               "vals": [round(v * 100) for v, _ in check], "lbl": "项目验证轮次占比 · 低 → 高",
               "projects": [derive.project_name(projects, pid) for _, pid in check]},
     }
@@ -349,18 +359,18 @@ def fit(rows: list[dict], agents: list[str]) -> list[dict]:
     out = []
     for agent in agents:
         xs = [r for r in rows if r.get("a") == agent]
-        st = derive.stats(xs)
-        known = [r for r in xs if r.get("out") is not None]
-        k = sum(1 for r in known if r["out"] == "ok")
-        ok_est = round(100 * k / len(known), 1) if known else None
+        st = derive.stats(xs, unknown=None)
+        ok_n = st["ok_n"]
+        ok_est = None if st["ok"] is None else round(st["ok"], 1)
         ci = None
-        if len(known) >= 5:
-            lo, hi = wilson(k, len(known), CONFIG["z"])
+        if ok_n >= 5:
+            k = sum(1 for r in xs if r.get("out") == "ok")
+            lo, hi = wilson(k, ok_n, CONFIG["z"])
             ci = [round(lo * 100, 1), round(hi * 100, 1)]
         out.append({"a": agent, "n": len(xs), "sessions": [r["id"] for r in xs[-5:]],
                     "corr_rate": round(st["fric"], 2) if st["msgs"] else None,
-                    "ok_est": ok_est, "ok_ci": ci, "ok_n": len(known),
-                    "basis": "descriptive_estimate", "off": len(known) < 5})
+                    "ok_est": ok_est, "ok_ci": ci, "ok_n": ok_n,
+                    "basis": "descriptive_estimate", "off": ok_n < 5})
     return out
 
 
@@ -437,7 +447,7 @@ def _page(body: dict, params: dict, today: date) -> tuple[dict, list[dict]]:
     f = _filters(params)
     L = derive.sel(rows, window, f, no_extra=True)
     p = persona(L, aux)
-    st = derive.stats(L)
+    st = derive.stats(L, unknown=None)
     agent_ids = [a["id"] for a in agents_meta if f["agents"] is None or a["id"] in f["agents"]]
     prev = None
     if prev_window is not None:
