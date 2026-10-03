@@ -55,20 +55,32 @@ class FeatureService:
     def etag(self) -> str:
         """Revision tag for conditional GETs of profile / linked (see routes_features)."""
         revs = self.revs()
-        return (f"{revs['data']}.{revs['inventory']}.{revs['catalog']}."
-                f"{platform.rev_token('features.profile')}")
+        from .scope import scope_hash
+
+        return (f"{revs['data']}.{revs['inventory']}.{revs['catalog']}.{sessfeat.VERSION}."
+                f"{platform.rev_token('features.profile')}.{scope_hash(self._scope())}")
+
+    def _scope(self, scope=None) -> dict:
+        from ..appdata.sources_scope import default_source_ids
+        from ..sessionops.exclusion import excluded_uids
+
+        scope = normalize(scope)
+        scope["source_ids"] = default_source_ids(scope.get("source_ids"))
+        scope["excluded_session_uids"] = sorted(set(
+            (scope.get("excluded_session_uids") or []) + excluded_uids(self.appdb)))
+        return normalize(scope)
 
     # profile -------------------------------------------------------------------
     def profile(self, scope=None, *, signals=None, include=(), refresh=False) -> dict:
         with platform.timed("features.profile"):
-            return self._profile(scope, signals, include, refresh)
+            return self._profile(self._scope(scope), signals, include, refresh)
 
     def _key(self, scope, signals) -> tuple[str, tuple]:
         from ..services.snapshots import scope_hash
 
         params = {"signals": sorted((s["id"], s.get("weight"), s.get("n")) for s in signals)} \
             if signals else None
-        digest = scope_hash(normalize(scope), params)
+        digest = scope_hash(normalize(scope), {"features_version": sessfeat.VERSION, "signals": params})
         revs = self.revs()
         return digest, (digest, revs["data"], revs["inventory"], revs["catalog"], revs["vocab"])
 
@@ -136,7 +148,7 @@ class FeatureService:
 
     def _build(self, key: tuple, scope, signals) -> dict:
         if sessfeat.stale(self):
-            sessfeat.materialize(self)
+            sessfeat.materialize(self, wait=True)
         body = build_profile(self, scope, signals)
         body["revs"] = dict(zip(("data", "inventory", "catalog", "vocab"), key[1:], strict=True))
         stored = {k: v for k, v in body.items() if k != "centroid"}
@@ -214,7 +226,7 @@ class FeatureService:
 
     def search(self, q: str, kinds=None, scope=None, limit: int = 20,
                session_cover: bool = False) -> dict:
-        result = run_search(self.home, q, kinds=kinds, scope=normalize(scope), limit=limit,
+        result = run_search(self.home, q, kinds=kinds, scope=self._scope(scope), limit=limit,
                             session_cover=session_cover,
                             data_rev=self.data_rev(), orbit_db=self.home / "orbit.db",
                             catalog_db=self.home / "catalog.db", app_db=self.appdb.path,

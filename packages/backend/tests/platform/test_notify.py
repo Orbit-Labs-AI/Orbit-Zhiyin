@@ -62,6 +62,21 @@ def test_cooldown_dedupe_merges_count(gw, clock):
     assert [i["id"] for i in n.attention()] == [third]
 
 
+def test_notification_redacts_new_and_historical_payloads(gw, clock):
+    n = make(gw, clock)
+    secret = "audit_dummy_secret_never_a_real_credential"
+    command = f"curl --token {secret}"
+    id_ = n.emit({"type": "waiting", "title": command, "body": command,
+                  "payload": {"command": command}})
+    with gw.appdb.read() as db:
+        row = db.execute("SELECT title,body,payload FROM notification WHERE id=?", (id_,)).fetchone()
+    assert all(secret not in field for field in row)
+    assert secret not in str(frames(gw, "notification"))
+    with gw.appdb.write() as db:
+        db.execute("UPDATE notification SET body=? WHERE id=?", (command, id_))
+    assert secret not in str(n.listing()) and secret not in str(n.attention())
+
+
 def test_quiet_hours_cross_midnight(gw, clock, monkeypatch):
     n = make(gw, clock)
     n.set_policy({"quiet_hours": {"enabled": True, "start": "22:00", "end": "08:00"}})

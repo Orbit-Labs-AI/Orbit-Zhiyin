@@ -266,7 +266,8 @@ def router(gw: Gateway) -> APIRouter:
             generation = service.store.generation(conn)
             embedding_generation = service.store.embedding_generation(conn)
         value = gw.revisions.value
-        return f"{RANKING_VERSION}.{generation}.{embedding_generation}.{value.get('data_rev')}.{value.get('inventory_rev') or 0}"
+        profile_rev = features.current().etag() if features.current() is not None else "unbound"
+        return f"{RANKING_VERSION}.{generation}.{embedding_generation}.{value.get('data_rev')}.{value.get('inventory_rev') or 0}.{profile_rev}"
 
     for prefix in ETAG_PREFIXES:
         # The library window is day-aligned, so its tag also moves when the day rolls over.

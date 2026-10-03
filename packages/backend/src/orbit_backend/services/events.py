@@ -69,7 +69,10 @@ class EventBus:
         wanted = set(topics)
         with self.lock:
             oldest = self.frames[0].id if self.frames else self.next_id
-            gap = last_id < oldest - 1
+            restarted = last_id >= self.next_id
+            gap = restarted or last_id < oldest - 1
+            if restarted:
+                last_id = oldest - 1
             frames = [f for f in self.frames if f.id > last_id and f.topic in wanted]
         return frames, gap
 
@@ -92,10 +95,12 @@ class EventBus:
             yield b"retry: 2000\n\n"
             while not self.closed:
                 flag.clear()
+                latest = self.last_id
                 frames, gap = self.since(cursor, topics)
                 if gap:
-                    yield Frame(0, "service", "resync", {"reason": "buffer_overflow"}).encode()
-                    cursor = frames[0].id - 1 if frames else self.last_id
+                    reason = "server_restart" if cursor > latest else "buffer_overflow"
+                    cursor = frames[0].id - 1 if frames else latest
+                    yield Frame(0, "service", "resync", {"reason": reason}).encode()
                 for frame in frames:
                     cursor = frame.id
                     yield frame.encode()

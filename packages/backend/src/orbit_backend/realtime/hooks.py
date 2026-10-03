@@ -21,6 +21,8 @@ import os
 import threading
 from pathlib import Path
 
+from orbit_data.privacy import sanitize
+
 from .classify import CONTEXT_PRESSURE
 
 MAX_WAITS = 500
@@ -40,7 +42,11 @@ class HookFeed:
         self.path = self.dir / "events.jsonl"
         self.checkpoint = self.dir / "events.offset.json"
         self.lock = threading.Lock()
-        self.state = self._load()
+        loaded = self._load()
+        self.state = sanitize(loaded)
+        if self.state != loaded:
+            with contextlib.suppress(OSError):
+                self._save()  # Upgrade old checkpoints even when no new hook has arrived.
 
     # -- checkpoint -----------------------------------------------------------------------
     @staticmethod
@@ -94,6 +100,7 @@ class HookFeed:
             return applied
 
     def _apply(self, rec: dict) -> None:
+        rec = sanitize(rec)
         ts, event = int(rec.get("ts") or 0), rec.get("event")
         session = self.state["sessions"].setdefault(_key(rec.get("agent"), rec["session_id"]), {})
         session["last_ts"] = max(ts, session.get("last_ts") or 0)

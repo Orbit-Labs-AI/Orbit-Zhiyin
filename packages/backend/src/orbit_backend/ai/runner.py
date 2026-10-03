@@ -66,6 +66,7 @@ class RunContext:
         self.home = runner.svc.home
         self.params = job.get("params") or {}
         self.slot = job.get("slot") or self.task["slot"]
+        self.override_budget = bool(job.get("override_budget"))
         self.cancel_event = job["cancel"]
         self.fresh = bool(job.get("fresh"))  # 「重新生成」: read no cached output
         self.stages: list[dict] = []
@@ -115,21 +116,24 @@ class RunContext:
                 max_budget_usd=task["max_budget_usd"], timeout_s=task["timeout_s"],
                 cancel=self.cancel_event, task_id=task_id, job_id=self.job_id, slot=slot,
                 max_tokens=task["out_budget"])
-            try:
-                result = engine.call(request)
-            except Exception as error:  # A broken engine must not kill the worker thread.
-                log.exception("engine %s failed", self.engine)
-                result = EngineResult(error="engine_error", detail=type(error).__name__)
-            self.calls += 1
-            self.model_id = result.model_id or self.model_id
-            self.tokens += sum(result.usage.values())
-            errors = []
-            if result.error is None:
-                errors = schema_errors(result.output, schema)
-                if not errors and validate is not None:
-                    errors = list(validate(result.output, self.pack) or [])
-            status = result.error or ("invalid" if errors else "ok")
-            self.runner.record_usage(self, task_id, result, system, attempt_prompt, status)
+            with self.runner.svc.call_budget(task["max_budget_usd"], override=self.override_budget):
+                if self.cancelled():
+                    raise Cancelled()
+                try:
+                    result = engine.call(request)
+                except Exception as error:  # A broken engine must not kill the worker thread.
+                    log.exception("engine %s failed", self.engine)
+                    result = EngineResult(error="engine_error", detail=type(error).__name__)
+                self.calls += 1
+                self.model_id = result.model_id or self.model_id
+                self.tokens += sum(result.usage.values())
+                errors = []
+                if result.error is None:
+                    errors = schema_errors(result.output, schema)
+                    if not errors and validate is not None:
+                        errors = list(validate(result.output, self.pack) or [])
+                status = result.error or ("invalid" if errors else "ok")
+                self.runner.record_usage(self, task_id, result, system, attempt_prompt, status)
             if result.error == "cancelled" or self.cancelled():
                 raise Cancelled()
             if result.error in NO_RETRY:

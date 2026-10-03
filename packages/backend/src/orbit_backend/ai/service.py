@@ -12,6 +12,7 @@ import json
 import statistics
 import threading
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -19,7 +20,7 @@ from . import engines as engines_mod
 from . import prices, registry
 from .capabilities import Capabilities
 from .consent import ALLOWED, Consent
-from .errors import AIError, AIUnavailable
+from .errors import AIError, AIUnavailable, CallFailed
 from .runner import Runner, cache_key, canonical_json, now_ms
 
 PREFERENCE = {"agent": ("claude_code", "codex", "api_key", "fake"),
@@ -102,6 +103,8 @@ class AIService:
         self.home = Path(gw.home)
         self._engines: dict = engines_mod.default_engines(self.home)
         self.consent_store = Consent(self.appdb)
+        self.budget_lock = threading.Lock()
+        self.reserved_usd = 0.0
         self.caps = Capabilities(self.appdb, self.home)
         self.runner = Runner(self)
         self.runner.recover()
@@ -299,6 +302,7 @@ class AIService:
         if waiter:
             self.runner.waiters.add(job_id)
         job = {"job_id": job_id, "task": task, "pack": pack, "engine": engine_id,
+               "override_budget": bool(req.get("override")),
                "template": template, "params": req.get("params") or {}, "slot": slot,
                "goal": pack.get("goal"), "goal_source": pack.get("goal_source"),
                "preview_digest": pack.get("preview_digest"), "fresh": bool(req.get("fresh"))}
@@ -497,6 +501,21 @@ class AIService:
         result = (done or {}).get("result", output)
         return {"kind": kind, "task_id": task_id, "key": result.get("key"), "status": "fallback",
                 "source": "template", "job_id": None, "finished_at": None, "result": result}
+
+    @contextmanager
+    def call_budget(self, amount: float, *, override: bool = False):
+        """Reserve a call's ceiling across engine queues until its usage is persisted."""
+        amount = max(0.0, float(amount))
+        with self.budget_lock:
+            cap = self.consent_store.settings()["daily_usd_cap"]
+            if not override and self.today_cost() + self.reserved_usd + amount > cap + 1e-9:
+                raise CallFailed("budget_exceeded", "今日剩余预算不足以覆盖本次调用上限")
+            self.reserved_usd += amount
+        try:
+            yield
+        finally:
+            with self.budget_lock:
+                self.reserved_usd = max(0.0, self.reserved_usd - amount)
 
     def today_cost(self) -> float:
         """Today's spend for the daily cap. Calls without a list price (codex, unknown model

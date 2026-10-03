@@ -129,6 +129,41 @@ def test_refresh_writes_outcomes_and_scope_too_short(db):
     assert result["confounders"] == ["scope_too_short"]
 
 
+@pytest.mark.parametrize("scope", [
+    {"project_ids": ["p1"]}, {"source_ids": ["src1"]}, {"agent_ids": ["codex"]},
+    {"root_session_uids": ["b1"]}, {"excluded_session_uids": ["b1"]},
+    {"include_children": False}, {"from_ts": INSTALLED - DAY},
+    {"until_ts": INSTALLED + DAY},
+])
+def test_partial_page_cannot_overwrite_global_tracking(db, scope):
+    tracking(db, seed(db))
+    p1 = [{**r, "project_id": "p1"} for r in days(0.8, 0.1)]
+    p2 = [{**r, "project_id": "p2"} for r in days(0.1, 0.8)]
+    inputs = {"sessions": {"first_ts": INSTALLED - 40 * DAY},
+              "facts": {"session_days": p1 + p2}, "scope": {}}
+    now = INSTALLED + 30 * DAY
+    with db.write() as conn:
+        assert outcomes.refresh(conn, inputs, now) == 1
+        before = outcomes.outcome(conn, "inst1")
+        assert before["effect_status"] == "neutral"
+        assert outcomes.refresh(conn, {**inputs, "scope": scope,
+                                        "facts": {"session_days": p1}}, now) == 0
+        assert outcomes.outcome(conn, "inst1") == before
+
+
+def test_project_tracking_accepts_its_own_complete_population(db):
+    tracking(db, seed(db))
+    inputs = {"sessions": {"first_ts": INSTALLED - 40 * DAY},
+              "facts": {"session_days": [{**r, "project_id": "p1"} for r in days(0.8, 0.1)]},
+              "scope": {"project_ids": ["p1"]}}
+    with db.write() as conn:
+        conn.execute("UPDATE tracking SET scope_filter=?", (store.dumps({"project_id": "p1"}),))
+        assert outcomes.refresh(conn, inputs, INSTALLED + 30 * DAY) == 1
+        assert outcomes.outcome(conn, "inst1")["effect_status"] == "positive"
+        incomplete = {**inputs, "sessions": {**inputs["sessions"], "main": 2001}}
+        assert outcomes.refresh(conn, incomplete, INSTALLED + 30 * DAY) == 0
+
+
 def test_revert_and_ev05_funnel(db):
     cid = seed(db)
     with db.write() as conn:

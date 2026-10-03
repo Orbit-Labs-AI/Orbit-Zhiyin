@@ -278,20 +278,23 @@ def apply_targets(prepared: list[Prepared], *, backup_dir: Path, lock_dir: Path,
                     else None
                 mode = _mode_for(p.path, p.target.get("file_mode"))
                 pending_dirs = _make_parents(p.path.parent)
-                _atomic_write(p.path, render["new"], mode)
+                # Record the undo before replace: directory fsync can fail after
+                # the new file is already visible.
                 records.append(_record(p, render, current, backup, pending_dirs))
+                _atomic_write(p.path, render["new"], mode)
                 pending_dirs = []
                 written[str(p.path)] = render["new"]
         except BaseException as exc:
             _remove_dirs(pending_dirs)
-            rolled = []
+            rolled, rollback_failed = [], []
             for rec in reversed(records):
                 try:
                     _undo_record(rec)
                     rolled.append(rec["idx"])
                 except OSError:
-                    pass
-            detail = {"failed_idx": current_idx, "rolled_back": rolled}
+                    rollback_failed.append(rec["idx"])
+            detail = {"failed_idx": current_idx, "rolled_back": rolled,
+                      "rollback_failed": rollback_failed}
             if isinstance(exc, InstallError):
                 exc.detail = {**(exc.detail or {}), **detail}
                 raise
