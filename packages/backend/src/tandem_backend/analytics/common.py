@@ -14,6 +14,49 @@ def human(e, main_ids):
             and e.get("actor") in ("human", "user"))
 
 
+FINAL_PHASES = ("final", "final_answer")
+
+
+def _human_boundary(e):
+    return e["kind"] == "message.user" and e.get("attrs", {}).get("origin") == "human"
+
+
+def final_assistant_uids(events):
+    """``(session_uid, event_uid)`` of assistant messages that end a turn (final deliveries).
+
+    Agent-neutral definition: the last non-empty ``message.assistant`` of a turn
+    (``turn_uid``), or — when the agent records no turn ids — the last one between two
+    adjacent human messages. Only Codex writes ``attrs.phase``; a session that labels any
+    assistant message is treated as labelled and only ``final``/``final_answer`` count there
+    (``commentary`` and unlabelled messages do not). Replayed/duplicated copies are never
+    deliveries.
+    """
+    by_session = defaultdict(list)
+    for e in events or []:
+        by_session[e["session_uid"]].append(e)
+    finals = set()
+    for sid, items in by_session.items():
+        items.sort(key=lambda e: (e["seq"], e["event_uid"]))
+        last, segment = {}, 0
+        labelled = any(e["kind"] == "message.assistant" and e.get("attrs", {}).get("phase") is not None
+                       for e in items)
+        for e in items:
+            if _human_boundary(e):
+                segment += 1
+                continue
+            attrs = e.get("attrs", {})
+            if (e["kind"] != "message.assistant" or not e.get("text")
+                    or attrs.get("replayed_from") or attrs.get("duplicate_of")):
+                continue
+            if labelled:
+                if attrs.get("phase") in FINAL_PHASES:
+                    finals.add((sid, e["event_uid"]))
+                continue
+            last[e.get("turn_uid") or ("segment", segment)] = e["event_uid"]
+        finals.update((sid, uid) for uid in last.values())
+    return finals
+
+
 def semantic_messages(events, sessions):
     """Only direct, non-replayed human statements in confirmed main sessions.
 

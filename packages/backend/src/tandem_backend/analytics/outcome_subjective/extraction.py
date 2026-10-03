@@ -3,6 +3,7 @@
 import re
 
 from ...privacy import direct_user_text
+from ..common import final_assistant_uids
 from ..semantic_cascade import observation_for
 from .linking import link_feedback_targets
 
@@ -61,12 +62,17 @@ def classify_feedback(text):
 
 
 def collect_deliveries(events, main_ids):
-    """Observe explicit assistant final messages in main sessions, never self-rated success."""
+    """Observe assistant final messages in main sessions, never self-rated success.
+
+    "Final" follows ``common.final_assistant_uids`` (last assistant message of a turn;
+    Codex ``phase`` labels win where present), so every agent produces deliveries.
+    """
     output = []
+    finals = final_assistant_uids(events)
     for event in events:
         attrs = event.get("attrs", {})
         if (event["session_uid"] not in main_ids or event["kind"] != "message.assistant"
-                or attrs.get("phase") not in ("final", "final_answer") or not event.get("text")
+                or (event["session_uid"], event["event_uid"]) not in finals
                 or event.get("actor") not in (None, "assistant", "unknown")
                 or attrs.get("replayed_from") or attrs.get("duplicate_of")):
             continue
