@@ -170,6 +170,8 @@ def test_claude_denial_interruption_split_usage_and_sidechain(tmp_path):
         assert len(rows(store, "model_call")) == 1
         call = rows(store, "tool_call")[0]
         assert (call["status"], call["duration_ms"]) == ("declined", 9)
+        # A refused call is a permission failure, not an unexplained NULL.
+        assert (call["approval"], call["failure_kind"]) == ("denied", "permission_denied")
         assert len(rows(store, "v_human_message")) == 1
         assert rows(store, "turn")[0]["status"] == "interrupted"
         unknown = store.db.execute("SELECT ext FROM event WHERE kind='unknown'").fetchone()[0]

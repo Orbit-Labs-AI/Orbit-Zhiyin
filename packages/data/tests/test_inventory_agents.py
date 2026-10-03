@@ -424,6 +424,34 @@ def test_claude_commands_and_agents_are_inventoried_as_their_own_types(tmp_path)
     assert result["coverage"]["mcp"]["reason"] == "user_scope_not_scanned"
 
 
+def test_claude_plugin_commands_and_agents_are_namespaced_by_plugin(tmp_path):
+    root = tmp_path / "claude"
+    write(root, "settings.json", {"enabledPlugins": {"tools@market": True}})
+    plugin = root / "plugins/cache/market/tools/1.0.0"
+    write(plugin, ".claude-plugin/plugin.json", {"name": "tools"})
+    write(plugin, "commands/ship.md", "Ship it")
+    write(plugin, "agents/checker.md", "---\nname: checker\n---\nbody")
+    _, data, _ = run(tmp_path, "claude_code", root)
+    found = {
+        (item["type"], item["name"], item["config"].get("plugin"))
+        for item in data["items"]
+        if item["type"] in ("command", "agent")
+    }
+    assert found == {
+        ("command", "tools:ship", "tools@market"),
+        ("agent", "tools:checker", "tools@market"),
+    }
+
+
+def test_codex_plugin_cache_does_not_list_claude_markdown_components(tmp_path):
+    root = tmp_path / "codex"
+    plugin = root / "plugins/cache/market/tools/1.0.0"
+    write(plugin, ".codex-plugin/plugin.json", {"name": "tools"})
+    write(plugin, "commands/ship.md", "Ship it")
+    _, data, _ = run(tmp_path, "codex", root)
+    assert not [item for item in data["items"] if item["type"] in ("command", "agent")]
+
+
 def test_migration_015_retypes_scanner_130_command_and_agent_rows(tmp_path):
     """A v14 library keeps its earlier observations; component-marked skills become typed."""
     import sqlite3
@@ -477,3 +505,32 @@ def test_claude_mcp_coverage_has_no_gap_reason_when_user_config_is_scanned(tmp_p
         result = scan_inventory(store, InventoryRequest("claude_code", root, claude_config=config))
     assert result["coverage"]["mcp"]["reason"] is None
     assert result["coverage"]["mcp"]["rows"] == 1
+
+
+def test_claude_plugin_manifest_command_and_agent_paths_supplement_defaults(tmp_path):
+    """plugin.json "commands"/"agents" may name extra folders or single .md files; they add
+    to commands/ and agents/, and paths outside the plugin are reported, not followed."""
+    root = tmp_path / "claude"
+    write(root, "settings.json", {"enabledPlugins": {"tools@market": True}})
+    plugin = root / "plugins/cache/market/tools/1.0.0"
+    write(plugin, ".claude-plugin/plugin.json", {
+        "name": "tools",
+        "commands": ["./extra-commands", "./single/deploy.md", "./commands", "../escape"],
+        "agents": "./custom/reviewer.md",
+    })
+    write(plugin, "commands/ship.md", "Ship it")
+    write(plugin, "extra-commands/ops/rollback.md", "Roll back")
+    write(plugin, "single/deploy.md", "Deploy")
+    write(plugin, "custom/reviewer.md", "---\nname: code-reviewer\n---\nbody")
+    _, data, _ = run(tmp_path, "claude_code", root)
+    found = {
+        (item["type"], item["name"])
+        for item in data["items"]
+        if item["type"] in ("command", "agent")
+    }
+    assert found == {
+        ("command", "tools:ship"),
+        ("command", "tools:ops:rollback"),
+        ("command", "tools:deploy"),
+        ("agent", "tools:code-reviewer"),
+    }
