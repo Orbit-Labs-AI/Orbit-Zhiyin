@@ -76,10 +76,10 @@ def _terminate_group(process):
             # Wait briefly, then retry; only an absent group is safe to ignore.
             try:
                 process.wait(timeout=0.1)
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as waiting:
                 process.kill()
                 process.wait()
-                raise denied
+                raise denied from waiting
             os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
