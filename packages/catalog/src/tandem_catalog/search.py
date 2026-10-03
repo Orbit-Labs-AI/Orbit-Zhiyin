@@ -7,6 +7,7 @@ semantic route scans an fp16 matrix exactly.
 
 import json
 import math
+import re
 import sqlite3
 import threading
 from collections import OrderedDict, defaultdict
@@ -410,7 +411,6 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
         penalty = min(0.1, len(risk) * 0.02)
         # Content quality scales the evidence (metadata-only rows lose up to 5%) but never creates it.
         relevance = max(0.0, evidence * (0.9 + 0.1 * quality) - penalty)
-        position = index.pos.get(item_id)
         candidates.append({"item_id": item_id, "type": row["type"], "name": row["name"], "summary": row["summary"],
                            "url": row["url"], "agents": json.loads(row["agents"]), "license": row["license"],
                            "difficulty": row["difficulty"], "last_seen": row["last_seen"], "version_id": row["latest_version"],
@@ -421,7 +421,7 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
                            "passage": passage_rows.get(item_id),
                            "evidence_ids": request.evidence_ids, "profile_evidence_ids": request.profile_evidence_ids,
                            "effect_status": "unmeasured",
-                           "_keys": index.item_keys[position] if position is not None else frozenset()})
+                           "_keys": redundancy_keys(row)})
     selected = _mmr(candidates, request.limit)
     texts = _passages(store, conn, index, {item["item_id"]: item["passage"] for item in selected if item["passage"] is not None})
     for rank, item in enumerate(selected, 1):
@@ -429,6 +429,18 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
         item["passage"] = texts.get(item["item_id"])
         item["rank"] = rank
     return selected
+
+
+def redundancy_keys(row) -> frozenset:
+    """What makes two results near-duplicates: same name, same repository, same kind.
+
+    Agent and topic features are deliberately absent: two Claude Code skills on different topics
+    are not redundant, and every result of a "pdf" query shares the pdf feature.
+    """
+    url = row["url"] or ""
+    repo = re.match(r"https?://(?:www\.)?github\.com/([^/]+/[^/#?]+)", url, re.I)
+    return frozenset({("name", row["name_key"]), ("repo", repo.group(1).lower().removesuffix(".git") if repo else url),
+                      ("type", row["type"])})
 
 
 def _similarity(left, right):

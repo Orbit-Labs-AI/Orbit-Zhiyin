@@ -302,3 +302,26 @@ def test_seed_generic_query_returns_nothing(seeded, text):
     # Every remaining word is in a large share of the 7.9k seed chunks: idf is low, so even a
     # saturated match stays under MIN_TEXT_RELEVANCE.
     assert seeded.match(MatchRequest(text=text, purpose="library"))["items"] == []
+
+
+def test_mmr_does_not_treat_shared_agents_as_redundancy(store):
+    agents = ["claude_code", "codex", "gemini", "opencode"]
+    rows = [Record(native_id=i, resource=Resource(item_id=i, type="skill", name=n, summary=s, agents=a,
+                                                   url=f"https://github.com/{i}/repo"))
+            for i, n, s, a in [("a", "pdf merge", "pdf pages", agents), ("b", "pdf split", "pdf pdf files", agents),
+                               ("c", "pdf forms", "pdf files", [])]]
+    publish(store, rows)
+    items = search(store, MatchRequest(text="pdf"))["items"]
+    by_score = sorted(items, key=lambda i: (-i["score"], -i["score_parts"]["rrf"], i["item_id"]))
+    # Distinct names and repositories, same kind: every pair is 1/5 similar, so MMR keeps score order.
+    assert [i["item_id"] for i in items] == [i["item_id"] for i in by_score]
+    from tandem_catalog.search import _similarity, redundancy_keys
+    keys = {i: redundancy_keys({"url": f"https://github.com/{i}/repo", "name_key": i, "type": "skill"}) for i in "ab"}
+    assert _similarity({"content_hash": "x", "_keys": keys["a"]}, {"content_hash": "y", "_keys": keys["b"]}) == 0.2
+
+
+def test_seed_mmr_keeps_docx_at_or_above_its_score_rank(seeded):
+    items = seeded.match(MatchRequest(text="pdf docx", purpose="library", limit=10))["items"]
+    by_score = sorted(items, key=lambda i: (-i["score"], -i["score_parts"]["rrf"], i["item_id"]))
+    position = next(n for n, i in enumerate(items) if i["name"] == "docx")
+    assert position <= next(n for n, i in enumerate(by_score) if i["name"] == "docx")
