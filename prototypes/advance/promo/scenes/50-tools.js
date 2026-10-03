@@ -188,15 +188,19 @@ scene('50-tools', () => {
   drive(0, 55.09, 55.4, () => { panel(); decks[0].D.getAnimations().forEach((x) => { if (isFinite(x.effect?.getComputedTiming().endTime)) x.finish(); }); });
   drive(0, 55.4, 67.6, (p, b) => { const a = app(0); a.S.sess.ph = Math.min(41.95, phAt(b)); a.W.eval('tlFrame(true)'); panel(); });
   // each phase pill pops in over .3 beat (rise + scale from .9), then stays readable ≥ 1.8 beats while it rides the playhead
-  tag(0, 55.4, 67.75, PH, 'top', [['', '<span class="mt-ph"><i></i><b></b></span><span class="mt-stem"></span>']], {
-    at: .5, gap: 10, anim: (el, tl, life, t) => {
+  // v18.3: the failing deploy's pill (crit) is the widest and sat on the +30m label and stage marker 4; while it is up the
+  // pill lifts so its bottom edge is 56 px above the marker (gap 10 → 92, eased with the pill's pop), the others stay low
+  const PO = { at: .5, gap: 10 }, GAP = (f) => (f[2] === 'crit' ? 92 : 10);
+  tag(0, 55.4, 67.75, PH, 'top', [['', '<span class="mt-ph"><i></i><b></b></span><span class="mt-stem"></span>']], Object.assign(PO, {
+    anim: (el, tl, life, t) => {
       const b = t / BEAT, f = phaseOf(phAt(b)), pill = el.querySelector('.mt-ph');
-      if (el.dataset.p !== f[1]) { el.dataset.p = f[1]; pill.className = 'mt-ph ' + f[2]; pill.querySelector('b').textContent = f[1]; el._t = b; }
+      if (el.dataset.p !== f[1]) { el.dataset.p = f[1]; pill.className = 'mt-ph ' + f[2]; pill.querySelector('b').textContent = f[1]; el._g0 = el._t == null ? GAP(f) : PO.gap; el._t = b; }
       const k = E.out(clamp((b - (el._t ?? b)) / .3)), q = exitQ(tl, life, .45), inn = E.out(clamp(tl / BB(.5)));
+      PO.gap = lerp(el._g0 ?? 10, GAP(f), k);
       pill.style.transform = 'translateY(' + ((1 - k) * 22).toFixed(1) + 'px) scale(' + (.9 + .1 * k).toFixed(3) + ')'; pill.style.opacity = (Math.min(1, .2 + k) * q * inn).toFixed(3);
       el.querySelector('.mt-stem').style.opacity = (q * inn).toFixed(3); fixTag(el);
     }
-  });
+  }));
   // v18.1: a phase the pin has left stays behind as a small chip at .45 over the middle of its own band (the app's .vz-phase,
   // same order as PHASES), sitting on the panel's top edge under the live pill's stem: the five phases read as a trail.
   // Each chip fades in (.4 beat) as the next phase's pill pops at the following knot
@@ -207,7 +211,7 @@ scene('50-tools', () => {
       return { getBoundingClientRect: () => ({ left: x, right: x, top: t.top, bottom: t.top, width: 0, height: 0 }) };
     };
     tag(0, KN[i + 1][0], 67.75, band, 'top', [['', '<span class="mt-ph gh ' + f[2] + '"><i></i><b>' + f[1].split(' ')[0] + '</b></span>']], {
-      at: .5, gap: 6, anim: (el, tl, life) => {
+      at: .5, gap: 56, anim: (el, tl, life) => {   // v18.3: +50 px, the chip sits wholly above the card's top edge
         const k = E.out(clamp(tl / BB(.4))), q = exitQ(tl, life, .45);
         el.style.opacity = (.45 * k * q).toFixed(3); fixTag(el);
       }
