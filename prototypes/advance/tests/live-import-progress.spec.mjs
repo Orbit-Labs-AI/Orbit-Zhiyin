@@ -77,6 +77,8 @@ test('a partial import counts as imported, not as a failure', async ({ page }) =
   const errors = collectErrors(page);
   const gw = await stubGateway(page, ['core', 's7'], firstRun(MAP));
   await startImport(page, gw);
+  // published sessions are readable (J09: an import that reads 0 sessions is an error, which is not what this case is about)
+  gw.set('GET /v1/uiview/facts', fx('core/facts.json'));
   const partial = Object.assign(fx('s7/job-completed.json'), { status: 'partial' });
   gw.set('GET /v1/app/jobs/' + JOB, partial);
   await frame(page, 'job', partial);
