@@ -62,15 +62,15 @@ helper 异常退出时宿主重启一次：新 token 与端口重新注入每个
 ### 原生界面
 
 - **菜单栏**：NSStatusItem（模板图标）。左键打开 360×560 的 NSPopover（`surface=panel`，点击外部自动收起）；右键为快捷菜单（打开 Orbit、显示 HUD、桌面小组件、退出）。
-- **HUD**：无边框、透明、非激活的浮动 NSPanel（`surface=hud`，默认 340×200，屏幕右上角），所有空间与全屏下可见；窗口 › 显示 HUD（⌥⌘H）切换，默认显示，记住显隐与位置。
-- **桌面小组件**：同类浮动面板（`surface=widgets`，默认 320×620），窗口 › 桌面小组件（⌥⌘W）切换，默认关闭。
+- **HUD**：无边框、透明、非激活的浮动 NSPanel（`surface=hud`，默认 340×200，屏幕右上角），所有空间与全屏下可见；窗口 › 显示 HUD（⌥⌘P）切换，默认显示，记住显隐与位置。
+- **桌面小组件**：同类浮动面板（`surface=widgets`，默认 320×620），窗口 › 桌面小组件（⌥⌘D）切换，默认关闭。
 - 浮动面板可接收键盘输入但不激活 Orbit；按住 ⌘ 拖动任意位置，或拖动顶部 12 pt，移动面板。
 - 页面在 surface 模式下只渲染对应组件（`body.native.surface-<x>`，透明背景）；原生模式下 `body.native` 隐藏演示用的假桌面（菜单栏、壁纸、假红绿灯、假 Dock 与桌面小组件），主窗口铺满并为真实透明标题栏留出 `--titlebar-inset`（28px）。这部分由页面实现。
 
 ### 窗口与生命周期
 
 - 透明标题栏、full-size content view，Web UI 自绘标题区域；最小 960×640，窗口位置与大小自动记忆。
-- 菜单（中文）：Orbit（关于 Orbit → `about`、设置… ⌘, → `settings`、隐藏、退出）、编辑（撤销/重做/剪切/拷贝/粘贴/全选，输入框可用）、显示（命令面板 ⌘K → `palette`、切换 Lite / Advance ⌃⌘L → `toggleEdition`、刷新 ⌘R → `refresh`、重新载入页面 ⇧⌘R）、窗口（最小化、缩放、全屏、Orbit 主窗口 ⌘0、显示 HUD ⌥⌘H、桌面小组件 ⌥⌘W）。命令先激活主窗口，再以 `tandem:command` 派发给主窗口页面。
+- 菜单（中文）：Orbit（关于 Orbit → `about`、设置… ⌘, → `settings`、隐藏、退出）、编辑（撤销/重做/剪切/拷贝/粘贴/全选，输入框可用）、显示（命令面板 ⌘K → `palette`、切换 Lite / Advance ⌃⌘L → `toggleEdition`、刷新 ⌘R → `refresh`、重新载入页面 ⇧⌘R）、窗口（最小化、缩放、全屏、Orbit 主窗口 ⌘0、显示 HUD ⌥⌘P、桌面小组件 ⌥⌘D）。命令先激活主窗口，再以 `tandem:command` 派发给主窗口页面。
 - 关闭主窗口只隐藏窗口，Orbit 继续在菜单栏运行；点 Dock 图标、菜单栏或 `openMain` 恢复，⌘Q 退出。
 - 单实例：对 `<home>/orbit.lock` 加 `flock`；同一数据目录的第二次启动会激活已运行的 Orbit 并退出。
 - 退出时向 helper 发 SIGTERM 并等待（最多 8 秒，超时 SIGKILL）；宿主崩溃时 helper 通过 `TANDEM_PARENT_PID` 自行退出。

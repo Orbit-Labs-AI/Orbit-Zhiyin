@@ -360,9 +360,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         full.keyEquivalentModifierMask = [.command, .control]
         win.addItem(.separator())
         win.addItem(withTitle: "Orbit 主窗口", action: #selector(showMain(_:)), keyEquivalent: "0")
-        let hud = win.addItem(withTitle: "显示 HUD", action: #selector(toggleHUD(_:)), keyEquivalent: "h")
+        // ⌥⌘P matches the page's HUD key (85-keyboard.js); ⌥⌘H stays with 隐藏其他 and ⌥⌘W with the system's 全部关闭.
+        let hud = win.addItem(withTitle: "显示 HUD", action: #selector(toggleHUD(_:)), keyEquivalent: "p")
         hud.keyEquivalentModifierMask = [.command, .option]
-        let widgets = win.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "w")
+        let widgets = win.addItem(withTitle: "桌面小组件", action: #selector(toggleWidgets(_:)), keyEquivalent: "d")
         widgets.keyEquivalentModifierMask = [.command, .option]
         win.addItem(.separator())
         win.addItem(withTitle: "前置全部窗口", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")

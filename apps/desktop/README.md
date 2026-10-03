@@ -9,7 +9,7 @@ python3 scripts/check-macos-app.py             # helper 冒烟检查（临时数
 open .local/macos-build/Orbit.app
 ```
 
-- 关闭主窗口只隐藏，Orbit 留在菜单栏，⌘Q 退出；窗口 › 显示 HUD（⌥⌘H）、桌面小组件（⌥⌘W）。
+- 关闭主窗口只隐藏，Orbit 留在菜单栏，⌘Q 退出；窗口 › 显示 HUD（⌥⌘P）、桌面小组件（⌥⌘D）；菜单快捷键不得重复，由 `tests/regression/test_desktop_menu.py` 检查。
 - 版本 0.0.2，bundle id `ai.actionmesh.orbit`，Apple Silicon，macOS 14+。
 - 数据目录：`~/Library/Application Support/Tandem`；设置环境变量 `TANDEM_HOME` 可改用其他目录（演示、验收一律用独立目录）。
 - 本地构建为 ad-hoc 签名，未公证：首次打开需在 Finder 中右键 › 打开，或执行 `xattr -dr com.apple.quarantine /Applications/Orbit.app`。配置 `TANDEM_SIGN_IDENTITY`（Developer ID）与 `TANDEM_NOTARY_PROFILE` 可签名并公证。
