@@ -35,7 +35,7 @@ function genFacts(L) {
   return [
     ['统计', fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用', '最常在 ' + bh + ':00–' + (bh + 1) + ':00 协作'],
     ['轨迹', '还原每个会话的时间线', (byA[0] ? byA[0][0].name : '—') + ' 占协作时长 ' + Math.round((byA[0] ? byA[0][1] : 0) / Math.max(1, st.hours * 60) * 100) + '%'],
-    ['语义', '本地 Agent 正在归类你的消息', '摩擦最多的是「' + (fr[0] ? fr[0][0] : '—') + '」'],
+    ['语义', '本地 Agent 正在归类你的消息', fr[0] ? '摩擦最多的是「' + fr[0][0] + '」' : '还没有归类出摩擦'],
     ['人格', '四个维度', Math.round(st.verify) + '% 的会话要求验证结果']
   ];
 }
@@ -186,7 +186,7 @@ function genHTML(g) {
   const over = '<svg class="g-over" viewBox="0 0 400 400" aria-hidden="true"><circle class="g-ring0" cx="200" cy="200" r="196" pathLength="1"/><path class="g-ticks" d="' + tk + '"/><g class="g-hand"><path class="g-wedge" d="M200 200L' + w0[0].toFixed(1) + ' ' + w0[1].toFixed(1) + 'A' + RW + ' ' + RW + ' 0 0 1 200 ' + (200 - RW) + 'Z"/></g>' + (g.mode === 'ob' ? '<path class="g-arc"/>' : '') + '</svg>';
   const slots = [0, 1, 2, 3].map((i) => { const a = p.ok ? axisView(p, i) : null; const ch = p.ok ? p.code[i] : '—'; return '<span class="g-slot"><span class="L">' + ch + '</span><span class="g-ax">' + (a ? a.name + ' <span class="mono">' + a.strong + '</span>' : '&nbsp;') + '</span></span>'; }).join('');
   const m = p.ok && p.classified ? g.cands.find((x) => x.c === p.code) : null;
-  const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · n=' + p.n + '</span>' : '<span class="bdg">' + (p.ok ? '置信度 ' + p.conf : '还没有会话') + '</span><span class="cap">' + (p.ok ? (p.hint || 'n=' + p.n) : '已选来源还没有会话') + '</span>';
+  const match = m ? '<span class="bdg">匹配度 ' + m.sim + '%</span><span class="cap">16 种类型里最接近 · 置信度 ' + p.conf + ' · ' + fmt(p.n) + ' 个会话</span>' : '<span class="bdg">' + (p.ok ? '置信度 ' + p.conf : '还没有会话') + '</span><span class="cap">' + (p.ok ? (p.hint || fmt(p.n) + ' 个会话') : '已选来源还没有会话') + '</span>';
   const nm = '<div class="serif g-zh">' + (p.ok ? p.zh + ' <i>' + p.en + '</i>' : '还没有会话') + '</div><p class="g-line">' + esc(p.ok ? p.line : '已选来源还没有会话，先用一段时间再来看。') + '</p>';
   const facts = F.map((f, i) => '<div class="step g-fact" data-i="' + i + '"><span class="mk">' + (i + 1) + '</span><div class="g-ft"><b>' + f[0] + '</b><span class="g-sw"><span class="cap g-sub">' + esc(f[1]) + '</span><span class="g-fx"><span>' + esc(f[2]) + '</span></span></span></div><span></span></div>').join('');
   const top = '<div class="row g-top">' + (ob ? '<div class="ob-dots" aria-hidden="true">' + [0, 1, 2, 3].map((i) => '<i class="' + (i <= 2 ? 'on' : '') + '"></i>').join('') + '</div><span class="mono cap" data-g="n" style="font-size:11px">3 / 4</span>' : '') +

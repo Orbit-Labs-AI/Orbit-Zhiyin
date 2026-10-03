@@ -48,7 +48,7 @@
  *   heatmap       rows: [str]，cols: [str]，values: [[n]]，ramp: 'gray' | 'accent' | 'err' | 'corr' | 'good' | 'mood'（发散，值域自动对称）| 任意 var()，showValues，peak，cellMax，format，min / max
  *                 layout: 'calendar' 时 days: [{ t, v }]（t 毫秒）
  *   scatter       points: [{ x, y, r, label, id, color, series }]，fit（回归 + 95% CI），labels，rMax，x/y 同上
- *   dist          rows: [{ name, values: [n] }]，mode: 'box' | 'dots'，format
+ *   dist          rows: [{ name, values: [n] }]，mode: 'box' | 'dots'，format，nUnit（右侧样本数的单位，默认「个」）
  *   flow          nodes: [{ id, name, col }]，links: [{ from, to, value }]，format
  *   timeline      lanes: [{ id, label, h, color, mode: 'density' }]，events: [{ lane, t, t2, kind: 'tick' | 'dot' | 'ring' | 'span', color, label, sub, detail, err, id, dim }]
  *                 range: [t0, t1]，unit: 'ms' | 'min'（min 时 start 为起始时刻的分钟数，刻度显示 HH:MM），playhead（之后的事件变淡），now（运行中：竖线 + 脉冲点）
@@ -1086,9 +1086,9 @@ VZ.types.dist = {
         g += '<line class="vz-median" x1="' + VZ.r1(sx(s.p50)) + '" x2="' + VZ.r1(sx(s.p50)) + '" y1="' + VZ.r1(cy - bh / 2 - 2) + '" y2="' + VZ.r1(cy + bh / 2 + 2) + '"/>';
         if (spec.mean) g += '<circle class="vz-pt" cx="' + VZ.r1(sx(s.mean)) + '" cy="' + VZ.r1(cy) + '" r="3" style="--c:var(--ink-1)"/>';
       }
-      g += VZ.txt(w - 2, cy + 4, 'n=' + s.n, { class: 'vz-ax', 'text-anchor': 'end' }) + F.hit(i);
+      g += VZ.txt(w - 2, cy + 4, fmt(s.n) + ' ' + (spec.nUnit || '个'), { class: 'vz-ax', 'text-anchor': 'end' }) + F.hit(i);
     });
-    return { body: g, model: { kind: 'mark', n: rows.length, F, xs: [], has: (i) => !!S[i], tip: (i) => { const s = S[i]; const r = rows[i]; if (!s) return ''; return VZ.tipHead(r.name || '', 'n = ' + s.n) + VZ.tipRow('var(--ink-1)', '中位数', fmt(s.p50), { kind: 'rect' }) + VZ.tipRow(r.color || spec.color || 'var(--ink-2)', 'P25 – P75', fmt(s.p25) + ' – ' + fmt(s.p75), { kind: 'rect' }) + VZ.tipRow('transparent', '均值', fmt(s.mean)) + VZ.tipRow('transparent', spec.whisker === 'minmax' ? '最小 – 最大' : 'P10 – P90', fmt(spec.whisker === 'minmax' ? s.min : s.p10) + ' – ' + fmt(spec.whisker === 'minmax' ? s.max : s.p90)); }, at: (i) => [S[i] ? sx(S[i].p50) : F.x0, F.by(i)], datum: (i) => Object.assign({ row: rows[i] }, S[i] || {}) } };
+    return { body: g, model: { kind: 'mark', n: rows.length, F, xs: [], has: (i) => !!S[i], tip: (i) => { const s = S[i]; const r = rows[i]; if (!s) return ''; return VZ.tipHead(r.name || '', fmt(s.n) + ' ' + (spec.nUnit || '个')) + VZ.tipRow('var(--ink-1)', '中位数', fmt(s.p50), { kind: 'rect' }) + VZ.tipRow(r.color || spec.color || 'var(--ink-2)', 'P25 – P75', fmt(s.p25) + ' – ' + fmt(s.p75), { kind: 'rect' }) + VZ.tipRow('transparent', '均值', fmt(s.mean)) + VZ.tipRow('transparent', spec.whisker === 'minmax' ? '最小 – 最大' : 'P10 – P90', fmt(spec.whisker === 'minmax' ? s.min : s.p10) + ' – ' + fmt(spec.whisker === 'minmax' ? s.max : s.p90)); }, at: (i) => [S[i] ? sx(S[i].p50) : F.x0, F.by(i)], datum: (i) => Object.assign({ row: rows[i] }, S[i] || {}) } };
   },
   table: (spec) => ({ cols: ['名称', 'n', '中位数', 'P25', 'P75', '均值'], rows: (spec.rows || []).map((r) => { const s = VZ.stats(r.values); return s ? [r.name || '', String(s.n), VZ.fmt(s.p50, spec.format), VZ.fmt(s.p25, spec.format), VZ.fmt(s.p75, spec.format), VZ.fmt(s.mean, spec.format)] : [r.name || '', '0', '—', '—', '—', '—']; }) })
 };
