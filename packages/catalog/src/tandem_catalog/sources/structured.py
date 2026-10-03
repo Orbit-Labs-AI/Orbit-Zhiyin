@@ -458,6 +458,31 @@ def _kb_body(rule: dict) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
+# Static wording for session-specific slots in KB titles/summaries. The library lists these rules
+# as general resources, so a public name must read without a session; the template survives in
+# metadata (``title_template`` / ``summary_template``) for the recommendation renderer.
+LISTING_SLOTS = {"software": "所用软件", "instruction": "", "build_command": "构建命令"}
+_SLOT = re.compile(r"\{([a-z_]+)\}")
+_FILLED_SLOT = re.compile(r"( ?)\{([a-z_]+)\}( ?)")
+
+
+def listing_text(template: str) -> str:
+    """KB title/summary with every ``{slot}`` replaced by its static wording; unknown slots fail export.
+
+    Spaces that only separated the slot from Han text go away ("运行 {build_command}" -> "运行构建命令");
+    an empty wording also drops a dangling "：".
+    """
+    def fill(match):
+        if match.group(2) not in LISTING_SLOTS:
+            raise ValueError(f"kb_slot_without_listing_text:{match.group(2)}")
+        value = LISTING_SLOTS[match.group(2)]
+        before, after = match.string[:match.start()], match.string[match.end():]
+        left = match.group(1) if value and before[-1:].isascii() and before[-1:].isalnum() else ""
+        right = match.group(3) if value and after[:1].isascii() and after[:1].isalnum() else ""
+        return left + value + right
+    return _FILLED_SLOT.sub(fill, template).rstrip("：: ")
+
+
 def official_entries(kb: dict) -> list[dict]:
     """Export recommend KB rules (``remedies-v1``) as catalog-shaped official entries."""
     if not isinstance(kb, dict) or not isinstance(kb.get("rules"), list):
@@ -482,7 +507,8 @@ def official_entries(kb: dict) -> list[dict]:
         agents = remedy.get("agents") or {"claude_code": "native", "codex": "manual"}
         risk = rule.get("risk") or {}
         entries.append({
-            "id": rule["id"], "type": kind, "name": rule["title"], "summary": rule.get("summary", ""),
+            "id": rule["id"], "type": kind, "name": listing_text(rule["title"]),
+            "summary": listing_text(rule.get("summary", "")),
             "official": True, "agents": [a for a, support in agents.items() if support != "unsupported"],
             "install": install, "features": features, "license": KB_LICENSE, "difficulty": remedy.get("level", 2),
             "version": str(rule.get("version", 1)), "body": _kb_body(rule), "risk": list(risk.get("flags", [])),
@@ -490,7 +516,9 @@ def official_entries(kb: dict) -> list[dict]:
                          "dim": remedy.get("dim"), "agent_support": agents, "risk_level": risk.get("level", "low"),
                          "cost": rule.get("cost") or {}, "catalog_ref": rule.get("catalog_ref"),
                          "explain": rule.get("explain") or {}, "track": rule.get("track") or {},
-                         "problem_types": problem.get("types", [])},
+                         "problem_types": problem.get("types", []),
+                         **({"title_template": rule["title"]} if _SLOT.search(rule["title"]) else {}),
+                         **({"summary_template": rule["summary"]} if _SLOT.search(rule.get("summary", "")) else {})},
         })
     return entries
 

@@ -4,7 +4,7 @@ import re
 
 from .contracts import Feature, Resource, digest
 
-FEATURE_VERSION = "features-2"
+FEATURE_VERSION = "features-3"
 CHUNK_VERSION = "heading-1200-120-v1"
 EMBED_CHUNKS = 4
 EXTRACTED_FRICTION_WEIGHT = 0.6  # Below curated (1.0): text mentioning a problem is not proof it solves it.
@@ -26,7 +26,7 @@ VOCABULARY = {
     # domain
     ("domain", "git.pr"): ("pull request", "code review", "代码审查", "审查", "gh pr"),
     ("domain", "testing"): ("pytest", "test-driven", "testing", "unit test", "测试", "验证"),
-    ("domain", "debugging"): ("debug", "root cause", "调试", "根因", "重复失败"),
+    ("domain", "debugging"): ("debug", "debugging", "root cause", "调试", "根因", "重复失败"),
     ("domain", "writing"): ("writing", "co-author", "写作", "文档", "humanizer"),
     ("domain", "frontend"): ("react", "frontend", "next.js", "前端", "css", "tailwind"),
     ("domain", "research"): ("research", "citation", "arxiv", "论文", "引用"),
@@ -48,8 +48,20 @@ VOCABULARY = {
     ("domain", "planning"): ("planning", "todo", "task list", "计划", "规划"),
     ("domain", "context"): ("context window", "compact", "token usage", "上下文", "压缩"),
     ("domain", "document"): ("pdf", "docx", "xlsx", "pptx", "spreadsheet", "表格", "幻灯片"),
-    ("domain", "latex"): ("latex", "tex", "overleaf", "bibtex"),
+    ("domain", "latex"): ("latex", "overleaf", "bibtex"),
     ("domain", "i18n"): ("i18n", "localization", "translation", "翻译", "本地化"),
+    ("domain", "productivity"): ("calendar", "email", "inbox", "meeting", "meetings", "日程", "会议", "邮件"),
+    ("domain", "finance"): ("finance", "financial", "invoice", "accounting", "payment", "payments", "stock", "金融", "财务"),
+    ("domain", "ecommerce"): ("ecommerce", "e-commerce", "shopping", "storefront", "电商"),
+    ("domain", "media"): ("video", "image", "images", "audio", "photo", "photos", "camera", "视频", "图片", "音频"),
+    ("domain", "web_data"): ("web search", "scraping", "scraper", "crawler", "crawl", "爬虫"),
+    ("domain", "agents"): ("multi-agent", "agent sdk", "subagent", "subagents", "orchestration", "多代理"),
+    ("domain", "product"): ("product management", "product manager", "prd", "roadmap", "user research", "产品经理"),
+    ("domain", "analytics"): ("analytics", "dashboard", "dashboards", "metrics", "数据看板"),
+    ("domain", "communication"): ("chat", "messaging", "communications", "notification", "沟通"),
+    ("domain", "hooks"): ("hook", "hooks", "pretooluse", "posttooluse"),
+    ("domain", "maps"): ("maps", "geocoding", "google maps", "地图"),
+    ("domain", "legal"): ("legal", "gdpr", "lawyer", "法律", "合同"),
     # software
     ("software", "github"): ("github", "gh pr"),
     ("software", "gitlab"): ("gitlab",),
@@ -87,6 +99,44 @@ VOCABULARY = {
     ("software", "pnpm"): ("pnpm",),
     ("software", "npm"): ("npm",),
     ("software", "uv"): ("uv run", "uv sync"),
+    ("software", "zoom"): ("zoom",),
+    ("software", "dropbox"): ("dropbox",),
+    ("software", "google_workspace"): ("gmail", "google calendar", "google drive", "google docs", "google sheets"),
+    ("software", "canva"): ("canva",),
+    ("software", "linear"): ("linear app", "linear issue", "linear issues"),
+    ("software", "hubspot"): ("hubspot",),
+    ("software", "salesforce"): ("salesforce",),
+    ("software", "shopify"): ("shopify",),
+    ("software", "discord"): ("discord",),
+    ("software", "telegram"): ("telegram",),
+    ("software", "airtable"): ("airtable",),
+    ("software", "asana"): ("asana",),
+    ("software", "confluence"): ("confluence",),
+    ("software", "twilio"): ("twilio",),
+    ("software", "openai"): ("openai", "chatgpt"),
+    ("software", "adobe"): ("adobe", "photoshop", "premiere"),
+    # programming languages and mainstream frameworks
+    ("software", "python"): ("python", "pyproject", "pip install"),
+    ("software", "typescript"): ("typescript", "tsconfig"),
+    ("software", "javascript"): ("javascript", "node.js", "nodejs"),
+    ("software", "rust"): ("rust", "cargo"),
+    ("software", "go"): ("golang", "go.mod", "go module"),
+    ("software", "java"): ("java", "maven", "gradle"),
+    ("software", "kotlin"): ("kotlin",),
+    ("software", "swift"): ("swift", "swiftui"),
+    ("software", "csharp"): ("c#", "dotnet", "asp.net"),
+    ("software", "cpp"): ("c++", "cmake"),
+    ("software", "ruby"): ("ruby", "rails"),
+    ("software", "php"): ("php", "laravel"),
+    ("software", "react"): ("react", "next.js", "nextjs"),
+    ("software", "vue"): ("vue", "nuxt"),
+    ("software", "angular"): ("angular",),
+    ("software", "svelte"): ("svelte", "sveltekit"),
+    ("software", "django"): ("django",),
+    ("software", "flask"): ("flask",),
+    ("software", "fastapi"): ("fastapi",),
+    ("software", "spring"): ("spring boot",),
+    ("software", "flutter"): ("flutter", "dart"),
     ("tool_kind", "browser"): ("playwright", "browser", "浏览器"),
 }
 HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification", "Stop", "SubagentStop",
@@ -94,16 +144,46 @@ HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification", 
 _ASCII = re.compile(r"^[a-z0-9 ./+#-]+$")
 
 
-def _pattern(word: str) -> re.Pattern:
-    # Latin words need boundaries ("pr" must not hit "prompt"); Han text matches as a substring.
-    if _ASCII.match(word):
-        return re.compile(r"(?<![a-z0-9])" + re.escape(word) + r"(?![a-z0-9])")
-    return re.compile(re.escape(word))
+# "uv" only as a command ("uv run"), never a bare word ("UV mapping"); see test_storage.
+COMMANDS = re.compile(r"\b(git|gh|pytest|python|pnpm|npm|wrangler|docker|latexmk)\b|\b(uv)\s+(?:run|sync|add|pip|tool|venv)\b")
+# No ".md": every skill, rule and agent file is Markdown, so it says nothing about the resource.
+EXTENSIONS = re.compile(r"\.(py|ts|tsx|js|jsx|swift|rs|tex|pdf|docx|xlsx)\b")
+# Extraction weighting. Evidence mass = HEAD_MASS per hit in name/summary + 1 per hit in the
+# first BODY_HEAD_CHARS of the body + LATE_MASS per later hit; GENERIC words count half. The
+# feature weight saturates like BM25 with k1=1: weight = mass / (mass + 1), so one name/summary
+# hit gives 0.75, one early body hit 0.5, a single late mention 0.23. A feature is emitted only
+# from weight >= MIN_WEIGHT (one early body hit, two late generic ones are not enough).
+HEAD_MASS, LATE_MASS, BODY_HEAD_CHARS, MIN_WEIGHT = 3.0, 0.3, 2000, 0.5
+# Words present in >= 5 % of the 1311 listable seed items (measured 2026-10-03 with
+# vocabulary_hits over name+summary+body); they mostly appear in passing.
+GENERIC = frozenset({"github", "security", "testing", "performance", "documentation", "deployment", "database",
+                     "debugging", "writing", "browser", "monitoring", "pipeline", "git", "sql", "infrastructure",
+                     "error handling", "logging", "planning", "observability", "migration", "debug", "ci/cd"})
+_ASCII_WORDS = {w for words in VOCABULARY.values() for w in words if _ASCII.match(w)}
+_HAN_WORDS = sorted({w for words in VOCABULARY.values() for w in words} - _ASCII_WORDS)
+_ALNUM = re.compile(r"[a-z0-9]+")
+# Latin words need token boundaries ("pr" must not hit "prompt"): bucket every word by its first
+# alphanumeric token, then confirm candidates only at token starts. Han words match as substrings.
+_BY_FIRST_TOKEN: dict[str, list[str]] = {}
+for _word in sorted(_ASCII_WORDS):
+    _BY_FIRST_TOKEN.setdefault(_ALNUM.match(_word).group(), []).append(_word)
 
 
-COMMANDS = re.compile(r"\b(git|gh|pytest|uv|python|pnpm|npm|wrangler|docker|latexmk)\b")
-EXTENSIONS = re.compile(r"\.(py|ts|tsx|js|jsx|swift|rs|tex|md|pdf|docx|xlsx)\b")
-_MATCHERS = [(key, [(word, _pattern(word)) for word in words]) for key, words in VOCABULARY.items()]
+def vocabulary_hits(text: str) -> dict[str, list[int]]:
+    """Vocabulary word -> character offsets of its occurrences in lower-cased ``text``."""
+    hits: dict[str, list[int]] = {}
+    for token in _ALNUM.finditer(text):
+        start = token.start()  # Maximal [a-z0-9]+ runs: the left boundary holds by construction.
+        for word in _BY_FIRST_TOKEN.get(token.group(), ()):
+            end = start + len(word)
+            if text.startswith(word, start) and not (end < len(text) and text[end].isascii() and text[end].isalnum()):
+                hits.setdefault(word, []).append(start)
+    for word in _HAN_WORDS:
+        start = text.find(word)
+        while start >= 0:
+            hits.setdefault(word, []).append(start)
+            start = text.find(word, start + len(word))
+    return hits
 
 
 def lexical_tokens(text: str) -> list[str]:
@@ -156,19 +236,36 @@ def _structured(resource: Resource) -> list[Feature]:
 
 def extract(resource: Resource) -> list[Feature]:
     features = {(f.feature, f.value, f.origin): f for f in resource.features}
-    text = "\n".join((resource.name, resource.summary, resource.body)).lower()
-    for (key, value), matchers in _MATCHERS:
-        found = next((word for word, pattern in matchers if pattern.search(text)), None)
-        if found:
-            weight = EXTRACTED_FRICTION_WEIGHT if key == "friction" else 1
-            feature = Feature(feature=key, value=value, weight=weight, evidence=f"text contains: {found}")
+    head = "\n".join((resource.name, resource.summary)).lower()
+    body = resource.body.lower()
+    text = head + "\n" + body
+    head_hits, body_hits = vocabulary_hits(head), vocabulary_hits(body)
+    for (key, value), words in VOCABULARY.items():
+        # One occurrence per position: nested words ("失败后重复" / "失败后") are one mention.
+        head_at, body_at, used = {}, {}, []
+        for word in words:
+            factor = 0.5 if word in GENERIC else 1.0
+            for hits, seen in ((head_hits, head_at), (body_hits, body_at)):
+                for at in hits.get(word, ()):
+                    seen[at] = max(seen.get(at, 0.0), factor)
+            if word in head_hits or word in body_hits:
+                used.append(word)
+        mass = sum(HEAD_MASS * f for f in head_at.values()) + sum(
+            (1.0 if at < BODY_HEAD_CHARS else LATE_MASS) * f for at, f in body_at.items())
+        counts = [f"{w}×{len(head_hits.get(w, ())) + len(body_hits.get(w, ()))}" for w in used]
+        weight = mass / (mass + 1)
+        if weight >= MIN_WEIGHT:
+            if key == "friction":
+                weight *= EXTRACTED_FRICTION_WEIGHT
+            feature = Feature(feature=key, value=value, weight=round(weight, 3),
+                              evidence="text contains: " + ", ".join(counts[:3]))
             features.setdefault((key, value, feature.origin), feature)
     for agent in resource.agents:
         f = Feature(feature="agent", value=agent, origin="declared", evidence="source compatibility")
         features[(f.feature, f.value, f.origin)] = f
     for f in _structured(resource):
         features.setdefault((f.feature, f.value, f.origin), f)
-    for command in sorted(set(COMMANDS.findall(text))):
+    for command in sorted({a or b for a, b in COMMANDS.findall(text)}):
         f = Feature(feature="command", value=command, evidence=f"text token: {command}")
         features[(f.feature, f.value, f.origin)] = f
     for extension in sorted(set(EXTENSIONS.findall(text))):
