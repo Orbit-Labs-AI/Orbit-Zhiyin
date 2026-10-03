@@ -446,15 +446,16 @@ def _hook_install(rule: dict) -> dict | None:
 
 
 def _kb_body(rule: dict) -> str:
+    """Library body of a KB rule: title/summary in listing wording, slots elsewhere as 〈wording〉."""
     explain = rule.get("explain") or {}
-    parts = [f"# {rule['title']}", rule.get("summary", "")]
+    parts = [f"# {listing_text(rule['title'])}", listing_text(rule.get("summary", ""))]
     for heading, key in (("原理", "mechanism"), ("试用", "trial"), ("局限", "limitation")):
         if explain.get(key):
-            parts += [f"## {heading}", explain[key]]
+            parts += [f"## {heading}", body_text(explain[key])]
     if rule.get("steps"):
-        parts += ["## 步骤", "\n".join(f"{i}. {step}" for i, step in enumerate(rule["steps"], 1))]
+        parts += ["## 步骤", "\n".join(f"{i}. {body_text(step)}" for i, step in enumerate(rule["steps"], 1))]
     if rule.get("file"):
-        parts += ["## 改动预览", "```json\n" + "\n".join(line for line, _ in rule["file"]) + "\n```"]
+        parts += ["## 改动预览", "```json\n" + "\n".join(body_text(line) for line, _ in rule["file"]) + "\n```"]
     return "\n\n".join(p for p in parts if p)
 
 
@@ -481,6 +482,20 @@ def listing_text(template: str) -> str:
         right = match.group(3) if value and after[:1].isascii() and after[:1].isalnum() else ""
         return left + value + right
     return _FILLED_SLOT.sub(fill, template).rstrip("：: ")
+
+
+# Body slots stay visible as a marked blank ("〈所用软件〉"): the preview shows where a session value
+# goes without printing raw template syntax. Unknown slots fail export like listing_text.
+BODY_SLOTS = {"software": "所用软件", "instruction": "你反复提出的要求", "build_command": "构建命令",
+              "sequence": "固定步骤序列", "platforms": "部署平台", "project": "项目名"}
+
+
+def body_text(template: str) -> str:
+    def fill(match):
+        if match.group(1) not in BODY_SLOTS:
+            raise ValueError(f"kb_slot_without_listing_text:{match.group(1)}")
+        return "〈" + BODY_SLOTS[match.group(1)] + "〉"
+    return _SLOT.sub(fill, template)
 
 
 def official_entries(kb: dict) -> list[dict]:

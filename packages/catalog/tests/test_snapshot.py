@@ -245,6 +245,23 @@ def test_listable_names_and_summaries_carry_no_template_slots(tmp_path):
     assert [r["item_id"] for r in rows if slot.search(r["name"] + " " + r["summary"])] == []
 
 
+def test_kb_bodies_mark_session_slots_instead_of_printing_templates():
+    import re
+
+    from tandem_catalog.sources.structured import body_text
+    assert body_text("- {instruction}") == "- 〈你反复提出的要求〉"
+    assert body_text("## {software} 环境") == "## 〈所用软件〉 环境"
+    with pytest.raises(ValueError, match="kb_slot_without_listing_text:weekly"):
+        body_text("{weekly}")
+    slot = re.compile(r"(?<!\{)\{[a-z_]+\}(?!\})")
+    entries = official_entries(json.loads(REMEDIES.read_text()))
+    assert [e["id"] for e in entries if slot.search(e["body"])] == []
+    env = next(e for e in entries if e["id"] == "env-quirks-rule")
+    assert env["body"].startswith("# AGENTS.md：写明所用软件的环境约定") and "〈所用软件〉" in env["body"]
+    # The raw template stays for the recommendation renderer.
+    assert "{software}" in env["metadata"]["title_template"]
+
+
 def test_bundled_seed_is_small_valid_and_covers_every_library_kind():
     data = bundled_seed()
     assert data is not None and len(data) <= 3_000_000

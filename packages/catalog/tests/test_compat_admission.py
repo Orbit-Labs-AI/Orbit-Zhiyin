@@ -150,3 +150,14 @@ def test_rule_admits_boundaries():
                    {"friction_weight": 0.449}):
         assert not admission.rule_admits(**{**ok, **change})
     assert admission.review_decisions() == {}  # bundled review file starts empty
+
+
+def test_detail_install_paths_follow_the_support_matrix(tmp_path):
+    from tandem_catalog import query
+    store = _store(tmp_path, [_item("Pdf Tools", summary="pdf form filler", body="# Use\nfill forms")])
+    detail = query.get_item(store, "Pdf Tools")
+    paths = {p["agent"]: p for p in detail["install"]["paths"]}
+    assert paths["hermes"]["user_path"] == "~/.hermes/skills/pdf-tools/SKILL.md"
+    assert paths["claude_code"]["project_path"] == ".claude/skills/pdf-tools/SKILL.md"
+    assert set(paths) == {"claude_code", "codex", "opencode", "hermes", "dsh", "pi"}
+    assert detail["support"]["kimi"]["support"] == "unknown"

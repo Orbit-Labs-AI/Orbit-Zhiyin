@@ -434,7 +434,7 @@
   "license": "MIT",
   "difficulty": 1,
   "version": "1",
-  "body": "# AGENTS.md：写明 {software} 的环境约定\n\n把反复踩到的软件环境问题（登录、版本、路径）写进规则文件。\n\n## 原理\n\n可预知的环境约定写成规则，开场就让 Agent 知道。\n\n## 试用\n\n下次用到 {software} 时观察 Agent 是否先检查环境。\n\n## 局限\n\n规则只是提醒；认证失效等仍需人工处理。\n\n## 步骤\n\n1. 复制片段\n2. 粘贴到项目根目录 AGENTS.md\n3. 下次使用时观察是否先检查环境\n\n## 改动预览\n\n```json\n## {software} 环境\n- 使用前先检查登录与版本，未就绪就停下来告诉我\n- 失败两次后不要原样重试\n```",
+  "body": "# AGENTS.md：写明所用软件的环境约定\n\n把反复踩到的软件环境问题（登录、版本、路径）写进规则文件。\n\n## 原理\n\n可预知的环境约定写成规则，开场就让 Agent 知道。\n\n## 试用\n\n下次用到 〈所用软件〉 时观察 Agent 是否先检查环境。\n\n## 局限\n\n规则只是提醒；认证失效等仍需人工处理。\n\n## 步骤\n\n1. 复制片段\n2. 粘贴到项目根目录 AGENTS.md\n3. 下次使用时观察是否先检查环境\n\n## 改动预览\n\n```json\n## 〈所用软件〉 环境\n- 使用前先检查登录与版本，未就绪就停下来告诉我\n- 失败两次后不要原样重试\n```",
   "risk": [],
   "metadata": {
    "origin": "tandem-kb",
@@ -871,7 +871,7 @@
   "license": "MIT",
   "difficulty": 1,
   "version": "1",
-  "body": "# 把重复说的要求写进规则：{instruction}\n\n你在多个会话里重复同一要求，写进 AGENTS.md 一次即可。\n\n## 原理\n\n重复指令首选规则文件。\n\n## 试用\n\n写入后观察 7 天内是否还需要重复说明。\n\n## 局限\n\n规则过多会增加常驻上下文。\n\n## 步骤\n\n1. 确认要写入的要求原文\n2. 粘贴到全局 AGENTS.md\n3. 7 天后看重复说明次数\n\n## 改动预览\n\n```json\n## 约定\n- {instruction}\n```",
+  "body": "# 把重复说的要求写进规则\n\n你在多个会话里重复同一要求，写进 AGENTS.md 一次即可。\n\n## 原理\n\n重复指令首选规则文件。\n\n## 试用\n\n写入后观察 7 天内是否还需要重复说明。\n\n## 局限\n\n规则过多会增加常驻上下文。\n\n## 步骤\n\n1. 确认要写入的要求原文\n2. 粘贴到全局 AGENTS.md\n3. 7 天后看重复说明次数\n\n## 改动预览\n\n```json\n## 约定\n- 〈你反复提出的要求〉\n```",
   "risk": [],
   "metadata": {
    "origin": "tandem-kb",
@@ -1847,7 +1847,7 @@
   "license": "MIT",
   "difficulty": 2,
   "version": "1",
-  "body": "# 把重复的多步流程做成 skill\n\n多个会话重复同一串命令时，按你的会话生成一个 skill，一句话触发整段流程。\n\n## 原理\n\n重复的多步流程适合固化成 skill：步骤和检查点写一次，之后按名字调用。\n\n## 试用\n\n生成草稿后先预览，下次需要这串步骤时直接调用 skill。\n\n## 局限\n\n生成内容需要人工审阅；流程里的参数可能需要手动改成占位符。\n\n## 步骤\n\n1. 交给生成工坊按会话证据生成 skill 草稿\n2. 审阅步骤：{sequence}\n3. 安装到 ~/.claude/skills/\n4. 7 天后看手动重复次数",
+  "body": "# 把重复的多步流程做成 skill\n\n多个会话重复同一串命令时，按你的会话生成一个 skill，一句话触发整段流程。\n\n## 原理\n\n重复的多步流程适合固化成 skill：步骤和检查点写一次，之后按名字调用。\n\n## 试用\n\n生成草稿后先预览，下次需要这串步骤时直接调用 skill。\n\n## 局限\n\n生成内容需要人工审阅；流程里的参数可能需要手动改成占位符。\n\n## 步骤\n\n1. 交给生成工坊按会话证据生成 skill 草稿\n2. 审阅步骤：〈固定步骤序列〉\n3. 安装到 ~/.claude/skills/\n4. 7 天后看手动重复次数",
   "risk": [
    "generated_content"
   ],
@@ -1948,7 +1948,7 @@
   "license": "MIT",
   "difficulty": 2,
   "version": "1",
-  "body": "# 编辑后自动运行 {build_command}\n\n在项目里加一个 PostToolUse hook，每次 Edit / Write 后自动构建，问题当场暴露。\n\n## 原理\n\n改完才构建会把错误攒到最后：编辑后立即构建，让 Agent 在出错的那一步就修。\n\n## 试用\n\n在项目里改一个文件，确认 hook 自动运行构建并把错误反馈给 Agent。\n\n## 局限\n\n构建很慢的项目会拖慢每次编辑，可以改成只构建改动的部分。\n\n## 步骤\n\n1. 预览将写入项目 .claude/settings.json 的 hook\n2. 确认构建命令：{build_command}\n3. 确认写入（会先备份原文件）\n4. 改一个文件，确认 hook 自动构建\n\n## 改动预览\n\n```json\n{\n  \"hooks\": {\n    \"PostToolUse\": [{\n      \"matcher\": \"Edit|Write\",\n      \"hooks\": [{\n        \"type\": \"command\",\n        \"command\": \"{build_command}\"\n      }]\n    }]\n  }\n}\n```",
+  "body": "# 编辑后自动运行构建命令\n\n在项目里加一个 PostToolUse hook，每次 Edit / Write 后自动构建，问题当场暴露。\n\n## 原理\n\n改完才构建会把错误攒到最后：编辑后立即构建，让 Agent 在出错的那一步就修。\n\n## 试用\n\n在项目里改一个文件，确认 hook 自动运行构建并把错误反馈给 Agent。\n\n## 局限\n\n构建很慢的项目会拖慢每次编辑，可以改成只构建改动的部分。\n\n## 步骤\n\n1. 预览将写入项目 .claude/settings.json 的 hook\n2. 确认构建命令：〈构建命令〉\n3. 确认写入（会先备份原文件）\n4. 改一个文件，确认 hook 自动构建\n\n## 改动预览\n\n```json\n{\n  \"hooks\": {\n    \"PostToolUse\": [{\n      \"matcher\": \"Edit|Write\",\n      \"hooks\": [{\n        \"type\": \"command\",\n        \"command\": \"〈构建命令〉\"\n      }]\n    }]\n  }\n}\n```",
   "risk": [
    "runs_command"
   ],
@@ -2150,7 +2150,7 @@
   "license": "MIT",
   "difficulty": 1,
   "version": "1",
-  "body": "# 在项目规则里写明部署目标\n\n同一项目出现多个部署平台的命令时，在 AGENTS.md 写清用哪个平台、哪条命令。\n\n## 原理\n\n部署目标是项目约定：写进规则文件，Agent 每次都会读到。\n\n## 试用\n\n下次让 Agent 部署时，确认它直接使用规则里的平台和命令。\n\n## 局限\n\n如果确实需要多平台部署，要在规则里分别写清各自用途。\n\n## 步骤\n\n1. 确认 {project} 实际使用的部署平台\n2. 复制「部署」小节到项目 AGENTS.md\n3. 下次部署时确认 Agent 遵守\n\n## 改动预览\n\n```json\n## 部署\n- 本项目只部署到：<平台>（候选：{platforms}）\n- 部署命令：<命令>\n- 不要使用其他平台的部署命令\n```",
+  "body": "# 在项目规则里写明部署目标\n\n同一项目出现多个部署平台的命令时，在 AGENTS.md 写清用哪个平台、哪条命令。\n\n## 原理\n\n部署目标是项目约定：写进规则文件，Agent 每次都会读到。\n\n## 试用\n\n下次让 Agent 部署时，确认它直接使用规则里的平台和命令。\n\n## 局限\n\n如果确实需要多平台部署，要在规则里分别写清各自用途。\n\n## 步骤\n\n1. 确认 〈项目名〉 实际使用的部署平台\n2. 复制「部署」小节到项目 AGENTS.md\n3. 下次部署时确认 Agent 遵守\n\n## 改动预览\n\n```json\n## 部署\n- 本项目只部署到：<平台>（候选：〈部署平台〉）\n- 部署命令：<命令>\n- 不要使用其他平台的部署命令\n```",
   "risk": [],
   "metadata": {
    "origin": "tandem-kb",
