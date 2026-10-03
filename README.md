@@ -1,5 +1,5 @@
 <p align="center"><img src="docs/design/logo/kit/dock/png/orbit-dock-256.png" width="112" alt="Orbit App 图标"></p>
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/design/logo/kit/wordmark/png/orbit-wordmark-night-128.png"><img src="docs/design/logo/kit/wordmark/png/orbit-wordmark-ink-128.png" height="48" alt="Orbit·知音"></picture></p>
+<p align="center"><img src="docs/design/logo/kit/wordmark/png/orbit-wordmark-night-128.png" height="48" alt="Orbit·知音"></p>
 
 # Orbit
 
