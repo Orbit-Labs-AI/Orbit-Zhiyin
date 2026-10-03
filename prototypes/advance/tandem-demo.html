@@ -16,7 +16,7 @@
    00 reference triangle on the persona compass.
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
-   Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono. */
+   Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono, plus --font-type (SF Pro Rounded) for persona type codes. */
 :root{
 --desk:#d9d5cc;--desk-2:#cbc6bb;--menubar:rgba(246,245,242,.88);
 --bg:#f5f4f0;--sb:rgba(236,235,229,.8);--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:rgba(251,250,248,.94);--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--sep:rgba(23,24,27,.1);
@@ -39,6 +39,7 @@
 --font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
 --font-num:var(--font-sans);
 --font-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace,"PingFang SC","Hiragino Sans GB";
+--font-type:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,"PingFang SC","Hiragino Sans GB",sans-serif;
 --side-w:240px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -91,6 +92,8 @@ svg{display:block}
    var(--font-mono) via .code-t and the selectors below. Class names are kept to avoid churn. */
 .mono{font-family:var(--font-num);font-variant-numeric:tabular-nums}
 .serif{font-family:var(--font-display);font-style:normal}
+/* persona type codes (DPMV …): rounded strokes echo the Orbit wordmark */
+.tcode{font-family:var(--font-type);font-weight:700;font-variant-numeric:normal}
 h1.serif,h2.serif,h3.serif{font-weight:600}
 .code-t,code,pre,kbd,samp,.tt-cmd,.lb-id,.sb-path,#srcPath{font-family:var(--font-mono);font-variant-numeric:normal}
 .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -622,7 +625,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* 2 persona: .persona-hero with the letters at display size */
 .lite .persona-hero{grid-template-columns:minmax(0,1fr) 320px;padding:28px 30px;align-items:center}
 .lite .letters{gap:clamp(6px,1.2cqi,16px);margin:18px 0 16px;align-items:flex-end}
-.lite .letters .L{font:600 clamp(84px,15cqi,150px)/.86 var(--font-display);letter-spacing:-.01em}
+.lite .letters .L{font:700 clamp(84px,15cqi,150px)/.86 var(--font-type);letter-spacing:-.01em}
 .l-line{margin:14px 0 14px;max-width:560px;font-size:17px;line-height:26px;color:var(--ink-2);text-wrap:pretty}
 .l-acts{margin-top:20px;flex-wrap:wrap}
 .l-fp{padding:12px}
@@ -734,7 +737,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .persona-hero{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:28px;padding:24px 28px}
 .letters{display:flex;gap:20px;align-items:flex-end;margin-top:14px;flex-wrap:wrap}
 .letters button{display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;padding:0;color:inherit}
-.letters .L{font:600 100px/.92 var(--font-display)}
+.letters .L{font:700 100px/.92 var(--font-type)}
 .fp-wrap{position:relative;display:flex;flex-direction:column;align-items:center;border-radius:12px;background-color:var(--bg);background-image:radial-gradient(var(--line) 1px,transparent 1.2px);background-size:14px 14px;padding:8px}
 .evo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .evo button{width:98px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);text-align:left}
@@ -826,7 +829,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .ov-pers [data-vz="ov-axes"]{margin:auto 0}
 .ov-code{border:0;background:none;padding:0;text-align:left;display:flex;flex-direction:column;gap:4px;color:inherit;border-radius:8px}
 .ov-code:hover .ov-code-l{color:var(--ink-2)}
-.ov-code-l{font-size:40px;line-height:44px;font-weight:600;letter-spacing:.04em;transition:color .15s}
+.ov-code-l{font-family:var(--font-type);font-size:40px;line-height:44px;font-weight:700;letter-spacing:.04em;transition:color .15s}
 /* bottom row: rhythm | tools, suggestions full width underneath (heat map needs ≥ 340px, tool bars need room) */
 .ov-three{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}
 .ov-three>.ov-recs{grid-column:1/-1}
@@ -1778,7 +1781,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 /* 候选类型卡：.card 的小号，码 mono、名字衬线、相似度 mono；胜出的一张加深描边 */
 .g-cards{position:absolute;inset:0;pointer-events:none;z-index:2}
 .g-card{position:absolute;width:112px;margin:-24px 0 0 -56px;padding:6px 9px 7px;border-radius:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 6px;align-items:baseline;box-shadow:var(--sh-pop)}
-.g-card .c{font-size:12px;font-weight:700;letter-spacing:.06em}
+.g-card .c{font-family:var(--font-type);font-size:12px;font-weight:700;letter-spacing:.06em}
 .g-card .pc{font-size:11px;font-weight:600;color:var(--ink-3)}
 .g-card .z{grid-column:1/-1;font:600 12px/1.3 var(--font-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g-card.win{border-color:var(--ink-1);box-shadow:0 0 0 .5px var(--ink-1),var(--sh-pop)}
@@ -2073,22 +2076,22 @@ const dur = (m) => m >= 60 ? Math.floor(m / 60) + 'h' + String(Math.round(m % 60
 const HW = [0.42, 0.22, 0.08, 0.03, 0.01, 0.01, 0.03, 0.1, 0.3, 0.55, 0.85, 0.95, 0.6, 0.55, 0.8, 0.92, 0.88, 0.75, 0.5, 0.55, 0.8, 0.95, 0.92, 0.7];
 const SEP = [[4,1,0,0,2],[5,1,1,0,1],[3,1,1,1,0],[4,2,1,0,0],[2,1,0,0,0],[1,1,0,0,0],[4,1,1,0,0],[4,2,1,0,0],[5,2,1,1,0],[6,1,0,1,0],[4,1,0,0,1],[3,1,0,0,0],[2,1,0,0,0],[4,2,1,0,0],[4,2,0,1,1],[4,2,1,0,0],[7,0,0,1,1],[6,2,1,1,1],[2,1,1,0,0],[1,1,0,0,0],[3,0,1,1,1],[5,1,1,0,0],[5,1,0,1,1],[4,3,1,1,0],[4,2,0,1,0],[2,1,0,0,0],[1,1,0,0,0],[4,1,0,1,0],[4,1,0,1,0],[5,1,1,1,0]];
 const TYPES = {
-  DPMV: ['总设计师', 'The Architect', '先写清规格，再分派给多个 Agent，并逐一验收。'],
-  DPMT: ['调度官', 'The Dispatcher', '规格清楚、并行分派，信任结果、追求吞吐。'],
-  DPFV: ['监制', 'The Producer', '一次只盯一件事：交代清楚、放手执行、严格验收。'],
-  DPFT: ['委托人', 'The Commissioner', '写好需求就交出去，看结果不看过程。'],
-  DIMV: ['指挥家', 'The Conductor', '整段目标交给 Agent，多线并进，坚持亲自验收。'],
-  DIMT: ['冲浪者', 'The Surfer', '同时开很多条线，顺着结果走，很少回头检查。'],
-  DIFV: ['探路者', 'The Pathfinder', '让 Agent 带路探索，一条线走深，再自己核实。'],
-  DIFT: ['漫游者', 'The Wanderer', '随兴而起，放手让 Agent 发挥，享受意外收获。'],
-  SPMV: ['塔台', 'The Controller', '多线并行，但每一步都由你下指令、逐个核对。'],
-  SPMT: ['杂技师', 'The Juggler', '计划周全、亲自操盘多件事，节奏快、少回看。'],
-  SPFV: ['工匠', 'The Artisan', '先规划、亲自掌舵、单线深耕、反复打磨。'],
-  SPFT: ['执笔人', 'The Scribe', '你把步骤说清楚，Agent 逐条照做。'],
-  SIMV: ['实验家', 'The Experimenter', '同时试几种做法，边做边改，用结果说话。'],
-  SIMT: ['即兴乐手', 'The Jammer', '和多个 Agent 快速来回，灵感驱动，少收尾。'],
-  SIFV: ['雕刻师', 'The Sculptor', '小步试、即时看、反复改，一点点削出想要的形状。'],
-  SIFT: ['搭档', 'The Partner', '像结对编程一样边聊边推进，彼此信任。']
+  DPMV: ['总设计师', 'The Master Planner', '胸有蓝图的统筹者，规格先行、多线分派、件件验收，再大的项目也井井有条。'],
+  DPMT: ['调度官', 'The Dispatcher', '果断高效的组织者，把需求讲清就放手并行，善于授权，让产出源源不断。'],
+  DPFV: ['监制', 'The Producer', '专注严谨的把关人，一次只推一件事，交代清楚、严格验收，出品稳定可靠。'],
+  DPFT: ['策划人', 'The Strategist', '思路清晰的出题人，擅长把想法写成好任务书，放心交付，把精力留给关键判断。'],
+  DIMV: ['指挥家', 'The Conductor', '统揽全局的领军人，多个 Agent 齐头并进，亲自守住验收，速度与质量兼得。'],
+  DIMT: ['冲浪者', 'The Surfer', '敏锐灵活的弄潮儿，同时驾驭多条线、顺势快速迭代，总能在变化中抓住机会。'],
+  DIFV: ['探路者', 'The Pathfinder', '敢闯又踏实的开拓者，让 Agent 先行探索、一路走深，再亲自核实每一步。'],
+  DIFT: ['远航者', 'The Voyager', '好奇开放的旅人，给 Agent 充分的发挥空间，享受一路上的意外之喜。'],
+  SPMV: ['飞控官', 'The Mission Controller', '冷静缜密的全局掌控者，多条线同时推进也步步有令、逐项核对，让每条线都稳稳落地。'],
+  SPMT: ['杂技师', 'The Juggler', '精力充沛的多面手，计划周全、亲自操盘多件事，节奏明快，推进效率惊人。'],
+  SPFV: ['分析学家', 'The Analyst', '冷静理性的思考者，先想清楚再动手，亲自掌舵、单线深挖、步步求证，结论经得起推敲。'],
+  SPFT: ['领航员', 'The Navigator', '条理分明的引路人，把步骤一条条讲清楚，Agent 照着执行就能精准抵达。'],
+  SIMV: ['实验家', 'The Experimenter', '不拘一格的尝鲜派，同时尝试几种做法、边做边改，用结果找到更优解。'],
+  SIMT: ['即兴乐手', 'The Jammer', '灵感充沛的创作者，和多个 Agent 快速往来、彼此激发，擅长打开新思路。'],
+  SIFV: ['雕刻师', 'The Sculptor', '耐心细致的打磨者，小步尝试、即时查看、反复修改，一点点刻出理想的形状。'],
+  SIFT: ['同行者', 'The Companion', '默契十足的协作伙伴，像结对编程一样边聊边推进，彼此信任、配合流畅。']
 };
 const AXES = [
   { k: 'D', L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', dim: '委托', q: '你把多大块的事交出去？', sig: '每会话消息数 · 单轮自主步数 · 打断与中止率' },
@@ -3931,7 +3934,7 @@ function sideFoot() {
   return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="privacy" data-tip="打开设置 › 隐私">' +
     '<span class="row" style="align-items:flex-start;gap:8px">' + ic('shield', 16, 'color:var(--good);margin-top:1px') + '<span class="col" style="gap:1px"><b>仅本地处理</b><span class="cap">0 B 上传 · 脱敏规则 ' + nRules + ' 条生效</span></span></span>' +
     '<span class="row cap" style="gap:6px">' + ic('sync', 13) + '<span>' + idx + '</span></span></button>' +
-    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? me.code + ' · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
+    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? '<span class="tcode">' + me.code + '</span> · ' + me.zh : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
 }
 function personaNow() { return persona(sel({ noExtra: true })); }
 /* page toolbar: lives on the window's 52px title row (title 15px semibold, meta, page items, global search → command palette) */
@@ -6317,7 +6320,7 @@ PAGES.persona = () => {
     '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px">' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>' +
     (note ? '<div class="cap" style="margin-top:8px;font-size:11px" title="人格只按时间、Agent 与项目计算，和侧栏、报告一致">' + esc(note) + '</div>' : '') +
     // 演变：月份码 + 四轴折线（评审 A2-V06）
-    '<div class="pe-evw"><div class="eb" style="margin-bottom:8px" title="按月重算，点击月份切换统计周期">演变 · 按月</div><div class="evo pe-evrow">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="mono" style="display:block;font-size:14px;font-weight:700;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 12, 'color:var(--ink-4)') : '')).join('') + '</div>' +
+    '<div class="pe-evw"><div class="eb" style="margin-bottom:8px" title="按月重算，点击月份切换统计周期">演变 · 按月</div><div class="evo pe-evrow">' + months.map((m, i) => '<button type="button" data-act="period" data-v="' + m.k + '" class="' + (S.persona.period === m.k ? 'on' : '') + '"><span class="mono" style="display:block;font-size:10px;color:var(--ink-3)">' + m.lbl + '</span><span class="tcode" style="display:block;font-size:14px;letter-spacing:.06em">' + (m.p.ok ? m.p.code : '—') + '</span><span style="display:block;font-size:11px;color:var(--ink-2)">' + (m.p.ok ? m.p.zh : '样本不足') + '</span></button>' + (i < 3 ? ic('arrow', 12, 'color:var(--ink-4)') : '')).join('') + '</div>' +
     '<div class="vz pe-evo" data-vz="pe-evo"></div><div class="cap pe-foot" title="四个维度逐月的值；跨过中线 50 的月份，该位字母会变">中线 50 · ≥ 50 取高值一极</div></div></div>' +
     '<div class="fp-wrap" data-hero="fp"><button type="button" class="btn sm gh" data-act="reveal" style="position:absolute;right:8px;top:8px;z-index:2">重播揭晓</button>' + '<div class="pe-fpc">' + fp2SVG(L, p, 400, { interactive: true, labels: true }) +
     '<div class="pe-fp-legend"><span class="row" style="gap:5px"><span style="width:10px;height:10px;background:var(--ink-1);clip-path:polygon(50% 0,100% 100%,50% 70%,0 100%)"></span>玫瑰 · 主角越长，该维度越强</span><span class="row" style="gap:5px"><span style="width:2px;height:12px;border-radius:1px;background:var(--orbit)"></span>指针 · 协作重心 <b class="mono">' + fpHeading(L).hm + '</b></span><span class="row" style="gap:5px"><span style="width:10px;height:5px;border-radius:2px;background:var(--h2)"></span>中环 · 24 小时节律</span><span class="row" style="gap:5px"><span style="width:14px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--a1),var(--a2),var(--a3))"></span>轨道 · 每小时会话数，按 Agent 分层（峰值 ' + CUR.fp.mxH + '）· ' + (S.persona.fpHour != null ? '<button type="button" class="lnk" data-act="fpHour" data-h="' + S.persona.fpHour + '">收起 ' + S.persona.fpHour + ' 时</button>' : '点击展开') + '</span><span class="row" style="gap:5px"><span class="dot" style="background:var(--a1)"></span>行星 · 各 Agent 的协作重心</span></div></div></div></div>' +
@@ -7031,7 +7034,7 @@ PAGES.projects = () => {
     tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + r.p.id + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title">' + esc(t.f || r.p.name) + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + '</div><div class="mono cap pj-path code-t">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + r.p.id + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + r.p.id + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + r.p.id + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="mono pj-pers" style="font-weight:' + (r.pers.ok && r.pers.code !== 'DIMV' ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '"' + (pc.includes('?') ? ' data-tip="「?」= 项目画像还没有算出该维度"' : '') + '>' + pc + '</td></tr>'; }).join('') + '</tbody></table><div class="cap pj-foot" data-tip="按项目聚合时以 git 根目录归并子文件夹；摩擦率 = 纠偏消息 / 全部消息">' + (S.proj.group === 'folder' ? '子文件夹按会话归入所属项目 · ' : '') + '「—」样本 &lt; 8 个会话 · 「?」维度未定型</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">跨项目对比</span><span class="cap">' + (S.proj.cmpMode ? '点另一个项目作为 B' : '面积 = 时长 · 竖线 = 到回归线的残差') + '</span></div><span class="row cap pj-rleg" data-tip="琥珀 = 摩擦率高于同等自主度的预期；绿 = 低于"><span class="row" style="gap:4px"><i style="background:' + VZ.sem.corr + '"></i>高于预期</span><span class="row" style="gap:4px"><i style="background:' + VZ.sem.good + '"></i>低于预期</span></span></div><div class="vz" data-vz="pj-scatter"></div><div class="cap pj-foot">' + (pts.length >= 3 ? '高于回归线的项目最值得先加护栏' : '项目太少，无法拟合') + '</div></div></div>' +
     '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap code-t">' + esc(p.path) + ' · git: ' + esc(p.git) + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + p.tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div></div><button type="button" class="btn" data-act="finder">在 Finder 中显示</button><button type="button" class="btn" data-act="openAgents">打开 AGENTS.md</button></div>' +
-    '<div class="row pj-pline">' + ic('persona', 14) + '<span>' + (pp.ok ? '在这个项目里你是 <b class="mono" style="color:var(--ink-1);letter-spacing:.04em">' + pp.code + '</b> <b style="color:var(--ink-1)">' + pp.zh + '</b>' + (personaNow().ok && personaNow().code !== pp.code ? '，和整体（' + personaNow().code + ' ' + personaNow().zh + '）不同' : '，和整体一致') + '。' : '这个项目的会话少于 8 个，暂不判断人格。') + '</span></div></div>' +
+    '<div class="row pj-pline">' + ic('persona', 14) + '<span>' + (pp.ok ? '在这个项目里你是 <b class="tcode" style="color:var(--ink-1);letter-spacing:.04em">' + pp.code + '</b> <b style="color:var(--ink-1)">' + pp.zh + '</b>' + (personaNow().ok && personaNow().code !== pp.code ? '，和整体（' + personaNow().code + ' ' + personaNow().zh + '）不同' : '，和整体一致') + '。' : '这个项目的会话少于 8 个，暂不判断人格。') + '</span></div></div>' +
     '<div class="pj-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">此项目 vs ' + esc(cmpName) + '</span></div><span class="row cap" style="font-size:11px;gap:10px"><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-1)"></span>' + esc(p.name) + '</span><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-4)"></span>' + esc(cmpName) + '</span></span></div><div class="col" style="gap:8px">' + metrics.map((m) => { const mx = Math.max(m[1], m[2]) || 1; const d = VZ.delta2({ cur: m[1], prev: m[2], unit: m[4] === 'pct' ? undefined : m[4], goodDown: m[5], prevText: false }); const rel = m[2] ? Math.abs(m[1] - m[2]) / Math.abs(m[2]) : 0; return '<div class="pj-vs"><span class="pj-vs-n">' + m[0] + '</span><span class="col" style="gap:2px"><span class="pj-vs-b a" style="width:' + (m[1] / mx * 100) + '%"></span><span class="pj-vs-b" style="width:' + (m[2] / mx * 100) + '%"></span></span><span class="mono pj-vs-v"><b>' + m[3](m[1]) + '</b> / ' + m[3](m[2]) + '</span><span class="mono pj-vs-d ' + (rel < 0.1 ? 'flat' : d.cls) + '">' + (rel < 0.1 ? '≈' : d.text) + '</span></div>'; }).join('') + '</div>' + (S.proj.cmpMode && !cmpRow ? '<div class="cap pj-foot">在表格或散点图里点另一个项目作为 B</div>' : '<div class="cap pj-foot" data-tip="只有摩擦率与要求验证按好坏着色">Δ 相对 ' + esc(cmpName) + ' · 差异 &lt; 10% 记为 ≈</div>') + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 分工</span><span class="cap">' + xs.length + ' 个会话 · 条宽 = 会话占比</span></div></div><div class="pj-share">' + split.map((v, j) => v ? '<span style="width:' + (v / splitTot * 100) + '%;background:' + AG[j].c + '" data-tip="' + AG[j].name + '：' + v + ' 个会话 · ' + Math.round(v / splitTot * 100) + '%"></span>' : '').join('') + '</div><div class="col" style="gap:8px;margin-top:10px">' + agRows.map((r) => '<div class="pj-ag"><span class="row" style="gap:6px;font-size:12px;min-width:0"><span class="pj-dot" style="background:' + r.a.c + '"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + r.a.short + '</span></span><span class="col" style="gap:3px"><span class="pj-ag-r"><span class="cap">会话</span><span class="pj-bar"><i style="width:' + (r.n / agMaxN * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + r.n + '</span></span><span class="pj-ag-r"><span class="cap">时长</span><span class="pj-bar"><i style="width:' + (r.h / agMaxH * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + f1(r.h) + 'h</span></span><span class="pj-ag-r"><span class="cap">完成</span><span class="pj-bar"><i style="width:' + r.ok.toFixed(0) + '%;background:var(--ink-3)"></i></span><span class="mono">' + Math.round(r.ok) + '%</span></span></span></div>').join('') + '</div></div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">识别到的工作流</span><span class="cap">出现在 ' + support + ' / ' + xs.length + ' 个会话 · 支持度 ' + Math.round(support / Math.max(1, xs.length) * 100) + '%</span></div></div><div class="row" style="flex-wrap:wrap;gap:8px">' + p.flow.map((f, i) => '<span class="col pj-step"><b>' + f[0] + '</b><span class="mono cap">' + esc(f[1]) + '</span></span>' + (i < p.flow.length - 1 ? ic('arrow', 14, 'color:var(--ink-4)') : '')).join('') + '</div><div class="row" style="margin-top:10px;flex-wrap:wrap"><span class="pj-note">固定成一个 Skill 后，每次可少说约 4 条指令。</span><button type="button" class="btn sm ai" data-act="flowToStudio">' + ic('spark', 12) + '封装为 Skill</button></div></div>' +
@@ -8088,7 +8091,7 @@ function openMethod() {
   openModal(modalHead('协作人格如何计算', '四个维度各取一极，组成 16 型 · 1 个会话即可出结论，样本越多越准') +
     '<div class="mb col" style="gap:14px">' + AXES.map((ax, i) => { const v = p.ok ? axisView(p, i) : null; return '<div class="col" style="gap:3px"><div class="row" style="gap:8px;flex-wrap:wrap"><b class="mono" style="font-size:13px;min-width:36px">' + ax.L + ' / ' + ax.R + '</b><b style="font-size:13px">' + METHOD_POLE[ax.k] + '</b><span class="cap" style="font-size:12px">' + ax.Ln + ' ↔ ' + ax.Rn + '</span>' + (v ? '<span class="mono cap" style="margin-left:auto" data-method="you">你 · ' + esc(mp.label) + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '</span>' : '') + '</div><span class="cap" style="font-size:12px">' + ax.q + ' 信号：' + ax.sig + '</span></div>'; }).join('') +
     '<div class="code" style="padding:10px 12px;white-space:pre-wrap;font-size:12px;line-height:1.7">委托 D = 50 + (自主比 − 8) × 5.8\n即兴 I、求证 V = 各项目特征按协作时长加权\n多线 M = 20 + 7 × 日均会话 + 5 × 日均 Agent 数 − 6\n「你」一栏是偏向那一极的强度（50–100），不是百分比\n每个维度以 50 为界：≥ 50 取 D / I / M / V，< 50 取 S / P / F / T（恰好 50 归前者）\n始终给出完整 4 字母；少于 30 个会话时置信度标「低」</div>' +
-    '<div class="eb">16 型 · 点击查看</div><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">' + Object.keys(TYPES).map((k) => '<button type="button" data-act="typeInfo" data-k="' + k + '" style="border-radius:8px;padding:6px 8px;text-align:left;display:flex;flex-direction:column;gap:1px;' + (p.ok && p.code === k ? 'border:1.5px solid var(--ink-1);background:var(--surface)' : 'border:1px solid var(--line);background:var(--bg)') + '"><b class="mono" style="font-size:12px;letter-spacing:.04em">' + k + '</b><span style="font-size:12px;color:var(--ink-2)">' + TYPES[k][0] + '</span></button>').join('') + '</div><div id="typeLine" style="min-height:20px;font-size:13px;line-height:20px;color:var(--ink-2)">' + (p.ok ? '<b style="color:var(--ink-1)">' + p.code + ' ' + p.zh + '</b>：' + esc(p.line) : '点击任一类型查看描述') + '</div></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">维度信号与权重是初版设想，待真实数据校准</span><button type="button" class="btn" data-act="openSettings" data-tab="analysis">分析设置</button><button type="button" class="btn p" data-act="closeModal">知道了</button></div>', 'wide');
+    '<div class="eb">16 型 · 点击查看</div><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">' + Object.keys(TYPES).map((k) => '<button type="button" data-act="typeInfo" data-k="' + k + '" style="border-radius:8px;padding:6px 8px;text-align:left;display:flex;flex-direction:column;gap:1px;' + (p.ok && p.code === k ? 'border:1.5px solid var(--ink-1);background:var(--surface)' : 'border:1px solid var(--line);background:var(--bg)') + '"><b class="tcode" style="font-size:12px;letter-spacing:.04em">' + k + '</b><span style="font-size:12px;color:var(--ink-2)">' + TYPES[k][0] + '</span></button>').join('') + '</div><div id="typeLine" style="min-height:20px;font-size:13px;line-height:20px;color:var(--ink-2)">' + (p.ok ? '<b style="color:var(--ink-1)">' + p.code + ' ' + p.zh + '</b>：' + esc(p.line) : '点击任一类型查看描述') + '</div></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">维度信号与权重是初版设想，待真实数据校准</span><button type="button" class="btn" data-act="openSettings" data-tab="analysis">分析设置</button><button type="button" class="btn p" data-act="closeModal">知道了</button></div>', 'wide');
 }
 Object.assign(ACT, {
   openKeys: () => openKeys(),
@@ -8131,7 +8134,7 @@ function openCSV() {
   CUR.csv = ['tool,calls,error_rate,failures,avg_duration,approval_rate'].concat(rows.map((r) => [r.name, r.n, (r.err * 100).toFixed(1) + '%', r.fails, r.avg, Math.round(r.ap * 100) + '%'].join(','))).join('\n');
   openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · ' + rows.length + ' 种工具 · 复制后可以粘贴到表格软件') + '<div class="mb"><textarea readonly aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.csv) + '</textarea></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyCSV">复制 CSV</button></div>', 'wide');
 }
-const SHAREQ = { DIMV: ['把目标交出去，', '把验收留给自己。'], DIFV: ['让 Agent 带路，', '方向由我来核实。'], DIMT: ['同时开很多条线，', '顺着结果往前走。'], DIFT: ['放手让它发挥，', '享受意外的收获。'], DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], SIFV: ['一次只做一件事，', '每一步都亲自确认。'], SPFV: ['先规划，再打磨，', '每一处都亲手确认。'] };
+const SHAREQ = { DIMV: ['把目标交出去，', '把验收留给自己。'], DIFV: ['让 Agent 带路，', '方向由我来核实。'], DIMT: ['同时开很多条线，', '顺着结果往前走。'], DIFT: ['放手让它发挥，', '享受意外的收获。'], DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], SIFV: ['一次只做一件事，', '每一步都亲自确认。'], SPFV: ['先想清楚，再动手，', '每一步都有依据。'] };
 function sharePersona() { const per = PERIODS[S.persona.period]; const L = sel({ win: [per[0], per[1]] }); return { L, p: persona(L), label: /月$/.test(per[2]) ? '2026 年 ' + per[2].replace(' ', ' ') : per[2] }; }
 function qrSVG(seed, C) {
   const r = rng(hash(seed)); const N = 17; let cells = '';
@@ -8147,7 +8150,7 @@ function shareCard(sp) {
   return '<div class="sharecard" style="background:' + C.bg + ';color:' + C.ink + '"><div style="position:relative;height:100%;padding:7cqw 7.5cqw 6.5cqw;display:flex;flex-direction:column">' +
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--font-num);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
     '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.minor + '" fill="' + C.mn + '"/><path d="' + g.major + '" fill="' + C.mj + '"/></svg>' +
-    '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:600 14cqw/.9 var(--font-display)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--font-num);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
+    '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:700 14cqw/.9 var(--font-type)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--font-num);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
     '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--font-display)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--font-display);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
     '<div style="margin-top:5cqw;font:500 4.6cqw/1.5 var(--font-display)">「' + esc(q[0]) + '<br>' + esc(q[1]) + '」</div>' +
     (nn ? '' : '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2cqw;margin-top:6cqw;padding-top:4cqw;border-top:1px solid ' + C.line + '">' + [[fmt(p.st.n), '会话'], [Math.round(p.st.hours) + 'h', '协作时长'], [nAg, 'Agent'], [f1(p.st.auto) + '×', '自主比']].map((x) => '<div><div style="font:600 5.4cqw/1.1 var(--font-num)">' + x[0] + '</div><div style="font-size:2.4cqw;color:' + C.ink3 + ';margin-top:.6cqw">' + x[1] + '</div></div>').join('') + '</div>') +
@@ -8199,7 +8202,7 @@ async function sharePNG(m, dark, noNum) {
   try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* fonts optional */ }
   const W = 1080, H = 1350, u = W / 100; const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const x = cv.getContext('2d'); const cs = getComputedStyle(document.documentElement);
-  const F = { serif: cs.getPropertyValue('--font-display').trim() || 'sans-serif', mono: cs.getPropertyValue('--font-num').trim() || 'sans-serif', sans: cs.getPropertyValue('--font-sans').trim() || 'sans-serif' };
+  const F = { type: cs.getPropertyValue('--font-type').trim() || 'sans-serif', serif: cs.getPropertyValue('--font-display').trim() || 'sans-serif', mono: cs.getPropertyValue('--font-num').trim() || 'sans-serif', sans: cs.getPropertyValue('--font-sans').trim() || 'sans-serif' };
   const C = dark ? { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' } : { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' };
   const L = 7.5 * u, R = W - 7.5 * u;
   const text = (t, px, py, font, col, align) => { x.font = font; x.fillStyle = col; x.textAlign = align || 'left'; x.fillText(t, px, py); };
@@ -8214,8 +8217,8 @@ async function sharePNG(m, dark, noNum) {
   }
   let cx = L; const by = 7 * u + 2.6 * u + 9 * u + 12.6 * u;
   m.axes.forEach((a) => {
-    x.font = '600 ' + 14 * u + 'px ' + F.serif; const w1 = x.measureText(a.L).width; x.font = 2.6 * u + 'px ' + F.sans; const w2 = x.measureText(a.name).width;
-    text(a.L, cx, by, '600 ' + 14 * u + 'px ' + F.serif, C.ink); text(a.name, cx, by + 3.8 * u, 2.6 * u + 'px ' + F.sans, C.ink2);
+    x.font = '700 ' + 14 * u + 'px ' + F.type; const w1 = x.measureText(a.L).width; x.font = 2.6 * u + 'px ' + F.sans; const w2 = x.measureText(a.name).width;
+    text(a.L, cx, by, '700 ' + 14 * u + 'px ' + F.type, C.ink); text(a.name, cx, by + 3.8 * u, 2.6 * u + 'px ' + F.sans, C.ink2);
     if (!noNum && a.strong) text(a.strong, cx, by + 7.2 * u, '600 ' + 2.4 * u + 'px ' + F.mono, C.ink3);
     cx += Math.max(w1, w2) + 3.4 * u;
   });
@@ -9125,7 +9128,7 @@ function renderPop() {
   const T = popDay(); const today = available.filter((s) => s.d === T && (!simIdle() || !s.live));
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const head = (title, meta, badge) => '<div class="row" style="padding:12px 14px 10px"><div style="flex:1;min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + title + '</b>' + (badge || '') + '</div><div class="mono cap" style="font-size:11px">' + meta + '</div></div><button type="button" class="ib" data-act="openSettings" data-tab="notify" aria-label="通知设置">' + ic('settings', 15) + '</button></div>';
-  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="mono" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Orbit <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
+  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="tcode" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Orbit <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
   // last 7 days: one column per day, count on top, today in ink (the orange stays reserved for Claude), weekday underneath
   const days = []; for (let d = T - 6; d <= T; d++) days.push([d, available.filter((s) => s.d === d && !(s.live && simIdle())).length]);
   const mx = Math.max(1, ...days.map((x) => x[1]));
@@ -9383,7 +9386,7 @@ function renderWidgets() {
   // today by hour: one cell per hour, height = sessions started in that hour, colour = the first agent seen (fills the square)
   const byH = []; for (let h = 0; h < 24; h++) byH.push(today.filter((s) => s.h === h));
   const dayStrip = '<span class="wg-day" role="img" aria-label="今天每小时开始的会话数"><span class="wg-day-b">' + byH.map((xs, h) => '<i' + (xs.length ? ' class="on" style="height:' + (4 + Math.min(3, xs.length) * 4) + 'px;background:' + agent(xs[0].a).c + '"' : '') + ' data-tip="' + String(h).padStart(2, '0') + ':00 · ' + xs.length + ' 个会话"></i>').join('') + '</span><span class="wg-day-x mono"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></span></span>';
-  const squares = '<div class="wg-row"><button type="button" class="wg sq" data-act="wgGo" data-r="persona"><span class="lbl">协作人格</span>' + (p.ok ? glyphSVG(p, 56) : '') + '<span><span class="serif" style="display:block;font-size:26px;font-weight:600;line-height:1;letter-spacing:.02em">' + (p.ok ? p.code : '—') + '</span><span style="font-size:12px;color:var(--ink-2)">' + (p.ok ? p.zh + ' · 置信度' + p.conf : '样本不足') + '</span></span></button>' +
+  const squares = '<div class="wg-row"><button type="button" class="wg sq" data-act="wgGo" data-r="persona"><span class="lbl">协作人格</span>' + (p.ok ? glyphSVG(p, 56) : '') + '<span><span class="tcode" style="display:block;font-size:26px;line-height:1;letter-spacing:.02em">' + (p.ok ? p.code : '—') + '</span><span style="font-size:12px;color:var(--ink-2)">' + (p.ok ? p.zh + ' · 置信度' + p.conf : '样本不足') + '</span></span></button>' +
     '<button type="button" class="wg sq" data-act="wgGo" data-r="sessions"><span class="lbl">今日</span><span><span class="mono" style="display:block;font-size:34px;font-weight:600;line-height:1">' + today.length + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)) + '</span></span>' + dayStrip + '<span class="row" style="font-size:11px;gap:6px">' + (!live ? '<span class="cap">没有运行中的会话</span>' : '<span class="dot live" style="background:' + agent(live.a).c + '"></span>' + (S.numOnly ? '1 个运行中' : esc(sessProjName(live)) + ' · <span class="mono" data-live>' + liveElapsed() + '</span>')) + '</span></button></div>';
   const week = '<button type="button" class="wg wk" data-act="wgGo" data-r="overview"><span class="col" style="gap:4px;min-width:0"><span class="lbl">本周</span><span class="mono" style="font-size:34px;font-weight:600;line-height:1">' + s7.n + '</span><span style="font-size:12px;color:var(--ink-2)">会话 · <span class="mono" style="color:var(--ink-3)">' + (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta) + '%</span></span><span style="font-size:12px;color:var(--ink-2)">摩擦率 <b class="mono">' + f1(s7.fric) + '%</b> <span class="mono" style="white-space:nowrap;color:' + (Math.abs(fricD) < 0.05 ? 'var(--ink-3)' : fricD < 0 ? 'var(--good)' : 'var(--crit)') + '">' + (Math.abs(fricD) < 0.05 ? '＝' : fricD < 0 ? '▼' : '▲') + f1(Math.abs(fricD)) + 'pt</span><span class="cap"> vs 上周</span></span></span><span class="col" style="gap:5px;min-width:0"><span class="wg-week" role="img" aria-label="近 7 天每天的会话数，按 Agent 堆叠">' + days.map(col).join('') + '</span><span class="row cap" style="font-size:10px;gap:6px">' + K.filter((k) => k).map((k) => '<span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:' + wgC(k) + '"></i>' + esc(wgN(k)) + '</span>').join('') + '<span class="row" style="gap:3px"><i class="dot" style="width:6px;height:6px;background:var(--h2)"></i>其他</span></span></span></button>';
   const rec = top ? '<button type="button" class="wg" data-act="wgRec" data-id="' + top.id + '" style="display:flex;flex-direction:column;gap:6px;align-items:flex-start"><span class="lbl">本周最值得做</span><span style="font-size:15px;font-weight:600;line-height:1.35">' + esc(top.title) + '</span><span class="cap">' + top.type + ' · ' + LEVELS[top.lvl] + ' · ' + top.gain + '</span><span class="row" style="width:100%;justify-content:space-between;margin-top:4px"><span class="cap">还有 ' + Math.max(0, recs.length - 1) + ' 条建议</span><span class="btn sm">预览</span></span></button>' : '';
@@ -10897,7 +10900,7 @@ function lvProjectsPage() {
   }
   const pp = hd.persona && hd.persona.code ? { ok: true, code: hd.persona.code, zh: (TYPES[hd.persona.code] || ['尚未定型'])[0] } : selRow.pers;
   const now = personaNow();
-  const plineTxt = pp.ok ? '在这个项目里你是 <b class="mono" style="color:var(--ink-1);letter-spacing:.04em">' + esc(pp.code) + '</b> <b style="color:var(--ink-1)">' + esc(pp.zh) + '</b>' + (now && now.ok ? (now.code !== pp.code ? '，和整体（' + esc(now.code + ' ' + now.zh) + '）不同' : '，和整体一致') : '') + '。'
+  const plineTxt = pp.ok ? '在这个项目里你是 <b class="tcode" style="color:var(--ink-1);letter-spacing:.04em">' + esc(pp.code) + '</b> <b style="color:var(--ink-1)">' + esc(pp.zh) + '</b>' + (now && now.ok ? (now.code !== pp.code ? '，和整体（' + esc(now.code + ' ' + now.zh) + '）不同' : '，和整体一致') : '') + '。'
     : (pp.status === 'persona_pending' ? (fs === 'computing' || LV.state === 'computing' || LV.state === 'connecting' ? '这个项目的人格还在计算，导入完成后会出现。' : '本地服务还没有给出这个项目的人格，表格里先记为「—」。') : '这个项目的样本还不够，暂不判断人格。');
   const vsRows = d ? ((d.vs && d.vs.metrics) || []).map((m) => {
     const f = LVTP_VS[m.key] || [m.label || m.key, (v) => f1(v), 'pct', null];
