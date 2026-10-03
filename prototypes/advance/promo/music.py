@@ -6,10 +6,10 @@ Sections (beats), v7, same grid as promo.js and the 声音 table in STORYBOARD.m
 odometer, five chips) · 3.4-7.9 half time, highlighter, sentence swap · 7.9-22.6 (film beats) the mark is traced,
 the wordmark reveal, the dive. Everything after is written in scene beats and played SHIFT[scene] beats later ·
 14.6-21.6 groove A under the sentiment ride, push-through riser · 21.2-28 numbers (ratchets) and particles ·
-28-44 half time, a tick + scale note per type the lead petal passes (sweep_at = sweepAt in scenes/30-persona.js),
-four locks at 37.6/39.1/40.6/42.1, riser + snare roll · 44 DROP, full groove to 52 · 53-57.4 checks, warnings,
-the click and the portal · 57.4-63.4 conveyor, 63.4 landing chord · 64-77 install, 7 days, before/after ·
-79.4 DROP · 83.4-101 groove B montage · 101-113 half time close, 107.6 end card, tail 1.5 s.
+28-50.4 half time, the browse (a swish as the petals close, a bloom chord per type), riser + snare roll · 50.4 DROP,
+your type is read · checks, warnings, the click and the portal · three cards land while the estimate rolls · install
+sheet, applied · before/after · DROP on 把时间还给你自己 · 101-113 half time close, 107.6 end card, tail 1.5 s
+(the persona and recs offsets X/Y/Z and A-D are the scenes' own). The montage is gone: the recs run into the close.
 The groove never stops between b3.4 and b101; the two drops are the loudest moments.
 """
 import os
@@ -22,7 +22,7 @@ SR = 48000
 BPM = 124
 BEAT = 60 / BPM
 # = SHIFT in promo.js: each later scene plays this many beats later (wordmark reveal, longer persona / recs holds)
-SHIFT = {'20-sentiment': 8, '30-persona': 8, '40-recs': 12, '50-montage': 16, '60-close': 8}
+SHIFT = {'20-sentiment': 8, '30-persona': 8, '40-recs': 22, '60-close': 16}
 SH = 0              # shift put() applies; set per section below
 END = 113 + SHIFT['60-close']   # film beats
 N = int((END * BEAT + 1.5) * SR)
@@ -392,95 +392,95 @@ for i in range(8):                                                  # particles 
     put(pluck(SCALE[8 + i % 6], 0.25), 27.4 + i * 0.18, 0.07, -0.6 + i * 0.17, to='verbsend')
 
 
-# 4c · the flower browses two example types and lands on yours (30-persona STOPS: 33.4 / 38.2 / 43.4, MOVE 1.8):
-# no ticks; a soft swish as the petals spin closed, a bloom chord as the next type spins open
-groove(28.0, 44.0, style='half', lvl=0.95)
-bed(27.0, 44.0, 0.36)
-pads(28.0, 44.0, 0.24, 1700)
-put(glide(330, 660, 3.0 * BEAT), 30.0, 0.06, to='verbsend')      # the closed bud turns once round
-for at_, ch in ((33.4, (57, 64, 69)), (38.2, (60, 64, 72)), (43.4, (57, 64, 69, 76))):
+# 4c · the flower browses two example types and lands on yours (30-persona STOPS: 33.9 / 41.9 / 49.9, MOVE 3.6,
+# every change the same even turn): no ticks; a soft swish as the petals spin closed, a bloom chord as the next opens.
+# Everything after the browse moves with it: X (browse), Y (reveal read), Z (strengths card read), as in the scene.
+X = 49.9 - 43.4
+Y = X + 2
+Z = Y + 1.5
+groove(28.0, 44.0 + X, style='half', lvl=0.95)
+bed(27.0, 44.0 + X, 0.36)
+pads(28.0, 44.0 + X, 0.24, 1700)
+put(glide(330, 660, 4.5 * BEAT), 29.4, 0.06, to='verbsend')      # the closed bud keeps turning onto the first type
+for at_, ch in ((33.9, (57, 64, 69)), (41.9, (60, 64, 72)), (49.9, (57, 64, 69, 76))):
     if at_ > 34:
-        put(whoosh(0.9 * BEAT), at_ - 1.8, 0.14, -0.2)              # petals spin closed
-    for i, n in enumerate(ch):                                      # bloom: a rolled chord
-        put(pluck(n + 12, 0.9), at_ - 0.6 + i * 0.07, 0.1, -0.3 + i * 0.2, to='verbsend')
-put(riser(2.5 * BEAT, 300, 6000), 41.5, 0.4, to='verbsend')
+        put(whoosh(1.6 * BEAT), at_ - 3.6, 0.13, -0.2)              # petals spin closed (first half of the change)
+    for i, n in enumerate(ch):                                      # bloom: a rolled chord as it opens
+        put(pluck(n + 12, 0.9), at_ - 1.0 + i * 0.09, 0.1, -0.3 + i * 0.2, to='verbsend')
+put(riser(2.5 * BEAT, 300, 6000), 41.5 + X, 0.4, to='verbsend')
 b_ = 42.0
 while b_ < 44 - 1e-9:
     step = 0.5 if b_ < 42.5 else 0.25 if b_ < 43.25 else 0.125
-    put(snare(0.12, 0.5), b_, 0.1 + 0.3 * (b_ - 42) / 2, 0.1)
+    put(snare(0.12, 0.5), b_ + X, 0.1 + 0.3 * (b_ - 42) / 2, 0.1)
     b_ += step
-put(reverse_swell(0.6 * BEAT), 43.4, 0.6)
+put(reverse_swell(0.6 * BEAT), 43.4 + X, 0.6)
 
-# 4e · DROP b44: your type lands; full groove (four on the floor + clap + arp) while it is read (to b53.5)
-drop(44)
-groove(44.0, 53.5, arp=True, lvl=1.12)
-pads(44.0, 53.5, 0.2, 2400)
+# 4e · DROP: your type lands; full groove (four on the floor + clap + arp) while it is read
+drop(44 + X)
+groove(44.0 + X, 53.5 + Y, arp=True, lvl=1.12)
+pads(44.0 + X, 53.5 + Y, 0.2, 2400)
 
-# 4f · strengths and blind spots (rows every .45 beat from b54.5), the click into the portal at b59.6
-groove(53.5, 59.6, arp=True, lvl=0.92)
-pads(53.5, 61.4, 0.17)
+# 4f · strengths and blind spots (rows every .45 beat), the click into the portal
+groove(53.5 + Y, 59.6 + Z, arp=True, lvl=0.92)
+pads(53.5 + Y, 61.4 + Z, 0.17)
 for i in range(3):                                                  # ✓ ×3: crisp ticks
-    put(tick(), 54.5 + i * 0.45, 0.32, 0.3)
-    put(blip(88 + [0, 3, 7][i], 0.25), 54.5 + i * 0.45, 0.1, 0.3, to='verbsend')
+    put(tick(), 54.5 + Y + i * 0.45, 0.32, 0.3)
+    put(blip(88 + [0, 3, 7][i], 0.25), 54.5 + Y + i * 0.45, 0.1, 0.3, to='verbsend')
 for i in range(3):                                                  # ⚠ ×3: low notes
-    put(blip(45 + [0, -2, -4][i], 0.5), 54.5 + (3 + i) * 0.45, 0.28, -0.2, to='duck')
-put(clack(81), 59.6, 0.26, 0.2)                                     # the click on 建议 →
-put(whoosh(1.0 * BEAT), 59.6, 0.3, 0.2)                             # bloom
-groove(59.6, 61.4, style='half', clap_on=False, lvl=0.9)
-bed(59.6, 61.4, 0.3)
-put(reverse_swell(1.8 * BEAT), 59.6, 0.7)
-put(riser(1.8 * BEAT, 500, 5000), 59.6, 0.22, to='verbsend')
+    put(blip(45 + [0, -2, -4][i], 0.5), 54.5 + Y + (3 + i) * 0.45, 0.28, -0.2, to='duck')
+put(clack(81), 59.6 + Z, 0.26, 0.2)                                 # the click on 建议 →
+put(whoosh(1.0 * BEAT), 59.6 + Z, 0.3, 0.2)                         # bloom
+groove(59.6 + Z, 61.4 + Z, style='half', clap_on=False, lvl=0.9)
+bed(59.6 + Z, 61.4 + Z, 0.3)
+put(reverse_swell(1.8 * BEAT), 59.6 + Z, 0.7)
+put(riser(1.8 * BEAT, 500, 5000), 59.6 + Z, 0.22, to='verbsend')
 
 SH = SHIFT['40-recs']
-# 5a · three cards drop (40-recs LAND 57.0 / 60.8 / 64.6): a soft landing and a short ripple as the estimate rolls
+# same offsets as scenes/40-recs.js: card holds (A), install sheet (B), applied (C), before / after (D)
+A = 4.0
+B = A + 1.5
+C = B + 1
+D = C + 2
+# 5a · three cards drop (40-recs LAND 57.0 / 62.0 / 67.0): a soft landing and a ripple while the estimate rolls
 put(crash(2.0), 57.0, 0.26, -0.2)
-groove(57.0, 65.6, arp=True, lvl=0.92)
-pads(57.0, 65.6, 0.16)
-for i, at_ in enumerate((57.0, 60.8, 64.6)):
+groove(57.0, 65.6 + A, arp=True, lvl=0.92)
+pads(57.0, 65.6 + A, 0.16)
+for i, at_ in enumerate((57.0, 62.0, 67.0)):
     put(whoosh(0.5 * BEAT), at_ - 0.5, 0.12, 0.2)
     put(blip(PENT[i * 2 % 5] + 24, 0.5), at_, 0.16, -0.3 + i * 0.3, to='verbsend')
-    for k in range(5):                                              # the number rolls
-        put(tick(), at_ + k * 0.14, 0.1 * (1 - k / 6), 0.2)
+    for k in range(9):                                              # the number rolls
+        put(tick(), at_ + k * 0.15, 0.1 * (1 - k / 10), 0.2)
 
 # 5b · lift, press, the install sheet is read (quiet), 下一步 / 确认写入, applied
-groove(65.6, 67.2, arp=True, lvl=0.9)
-groove(67.2, 74.6, style='half', clap_on=False, lvl=0.8)
-pads(65.6, 74.6, 0.18, 1600)
-put(clack(84), 66.6, 0.24, 0.2)
-put(whoosh(0.6 * BEAT), 66.6, 0.3, -0.2)                            # card flips into the sheet
+groove(65.6 + A, 67.2 + A, arp=True, lvl=0.9)
+groove(67.2 + A, 74.6 + C, style='half', clap_on=False, lvl=0.8)
+pads(65.6 + A, 74.6 + C, 0.18, 1600)
+put(clack(84), 66.6 + A, 0.24, 0.2)
+put(whoosh(0.6 * BEAT), 66.6 + A, 0.3, -0.2)                        # card flips into the sheet
 for b_ in (71.8, 73.0):
-    put(clack(84), b_, 0.24, 0.2)
-put(blip(88, 0.6), 73.3, 0.18, 0, to='verbsend')                    # applied
-put(blip(93, 0.8), 73.55, 0.16, 0, to='verbsend')
+    put(clack(84), b_ + B, 0.24, 0.2)
+put(blip(88, 0.6), 73.3 + B, 0.18, 0, to='verbsend')                # applied
+put(blip(93, 0.8), 73.55 + B, 0.16, 0, to='verbsend')
 
 # 5c · before / after of the same recommendation: three descending slides, then the "有效" chord
-groove(74.6, 81.6, arp=True, lvl=0.92)
-pads(74.6, 81.6, 0.16)
-put(whoosh(1.0 * BEAT), 74.8, 0.2, 0.2)
+groove(74.6 + C, 81.6 + D, arp=True, lvl=0.92)
+pads(74.6 + C, 81.6 + D, 0.16)
+put(whoosh(1.0 * BEAT), 74.8 + C, 0.2, 0.2)
 for i, b_ in enumerate((76.4, 77.2, 78.0)):
     m0 = 81 - 2 * i
-    put(slide(m0, m0 - 12, 0.9 * BEAT), b_, 0.16, -0.3 + 0.3 * i, to='verbsend')
+    put(slide(m0, m0 - 12, 0.9 * BEAT), b_ + C, 0.16, -0.3 + 0.3 * i, to='verbsend')
 for m_ in (69, 73, 76, 81):                                         # A major blip
-    put(blip(m_, 0.9), 79.2, 0.1, 0, to='verbsend')
+    put(blip(m_, 0.9), 79.2 + C, 0.1, 0, to='verbsend')
 
-# 5e · DROP b82.2: two prefix ticks, then 把时间还给你自己; full groove to b86.6
-groove(81.6, 82.2, kick_on=False, clap_on=False, lvl=0.8)
+# 5e · DROP: two prefix ticks, then 把时间还给你自己; full groove into the close
+groove(81.6 + D, 82.2 + D, kick_on=False, clap_on=False, lvl=0.8)
 for b_ in (81.6, 81.9):
-    put(tick(), b_, 0.4, 0.0)
-    put(blip(88, 0.2), b_, 0.1, 0, to='verbsend')
-put(reverse_swell(0.8 * BEAT), 81.4, 0.65)
-drop(82.2, 1.1)
-groove(82.2, 86.6, arp=True, lvl=1.12)
-pads(82.2, 86.6, 0.2, 2400)
-
-SH = SHIFT['50-montage']
-# 6 · trajectory and studio only (b83.4-93.5): groove B, an air movement at each push-in and on the way out
-groove(83.4, 92.7, arp=True, lvl=0.95)
-hats16(83.4, 92.7)
-pads(83.4, 93.0, 0.16)
-for b_, d in ((83.9, 0.8), (88.7, 0.6)):
-    put(whoosh(d * BEAT), b_ - d / 2, 0.2, 0.3)
-put(whoosh(0.8 * BEAT), 92.7, 0.22, -0.3)
+    put(tick(), b_ + D, 0.4, 0.0)
+    put(blip(88, 0.2), b_ + D, 0.1, 0, to='verbsend')
+put(reverse_swell(0.8 * BEAT), 81.4 + D, 0.65)
+drop(82.2 + D, 1.1)
+groove(82.2 + D, 86.6 + D, arp=True, lvl=1.12)
+pads(82.2 + D, 86.6 + D, 0.2, 2400)
 
 SH = SHIFT['60-close']
 # 7 · close (b101-113): half time; ring, spiral, the mark and the end card
