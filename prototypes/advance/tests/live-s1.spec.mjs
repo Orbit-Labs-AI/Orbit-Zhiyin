@@ -200,6 +200,18 @@ test('Lite persona: 匹配度 comes from /v1/uiview/persona/reveal for the same 
   expect(rp.length).toBeGreaterThan(0);
   expect(rp.every((x) => pp.includes(x))).toBe(true);
   expect(await page.locator('#main').innerText()).not.toMatch(/\bn\s*[=≈]/);
+  // 播放揭晓 on the Lite page plays the same range: the reveal request carries the Lite period (30 days by default)
+  const range = await page.evaluate(() => ({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range]);
+  const before = gw.seen.length;
+  await page.locator('.l-phero [data-act="reveal"]').click();
+  await expect.poll(() => page.evaluate(() => OVL)).toBe('reveal');
+  const fired = gw.seen.slice(before).filter((x) => x.path === '/v1/uiview/persona/reveal').map(per);
+  expect(fired.length).toBeGreaterThan(0);
+  expect(fired.every((x) => x === range)).toBe(true);
+  // the overlay plays the page's code and 匹配度 (same candidates as .l-phero)
+  const g = await page.evaluate(() => ({ code: GNS && GNS.p.code, sim: GNS && (GNS.cands.find((c) => c.c === GNS.p.code) || {}).sim }));
+  expect(g.code).toBe(settled.code);
+  expect(g.sim).toBe(Math.round(want.match));
   expect(errors).toEqual([]);
 });
 

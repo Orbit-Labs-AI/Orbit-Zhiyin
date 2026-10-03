@@ -159,6 +159,11 @@ test('Lite and overview: no sessions shows a flower outline and a way to import,
   await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('advance|overview');
   await expect(page.locator('#content .ov-pers [data-lv="pers-empty"] svg.e-bloom')).toBeVisible();
   expect(await page.locator('#main').innerText()).not.toContain('????');
+  // the fixed no-session sentence is not AI output, and a confidence level means nothing at 0 sessions
+  await expect(page.locator('#aiCard .aib')).toHaveCount(0);
+  await expect(page.locator('#aiCard [data-aigen]')).toHaveCount(0);
+  await expect(page.locator('#content .ov-pers-h .bdg')).toHaveText('0 个会话');
+  await expect(page.locator('#side')).not.toContainText('样本不足');
   await page.evaluate(() => edSet('lite', 'l-persona'));
   await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('lite|l-persona');
   await page.locator('#content [data-act="liteImport"]').click();

@@ -197,7 +197,7 @@ function genHTML(g) {
     : '<div class="g-foot"><span></span><span class="row" style="gap:8px"><button type="button" class="btn" data-act="revShare">导出分享卡</button><button type="button" class="btn p" data-act="revGo" style="height:32px;padding:0 18px">查看完整画像</button></span></div>';
   return top + head +
     '<div class="g-body"><div class="fp-wrap g-dial" data-g="dial"><div class="g-fp">' + fp + '</div>' + over + '<div class="g-cards" data-g="cards"></div></div>' +
-    '<div class="g-side"><div class="mono cap g-count" data-g="count"></div><div class="g-res"><span class="eb">你的协作人格</span><div class="letters code g-code" data-g="code" role="img" aria-label="' + (p.ok ? p.code : '样本不足') + '">' + slots + '</div><div class="row g-match" data-g="match">' + match + '</div><div class="nm" data-g="nm">' + nm + '</div></div>' +
+    '<div class="g-side"><div class="mono cap g-count" data-g="count"></div><div class="g-res"><span class="eb">你的协作人格</span><div class="letters code g-code" data-g="code" role="img" aria-label="' + (p.ok ? p.code : persNone(p)) + '">' + slots + '</div><div class="row g-match" data-g="match">' + match + '</div><div class="nm" data-g="nm">' + nm + '</div></div>' +
     '<div class="g-facts"><span class="eb">已经知道的</span>' + facts + '</div></div></div>' +
     '<div class="g-tail">' + (ob ? '<div class="g-foot" data-g="run"><span class="cap">可以关闭窗口，完成后通知你</span><button type="button" class="btn" data-act="obBg">在后台继续</button></div>' : '') +
     '<div class="g-done" data-g="done">' + done.replace(/<button /g, '<button disabled ') + '</div></div>';
@@ -215,7 +215,7 @@ function genMark(g) {
   g.slotL = Array.from(g.box.querySelectorAll('.g-slot .L'));
 }
 // 开花：x = 0 是花苞（FPG.BUD 倍），1 是全开；前排用 genBack 回弹，身后一轮晚 18%。x ≥ 1 交回 CSS（清掉内联 transform）；
-// 样本不足时一直是花苞
+// 没有画像（无会话）时一直是花苞
 function genBloom(g, x) {
   const set = (el, v) => { if (el) el.style.transform = v >= 1 && x >= 1 ? '' : 'scale(' + (FPG.BUD + (1 - FPG.BUD) * v).toFixed(4) + ')'; };
   const k = g.p.ok ? x : 0;
@@ -287,7 +287,7 @@ function genOpen(mode, opt) {
   if (!box) { o.innerHTML = '<div class="obox"></div>'; box = o.firstChild; }
   box.id = ob ? 'genBox' : 'revBox'; box.className = 'obox gen' + (ob ? '' : ' reveal') + ' run'; box.tabIndex = -1;
   box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
-  box.setAttribute('aria-label', ob ? '首次启动' : '人格揭晓：' + (p.ok ? p.code + ' ' + p.zh : '样本不足'));
+  box.setAttribute('aria-label', ob ? '首次启动' : '人格揭晓：' + (p.ok ? p.code + ' ' + p.zh : persNone(p)));
   box.style.setProperty('--g-grow', g.T.grow + 'ms');
   box.innerHTML = genHTML(g); g.box = box; genMark(g);
   if (opt.final || reduceMotion()) { genFinal('init'); return; }
@@ -497,7 +497,7 @@ function genFinal(how) {
   const sk = q('[data-act="genSkip"], [data-act="revSkip"]'); if (sk) sk.hidden = true;
   const dn = q('[data-g="done"]'); if (dn) { dn.querySelectorAll('button').forEach((b) => { b.disabled = false; }); if (how !== 'init') dn.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: G_EASE }); }
   if (ob) {
-    genStage(g, '05 / 定型 · ' + (p.ok ? p.code : '样本不足'));
+    genStage(g, '05 / 定型 · ' + (p.ok ? p.code : persNone(p)));
     const nn = q('[data-g="n"]'); if (nn) nn.textContent = '4 / 4'; box.querySelectorAll('.ob-dots i').forEach((i) => i.classList.add('on'));
     const hd = q('[data-g="head"]'); if (hd) { hd.querySelector('h2').textContent = p.ok ? '你的协作画像已经生成' : '样本还不够'; hd.querySelector('p').textContent = '基于 ' + fmt(g.L.length) + ' 个会话' + (p.partial ? ' · 部分结果，分析仍在更新，以画像页为准' : p.ok ? ' · 之后可以在画像页「重播揭晓」' : ' · 先用一段时间再来看'); }
     const rl = box.querySelector('.g-next .g-nc'); if (rl) rl.textContent = genRecLine();
@@ -505,7 +505,7 @@ function genFinal(how) {
     const f = q('[data-act="obDone"]'); if (f) f.focus({ preventScroll: true });
     render();
   } else {
-    genStage(g, '05 / 定型 · ' + (p.ok ? p.code : '样本不足'));
+    genStage(g, '05 / 定型 · ' + (p.ok ? p.code : persNone(p)));
     if (REV) { REV.done = true; REV.timers.forEach(clearTimeout); }
     if (how !== 'init') { const f = q('[data-act="revGo"]'); if (f) f.focus(); }
   }

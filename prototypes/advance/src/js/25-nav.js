@@ -178,7 +178,7 @@ function sideFoot() {
   const x = sideIdx(), me = personaNow();
   return '<div class="sb-foot"><button type="button" class="pv" data-act="openSettings" data-tab="sources" data-st="' + x.st + '" data-tip="打开设置 › 数据源">' +
     '<span class="pv-dot" aria-hidden="true"></span>' + (x.n == null ? '' : '<span class="pv-n">' + fmt(x.n) + ' 个会话</span><span class="pv-sep" aria-hidden="true">·</span>') + '<span class="pv-t">' + x.t + '</span></button>' +
-    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? glyphSVG(me, 14) + '<span class="pc-t"><span class="tcode">' + me.code + '</span> · ' + me.zh + '</span>' : '样本不足') + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
+    '<div class="me"><span class="av" aria-hidden="true">' + esc(ME.av) + '</span><div style="flex:1;min-width:0"><div class="nm">' + esc(ME.name) + '</div><div class="mono cap pc">' + (me.ok ? glyphSVG(me, 14) + '<span class="pc-t"><span class="tcode">' + me.code + '</span> · ' + me.zh + '</span>' : persNone(me)) + '</div></div><button type="button" class="ib" data-act="openSettings" aria-label="设置" data-tip="设置 ' + kb('⌘,') + '">' + ic('settings', 15) + '</button></div></div>';
 }
 function personaNow() { return persona(sel({ noExtra: true })); }
 /* page toolbar: lives on the window's 52px title row (title 15px semibold, meta, page items, global search → command palette) */
@@ -219,4 +219,6 @@ function rangeWidenNote() {
   const b = rangeWidenBtns(); if (!b) return '';
   return '<div class="card pad range-note" data-range-note><span>' + rangeLabel() + '内没有会话 · 全部历史共 ' + fmt(sel({ range: 0, noExtra: true }).length) + ' 个</span>' + b + '</div>';
 }
+// 画像不可用时的短词：1 个会话就能出画像（F04），所以 0 个会话写「还没有会话」而不是「样本不足」
+function persNone(p) { return p && p.pending ? '计算中' : p && p.error ? '暂时取不到' : '还没有会话'; }
 function empty(msg) { return '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }

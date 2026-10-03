@@ -392,7 +392,10 @@ if (LV.live) {
   const baseReveal = openReveal;
   openReveal = function (opt) {
     opt = Object.assign({}, opt || {});
-    const per = OB && OB.revealP && OVL === 'ob' ? Promise.resolve(OB.revealP) : LVN.reveal(S.route === 'persona' && S.persona && S.persona.period ? String(S.persona.period) : '90');
+    // 与 peLiveReveal / liteMatch 同一范围：Advance 人格页用页内周期，Lite 用顶栏范围（画像页与揭晓看的是同一批会话），其余入口回落 90 天
+    const scope = S.route === 'persona' && S.persona && S.persona.period ? String(S.persona.period)
+      : S.ed === 'lite' ? (({ 7: '7', 30: '30', 90: '90', 0: 'all' })[S.range] || '90') : '90';
+    const per = OB && OB.revealP && OVL === 'ob' ? Promise.resolve(OB.revealP) : LVN.reveal(scope);
     return per.then((x) => baseReveal(Object.assign(opt, { p: x.p, cands: x.cands })));
   };
   Object.assign(ACT, {
