@@ -188,16 +188,36 @@ def _persona(pid, persona_lookup) -> dict:
     out = {"code": found.get("code"), "status": found.get("status", "available"),
            "n_tasks": found.get("n_tasks")}
     # The axis values the prototype's project persona reads (91-live-persona lvProjPersona).
-    out.update({k: found[k] for k in ("n", "v", "zh", "en", "conf", "basis") if k in found})
+    out.update({k: found[k] for k in ("n", "v", "zh", "en", "conf", "basis", "basis_days")
+                if k in found})
     return out
 
 
+def snapshot_covers(basis_days: int | None, since: int | None, now_ms: int | None = None) -> bool:
+    """Whether a ``basis_days`` facts snapshot (0 = all time) holds every session of a request
+    starting at ``since`` (``None`` = all time). Compared in whole days, so a local-midnight
+    request start matches the snapshot's same-length UTC window."""
+    if basis_days is None:
+        return False
+    if basis_days == 0:
+        return True
+    if since is None:
+        return False
+    import math
+    import time
+
+    now_ms = int(time.time() * 1000) if now_ms is None else now_ms
+    return math.ceil(max(now_ms - since, 0) / 86_400_000) <= basis_days
+
+
 def facts_persona_lookup(body: dict | None, *, agents=None, since: int | None = None,
-                         until: int | None = None):
+                         until: int | None = None, basis_days: int | None = 0):
     """Per-project persona from the cached ``uiview_facts`` rows (the same rows and the same
     ``uiview.persona.persona`` as A2), limited to the request's agents and ``[since, until)``
-    by each session's start. ``None`` while no fact snapshot exists (shown as pending)."""
-    if body is None:
+    by each session's start. ``None`` (shown as pending) while no fact snapshot exists or the
+    newest one covers a narrower window than the request (a 7-day snapshot must not stand in
+    for a 90-day or all-time table). ``basis_days`` is the snapshot's window (0 = all time)."""
+    if body is None or not snapshot_covers(basis_days, since):
         return None
     from datetime import date
 
@@ -227,7 +247,7 @@ def facts_persona_lookup(body: dict | None, *, agents=None, since: int | None = 
                     "n": p.get("n")}
         return {"code": p["code"], "status": "available", "n_tasks": p["n"], "n": p["n"],
                 "v": p["v"], "zh": p["zh"], "en": p["en"], "conf": p["conf"],
-                "basis": "uiview_facts"}
+                "basis": "uiview_facts", "basis_days": basis_days}
     return find
 
 
@@ -520,17 +540,20 @@ def register(api, gw) -> None:
 
     range_dependency = Depends(common.range_scope)
 
-    def lookup(agents=None, since=None, until=None):
+    def lookup(agents=None, since=None, until=None, tz=None):
         custom = getattr(gw, "persona_lookup", None)
         if custom is not None:
             return custom
         from . import fetch
 
         try:
-            body = fetch.latest_body(gw)
+            # The client's timezone keys the snapshot (fetch falls back to the MRU timezone
+            # the prewarm uses, then UTC); a UTC-only lookup left non-UTC users pending.
+            body, days = fetch.latest_snapshot(gw, tz)
         except Exception:  # noqa: BLE001 - the persona column is optional, never break the page
             return None
-        return facts_persona_lookup(body, agents=agents, since=since, until=until)
+        return facts_persona_lookup(body, agents=agents, since=since, until=until,
+                                    basis_days=days)
 
     @api.get("/v1/uiview/projects")
     def projects(project_id: ManyQuery = None, agent: ManyQuery = None, agents: str | None = None,
@@ -549,19 +572,19 @@ def register(api, gw) -> None:
                  **ranges, "session_uids": ids}
         with gw.reads.read(empty=True) as conn:
             body = build_projects(conn, scope, {"group": group},
-                                  persona_lookup=lookup(scope["agent_ids"], since, until))
+                                  persona_lookup=lookup(scope["agent_ids"], since, until, tz))
             return mark_empty(body) if gw.reads.is_empty(conn) else body
 
     @api.get("/v1/uiview/projects/{project_id}")
     def project(project_id: str, agent: ManyQuery = None, since: int | None = None,
-                until: int | None = None, compare: str = "overall",
+                until: int | None = None, compare: str = "overall", tz: str | None = None,
                 ranges: dict = range_dependency):
         scope = {**scope_of(None, agent, since, until), **ranges}
         items = _linked_items([project_id])
         with gw.reads.read(empty=True) as conn:  # nothing imported yet: 404, not 503
             body = build_project(conn, scope, project_id, {"compare": compare},
                                  inventory_items=items, appdb=gw.appdb,
-                                 persona_lookup=lookup(agent, since, until))
+                                 persona_lookup=lookup(agent, since, until, tz))
         if body is None:
             raise ApiError(404, "not_found", f"项目 {project_id} 不存在")
         return body
