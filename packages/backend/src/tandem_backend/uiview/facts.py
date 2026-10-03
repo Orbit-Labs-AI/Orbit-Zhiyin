@@ -547,13 +547,17 @@ def aux_units(a: dict | None) -> dict:
             "t1": a.get("t1")}
 
 
+FLOAT_DIGITS = {"mood": 3, "dur": 2, "span": 2}
+
+
 def compact(body: dict) -> dict:
     """Columnar wire form: ``fields`` + ``rows`` (lists), dictionary-coded strings.
 
     ``dicts[field]`` holds the distinct values; the row stores the index (null stays null).
     A column with one value across all rows moves to ``constants`` (decoded value).
     Session ids drop the shared ``session_`` prefix (``meta.id_prefix``); booleans are 0 / 1;
-    floats keep one decimal. Keeps ≈ 200 KB per 1000 sessions.
+    floats keep one decimal, except ``FLOAT_DIGITS`` (mood in −1..1 keeps 3: one decimal
+    would snap it to 0.1 steps and bias msgs-weighted means). Keeps ≈ 200 KB per 1000 sessions.
     """
     rows = [{**r, **aux_units((body.get("aux") or {}).get(r["id"]))}
             for r in body.get("rows") or []]
@@ -576,7 +580,7 @@ def compact(body: dict) -> dict:
             elif isinstance(value, bool):
                 value = int(value)
             elif isinstance(value, float):
-                value = round(value, 1)
+                value = round(value, FLOAT_DIGITS.get(key, 1))
             values.append(value)
         out.append(values)
     fields = list(WIRE_KEYS)

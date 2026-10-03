@@ -216,3 +216,12 @@ def test_real_sql_errors_raise():
     assert facts._rows(conn, "SELECT turn_uid FROM tool_call", fields=("steps",)) == []
     assert facts.is_schema_gap(sqlite3.OperationalError("no such column: turn_uid"))
     assert not facts.is_schema_gap(sqlite3.OperationalError("database is locked"))
+
+
+def test_compact_keeps_numeric_precision():
+    """UT-10: mood (−1..1) survives the wire with 3 decimals, dur/span with 2."""
+    row = {k: None for k in facts.ROW_KEYS}
+    row.update(id="session_x", mood=-0.34567, dur=12.345, span=61.239, live=False,
+               excluded=False)
+    back = facts.expand(facts.compact({"rows": [row], "meta": {}, "aux": {}}))[0]
+    assert back["mood"] == -0.346 and back["dur"] == 12.35 and back["span"] == 61.24
