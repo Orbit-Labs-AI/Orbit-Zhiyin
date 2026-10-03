@@ -4,6 +4,7 @@
 
 - [L1–L3 数据契约](data.md)。
 - [analysis-input-v1](analysis-inputs.md)。
+- [个性化产物输出](personalization-output.md)：复用 App 推荐和 InstallSpec，供外部执行器解析资产。
 - [权威会话库迁移](../../packages/data/src/orbit_data/migrations/)。
 - [事件 Schema](../../packages/data/src/orbit_data/schemas/event-v1.schema.json)与[字段字典](../../packages/data/src/orbit_data/schemas/tables-v1.schema.json)。
 - [TypeScript staging schema](../../packages/connectors/schema/)，仅用于桥接，不能当 canonical 数据库打开。

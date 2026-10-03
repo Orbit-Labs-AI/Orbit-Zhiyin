@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import json
 
-EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "apply_patch")
+from .tool_facts import is_edit
+
 VERIFY_HEADS = ("pytest", "npm test", "pnpm check", "pnpm test", "cargo test", "go test", "make",
                 "uv run pytest", "npm run test", "npm run lint", "ruff", "tsc")
 MAX_FILES = 10
@@ -26,11 +27,13 @@ def build(conn, session_uid: str) -> dict | None:
     files: list[str] = []
     last_edit = last_verify = None
     last_test = None
-    rows = conn.execute("SELECT name, command_head, files, started_at FROM tool_call WHERE "
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(tool_call)")}
+    kind = "kind" if "kind" in cols else "NULL"
+    rows = conn.execute(f"SELECT name, command_head, files, started_at, {kind} FROM tool_call WHERE "
                         "session_uid=? ORDER BY started_at DESC, rowid DESC",
                         (session_uid,)).fetchall()
-    for index, (name, command_head, raw_files, _) in enumerate(rows):
-        if name in EDIT_TOOLS:
+    for index, (name, command_head, raw_files, _, kind) in enumerate(rows):
+        if is_edit(name, kind):
             last_edit = index if last_edit is None else last_edit
             try:
                 paths = json.loads(raw_files or "[]")

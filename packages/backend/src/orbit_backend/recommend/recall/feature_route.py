@@ -50,9 +50,13 @@ def legacy_profile(profile: dict) -> dict:
     """features.profile body → the dict shape catalog_route / rank read (tags, evidence, langs)."""
     tags = {e["id"].split(":", 1)[-1]: e["weight"] for e in profile.get("tags") or ()}
     evidence = {e["id"].split(":", 1)[-1]: e.get("sessions", 0) for e in profile.get("tags") or ()}
-    by_ns = lambda ns: [e["id"].split(":", 1)[1] for e in profile.get("tags") or () if e.get("ns") == ns]  # noqa: E731
-    return {"tags": tags, "evidence_sessions": evidence, "languages": by_ns("lang"),
-            "tools": by_ns("tool"), "frameworks": by_ns("fw"), "vector": profile.get("vector") or {}}
+    entries = list(profile.get("tags") or ())
+    for group in (profile.get("groups") or {}).values():
+        entries.extend(group or ())
+    by_ns = lambda ns: sorted({e["id"].split(":", 1)[1] for e in entries if e.get("ns") in ns})  # noqa: E731
+    return {"tags": tags, "evidence_sessions": evidence, "languages": by_ns({"lang"}),
+            "tools": by_ns({"tool"}), "software": by_ns({"cmd", "sw"}),
+            "frameworks": by_ns({"fw"}), "vector": profile.get("vector") or {}}
 
 
 def _items(catalog, ids: list[str]) -> dict[str, dict]:
