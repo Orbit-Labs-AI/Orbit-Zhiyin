@@ -11,7 +11,12 @@ from evals.analytics.robustness import save
 from tandem_backend.recommend.contracts import CatalogEnvelope, RecommendationItem
 
 from .contracts import NONE_ACTION, ExecutionRecord, TaskReview, TemporalSample
-from .metrics import forward_utility, recommendation_quality, validate_records
+from .metrics import (
+    action_sweep_budget,
+    forward_utility,
+    recommendation_quality,
+    validate_records,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -173,6 +178,7 @@ def bind_measurements(samples, plan, measurements, reviews, *, actionability=Non
             task.checkpoint_status = "verified_exact"
             reviewed.add(task.task_uid)
     config = plan["common_execution"]
+    sweep_budget = action_sweep_budget(config)
     for record in measurements:
         expected_body = plan.get("skill_body_digests", {}).get(record.action_id)
         if expected_body is not None and record.skill_body_digest != expected_body:
@@ -184,7 +190,7 @@ def bind_measurements(samples, plan, measurements, reviews, *, actionability=Non
                 issues.append(
                     {"code": "action_outside_frozen_plausible_set", "sample_id": record.sample_id}
                 )
-            if record.budget.total_tokens != 10000 or record.seed != config["seeds"][0]:
+            if record.budget.total_tokens != sweep_budget or record.seed != config["seeds"][0]:
                 issues.append(
                     {
                         "code": "action_sweep_differs_from_registered_budget_or_seed",
@@ -285,7 +291,9 @@ def run(study, output, *, measurements=(), reviews=(), expected_manifest_digest=
         budgets=plan["common_execution"]["token_budgets"],
         seeds=plan["common_execution"]["seeds"],
     )
-    quality = recommendation_quality(primary, records, plan["ours_rankings"], plausible)
+    sweep = {"token_budget": action_sweep_budget(plan["common_execution"]),
+             "seed": plan["common_execution"]["seeds"][0]}
+    quality = recommendation_quality(primary, records, plan["ours_rankings"], plausible, **sweep)
     variations = {}
     for sample in samples:
         own = [r for r in measured if r.sample_id == sample.sample_id]
@@ -299,7 +307,8 @@ def run(study, output, *, measurements=(), reviews=(), expected_manifest_digest=
                 budgets=plan["common_execution"]["token_budgets"],
                 seeds=plan["common_execution"]["seeds"],
             ),
-            "quality": recommendation_quality([sample], own, plan["ours_rankings"], plausible),
+            "quality": recommendation_quality(
+                [sample], own, plan["ours_rankings"], plausible, **sweep),
         }
     if issues:
         forward = {"status": "invalid", "issues": issues, "rows": []}

@@ -554,3 +554,35 @@ def test_frozen_manifest_coverage_pin_and_unactionable_forecast_are_enforced(
     )
     with pytest.raises(ValueError, match="artifact coverage"):
         score.read_study(study)
+
+
+def test_action_sweep_is_checked_against_the_registered_sweep_budget(api):
+    """The sweep budget comes from the registered plan (or the median registered budget),
+    never from a constant: a study registering 20000 accepts 20000-token sweeps only."""
+    score = importlib.import_module("evals.benchmark.score")
+    m = api[1]
+    s = sample(api, 1)
+    config = {"model": "fictional-model", "reasoning_effort": "medium", "seeds": [0],
+              "token_budgets": [5000, 10000, 20000], "action_sweep_budget": 20000,
+              "turn_budget": 20, "tool_call_budget": 50, "wall_budget_ms": 60000}
+    plan = {"common_execution": config, "plausible_actions": ["skill-a"],
+            "skill_body_digests": {"skill-a": "1" * 64}}
+
+    def sweep_issues(budget, plan=plan):
+        record = execution(api, s, "task-0", "oracle", purpose="action_sweep",
+                           budget={"total_tokens": budget, "turns": 20, "tool_calls": 50,
+                                   "wall_ms": 60000})
+        _, issues, _ = score.bind_measurements([s], plan, [record], ())
+        return {i["code"] for i in issues}
+
+    code = "action_sweep_differs_from_registered_budget_or_seed"
+    assert code not in sweep_issues(20000)
+    assert code in sweep_issues(10000)
+    # Unregistered: the median of the registered budgets (5000, 10000, 20000) → 10000.
+    median_plan = {**plan, "common_execution": {k: v for k, v in config.items()
+                                                if k != "action_sweep_budget"}}
+    assert code not in sweep_issues(10000, median_plan)
+    assert code in sweep_issues(20000, median_plan)
+    assert m.action_sweep_budget({"token_budgets": [3000, 1000, 2000, 4000]}) == 2000
+    with pytest.raises(ValueError, match="not a registered token budget"):
+        m.action_sweep_budget({"token_budgets": [5000, 10000], "action_sweep_budget": 7000})
