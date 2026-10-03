@@ -51,6 +51,7 @@
 | [`mark/`](logo/kit/mark/orbit-mark-ink.svg) | 透明底标志：板岩灰、黑、白、暖纸四色；紧凑画布（`orbit-mark-*`）与 App 图标同位置的 1024 方形画布（`orbit-mark-square-*`） | SVG、PDF；PNG 高 64、128、256、512、1024 |
 | [`nav/`](logo/kit/nav/orbit-nav-template-22@2x.png) | 菜单栏与导航栏：黑色模板图（`template`，macOS `isTemplate` 只取 alpha）、板岩灰、白 | PNG 高 16、18、20、22、24、32 pt，各 @1x @2x @3x；矢量用 `mark/orbit-mark-black.pdf` |
 | [`favicon/`](logo/kit/favicon/favicon.svg) | 网页图标：`favicon.svg`（随浏览器深色模式切换黑夜配色）、`favicon.ico`（16/32/48）、`apple-touch-icon.png`（180，方形不加圆角，由系统裁切）、PWA `icon-192/512.png` | SVG、ICO、PNG |
+| [`wordmark/`](logo/kit/wordmark/orbit-wordmark-ink.svg) | 字标 Orbit：标志作首字母 O，后接小写 rbit；板岩灰、黑、白、暖纸四色，透明底 | SVG、PDF；PNG 高 32、48、64、128、256、512 |
 | [`social/`](logo/kit/social/orbit-social.svg) | 分享图 1280×640：图标居中于同色底 | SVG、PNG |
 
 PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xcode 资源目录（勾选 Preserve Vector Data）。
@@ -74,6 +75,21 @@ PDF 是纯矢量（单页、不压缩），可直接拖入 Keynote、Figma、Xco
 | Dock | `canvas` / `tile` / `shadow` | 1024 / 824 / dy 10、blur 10、30% | Apple 图标网格：中央 824 方块（四周 100 透明），方块内与 App 图标等比 |
 
 由参数推出、任何尺寸都应保持的比例（相对标志外框长边）：最细线宽 0.92%、最粗线宽 3.24%、断口 5.55%，外框宽高比 1.292。在 1024 图标上对应最细 6.4 px、最粗 22.5 px、断口 38.6 px。
+
+### 字标
+
+![Orbit 字标](logo/kit/wordmark/png/orbit-wordmark-ink-128.png)
+
+字标的 O 就是标志本身：同一条 path、同一设计坐标，不缩放、不改线宽。rbit 是几何单线小写字母（直线与圆弧，圆头），线宽取标志最粗处 `w_near` = 14，与标志前侧的线同粗；字母同样展开成填充的贝塞尔轮廓，字标 SVG 只含标志 path 与字母 path 两条。参数在 `orbit-spec.json` 的 `wordmark` 一节，长度以字高 H 为单位（H = 标志墨迹高度去掉上下各 1.5% 的圆形溢出；基线 = 标志墨迹底边上移 1.5%）：
+
+| 参数 | 值 | 含义 |
+| --- | --- | --- |
+| `stroke` | 14 | 字母线宽（设计单位），= 标志 `w_near` |
+| `x_height` / `ascender` / `t_height` | 0.6 / 1.0 / 0.8 | 小写字高、b 的升部、t 的高度 |
+| `r_shoulder` / `r_arm_end` | 0.42 / 305° | r 肩部圆弧半径（× x 字高）与收笔角度 |
+| `i_dot` / `i_dot_gap` | 1.5 / 0.1 | i 点直径（× 线宽）与点到 x 字高的间隙 |
+| `t_bar` | 0.46 | t 横笔长度（× x 字高），以竖干为中心 |
+| `spacing` | O–r 0.2、r–b 0.11、b–i 0.13、i–t 0.08 | 字间距（墨迹到墨迹） |
 
 **与上一版的关系**：上一版（v1）把中心线每 1.5 设计单位取一点、画成折线多边形。矢量版沿用 v1 的离散常数（端点、深度范围、断口区间与外框，记录在 `orbit-geometry.json` 的 `v1`），只把折线换成平滑曲线；轮廓与 v1 顶点的最大偏差为 0.013 设计单位（1024 图标上约 0.02 px），渲染出的 1024 PNG 与旧版逐像素比对，差异只在抗锯齿边缘。
 

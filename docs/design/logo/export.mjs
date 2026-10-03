@@ -15,6 +15,7 @@ const { chromium } = createRequire(project.resolve('@playwright/test'))('playwri
 const ICON_SIZES = [16, 32, 48, 64, 128, 256, 512, 1024];
 const DOCK_SIZES = [128, 256, 512, 1024];
 const MARK_HEIGHTS = [64, 128, 256, 512, 1024];
+const WORDMARK_HEIGHTS = [32, 48, 64, 128, 256, 512];
 // 菜单栏与导航栏：标志高度（pt），每个尺寸出 @1x/@2x/@3x
 const NAV_HEIGHTS = [16, 18, 20, 22, 24, 32];
 // ICNS 条目：类型 → 像素边长（macOS 10.8+ 的 PNG 条目）
@@ -88,6 +89,12 @@ try {
     const src = `kit/mark/orbit-mark-${color}.svg`;
     const [, , w, h] = box(await fs.readFile(path.join(here, src), 'utf8'));
     for (const H of MARK_HEIGHTS) await render(src, `mark/png/orbit-mark-${color}-${H}.png`, Math.round(H * w / h), H);
+  }
+  // 字标：标志作 O + rbit，透明底，按高度
+  for (const color of ['ink', 'black', 'white', 'paper']) {
+    const src = `kit/wordmark/orbit-wordmark-${color}.svg`;
+    const [, , w, h] = box(await fs.readFile(path.join(here, src), 'utf8'));
+    for (const H of WORDMARK_HEIGHTS) await render(src, `wordmark/png/orbit-wordmark-${color}-${H}.png`, Math.round(H * w / h), H);
   }
   // 菜单栏 / 导航栏：黑色模板图（只用 alpha）与板岩灰，@1x @2x @3x
   for (const color of ['black', 'ink', 'white']) {

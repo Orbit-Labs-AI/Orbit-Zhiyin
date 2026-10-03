@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 from orbit import KAPPA, Orbit, load_spec, num
+from wordmark import Wordmark
 
 ROOT = Path(__file__).parent
 KIT = ROOT / "kit"
@@ -73,6 +74,12 @@ class Brand:
         self.dock_k = dock["tile"] / tile["size"]
         self.dock_at = (dock["canvas"] - dock["tile"]) / 2
         self.shadow = dock["shadow"]
+        pad = spec["design"]["box_pad"]
+        bx = self.orbit.box
+        self.wm = Wordmark(spec, (bx[0] + pad, bx[1] + pad, bx[0] + bx[2] - pad, bx[1] + bx[3] - pad))
+        self.wm_d = self.wm.path(self.digits)
+        x0, y0, x1, y1 = self.wm.box
+        self.wm_box = tuple(round(v, 1) for v in (x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad))
 
     # ---- SVG ----------------------------------------------------------------------------------------
 
@@ -89,6 +96,12 @@ class Brand:
         """透明底、紧凑画布（外框 + 4 留白），宽高比 = 标志本身。"""
         x, y, w, h = self.box
         return self._svg(f"{num(x, 1)} {num(y, 1)} {num(w, 1)} {num(h, 1)}", f"{w:.0f}", f"{h:.0f}", self._mark(fill))
+
+    def wordmark(self, fill: str) -> str:
+        """字标：标志作 O（同一条 path、同一坐标）+ 小写 rbit；透明底、紧凑画布。"""
+        x, y, w, h = self.wm_box
+        body = f'<g fill="{fill}"><path d="{self.d}"/><path d="{self.wm_d}"/></g>'
+        return self._svg(f"{num(x, 1)} {num(y, 1)} {num(w, 1)} {num(h, 1)}", f"{w:.0f}", f"{h:.0f}", body)
 
     def square(self, fill: str) -> str:
         """透明底、1024 方形画布，标志位置与 App 图标完全相同（只去掉底板）。"""
@@ -125,10 +138,10 @@ class Brand:
 
     # ---- PDF ----------------------------------------------------------------------------------------
 
-    def _pdf_path(self) -> str:
+    def _pdf_path(self, contours=None) -> str:
         f = lambda p: f"{num(p[0], self.digits)} {num(p[1], self.digits)}"  # noqa: E731
         out = []
-        for segs in self.contours:
+        for segs in contours or self.contours:
             out.append(f(segs[0][0]) + " m")
             out += [" ".join(f(q) for q in s[1:]) + " c" for s in segs]
             out.append("h")
@@ -155,6 +168,11 @@ class Brand:
     def tight_pdf(self, fill: str) -> bytes:
         x, y, w, h = self.box
         body = f"q\n1 0 0 -1 {num(-x, 1)} {num(y + h, 1)} cm\n{rgb(fill)} rg\n{self._pdf_path()}\nQ\n"
+        return pdf(w, h, body)
+
+    def wordmark_pdf(self, fill: str) -> bytes:
+        x, y, w, h = self.wm_box
+        body = f"q\n1 0 0 -1 {num(-x, 1)} {num(y + h, 1)} cm\n{rgb(fill)} rg\n{self._pdf_path(self.contours + self.wm.contours)}\nQ\n"
         return pdf(w, h, body)
 
     def square_pdf(self, fill: str, bg: str | None = None) -> bytes:
@@ -188,6 +206,8 @@ class Brand:
         for name, fill in marks.items():
             out[KIT / f"mark/orbit-mark-{name}.svg"] = self.tight(fill)
             out[KIT / f"mark/orbit-mark-{name}.pdf"] = self.tight_pdf(fill)
+            out[KIT / f"wordmark/orbit-wordmark-{name}.svg"] = self.wordmark(fill)
+            out[KIT / f"wordmark/orbit-wordmark-{name}.pdf"] = self.wordmark_pdf(fill)
             if name != "paper":
                 out[KIT / f"mark/orbit-mark-square-{name}.svg"] = self.square(fill)
                 out[KIT / f"mark/orbit-mark-square-{name}.pdf"] = self.square_pdf(fill)
@@ -234,20 +254,23 @@ class Brand:
                 "dock": {"canvas": self.dock_canvas, "tile": [self.dock_at, self.dock_at, self.dock_tile, self.dock_tile],
                          "radius": r(self.radius * self.dock_k), "shadow": self.shadow,
                          "transform": f"translate({num(self.dock_at)} {num(self.dock_at)}) scale({num(self.dock_k, 7)}) {self.icon_tr}"},
+                "wordmark": {"viewBox": " ".join(num(v, 1) for v in self.wm_box)},
             },
+            "wordmark": {"baseline": r(self.wm.base), "cap_height": r(self.wm.cap_height), "x_height": r(self.wm.x_height),
+                         "contours": len(self.wm.contours), "d": self.wm_d},
             "outline": {"contours": len(self.contours), "segments": segs, "fit_tolerance": self.spec["vector"]["tolerance"],
                         "fit_error": r(self.fit_error), "v1_deviation": r(o.v1_deviation()), "d": self.d},
         }
         return json.dumps(doc, ensure_ascii=False, indent=2) + "\n"
 
 
-def check_paths(files: dict[Path, str | bytes], d: str) -> list[str]:
-    """每个 SVG 都必须且只能含这一条 path。"""
+def check_paths(files: dict[Path, str | bytes], d: str, wm: str) -> list[str]:
+    """每个 SVG 都必须含且只含这一条标志 path（字标另加一条字母 path）。"""
     errors = []
     for path, text in files.items():
         if path.suffix == ".svg":
             found = re.findall(r'<path d="([^"]*)"', text)
-            if found != [d] or re.search(r"<(polygon|circle|polyline|line)\b", text):
+            if found not in ([d], [d, wm]) or re.search(r"<(polygon|circle|polyline|line)\b", text):
                 errors.append(f"{path.relative_to(ROOT)}: 标志不是母版 path")
     return errors
 
@@ -258,7 +281,7 @@ def main() -> None:
     args = ap.parse_args()
     brand = Brand(load_spec())
     files = brand.files()
-    errors = check_paths(files, brand.d)
+    errors = check_paths(files, brand.d, brand.wm_d)
     stale = []
     for path, data in files.items():
         raw = data.encode("utf-8") if isinstance(data, str) else data
