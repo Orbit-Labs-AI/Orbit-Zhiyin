@@ -58,7 +58,9 @@ scene('60-close', () => {
     const on = E.inOut(lp(b, 71.44, 1.2)) * (1 - fold);       // dial / core：b71.44–72.64 出现（与 open 同时到 1），b74.2–75.4 淡出
     // T13：圆环由点画出——第 i 段从上一个徽章的方位起、长 G_i·e_i，紧跟在点 i 身后（起点往回多 .6° 盖住相邻两段接缝的抗锯齿，
     // 这 .6° 也随 e_i 长出，开头不会先冒出一小截）；b71.04 合成整圈后不再裁剪
-    const segs = b < SP_END ? spG().map(([d, G], i) => [d - G - .6, (G + .6) * spE(i, b)]) : undefined;
+    // v17.7：曲线画起后圆环从笔头的方位向两侧退开（缺口以笔头方位为中心、b75.8–77.6 张到整圈），与 deck 2 的淡出同段，视线留在笔头
+    const g = 360 * E.inOut(lp(b, 75.8, 1.8)), pen = g > .01 ? penBearing(b) : 0;
+    const segs = b < SP_END ? spG().map(([d, G], i) => [d - G - .6, (G + .6) * spE(i, b)]) : g > .01 ? [[pen + g / 2, Math.max(0, 360 - g)]] : undefined;
     drawCompass({
       collapse: 1 - open + fold, dial: on, core: on, pl: 0,     // pl 0：徽章只由 AGD 画（compass 编队骑在同一位置）
       sweepSegs: segs,
@@ -79,6 +81,21 @@ scene('60-close', () => {
     const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]), th = (dc - G * (1 - e)) * Math.PI / 180;
     return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: lerp(s.r, c.r / decks[2].C.s, e) };
   }, { blend: .2 });
+  /* v17.7 F3「6」形态（场景拍）：
+     · b69.2 先显式回 dot（50-tools 交来的合并 orb 随 compass 键 .4 拍拆开）；b69.5 + .06i 起每个点变 head（rot 'vel'，尾尖朝着
+       身后刚画出的圆弧，弧就是彗星尾迹），e_i 到 .7 左右（b70.35 + .06i）回 dot，合成整圈时已是圆徽章骑在罗盘外圈上
+     · 花开到位（b71.95）五点一起朝花心收成 petal（hold .3，同 3 的合拢），类型码全亮 b72.64 起 glow 顺时针扫过（cc cx ds cp gm）
+     · 收回圆环（b74.3–74.9）dot → bead，rot 取圆环切线（同 1e 穿在 R 300 圆环上的样子） */
+  const DEG = 180 / Math.PI, CW = [0, 1, 3, 4, 2];
+  AGD.morph(HB, 'all', 'dot', { dur: .4, stag: 0 });
+  for (let i = 0; i < 5; i++) {
+    AGD.morph(HB + .3 + .06 * i, i, 'head', { dur: .4, glow: .35 });
+    AGD.morph(HB + 1.15 + .06 * i, i, 'dot', { dur: .45 });
+  }
+  AGD.morph(71.95, 'all', 'petal', { dur: .45, stag: 0, aim: PC, ls: .95, hold: .3, back: .55 });
+  CW.forEach((i, k) => AGD.glow(i, 72.64 + .12 * k, 73.24 + .12 * k, .55));
+  const tanRot = (b, i) => { const p = AGD.pos(i, b); return Math.atan2(p.y - PC[1], p.x - PC[0]) * DEG + 90; };
+  AGD.morph(74.3, 'all', 'bead', { dur: .6, stag: 0, rot: tanRot });
   /* v17.6 画曲线 → 转身成图标 → 落成一行（H16 / 7.1）：
      曲线 pose(b)：D0–D1 俯视附近（R 300 = 圆环、pitch 90 → 80、yaw −100 → −70 慢慢转），笔头 t = sine 从 0 画到 1；
      D1–M1 整条线转身、倾倒到 ICON（yaw −70 → 20、pitch 80 → 45、R 300 → 230、cy 540 → 520，E.inOut）；之后正中停留、R 慢慢 × 1.03。
@@ -98,25 +115,53 @@ scene('60-close', () => {
     const q = PTS.q[Math.round(clamp(t) * ORB.N)];
     return [P.cx + q[0] * P.R, P.cy + q[1] * P.R];
   };
-  const ROW0 = { cx: 960, y: 780, gap: 72, r: 20, order: ROW };
+  // 曲线上从 t 往回走 dpx 像素（屏幕弧长）的参数——笔串按像素排，不按 t（内圈外圈间距一样，珠子不互相叠）
+  const backT = (P, t, dpx) => {
+    curveAt(P, t);
+    const q = PTS.q; let n = Math.round(clamp(t) * ORB.N), acc = 0;
+    while (n > 0 && acc < dpx) { acc += Math.hypot(q[n][0] - q[n - 1][0], q[n][1] - q[n - 1][1]) * P.R; n--; }
+    return n / ORB.N;
+  };
+  const penBearing = (b) => { const [x, y] = curveAt(pose(b), strokeT(b)); return Math.atan2(x - PC[0], -(y - PC[1])) * DEG; };
+  // v17.7 笔串：第 k 位（0 = 串头 gm）到笔头的像素距离与半径。串头是 head（尖朝后），圆头离笔头柔光外缘约 8 px，不盖住它；
+  // 其余是 bead（rot 'vel'，ls 1.05：r 15–17 时 logo ≈ 20 px）。尺寸串尾到串头 × 1 / .96 / .92 / .88 / .84（基数 r 17）
+  const STR_R = [.84, .88, .92, .96, 1].map((k) => 17 * k), STR_D = [56, 118, 166, 214, 262];
+  const ROW0 = { cx: 960, y: 780, gap: 72, r: 22, order: ROW };
   AGD.key(78.8, 'row', Object.assign({ dur: 1.6, ease: E.sine, stag: .04, polar: PC }, ROW0));
   // 落位直接奔向一行的最终格位（静态），不追 row 键还在极坐标过渡中的位置——否则点会穿过图标中间、互相叠住、到位前排不齐
   const ROWP = AGD.pts('row', ROW0);
   AGD.follow(75.3, 81.2, (i, b) => {
-    const P = pose(b), [x, y] = curveAt(P, strokeT(b) - .045 - .05 * ROW[i]), e = E.inOut(lp(b, D1 + .5, 1.3));
-    return { x: lerp(x, ROWP[i][0], e), y: lerp(y, ROWP[i][1], e), r: lerp(10, ROW0.r, e) };
+    const P = pose(b), k = ROW[i], [x, y] = curveAt(P, backT(P, strokeT(b), STR_D[k])), e = E.inOut(lp(b, D1 + .5, 1.3));
+    // a 1：罗盘上没有数据的 Agent（徽章 a 0）在飞向笔头时淡入，五个点一起推笔
+    return { x: lerp(x, ROWP[i][0], e), y: lerp(y, ROWP[i][1], e), r: lerp(STR_R[k], ROW0.r, e), a: 1 };
   }, { blend: 1.0 });
+  /* v17.7 F3「6」笔串与落行（场景拍）：b75.3 起飞向笔头时 bead 改 rot 'vel'；串头 gm b75.5 变 head（glow .4、ls .7），五个 Agent
+     一起「推着笔」；画完（D1）head 回 bead，b79.1 起落行时 bead → dot（r 22），停在图标下方时慢呼吸 */
+  const LEAD = LTR[0];
+  AGD.morph(75.3, 'all', 'bead', { dur: .5, stag: .03, rot: 'vel', ls: 1.05 });
+  AGD.morph(75.55, LEAD, 'head', { dur: .5, glow: .4, ls: .7 });
+  AGD.morph(D1, LEAD, 'bead', { dur: .5, rot: 'vel', ls: 1.05 });
+  AGD.morph(D1 + .5, LTR, 'dot', { dur: .9, stag: .05 });
+  LTR.forEach((i, k) => AGD.pulse(i, 80.45 + .1 * k, 1.05, 1.3));
   // v17.4：标语出现时（TAG0）点收成标语下方的一小行，b86.9 落定
-  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 736, gap: 50, r: 13, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
+  // v17.7：标语下一行 r 13 → 16（logo ≈ 21 px），间距 50 → 56
+  AGD.key(TAG0 + .2, 'row', { cx: 960, y: 736, gap: 56, r: 16, order: ROW, dur: 1.4, ease: E.sine, stag: .06 });
+  // v17.7 7.1：字母「rbit·知音」从左到右升起（LET0 起，kit 110 ms 错开）时，点行跟着从左到右轻提 4 px，像一道波
+  const lift = (i, b) => 4 * Math.sin(Math.PI * clamp((b - LET0 - .2 * ROW[i]) / .7));
   // 7.4：片尾不定格——字标、字、点一起以 (960, 540) 为中心慢推（push），点另有 2px 漂移；follow 到 END + 1 才淡出（混回不落在片内）
   AGD.follow(TURN0 - .6, END + 1, (i, b, q) => {
     const s = push(b);
-    return { x: 960 + (q.x - 960) * s + 2 * Math.sin(2 * Math.PI * (b / (9 + 3 * hash01(i, 8)) + hash01(i, 9))), y: 540 + (q.y - 540) * s + 2 * Math.sin(2 * Math.PI * (b / (11 + 3 * hash01(i, 10)) + hash01(i, 11))), r: q.r * s };
+    return { x: 960 + (q.x - 960) * s + 2 * Math.sin(2 * Math.PI * (b / (9 + 3 * hash01(i, 8)) + hash01(i, 9))), y: 540 + (q.y - 540) * s - lift(i, b) + 2 * Math.sin(2 * Math.PI * (b / (11 + 3 * hash01(i, 10)) + hash01(i, 11))), r: q.r * s };
   }, { blend: .6 });
-  // 7.3：「agent」出现时 5 个点从左到右依次亮起，间隔 .16 拍、各亮 .5 拍（.3 拍渐起渐落），像一道光扫过这一行
-  for (let k = 0; k < 5; k++) AGD.glow(LTR[k], TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .9);
-  // H17：原地缩小淡出
-  AGD.key(FADE0, 'off', { dur: 1.6, stag: 0 });
+  // v17.7 7.3：标语逐词出现时，词下方的点 glow .2（Redesign 下两点 · for 下中间一点 · everyone 下两点），像被点逐个点亮
+  [.4, .4, .6, .8, .8].forEach((w, k) => AGD.glow(LTR[k], TAG0 + w, TAG0 + w + .7, .2));
+  // 「agent」落定（TAG_AG）时 5 个点从左到右依次变 bullet 并画出 ✓（间隔 .16 拍，各 .5 拍），读作「every agent ✓」，再回 dot
+  LTR.forEach((i, k) => {
+    AGD.morph(TAG_AG + .16 * k, i, 'bullet', { tick: 1, dur: .25, hold: .25, back: .35 });
+    AGD.glow(i, TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .5);
+  });
+  // v17.7 H17：不再原地缩小——五点在约 1 拍内向行中心合成 orb（r 30，与开场 b0.2 的 orb 同大），再与字标、标语一起淡到全黑
+  AGD.key(FADE0, 'merge', { x: 960, y: 736, r: 30, a: (b) => 1 - E.inOut(lp(b, FADE0, 1.8)), dur: .5, stag: .03, spin: 6 });
 
   /* ---------- 标志：画曲线 → 45° 图标 → 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
   // 白线 = App 图标黑夜版（#fff）；字标 = 深色底的香槟黄 #d6c7a1（brand.md），转身 v 0 → 1 时由白过渡到香槟黄
