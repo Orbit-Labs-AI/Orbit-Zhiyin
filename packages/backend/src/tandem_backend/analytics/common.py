@@ -85,7 +85,9 @@ def evidence(event, statement=None):
 
 
 def clauses(text):
-    return [part.strip() for part in re.split(r"[。！？!?；;\n]+", text) if part.strip()]
+    """Sentence/clause split for zh and en. An English full stop only ends a sentence when
+    followed by whitespace or the end, so ``parser.py``, ``v1.2`` and ``3.14`` stay intact."""
+    return [part.strip() for part in re.split(r"[。！？!?；;\n]+|\.+(?=\s|$)", text) if part.strip()]
 
 
 def semantic_coverage(events, messages):
