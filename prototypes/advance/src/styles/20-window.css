@@ -48,12 +48,13 @@
 .nav .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav .ct{font:500 11px/1 var(--font-num);color:var(--ink-3)}
 .nav .bd{height:16px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--ink-1);color:var(--bg);font:600 11px/16px var(--font-num);text-align:center}
-/* Agents list (multi-select, 25-nav sideAgents): logo in the agent colour; unchecked rows fade; 「仅此」 shows on hover / focus in
+/* Agents list (multi-select, 25-nav sideAgents): logo in the agent colour; unchecked rows fade to a grey logo, and while only some are picked the checked rows carry the light selected tint; 「仅此」 shows on hover / focus in
    place of the count. Pinned projects (sidePins): the pin toggle shows the same way. Both stay on the sidebar's own tints. */
 .nav .ag,.nav .pjp{position:relative}
 .nav .ag-ic{flex:none;margin:0 1px;overflow:visible}
 .nav .ag.dim .ag-b,.nav .ag.off .ag-b{color:var(--ink-3)}
-.nav .ag.dim .ag-ic{opacity:.4}
+.nav .ag.dim .ag-ic{opacity:.3;filter:grayscale(1)}
+.nav .ag.pk .ag-b{background:var(--sel-off);color:var(--ink-1)}
 .nav .ag .ag-only,.nav .pjp .pin-b{position:absolute;right:4px;top:4px;width:auto;height:20px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:500;color:var(--ink-2);background:var(--sel);opacity:0;pointer-events:none;transition:opacity .12s}
 .nav .pjp .pin-b{width:20px;padding:0;justify-content:center;background:transparent;color:var(--ink-3)}
 .nav .ag:hover .ag-only,.nav .ag .ag-only:focus-visible,.nav .pjp:hover .pin-b,.nav .pjp .pin-b:focus-visible{opacity:1;pointer-events:auto}

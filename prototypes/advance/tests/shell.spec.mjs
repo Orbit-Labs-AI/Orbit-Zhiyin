@@ -338,6 +338,10 @@ test('sidebar Agents: multi-select subset, only-this, all, logos; shared with th
   expect(await picked()).toBe('cc,ds,cp');
   await expect(page.locator('#side .ag[data-a="cx"]')).toHaveClass(/dim/);
   await expect(page.locator('#side .ag[data-a="cx"] .ag-b')).toHaveAttribute('aria-pressed', 'false');
+  // checked vs unchecked reads at a glance: checked rows carry the selected tint while a subset is picked, unchecked logos go grey
+  await expect(page.locator('#side .ag[data-a="cc"]')).toHaveClass(/\bpk\b/);
+  await expect(page.locator('#side .ag[data-a="cx"]')).not.toHaveClass(/\bpk\b/);
+  expect(await page.locator('#side .ag[data-a="cx"] .ag-ic').evaluate((e) => getComputedStyle(e).filter)).toContain('grayscale');
   // an unchecked row still counts its own sessions (what checking it would add)
   expect(Number(await page.locator('#side .ag[data-a="cx"] .ct').textContent())).toBeGreaterThan(0);
   await expect(page.locator('#main .frow [data-act="agentMenu"]')).toContainText('3 个');
@@ -388,6 +392,13 @@ test('pinned projects: visible auto rule, pin / unpin from sidebar and projects 
   await page.locator('#side .pjp[data-p="' + auto[1] + '"] .pin-b').click();
   expect(await sideIds()).toEqual(auto);
   await expect(page.locator('#side .sect').filter({ hasText: '置顶项目' })).toContainText('会话最多');
+  // live's synthetic '_none' group (sessions without a project) is not a project: never auto-pinned, no pin button, not pinnable
+  const none = await page.evaluate(() => {
+    const p = { id: '_none', name: '未归属项目', path: '', git: '', tags: [] };
+    return { btn: pjPinBtn(p), toggled: (pinToggle('_none'), S.pins.indexOf('_none')) };
+  });
+  expect(none).toEqual({ btn: '', toggled: -1 });
+  expect(await page.evaluate(() => { PJ.push({ id: '_none', name: '未归属项目' }); PJI._none = PJ[PJ.length - 1]; ALL.forEach((s) => { if (s.p === PJ[0].id) s.p = '_none'; }); const r = pinsAuto(); return r.indexOf('_none'); })).toBe(-1);
   expect(errors).toEqual([]);
 });
 

@@ -164,9 +164,10 @@ function sideAgents() {
     const on = !off && S.agents.has(a.id), dim = !off && !on, idle = on && !n;
     const last = on && picked.length === 1;
     const only = !off && onIds.length > 1 && !last;
+    const pk = on && picked.length < onIds.length; // a subset is picked: checked rows get the sidebar's light selected tint
     const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' :
       (idle ? rangeLabel() + '内没有会话 · ' : '') + (last ? '点击：恢复全部 Agent' : on ? '点击：移出筛选' : '点击：加入筛选') + (only ? '；⌥ 点击：只看 ' + a.name : '');
-    return '<div class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + '" data-a="' + a.id + '">' +
+    return '<div class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + (pk ? ' pk' : '') + '" data-a="' + a.id + '">' +
       '<button type="button" class="ag-b" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + esc(tip) + '" aria-pressed="' + on + '">' + agentIcon(a, st) + '<span class="lb">' + esc(a.name) + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>' +
       (only ? '<button type="button" class="ag-only" data-act="agentOnly" data-a="' + a.id + '" aria-label="只看 ' + esc(a.name) + '" data-tip="只看 ' + esc(a.name) + '">仅此</button>' : '') + '</div>';
   }).join('');
@@ -180,9 +181,9 @@ function sideAgentsRight() { return agentPickedIds().length < agentOnIds().lengt
 S.pins = (() => { const v = store.get('pins', []); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; })();
 const pinsManual = () => S.pins.filter((id) => PJI[id]);
 const isPinned = (id) => S.pins.indexOf(id) >= 0;
-function pinsAuto() { return PJ.map((p) => ({ id: p.id, n: sel({ noExtra: true, project: p.id }).length })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3).map((x) => x.id); }
+function pinsAuto() { return PJ.filter((p) => p.id !== '_none').map((p) => ({ id: p.id, n: sel({ noExtra: true, project: p.id }).length })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3).map((x) => x.id); }
 function pinToggle(id) {
-  if (!id) return;
+  if (!id || id === '_none') return; // '_none' = live sessions without a project: not a project, so not pinnable
   const i = S.pins.indexOf(id); if (i >= 0) S.pins.splice(i, 1); else S.pins.push(id);
   store.set('pins', S.pins.slice());
   render();
@@ -195,8 +196,8 @@ function sidePinsRight() {
 function sidePins() {
   const man = pinsManual(), ids = man.length ? man : pinsAuto();
   if (!ids.length) return '<div class="sb-note">' + rangeLabel() + '内没有项目会话</div>';
-  return ids.map((id) => { const pin = isPinned(id); return '<div class="pjp" data-p="' + id + '"><button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + esc(PJI[id].name) + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>' +
-    '<button type="button" class="pin-b' + (pin ? ' on' : '') + '" data-act="pinToggle" data-p="' + id + '" aria-pressed="' + pin + '" aria-label="' + (pin ? '取消置顶 ' : '置顶 ') + esc(PJI[id].name) + '" data-tip="' + (pin ? '取消置顶' : '置顶到侧栏') + '">' + ic('pin', 13) + '</button></div>'; }).join('');
+  return ids.map((id) => { const pin = isPinned(id); return '<div class="pjp" data-p="' + esc(id) + '"><button type="button" data-act="pinProject" data-p="' + esc(id) + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + esc(PJI[id].name) + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>' +
+    (id === '_none' ? '' : '<button type="button" class="pin-b' + (pin ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(id) + '" aria-pressed="' + pin + '" aria-label="' + (pin ? '取消置顶 ' : '置顶 ') + esc(PJI[id].name) + '" data-tip="' + (pin ? '取消置顶' : '置顶到侧栏') + '">' + ic('pin', 13) + '</button>') + '</div>'; }).join('');
 }
 function renderSide() {
   if (S.ed === 'lite') { renderSideLite(); return; }
