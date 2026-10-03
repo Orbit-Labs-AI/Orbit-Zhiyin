@@ -52,6 +52,33 @@ def test_grant_missing_and_raw(ai_gw):
         consent.update({"settings": {"daily_usd_cap": -1}})
 
 
+@pytest.mark.parametrize("patch", [
+    {"settings": {"slots": "claude-sonnet-5-5"}},                       # not an object -> was a 500 in model_for
+    {"settings": {"slots": {"claude_code": "claude-sonnet-5-5"}}},      # engine value not an object
+    {"settings": {"slots": {"claude_code": {"fast": "x"}}}},            # unknown slot
+    {"settings": {"slots": {"claude_code": {"main": "--dangerously-skip-permissions"}}}},  # option injection
+    {"settings": {"slots": {"codex": {"cheap": "-c"}}}},
+    {"settings": {"slots": {"codex": {"cheap": "gpt 5"}}}},             # whitespace
+    {"settings": {"slots": {"codex": {"cheap": 5}}}},
+    {"settings": {"slots": {"gemini": {"main": "x"}}}},                 # unregistered engine
+    {"default_engine": "gemini"},
+])
+def test_invalid_slots_and_default_engine_are_422(ai_gw, patch):
+    consent = Consent(ai_gw.appdb)
+    with pytest.raises(AIError) as error:
+        consent.update(patch)
+    assert error.value.status == 422
+    assert consent.settings()["slots"] == {} and consent.settings()["default_engine"] is None
+
+
+def test_valid_slots_are_stored(ai_gw):
+    consent = Consent(ai_gw.appdb)
+    slots = {"claude_code": {"main": "claude-opus-5-5[1m]", "cheap": "claude-haiku-4-5"},
+             "codex": {"main": "gpt-5.1-codex"}, "api_key": {"cheap": None}}
+    consent.update({"default_engine": "codex", "settings": {"slots": slots}})
+    assert consent.settings()["slots"] == slots and consent.settings()["default_engine"] == "codex"
+
+
 def test_revoke_cancels_running_and_queued(ai_svc):
     def block(req):
         req.cancel.wait(10)
