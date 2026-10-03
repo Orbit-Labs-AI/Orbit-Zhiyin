@@ -134,7 +134,7 @@ T+~0.5s  gateway 拉起 ingest、analysis worker（懒启动：首个任务到�
 ### 2.8 打包
 
 - **形态**：`Orbit.app/Contents/{MacOS/Orbit（Swift 宿主）, Resources/ui/{advance.html, lite.html}, Resources/helper/orbit-helper/（PyInstaller onedir）}`。`orbit-helper` 是**一个**冻结可执行文件，用子命令区分角色：`gateway`、`worker ingest`、`worker analysis`；gateway 以自身可执行文件路径拉起 worker（冻结环境下不能用 `python -m`）。
-- **复用**：`origin/feat/data-app-integration` 的 `apps/macos/Tandem.swift`（Process 拉起、令牌与端口握手、`NSOpenPanel` + security-scoped bookmark、退出时终止 helper）与 `apps/macos/build.py`（PyInstaller + swiftc + `codesign` + 可选公证）。**不重做**；本设计只把 helper 入口由单进程 `desktop.py` 换成 `orbit-helper` 三角色，并增加 Lite 页面资源。
+- **复用**：`origin/feat/data-app-integration` 上的 macOS 宿主原型（现为 `apps/desktop/Orbit.swift`；Process 拉起、令牌与端口握手、`NSOpenPanel` + security-scoped bookmark、退出时终止 helper）与同一原型的构建脚本（现为 `apps/desktop/build.py`；PyInstaller + swiftc + `codesign` + 可选公证）。**不重做**；本设计只把 helper 入口由单进程 `desktop.py` 换成 `orbit-helper` 三角色，并增加 Lite 页面资源。
 - **Node 连接器**：MVP 不随包分发。Python 原生映射器已覆盖七个 Agent；TS 连接器（FSEvents 增量、`orbit-ingest`）作为 v1 的可选 sidecar，打成单个 Node 可执行文件由 ingest-worker 拉起，经现有 `bridge.import_connector()` 汇入。理由：少带约 40 MB 运行时与一套签名 / 升级面；轮询对 MVP 的“近实时”足够（自适应 2 s → 30 s）。
 - **体积与签名（需实机测量）**：scikit-learn / scipy / jieba 使 onedir 体积需实测（预期 200 MB 量级）；PyInstaller 加载 numpy 动态库可能需要 `disable-library-validation` 之类的 entitlement；当前为非 Sandbox 独立分发，Developer ID + Hardened Runtime + 公证需用户提供身份。Sandbox 版（App Store）另立目标，不在本文范围。
 - **数据目录**：`~/Library/Application Support/Orbit/`（`orbit.db`、`raw/`、`analysis.sqlite`、`cache/ui.sqlite`、`app-state.json`、`backups/`）；`--home` 覆盖用于演示与验收。
