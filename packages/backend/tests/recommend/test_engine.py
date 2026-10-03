@@ -55,7 +55,7 @@ def fake_recall(cands, problems=None):
 def test_slate_shape_and_ui_keys():
     gated = raw("kb:risky", risk={"level": "high"})
     slate = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([raw("kb:ro-allow"), gated]))
-    assert slate["engine_version"] == "rec-engine-v2.2" and slate["status"] == "ready"
+    assert slate["engine_version"] == "rec-engine-v2.3" and slate["status"] == "ready"
     assert slate["kb_version"] == "kb-1" and slate["catalog_generation"] == 7 and slate["routes"] == {"kb": 2}
     top, low = slate["candidates"]
     assert top["rank"] == 1 and top["gates"]["passed"] and set(top["ui"]) == UI_KEYS
@@ -310,3 +310,29 @@ def test_volume_metrics_are_not_occurrence_counts():
     assert out["vars"]["count_basis"] == "evidence" and out["unit"] != "token"
     save = narrate._save({"kind": "skill", "problem": out}, {"prior": {"alpha": 3, "beta": 2}}, LEDGER_INPUTS)
     assert save["share"] == {"time": 2., "token": 2.} and save["time_pct"] == 1.2  # 2 turns of 100, × .6
+
+
+def test_unmeasured_approvals_take_the_cap_of_the_call_pool_that_priced_them():
+    """No read-only wait was timed (e.g. Codex): approvals are priced by the average tool call, so
+    their cap is the tool-call pool's — not the empty read-only pool, which zeroed the total while
+    the card itself showed a real share."""
+    ops = {"call": {"n": 200, "tokens": 400_000, "ms": 18_000_000}, "readonly": {"n": 0, "tokens": 0, "ms": 0}}
+    untimed = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "ops": ops}}}
+    prob = problem(ptype="permission_friction", key="permission_friction", weekly_count=10)
+    save = ui_of(raw("kb:ro-allow", prob=prob), untimed)["save"]
+    assert save["op"] == "readonly" and save["group"] == "call" and "按平均工具调用近似" in save["basis"]
+    assert save["share"]["time"] > 0 and save["cap"] == {"time": 50., "token": 40.}
+    assert narrate.total_saving([save]) == {"time": save["time_pct"], "token": 0.}
+
+
+def test_total_saving_matches_the_shared_cases():
+    """The same cases drive the App's recTotal (live-lite-recs.spec.mjs), so both totals agree."""
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[4] / "prototypes" / "shared" / "fixtures" / "recs" / "total-cases.json"
+    cases = json.loads(path.read_text())["cases"]
+    assert len(cases) >= 6
+    for case in cases:
+        total = narrate.total_saving(case["saves"])
+        assert total == pytest.approx(case["total"]), case["name"]

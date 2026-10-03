@@ -14,7 +14,7 @@ from .ranking import hygiene
 from .ranking import rank as rank_mod
 from .ranking import slate as slate_mod
 
-ENGINE_VERSION = "rec-engine-v2.2"  # v2.2: occurrence counts exclude volume metrics; save.group / cap (F10)
+ENGINE_VERSION = "rec-engine-v2.3"  # v2.2: occurrence counts exclude volume metrics; save.group / cap (F10); v2.3: cap from the pool that priced the share
 NO_BENEFIT = "没有可估算的收益"
 NET_NON_POSITIVE = "net_non_positive"
 INTERNAL = ("kb", "item", "prior", "cost", "requirements", "gates_hint", "explain_hints")

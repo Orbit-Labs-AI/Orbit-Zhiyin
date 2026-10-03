@@ -44,8 +44,9 @@ function recTotal(rows) {
     const p = recPct(r.id); if (!p) return; const key = p.key || r.id;
     [['t', 'st'], ['k', 'sk']].forEach(([f, sf]) => {
       if (p[f] == null) return;
-      const cap = p.cap && p.cap[f] != null ? p.cap[f] : 100;
-      const e = { pct: p[f], share: p[sf] != null ? p[sf] : p[f], g: p.g || key, cap };
+      const share = p[sf] != null ? p[sf] : p[f];
+      const cap = p.cap && p.cap[f] != null ? Math.max(p.cap[f], share) : 100; // a pool holds at least the share it priced
+      const e = { pct: p[f], share, g: p.g || key, cap };
       const id = key + '\u0000' + f; if (!best[id] || e.pct > best[id].pct) best[id] = Object.assign(e, { f });
     });
   });

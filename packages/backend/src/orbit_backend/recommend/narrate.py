@@ -213,9 +213,11 @@ def _requests(ledger: dict, agents) -> int:
 
 
 def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -> tuple | None:
-    """(op class, tokens, ms, note) the problem's ``total`` occurrences cost in this scope's
+    """(op class, tokens, ms, note, pool) the problem's ``total`` occurrences cost in this scope's
     trajectory; ms None = not measured. Per-occurrence cost is the measured mean of the class,
-    capped at what the whole class (or the whole scope) cost."""
+    capped at what the whole class (or the whole scope) cost. ``pool`` is the class whose
+    measurements were actually used: an unmeasured class borrows the average tool call, and then
+    its cost (and so its cap in ``total_saving``) comes from the tool-call pool."""
     if cand.get("kind") == "removal" or problem.get("type") in REMOVAL_TYPES:
         values = {**((raw.get("explain_hints") or {}).get("vars") or {}), **(problem.get("vars") or {})}
         resident = _tokens(cand, raw)
@@ -224,11 +226,12 @@ def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -
             return None
         guess = "（估计）" if values.get("tokens_basis") == "estimate" else ""
         return "resident", min(resident * requests, ledger.get("tokens") or 0), None, \
-            f"每次请求常驻约 {resident} tokens{guess} × {requests} 次请求"
+            f"每次请求常驻约 {resident} tokens{guess} × {requests} 次请求", "resident"
     if total <= 0:
         return None
     name = OP_OF.get(problem.get("type"), "turn")
     steps = max(1, int((problem.get("vars") or {}).get("n_steps") or 1)) if problem.get("type") == "repeated_workflow" else 1
+    pool = name
     if name == "turn":
         n, tokens, ms = int(ledger.get("turns") or 0), ledger.get("tokens") or 0, ledger.get("active_ms") or 0
         note = "每次约一轮返工"
@@ -236,13 +239,13 @@ def _op_cost(cand: dict, raw: dict, problem: dict, ledger: dict, total: float) -
         cls = (ledger.get("ops") or {}).get(name) or {}
         note = "逐次实测"
         if not cls.get("n"):  # nothing of this class was timed: an average tool call stands in
-            cls, note = (ledger.get("ops") or {}).get("call") or {}, "按平均工具调用近似"
+            cls, note, pool = (ledger.get("ops") or {}).get("call") or {}, "按平均工具调用近似", "call"
         n, tokens, ms = int(cls.get("n") or 0), cls.get("tokens") or 0, cls.get("ms") or 0
     if n <= 0:
         return None
     count = total * steps
     op_tokens = 0 if name == "readonly" else min(count * tokens / n, tokens)
-    return name, op_tokens, min(count * ms / n, ms), note
+    return name, op_tokens, min(count * ms / n, ms), note, pool
 
 
 def _save(cand: dict, raw: dict, inputs: dict) -> dict:
@@ -267,11 +270,13 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
     cost = _op_cost(cand, raw, problem, ledger, total)
     if cost is None:
         return _unestimated("轨迹里没有可计量的对应操作")
-    op, op_tokens, op_ms, note = cost
+    op, op_tokens, op_ms, note, pool = cost
     tokens, active = ledger.get("tokens") or 0, ledger.get("active_ms") or 0
     share_k = min(100., 100 * op_tokens / tokens) if tokens > 0 else None
     share_t = min(100., 100 * op_ms / active) if op_ms is not None and active > 0 else None
-    cap = _class_cap(op, ledger)
+    # the pool whose measurements priced the share bounds it; a card's own share always fits its cap
+    cap = _class_cap(pool, ledger)
+    cap = (max(cap[0], round(share_t or 0., 4)), max(cap[1], round(share_k or 0., 4)))
     prior = raw.get("prior") or {}
     alpha, beta = float(prior.get("alpha") or 1), float(prior.get("beta") or 1)
     p, (lo, hi) = alpha / (alpha + beta), beta_interval(alpha, beta)
@@ -292,7 +297,7 @@ def _save(cand: dict, raw: dict, inputs: dict) -> dict:
             "token_range": None if share_k is None else [scaled(share_k, lo), scaled(share_k, hi)],
             "share": {"time": scaled(share_t, 1), "token": scaled(share_k, 1)}, "effect": round(p, 3),
             "op": op, "key": problem.get("key") or problem.get("problem_id"),
-            "group": CAP_GROUP[op], "cap": {"time": None if share_t is None else cap[0], "token": cap[1]},
+            "group": CAP_GROUP[pool], "cap": {"time": None if share_t is None else cap[0], "token": cap[1]},
             "label": save_label(time_pct, token_pct), "basis": basis}
 
 
@@ -337,8 +342,8 @@ def total_saving(saves) -> dict | None:
                 continue
             share = (save.get("share") or {}).get(field)
             share = pct if share is None else share
-            cap = (save.get("cap") or {}).get(field)
-            entry = (pct, share, save.get("group") or save.get("op") or key, 100. if cap is None else cap)
+            cap = (save.get("cap") or {}).get(field)  # a pool holds at least the share it priced
+            entry = (pct, share, save.get("group") or save.get("op") or key, 100. if cap is None else max(cap, share))
             if (key, field) not in best or pct > best[(key, field)][0]:
                 best[(key, field)] = entry
     if not best:

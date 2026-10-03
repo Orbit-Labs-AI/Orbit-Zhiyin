@@ -89,3 +89,23 @@ test('Lite recs: large overlapping shares never add up to「100%」(F10) — cap
   expect(tot.k).toBeCloseTo(14, 6);
   expect(errors).toEqual([]);
 });
+
+test('Lite recs: recTotal gives the same totals as narrate.total_saving on the shared cases (fixtures/recs/total-cases.json)', async ({ page }) => {
+  test.skip(!!PASS, 'stubbed recommendation bodies');
+  const errors = collectErrors(page);
+  const { cases } = fx('recs/total-cases.json');
+  await stubGateway(page, 's1', routes(recsBody(() => {})));
+  await openLive(page, 'overview');
+  // each backend ui.save goes through the live adapter (OrbitLive.recs.pct), as on a live page, then into recTotal
+  const got = await page.evaluate((cs) => cs.map((c) => {
+    const ids = c.saves.map((s, i) => { const id = '__t' + i; REC_X[id] = { pct: OrbitLive.recs.pct({ ui: { save: s } }) }; return { id }; });
+    const r = recTotal(ids); ids.forEach(({ id }) => delete REC_X[id]); return r;
+  }), cases);
+  cases.forEach((c, i) => {
+    for (const [f, key] of [['t', 'time'], ['k', 'token']]) {
+      if (c.total[key] == null) expect(got[i][f], c.name).toBeNull();
+      else expect(got[i][f], c.name + ' · ' + key).toBeCloseTo(c.total[key], 6);
+    }
+  });
+  expect(errors).toEqual([]);
+});
