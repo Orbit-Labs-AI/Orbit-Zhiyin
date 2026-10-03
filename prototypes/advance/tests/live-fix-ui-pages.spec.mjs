@@ -110,3 +110,21 @@ test('D/E: one-session persona says keep using Orbit, names its own period; axes
   expect(await page.evaluate(() => AXES.map((a) => a.dim))).toEqual(['委托', '即兴', '多线', '求证']);
   expect(errors).toEqual([]);
 });
+
+test('H: at 960×640 Lite KPI deltas stay inside their tiles and text links have a ≥ 24px hit area', async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 640 });
+  await stubGateway(page, 'core');
+  await openLive(page, 'l-home');
+  await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  await page.evaluate(() => { if (S.ed !== 'lite') edSet('lite'); go('l-home'); });
+  const over = await page.evaluate(() => Array.from(document.querySelectorAll('.lite .vz-kpi-d')).filter((e) => e.scrollWidth > e.clientWidth + 1).length);
+  expect(over).toBe(0);
+  const hits = await page.evaluate(() => Array.from(document.querySelectorAll('#content .lnk')).filter((e) => e.offsetParent).map((e) => {
+    e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect(); const x = r.left + r.width / 2; const top = r.top + r.height / 2 - 11.5, bot = r.top + r.height / 2 + 11.5;
+    const ok = (y) => { const t = document.elementFromPoint(x, y); return !!t && (t === e || e.contains(t)); };
+    if (!(ok(top) && ok(bot))) { const t1 = document.elementFromPoint(x, top), t2 = document.elementFromPoint(x, bot); return [e.textContent, r.height, t1 && t1.outerHTML.slice(0, 90), t2 && t2.outerHTML.slice(0, 90)]; }
+    return ok(top) && ok(bot);
+  }));
+  expect(hits.length).toBeGreaterThan(0);
+  expect(hits.filter((h) => h !== true)).toEqual([]);
+});

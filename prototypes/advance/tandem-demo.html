@@ -339,6 +339,9 @@ body.native .win.nosb .tbar{padding-left:20px}
 @keyframes slidein{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 .fade{animation:fadein .15s var(--ease)}
 .stale{opacity:.45;transition:opacity .15s}
+/* text links and sortable table headers: the hit area grows to ≥ 24px tall without changing how they look */
+.lnk,.tbl th button{position:relative}
+.lnk::after,.tbl th button::after{content:'';position:absolute;left:-2px;right:-2px;top:50%;height:max(100%,24px);transform:translateY(-50%)}
 
 /* VZ · shared visualization kit (see js/36-vizkit.js). Colors only via tokens; text sizes are fixed px so charts never scale type with width.
    Semantic chart colors (critique §4): one color = one meaning. They read the shell's --sem-* tokens when present and fall back to the theme. */
@@ -572,7 +575,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lite .vz-kpi-l{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .lite .vz-kpi .v{font-family:var(--font-num);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
 .lite .vz-kpi-u{font-size:15px}
-.lite .vz-kpi-d{font-size:12px;line-height:16px}
+.lite .vz-kpi-d{font-size:12px;line-height:16px;white-space:normal;overflow-wrap:anywhere}   /* narrow tiles: the delta wraps instead of running past the edge */
 .lite .vz-kpi.l-warn .v{color:var(--crit)}
 .lite .l-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
 
