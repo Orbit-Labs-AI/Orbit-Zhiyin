@@ -60,10 +60,10 @@ function typeOn(c, k0, text, seed, ci) {
 }
 scene('10-intro', () => {
   css(`
-.ln.lt.in-s{font-size:46px;color:rgba(255,255,255,.74)}
+.ln.lt.in-s{font-size:36px;font-weight:600;letter-spacing:.01em}
 .ln.in-big{font-size:120px;overflow:visible}
 .ln.sv .w.in-hot{background:none;color:var(--a1)}
-.ln.lt.in-gloss{font-size:44px;color:rgba(255,255,255,.74)}
+.ln.lt.in-gloss{font-size:44px;font-weight:500;color:rgba(255,255,255,.9)}
 .in-t1{font-size:132px}
 .in-w1{font-size:120px}
 .in-ev{font-size:150px;color:var(--a1)}
@@ -123,6 +123,9 @@ scene('10-intro', () => {
     el.style.transform = 'translate(-50%,-50%) translateY(' + (-(o.up || 0) * q).toFixed(1) + 'px) scale(' + sc.toFixed(4) + ')';
     el.style.transformOrigin = '50% 50%';
     leave(el, 1 - q, o.spread);
+    // v18.3: o.sq = the whole line fades on (1 − q)² while it blurs, so it is ≈ 5 % by .67 of the exit — at a linear
+    // 22 % the strokes over black (「人」) still read while the ones over the lit area had gone
+    if (o.sq && q > 0) el.style.opacity = ((1 - q) * (1 - q)).toFixed(3);
   };
 
   // Live word geometry for the pen (1a) and the caret (1c): the layout widths of a line's .w words (offsetWidth, the
@@ -161,31 +164,30 @@ scene('10-intro', () => {
   // rises 18 px onto y 430 (the cluster's top edge is y 466); the headline 「正在成为每个人的日常」 wipes in a word on
   // b1.1 / 1.52 / 1.94 (.45 beat each, ≤ 1600; 「正在」 waits until the pen has left the type band, so the small line reads
   // alone first) and 「日常」 (orange) stamps in on b2.36 and hits on b2.66. 1a.3: both lines leave
-  // b4.8–5.4 — fade + blur, drifting up 60 px; until then both keep a slow push (+6 %). Whole headline readable
+  // b4.8–5.4 — fade + blur, drifting up 40 px (v18.3, was 60), opacity (1 − q)²; until then both keep a slow push (+6 %). Whole headline readable
   // b2.66–4.8 (2.14 beats), the small line b1.5–4.8
-  const up60 = (tl, life) => -60 * E.inOut(clamp((tl - (life - BB(.6))) / BB(.6)));
-  // v18.1: the small line is the subject alone, 「AI Agent，」 (「用 AI Agent，正在成为…」 used a verb phrase as the
+    // v18.1: the small line is the subject alone, 「AI Agent，」 (「用 AI Agent，正在成为…」 used a verb phrase as the
   // subject); it steps in on b0.5 as the orb splits (landing with the settle), whole by b0.9
-  txt(0.4, T(5.4), [['lt in-s', '<span class="w">AI Agent，</span>']], { x: 960, y: 430, align: 'c' }, {
-    anim: wipe({ at: [.1], push: .06, up: 60, out: .6 }),
+  txt(0.4, T(5.4), [['lt sv in-s', '<span class="w">AI Agent，</span>']], { x: 960, y: 430, align: 'c' }, {
+    anim: wipe({ at: [.1], push: .06, up: 40, out: .6, sq: 1 }),
     // v17.7: it floats up out of the splitting cluster — from 40 px lower (the top dot's crown) over 1 beat
     tick: (el, tl) => { el.style.transform += ' translateY(' + (40 * (1 - E.out(clamp(tl / BB(1.0))))).toFixed(1) + 'px)'; }
   });
   const HEAD = ['hv sv in-big', '<span class="w">正在</span><span class="w">成为</span><span class="w">每个人的</span><span class="w in-hot">日常</span>'];
   const HB0 = .5, HB1 = T(5.4), HAT = [.6, 1.0, 1.45, 1.8];       // v17.5: b1.1 / 1.5 / 1.95, 「日常」 stamps b2.3, hits b2.6
-  txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: HAT, stamp: 3, fit: 1600, push: .06, up: 60, out: .6 }) });
+  txt(HB0, HB1, [HEAD], { x: 960, y: 540, align: 'c' }, { anim: wipe({ at: HAT, stamp: 3, fit: 1600, push: .06, up: 40, out: .6, sq: 1 }) });
   // T0′ the pen (b0.8–4.8): a ∪ arc (gap 56, sag −14, r 28) 112 px under the headline, centred under the newest word. A
   // centred line re-centres as a word grows, so word k sits at 960 + (width of the words before it) / 2 for its whole
   // wipe (× the push); the pen glides there (E.io .42) and arrives .08 beat before the word starts, stays under 「日常」
   // through the hit, then drifts slowly back to 960 while the line is read (b3.2–4.4) and rises with the line's exit
-  // (652 → 592, same ease and beats as up60)
+  // (652 → 612, the same 40 px, ease and beats as the type; v18.3: was 60)
   const headW = wordsOf(HEAD[0], HEAD[1]);
   const headC = (k) => (b) => {
     const W = headW(), p = sum(W, k);
     return 960 + p / 2 * Math.min(1, 1600 / sum(W, k + 1)) * (1 + .06 * clamp((b - HB0) / (HB1 - HB0)));
   };
   const penX = (b) => glide(b, 960, [1, 2, 3].map((k) => [HB0 + HAT[k] - .26, HB0 + HAT[k] - .02, headC(k)]).concat([[3.2, T(4.4), 960]]));   // v17.5: steps in the gap after each word lands
-  const penY = (b) => 652 - 60 * E.inOut(clamp((b - (HB1 - .6)) / .6));
+  const penY = (b) => 652 - 40 * E.inOut(clamp((b - (HB1 - .6)) / .6));
   // front-loaded (smoothstep into a cubic ease-out, zero speed at both ends) so the cluster clears the type band
   // (y 480–600) while 「每天」 is still wiping in: at b1.0 the dots are ≈ 75 % of the way down
   const PEN_E = (p) => { const s = p * p * (3 - 2 * p); return 1 - Math.pow(1 - s, 3); };
@@ -437,7 +439,7 @@ scene('10-intro', () => {
   // gone before 15-redesign's box passes y 728) so it reads 3.65 beats; 15-redesign's first type (b15.8) is not under it
   // v18.1: it no longer outlives the type — it leaves with the headline's exit (E.inOut from b18.7) .1 beat behind,
   // blurring to 6 px, gone by b19.3 together with 「Everything」
-  txt(T(12.3), T(15.4), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 728, align: 'c' }, {
+  txt(T(12.3), T(15.4), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 758, align: 'c' }, {   // v18.3: 30 px lower (≥ 32 px under Everything's descenders), 500, .9
     anim: (el, tl, life) => {
       const p = E.out(clamp((tl - BB(.1)) / BB(.2))), q = E.inOut(clamp((tl - (life - BB(.5))) / BB(.5)));   // v17.5: .1 after Everything, whole by +.3 as before
       // v17.7: wiped right → left out of the caret's foot (it stands just right of the line's end), not risen
