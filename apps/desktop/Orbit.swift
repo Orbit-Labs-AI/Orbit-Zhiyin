@@ -799,8 +799,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 if (response as? HTTPURLResponse)?.statusCode == 200 {
                     if self.restarts > 0 { self.setStatusBadge("none") }  // Back after a helper restart.
                     for host in self.hosts.values { self.load(host, origin) }
-                } else if attempt < 120 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.waitUntilReady(attempt: attempt + 1) }
+                } else if attempt < 160 {
+                    // The lifespan start usually finishes within a second of the port line: poll every 0.1 s
+                    // for the first 5 s (the fixed 0.5 s step added up to half a second to every cold start),
+                    // then every 0.5 s; about 60 s in total as before.
+                    let delay = attempt < 50 ? 0.1 : 0.5
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { self.waitUntilReady(attempt: attempt + 1) }
                 } else {
                     self.showFailure("本地后台未就绪，请查看数据目录中的 desktop.log：\(self.home.path)")
                 }
