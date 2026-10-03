@@ -33,7 +33,12 @@
       b18.7 under SHIFT +6.9) belongs to 15-redesign; this scene writes no key after b10.2.
    The icons are drawn in #agdBack (AGD.back, under the Agent dots), so they burst from behind the dots and the box.
    v17.7 typing (length unchanged): every prompt typed into a box (1b here, 1d in 15-redesign) goes in one character at a
-   time at a human pace (typeOn below); 1b types two prompts (记账 App, 路演稿) and 「生成产品官网」 is ds's own bubble. */
+   time at a human pace (typeOn below); 1b types two prompts (记账 App, 路演稿) and 「生成产品官网」 is ds's own bubble.
+   v17.7 shapes (AGD.morph, length unchanged): orb b0.2 → split .35–.8 · pen beads b0.8 (lead pill 1.46 / 1.91, stamp
+   press 2.45–2.9) · beads → dots 6.6 · box pull-out pills 6.75 · caret on the receiving dot while typing (bobs on typeOn's
+   key beats) → tail .2 before each send · own prompts dot → tail .15 before their pop · sparks 11.15 → box-in pills
+   11.65 → dots 12.0 · five-colour segmented caret 13.2 (ripples on word landings, 4° lean on each step, fill breathes
+   from 15.4) — 15-redesign lays it down at 18.7. */
 /* typeOn(c, k0, text, seed) → the scene beats of its characters: the k-th character of text appears in AGD.chat box c
    at K[k] (K[0] = k0, then .22–.28 beat apart, jitter from hash01(k, seed)) — the caret stays solid while it types and
    blinks once the line is whole; ci (optional) = the Agent this prompt is sent to, whose colour the box caret takes. AGD's c.type() types evenly over dur; an every() drive re-times that record each frame
