@@ -7,6 +7,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [品牌](brand.md) | 产品名 Orbit、代码标识与旧名兼容、标志、字标与 App 图标、字体、备选与历史版本 |
+| [展示图](showcase/README.md) | 主视觉（协作人格罗盘 + Orbit·知音）与 10 张核心功能、组件和交互示意 PNG，由原型与素材包排版导出 |
 | [路演组件素材](ppt-assets/README.md) | 从现行 UI 提取 PPT 可用的透明 PNG、SVG、页面与素材索引 |
 | [人格素材](persona/README.md) | 16 型协作人格之花、16 型总览图与画像页表盘（协作人格之花、每个 Agent 的轨道曲线、类型码与徽章）的浅色 / 深色 SVG、PNG，由原型导出 |
 | [Demo 说明](demo.md) | 统一 App（Lite + Advance）怎么看、有哪些交互、怎么修改与发布 |

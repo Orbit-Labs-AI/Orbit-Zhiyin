@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbit 展示图</title>
+<!-- 路演展示图：主视觉（协作人格罗盘 + Orbit·知音 字标）与核心功能示意。export.mjs 逐块截成 PNG。
+     罗盘、花与字标取自 persona/kit、logo/kit 原样文件；界面截图取自 capture.mjs 的输出（?ui= 指定目录）。 -->
+<style>
+:root{
+  --bg:#f5f4f0;--surface:#fff;--ink:#17181b;--ink2:#45484f;--ink3:#62666f;--ink4:#9a9ca3;--line:#e3e1dc;--hair:#ebe9e3;
+  --orbit:#5f6b6f;--good:#11843a;--crit:#c62f2f;--ai:#5a3fd0;--word:#5f6b6f;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+  --display:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro",system-ui,"PingFang SC","Hiragino Sans GB",sans-serif;
+  --type:"SF Pro Rounded",ui-rounded,-apple-system,"PingFang SC",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#d9d8d3}
+body{font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;padding:40px;display:flex;flex-direction:column;gap:40px;align-items:flex-start}
+img{display:block}
+.board{position:relative;flex:none;width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--ink)}
+.board.sq{width:1600px;height:1600px}
+.board.dark{--bg:#161619;--surface:#2f2f34;--ink:#f2f2f4;--ink2:#c9c9ce;--ink3:#9a9aa0;--ink4:#6c6c73;--line:rgba(255,255,255,.12);--orbit:#a3adb0;--word:#d6c7a1}
+.abs{position:absolute}
+.tcode{font-family:var(--type);font-weight:700;letter-spacing:.06em}
+.num{font-variant-numeric:tabular-nums}
+
+/* 栏目页通用：眉题、标题、副标题、页脚 */
+.head{position:absolute;left:120px;top:72px;width:1100px}
+.eb{font-size:17px;font-weight:600;letter-spacing:.14em;color:var(--ink3)}
+.eb b{color:var(--ink);font-weight:700}
+.h1{font-family:var(--display);font-size:50px;line-height:1.16;font-weight:600;letter-spacing:-.005em;margin:14px 0 0}
+.sub{font-size:20px;line-height:1.65;color:var(--ink2);margin:14px 0 0}
+.foot{position:absolute;left:120px;right:120px;bottom:40px;display:flex;align-items:center;justify-content:space-between;font-size:14px;color:var(--ink3);letter-spacing:.04em}
+.foot .wm{display:flex;align-items:center;gap:18px}
+.foot .wm img{height:22px}
+.lab{font-size:17px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:10px;white-space:nowrap}
+.lab .n{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--bg);font:700 14px/26px var(--type);text-align:center;flex:none}
+.lab .n.o{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.lab small{font-size:15px;font-weight:400;color:var(--ink3)}
+.cap{font-size:15px;line-height:1.6;color:var(--ink3)}
+.cropbox{position:relative;overflow:hidden}
+.cropbox img{position:absolute;max-width:none}
+.mk{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:var(--ink);color:var(--bg);font:700 15px/30px var(--type);text-align:center;box-shadow:0 0 0 3px var(--bg),0 4px 12px rgba(23,24,27,.25)}
+.arrow{position:absolute;color:var(--ink4)}
+svg.leaders{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+
+/* ---------- 主视觉 ---------- */
+.hero .copy{position:absolute;left:150px;top:0;bottom:0;width:680px;display:flex;flex-direction:column;justify-content:center}
+.hero .copy .wmk{height:104px;align-self:flex-start}
+.hero .tag{font-family:var(--display);font-size:62px;line-height:1.22;font-weight:600;letter-spacing:.01em;margin-top:58px}
+.hero .lead{font-size:22px;line-height:1.75;color:var(--ink2);margin-top:26px}
+.hero .kw{display:flex;align-items:center;gap:18px;margin-top:44px;font-size:18px;color:var(--ink3);letter-spacing:.1em}
+.hero .kw i{width:4px;height:4px;border-radius:50%;background:var(--ink4)}
+.hero .dial{position:absolute;left:870px;top:70px;width:940px;height:940px}
+.hero .dial svg{width:100%;height:100%;overflow:visible}
+.hero .meta{position:absolute;left:150px;bottom:62px;font-size:15px;color:var(--ink3);letter-spacing:.06em}
+.hero .who{position:absolute;right:110px;bottom:62px;font-size:15px;color:var(--ink3);letter-spacing:.04em;text-align:right}
+.hero .who .tcode{color:var(--ink);font-size:17px;margin-right:8px}
+.sq .dial{left:260px;top:120px;width:1080px;height:1080px}
+.sq .stack{position:absolute;left:0;right:0;top:1262px;display:flex;flex-direction:column;align-items:center}
+.sq .stack .wmk{height:92px}
+.sq .stack .tag{font-family:var(--display);font-size:40px;font-weight:600;margin-top:34px;letter-spacing:.04em}
+.sq .meta{left:0;right:0;bottom:64px;text-align:center}
+
+/* ---------- 01 罗盘怎么读 ---------- */
+.b-anat .dial{position:absolute;left:128px;top:236px;width:760px;height:760px}
+.b-anat .dial svg{width:100%;height:100%;overflow:visible}
+.co{position:absolute;left:1010px;width:790px;transform:translateY(-15px)}
+.co .lab{font-size:22px}
+.co p{margin:8px 0 0 36px;font-size:17px;line-height:1.62;color:var(--ink2)}
+
+/* ---------- 02 四个维度 16 型 ---------- */
+.axes{position:absolute;left:120px;top:290px;width:660px;display:flex;flex-direction:column;gap:22px}
+.ax{padding:0 0 20px;border-bottom:1px solid var(--line)}
+.ax:last-child{border-bottom:0}
+.ax .pr{display:flex;align-items:baseline;gap:14px}
+.ax .pr .tcode{font-size:36px;letter-spacing:0}
+.ax .pr .nm{font-size:21px;font-weight:600}
+.ax .pr .vs{color:var(--ink4);font-size:20px;margin:0 6px}
+.ax .q{font-size:18px;color:var(--ink2);margin-top:8px}
+.ax .fl{font-size:15px;color:var(--ink3);margin-top:6px;line-height:1.55}
+.grid16{position:absolute;left:860px;top:262px;width:940px;display:grid;grid-template-columns:repeat(4,1fr);row-gap:8px}
+.cell{display:flex;flex-direction:column;align-items:center;padding:10px 0 12px;border-radius:18px}
+.cell img{width:96px;height:96px}
+.cell .tcode{font-size:20px;margin-top:6px}
+.cell .zh{font-size:15px;color:var(--ink3);margin-top:3px}
+.cell.me{background:var(--surface);box-shadow:0 0 0 1.5px var(--ink)}
+.cell.me .zh{color:var(--ink)}
+
+/* ---------- 03 工作原理 ---------- */
+.cols{position:absolute;left:120px;right:120px;top:262px;display:grid;grid-template-columns:repeat(4,382px);justify-content:space-between}
+.col .lab{font-size:22px}
+.col .cap{margin:10px 0 0;font-size:16px;color:var(--ink2);min-height:78px}
+.col .vis{margin-top:22px;display:flex;flex-direction:column;gap:16px}
+.pipe{display:flex;flex-direction:column;gap:0}
+.pipe .st{height:54px;border-radius:14px;background:var(--surface);box-shadow:0 0 0 1px var(--line);display:flex;align-items:center;gap:14px;padding:0 20px;font-size:18px;font-weight:600}
+.pipe .st span{font-weight:400;font-size:15px;color:var(--ink3);margin-left:auto}
+.pipe .dn{height:20px;align-items:center;display:flex;justify-content:center;color:var(--ink4)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:15px;padding:6px 12px;border-radius:999px;background:var(--surface);box-shadow:0 0 0 1px var(--line);color:var(--ink2)}
+.band{position:absolute;left:120px;right:120px;top:928px;height:54px;border-radius:14px;background:var(--surface);box-shadow:0 0 0 1px var(--line);display:flex;align-items:center;justify-content:center;gap:44px;font-size:17px;color:var(--ink2)}
+.band b{color:var(--ink);font-weight:600;margin-right:6px}
+.flow-arrow{position:absolute;top:276px;font-size:26px;color:var(--ink4)}
+
+/* ---------- 04 首次启动 ---------- */
+.gstrip{position:absolute;left:120px;right:120px;top:722px;display:grid;grid-template-columns:repeat(6,1fr);gap:24px}
+.gf{display:flex;flex-direction:column;align-items:center}
+.gf .cropbox{width:220px;height:220px}
+.gf .t{font:600 14px var(--type);color:var(--ink3);margin-top:12px;letter-spacing:.06em}
+.gf .d{font-size:15px;color:var(--ink2);margin-top:4px;text-align:center;line-height:1.5}
+
+/* ---------- 05 人格切换 ---------- */
+.bframes{position:absolute;left:110px;right:110px;top:296px;display:flex;justify-content:space-between}
+.bf{width:270px;display:flex;flex-direction:column;align-items:center}
+.bf img{width:270px;height:270px}
+.bf .t{font:700 16px var(--type);color:var(--ink);margin-bottom:10px}
+.bf .d{font-size:15px;color:var(--ink3);margin-top:8px;text-align:center}
+.tl{position:absolute;left:120px;right:120px;top:712px;height:250px}
+.tl .row{position:absolute;left:0;right:0;height:30px;display:flex;align-items:center}
+.tl .row .nm{position:absolute;left:0;width:150px;font-size:15px;color:var(--ink2)}
+.tl .bar{position:absolute;height:10px;border-radius:5px}
+.tl .ms{position:absolute;font:600 13px var(--type);color:var(--ink3);transform:translateX(-50%)}
+.codes{position:absolute;right:120px;top:84px;display:flex;align-items:center;gap:26px}
+.codes .c{font:700 64px/1 var(--type);letter-spacing:.24em}
+.codes .c.old{color:var(--ink4)}
+.codes .nm{font-size:16px;color:var(--ink3);margin-top:10px;letter-spacing:.04em}
+
+/* ---------- 08 桌面 ---------- */
+.hudlist{display:flex;flex-direction:column;gap:22px}
+.hudrow{display:flex;align-items:center;gap:20px}
+.hudrow .k{width:92px;font-size:16px;color:var(--ink2);text-align:right;flex:none}
+
+/* ---------- 09 分享卡 ---------- */
+.cards{position:absolute;left:120px;right:120px;top:292px;display:flex;justify-content:space-between}
+.card4{display:flex;flex-direction:column;align-items:center;gap:18px}
+.card4 img{width:396px;height:495px;border-radius:14px;box-shadow:0 18px 40px rgba(23,24,27,.12),0 0 0 1px rgba(23,24,27,.06)}
+.card4 .lab{font-size:19px}
+</style>
+</head>
+<body>
+
+<!-- ============ 主视觉 · 浅色 ============ -->
+<section class="board hero" id="hero-light" data-title="主视觉 · 浅色">
+  <div class="copy">
+    <img class="wmk" src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt="Orbit·知音">
+    <div class="tag">看见你和 Agent<br>怎么协作</div>
+    <div class="lead">读取本机各个 Agent 的会话日志，画出你的协作人格，<br>告诉你协作习惯、卡点和下一步该装什么。</div>
+    <div class="kw"><span>协作人格</span><i></i><span>会话轨迹</span><i></i><span>优化建议</span></div>
+  </div>
+  <div class="dial" data-dial="light"></div>
+  <div class="meta">macOS · 全部分析在本机完成</div>
+  <div class="who"><span class="tcode">DIMV</span>指挥家 · 示例画像</div>
+</section>
+
+<!-- ============ 主视觉 · 深色 ============ -->
+<section class="board hero dark" id="hero-dark" data-title="主视觉 · 深色">
+  <div class="copy">
+    <img class="wmk" src="../logo/kit/wordmark/orbit-wordmark-night.svg" alt="Orbit·知音">
+    <div class="tag">看见你和 Agent<br>怎么协作</div>
+    <div class="lead">读取本机各个 Agent 的会话日志，画出你的协作人格，<br>告诉你协作习惯、卡点和下一步该装什么。</div>
+    <div class="kw"><span>协作人格</span><i></i><span>会话轨迹</span><i></i><span>优化建议</span></div>
+  </div>
+  <div class="dial" data-dial="dark"></div>
+  <div class="meta">macOS · 全部分析在本机完成</div>
+  <div class="who"><span class="tcode">DIMV</span>指挥家 · 示例画像</div>
+</section>
+
+<!-- ============ 主视觉 · 方形 ============ -->
+<section class="board hero sq" id="hero-square" data-title="主视觉 · 方形">
+  <div class="dial" data-dial="light"></div>
+  <div class="stack">
+    <img class="wmk" src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt="Orbit·知音">
+    <div class="tag">看见你和 Agent 怎么协作</div>
+  </div>
+  <div class="meta">macOS · 全部分析在本机完成 · 示例画像 <span class="tcode" style="color:var(--ink)">DIMV</span> 指挥家</div>
+</section>
+
+<!-- ============ 01 罗盘怎么读 ============ -->
+<section class="board b-anat" id="01-dial-anatomy" data-title="协作人格罗盘怎么读">
+  <div class="head" style="width:1680px">
+    <div class="eb"><b>01</b>　协作人格罗盘</div>
+    <div class="h1">一张图，读懂你怎么和 Agent 协作</div>
+    <div class="sub">每个会话按它自己的四个维度落到 16 型之一；外圈是会话的分布，花心是你的类型。</div>
+  </div>
+  <div class="dial" data-dial="light"></div>
+  <div class="co" data-anchor="239.6,0.9"><div class="lab"><span class="n">1</span>三角 · 你的类型</div><p>指向你在这段时间里的协作人格。示例是 <span class="tcode">DIMV</span> 指挥家：委托、即兴、多线、求证。</p></div>
+  <div class="co" data-anchor="392.2,161.8"><div class="lab"><span class="n">2</span>外框 · 16 种协作人格</div><p>16 个扇区按格雷码排列，相邻两型只差一个字母：右半委托、左半掌舵，上半即兴、下半规划。</p></div>
+  <div class="co" data-anchor="326.4,178.1"><div class="lab"><span class="n">3</span>轨道 · 每个 Agent 一条曲线</div><p>会话落在哪一型，就在那个方位隆起；越高会话越多。所有 Agent 同一基线、同一尺度，可以直接比高低。</p></div>
+  <div class="co" data-anchor="262,203"><div class="lab"><span class="n">4</span>人格之花 · 你的类型的花</div><p>16 型各一朵：瓣数、瓣形和花心由四个字母决定，整朵花转到一片主瓣指向你的类型。</p></div>
+  <div class="co" data-anchor="351.7,280.9"><div class="lab"><span class="n">5</span>徽章 · Agent 的平均方向</div><p>Claude Code、Codex、Gemini CLI……各停在自己全部会话的平均方向，看出你和每个 Agent 分别怎么配合。</p></div>
+  <svg class="leaders"></svg>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">01 / 10</span></span><span>示例数据 · 画像页「近 90 天」</span></div>
+</section>
+
+<!-- ============ 02 四个维度 · 16 型 ============ -->
+<section class="board" id="02-sixteen-types" data-title="四个维度 · 16 型协作人格">
+  <div class="head">
+    <div class="eb"><b>02</b>　四个维度 · 16 种协作人格</div>
+    <div class="h1">四个字母，拼出你的协作人格</div>
+    <div class="sub">每个维度取一极，组合成 16 种类型；花形由字母决定，看花就能认出类型。</div>
+  </div>
+  <div class="axes">
+    <div class="ax"><div class="pr"><span class="tcode">D</span><span class="nm">委托</span><span class="vs">/</span><span class="tcode">S</span><span class="nm">掌舵</span></div><div class="q">你把多大块的事交出去？</div><div class="fl">花：委托瓣长、花心小；掌舵瓣短而宽、花心大</div></div>
+    <div class="ax"><div class="pr"><span class="tcode">I</span><span class="nm">即兴</span><span class="vs">/</span><span class="tcode">P</span><span class="nm">规划</span></div><div class="q">先想清楚再动手，还是边做边想？</div><div class="fl">花：即兴的瓣同向旋卷，像风车；规划的瓣是直的</div></div>
+    <div class="ax"><div class="pr"><span class="tcode">M</span><span class="nm">多线</span><span class="vs">/</span><span class="tcode">F</span><span class="nm">专注</span></div><div class="q">你同时推进几件事？</div><div class="fl">花：多线 5–6 瓣，专注 3–4 瓣</div></div>
+    <div class="ax"><div class="pr"><span class="tcode">V</span><span class="nm">求证</span><span class="vs">/</span><span class="tcode">T</span><span class="nm">信任</span></div><div class="q">你怎么确认它做对了？</div><div class="fl">花：求证的花心是一圈环加中心点，信任是实心圆点</div></div>
+  </div>
+  <div class="grid16" id="grid16"></div>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">02 / 10</span></span><span>花形取自人格素材包，示例类型 DIMV</span></div>
+</section>
+
+<!-- ============ 03 工作原理 ============ -->
+<section class="board" id="03-how-it-works" data-title="工作原理">
+  <div class="head" style="width:1680px">
+    <div class="eb"><b>03</b>　工作原理</div>
+    <div class="h1">从本机会话日志，到下一步该装什么</div>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="lab"><span class="n">1</span>找到会话</div>
+      <p class="cap">自动发现本机各个 Agent 的会话日志，只读取，不碰凭据；取消勾选的来源不会被索引。</p>
+      <div class="vis"><img data-ui="ob/step-1.png" style="width:382px" alt=""></div>
+    </div>
+    <div class="col">
+      <div class="lab"><span class="n">2</span>在本机整理</div>
+      <p class="cap">原始日志不可变归档，统一成同一套事件，再派生出会话、步骤、工具与情绪数据。</p>
+      <div class="vis pipe">
+        <div class="st">显式启用来源<span>只读</span></div><div class="dn">↓</div>
+        <div class="st">不可变归档<span>可回看原文</span></div><div class="dn">↓</div>
+        <div class="st">统一事件<span>跨 Agent 同一口径</span></div><div class="dn">↓</div>
+        <div class="st">派生数据<span>会话 · 步骤 · 工具</span></div><div class="dn">↓</div>
+        <div class="st">画像与特征分析<span>四个维度</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="lab"><span class="n">3</span>看见自己</div>
+      <p class="cap">协作人格与它的依据；每个会话的轨迹、关键时刻，以及工具、项目和情绪。</p>
+      <div class="vis"><img data-ui="ov/persona-card.png" style="width:382px" alt="">
+        <div class="chips"><span class="chip">会话轨迹</span><span class="chip">工具调用</span><span class="chip">项目习惯</span><span class="chip">情绪与语义</span></div></div>
+    </div>
+    <div class="col">
+      <div class="lab"><span class="n">4</span>动手改进</div>
+      <p class="cap">每条建议附依据和预计节省；预览后一键写入，随时撤销，7 天后对比效果。</p>
+      <div class="vis"><img data-ui="rc/card.png" style="width:382px" alt=""><div class="cropbox" style="width:382px;height:300px;border-radius:16px;box-shadow:0 0 0 1px var(--line)"><img data-crop="in/4-track.png" data-x="0" data-y="306" data-cw="440" alt=""></div></div>
+    </div>
+  </div>
+  <div class="band"><span><b>只读本地日志</b>不碰凭据文件</span><span><b>数据不出本机</b>0 B 上传</span><span><b>不调用云端模型</b>语义分析交给你自己的本地 Agent</span></div>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">03 / 10</span></span><span>示例界面 · 示例数据</span></div>
+</section>
+
+<!-- ============ 04 首次启动 ============ -->
+<section class="board" id="04-first-launch" data-title="首次启动与人格揭晓">
+  <div class="head" style="width:1680px">
+    <div class="eb"><b>04</b>　首次启动 · 人格揭晓</div>
+    <div class="h1">四步里只有一次需要你决定：分析哪些数据</div>
+  </div>
+  <div class="abs" style="left:120px;top:236px"><div class="lab"><span class="n">1</span>欢迎<small>没有注册，也没有账号</small></div></div>
+  <img class="abs" data-ui="ob/step-0.png" style="left:120px;top:278px;height:384px" alt="">
+  <div class="abs" style="left:640px;top:236px"><div class="lab"><span class="n">2</span>选择来源<small>勾选要分析的 Agent</small></div></div>
+  <img class="abs" data-ui="ob/step-1.png" style="left:640px;top:278px;height:384px" alt="">
+  <div class="abs" style="left:1112px;top:236px"><div class="lab"><span class="n">3</span>边分析边揭晓</div></div>
+  <div class="abs" style="left:1360px;top:236px"><div class="lab"><span class="n">4</span>画像生成</div></div>
+  <img class="abs" data-ui="ob/final.png" style="left:1352px;top:278px;height:384px" alt="">
+  <div class="arrow" style="left:582px;top:452px;font-size:28px">→</div>
+  <div class="arrow" style="left:1048px;top:452px;font-size:28px">→</div>
+  <svg class="abs" style="left:1100px;top:300px" width="230" height="340" viewBox="0 0 230 340"><path d="M20 160 H200" stroke="currentColor" stroke-width="1.5" fill="none" style="color:var(--ink4)"/><path d="M196 154 L206 160 L196 166" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--ink4)"/><path d="M115 172 V318" stroke="var(--ink4)" stroke-width="1.5" stroke-dasharray="3 5" fill="none"/></svg>
+  <div class="abs cap" style="left:1104px;top:384px;width:220px;text-align:center;line-height:1.5">约 6.7 秒，不用等到最后：<br>每完成一步先给你看结果</div>
+  <div class="gstrip" id="gstrip"></div>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">04 / 10</span></span><span>示例界面 · 示例数据</span></div>
+</section>
+
+<!-- ============ 05 人格切换动效 ============ -->
+<section class="board" id="05-bloom-switch" data-title="人格切换：收起再绽开">
+  <div class="head">
+    <div class="eb"><b>05</b>　人格切换动效</div>
+    <div class="h1">换一个时间窗，人格之花收起、再绽开</div>
+    <div class="sub">在「演变 · 按月」里点 6 月：旧花转向新类型收拢，新花从花心绽开；<br>各 Agent 的曲线变形，徽章沿轨道滑到新的平均方向，三角转向新类型。</div>
+  </div>
+  <div class="codes"><div><div class="c old">DIMV</div><div class="nm">9 月 · 指挥家</div></div><div style="font-size:30px;color:var(--ink4)">→</div><div><div class="c">SIFV</div><div class="nm">6 月 · 雕刻师</div></div></div>
+  <div class="bframes" id="bframes"></div>
+  <div class="tl" id="tl"></div>
+  <svg class="leaders" id="bleaders"></svg>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">05 / 10</span></span><span>逐帧截自原型动画 · 示例数据</span></div>
+</section>
+
+<!-- ============ 06 建议闭环 ============ -->
+<section class="board" id="06-install-loop" data-title="建议闭环">
+  <div class="head" style="width:1680px">
+    <div class="eb"><b>06</b>　优化建议 · 安装闭环</div>
+    <div class="h1">预览 → 确认 → 可撤销 → 7 天后看效果</div>
+  </div>
+  <div class="abs" style="left:120px;top:228px"><div class="lab"><span class="n o">0</span>建议卡<small>依据、预计节省、适用 Agent</small></div></div>
+  <img class="abs" data-ui="rc/card.png" style="left:120px;top:268px;width:500px" alt="">
+  <div class="abs" style="left:120px;top:432px"><div class="lab"><span class="n">1</span>预览变更<small>每行新增都可取消</small></div></div>
+  <img class="abs" data-ui="in/1-preview.png" style="left:120px;top:472px;width:500px" alt="">
+  <div class="abs" style="left:700px;top:228px"><div class="lab"><span class="n">2</span>确认写入<small>唯一真正写盘的一步</small></div></div>
+  <img class="abs" data-ui="in/2-confirm.png" style="left:700px;top:268px;width:500px" alt="">
+  <div class="abs" style="left:700px;top:540px"><div class="lab"><span class="n">3</span>已写入<small>自动备份，10 秒内一键撤销</small></div></div>
+  <img class="abs" data-ui="in/3-written.png" style="left:700px;top:580px;width:500px" alt="">
+  <img class="abs" data-ui="in/3-toast.png" style="left:700px;top:846px;height:44px" alt="">
+  <div class="abs" style="left:1300px;top:228px"><div class="lab"><span class="n">4</span>7 天追踪<small>前后各 7 天对比，有效才保留</small></div></div>
+  <img class="abs" data-ui="in/4-track.png" style="left:1300px;top:268px;width:396px" alt="">
+  <div class="arrow" style="left:644px;top:420px;font-size:28px">→</div>
+  <div class="arrow" style="left:1236px;top:420px;font-size:28px">→</div>
+  <div class="abs cap" style="left:120px;top:830px;width:500px">关窗之后，撤销还在建议卡与「已安装」里；<br>写入前自动备份，文件可以从备份恢复。</div>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">06 / 10</span></span><span>示例界面 · 写入为模拟</span></div>
+</section>
+
+<!-- ============ 07 会话轨迹 ============ -->
+<section class="board" id="07-session-replay" data-title="会话轨迹回放">
+  <div class="head" style="width:470px">
+    <div class="eb"><b>07</b>　会话与轨迹</div>
+    <div class="h1" style="font-size:44px">把 42 分钟的协作<br>摊开来回放</div>
+  </div>
+  <img class="abs" id="sesswin" data-ui="win/sessions-light.png" style="left:620px;top:120px;width:1200px" alt="">
+  <div id="sesscos"></div>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">07 / 10</span></span><span></span></div>
+</section>
+
+<!-- ============ 08 桌面 ============ -->
+<section class="board" id="08-desktop" data-title="菜单栏、悬浮胶囊与小组件">
+  <div class="head" style="width:1680px">
+    <div class="eb"><b>08</b>　不开窗口也在场</div>
+    <div class="h1">菜单栏、悬浮胶囊、桌面小组件</div>
+  </div>
+  <div class="abs" style="left:120px;top:236px"><div class="lab">菜单栏面板<small>运行中的会话、近 7 天、本周建议</small></div></div>
+  <img class="abs" data-ui="dk/menubar-panel.png" style="left:120px;top:286px;width:400px" alt="">
+  <div class="abs" style="left:640px;top:236px"><div class="lab">悬浮胶囊<small>五种状态，需要你时才出声</small></div></div>
+  <div class="abs hudlist" style="left:640px;top:300px">
+    <div class="hudrow"><span class="k">运行中</span><img data-ui="dk/hud-running.png" style="height:56px" alt=""></div>
+    <div class="hudrow"><span class="k">完成</span><img data-ui="dk/hud-done.png" style="height:56px" alt=""></div>
+    <div class="hudrow"><span class="k">等你确认</span><img data-ui="dk/hud-waiting.png" style="height:56px" alt=""></div>
+    <div class="hudrow"><span class="k">连续失败</span><img data-ui="dk/hud-stuck.png" style="height:56px" alt=""></div>
+    <div class="hudrow"><span class="k">上下文将满</span><img data-ui="dk/hud-ctx.png" style="height:56px" alt=""></div>
+  </div>
+  <div class="abs cap" style="left:752px;top:740px;width:420px">点击展开详情；拖动吸附到 6 个位置，<br>按住 ⌥ 自由放置。</div>
+  <div class="abs" style="left:1288px;top:236px"><div class="lab">桌面小组件<small>人格、今日、本周、本周最值得做</small></div></div>
+  <div class="abs" style="left:1288px;top:286px;width:512px;display:grid;grid-template-columns:248px 248px;gap:16px">
+    <img data-ui="dk/widget-1.png" style="width:248px" alt="">
+    <img data-ui="dk/widget-2.png" style="width:248px" alt="">
+    <img data-ui="dk/widget-3.png" style="width:512px;grid-column:1/-1" alt="">
+    <img data-ui="dk/widget-6.png" style="width:512px;grid-column:1/-1" alt="">
+  </div>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">08 / 10</span></span><span>示例界面 · 示例数据</span></div>
+</section>
+
+<!-- ============ 09 分享卡 ============ -->
+<section class="board" id="09-share-cards" data-title="分享卡">
+  <div class="head" style="width:1680px">
+    <div class="eb"><b>09</b>　分享卡</div>
+    <div class="h1">每个时间长度一张分享卡</div>
+    <div class="sub">周卡、月卡、季卡、全时卡各按自己的时间窗计算人格；花外的一圈是活跃日历，每格一天。</div>
+  </div>
+  <div class="cards">
+    <div class="card4"><img data-ui="sh/card-7.png" alt=""><div class="lab">周卡<small>近 7 天</small></div></div>
+    <div class="card4"><img data-ui="sh/card-30.png" alt=""><div class="lab">月卡<small>近 30 天</small></div></div>
+    <div class="card4"><img data-ui="sh/card-90.png" alt=""><div class="lab">季卡<small>近 90 天</small></div></div>
+    <div class="card4"><img data-ui="sh/card-all.png" alt=""><div class="lab">全时卡<small>全部会话</small></div></div>
+  </div>
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">09 / 10</span></span><span>导出 1080 × 1350 PNG · 示例数据</span></div>
+</section>
+
+<!-- ============ 10 Lite / Advance ============ -->
+<section class="board" id="10-lite-advance" data-title="Lite 与 Advance">
+  <div class="head">
+    <div class="eb"><b>10</b>　Lite · Advance</div>
+    <div class="h1">同一个 App，两种尺度</div>
+    <div class="sub">侧栏顶部一键切换，停在对应的页面；两版共用组件与动效，Lite 只在页面数量与尺度上做减法。</div>
+  </div>
+  <img class="abs" data-ui="ctl/edition-switch-lite.png" style="left:1390px;top:120px;height:56px" alt="">
+  <div class="abs" style="left:120px;top:292px"><div class="lab">Lite<small>四页：概览、协作画像、会话轨迹、优化建议</small></div></div>
+  <img class="abs" data-ui="win/l-persona-light.png" style="left:120px;top:336px;width:820px" alt="">
+  <div class="abs" style="left:980px;top:292px"><div class="lab">Advance<small>九页：再加情绪与语义、项目习惯、工具调用、资源库、生成工坊</small></div></div>
+  <img class="abs" data-ui="win/persona-light.png" style="left:980px;top:336px;width:820px" alt="">
+  <div class="foot"><span class="wm"><img src="../logo/kit/wordmark/orbit-wordmark-ink.svg" alt=""><span class="num">10 / 10</span></span><span>示例界面 · 示例数据</span></div>
+</section>
+
+<script>
+(async () => {
+  const q = new URLSearchParams(location.search);
+  const UI = (q.get('ui') || '/output/playwright/orbit-showcase/ui/').replace(/\/?$/, '/');
+  const TYPES = {
+    DPMV: '总设计师', DPMT: '调度官', DPFV: '监制', DPFT: '策划人',
+    DIMV: '指挥家', DIMT: '冲浪者', DIFV: '探路者', DIFT: '远航者',
+    SPMV: '飞控官', SPMT: '杂技师', SPFV: '分析学家', SPFT: '领航员',
+    SIMV: '实验家', SIMT: '即兴乐手', SIFV: '雕刻师', SIFT: '同行者'
+  };
+  const SH = Object.fromEntries((await (await fetch(UI + 'shots.json')).json()).map((x) => [x.name + '.png', x]));
+  // 截图带着元素自己的阴影（外边距 pad）；版面里写的宽 / 高指内容本身，这里换算成整张图的尺寸并用负外边距抵掉阴影区
+  document.querySelectorAll('img[data-ui]').forEach((im) => {
+    im.src = UI + im.dataset.ui;
+    const m = SH[im.dataset.ui]; if (!m) return;
+    const p = m.pad, cw = m.w - p.l - p.r, ch = m.h - p.t - p.b;
+    const k = im.style.width ? parseFloat(im.style.width) / cw : im.style.height ? parseFloat(im.style.height) / ch : 1;
+    im.style.width = m.w * k + 'px'; im.style.height = m.h * k + 'px'; im.style.maxWidth = 'none';
+    im.style.margin = (-p.t * k) + 'px ' + (-p.r * k) + 'px ' + (-p.b * k) + 'px ' + (-p.l * k) + 'px';
+  });
+  // 裁切：data-x / data-y 是内容坐标，data-cw 是放进框宽的内容宽度
+  const crop = (im) => {
+    const m = SH[im.dataset.crop], box = im.parentElement, k = parseFloat(box.style.width || getComputedStyle(box).width) / +im.dataset.cw;
+    im.src = UI + im.dataset.crop; im.style.width = m.w * k + 'px';
+    im.style.left = -(m.pad.l + +im.dataset.x) * k + 'px'; im.style.top = -(m.pad.t + +im.dataset.y) * k + 'px';
+  };
+
+  // 16 型网格（花取自人格素材包）
+  document.getElementById('grid16').innerHTML = Object.keys(TYPES).map((c) =>
+    '<div class="cell' + (c === 'DIMV' ? ' me' : '') + '"><img src="../persona/kit/flowers/svg/' + c + '-light.svg" alt=""><span class="tcode">' + c + '</span><span class="zh">' + TYPES[c] + (c === 'DIMV' ? ' · 示例' : '') + '</span></div>').join('');
+
+  // Genesis 帧
+  const GF = [['0500', '0.5 s', '倾斜的轨道翻正成表盘'], ['1300', '1.3 s', '会话粒子沿轨道汇入'], ['2300', '2.3 s', '扫描归类，曲线长出'], ['3000', '3.0 s', '扫完一圈，徽章就位'], ['4200', '4.2 s', '花苞绽开，字母锁定'], ['5600', '5.6 s', '与相近的人格比对']];
+  document.getElementById('gstrip').innerHTML = GF.map(([f, t, d]) => '<div class="gf"><div class="cropbox"><img data-crop="gn/t-' + f + '.png" data-x="24" data-y="160" data-cw="336" alt=""></div><span class="t">' + t + '</span><span class="d">' + d + '</span></div>').join('');
+  document.querySelectorAll('img[data-crop]').forEach(crop);
+
+  // 人格切换帧与时间轴
+  const BF = [[0, '点击 6 月'], [140, '旧花转向新类型'], [280, '收进花心，换花心'], [380, '新花从花心绽开'], [520, '旋卷退回，徽章滑行'], [1000, '落定：SIFV 雕刻师']];
+  document.getElementById('bframes').innerHTML = BF.map(([t, d]) => '<div class="bf" data-t="' + t + '"><span class="t">' + t + ' ms</span><img src="' + UI + 'bm/dial-' + String(t).padStart(4, '0') + '.png" alt=""><span class="d">' + d + '</span></div>').join('');
+  const TL = document.getElementById('tl'), W = 1680, X0 = 170, X1 = W, x = (t) => X0 + (X1 - X0) * t / 1000;
+  const rows = [['花 · 收起', 0, 350, 'var(--ink)'], ['花 · 绽开', 260, 860, 'var(--orbit)'], ['Agent 曲线变形', 0, 560, '#c9a596'], ['三角转向新类型', 0, 760, '#9aa3a6']];
+  TL.innerHTML = rows.map(([n, a, b, c], i) => '<div class="row" style="top:' + (64 + i * 40) + 'px"><span class="nm">' + n + '</span><span class="bar" style="left:' + x(a) + 'px;width:' + (x(b) - x(a)) + 'px;background:' + c + '"></span></div>').join('') +
+    '<div style="position:absolute;left:' + X0 + 'px;right:0;top:30px;height:1px;background:var(--line)"></div>' +
+    [0, 200, 400, 600, 800, 1000].map((t) => '<span class="ms" style="left:' + x(t) + 'px;top:0">' + t + '</span>').join('') +
+    '<span class="ms" style="left:' + (X0 - 30) + 'px;top:0;transform:none;left:0">ms</span>';
+
+  // 罗盘：内联素材包 SVG（让 SF Pro Rounded 生效），每份换一套 id
+  const dials = document.querySelectorAll('[data-dial]');
+  const src = {};
+  for (const th of ['light', 'dark']) src[th] = await (await fetch('../persona/kit/dial/dial-' + th + '.svg')).text();
+  dials.forEach((el, i) => { const th = el.dataset.dial; el.innerHTML = src[th].replace(new RegExp('orbit-dial-' + th + '-', 'g'), 'd' + i + '-' + th + '-').replace(/ width="416" height="416"/, ''); });
+
+  const board = (el) => el.closest('.board');
+  const rel = (el, r) => { const b = board(el).getBoundingClientRect(); return [r.left - b.left, r.top - b.top, r.width, r.height]; };
+  const svgPt = (svg, x, y) => { const p = svg.createSVGPoint(); p.x = x; p.y = y; const m = svg.getScreenCTM(); const s = p.matrixTransform(m); const b = board(svg).getBoundingClientRect(); return [s.x - b.left, s.y - b.top]; };
+  const dot = (x, y) => '<circle cx="' + x + '" cy="' + y + '" r="9" fill="none" stroke="var(--ink)" stroke-width="1.5"/><circle cx="' + x + '" cy="' + y + '" r="3.5" fill="var(--ink)"/>';
+  const line = (pts) => '<polyline points="' + pts.map((p) => p.join(',')).join(' ') + '" fill="none" stroke="var(--bg)" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/><polyline points="' + pts.map((p) => p.join(',')).join(' ') + '" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/>';
+
+  // 01：罗盘标注，项目纵向均匀排开，引线从锚点到编号
+  {
+    const B = document.getElementById('01-dial-anatomy'), svg = B.querySelector('.dial svg'), cos = [...B.querySelectorAll('.co')];
+    const top = 286, gap = 150; let out = '';
+    cos.forEach((c, i) => {
+      c.style.top = (top + i * gap) + 'px';
+      const [ax, ay] = svgPt(svg, ...c.dataset.anchor.split(',').map(Number));
+      const n = c.querySelector('.n').getBoundingClientRect(), bb = B.getBoundingClientRect();
+      const nx = n.left - bb.left - 8, ny = n.top - bb.top + n.height / 2;
+      out += line([[ax, ay], [940, ny], [nx, ny]]) + dot(ax, ay);
+    });
+    B.querySelector('svg.leaders').innerHTML = out;
+  }
+
+  // 05：帧与时间轴的连线
+  {
+    const B = document.getElementById('05-bloom-switch'), bb = B.getBoundingClientRect(); let out = '';
+    B.querySelectorAll('.bf').forEach((f) => {
+      const t = +f.dataset.t, r = f.querySelector('.d').getBoundingClientRect();
+      const fx = r.left + r.width / 2 - bb.left, fy = r.bottom - bb.top + 8, tx = 120 + x(t), ty = 712 + 30;
+      out += '<path d="M' + fx + ' ' + fy + ' L' + tx + ' ' + (ty - 6) + '" fill="none" stroke="var(--ink4)" stroke-width="1.2" stroke-dasharray="3 4"/><circle cx="' + tx + '" cy="' + ty + '" r="4.5" fill="var(--ink)"/>';
+    });
+    B.querySelector('#bleaders').innerHTML = out;
+  }
+
+  // 07：会话窗口标注：编号标在窗口上，说明列在左侧（锚点是 #win 内的 CSS 像素）
+  {
+    const k = 1200 / 1440, wx = 620, wy = 120;
+    const CO = [
+      [1096, 54, '回放', '空格一键回放，8 秒走完全程；拖动播放头逐步查看。'],
+      [686, 326, '总览条', '整段会话的密度缩略，框选任意一段放大。'],
+      [668, 372, '关键时刻', '你给目标、Agent 偏离、你纠偏、连续失败、验证通过。'],
+      [594, 470, '泳道', '你、Agent、子代理与读取、编辑、命令、网络各占一行。'],
+      [1388, 534, '上下文', '上下文用量随时间变化，压缩前后一目了然。'],
+      [594, 664, '事件检视', '播放头停在哪一步，就看那一步的调用和结果。'],
+      [1104, 855, '会话启示', '从这次会话得出能直接生成的规则与 Hook。']
+    ];
+    document.getElementById('sesscos').innerHTML = CO.map(([cx, cy, t, d], i) =>
+      '<div class="co" style="left:120px;width:440px;top:' + (318 + i * 96) + 'px"><div class="lab" style="font-size:19px"><span class="n">' + (i + 1) + '</span>' + t + '</div><p style="margin:6px 0 0 36px;font-size:15px;line-height:1.55">' + d + '</p></div>' +
+      '<span class="mk" style="left:' + (wx + cx * k) + 'px;top:' + (wy + cy * k) + 'px">' + (i + 1) + '</span>').join('');
+  }
+
+  await document.fonts.ready;
+  await Promise.all([...document.images].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
+  window.BOARDS_READY = true;
+})();
+</script>
+</body>
+</html>
