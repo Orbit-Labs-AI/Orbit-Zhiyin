@@ -253,15 +253,24 @@ def test_presentation_window_is_stable_within_a_day_and_moves_across_days(tmp_pa
 
 
 @pytest.mark.serial  # gateway with worker processes and wall-clock waits
-def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path):
+def test_catalog_match_etag_changes_when_the_catalog_changes(tmp_path, monkeypatch):
     from orbit_catalog import get_service
 
+    # No network sync in tests. The gateway imports the bundled library snapshot in the
+    # background after start, and every source it publishes moves the catalog generation
+    # (so the ETag rightly changes); wait for that bootstrap before taking the first tag.
+    monkeypatch.setenv("ORBIT_CATALOG_AUTOSYNC", "0")
     url = "/v1/catalog/match-analysis?wait_ms=3000"
     with imported_gateway(tmp_path) as (client, gateway):
+        service = get_service(gateway.home / "catalog.db")
+        deadline = time.monotonic() + 60
+        while service.first_sync_state()["state"] != "disabled" and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert service.first_sync_state()["state"] == "disabled"
         first = poll(client, url, fresh)
         tag = first.headers["ETag"]
         assert client.get(url, headers={"If-None-Match": tag}).status_code == 304
-        store = get_service(gateway.home / "catalog.db").store
+        store = service.store
         with store.connect() as conn:  # what a catalog refresh does to the generation
             conn.execute("UPDATE catalog_meta SET value=CAST(value AS INTEGER)+1 "
                          "WHERE key='generation'")
