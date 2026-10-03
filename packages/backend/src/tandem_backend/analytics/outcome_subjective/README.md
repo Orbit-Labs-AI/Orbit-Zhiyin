@@ -41,7 +41,7 @@
 
 输入是经过 `analytics.inputs.select` 筛选的 `analysis-input-v1` 事件。只分析已确认主会话中 `message.user + actor=human/user + attrs.origin=human` 的消息。注入、同伴、自动化、来源未知及子代理输入不进入反馈样本；重放和重复标记按既有契约排除。
 
-交付须为非空 `message.assistant` 且 `attrs.phase` 是 `final` 或历史日志的 `final_answer`。这是最终回复的观测记录，不证明产物有效；commentary、分析消息及缺少阶段信息的回复不补造为交付。
+交付是一轮（`turn_uid`）内最后一条非空 `message.assistant`；agent 不记录轮次时取相邻两条人类消息之间的最后一条（`common.final_assistant_uids`）。只有 Codex 写 `attrs.phase`；会话内只要有助手消息带 phase 即按标签判定：`final` 或历史日志的 `final_answer` 是交付，commentary 与缺标签的消息不是。这是最终回复的观测记录，不证明产物有效。
 
 关联优先使用 `attrs.feedback_target`，其可选键为非空字符串 `delivery_event_uid/task_id/artifact_id/artifact_version`。否则使用明确共享 `task_id` 的最近一次先前交付。显式产物版本可以定位旧交付；仅在文本中提到“上一版”“旧版”“v1”等且没有对象元数据时，不猜它对应哪个版本。
 
