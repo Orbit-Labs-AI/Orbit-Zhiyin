@@ -1,6 +1,7 @@
 {
   "name": "@tandem/prototype-lite",
   "private": true,
+  "license": "Apache-2.0",
   "version": "0.0.0",
   "scripts": {
     "check": "node check-benchmark.cjs && node ../shared/sync-live.mjs --check && node --test ../shared/tests/*.test.cjs",
