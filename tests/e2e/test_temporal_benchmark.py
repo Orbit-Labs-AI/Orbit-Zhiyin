@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 @pytest.fixture
 def api(monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2]))
     return tuple(
         importlib.import_module("evals.benchmark." + n)
         for n in ("contracts", "metrics", "temporal")
