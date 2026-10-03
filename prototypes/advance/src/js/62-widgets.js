@@ -50,7 +50,8 @@ function renderWidgets() {
     big = (live ? '<button type="button" class="wg" data-act="wgLive" style="display:flex;flex-direction:column;gap:8px;align-items:stretch;text-align:left"><span class="row"><span class="dot live" style="background:' + agent(live.a).c + '"></span><span class="lbl" style="flex:1">运行中 · ' + esc(agent(live.a).name) + '</span><span class="mono" style="font-size:12px" data-live>' + liveElapsed() + '</span></span><span style="font-size:14px;font-weight:600;line-height:1.35">' + (S.numOnly ? '1 个运行中的会话' : esc(live.title)) + '</span>' + ctxBar(S.live.ctx) + '<span class="row cap" style="font-size:11px;gap:10px"><span>工具 <b class="mono" data-livetools>' + S.live.tools + '</b></span><span class="mono" data-hudtool style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span></span></button>' : '') +
       '<button type="button" class="wg" data-act="wgGo" data-r="overview" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;text-align:left">' + trend('摩擦率', fr, s7.fric, sp.fric, (v) => f1(v) + '%', true) + trend('完成率', ok, s7.ok, sp.ok, (v) => Math.round(v) + '%', false) + '</button>';
   }
-  w.innerHTML = menu + squares + (size === 's' ? '' : week + big + rec);
+  // morphed in place (rgPut): each widget keeps its node, so a data change updates only the numbers / bars that moved
+  rgPut(w, menu + squares + (size === 's' ? '' : week + big + rec));
   w.dataset.size = size;
 }
 Object.assign(ACT, {

@@ -57,14 +57,14 @@ function liGetBtn(x) {
   return '<button type="button" class="btn sm p" data-act="getLib" data-id="' + esc(x.item_id) + '">' + (x.origin === 'local' ? '安装' : '获取') + '</button>';
 }
 function liFeat(x) {
-  return '<div class="card lb-card" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(LI_ICON[x.kind] || 'file', 13, 'color:var(--ink-1)') + '<b style="font-family:var(--font-sans);color:var(--ink-2)">' + esc(TL.li.kindLabel(x.kind)) + '</b><span>·</span><span>' + liSrc(x) + '</span>' + liSeedTag(x) + '</div>' +
+  return '<div class="card lb-card" data-key="lf:' + esc(x.item_id) + '" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(LI_ICON[x.kind] || 'file', 13, 'color:var(--ink-1)') + '<b style="font-family:var(--font-sans);color:var(--ink-2)">' + esc(TL.li.kindLabel(x.kind)) + '</b><span>·</span><span>' + liSrc(x) + '</span>' + liSeedTag(x) + '</div>' +
     '<div class="mono lb-id"><button type="button" class="lnk" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font:inherit;color:inherit;text-align:left">' + esc(x.name) + '</button></div><div class="lb-desc">' + esc(liDesc(x)) + '</div>' +
     '<div class="lb-match"><b class="mono">' + TLU.num(x.risk_level) + '</b><span class="col" style="flex:1;gap:3px;min-width:0"><span class="mono cap lb-parts">风险等级' + (x.risk && x.risk.length ? ' · ' + esc(x.risk.join('、')) : ' · 无敏感权限') + '</span><span class="mono cap lb-parts">' + (x.version ? 'v' + esc(x.version) + ' · ' : '') + '更新于 ' + liDay(x.updated_at) + '</span></span></div></div>' +
     '<div class="lb-body"><span class="eb">适用 Agent</span>' + ((x.agents && x.agents.length ? x.agents : [null]).map((a) => '<span class="row lb-why">' + ic('check', 13, 'margin-top:2px;color:var(--ink-1);flex:none') + (a ? esc(liAgentName(a)) : '未声明') + '</span>').join('')) +
     '<div class="row lb-foot"><span class="cap lb-fc">' + (x.stars != null ? TLU.num(x.stars) + ' Star' : '—') + '</span><span style="flex:1"></span><span class="mono cap lb-fc">' + (x.installs ? fmt(x.installs) + ' 安装' : x.origin === 'local' ? '本机' : '—') + '</span><span class="row lb-acts"><button type="button" class="btn sm gh" data-act="libHide" data-id="' + esc(x.item_id) + '">不感兴趣</button>' + liGetBtn(x) + '</span></div></div></div>';
 }
 function liRow(x) {
-  return '<div class="lb-row" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><span class="lb-ico">' + ic(LI_ICON[x.kind] || 'file', 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><button type="button" class="lnk mono lb-nm" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font-weight:700;color:var(--ink-1)">' + esc(x.name) + '</button><span class="bdg">' + esc(TL.li.kindLabel(x.kind)) + '</span>' + (x.origin === 'local' ? '<span class="aib">本地生成</span>' : '') + liSeedTag(x) + '</div><div class="cap lb-ell">' + esc(liDesc(x)) + '</div></div>' +
+  return '<div class="lb-row" data-key="lr:' + esc(x.item_id) + '" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><span class="lb-ico">' + ic(LI_ICON[x.kind] || 'file', 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><button type="button" class="lnk mono lb-nm" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font-weight:700;color:var(--ink-1)">' + esc(x.name) + '</button><span class="bdg">' + esc(TL.li.kindLabel(x.kind)) + '</span>' + (x.origin === 'local' ? '<span class="aib">本地生成</span>' : '') + liSeedTag(x) + '</div><div class="cap lb-ell">' + esc(liDesc(x)) + '</div></div>' +
     '<div class="row lb-m" style="gap:6px"><span class="mono cap">风险</span><b class="mono lb-mv">' + TLU.num(x.risk_level) + '</b></div><span class="mono cap lb-users">' + (x.installs ? (x.installs >= 1000 ? f1(x.installs / 1000) + 'k' : x.installs) : x.origin === 'local' ? '本机' : '—') + '</span>' + liGetBtn(x) + '</div>';
 }
 function liBody(vm) {
@@ -94,7 +94,7 @@ function liSyncBanner() {
   if (y.state === 'failed') return '<div class="row lb-anon" data-tl="lib-sync" data-state="failed" role="status">' + ic('alert', 14, 'color:var(--warn-m);margin-top:1px') + '<span>首次同步资源目录没有完成（' + esc((y.error && (y.error.message || y.error.code)) || '网络不可用') + '），先显示内置条目。<button type="button" class="lnk" data-act="liSyncRetry">重试</button></span></div>';
   return '<div class="row lb-anon" data-tl="lib-sync" data-state="running" role="status" aria-live="polite">' + ic('sync', 14, 'margin-top:1px') + '<span>正在首次同步资源目录' + (y.total ? ' · 已完成 <b class="mono">' + y.done + ' / ' + y.total + '</b> 个来源' : '') + '。完成前先显示内置条目（标有示例数据）。</span></div>';
 }
-function liSyncPaint() { const b = $('#content [data-tl="lib-sync"]'); if (b) b.outerHTML = liSyncBanner() || '<span hidden></span>'; else if (S.route === 'library' && MODAL_KEY == null) render(); }
+function liSyncPaint() { if (S.route === 'library' && RG.canRefresh()) { RG.refreshNow(['li'], 'lib-sync'); return; } const b = $('#content [data-tl="lib-sync"]'); if (b) b.outerHTML = liSyncBanner() || '<span hidden></span>'; else if (S.route === 'library' && MODAL_KEY == null) render(); }
 function liSyncCount(st) {
   const by = (st && st.coverage && st.coverage.by_source) || {};
   const net = Object.keys(by).filter((k) => by[k].enabled !== false && !/^(bundle|kb)$/.test(by[k].kind || ''));
@@ -137,21 +137,30 @@ function liSyncCheck() {
     liSyncStart(c.net.length);
   }, () => { S.li.sync = { state: 'done' }; });
 }
-const LI_DEMO_PAGE = PAGES.library;
-function liPage() {
+const LI_DEMO_TBAR = libTbarHTML, LI_DEMO_BODY = libBodyHTML, LI_PAGE = PAGES.library;
+// before every pass of the A8 regions (and on entering the page): the view, the degraded flag and the first catalog sync
+function liPrep() {
   const v = lvView('library');
   S.li.degraded = !!(v && !v.vm && v.state === 'error' && TL.li.degraded(v.error));
   if (S.li.degraded) {
     if (!S.li.errAt) S.li.errAt = Date.now();
     else if (Date.now() - S.li.errAt > 15000) { S.li.errAt = 0; TL.invalidate((r) => r.path.indexOf('/v1/catalog/') === 0); }
-    return LI_DEMO_PAGE();
+    return v;
   }
   S.li.errAt = 0;
   if (v && v.vm) liSyncCheck();
-  const st = liState(); const n = st.data ? (st.data.items || []).filter((i) => !/^(reverted|archived)$/.test(i.state)).length : null;
-  return tbar('资源库', v && v.vm ? TLU.num(v.vm.total != null ? v.vm.total : v.vm.facets.total) + ' 项' : '', '<label class="row lb-q" style="height:28px;padding:0 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3)">' + ic('search', 15) + '<span class="vh">搜索资源</span><input id="libQ" type="search" data-in="libQ" placeholder="搜索 Skill、Hook、插件、MCP…" value="' + esc(S.lib.q) + '" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)"></label><button type="button" class="btn" data-act="libInstalled">已安装 · <span id="libInstN">' + TLU.num(n) + '</span></button>') +
-    '<div class="content" id="content">' + (v && !v.vm && v.state === 'loading' && S.li.lastVm ? liBody(S.li.lastVm) : TLU.body(v, (vm) => { S.li.lastVm = vm; return liBody(vm); })) + '</div>';
+  return v;
 }
+function liTbar() {
+  const v = TL_VIEWS.library;
+  const st = liState(); const n = st.data ? (st.data.items || []).filter((i) => !/^(reverted|archived)$/.test(i.state)).length : null;
+  return tbar('资源库', v && v.vm ? TLU.num(v.vm.total != null ? v.vm.total : v.vm.facets.total) + ' 项' : '', '<label class="row lb-q" style="height:28px;padding:0 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3)">' + ic('search', 15) + '<span class="vh">搜索资源</span><input id="libQ" type="search" data-in="libQ" placeholder="搜索 Skill、Hook、插件、MCP…" value="' + esc(S.lib.q) + '" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)"></label><button type="button" class="btn" data-act="libInstalled">已安装 · <span id="libInstN">' + TLU.num(n) + '</span></button>');
+}
+function liBodyView() {
+  const v = TL_VIEWS.library;
+  return (v && !v.vm && v.state === 'loading' && S.li.lastVm ? liBody(S.li.lastVm) : TLU.body(v, (vm) => { S.li.lastVm = vm; return liBody(vm); }));
+}
+function liPage() { liPrep(); return LI_PAGE(); }
 const liCard = (id) => { const v = TL_VIEWS.library; return v && v.vm ? liItems(v.vm).concat(v.vm.items).find((x) => x.item_id === id) || null : null; };
 
 /* ---- item detail ---- */
@@ -327,6 +336,12 @@ function liStudioUndo(el, e) {
 function liMarkSample() { const mh = $('#modal .mh h2'); if (mh && !$('#modal [data-tl="sample"]')) mh.insertAdjacentHTML('afterend', '<div>' + TLU.sample() + '</div>'); }
 if (TL.mode === 'live') {
   PAGES.library = TL_PAGES.library = liPage;
+  RG.prep('library', liPrep);
+  libTbarHTML = () => (S.li.degraded ? LI_DEMO_TBAR() : liTbar());
+  libBodyHTML = () => (S.li.degraded ? LI_DEMO_BODY() : liBodyView());
+  // precise invalidation of the A8 regions: the library view (list + facets), the install state, the paging / search /
+  // first-sync state — not every TandemLive tick
+  libLiveSig = () => { const v = TL_VIEWS.library; const y = S.li.sync, m = S.li.more; return [S.li.degraded, v && lvId(v.vm), v && v.state, lvId(TL.resource('/v1/install/state').data), S.li.q, y && [y.state, y.done, y.total, y.error && (y.error.message || y.error.code)], m && [m.key, m.items.length, m.loading, m.next], S.li.inst ? Array.from(S.li.inst) : 0]; };
   const base = Object.assign({}, ACT), baseDraw = drawInstall, r96 = render;
   const isLive = () => !S.li.degraded && TL_VIEWS.library && TL_VIEWS.library.vm;
   const liveInst = () => INST && INST.live;

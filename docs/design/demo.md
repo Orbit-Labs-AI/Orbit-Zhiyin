@@ -96,6 +96,7 @@ morph 按 `data-region`、`id`、`data-key`、`data-vz` 匹配有键的子节点
 2. 页面函数只拼骨架：`RG.pages.add('<route>')`，然后 `PAGES.x = () => region(...) + '<div class="content" id="content">' + region(...) + …`。工具栏 `.tbar` 必须是 `#main` 的直接子元素，它所在区域的 `after` 调 `tbarFit()`。
 3. 原来的 `PAGES.x.after` 拆进各区域的 `after`；原来直接改 DOM 的局部更新（如概览刷选）改成改状态后 `RG.refreshNow(['S.…'])`。
 4. 动效自动按区域生效：`data-count` 数字从该区域刷新前的值滚到新值（`37-motion.js` 的区域钩子），筛选 chip 弹入、seg 滑块、图表 ↔ 表格淡入照旧；只有首次进入页面才播放入场编排；`prefers-reduced-motion` 下直接显示终值。
+5. 页面整体有几种形态（读取中 / 空 / 正常）时，外层放一个只依赖形态函数的区域（如 `a4:body`、`a5:body`），正常形态里再嵌卡片区域；页面的所有卡片由一个 `RG.memo` 部件函数一次算出（演示与 live 各一份：`toolsParts` / `lvToolsParts`、`projectsParts` / `lvProjectsParts`）。被命令式逐帧更新的节点（会话轨迹的 `#tlBox`、`#tlOv`、`#tlRead`、`#tlInsp`、对比时间线）带 `data-vz`，morph 不碰，由区域的 `after` 同步，所以回放进行中数据刷新不会打断它。live 的按需详情（`LV.detail`）用函数依赖返回该条目的 `state` 与数据身份，详情到达只刷新读它的卡片。已迁移：概览、会话与轨迹、工具调用、项目习惯（用例 [`tests/region-render-pages.spec.mjs`](../../prototypes/advance/tests/region-render-pages.spec.mjs)）。
 
 ### 调试
 
