@@ -11,6 +11,7 @@ import re
 from .. import mechanism
 from ..kb import Rule
 from ..narrate import audience_default
+from ..ranking.gates import target_agents as problem_agents
 from ..ranking.hygiene import GENERIC
 
 # Where a remedy lands, per the Agent the user runs most (user scope; project scope swaps
@@ -81,11 +82,14 @@ def agent_owns_path(path: str, agent: str | None) -> bool:
     return owner is None or owner == agent
 
 
-def path_hint(kind: str, rule_id: str, inputs: dict, project: str | None) -> str | None:
-    """Landing path for the top Agent; project scope → ``<project name>/...``; None for other agents."""
-    # the most-used Agent that has a landing path for this kind (not only the most-used Agent)
-    used = [a for a, n in sorted((inputs.get("agents") or {}).items(), key=lambda kv: (-kv[1], kv[0])) if n]
-    path = next((PATHS[a][kind] for a in used if kind in PATHS.get(a, {})), None)
+def path_hint(kind: str, rule_id: str, inputs: dict, project: str | None,
+              agents: list[str] | None = None) -> str | None:
+    """Landing path for the first of ``agents`` (the problem's own session agents, see
+    ranking.gates.target_agents; default every used Agent, most used first) that has one for this
+    kind; project scope → ``<project name>/...``; None when none of them has a known path."""
+    if agents is None:
+        agents = [a for a, n in sorted((inputs.get("agents") or {}).items(), key=lambda kv: (-kv[1], kv[0])) if n]
+    path = next((PATHS[a][kind] for a in agents if kind in PATHS.get(a, {})), None)
     if not path:
         return None
     path = path.format(id=rule_id)
@@ -140,14 +144,17 @@ def from_rule(rule: Rule, problem: dict | None, inputs: dict, *, rec_key: str, m
     shown = {**values, **{name: GENERIC.get(name, "相关项") for name in rule.remedy.slots if name not in values}}
     project = project_of(problem)
     scope = "project" if rule.remedy.scope == "project" or project else "user"
+    # the agents of the sessions the problem occurred in (else every used Agent): a problem seen in
+    # Codex sessions lands in Codex's files and format even when Claude Code is used more
+    agents = problem_agents({"problem": problem}, inputs)
     path = rule.remedy.path.format(id=rule.id) if rule.remedy.path else path_hint(
-        rule.remedy.kind, rule.id, inputs, project if scope == "project" else None)
-    used = [a for a, n in (inputs.get("agents") or {}).items() if n] or [top_agent(inputs)]
-    if path and not any(agent_owns_path(path, a) for a in used):
-        path = None  # e.g. a fixed ~/.claude/... path while the user runs only other agents
+        rule.remedy.kind, rule.id, inputs, project if scope == "project" else None, agents)
+    if path and not any(agent_owns_path(path, a) for a in agents or [top_agent(inputs)]):
+        path = None  # e.g. a fixed ~/.claude/... path while the problem's sessions ran other agents
     file = [[fill(line, shown), mark] for line, mark in rule.file]
-    if rule.remedy.kind == "permission_rule" and values.get("head_list"):
-        file = allow_file([str(h) for h in values["head_list"]], top_agent(inputs))
+    fmt = next((a for a in agents if a in ("claude_code", "codex")), None) if agents else top_agent(inputs)
+    if rule.remedy.kind == "permission_rule" and values.get("head_list") and (fmt or not agents):
+        file = allow_file([str(h) for h in values["head_list"]], fmt)
     audience = (rule.audience_min if "audience_min" in rule.model_fields_set
                 else audience_default(rule.remedy.kind, rule.remedy.level))
     return {
