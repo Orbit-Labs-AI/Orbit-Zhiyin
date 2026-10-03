@@ -508,7 +508,7 @@ put(swell(0.6 * BEAT), 10.75, 0.32)                                         # b1
 arp(11.35, 11.75, 0.0333, 0.07, base=72, span=6)                            # one quick upward chord run as they spray
 put(pad(CH['C'][0], 1.6 * BEAT, 2800, 0.1, 0.8), 11.35, 0.07, to='verbsend')
 shimmer(11.6, 1.0, 8, 0.025)                                                # the halo draws in (b11.6–12.6)
-put(whoosh(0.6 * BEAT), 13.2, 0.1, 0.3)                                     # the arc folds into the caret
+put(whoosh(0.9 * BEAT), 12.95, 0.13, 0.3)                                    # v18.4 the dot slides left into the caret (b13.05–13.65), one long whoosh
 groove(13.2, 18.7, lvl=0.82)
 for k, b_ in enumerate((13.8, 14.3, 14.8, 15.3)):                           # We / Are / Redesigning / Everything
     put(stab(tuple(tone(b_, j, 60) for j in range(3)) + (q(M[0] + (0, 3, 5, 8)[k], b_),), 0.7 if k < 3 else 1.4), b_, 0.17 + 0.02 * k, -0.15 + 0.1 * k, to='verbsend')
@@ -620,6 +620,8 @@ for b_, g in ((26.7, 0.09), (29.5, 0.07)):                                # v18.
 put(whoosh(1.3 * BEAT), 31.7, 0.12, 0.2)                                    # the flip onto the compass (b31.7–33.0)
 put(lead(lq(81, 29.5), 2.2 * BEAT), 29.5, 0.06, 0.0, to='lead')             # bridge (film b40.8–45): A on the retract …
 put(lead(lq(76, 31.7), 1.5 * BEAT), 31.7, 0.06, 0.0, to='lead')             # … E on the flip, handing over to persona's motif
+put(lp(kick(0.3, 0.5), 450), 33.0, 0.16, to='kick')                         # v18.4 the flip lands flat on the compass (film b44.3)
+put(settle(0.9), 33.0, 0.06, 0.0)
 
 # ================= 30-persona: compass, bud, title, the scrolling analysis column, petal-by-petal changes, reveal (b25.7–45.4)
 section('30-persona')
@@ -638,10 +640,10 @@ for k, (g0, g1) in enumerate(((35.88, 37.09), (37.09, 38.30), (38.30, 40.4))):  
 breath(40.4, 41.42)                                                         # one beat of air before DIMV
 groove(41.42, 45.4, lvl=1.0, arp16=True)                                    # then the full groove on the reveal
 hits(35.88, 37.09, 38.30, 39.52, 41.42)
-for b_ in (29.1, 33.1, 37.1):                                               # the motif augmented, one note per beat
-    motif(b_, 0.05, times=(0, 1, 2, 3), held=1.0)
+for b_, g, ns in ((29.1, 0.05, (76, 79, 81, 76)), (33.1, 0.055, (77, 81, 84, 81)), (37.1, 0.06, (79, 83, 86, 84))):
+    motif(b_, g, notes=ns, times=(0, 1, 2, 3), held=1.0)                    # v18.4 three statements, each a step higher, climbing to DIMV
 put(lead(lq(76, 28.1), 1.0 * BEAT), 28.1, 0.05, 0.0, to='lead')             # v18.3 E on the dial, into the augmented motif
-put(lead(lq(84, 41.42), 3.0 * BEAT), 41.42, 0.06, 0.0, to='lead')           # and its C lands on DIMV
+put(lead(lq(88, 41.42), 3.0 * BEAT), 41.42, 0.09, 0.0, to='lead')          # and the climb tops out on E6 at DIMV
 put(crash(2.0), 28.1, 0.12, -0.2)
 put(settle(0.8), 28.4, 0.05, 0.0)                                           # v18.2: the dial settles (b28.4)
 roll(28.6, 5, 0.06, 0.25, 64, 1.2)                                          # the bud slows and lands (b29.6)
@@ -668,13 +670,14 @@ put(whoosh(1.1 * BEAT), 45.0, 0.1, 0.3)                                     # th
 
 # ================= 40-recs: peel into the column, intro card, six recommendations + two counters (b38.5–63.1) — peak on the last
 section('40-recs')
-chords((39.1, 'F'), (43.1, 'G'), (45.1, 'Am'), (49.1, 'F'), (53.1, 'C'), (57.1, 'G'), (62.35, 'Am+'), (63.4, 'G'))   # film 62 … 85.1: V → deceptive Am9 on the payoff
+chords((39.1, 'F'), (43.1, 'G'), (45.1, 'Am'), (49.1, 'F'), (53.1, 'C'), (57.1, 'G'), (59.6, 'Am+'), (63.4, 'G'))   # film 62 … 82.5: V → deceptive Am9 on the payoff (v18.4 PO = 59.6)
 padlvl(38.5, 0.17, 2000)
 padlvl(40.0, 0.16, 1900)
 padlvl(45.1, 0.17, 2200)
 padlvl(57.1, 0.18, 2600)
-padlvl(61.35, 0.15, 2000)
-padlvl(62.35, 0.21, 2700)
+padlvl(59.1, 0.15, 2000)
+padlvl(59.6, 0.21, 2700)
+padlvl(62.6, 0.20, 2500)
 for k in range(5):                                                          # the badges peel off the rim row by row (b38.5 + .14 k)
     b_ = 38.5 + 0.14 * k
     put(blip(tone(b_, 4 - k, 72), 0.4), b_, 0.045, -0.4 + 0.2 * k, to='verbsend')
@@ -701,7 +704,7 @@ EV = [ARR[n] - (1.9 if n else 1.4) + 0.4 for n in range(6)]                # = E
 for n, e in enumerate(EV):
     put(whoosh(0.5 * BEAT), e - 0.4, 0.04, -0.5)                            # the links draw to the card (air, no pitch)
     m_ = (AG + (74,))[n] + 12                                        # the entries spell the motif E G A C E → D6 (the 9th over V)
-    d_ = (EV[n + 1] - e - 0.1) if n < 5 else (62.35 - e)                     # v18.3 legato: each note runs into the next entry
+    d_ = (EV[n + 1] - e - 0.1) if n < 5 else (59.6 - e)                      # v18.3 legato: each note runs into the next entry
     put(pluck(lq(m_, e), 0.6), e, 0.09, -0.2, to='verbsend')
     put(lead(lq(m_, e), (d_ * 0.55 if n < 5 else d_) * BEAT), e, 0.06 if n < 5 else 0.085, 0.0, to='lead')
     if n < 5:                                                              # a passing tone halfway, so the phrase keeps rising
@@ -709,19 +712,24 @@ for n, e in enumerate(EV):
         put(lead(lq(mp, e + d_ * 0.55), d_ * 0.45 * BEAT + 0.05), e + d_ * 0.55, 0.05, 0.0, to='lead')
     counter(e - 0.1, 1.2)
 put(tick(1.2), 47.4, 0.05, 0.45)                                            # the Token counter lights up (b47.4)
-for k, (g0, g1) in enumerate(zip([45.1] + EV[1:], EV[1:] + [61.35], strict=True)):   # the groove grows one step per card
+for k, (g0, g1) in enumerate(zip([45.1] + EV[1:], EV[1:] + [59.1], strict=True)):   # the groove grows one step per card
     groove(g0, g1, lvl=0.82 * 1.06 ** k, arp16=True)
-breath(61.35, 62.35)                                                        # one beat of air, then the payoff
-groove(62.35, 63.4, lvl=1.0, arp16=True)
+breath(59.1, 59.6)                                                          # v18.4 half a beat of air, then the payoff (film b82.0)
+groove(59.6, 61.6, lvl=1.0, arp16=True)                                     # the payoff holds the full groove …
+groove(61.6, 63.4, style='half', lvl=0.86, arp16=True, bed=0.2)             # … easing while it reads (to film b86.3)
 groove(63.4, 64.3, style='half', lvl=0.86, arp16=True, bed=0.2)             # v18.2 the payoff holds .8 beat longer: the groove carries on
-hits(*EV, 62.35, 63.4)                                                      # the payoff leaves (film b86.3): a closing hit on a V suspension
-put(swell(0.9 * BEAT), 61.45, 0.32)
-peak(62.35, 'Am+', 1.0, 0.7)                                                # the payoff lands: centred % counters + 提高效率 (PO + POD, film b85.25)
-put(lead(lq(81, 62.35), 2.5 * BEAT), 62.35, 0.07, 0.0, to='lead')           # the motif's A on the peak
-counter(62.35, 0.8, 8, 0.05)
-put(whoosh(1.1 * BEAT), 61.9, 0.12, 0.2)                                    # the column speeds up and leaves
+hits(*EV, 59.6, 63.4)                                                      # the payoff leaves (film b86.3): a closing hit on a V suspension
+put(swell(0.85 * BEAT), 58.75, 0.32)
+peak(59.6, 'Am+', 1.0, 0.7)                                                # the payoff lands: centred % counters + 提高效率 (PO + POD, film b85.25)
+put(lead(lq(81, 59.6), 2.0 * BEAT), 59.6, 0.085, 0.0, to='lead')            # the motif's A on the peak (film b82.5) …
+put(lead(lq(79, 61.6), 1.0 * BEAT), 61.6, 0.075, 0.0, to='lead')            # … answered G …
+put(lead(lq(76, 62.6), 0.8 * BEAT), 62.6, 0.07, 0.0, to='lead')             # … E, so the line keeps moving under the static payoff
+put(bell(lq(88, 60.25), 2.0), 60.25, 0.06, 0.1, to='verbsend')              # v18.4 the payoff is fully composed (film b83.15): a bell …
+put(pluck(lq(81, 60.25), 0.6), 60.25, 0.07, -0.1, to='verbsend')            # … and a pluck landing
+counter(59.7, 0.8, 8, 0.05)
+put(whoosh(1.1 * BEAT), 63.4, 0.12, 0.2)                                    # the column drifts out into the orb (film b86.3)
 put(stab(tuple(tone(63.4, j, 55) for j in range(4)), 1.4), 63.4, 0.1, 0.0, to='verbsend')   # V under the held A (the 9th), resolving to Am at film b86.8
-put(settle(0.9), 61.8, 0.07, 0.15)                                          # v18.2: 提高效率 wipes in orange (b61.8)
+put(settle(0.9), 59.7, 0.07, 0.15)                                          # 提高效率 wipes in orange (PO + .1)
 put(puff(0.8), 63.2, 0.045, -0.5, to='verbsend')                            # and closes into a stack (b63.2)
 put(tick(1.0), 63.8, 0.04, -0.5)                                            # the stack hands on to the merge (b63.8)
 
@@ -734,13 +742,17 @@ padlvl(65.0, 0.17, 2100)
 padlvl(67.3, 0.16, 1800)
 padlvl(68.8, 0.17, 2000)
 put(whoosh(1.4 * BEAT, down=True), 55.0, 0.24, 0.0)                         # five dots merge into one
+put(whoosh(0.8 * BEAT), 54.6, 0.08, -0.2)                                   # v18.4 the trajectory track grows out (film b86.5)
+put(tick(1.0), 54.8, 0.045, -0.2)
 groove(55.0, 68.8, style='half', lvl=0.74, arp16=True, bed=0.2)             # v18.3 a valley under the trajectory …
 groove(68.8, 73.75, lvl=0.95, arp16=True)                                    # … four on the floor from the press …
 groove(73.75, 75.2, style='half', lvl=0.86, arp16=True, bed=0.2)            # … easing after done ✓
 peak(73.75, 'C', 0.8, 0.5)                                                  # the second core feature's peak: done ✓ (film b105.45)
 padlvl(73.75, 0.21, 2600)
 put(swell(0.8 * BEAT), 55.2, 0.12)                                          # the orb grows into the card (film b86.9–87.7), no hit
-put(tick(1.3), 67.65, 0.08, 0.1)                                            # 开始生成 rises in (b67.65, film b99.35)
+put(lp(swell(0.5 * BEAT), 6000) + 0.5 * bp(swell(0.5 * BEAT), 300, 900), 67.15, 0.16, 0.0)   # v18.4 the cards are drawn into the orb (film b98.85–99.35): a reverse, suck-in swell
+put(pluck(tone(68.1, 2, 72), 0.5), 68.1, 0.08, 0.1, to='verbsend')         # 开始生成 pops out (film b99.8)
+put(tick(1.3), 68.1, 0.07, 0.1)
 hits(55.0, 55.4, 65.0, 68.8, 73.75)
 motif(55.1, 0.045, octave=-1, scale=2.0, held=2.0, cutoff=2400)             # the motif an octave down, half speed
 put(lead(lq(67, 61.1), 2.0 * BEAT, 2400), 61.1, 0.045, 0.0, to='lead')     # v18.3 G bridges the two statements
@@ -766,11 +778,15 @@ for m, b_, d_ in ((81, 68.8, 1.1), (79, 69.95, 2.8), (76, 72.85, 0.9), (84, 73.7
 put(blip(tone(68.8, 0, 72), 0.4), 68.8, 0.07, 0.2, to='verbsend')
 for b_ in (68.95, 69.45, 69.95, 72.85, 73.3):                               # run steps (soft ticks)
     put(tick(1.2), b_, 0.06, 0.3)
+put(tick(0.9), 71.7, 0.05, -0.2)                                             # v18.4 the pin dot (film b103.4)
 for k in range(1, 26):                                                      # SKILL.md typed at an even rate (b70.05–72.65)
     put(key_click(), 70.05 + k / 10, 0.03 + 0.015 * rng.random(), 0.3 * (rng.random() - 0.5))
 for j, g in enumerate((0.1, 0.07, 0.045)):                                  # ✓ done (b73.75): C-chord bell
     put(bell(tone(73.75, 2 * j, 72), 2.0), 73.75, g, 0.1, to='verbsend')
 put(whoosh(1.1 * BEAT), 73.9, 0.06, 0.2)                                    # the cards shrink into the dot (b73.9)
+put(swell(0.5 * BEAT), 73.8, 0.12, 0.0)                                      # v18.4 SKILL.md accelerates into the orb …
+put(lp(kick(0.3, 0.7), 500), 74.3, 0.2, to='kick')                          # … and lands hard (film b106.0)
+put(press(), 74.3, 0.12, 0.0)
 
 # ================= 60-close: ring → compass → ring → the curve is drawn → 45° icon → wordmark → tagline → fade (b69.2–94.8)
 section('60-close')
@@ -805,6 +821,10 @@ groove(75.4, 80.2, kick_on=False, clap_on=False, lvl=0.74, bed=0.18)        # th
 put(sweep_pad(tuple(m + 12 for m in CH['F'][0]), 3.0 * BEAT, 0.4 * BEAT), 75.6, 0.12, to='verbsend')   # the curve is drawn
 arp(75.6, 78.6, 0.5, 0.055, base=67, span=6, accel=0.25)                    # (b75.6–78.6): a rising swell following the stroke
 put(riser(3.0 * BEAT, 300, 5000), 75.6, 0.14, to='verbsend')
+put(pluck(lq(76, 75.6), 0.4), 75.6, 0.08, 0.0, to='verbsend')              # v18.4 the stroke starts on a fast attack (film b113.3)
+put(tick(1.2), 75.6, 0.05, 0.0)
+put(sweep_pad(tuple(m + 12 for m in CH['G'][0]), 3.0 * BEAT, 0.6 * BEAT), 78.6, 0.07, to='verbsend')   # the slow push (film b116.3–119.3) …
+put(riser(3.0 * BEAT, 200, 2500), 78.6, 0.06, to='verbsend')                # … a slow rising swell into the turn
 put(whoosh(1.6 * BEAT), 78.6, 0.1, -0.2)                                    # it turns and tilts into the 45° icon
 TAG0 = TURN0 + 4.0
 LAST = TAG0 + 1.4 + 0.64                                                    # agent ✓4: the last strong beat (film b124.74)
@@ -1077,6 +1097,15 @@ mix = mix + (10 ** (-6 / 20) - 1) * lp(mix, 80, 2)    # master low shelf: -6 dB 
 mix = mix + (10 ** (-3 / 20) - 1) * bp(mix, 80, 150)   # v18.3 thin 80–150 Hz a further -3 dB
 mix = mix + (10 ** (3.5 / 20) - 1) * bp(mix, 2000, 4500)  # v18.3 +3.5 dB presence bell around 3 kHz
 mix = mix + (10 ** (-3 / 20) - 1) * hp(mix, 10000, 2)  # v18.3 -3 dB high shelf above 10 kHz
+mix = hp(mix, 32)                                      # v18.4 high-pass 32 Hz …
+mix = mix + (10 ** (-4 / 20) - 1) * lp(mix, 60, 2)     # … and a further -4 dB below 60 Hz (laptop / projector speakers)
+mix = mix + (10 ** (3 / 20) - 1) * bp(mix, 2500, 6000)   # v18.4 +3 dB presence 2.5–6 kHz for the lead and keys
+# v18.4 macro dynamic arc (film beats, dB): intro builds, persona and recs peak (DIMV, payoff), tools dips then
+# peaks on done ✓, the end card sits above the middle; linear ramps between points, the fade continues after
+ARC = [(0, -2), (6.6, 0), (18.0, 1), (18.7, -2.5), (26.7, -2.5), (27.5, 2.5), (32.4, 2.5), (32.9, -1.5), (43.3, -2),
+       (57.5, 1), (58.3, 3), (61.0, 3), (61.4, -1.5), (67.9, -1), (82.0, 1.5), (82.5, 3.5), (86.3, 3.5), (86.7, -3),
+       (99.6, -3), (100.0, 0), (105.45, 3), (106.9, -2), (117.9, 0), (119.0, 2), (124.74, 3.5), (126.0, 0)]
+mix *= 10 ** (np.interp(np.arange(N), [at(b) for b, _ in ARC], [g for _, g in ARC]) / 20)
 norm = 1 / (np.max(np.abs(mix)) + 1e-9)
 mix *= norm
 mix = np.tanh(mix * 1.6) / np.tanh(1.6)
@@ -1097,7 +1126,11 @@ START = [('10-intro', 0), ('15-redesign', 11.8), ('20-orbit', 21.6), ('30-person
 FILM = [(n, b + SHIFT[n]) for n, b in START] + [('', END)]
 for (name, b0), (_, b1) in zip(FILM[:-1], FILM[1:], strict=True):
     seg = mix[:, at(b0):at(b1)]
-    print(f'  {name:12s} b{b0:5.1f}-{b1:5.1f}  peak {np.max(np.abs(seg)):.3f}  rms {np.sqrt(np.mean(seg ** 2)):.3f}')
+    print(f'  {name:12s} b{b0:5.1f}-{b1:5.1f}  peak {np.max(np.abs(seg)):.3f}  rms {20 * np.log10(np.sqrt(np.mean(seg ** 2))):6.1f} dBFS')
+for name, b0, b1 in (('1d', 19, 26), ('DIMV', 58, 62), ('recs', 67, 82), ('payoff', 82.5, 86.3), ('trajectory', 87, 99),
+                     ('studio', 100, 105.5), ('done', 105.5, 107), ('end card', 119, 124.7)):
+    seg = mix[:, at(b0):at(b1)]
+    print(f'  arc {name:10s} b{b0:5.1f}-{b1:5.1f}  rms {20 * np.log10(np.sqrt(np.mean(seg ** 2))):6.1f} dBFS')
 # the typing passages (film beats): keys alone vs everything else, after the same normalisation + drive gain
 for name, b0, b1 in (('1b typing', 7.2, 10.8), ('1d typing', 12.95 + 6.9, 17.95 + 6.9)):
     i0, i1 = at(b0), at(b1)
