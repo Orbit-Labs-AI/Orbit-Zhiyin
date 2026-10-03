@@ -36,11 +36,22 @@ function openAbout() {
   if (LV.live) { openAboutLive(); return; }
   openModal(modalHead('关于这个 Demo', 'Orbit 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI Hackathon 产品（暂定名 Orbit / 同频）的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>名称、MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
 }
+// 「你」follows the persona page: same period (S.persona.period, default 近 90 天) and the same answer (live persona when the
+// page uses it), labelled with that period. Axis names are the pole words the persona page uses (委托 / 即兴 / 多线 / 求证).
+const METHOD_POLE = { D: '委托', I: '即兴', M: '多线', V: '求证' };
+function methodPersona() {
+  try {
+    const key = PERIODS[S.persona.period] ? S.persona.period : '90'; const per = PERIODS[key];
+    const L = personaScope([per[0], per[1]]);
+    const p = LV.live && L.length >= 30 && !lvHasUnits(L) ? LV.personaFor(key, L) : persona(L);
+    return { p: p || { ok: false }, label: per[2] };
+  } catch (e) { return { p: personaNow(), label: '默认时间范围' }; }
+}
 function openMethod() {
-  const p = personaNow();
+  const mp = methodPersona(); const p = mp.p;
   openModal(modalHead('协作人格如何计算', '四个维度各取一极，组成 16 型 · 少于 30 个会话，或某个维度落在 45–55 之间时，不下结论') +
-    '<div class="mb col" style="gap:14px">' + AXES.map((ax, i) => { const v = p.ok ? axisView(p, i) : null; return '<div class="col" style="gap:3px"><div class="row" style="gap:8px;flex-wrap:wrap"><b class="mono" style="font-size:13px;min-width:36px">' + ax.L + ' / ' + ax.R + '</b><b style="font-size:13px">' + ax.dim + '：' + ax.Ln + ' ↔ ' + ax.Rn + '</b>' + (v ? '<span class="mono cap" style="margin-left:auto">你：' + v.letter + ' ' + v.name + ' ' + v.strong + '%</span>' : '') + '</div><span class="cap" style="font-size:12px">' + ax.q + ' 信号：' + ax.sig + '</span></div>'; }).join('') +
-    '<div class="code" style="padding:10px 12px;white-space:pre-wrap;font-size:12px;line-height:1.7">委托度 D = 50 + (自主比 − 8) × 5.8\n规划度 P、求证度 V = 各项目特征按协作时长加权\n并发度 M = 20 + 7 × 日均会话 + 5 × 日均 Agent 数 − 6\n≥ 55 取左极，≤ 45 取右极，其余显示「?」</div>' +
+    '<div class="mb col" style="gap:14px">' + AXES.map((ax, i) => { const v = p.ok ? axisView(p, i) : null; return '<div class="col" style="gap:3px"><div class="row" style="gap:8px;flex-wrap:wrap"><b class="mono" style="font-size:13px;min-width:36px">' + ax.L + ' / ' + ax.R + '</b><b style="font-size:13px">' + METHOD_POLE[ax.k] + '</b><span class="cap" style="font-size:12px">' + ax.Ln + ' ↔ ' + ax.Rn + '</span>' + (v ? '<span class="mono cap" style="margin-left:auto" data-method="you">你 · ' + esc(mp.label) + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '</span>' : '') + '</div><span class="cap" style="font-size:12px">' + ax.q + ' 信号：' + ax.sig + '</span></div>'; }).join('') +
+    '<div class="code" style="padding:10px 12px;white-space:pre-wrap;font-size:12px;line-height:1.7">委托 D = 50 + (自主比 − 8) × 5.8\n即兴 I、求证 V = 各项目特征按协作时长加权\n多线 M = 20 + 7 × 日均会话 + 5 × 日均 Agent 数 − 6\n每轴 0–100：≥ 55 取左极，≤ 45 取右极，其余显示「?」；「你」一栏是偏向那一极的强度（50–100），不是百分比</div>' +
     '<div class="eb">16 型 · 点击查看</div><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px">' + Object.keys(TYPES).map((k) => '<button type="button" data-act="typeInfo" data-k="' + k + '" style="border-radius:8px;padding:6px 8px;text-align:left;display:flex;flex-direction:column;gap:1px;' + (p.ok && p.code === k ? 'border:1.5px solid var(--ink-1);background:var(--surface)' : 'border:1px solid var(--line);background:var(--bg)') + '"><b class="mono" style="font-size:12px;letter-spacing:.04em">' + k + '</b><span style="font-size:12px;color:var(--ink-2)">' + TYPES[k][0] + '</span></button>').join('') + '</div><div id="typeLine" style="min-height:20px;font-size:13px;line-height:20px;color:var(--ink-2)">' + (p.ok ? '<b style="color:var(--ink-1)">' + p.code + ' ' + p.zh + '</b>：' + esc(p.line) : '点击任一类型查看描述') + '</div></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">维度信号与权重是初版设想，待真实数据校准</span><button type="button" class="btn" data-act="openSettings" data-tab="analysis">分析设置</button><button type="button" class="btn p" data-act="closeModal">知道了</button></div>', 'wide');
 }
 Object.assign(ACT, {
