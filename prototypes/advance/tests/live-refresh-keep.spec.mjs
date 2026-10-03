@@ -59,6 +59,10 @@ test('projection_pending while publishing: a calm 正在整理数据… line, qu
   expect(await setTop()).toBe(120);
   await page.locator('#set [data-act="setTab"][data-v="sources"]').click();
   expect(await setTop()).toBe(0);
+  // closing and reopening the window (same tab) starts at its top, like a fresh window
+  await page.evaluate(() => { document.querySelector('#set .body').scrollTop = 250; });
+  await page.evaluate(() => { closeSettings(); openSettings('sources'); });
+  expect(await setTop()).toBe(0);
   // a real failure still raises the error banner with 重试
   await page.evaluate(() => closeSettings && closeSettings());
   gw.set('GET /v1/uiview/sessions', { status: 500, body: { error: { code: 'internal', message: 'boom', retryable: true } } });
@@ -118,6 +122,11 @@ test('projection_pending on the overview and persona pages: the persona card rea
     await page.waitForTimeout(2500);   // several Retry-After rounds
     await expect(page.locator('#content')).not.toContainText('画像暂时取不到');
     await expect(page.locator('#content')).not.toContainText('服务暂时不可用');
+    // no sessions published yet is not 还没有会话: the overview card says the data is being organised
+    if (route === 'overview') {
+      await expect(page.locator('#content .ov-pers')).toContainText('正在整理数据');
+      await expect(page.locator('#content .ov-pers')).not.toContainText('还没有会话');
+    }
   }
   expect(errors).toEqual([]);
 });

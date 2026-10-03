@@ -32,9 +32,11 @@ const OrbitLive = (function () {
   const isPending = (e) => !!e && (e.code === 'projection_pending' || e.reason === 'projection_pending');
   // 503 service_unavailable 'Database busy' (SQLite locked by the import writer, Retry-After 1): during an import this is the
   // writer holding the lock, not an outage → retried quietly like projection_pending, up to BUSY_MAX times in a row (then
-  // it is a real failure and raises the banner as before)
+  // it is a real failure and raises the banner as before). A long import can hold the lock past the cap: while its job frames
+  // keep advancing (one within BUSY_FRESH_MS) the writer is clearly alive, so the quiet retries go on
   const isBusy = (e) => !!e && e.status === 503 && e.code === 'service_unavailable' && /^Database busy/.test(e.message || '');
   const BUSY_MAX = 8;
+  const BUSY_FRESH_MS = 10000;
   // scope keys POST /v1/analytics/recompute accepts (the analytics scope), used to rebuild a scope from a resource query
   const SCOPE_KEYS = ['display_timezone', 'project_ids', 'legacy_project_ids', 'model_ids', 'effort_raw', 'from_ts', 'until_ts', 'root_session_uids', 'excluded_session_uids', 'include_children', 'scene', 'source_ids', 'agent_ids'];
   const JOB_DONE = ['completed', 'failed'];
@@ -220,6 +222,9 @@ const OrbitLive = (function () {
     };
     // an import is running: a job frame says so, or the host knows (C.importing, e.g. the first-run overlay's own job)
     const importJobActive = () => !!(C.job && C.job.kind === 'import' && ACTIVE_JOB.indexOf(C.job.status) >= 0);
+    // the import's job frames moved (progress / phase changed) recently: the writer is working, not stuck
+    let jobSig = null; let jobAdvancedAt = 0;
+    const importAdvancing = () => importJobActive() && now() - jobAdvancedAt < BUSY_FRESH_MS;
     const importingNow = () => { if (importJobActive()) return true; try { return !!(C.importing && C.importing()); } catch (e) { return false; } };
     C.stateOf = function (r) {
       if (!r) return 'idle';
@@ -252,7 +257,7 @@ const OrbitLive = (function () {
           retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : Math.min(5000, 1000 * r.fails));
           return;
         }
-        if (isBusy(e) && importingNow() && (r.busy = (r.busy || 0) + 1) <= BUSY_MAX) {
+        if (isBusy(e) && importingNow() && ((r.busy = (r.busy || 0) + 1) <= BUSY_MAX || importAdvancing())) {
           r.error = { status: 503, code: 'service_unavailable', message: e.message, retryable: true, retryAfter: e.retryAfter, reason: null, busy: true };
           r.state = r.data != null ? 'stale' : 'computing';
           retryLater(r, e.retryAfter != null ? Math.max(1000, e.retryAfter) : 1000);
@@ -397,6 +402,7 @@ const OrbitLive = (function () {
       p = p || {};
       if (name === 'job') {
         C.job = p;
+        if (p.kind === 'import') { const sig = JSON.stringify([p.id, p.status, p.phase, p.progress]); if (sig !== jobSig) { jobSig = sig; jobAdvancedAt = now(); } }
         if (ACTIVE_JOB.indexOf(p.status) < 0 && p.kind === 'import') C.invalidate((r) => r === statusRes);
         changed();
       } else if (name === 'data.published') {

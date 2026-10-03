@@ -17,6 +17,9 @@ setInterval(() => {
   const setBase = renderSet;
   let setDrawn = null;   // the tab the window last showed (the tab buttons set S.setTab before they call renderSet)
   renderSet = function () { const keep = uiKeep($('#set')); const r = setBase.apply(this, arguments); if (S.setTab === setDrawn) keep(); setDrawn = S.setTab; return r; };
+  // closing the window forgets it: reopening (even on the same tab) starts at top, like a fresh window
+  const closeBase = closeSettings;
+  closeSettings = function () { setDrawn = null; return closeBase.apply(this, arguments); };
   const obBase = drawOB;
   drawOB = function () { const was = OB && OB.drawn; const keep = uiKeep($('#overlay')); const r = obBase.apply(this, arguments); if (OB && OB.drawn === was) keep(); return r; };
 }
