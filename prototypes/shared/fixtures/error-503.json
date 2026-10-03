@@ -1,7 +1,7 @@
 {
   "error": {
-    "code": "projection_pending",
-    "message": "数据投影尚未完成",
+    "code": "service_unavailable",
+    "message": "analytics is not running",
     "retryable": true
   },
   "retry_after_s": 2
