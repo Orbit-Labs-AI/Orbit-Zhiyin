@@ -36,6 +36,11 @@ function peRelax(w) {
   if (S.persona.period !== 'all') out.push({ k: 'period', t: '周期 · ' + PERIODS[S.persona.period][2], n: n({ w: [0, LASTDAY] }) });
   return out;
 }
+// the persona page keeps its own period (近 90 天 / a month / 全部), not the global time range: say so on the page (E)
+function peScopeTag(per) {
+  const same = (S.persona.period === '90' && S.range === 90) || (S.persona.period === 'all' && S.range === 0);
+  return '<span class="cap pe-scope" data-pe-scope title="协作人格按本页的统计周期计算；概览人格卡跟随全局范围">统计周期 · ' + per[2] + (same ? '' : '（本页单独设置，全局为' + rangeLabel() + '）') + '</span>';
+}
 const AXR = { D: 0, I: 90, M: 180, V: 270 };
 // 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、轨道环带 R0 → R0+RH、行星轨道 PR、节律带 98 → 118、内盘 92、
 // 玫瑰半径 RR、指针半长 NL（= 0.8 × RR，短于字母位，不压住分数）。Genesis（56-onboarding.js）的粒子落点、环带扫描与玫瑰生长共用这一组常量。
@@ -166,12 +171,13 @@ PAGES.persona = () => {
   if (p.pending) return tbar('协作人格', filt + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="stack">' + LV.pend(420) + LV.pend(260) + '</div></div>';
   if (!p.ok) {
     const frac = Math.min(1, L.length / 30); const a = frac * Math.PI * 2; const x = 56 + 46 * Math.sin(a), y = 56 - 46 * Math.cos(a);
-    const relax = peRelax([per[0], per[1]]);
+    const relax = peRelax([per[0], per[1]]).filter((r) => r.n > L.length);   // only filters whose removal adds sessions (D)
+    const more = relax.some((r) => r.k !== 'period'), wider = relax.some((r) => r.k === 'period');
     return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--font-num)" fill="var(--ink-1)">' + L.length + '/30</text></svg><div class="col" style="flex:1;min-width:240px">' +
       (allOff ? '<h2 class="serif" style="margin:0;font-size:24px">所有数据源已停用</h2><p style="margin:0;color:var(--ink-2)">人格需要会话数据。到「设置 › 数据源」重新启用至少一个 Agent，分析会立即恢复。</p><div class="row"><button type="button" class="btn p" data-act="openSettings" data-tab="sources">打开设置 · 数据源</button></div>'
-        : '<h2 class="serif" style="margin:0;font-size:24px">再积累 ' + (30 - L.length) + ' 个会话后揭晓</h2><p style="margin:0;color:var(--ink-2)">当前筛选下样本太少，人格需要足够的会话才可靠。' + (relax.length ? '放宽下面任一筛选可以补到：' : '可以放宽筛选，或换一个统计周期。') + '</p>' +
+        : '<h2 class="serif" style="margin:0;font-size:24px">再积累 ' + (30 - L.length) + ' 个会话后揭晓</h2><p style="margin:0;color:var(--ink-2)">' + (relax.length ? '当前筛选下样本太少，人格需要足够的会话才可靠。放宽下面任一筛选可以补到：' : '会话还不够，继续使用 Orbit 就会积累。') + '</p>' + peScopeTag(per) +
         (relax.length ? '<div class="pe-relax">' + relax.map((r) => '<button type="button" class="chip on" data-act="peRelax" data-k="' + r.k + '">' + esc(r.t) + ic('x', 12) + '<b class="mono" style="color:' + (r.n >= 30 ? 'var(--good)' : 'var(--ink-3)') + '">移除后 n≈' + r.n + '</b></button>').join('') + '</div>' : '') +
-        '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>') +
+        (more || wider ? '<div class="row" style="flex-wrap:wrap">' + (more ? '<button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button>' : '') + (wider ? '<button type="button" class="btn' + (more ? '' : ' p') + '" data-act="period" data-v="all">看全部历史</button>' : '') + '</div>' : '')) +
       '</div></div></div>';
   }
   CUR.persona = p;
@@ -191,7 +197,7 @@ PAGES.persona = () => {
   const metaFull = filt + '基于 ' + L.length + ' 个会话 · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + per[2] + (note ? ' · ' + note : '');
   return tbar('协作人格', '<span title="' + esc(metaFull) + '">' + filt + L.length + ' 个会话 · ' + per[2] + '</span>', right) +
     '<div class="content" id="content"><div class="stack">' +
-    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span></div>' +
+    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + peScopeTag(per) + '</div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
     '<p class="pe-line"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
@@ -224,7 +230,7 @@ PAGES.persona.after = () => {
   VZ.mount('pe-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: peAxisRows(p, prev), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: peNum, refLabel: S.persona.vs === 'pop' ? '全体用户（示例）' : '上月', axis: false, rowH: 34, barH: 10, legend: false, animate: false, onSelect: () => ACT.axisJump() });
   const months = CUR.peMonths || [];
   VZ.mount('pe-evo', { type: 'line', title: '四个维度 · 逐月', height: 150, legend: 'top', animate: false, points: true, endLabels: false, x: { values: months.map((m) => m.lbl.slice(5) + ' 月') }, y: { min: 0, max: 100, format: 'int', ticks: 4 }, refs: [{ y: 55, color: 'var(--line)' }, { y: 50 }, { y: 45, color: 'var(--line)' }],
-    series: [['D', '自主 D', 'var(--ink-1)', false], ['I', '结构 I', 'var(--ink-2)', true], ['M', '并发 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
+    series: [['D', '委托 D', 'var(--ink-1)', false], ['I', '即兴 I', 'var(--ink-2)', true], ['M', '多线 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
 };
 TIPS.axis = (i) => { const p = CUR.persona; if (!p) return ''; const a = axisView(p, +i); return '<b>' + a.ax.dim + '：' + a.ax.L + ' ' + a.ax.Ln + ' ↔ ' + a.ax.R + ' ' + a.ax.Rn + '</b>\n' + a.ax.q + '\n<span style="opacity:.8">信号：' + a.ax.sig + '</span>'; };
 Object.assign(ACT, {

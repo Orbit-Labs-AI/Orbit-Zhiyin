@@ -27,7 +27,7 @@ function askAnswer(ctx, i) {
   if (ctx === 'persona') {
     if (!p.ok) return '样本不足（少于 30 个会话），暂时不判断类型。';
     const ax = AXES.map((a, k) => axisView(p, k)).sort((a, b) => b.strong - a.strong);
-    if (i === 0) return '依据 ' + p.n + ' 个会话：\n\n' + AXES.map((a, k) => { const v = axisView(p, k); return '· ' + a.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '%（信号：' + a.sig + '）'; }).join('\n') + '\n\n最鲜明的是「' + ax[0].name + '」（' + ax[0].strong + '%），最接近中间的是「' + ax[3].name + '」（' + ax[3].strong + '%）。';
+    if (i === 0) return '依据 ' + p.n + ' 个会话：\n\n' + AXES.map((a, k) => { const v = axisView(p, k); return '· ' + a.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '（信号：' + a.sig + '）'; }).join('\n') + '\n\n最鲜明的是「' + ax[0].name + '」（' + ax[0].strong + '），最接近中间的是「' + ax[3].name + '」（' + ax[3].strong + '）。';
     if (i === 1) { const c = { D: '委托多：吞吐高，但方向一错代价也大', S: '掌舵多：方向稳，但你的时间被大量小指令占用', I: '即兴多：启动快，但更容易中途改向', P: '规划多：返工少，但前期投入大', M: '多线并行：产出多，但并行会话互相冲突的风险更高', F: '专注单线：质量稳，但等待 Agent 的时间更长', V: '验收严：结果可靠，但会花更多时间检查', T: '信任多：节奏快，但问题更晚才暴露' }; return '类型没有好坏，只有取舍。' + p.code + ' ' + p.zh + ' 的取舍是：\n\n' + p.code.split('').filter((x) => c[x]).map((x) => '· ' + c[x]).join('\n') + '\n\n不必换类型，把代价最高的环节前置成规则就行。可以从「' + (recs[0] ? recs[0].title : '—') + '」开始。'; }
     return '你的盲点主要在「' + (fr[0] ? fr[0][0] : '—') + '」' + (fr[1] ? '和「' + fr[1][0] + '」' : '') + '。\n\n建议：\n· ' + (fr[0] && FRIC_RULE[fr[0][0]] ? FRIC_RULE[fr[0][0]] : '在首条消息里写清完成条件') + '\n· ' + recs.slice(0, 2).map((r) => r.title).join('\n· ');
   }

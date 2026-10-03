@@ -2084,10 +2084,10 @@ const TYPES = {
   SIFT: ['搭档', 'The Partner', '像结对编程一样边聊边推进，彼此信任。']
 };
 const AXES = [
-  { k: 'D', L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', dim: '自主度', q: '你把多大块的事交出去？', sig: '每会话消息数 · 单轮自主步数 · 打断与中止率' },
-  { k: 'I', L: 'P', Ln: '规划', R: 'I', Rn: '即兴', dim: '结构度', q: '先想清楚再动手，还是边做边想？', sig: '首条消息长度与验收标准 · 规格文件引用 · 中途改向' },
-  { k: 'M', L: 'M', Ln: '多线', R: 'F', Rn: '专注', dim: '并发度', q: '你同时推进几件事？', sig: '每日会话数 · 同日使用的 Agent 数 · 子代理并行度' },
-  { k: 'V', L: 'V', Ln: '求证', R: 'T', Rn: '信任', dim: '求证度', q: '你怎么确认它做对了？', sig: '要求测试 / 编译 / 线上验证的比例 · 回滚与重做率' }
+  { k: 'D', L: 'D', Ln: '委托', R: 'S', Rn: '掌舵', dim: '委托', q: '你把多大块的事交出去？', sig: '每会话消息数 · 单轮自主步数 · 打断与中止率' },
+  { k: 'I', L: 'P', Ln: '规划', R: 'I', Rn: '即兴', dim: '即兴', q: '先想清楚再动手，还是边做边想？', sig: '首条消息长度与验收标准 · 规格文件引用 · 中途改向' },
+  { k: 'M', L: 'M', Ln: '多线', R: 'F', Rn: '专注', dim: '多线', q: '你同时推进几件事？', sig: '每日会话数 · 同日使用的 Agent 数 · 子代理并行度' },
+  { k: 'V', L: 'V', Ln: '求证', R: 'T', Rn: '信任', dim: '求证', q: '你怎么确认它做对了？', sig: '要求测试 / 编译 / 线上验证的比例 · 回滚与重做率' }
 ];
 
 function pickW(r, w) { let tot = 0; for (const k in w) tot += w[k]; let x = r() * tot; for (const k in w) { x -= w[k]; if (x <= 0) return k; } return Object.keys(w)[0]; }
@@ -6071,6 +6071,11 @@ function peRelax(w) {
   if (S.persona.period !== 'all') out.push({ k: 'period', t: '周期 · ' + PERIODS[S.persona.period][2], n: n({ w: [0, LASTDAY] }) });
   return out;
 }
+// the persona page keeps its own period (近 90 天 / a month / 全部), not the global time range: say so on the page (E)
+function peScopeTag(per) {
+  const same = (S.persona.period === '90' && S.range === 90) || (S.persona.period === 'all' && S.range === 0);
+  return '<span class="cap pe-scope" data-pe-scope title="协作人格按本页的统计周期计算；概览人格卡跟随全局范围">统计周期 · ' + per[2] + (same ? '' : '（本页单独设置，全局为' + rangeLabel() + '）') + '</span>';
+}
 const AXR = { D: 0, I: 90, M: 180, V: 270 };
 // 罗盘几何（400 视框，圆心 200）：外框 198/195 + 120 道刻度、轨道环带 R0 → R0+RH、行星轨道 PR、节律带 98 → 118、内盘 92、
 // 玫瑰半径 RR、指针半长 NL（= 0.8 × RR，短于字母位，不压住分数）。Genesis（56-onboarding.js）的粒子落点、环带扫描与玫瑰生长共用这一组常量。
@@ -6201,12 +6206,13 @@ PAGES.persona = () => {
   if (p.pending) return tbar('协作人格', filt + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="stack">' + LV.pend(420) + LV.pend(260) + '</div></div>';
   if (!p.ok) {
     const frac = Math.min(1, L.length / 30); const a = frac * Math.PI * 2; const x = 56 + 46 * Math.sin(a), y = 56 - 46 * Math.cos(a);
-    const relax = peRelax([per[0], per[1]]);
+    const relax = peRelax([per[0], per[1]]).filter((r) => r.n > L.length);   // only filters whose removal adds sessions (D)
+    const more = relax.some((r) => r.k !== 'period'), wider = relax.some((r) => r.k === 'period');
     return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--font-num)" fill="var(--ink-1)">' + L.length + '/30</text></svg><div class="col" style="flex:1;min-width:240px">' +
       (allOff ? '<h2 class="serif" style="margin:0;font-size:24px">所有数据源已停用</h2><p style="margin:0;color:var(--ink-2)">人格需要会话数据。到「设置 › 数据源」重新启用至少一个 Agent，分析会立即恢复。</p><div class="row"><button type="button" class="btn p" data-act="openSettings" data-tab="sources">打开设置 · 数据源</button></div>'
-        : '<h2 class="serif" style="margin:0;font-size:24px">再积累 ' + (30 - L.length) + ' 个会话后揭晓</h2><p style="margin:0;color:var(--ink-2)">当前筛选下样本太少，人格需要足够的会话才可靠。' + (relax.length ? '放宽下面任一筛选可以补到：' : '可以放宽筛选，或换一个统计周期。') + '</p>' +
+        : '<h2 class="serif" style="margin:0;font-size:24px">再积累 ' + (30 - L.length) + ' 个会话后揭晓</h2><p style="margin:0;color:var(--ink-2)">' + (relax.length ? '当前筛选下样本太少，人格需要足够的会话才可靠。放宽下面任一筛选可以补到：' : '会话还不够，继续使用 Orbit 就会积累。') + '</p>' + peScopeTag(per) +
         (relax.length ? '<div class="pe-relax">' + relax.map((r) => '<button type="button" class="chip on" data-act="peRelax" data-k="' + r.k + '">' + esc(r.t) + ic('x', 12) + '<b class="mono" style="color:' + (r.n >= 30 ? 'var(--good)' : 'var(--ink-3)') + '">移除后 n≈' + r.n + '</b></button>').join('') + '</div>' : '') +
-        '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button><button type="button" class="btn" data-act="period" data-v="all">看全部历史</button></div>') +
+        (more || wider ? '<div class="row" style="flex-wrap:wrap">' + (more ? '<button type="button" class="btn p" data-act="clearAllFilters">清除筛选</button>' : '') + (wider ? '<button type="button" class="btn' + (more ? '' : ' p') + '" data-act="period" data-v="all">看全部历史</button>' : '') + '</div>' : '')) +
       '</div></div></div>';
   }
   CUR.persona = p;
@@ -6226,7 +6232,7 @@ PAGES.persona = () => {
   const metaFull = filt + '基于 ' + L.length + ' 个会话 · ' + new Set(L.map((s) => s.a)).size + ' 个 Agent · ' + per[2] + (note ? ' · ' + note : '');
   return tbar('协作人格', '<span title="' + esc(metaFull) + '">' + filt + L.length + ' 个会话 · ' + per[2] + '</span>', right) +
     '<div class="content" id="content"><div class="stack">' +
-    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span></div>' +
+    '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span>' + peScopeTag(per) + '</div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
     '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
     '<p class="pe-line"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
@@ -6259,7 +6265,7 @@ PAGES.persona.after = () => {
   VZ.mount('pe-axes', { type: 'diverging', title: '协作人格 · 四个维度', rows: peAxisRows(p, prev), domain: [-1, 1], colors: ['var(--ink-2)', 'var(--ink-2)'], deadband: [-0.1, 0.1], format: peNum, refLabel: S.persona.vs === 'pop' ? '全体用户（示例）' : '上月', axis: false, rowH: 34, barH: 10, legend: false, animate: false, onSelect: () => ACT.axisJump() });
   const months = CUR.peMonths || [];
   VZ.mount('pe-evo', { type: 'line', title: '四个维度 · 逐月', height: 150, legend: 'top', animate: false, points: true, endLabels: false, x: { values: months.map((m) => m.lbl.slice(5) + ' 月') }, y: { min: 0, max: 100, format: 'int', ticks: 4 }, refs: [{ y: 55, color: 'var(--line)' }, { y: 50 }, { y: 45, color: 'var(--line)' }],
-    series: [['D', '自主 D', 'var(--ink-1)', false], ['I', '结构 I', 'var(--ink-2)', true], ['M', '并发 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
+    series: [['D', '委托 D', 'var(--ink-1)', false], ['I', '即兴 I', 'var(--ink-2)', true], ['M', '多线 M', 'var(--ink-3)', false], ['V', '求证 V', 'var(--h3)', true]].map((k) => ({ name: k[1], color: k[2], dash: k[3], values: months.map((m) => m.p.ok ? Math.round(m.p.v[k[0]]) : null) })) });
 };
 TIPS.axis = (i) => { const p = CUR.persona; if (!p) return ''; const a = axisView(p, +i); return '<b>' + a.ax.dim + '：' + a.ax.L + ' ' + a.ax.Ln + ' ↔ ' + a.ax.R + ' ' + a.ax.Rn + '</b>\n' + a.ax.q + '\n<span style="opacity:.8">信号：' + a.ax.sig + '</span>'; };
 Object.assign(ACT, {
@@ -7794,7 +7800,7 @@ function askAnswer(ctx, i) {
   if (ctx === 'persona') {
     if (!p.ok) return '样本不足（少于 30 个会话），暂时不判断类型。';
     const ax = AXES.map((a, k) => axisView(p, k)).sort((a, b) => b.strong - a.strong);
-    if (i === 0) return '依据 ' + p.n + ' 个会话：\n\n' + AXES.map((a, k) => { const v = axisView(p, k); return '· ' + a.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '%（信号：' + a.sig + '）'; }).join('\n') + '\n\n最鲜明的是「' + ax[0].name + '」（' + ax[0].strong + '%），最接近中间的是「' + ax[3].name + '」（' + ax[3].strong + '%）。';
+    if (i === 0) return '依据 ' + p.n + ' 个会话：\n\n' + AXES.map((a, k) => { const v = axisView(p, k); return '· ' + a.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '（信号：' + a.sig + '）'; }).join('\n') + '\n\n最鲜明的是「' + ax[0].name + '」（' + ax[0].strong + '），最接近中间的是「' + ax[3].name + '」（' + ax[3].strong + '）。';
     if (i === 1) { const c = { D: '委托多：吞吐高，但方向一错代价也大', S: '掌舵多：方向稳，但你的时间被大量小指令占用', I: '即兴多：启动快，但更容易中途改向', P: '规划多：返工少，但前期投入大', M: '多线并行：产出多，但并行会话互相冲突的风险更高', F: '专注单线：质量稳，但等待 Agent 的时间更长', V: '验收严：结果可靠，但会花更多时间检查', T: '信任多：节奏快，但问题更晚才暴露' }; return '类型没有好坏，只有取舍。' + p.code + ' ' + p.zh + ' 的取舍是：\n\n' + p.code.split('').filter((x) => c[x]).map((x) => '· ' + c[x]).join('\n') + '\n\n不必换类型，把代价最高的环节前置成规则就行。可以从「' + (recs[0] ? recs[0].title : '—') + '」开始。'; }
     return '你的盲点主要在「' + (fr[0] ? fr[0][0] : '—') + '」' + (fr[1] ? '和「' + fr[1][0] + '」' : '') + '。\n\n建议：\n· ' + (fr[0] && FRIC_RULE[fr[0][0]] ? FRIC_RULE[fr[0][0]] : '在首条消息里写清完成条件') + '\n· ' + recs.slice(0, 2).map((r) => r.title).join('\n· ');
   }
@@ -7916,7 +7922,7 @@ function reportMD() {
   if (S.rep.has('ov')) out.push('## 概览', '', '| 指标 | 数值 |', '| --- | ---: |', '| 会话 | ' + fmt(st.n) + ' |', '| 协作时长 | ' + f1(st.hours) + ' 小时 |', '| 你的消息 | ' + fmt(st.msgs) + ' |', '| 自主比 | ' + f1(st.auto) + '× |', '| 摩擦率 | ' + f1(st.fric) + '% |', '| 完成率 | ' + Math.round(st.ok) + '% |', '');
   if (S.rep.has('persona')) {
     out.push('## 协作人格', '', p.ok ? '**' + p.code + ' · ' + p.zh + '**（' + p.en + '）：' + p.line + (fn ? '　—　' + (personaScopeNote() || '按上面的筛选计算') + '，' + p.n + ' 个会话' : '') : '样本不足（' + p.n + ' 个会话，少于 30 个），暂不判断。', '');
-    if (p.ok) { AXES.forEach((ax, i) => { const v = axisView(p, i); out.push('- ' + ax.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong + '%'); }); out.push(''); }
+    if (p.ok) { AXES.forEach((ax, i) => { const v = axisView(p, i); out.push('- ' + ax.dim + '：' + v.letter + ' ' + v.name + ' ' + v.strong); }); out.push(''); }
   }
   if (S.rep.has('proj')) { out.push('## 项目', '', '| 项目 | 会话 | 时长 | 自主比 | 摩擦率 |', '| --- | ---: | ---: | ---: | ---: |'); projRows(L).filter((r) => r.st.n).sort((a, b) => b.st.hours - a.st.hours).slice(0, 6).forEach((r) => out.push('| ' + r.p.name + ' | ' + r.st.n + ' | ' + f1(r.st.hours) + 'h | ' + f1(r.st.auto) + '× | ' + f1(r.st.fric) + '% |')); out.push(''); }
   if (S.rep.has('fric')) { out.push('## 主要摩擦', ''); Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]).slice(0, 4).forEach((f, i) => out.push((i + 1) + '. ' + f[0] + '：' + f[1] + ' 个会话')); out.push(''); }

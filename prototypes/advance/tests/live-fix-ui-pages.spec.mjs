@@ -95,3 +95,18 @@ test('C: project menu is height-capped, folds empty / scratch projects and filte
   await expect(page.locator('#dd button', { hasText: 'scratch-2026-09-1' }).first()).toBeAttached();
   expect(errors).toEqual([]);
 });
+
+test('D/E: one-session persona says keep using Orbit, names its own period; axes use pole words', async ({ page }) => {
+  const errors = collectErrors(page);
+  await stubGateway(page, 'core');
+  await openLive(page, 'overview');
+  await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  await page.evaluate((row) => { LV.hydrate({ rows: [Object.assign({}, row, { d: '2026-09-20' })], projects: [], agents: [] }); S.range = 30; go('persona'); }, oldRow);
+  const low = page.locator('.pe-low');
+  await expect(low).toContainText('会话还不够，继续使用 Orbit 就会积累');
+  await expect(low.locator('[data-act="peRelax"]')).toHaveCount(0);
+  await expect(low.locator('[data-act="period"][data-v="all"]')).toHaveCount(0);
+  await expect(low.locator('[data-pe-scope]')).toContainText('近 90 天（本页单独设置，全局为近 30 天）');
+  expect(await page.evaluate(() => AXES.map((a) => a.dim))).toEqual(['委托', '即兴', '多线', '求证']);
+  expect(errors).toEqual([]);
+});
