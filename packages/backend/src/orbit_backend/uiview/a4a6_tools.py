@@ -1,6 +1,6 @@
 """A4 工具调用 + Lite 工具页 presentation adapter: ``GET /v1/uiview/tools``.
 
-One scan over ``v_analysis_tool_call`` (joined to session/source/event for ``seq``) builds
+One scan over ``v_analysis_tool_call`` (joined to session/source; ``seq`` via covering indexes) builds
 every block of the page: KPIs with previous window and 12 weekly buckets, the per-tool
 table, the kind transition matrix, repeated-failure runs, failure reasons, approval
 waits, MCP servers (calls ∪ linked inventory) and sub-agent parallelism.
@@ -69,13 +69,12 @@ SELECT tc.call_uid, tc.session_uid, s.root_uid, s.kind AS session_kind,
        tc.mcp_server, tc.command_head, tc.status, tc.error_class, tc.exit_code, tc.duration_ms,
        tc.duration_quality, tc.started_at, tc.approval, tc.approval_wait_ms,
        tc.argument_digest, tc.subagent_session_uid, tc.result_event_uid, tc.call_event_uid,
-       e.seq, json_extract(e.attrs, '$.input.command') AS command
+       {rowid} AS call_event_rowid
 FROM v_analysis_tool_call tc
 JOIN session s ON s.session_uid = tc.session_uid
 LEFT JOIN source src ON src.source_id = s.source_id
-LEFT JOIN event e ON e.event_uid = tc.call_event_uid
-WHERE {where}
-"""
+WHERE {{where}}
+""".format(rowid=common.CALL_EVENT_ROWID_SQL.format(col="tc.call_event_uid"))
 
 
 def norm_status(raw) -> str:
@@ -123,7 +122,7 @@ def fetch_calls(conn, scope, *, agents=None, from_ts=None, until_ts=None) -> lis
         row = dict(zip(names, values, strict=True))
         row["state"] = metrics.tool_state(row["status"])
         rows.append(row)
-    return rows
+    return common.attach_call_command(conn, common.attach_event_seq(conn, rows))
 
 
 def _texts(conn, uids) -> dict[str, str]:

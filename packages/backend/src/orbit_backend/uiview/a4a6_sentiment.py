@@ -25,7 +25,7 @@ from ..analytics.products.feedback import classify_emotion
 from ..features.vocab import command_info
 from ..privacy import direct_user_text, redact
 from . import metrics
-from .a4a6_common import ManyQuery
+from .a4a6_common import CALL_EVENT_ROWID_SQL, ManyQuery, attach_call_command, attach_event_seq
 from .a6_terms import build_terms
 
 DAY_MS = 86_400_000
@@ -197,11 +197,11 @@ def fetch_calls(conn, session_ids) -> list[dict]:
     for chunk in _chunks(session_ids):
         for r in conn.execute(
                 f"SELECT t.call_uid, t.root_uid, t.session_uid, t.name, t.name_raw, t.kind, "
-                f"t.command_head, t.files, t.status, t.approval, t.started_at, e.seq, "
-                f"json_extract(e.attrs, '$.input.command') AS command "
-                f"FROM v_analysis_tool_call t LEFT JOIN event e ON e.event_uid=t.call_event_uid "
-                f"WHERE t.root_uid IN ({_in(chunk)})", chunk):
+                f"t.command_head, t.files, t.status, t.approval, t.started_at, t.call_event_uid, "
+                f"{CALL_EVENT_ROWID_SQL.format(col='t.call_event_uid')} AS call_event_rowid "
+                f"FROM v_analysis_tool_call t WHERE t.root_uid IN ({_in(chunk)})", chunk):
             out.append(dict(r))
+    attach_call_command(conn, attach_event_seq(conn, out))
     out.sort(key=lambda c: (c["root_uid"], c["session_uid"] != c["root_uid"],
                             c["seq"] if c["seq"] is not None else 1 << 62,
                             c["started_at"] or 0, c["call_uid"]))
