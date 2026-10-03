@@ -1,7 +1,7 @@
 /* 30-persona 3（b26.4–40.4） — STORYBOARD.md v17「3」与「转场关键帧」H9–H11.
    罗盘在翻平的标志下成形（刻度 → 描边光从标志尾端出发 → 轨道层随扫描展开 → 花苞边转边减速落在你的类型并绽开）
    → 标题「引入协作人格分析」→ 罗盘左移 → 右侧竖向滚动列（R1–R7），条目经过中心线 y 540 时罗盘做对应反应
-   → 揭晓停住 → 列上移淡出、罗盘缩小淡出。
+   → 揭晓块减速到中心线后慢漂（不停住）→ 列上移淡出、罗盘缩小淡出。
    本场景拥有 deck 2（b26.4 直接设定相机，drawCompass 每帧调用，pl: 0）与 b26.4 的 AGD compass key；标志归 20-orbit
    （到 b28.2），b39.4 的 column key 归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass 一直调到 b41.5，
    deck 2 自 b40.4 起已透明）。 */
@@ -41,9 +41,14 @@ scene('30-persona', () => {
   AGD.key(26.4, 'compass', { dur: 1.4, stag: .06, polar: PC });
 
   /* ---------- deck 2 相机（H9 / H10 / H11） ---------- */
-  // 罗盘中心 (400, 400) → 舞台 (960, 540)，s .86：描边光半径 381 × .86 = 328 = 俯视标志外圈 R；到 b31.4 不推近
+  // 节奏（v17 放慢）：罗盘 b30.9–32.3 左移（比原来早 .5 拍），省下的时间和原来揭晓的定格一起给右侧滚动列；
+  // 标题期间与滚动列期间都慢推，不定格
+  const MV = 30.9, MVD = 1.4;
+  // 罗盘中心 (400, 400) → 舞台 (960, 540)，s .86：描边光半径 381 × .86 = 328 = 俯视标志外圈 R；描边光与标志 b28.4 前收完，b29.5 起才慢推
   tween(2, 26.4, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
-  tween(2, 31.4, 1.4, { ax: 600, ay: 560, s: .78 }, E.inOut);
+  tween(2, 29.5, MV - 29.5, { s: .875 }, E.sine);
+  tween(2, MV, MVD, { ax: 600, ay: 560, s: .78 }, E.inOut);
+  tween(2, MV + MVD, 39.4 - MV - MVD, { s: .81 }, E.sine);
   tween(2, 39.4, .85, { s: .6, o: 0 }, E.inOut);              // E.inOut：表盘底盘与轨道层不在点飞走后残留（b40.25 已透明）
 
   /* ---------- 花苞：随扫描转（梯形速度），b28.4 起减速，b29.6 落在你的类型（+1 圈） ---------- */
@@ -59,10 +64,11 @@ scene('30-persona', () => {
   };
 
   /* ---------- 滚动列的时间（R1–R6 过中心线的拍）与罗盘反应 ---------- */
-  const V = 185;                                           // px / beat（约 170；R5 → R6 要容下揭晓块的眉题）
-  const TR = [33.0, 33.9, 34.8, 35.7, 36.6], T6 = 37.8, SLOW = 37.4;
+  // 匀速 V 滚过 R1–R5（每条 1.05 拍、相距 157px），b37.2 起平滑减速到慢漂 VR，b38.0 揭晓块到中心线后继续慢漂，不停住
+  const V = 150, VR = 50;                                  // px / beat
+  const TR = [32.3, 33.35, 34.4, 35.45, 36.5], T6 = 38.0, SLOW = 37.2;
   // 4 个维度依次排除不符的一半扇区（16 → 8 → 4 → 2 → 1）
-  const axQ = (k, b) => E.inOut(lp(b, TR[k + 1] - .1, .45));
+  const axQ = (k, b) => E.inOut(lp(b, TR[k + 1] - .1, .6));
   const keepAt = (b) => CODES.map((c) => { let v = 1; for (let k = 0; k < 4; k++) if (c[k] !== ME.code[k]) v *= 1 - axQ(k, b); return v; });
   // 表圈上 16 个扇区的亮弧（罗盘坐标，跟着相机走）：R1 依次闪亮一遍；之后仍可能的扇区微亮，最后你的扇区留橙色
   let HL = null;
@@ -78,9 +84,9 @@ scene('30-persona', () => {
   const bump = (x, w) => (x <= 0 || x >= w ? 0 : Math.sin(Math.PI * x / w));
   const hlDraw = (b, keep, dial) => {
     hlInit().forEach((p, t) => {
-      const flash = .5 * bump(b - (32.72 + t * .045), .36);
-      const cand = .16 * keep[t] * E.out(lp(b, 33.7, .4));
-      const mine = t === ME_IDX ? .62 * E.inOut(lp(b, TR[4] - .1, .5)) : 0;
+      const flash = .5 * bump(b - (TR[0] - .2 + t * .06), .5);
+      const cand = .16 * keep[t] * E.out(lp(b, TR[1] - .25, .5));
+      const mine = t === ME_IDX ? .62 * E.inOut(lp(b, TR[4] - .1, .6)) : 0;
       const v = Math.max(flash, t === ME_IDX ? Math.max(cand, mine) : cand) * dial;
       p.setAttribute('opacity', v.toFixed(3));
     });
@@ -91,7 +97,7 @@ scene('30-persona', () => {
     const out = 1 - E.inOut(lp(b, 39.4, .8)), keep = keepAt(b);
     const dial = E.out(lp(b, 26.5, .8)) * out;
     drawCompass({
-      pl: 0, deg: degAt(b), fi: ME_IDX, grow: E.inOut(lp(b, 28.4, 1.2)), mine: E.inOut(lp(b, T6, 1.2)),
+      pl: 0, deg: degAt(b), fi: ME_IDX, grow: E.inOut(lp(b, 28.4, 1.2)), mine: E.inOut(lp(b, T6 - .3, 1.4)),
       spin: (b - 26.4) * .6, keep,
       ticks: E.inOut(lp(b, 26.6, 1.2)),
       trace: b < 29 ? lp(b, 27.4, 1.0) : null, traceA: 1 - E.out(lp(b, 28.4, .5)),
@@ -103,26 +109,33 @@ scene('30-persona', () => {
   });
 
   /* ---------- 3.3 / 3.4 文字 ---------- */
-  // 眉题：居中出现，b31.4–32.8 随罗盘移到左上 x 160（左对齐），b39.4 退场
+  // 眉题：居中出现，b30.9–32.3 随罗盘移到左上 x 160（左对齐），b39.4 退场
   txt(28.8, 40.0, [['eb', '01 · 协作人格']], { x: 160, y: 100 }, {
-    anim: K.all(mask(.18, .8, .6), (el, tl, life, t) => {
-      const b = t / BEAT, e = E.inOut(lp(b, 31.4, 1.4)), dx = (960 - el.offsetWidth / 2 - 160) * (1 - e);
-      // 居中时比标题（y 150，72px）上沿高出 18px，不贴字；移到左上时回到 y 100
-      el.style.transform = 'translate(' + dx.toFixed(1) + 'px,calc(-50% - ' + (18 * (1 - e)).toFixed(1) + 'px))';
+    anim: K.all(mask(.18, 1.0, .6), (el, tl, life, t) => {
+      const b = t / BEAT, e = E.inOut(lp(b, MV, MVD)), dx = (960 - el.offsetWidth / 2 - 160) * (1 - e);
+      // 居中时比标题（y 150，72px）上沿高出 18px，不贴字，并跟标题一起慢慢上漂 12px；移到左上时回到 y 100
+      el.style.transform = 'translate(' + dx.toFixed(1) + 'px,calc(-50% - ' + ((18 + 12 * clamp((b - 29.0) / 2.5)) * (1 - e)).toFixed(1) + 'px))';
     })
   });
-  txt(29.0, 32.0, [['hv sv pe72', '引入协作人格分析']], { x: 960, y: 150, align: 'c' }, { inB: .8, outB: .6, spread: true });
-  txt(29.6, 32.0, [['lt pe44 pe-or', '精准识别你的交互特征']], { x: 960, y: 975, align: 'c' }, { anim: K.decode({ step: .05, dur: .4, out: .6, spread: true }) });
+  // 标题与强调行：在场时各自慢慢离开罗盘（标题连同眉题上漂 12px、强调行下漂 10px，配合罗盘慢推），b30.9–31.5 随左移退场
+  const drift = (px) => (el, tl, life) => { el.style.transform = 'translate(-50%,calc(-50% + ' + (px * clamp(tl / life)).toFixed(1) + 'px))'; };
+  txt(29.0, 31.5, [['hv sv pe72', '引入协作人格分析']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
+  txt(29.35, 31.5, [['lt pe44 pe-or', '精准识别你的交互特征']], { x: 960, y: 975, align: 'c' }, { anim: K.all(K.decode({ step: .055, dur: .5, out: .6, spread: true }), drift(10)) });
 
   /* ---------- 3.5–3.7 右侧竖向滚动列 ---------- */
-  // Y(b)：已滚动的 px。R1 在 b33.0 过中心线；匀速 V；b37.4 起匀减速，b37.8 揭晓条目停在中心线；b39.2 起整列上移淡出
+  // Y(b)：已滚动的 px。R1 在 b32.3 过中心线；匀速 V；b37.2–38.0 速度按余弦平滑降到 VR，b38.0 揭晓条目到中心线，
+  // 之后以 VR 慢漂（不停住）；b39.2 起整列加速上移淡出
   const scrollY = (b) => {
     let y;
     if (b <= SLOW) y = V * (b - TR[0]);
-    else { const u = Math.min(b, T6) - SLOW, d = T6 - SLOW; y = V * (SLOW - TR[0]) + V * (u - u * u / (2 * d)); }
+    else {
+      const d = T6 - SLOW, u = Math.min(b - SLOW, d);
+      y = V * (SLOW - TR[0]) + VR * u + (V - VR) * (u / 2 + d / (2 * Math.PI) * Math.sin(Math.PI * u / d));
+      if (b > T6) y += VR * (b - T6);
+    }
     return y + 330 * E.in(lp(b, 39.2, 1.0));
   };
-  const P6 = V * (SLOW - TR[0]) + V * (T6 - SLOW) / 2;    // 揭晓块锚点（= Y(37.8)）
+  const P6 = scrollY(T6);                                  // 揭晓块锚点（R5 下方 185px）
   const FLAP = 'DSIPMFVT', DRUM = FLAP + FLAP[0];
   const pole = (k) => (ME.code[k] === AX[k].L ? 'L' : 'R');
   // 优势与盲点：App 人格卡的第一条（示例数据：委托 ≥ 50 → 整段委托 …；盲点 = 会话里最常见的摩擦类型），不带数字
@@ -144,8 +157,8 @@ scene('30-persona', () => {
     { y: P6 + 262, html: '<span class="pe-r7"><span class="ic" style="color:var(--a3)">✓</span><span class="m">优势</span>' + STRONG + '</span>' },
     ...(BLIND ? [{ y: P6 + 314, html: '<span class="pe-r7"><span class="ic" style="color:#f3b25c">⚠</span><span class="m">盲点</span>' + BLIND + '</span>' }] : [])
   ];
-  const codeIn = K.centerOut({ step: .12, dur: .4, out: 0 }), lineIn = K.decode({ step: .035, dur: .35, out: 0, from: .3 });
-  txt(32.4, 40.3, [['', '']], { x: 0, y: 0 }, {
+  const codeIn = K.centerOut({ step: .15, dur: .55, out: 0 }), lineIn = K.decode({ step: .04, dur: .45, out: 0, from: .3 });
+  txt(31.7, 40.3, [['', '']], { x: 0, y: 0 }, {
     anim: (el, tl, life, t) => {
       const b = t / BEAT;
       if (!el._pe) {
@@ -153,7 +166,7 @@ scene('30-persona', () => {
         el.innerHTML = '<div class="pe-col">' + ITEMS.map((it) => '<div class="pe-it">' + it.html + '</div>').join('') + '</div>';
         el._it = [...el.querySelectorAll('.pe-it')];
       }
-      const Y = scrollY(b), colA = E.out(lp(b, 32.4, .6)) * (1 - E.inOut(lp(b, 39.2, 1.0)));
+      const Y = scrollY(b), colA = E.out(lp(b, 31.7, .8)) * (1 - E.inOut(lp(b, 39.2, 1.0)));
       el.querySelector('.pe-col').style.opacity = colA.toFixed(3);
       ITEMS.forEach((it, n) => {
         const node = el._it[n], y = 540 + it.y - Y, dy = Math.abs((it.fy ?? it.y) - Y);
@@ -164,15 +177,15 @@ scene('30-persona', () => {
         node.style.opacity = a.toFixed(3);
         node.style.filter = bl > .05 ? 'blur(' + bl.toFixed(2) + 'px)' : 'none';
         if (it.k != null) {                                // 维度：选中的一极亮、另一极 30%；字母牌滚到这一位字母
-          const k = it.k, tk = TR[k + 1], q = E.inOut(lp(b, tk - .15, .35)), on = pole(k);
+          const k = it.k, tk = TR[k + 1], q = E.inOut(lp(b, tk - .2, .5)), on = pole(k);
           node.querySelector('.pL').style.color = 'rgba(255,255,255,' + lerp(.72, on === 'L' ? 1 : .3, q).toFixed(3) + ')';
           node.querySelector('.pR').style.color = 'rgba(255,255,255,' + lerp(.72, on === 'R' ? 1 : .3, q).toFixed(3) + ')';
-          const tgt = FLAP.indexOf(ME.code[k]), u = clamp((tk - b) / 1.3), pos = (((tgt - 10 * u * u) % 8) + 8) % 8;
+          const tgt = FLAP.indexOf(ME.code[k]), u = clamp((tk - b) / 1.5), pos = (((tgt - 8 * u * u) % 8) + 8) % 8;
           node.querySelector('.pe-fs').style.transform = 'translateY(' + (-pos * 112).toFixed(1) + 'px)';
         }
-        if (it.code) codeIn(node.firstChild, (b - 37.25) * BEAT, 99, t);
-        if (it.name) { const q = E.out(lp(b, 37.45, .5)), f = node.firstChild; f.style.display = 'inline-block'; f.style.opacity = Math.min(1, q * 1.4).toFixed(3); f.style.transform = 'translateY(' + ((1 - q) * 26).toFixed(1) + 'px)'; }
-        if (it.line) lineIn(node.firstChild, (b - 37.6) * BEAT, 99, t);
+        if (it.code) codeIn(node.firstChild, (b - 37.4) * BEAT, 99, t);
+        if (it.name) { const q = E.out(lp(b, 37.65, .65)), f = node.firstChild; f.style.display = 'inline-block'; f.style.opacity = Math.min(1, q * 1.4).toFixed(3); f.style.transform = 'translateY(' + ((1 - q) * 26).toFixed(1) + 'px)'; }
+        if (it.line) lineIn(node.firstChild, (b - 37.85) * BEAT, 99, t);
       });
     }
   });
