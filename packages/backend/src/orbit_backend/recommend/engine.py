@@ -9,12 +9,13 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from . import narrate
+from .funnel import COMPATIBILITY_CHECKS, Funnel
 from .ranking import gates as gate_mod
 from .ranking import hygiene
 from .ranking import rank as rank_mod
 from .ranking import slate as slate_mod
 
-ENGINE_VERSION = "rec-engine-v2.1"
+ENGINE_VERSION = "rec-engine-v2.2"
 NO_BENEFIT = "没有可估算的收益"
 NET_NON_POSITIVE = "net_non_positive"
 INTERNAL = ("kb", "item", "prior", "cost", "requirements", "gates_hint", "explain_hints")
@@ -87,10 +88,13 @@ def _status(inputs: dict, problems: list, ranked: list[dict]) -> str:
     return "ready"
 
 
-def rank_candidates(raws: list[dict], inputs: dict, memory: dict, *, limit: int = 30) -> tuple[list, list, list]:
+def rank_candidates(raws: list[dict], inputs: dict, memory: dict, *, limit: int = 30,
+                    audit: Funnel | None = None) -> tuple[list, list, list]:
     """Gate, score and select; returns (ranked, passing_unranked, gated) Cand lists."""
     max_fusion = max((r.get("fusion") or 0 for r in raws), default=0) or None
-    by_key, passing, gated = {}, [], []
+    by_key, passing, gated, evaluated = {}, [], [], []
+    if audit is not None:
+        audit.record("raw_candidates", ((r, True, []) for r in raws))
     for raw in raws:
         gates = gate_mod.check(raw, inputs, memory)
         score = rank_mod.score(raw, gates, inputs, memory, max_fusion=max_fusion)
@@ -99,6 +103,7 @@ def rank_candidates(raws: list[dict], inputs: dict, memory: dict, *, limit: int 
         elif gates["passed"] and score["utility"] <= 0:  # risk/cost outweigh the expected value
             gates = {**gates, "passed": False, "reasons": [*gates["reasons"], NET_NON_POSITIVE]}
         cand = _cand(raw, gates, score)
+        evaluated.append(cand)
         if gates["passed"]:
             cand["explain"] = narrate.explain(raw, raw.get("problem"), gates)
             by_key.setdefault(cand["rec_key"], raw)
@@ -107,12 +112,39 @@ def rank_candidates(raws: list[dict], inputs: dict, memory: dict, *, limit: int 
             if NET_NON_POSITIVE in gates["reasons"]:
                 cand["excluded"] = NET_NON_POSITIVE
             gated.append(_compact(cand))
-    for cand in [c for c in passing if c["basis"] == "catalog_only" and not hygiene.profile_overlap(by_key[c["rec_key"]])]:
+    if audit is not None:
+        audit.record("scoring", ((c, True, []) for c in evaluated))
+        compatible = []
+        decisions = []
+        for cand in evaluated:
+            failed = [name for name in sorted(COMPATIBILITY_CHECKS)
+                      if cand["gates"]["checks"].get(name) is False]
+            decisions.append((cand, not failed, failed))
+            if not failed:
+                compatible.append(cand)
+        # The engine computes all gates together. These two audit stages are a logical
+        # projection of their conjunction, not an alternative gate execution order.
+        audit.record("compatibility_filtering", decisions)
+        audit.record("threshold_filtering", ((c, c["gates"]["passed"],
+                     [] if c["gates"]["passed"] else c["gates"]["reasons"]) for c in compatible))
+    no_overlap = [c for c in passing if c["basis"] == "catalog_only" and not hygiene.profile_overlap(by_key[c["rec_key"]])]
+    if audit is not None:
+        dropped = {c["rec_key"] for c in no_overlap}
+        audit.record("profile_overlap", ((c, c["rec_key"] not in dropped,
+                     ["catalog_no_overlap"] if c["rec_key"] in dropped else []) for c in passing))
+    for cand in no_overlap:
         passing.remove(cand)
         gated.append(_demote(cand, "catalog_no_overlap"))
     passing, dupes = hygiene.dedupe(passing)
+    if audit is not None:
+        audit.record("deduplication", [*( (c, True, []) for c in passing),
+                                       *( (c, False, ["duplicate"]) for c in dupes)])
     gated += [_demote(c, "duplicate") for c in dupes]
     ranked = slate_mod.select(passing, limit=limit)
+    if audit is not None:
+        audit.record("final_recommendation", ((c, c.get("rank") is not None,
+                     [] if c.get("rank") is not None else [c.get("excluded") or "not_selected"])
+                    for c in passing))
     values = hygiene.slot_values(raws, inputs)
     for cand in passing:
         hygiene.scrub(cand, values)
@@ -142,9 +174,10 @@ def build_slate(inputs: dict, memory: dict, *, catalog=None, recall: Callable | 
     rr = recall(inputs, memory, catalog=catalog, **({"features": features} if features is not None else {}))
     if rr.get("profile") is not None:
         inputs = {**inputs, "profile": rr["profile"]}
-    ranked, rest, gated = rank_candidates(rr.get("candidates") or [], inputs, memory)
     problems = rr.get("problems") or []
+    audit = Funnel(inputs, problems, rr)
+    ranked, rest, gated = rank_candidates(rr.get("candidates") or [], inputs, memory, audit=audit)
     return {"engine_version": ENGINE_VERSION, "kb_version": rr.get("kb_version"),
             "catalog_generation": rr.get("catalog_generation"), "status": _status(inputs, problems, ranked),
             "problems": problems, "candidates": ranked + rest + gated, "routes": rr.get("routes") or {},
-            "diagnostics": rr.get("diagnostics") or []}
+            "diagnostics": rr.get("diagnostics") or [], "funnel": audit.export()}

@@ -27,3 +27,14 @@
 - `INJECTION_REPORT`：各级候选数、类型、score、来源证据、保留或淘汰原因、最终资产和 runtime 证据。
 
 运行原始数据放在本地忽略目录与外置盘；仓库只保留代码、构造测试、协议和汇总报告。结果是否支持 ours 优于对照组，由冻结后的实测决定。
+
+## 推荐漏斗接口
+
+`GET /v1/recommendations/runs/{run_id}/funnel` 返回该次推荐的诊断记录；旧 run 返回 `status=not_recorded` 与 `funnel=null`。记录保存在现有 `rec_run.diagnostics` 中，不新增 DDL。
+
+- history 项是分析输入的会话数量和 data revision；原始捕获完整性需要由导入验证报告补齐，不能仅凭会话数断言无损。
+- analytics 保留问题状态、分母、Wilson 下界及会话证据；召回保留各路数量、原始分数、融合上限和被截断的 ID。
+- Catalog `MatchRequest.audit=true` 额外返回 `filter_audit`，说明检索前的类型、Agent、语言、来源与证据过滤。未计算相关性时 score 为 null；每级最多返回 1,000 个被过滤 ID，超出部分明确记录 `omitted_ids`。
+- 引擎按评分、兼容、阈值、画像重叠、去重、最终选择记录每个候选的去向。兼容与其他 gate 原本同时计算；漏斗拆分是同一组逻辑条件的展示，不改变执行行为或推荐名额。
+- AI 补充候选后的选择及持久化截断另记一层；卡片被压缩或超出保留上限时，漏斗仍保留其来源证据。
+- Pi injection、activation、actual usage 由执行器观测，后端未见运行日志时保持 `not_observed`，不能算作 0 或成功。

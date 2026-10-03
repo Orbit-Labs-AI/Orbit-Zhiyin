@@ -190,6 +190,19 @@ def router(gw: Gateway) -> APIRouter:
         with gw.appdb.read() as conn:
             return {"runs": store.list_runs(conn, scope_hash(asdict(scope), {}), limit)}
 
+    @api.get("/v1/recommendations/runs/{run_id}/funnel")
+    def recommendation_funnel(run_id: str):
+        from ..recommend.funnel import from_diagnostics
+
+        with gw.appdb.read() as conn:
+            run = store.get_run(conn, run_id)
+        if run is None:
+            raise ApiError(404, "not_found", "Unknown recommendation run")
+        data = from_diagnostics(run.get("diagnostics") or [])
+        return {"run_id": run_id, "engine_version": run["engine_version"],
+                "inputs_digest": run["inputs_digest"],
+                "status": "ready" if data is not None else "not_recorded", "funnel": data}
+
     @api.get("/v1/recommendations/relations")
     def relations(candidate_id: Annotated[list[str], Query(min_length=2, max_length=20)]):
         with gw.appdb.read() as conn:

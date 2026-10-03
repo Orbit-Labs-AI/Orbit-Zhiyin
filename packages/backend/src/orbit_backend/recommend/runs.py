@@ -17,8 +17,8 @@ import time
 import uuid
 from pathlib import Path
 
+from . import funnel, outcomes, store
 from . import inputs as rec_inputs
-from . import outcomes, store
 
 LEGACY_ENGINE = "legacy-v1"
 KEEP_RUNS = 20
@@ -290,6 +290,16 @@ def run(gw, scope_dict: dict, *, force: bool = False, wait_ms: int = 0,
         cands = slate.get("candidates") or []
         passed = [c for c in cands if (c.get("gates") or {}).get("passed", True)][:KEEP_PASSED]
         gated = [c for c in cands if not (c.get("gates") or {}).get("passed", True)][:KEEP_GATED]
+        if audit := slate.get("funnel"):
+            funnel.append_stage(audit, "post_enrichment_selection", (
+                (c, c.get("rank") is not None, [] if c.get("rank") is not None
+                 else [c.get("excluded") or "not_selected"]) for c in cands))
+            persisted = {c["rec_key"] for c in passed + gated}
+            funnel.append_stage(audit, "serialization", (
+                (c, c["rec_key"] in persisted, [] if c["rec_key"] in persisted
+                 else ["persistence_cap"]) for c in cands))
+            slate.setdefault("diagnostics", []).append({"source": funnel.SOURCE,
+                                                         "status": "ready", "data": audit})
         row = {"run_id": run_id, "scope_hash": h, "scope": scope_dict, "inputs_digest": digest,
                "data_rev": str(data.get("data_rev")), "inventory_rev": data.get("inventory_rev"),
                "engine_version": slate.get("engine_version", engine_version),

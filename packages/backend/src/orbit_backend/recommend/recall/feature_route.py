@@ -85,9 +85,13 @@ def recall(problems: list[dict], inputs: dict, features, catalog, *, agent: str 
     meta = meta if meta is not None else {}
     profile = features.profile(inputs.get("scope"), signals=signals(problems) or None)
     meta["feature_profile"] = profile
+    audit = meta["feature_audit"] = {"agent_filter": agent, "before_agent_filter": None,
+                                   "profile_features": len(profile.get("vector") or {}),
+                                   "matched_count": None, "decisions": []}
     if catalog is None:
         return [], {}
     matches = features.match_items(profile, agent=agent, k=K)
+    audit["matched_count"] = len(matches)
     if not matches:
         return [], {}
     items = _items(catalog, [m["item_id"] for m in matches])
@@ -98,11 +102,17 @@ def recall(problems: list[dict], inputs: dict, features, catalog, *, agent: str 
     for match in matches:
         item = items.get(match["item_id"])
         if item is None:
+            audit["decisions"].append({"item_id": match["item_id"], "kept": False,
+                                        "reason": "item_unavailable", "score": match.get("score")})
             continue
         item["tags"] = sorted({m["value"] for m in match.get("matched") or () if m["feature"] != "friction"})
         problem = next((by_type[m["value"]] for m in match.get("matched") or ()
                         if m["feature"] == "friction" and m["value"] in by_type), None)
-        if problem is None and not precise(match, sessions):
+        keep = problem is not None or precise(match, sessions)
+        audit["decisions"].append({"item_id": match["item_id"], "kind": item["kind"],
+                                    "kept": keep, "reason": None if keep else "imprecise_profile_match",
+                                    "score": match.get("score"), "support": match.get("matched")})
+        if not keep:
             dropped += 1
             continue
         cand = from_item(item, problem, inputs, match_basis="catalog_feature" if problem else "profile")

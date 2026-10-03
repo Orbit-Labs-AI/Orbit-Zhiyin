@@ -200,7 +200,7 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
         features = [Feature(feature="dimension", value=problem["dimension"])] if problem["dimension"] else []
         queries.append((problem, MatchRequest(purpose="library", text=(problem["reason"] + " " + words)[:8000],
                                               problem_type=problem["type"], features=features, agents=top_agent,
-                                              language=problem["language"], limit=10, per_route=100)))
+                                              language=problem["language"], limit=10, per_route=100, audit=True)))
     profile = inputs.get("profile") or {}
     strong = {tag for tag, n in (profile.get("evidence_sessions") or {}).items() if n >= MIN_PROFILE_EVIDENCE}
     profile_terms = [t for t in (*sorted(profile.get("tags") or {}, key=lambda t: -(profile["tags"][t])),
@@ -208,7 +208,7 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
                                  *(profile.get("tools") or ())) if t in strong][:12]
     if profile_terms:
         queries.append((None, MatchRequest(purpose="library", text=" ".join(profile_terms), agents=top_agent,
-                                           limit=10, per_route=100)))
+                                           limit=10, per_route=100, audit=True)))
     rows: dict[str, float] = {}
     profile_rows: dict[str, float] = {}
     profile_payload: dict[str, dict] = {}
@@ -217,8 +217,8 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
     # 2 s per call; four run at once, so the whole batch gets one deadline per wave.
     deadline = time.monotonic() + TIMEOUT_S * math.ceil(len(queries) / 4)
     try:
-        futures = [(problem, pool.submit(catalog.match, request)) for problem, request in queries]
-        for problem, future in futures:
+        futures = [(problem, request, pool.submit(catalog.match, request)) for problem, request in queries]
+        for problem, request, future in futures:
             label = problem["key"] if problem else "profile"
             try:
                 response = future.result(timeout=max(.01, deadline - time.monotonic()))
@@ -231,14 +231,24 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
             if "generation" in response:
                 meta["generation"] = response["generation"]
             meta.setdefault("vector", response.get("vector") or {"status": "unknown"})
+            audit = {"query": label, "agents": request.agents,
+                     "filters": response.get("filter_audit"), "retrieval_routes": response.get("routes"),
+                     "returned_count": len(response.get("items") or []), "decisions": []}
+            meta.setdefault("catalog_audit", []).append(audit)
             for row in response.get("items") or ():
                 item = _normalise_catalog(row)
                 if item is None:
+                    audit["decisions"].append({"item_id": row.get("item_id"), "kept": False,
+                                                "reason": "unsupported_catalog_type", "score": row.get("score")})
                     continue
                 if problem is not None:
                     friction = any(f.get("feature") == "friction" and f.get("value") == problem["type"]
                                    for f in row.get("matched_features") or ())
                     remedy = "remedy" in ((row.get("score_parts") or {}).get("routes") or {})
+                    audit["decisions"].append({"item_id": item["item_id"], "kind": item["kind"],
+                        "score": row.get("score"), "kept": friction or remedy,
+                        "reason": None if friction or remedy else "missing_problem_overlap",
+                        "support": row.get("matched_features")})
                     if not (friction or remedy):
                         continue
                     key, raw = "catalog:" + item["item_id"], float(row.get("score") or 0.) + 1e-6
@@ -246,6 +256,9 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
                         rows[key] = raw
                         payload[key] = from_item(item, problem, inputs, match_basis="catalog_feature")
                 else:
+                    audit["decisions"].append({"item_id": item["item_id"], "kind": item["kind"],
+                        "score": row.get("score"), "kept": True, "reason": None,
+                        "support": row.get("matched_features")})
                     key = "catalog:" + item["item_id"]
                     profile_rows[key] = max(profile_rows.get(key, 0), float(row.get("score") or 0.) + 1e-6)
                     profile_payload.setdefault(key, from_item(item, None, inputs, match_basis="profile"))
