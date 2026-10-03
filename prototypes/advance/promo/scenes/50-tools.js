@@ -438,5 +438,5 @@ scene('50-tools', () => {
     return { x: r.x + r.w / 2, y: (r.y + Math.min(r.y + r.h, yc)) / 2 }; }, E.inOut);
   tween(1, IN6, .5, () => ({ s: decks[1].C.s * .2 }), E.in);
   tween(1, IN6 + .2, .3, { bl: 4 }, E.in);
-  tween(1, IN6 + .35, .15, { o: 0 }, E.in);
+  tween(1, IN6 + .28, .22, { o: 0 }, E.out);   // QA r4: fade out E.out so the card is near-clear before b106.0 (E.in left it opaque at ~.4 scale → pop)
 });
