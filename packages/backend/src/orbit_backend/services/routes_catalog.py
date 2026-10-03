@@ -230,7 +230,8 @@ def router(gw: Gateway) -> APIRouter:
         with service.store.reader() as conn:
             generation = service.store.generation(conn)
         value = gw.revisions.value
-        return f"{generation}.{value.get('data_rev')}.{value.get('inventory_rev') or 0}"
+        profile_rev = features.current().etag() if features.current() is not None else "unbound"
+        return f"{generation}.{value.get('data_rev')}.{value.get('inventory_rev') or 0}.{profile_rev}"
 
     for prefix in ETAG_PREFIXES:
         # The library window is day-aligned, so its tag also moves when the day rolls over.
