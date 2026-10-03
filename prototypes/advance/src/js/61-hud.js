@@ -78,7 +78,8 @@ function renderHud() {
   // while idle the HUD only appears to show a「完成」for 8 s; a mid-drag render keeps the pill in place (BUG-45)
   if (!S.hud.show || S.hudSim === 'idle' || S.paused || !liveSession() && S.hudSim !== 'done') { h.hidden = true; h.innerHTML = ''; return; }
   h.hidden = false;
-  h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="' + S.hud.open + '" aria-label="悬浮组件，点击展开，拖动可移动">' + hudPill() + '</div>' + (S.hud.open && !HDRAG ? hudCard() : '');
+  // morphed in place (rgPut): the pill and the open card keep their nodes, so a render mid-hover / mid-drag changes only the text
+  rgPut(h, '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="' + S.hud.open + '" aria-label="悬浮组件，点击展开，拖动可移动">' + hudPill() + '</div>' + (S.hud.open && !HDRAG ? hudCard() : ''));
   if (HDRAG && HDRAG.moved) { h.style.left = HDRAG.x + 'px'; h.style.top = HDRAG.y + 'px'; h.style.right = 'auto'; h.style.bottom = 'auto'; return; }
   hudPlace();
 }

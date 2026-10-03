@@ -7595,7 +7595,19 @@ const r0live = () => RECS.some((x) => x.live);
 const AUD_D = ['刚开始用 Agent', '会改配置、会用 Git', '会写脚本与定时任务'];
 const lvlIcon = (n) => '<span class="lvl" aria-hidden="true">' + [1, 2, 3, 4].map((k) => '<i class="' + (k <= n ? 'f' : '') + '"></i>').join('') + '</span>';
 let TRK_SPECS = [];
-PAGES.recs = () => {
+/* A7 is region-built (24-regions.js): toolbar, dimension row, difficulty row, card list and detail refresh on their own; a
+   selection, a tab, a filter or a live frame morphs only what changed, so the list keeps its scroll, the detail its tab
+   and the cards their identity (data-key). Shared derived rows live in recCtx() (once per pass). */
+RG.pages.add('recs');
+// installs carry their tracking day / scope / install id; a Map dep would only compare the keys
+const recInstSig = () => Array.from(S.installed).map(([k, v]) => k + ':' + (v && v.days) + ':' + (v && v.scope) + ':' + (v && v.install_id || '') + ':' + (v && v.target || ''));
+// live hooks (97-live-recs.js): the identity of the applied rows / slates / relations / details, the honest empty page and
+// the relation tags of the 说明与依据 tab; mock mode keeps the defaults
+let recLiveSig = () => 0;
+let recEmptyParts = () => null;
+let recRelTags = () => '';
+const A7_DEPS = ['facts', 'S.recs', 'S.project', 'S.proj.sel', 'S.anon', recInstSig, () => recLiveSig()];
+const recCtx = () => RG.memo('a7', () => {
   const R = S.recs; let vis = visibleRecs();
   const peek = R.peek && RECI[R.peek] && !R.gone.has(R.peek) ? RECI[R.peek] : null;   // opened from elsewhere: shown without changing the filters (BUG-80)
   if (peek && !vis.includes(peek)) vis = vis.concat([peek]);
@@ -7604,18 +7616,28 @@ PAGES.recs = () => {
   const cnt = (d) => inLv.filter((r) => d === 'all' || r.dim === d).length;
   const sel0 = RECI[R.sel] && list.includes(RECI[R.sel]) ? RECI[R.sel] : list[0];
   if (sel0) R.sel = sel0.id;
-  const card = (r) => { const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + (x.save == null && r.live ? '<span class="rc-save" data-tl="rec-nosave" data-tip="' + esc(r.saveBasis || '没有可折算的问题证据') + '"><span class="u">未估算</span></span>' : '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b' + (x.save == null ? '' : ' data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '"') + '>' + recSave(r.id) + '</b><span class="u">/ 月</span></span>') + '</div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why"' + (r.live ? ' data-tl="rec-why" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"' : '') + '>' + esc(r.why) + ' ' + (recNoEv(r) ? '<span class="cap" data-tl="rec-match">' + esc(r.ev) + '</span>' : '<button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button>') + '</div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span></div><div class="rc-foot"><span class="mono rc-gain" data-tip="原指标的预期变化">' + esc(r.gain) + '</span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; };
+  return { vis, peek, inLv, list, cnt, sel0 };
+});
+function recCard(r, peek) { const R = S.recs; const inst = S.installed.get(r.id); const x = recX(r.id); return '<div class="card rcard' + (r.id === R.sel ? ' sel' : '') + (inst ? ' inst' : '') + '" data-act="selRec" data-id="' + r.id + '" data-key="rc:' + r.id + '" role="button" tabindex="0" aria-pressed="' + (r.id === R.sel) + '" aria-label="' + esc(r.title) + '"><div class="rc-top"><span class="row" style="gap:5px">' + ic(r.icon, 14, 'color:var(--ink-1)') + '<b class="mono">' + r.type + '</b></span><span class="row" style="gap:5px" data-tip="难度 ' + LEVELS[r.lvl] + '">' + lvlIcon(r.lvl) + LEVELS[r.lvl] + '</span>' + (r === peek && !visibleRecs().includes(r) ? '<span class="tag">高于当前水平筛选</span>' : '') + (x.save == null && r.live ? '<span class="rc-save" data-tl="rec-nosave" data-tip="' + esc(r.saveBasis || '没有可折算的问题证据') + '"><span class="u">未估算</span></span>' : '<span class="rc-save" data-tip="每月节省时间（估计）：按近 30 天的同类事件 × 单次耗时折算"><b' + (x.save == null ? '' : ' data-count="' + recSave(r.id).replace(/[^\d.]/g, '') + '" data-ck="rc:' + r.id + '"') + '>' + recSave(r.id) + '</b><span class="u">/ 月</span></span>') + '</div><div class="rc-title">' + esc(r.title) + '</div><div class="rc-why"' + (r.live ? ' data-tl="rec-why" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"' : '') + '>' + esc(r.why) + ' ' + (recNoEv(r) ? '<span class="cap" data-tl="rec-match">' + esc(r.ev) + '</span>' : '<button type="button" class="lnk" data-act="recEvidence" data-id="' + r.id + '">依据 · ' + r.ev + ' →</button>') + '</div><div class="rc-meta">' + agentDots(r, true) + '<span class="rc-tok' + (x.tok < 0 ? ' good' : '') + '" data-tip="常驻 token：每个会话启动时额外载入的上下文">' + ic('db', 11) + recTok(r.id) + (x.tok ? ' / 会话' : ' 常驻') + '</span></div><div class="rc-foot"><span class="mono rc-gain" data-tip="原指标的预期变化">' + esc(r.gain) + '</span>' + (inst ? '<span class="tag">' + (inst.days >= 7 ? '已安装 · ' + VERDICT[trackStats(r).verdict][0] : '已安装 · 追踪中 ' + inst.days + ' / 7 天') + (inst.scope === 'proj' ? ' · 仅 ' + esc((inst.target || '').split('/')[0]) : '') + '</span>' : '<button type="button" class="btn sm gh" data-act="dismissRec" data-id="' + r.id + '">不适用</button>' + recPrimaryBtn(r, true)) + '</div></div>'; }
+function recListHTML() {
+  const E = recEmptyParts(); if (E) return E.list;
+  const R = S.recs; const { list, peek } = recCtx(); const card = (r) => recCard(r, peek);
   // g0 (live): profile matches without session evidence; g3 (live): 资料库推荐 (catalog-only), always last
   const g3 = list.filter((r) => r.lib), ev = list.filter((r) => !r.lib);
   const g0 = ev.filter(recNoEv), g1 = ev.filter((r) => r.lvl <= 2 && !recNoEv(r)), g2 = ev.filter((r) => r.lvl >= 3 && !recNoEv(r));
   const libN = g3.length && R.dim === 'all' && LVR.applied && LVR.applied.counts && LVR.applied.counts.library != null && R.lv.size === 4 ? LVR.applied.counts.library : g3.length;
+  return '<div class="stack">' + (g1.length ? '<div class="eb" style="display:flex;justify-content:space-between"><span>高收益 · 低成本</span><span>' + g1.length + '</span></div>' + g1.map(card).join('') : '') + (g2.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px"><span>值得投入 · 需要配置</span><span>' + g2.length + '</span></div>' + g2.map(card).join('') : '') + (g0.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-g0"><span>按画像匹配 · 待验证</span><span>' + g0.length + '</span></div>' + g0.map(card).join('') : '') + (g3.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-lib"><span>资料库推荐 · 按画像匹配</span><span>' + libN + '</span></div>' + g3.map(card).join('') : '') + (list.length ? '' : empty('没有符合筛选的建议。试试放宽难度或水平。')) + '</div>';
+}
+function recDetailHTML() {
+  const E = recEmptyParts(); if (E) return E.detail;
+  const R = S.recs; const { sel0 } = recCtx();
   let detail = empty('没有符合筛选的建议');
   TRK_SPECS = [];
   if (sel0) {
     const r = sel0; const inst = S.installed.get(r.id); const x = recX(r.id);
     const tabs = [['why', '说明与依据'], ['preview', '预览'], ['tut', r.live && !r.steps.length ? '教程' : '教程 · ' + r.steps.length + ' 步'], ['track', '效果追踪']];
     let body = '';
-    if (R.tab === 'why') body = '<div class="col" style="gap:12px;font-size:13px;line-height:1.6;color:var(--ink-2)"><p style="margin:0">' + esc(r.why) + '</p><div class="row" style="flex-wrap:wrap"><span class="tag">' + esc(r.compat) + '</span></div>' +
+    if (R.tab === 'why') body = '<div class="col" style="gap:12px;font-size:13px;line-height:1.6;color:var(--ink-2)"><p style="margin:0">' + esc(r.why) + '</p><div class="row" style="flex-wrap:wrap"><span class="tag">' + esc(r.compat) + '</span></div>' + recRelTags(r) +
       '<div class="rc-ev"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><span class="eb">依据 · 可回看</span>' + (recNoEv(r) ? '<span class="cap">' + esc(r.ev) + ' · 还没有直接相关的会话</span>' : '<button type="button" class="btn sm" data-act="recEvidence" data-id="' + r.id + '">' + ic('sessions', 13) + '在会话里回看 ' + r.ev + '</button>') + '</div><div class="rc-base">' + r.track.map((t) => '<span><span class="cap">' + t[0] + '</span><b class="mono">' + (t[1] == null ? '—' : t[1]) + '</b><span class="cap">' + t[3] + '</span></span>').join('') + '</div><span class="cap">安装前 7 天基准 · 效果追踪的对照组 · n = ' + x.n[0] + '</span></div>' +
       '<p style="margin:0" class="cap" data-tip="不原生支持的 Agent 会自动转换成等价形式（例如 Skill → AGENTS.md 片段）">每月节省时间 = 近 30 天同类事件数 × 单次耗时（估计）</p></div>';
     else if (R.tab === 'preview' && r.live && !r.target && !r.file.length) body = '<div class="col" data-tl="rec-pv-plan" style="gap:10px;align-items:flex-start;font-size:13px;line-height:1.6;color:var(--ink-2)"><span class="eb">将写入</span><p style="margin:0">具体文件由安装预览生成：Orbit 先读取来源，按你的 Agent 逐个生成差异，确认后才写入，写入前自动备份。</p><span class="eb">其他 Agent</span><span style="font-size:12px">' + esc(recConvNote(r)) + '</span>' + recPrimaryBtn(r) + '</div>';
@@ -7629,16 +7651,35 @@ PAGES.recs = () => {
       '<div class="rc-kpis"><div class="rc-kpi"><span class="eb">每月节省时间 · 估计</span>' + (x.save == null && r.live ? '<span class="v" data-tl="rec-kpi-nosave">未估算</span><span class="cap">' + esc(r.saveBasis || r.gain) + '</span>' : '<span class="v">' + recSave(r.id) + '<small>/ 月</small></span><span class="cap" data-tip="原指标的预期变化">' + esc(r.gain) + '</span>') + '</div><div class="rc-kpi"><span class="eb">常驻 token</span><span class="v' + (x.tok < 0 ? ' good' : '') + '">' + recTok(r.id) + (x.tok ? '<small>/ 会话</small>' : '') + '</span><span class="cap">' + (x.tok > 0 ? '每个会话启动时载入' : x.tok < 0 ? '从会话上下文中释放' : '不占会话上下文') + '</span></div><div class="rc-kpi"><span class="eb">适用 Agent</span><span class="row" style="gap:6px;min-height:24px">' + agentDots(r, true) + '</span><span class="cap">' + (r.live ? recConvNote(r) : /转换/.test(r.compat) ? 'Codex 用等价配置' : /所有/.test(r.compat) ? 'AGENTS.md 片段通用' : '其余转为 AGENTS.md') + '</span></div></div></div>' +
       '<div role="tablist" style="display:flex;gap:2px;padding:10px 14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">' + tabs.map((t) => '<button type="button" role="tab" data-act="recTab" data-v="' + t[0] + '" aria-selected="' + (R.tab === t[0]) + '" style="border:0;background:none;padding:8px 10px;font-size:13px;color:' + (R.tab === t[0] ? 'var(--ink-1)' : 'var(--ink-3)') + ';font-weight:' + (R.tab === t[0] ? 600 : 400) + ';border-bottom:2px solid ' + (R.tab === t[0] ? 'var(--ink-1)' : 'transparent') + ';margin-bottom:-1px">' + t[1] + '</button>').join('') + '</div><div style="padding:14px 18px">' + body + '</div><div class="row rc-dfoot"><span class="row cap rc-dfoot-n">' + ic('grad', 13) + (r.live ? esc(r.origin === 'catalog' ? '资源目录' : 'Orbit 知识库') + ' · ' + esc(r.license || '许可未知') + (r.url ? ' · ' + liLink(r.url, '来源') : '') : 'Orbit 模板库 · MIT') + '</span><button type="button" class="btn" data-act="copyRec" data-id="' + r.id + '">复制内容</button><button type="button" class="btn ai" data-act="recToStudio" data-id="' + r.id + '">' + ic('spark', 13) + '交给 Agent 定制</button>' + (inst ? '<button type="button" class="btn" data-act="uninstall" data-id="' + r.id + '">撤销安装…</button>' : recPrimaryBtn(r)) + '</div></div>';
   }
+  return '<div style="position:sticky;top:0">' + detail + '</div>';
+}
+function recTbar() {
+  const E = recEmptyParts(); if (E) return E.tbar;
+  const { vis, list } = recCtx();
   // live: the header leads with the same total as the sidebar badge (open recs at the current level) and then says how many the
   // difficulty / dimension filters show, so the badge and「N 条」never disagree (R4-15)
   const lvHid = r0live() ? vis.length - list.length : 0, lvInst = r0live() ? vis.filter((r) => S.installed.has(r.id)).length : 0;
   const lvHead = r0live() ? '共 ' + (vis.length - lvInst) + ' 条' + (lvInst ? ' · ' + lvInst + ' 条已安装' : '') + (lvHid > 0 ? ' · 显示 ' + list.length + ' 条（' + lvHid + ' 条被筛选隐藏）' : '') : vis.length + ' 条';
-  return tbar('优化建议', lvHead + ' · 按每月节省时间排序 · ' + (RECS.some((x) => x.live) ? lvRecUpdated() : '9 月 30 日 23:10 更新'), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
-    '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + DIMS.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + d[0] + '" class="' + (R.dim === d[0] ? 'on' : '') + '" aria-selected="' + (R.dim === d[0]) + '">' + d[1] + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + cnt(d[0]) + '</span></button>').join('') + '</div></div>' +
-    '<div class="frow"><span class="cap" data-tip="难度：L1 一键应用 · L2 复制粘贴 · L3 需要配置 · L4 架构调整">难度</span>' + [1, 2, 3, 4].map((k) => '<button type="button" class="chip sm' + (R.lv.has(k) ? '' : ' dash') + '" data-act="recLv" data-v="' + k + '" aria-pressed="' + R.lv.has(k) + '">' + lvlIcon(k) + LEVELS[k] + '</button>').join('') + '<span style="width:1px;height:18px;background:var(--line);margin:0 6px"></span><span class="cap">按我的水平</span><button type="button" class="chip sm" data-act="recAud" data-tip="' + AUD_D[R.aud] + '">' + AUD[R.aud] + ic('chev', 12) + '</button><span style="flex:1"></span><span class="cap">已应用 ' + S.installed.size + ' · 不适用 ' + R.gone.size + (R.gone.size ? ' <button type="button" class="lnk" data-act="restoreRecs" style="font-size:12px">恢复</button>' : '') + '</span></div>' +
-    '<div class="recs"><div class="stack">' + (g1.length ? '<div class="eb" style="display:flex;justify-content:space-between"><span>高收益 · 低成本</span><span>' + g1.length + '</span></div>' + g1.map(card).join('') : '') + (g2.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px"><span>值得投入 · 需要配置</span><span>' + g2.length + '</span></div>' + g2.map(card).join('') : '') + (g0.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-g0"><span>按画像匹配 · 待验证</span><span>' + g0.length + '</span></div>' + g0.map(card).join('') : '') + (g3.length ? '<div class="eb" style="display:flex;justify-content:space-between;margin-top:4px" data-tl="rec-lib"><span>资料库推荐 · 按画像匹配</span><span>' + libN + '</span></div>' + g3.map(card).join('') : '') + (list.length ? '' : empty('没有符合筛选的建议。试试放宽难度或水平。')) + '</div><div style="position:sticky;top:0">' + detail + '</div></div></div>';
+  return tbar('优化建议', lvHead + ' · 按每月节省时间排序 · ' + (RECS.some((x) => x.live) ? lvRecUpdated() : '9 月 30 日 23:10 更新'), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>');
+}
+function recDimRow() {
+  const E = recEmptyParts(); if (E) return E.dims;
+  const R = S.recs; const { cnt } = recCtx();
+  return '<div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + DIMS.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + d[0] + '" class="' + (R.dim === d[0] ? 'on' : '') + '" aria-selected="' + (R.dim === d[0]) + '">' + d[1] + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + cnt(d[0]) + '</span></button>').join('') + '</div></div>';
+}
+function recLvRow() {
+  if (recEmptyParts()) return '';
+  const R = S.recs;
+  return '<div class="frow"><span class="cap" data-tip="难度：L1 一键应用 · L2 复制粘贴 · L3 需要配置 · L4 架构调整">难度</span>' + [1, 2, 3, 4].map((k) => '<button type="button" class="chip sm' + (R.lv.has(k) ? '' : ' dash') + '" data-act="recLv" data-v="' + k + '" aria-pressed="' + R.lv.has(k) + '">' + lvlIcon(k) + LEVELS[k] + '</button>').join('') + '<span style="width:1px;height:18px;background:var(--line);margin:0 6px"></span><span class="cap">按我的水平</span><button type="button" class="chip sm" data-act="recAud" data-tip="' + AUD_D[R.aud] + '">' + AUD[R.aud] + ic('chev', 12) + '</button><span style="flex:1"></span><span class="cap">已应用 ' + S.installed.size + ' · 不适用 ' + R.gone.size + (R.gone.size ? ' <button type="button" class="lnk" data-act="restoreRecs" style="font-size:12px">恢复</button>' : '') + '</span></div>';
+}
+// a tracking chart is redrawn only when its spec changes (hover and the enter animation survive unrelated refreshes)
+function recMountTrk(el) { TRK_SPECS.forEach((sp, i) => { const box = el.querySelector('[data-vz="trk-' + i + '"]'); if (!box) return; const sig = rgJSON(sp); if (box._vzSig === sig && box.firstChild) return; VZ.mount(box, sp); box._vzSig = sig; }); }
+PAGES.recs = () => {
+  recCtx();
+  return region('a7:tbar', A7_DEPS, recTbar, { after: () => tbarFit() }) +
+    '<div class="content" id="content">' + region('a7:dims', A7_DEPS, recDimRow) + region('a7:lv', A7_DEPS, recLvRow) +
+    '<div class="recs">' + region('a7:list', A7_DEPS, recListHTML) + region('a7:detail', A7_DEPS, recDetailHTML, { after: (el) => recMountTrk(el) }) + '</div></div>';
 };
-PAGES.recs.after = () => { TRK_SPECS.forEach((sp, i) => { const el = $('#content [data-vz="trk-' + i + '"]'); if (el) VZ.mount(el, sp); }); };
 function codeBlock(lines) { return '<div class="code">' + lines.map((l, i) => '<div class="' + (l[1] === '+' ? 'add' : l[1] === 'ai' ? 'ai' : '') + '"' + (l[1] === '-' ? ' style="background:var(--crit-bg)"' : '') + '><span class="n">' + (l[1] === '+' ? '+' : l[1] === '-' ? '−' : i + 1) + '</span><span class="t" style="' + (l[1] === '-' ? 'text-decoration:line-through;color:var(--crit)' : '') + '">' + (esc(l[0]) || ' ') + '</span></div>').join('') + '</div>'; }
 // 7-day comparison per metric: relative change with a (deterministic, demo) 95% bootstrap interval from the sample sizes;
 // verdict in four states — 有效 / 无显著变化 / 变差 / 样本不足 (n < 5 on either side, or the two windows differ by > 30%).
@@ -7690,7 +7731,7 @@ Object.assign(ACT, {
   doUninstall: (el) => { const id = el.dataset.id; closeModal(); uninstallRec(id); render(); toast('已撤销，文件已从备份恢复'); },
   ff7: (el) => { const i = S.installed.get(el.dataset.id); if (i) i.days = 7; render(); },
   keepRec: () => toast('已保留。同类建议的权重会提高'),
-  recalc: () => { const c = $('#content'); if (c) c.classList.add('stale'); setTimeout(() => { if (S.route !== 'recs') return; renderMain(); toast('建议已按最新数据重算'); }, 900); }   // never lands on another page (BUG-67)
+  recalc: () => { const c = $('#content'); if (c) c.classList.add('stale'); setTimeout(() => { const c2 = $('#content'); if (c2) c2.classList.remove('stale'); if (S.route !== 'recs') return; renderMain(); toast('建议已按最新数据重算'); }, 900); }   // never lands on another page (BUG-67)
 });
 
 /* ============ A8 library ============ */
@@ -7729,10 +7770,10 @@ function libBody() {
   const sub = Lb.tab === 'for' ? (p.ok ? '依据人格 ' + p.code + '、近 30 天的摩擦和已安装内容' : '人格尚未分类，只按近 30 天的摩擦和已安装内容推荐') : Lb.tab === 'peer' ? '来自开启匿名贡献的同类型用户（示例）' : Lb.tab === 'hot' ? '按安装量排序（示例）' : '只在本机，不上传';
   const sortSeg = Lb.tab === 'for' ? '<div class="seg lb-sort" role="tablist" aria-label="排序">' + [['pain', '解决你的问题'], ['match', '综合匹配'], ['users', '社区安装量']].map((s) => '<button type="button" role="tab" data-act="libSort" data-v="' + s[0] + '" class="' + (Lb.sort === s[0] ? 'on' : '') + '" aria-selected="' + (Lb.sort === s[0]) + '">' + s[1] + '</button>').join('') + '</div>' : '';
   const legend = '<div class="lb-legend cap">匹配度 = ' + LIB_W.map((w, i) => '<span class="row" style="gap:4px"><i style="background:' + LIB_SEG[i] + '"></i>' + w[0] + ' ×' + w[1] + '</span>').join('<span>+</span>') + '</div>';
-  const featCard = (x) => { const parts = libParts(x); return '<div class="card lb-card"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(x.icon, 13, 'color:var(--ink-1)') + '<b style="font-family:var(--font-sans);color:var(--ink-2)">' + x.kind + '</b><span>·</span><span>' + x.src + '</span>' + (Lb.tab === 'for' ? '<span style="margin-left:auto" class="mono" data-tf="match|' + x.id + '" tabindex="0">' + (Lb.sort === 'pain' ? '痛点覆盖 <b>' + x.sc[1] + '</b>' : Lb.sort === 'users' ? (x.users ? fmt(x.users) + ' 安装' : '本机') : '匹配 <b>' + x.m + '</b>') + '</span>' : '') + '</div><div class="mono lb-id">' + x.id + '</div><div class="lb-desc">' + esc(x.desc) + '</div>' +
+  const featCard = (x) => { const parts = libParts(x); return '<div class="card lb-card" data-key="lf:' + esc(x.id) + '"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(x.icon, 13, 'color:var(--ink-1)') + '<b style="font-family:var(--font-sans);color:var(--ink-2)">' + x.kind + '</b><span>·</span><span>' + x.src + '</span>' + (Lb.tab === 'for' ? '<span style="margin-left:auto" class="mono" data-tf="match|' + x.id + '" tabindex="0">' + (Lb.sort === 'pain' ? '痛点覆盖 <b>' + x.sc[1] + '</b>' : Lb.sort === 'users' ? (x.users ? fmt(x.users) + ' 安装' : '本机') : '匹配 <b>' + x.m + '</b>') + '</span>' : '') + '</div><div class="mono lb-id">' + x.id + '</div><div class="lb-desc">' + esc(x.desc) + '</div>' +
     '<div class="lb-match" data-tf="match|' + x.id + '" tabindex="0"><b class="mono">' + x.m + '</b><span class="col" style="flex:1;gap:3px;min-width:0">' + matchBar(x) + '<span class="mono cap lb-parts">' + LIB_W.map((w, i) => w[0].slice(0, 2) + ' ' + parts[i]).join(' · ') + '</span></span></div></div>' +
     '<div class="lb-body"><span class="eb">解决你的问题</span>' + x.why.map((w) => '<span class="row lb-why">' + ic('check', 13, 'margin-top:2px;color:var(--ink-1);flex:none') + esc(w) + '</span>').join('') + '<div class="row lb-foot"><span class="cap lb-fc">' + x.compat + '</span><span style="flex:1"></span><span class="mono cap lb-fc">' + (x.users ? fmt(x.users) + ' 安装' : '本机') + '</span><span class="row lb-acts"><button type="button" class="btn sm gh" data-act="libHide" data-id="' + x.id + '">不感兴趣</button>' + getBtn(x) + '</span></div></div></div>'; };
-  const moreRow = (x) => '<div class="lb-row"><span class="lb-ico">' + ic(x.icon, 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><b class="mono lb-nm">' + x.id + '</b><span class="bdg">' + x.kind + '</span>' + (x.local ? '<span class="aib">本地生成</span>' : '') + '</div><div class="cap lb-ell">' + esc(x.desc) + '</div></div><div class="row lb-m" style="gap:6px" data-tf="match|' + x.id + '" tabindex="0">' + matchBar(x, 'sm') + '<b class="mono lb-mv">' + x.m + '</b></div><span class="mono cap lb-users">' + (x.users ? (x.users >= 1000 ? f1(x.users / 1000) + 'k' : x.users) : '本机') + '</span>' + getBtn(x) + '</div>';
+  const moreRow = (x) => '<div class="lb-row" data-key="lr:' + esc(x.id) + '"><span class="lb-ico">' + ic(x.icon, 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><b class="mono lb-nm">' + x.id + '</b><span class="bdg">' + x.kind + '</span>' + (x.local ? '<span class="aib">本地生成</span>' : '') + '</div><div class="cap lb-ell">' + esc(x.desc) + '</div></div><div class="row lb-m" style="gap:6px" data-tf="match|' + x.id + '" tabindex="0">' + matchBar(x, 'sm') + '<b class="mono lb-mv">' + x.m + '</b></div><span class="mono cap lb-users">' + (x.users ? (x.users >= 1000 ? f1(x.users / 1000) + 'k' : x.users) : '本机') + '</span>' + getBtn(x) + '</div>';
   const peers = LIB.filter((x) => x.peer).sort((a, b) => b.peer - a.peer).slice(0, 3);
   return '<div class="frow"><div class="seg" role="tablist" aria-label="浏览方式">' + [['for', '为你推荐'], ['peer', '同类型用户在用'], ['hot', '热门'], ['local', '本地生成']].map((t) => '<button type="button" role="tab" data-act="libTab" data-v="' + t[0] + '" class="' + (Lb.tab === t[0] ? 'on' : '') + '" aria-selected="' + (Lb.tab === t[0]) + '">' + t[1] + '</button>').join('') + '</div><span class="lb-div" aria-hidden="true"></span>' + ['全部', 'Skill', 'Hook', '插件', '子代理', 'MCP'].map((k) => '<button type="button" class="chip sm' + (Lb.kind === k ? ' on' : '') + '" data-act="libKind" data-v="' + k + '" aria-pressed="' + (Lb.kind === k) + '">' + k + '</button>').join('') + '</div>' +
     '<div class="stack"><div class="row" style="align-items:baseline;flex-wrap:wrap;gap:6px 10px"><span class="serif lb-title">' + title + '</span><span class="cap">' + sub + (q ? ' · 搜索「' + esc(Lb.q.trim()) + '」' + items.length + ' 项' : '') + '</span><span style="flex:1"></span>' + sortSeg + '</div>' + legend +
@@ -7740,12 +7781,21 @@ function libBody() {
     '<div class="two lb-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">更多匹配</span><span class="cap">' + (Lb.tab === 'for' ? (Lb.sort === 'pain' ? '按痛点覆盖排序' : Lb.sort === 'users' ? '按社区安装量排序' : '按综合匹配排序') : Lb.tab === 'peer' ? '按同类用户占比排序' : Lb.tab === 'hot' ? '按安装量排序' : '本机生成') + ' · 条为匹配度拆解<span class="lb-ucap">，右列为社区安装量</span></span></div></div><div class="col" style="gap:0">' + (more.length ? more.map(moreRow).join('') : '<span class="cap lb-none">没有更多了</span>') + '</div></div>' +
     '<div class="card pad col lb-peers"><span class="ct">和你相似的人</span><span class="lb-pintro">同为 ' + (p.ok ? p.code : '未分类') + ' 的 <b style="color:var(--ink-1)">1,240</b> 位匿名用户最常装的三项 · 细线 = 全体用户</span>' + peers.map((x) => '<div class="col" style="gap:3px"><div class="row" style="justify-content:space-between;font-size:12px"><b class="mono">' + x.id + '</b><span class="mono" data-tip="同类用户 ' + x.peer + '% · 全体用户 ' + libAll(x) + '% · 提升 ' + f1(x.peer / libAll(x)) + '×">' + x.peer + '%<span class="cap"> vs 全体 ' + libAll(x) + '%</span></span></div><span class="lb-peer" role="img" aria-label="' + x.id + '：同类用户 ' + x.peer + '%，全体用户 ' + libAll(x) + '%"><i style="width:' + x.peer + '%"></i><em style="left:' + libAll(x) + '%"></em></span></div>').join('') + '<div class="row lb-anon">' + ic('shield', 14, 'color:var(--good);margin-top:1px') + '<span>你的匿名贡献：<b>' + (S.anon ? '已开启' : '未开启') + '</b>。开启后只上传人格代码与已装资源名。<button type="button" class="lnk" data-act="openSettings" data-tab="privacy">设置</button></span></div></div></div></div>';
 }
-PAGES.library = () => tbar('资源库', '', '<label class="row lb-q" style="height:28px;padding:0 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3)">' + ic('search', 15) + '<span class="vh">搜索资源</span><input id="libQ" type="search" data-in="libQ" placeholder="搜索 Skill、Hook、插件、MCP…" value="' + esc(S.lib.q) + '" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)"></label><button type="button" class="btn" data-act="libInstalled">已安装 · <span id="libInstN">' + installedItems().length + '</span></button>') +
-  '<div class="content" id="content">' + libBody() + '</div>';
+/* A8 is region-built (24-regions.js): the toolbar (search field, installed count) and the results refresh on their own, so
+   typing, a tab / kind chip, hiding an item or a live answer morph the results in place — the search field keeps its caret
+   and IME composition, the 更多匹配 list its scroll, cards and rows their identity (data-key). 97-live-library-install.js
+   swaps the two renderers (libTbarHTML / libBodyHTML) and adds its own state to libLiveSig. */
+RG.pages.add('library');
+let libTbarHTML = () => tbar('资源库', '', '<label class="row lb-q" style="height:28px;padding:0 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3)">' + ic('search', 15) + '<span class="vh">搜索资源</span><input id="libQ" type="search" data-in="libQ" placeholder="搜索 Skill、Hook、插件、MCP…" value="' + esc(S.lib.q) + '" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)"></label><button type="button" class="btn" data-act="libInstalled">已安装 · <span id="libInstN">' + installedItems().length + '</span></button>');
+let libBodyHTML = () => libBody();
+let libLiveSig = () => 0;
+const A8_DEPS = ['S.lib', 'S.libInst', 'S.libHide', 'S.anon', 'S.installed', () => LIB.length, () => { const p = personaNow(); return [p.ok, p.code, p.zh]; }, () => libLiveSig()];
+PAGES.library = () => region('a8:tbar', ['S.lib.q', () => installedItems().length, () => libLiveSig()], () => libTbarHTML(), { after: () => tbarFit() }) +
+  '<div class="content" id="content">' + region('a8:body', A8_DEPS, () => libBodyHTML(), { wrap: true }) + '</div>';
 TIPS.match = (id) => { const x = LIB.find((y) => y.id === id); if (!x) return ''; const p = libParts(x); return '<b>匹配度 ' + x.m + ' = 加权得分</b>' + LIB_W.map((w, i) => '\n' + w[0] + ' <b class="mono">' + x.sc[i] + '</b> × ' + w[1] + ' = ' + p[i]).join(''); };
 // Typing re-renders only the results, never the toolbar that holds the input, and waits for the IME to finish composing
 // (BUG-32: a full re-render per keystroke broke pinyin composition and the caret).
-function libRefresh() { const c = $('#content'); if (c && S.route === 'library') c.innerHTML = libBody(); }
+function libRefresh() { if (S.route !== 'library') return; if (RG.canRefresh()) { RG.refreshNow(['S.lib'], 'libQ'); return; } const c = $('#content'); if (c) c.innerHTML = libBody(); }
 Object.assign(ACT, {
   libTab: (el) => { S.lib.tab = el.dataset.v; render(); },
   libKind: (el) => { S.lib.kind = el.dataset.v; render(); },
@@ -7837,6 +7887,8 @@ function studioStep(pos) {
 // Re-render the page without losing the caret: the goal textarea / focused control is found again after the redraw (BUG-35, BUG-67).
 function refreshStudio() {
   if (S.route !== 'studio') return;
+  // region-built (below): only the studio regions whose state changed are morphed; focus, caret and scroll stay by themselves
+  if (RG.canRefresh()) { RG.refreshNow(['S.studio'], 'studio'); return; }
   const a = document.activeElement; const main = $('#main');
   const key = a && main && main.contains(a) ? (a.id ? '#' + a.id : a.dataset.act ? '#main [data-act="' + a.dataset.act + '"]' + (a.dataset.v ? '[data-v="' + a.dataset.v + '"]' : '') : a.dataset.chg ? '#main [data-chg="' + a.dataset.chg + '"][data-k="' + a.dataset.k + '"]' : null) : null;
   const selr = key && a.setSelectionRange && /^(text|textarea|search|)$/.test(a.type || '') ? [a.selectionStart, a.selectionEnd] : null;
@@ -7870,7 +7922,13 @@ function checkRows(run, seq) {
     return '<div class="st-chk ' + st + '" data-chk="' + c.id + '">' + ic(st === 'ok' ? 'okc' : st === 'cur' ? 'clock' : 'minus', 14, 'color:' + (st === 'ok' ? 'var(--good)' : st === 'cur' ? 'var(--ai)' : 'var(--ink-4)')) + '<span class="nm">' + c.name + '</span>' + body + '</div>';
   }).join('');
 }
-PAGES.studio = () => {
+/* A9 is region-built (24-regions.js): toolbar, privacy line, 新建任务 form, run (steps + live log) and output card refresh
+   on their own. A streamed generation (every line / step / log entry) refreshes only the run and output cards; the form keeps
+   the goal's caret and IME composition, the log its scroll (it follows the end only while the reader is at the end), and a
+   live frame elsewhere in the app never interrupts the stream (its deps are the studio state, not TandemLive ticks). */
+RG.pages.add('studio');
+// derived numbers shared by the regions, once per pass
+const stCtx = () => RG.memo('a9', () => {
   const st = S.studio; const run = st.run; const g = GEN[st.type]; const ag = agent(st.agent); const tpl = TPLS[run ? run.tpl : st.tpl]; const seq = tpl.seq;
   const file = stFile(); const active = run && !run.done && !run.stopped;
   const stepsDef = [['打包上下文', tokK(ctxTokens()) + ' tokens · 脱敏 ' + ctxHits() + ' 处'], ['分析模式', STUDIO_COPY.mine], ['起草 ' + file, run && run.step === 2 && active ? '已输出 ' + run.lines + ' / ' + g.lines.length + ' 行' : '流式写入预览'], ['自检', '规范 · 安全'], ['回放 dry-run + judge', STUDIO_COPY.replay], ['等你审阅', '审阅前不会写入任何文件'], ['交叉自检', '由 ' + otherAgent().name + ' 复核结论']];
@@ -7879,24 +7937,40 @@ PAGES.studio = () => {
   const shownLines = run ? (run.step > 2 || run.done ? g.lines.length : run.step === 2 ? run.lines : 0) : 0;
   const adds = g.lines.filter((l) => l[1] === '+' || l[1] === 'ai').length, ais = g.lines.filter((l) => l[1] === 'ai').length;
   const hist = S.history.filter((h) => h.kind === 'studio').length + STUDIO_COPY.hist;
-  return tbar('生成工坊', '用你的本地 Agent 生成 Skills、Hooks 与规则', '<button type="button" class="btn" data-act="studioHistory">历史产物 · ' + hist + '</button><button type="button" class="btn" data-act="studioTpl">工作流模板</button>') +
-    '<div class="content" id="content"><div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t" title="生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包"><b>Orbit 不调用云端模型</b> · 生成在你选定的本地 Agent 里进行，用它自己的登录与额度</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
-    '<div class="studio"><div class="card pad col" style="gap:12px"><span class="ct">新建任务</span><div class="col" style="gap:6px"><span class="eb">产物类型</span><div class="seg" role="radiogroup" aria-label="产物类型" style="width:100%">' + Object.keys(GEN).map((k) => '<button type="button" role="radio" aria-checked="' + (st.type === k) + '" data-act="studioType" data-v="' + k + '" class="' + (st.type === k ? 'on' : '') + '" style="flex:1;justify-content:center;padding:0 4px"' + (active ? ' aria-disabled="true"' : '') + '>' + k + '</button>').join('') + '</div>' + (active ? '<span class="cap" style="font-size:11px">运行中锁定类型，停止后可以切换</span>' : '') + '</div>' +
+  return { st, run, g, ag, tpl, seq, file, active, stepsDef, stepState, maxDur, shownLines, adds, ais, hist };
+});
+// the generated file and step timings live outside S (GEN / STEP_DUR / STUDIO_COPY; the live binding rewrites them)
+const A9_GEN = () => { const g = GEN[S.studio.type]; return [g && g.file, g && g.lines.length, STEP_DUR.join(','), STUDIO_COPY]; };
+const A9_DEPS = ['S.studio', A9_GEN];
+let stLiveSig = () => 0;   // 97-live-studio-settings.js: the gateway's input budget, engines and preview
+function stTbar() { const { hist } = stCtx(); return tbar('生成工坊', '用你的本地 Agent 生成 Skills、Hooks 与规则', '<button type="button" class="btn" data-act="studioHistory">历史产物 · ' + hist + '</button><button type="button" class="btn" data-act="studioTpl">工作流模板</button>'); }
+function stPriv() { return '<div class="row st-priv">' + ic('shield', 15, 'color:var(--good)') + '<span class="st-priv-t" title="生成在你选定的本地 Agent 里进行，用它自己的登录与额度；发送前可逐项预览上下文包"><b>Orbit 不调用云端模型</b> · 生成在你选定的本地 Agent 里进行，用它自己的登录与额度</span><button type="button" class="lnk" data-act="ctxPreview">预览发送内容</button></div>' +
+    ''; }
+function stForm() { const { st, run, ag, active } = stCtx(); return '<div class="card pad col" style="gap:12px"><span class="ct">新建任务</span><div class="col" style="gap:6px"><span class="eb">产物类型</span><div class="seg" role="radiogroup" aria-label="产物类型" style="width:100%">' + Object.keys(GEN).map((k) => '<button type="button" role="radio" aria-checked="' + (st.type === k) + '" data-act="studioType" data-v="' + k + '" class="' + (st.type === k ? 'on' : '') + '" style="flex:1;justify-content:center;padding:0 4px"' + (active ? ' aria-disabled="true"' : '') + '>' + k + '</button>').join('') + '</div>' + (active ? '<span class="cap" style="font-size:11px">运行中锁定类型，停止后可以切换</span>' : '') + '</div>' +
     '<label class="col" style="gap:6px"><span class="eb">目标</span><textarea id="studioGoal" data-in="studioGoal" rows="5" style="width:100%;resize:vertical;border-radius:9px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;font-size:13px;line-height:20px;color:var(--ink-1)" placeholder="一句话写清要生成什么，例如：提交前先跑测试，失败就停下汇报">' + esc(st.goal) + '</textarea>' + (st.from ? '<span class="cap" style="font-size:11px">来自 ' + esc(st.from) + '</span>' : '') + '</label>' +
     '<div class="col" style="gap:6px"><div class="row" style="justify-content:space-between"><span class="eb">上下文包</span><button type="button" class="lnk" data-act="ctxPreview">逐项预览</button></div>' + tokBar() + '<div class="col" style="gap:0">' + CTX.map((c) => '<label class="st-ctx"><input type="checkbox" data-chg="studioCtx" data-k="' + c[0] + '"' + (st.ctx[c[0]] ? ' checked' : '') + '><span class="col" style="gap:1px"><span class="row" style="gap:6px">' + (c[3] ? '<i class="st-sw ' + c[0] + '" aria-hidden="true"></i>' : '') + '<span>' + c[1] + '</span></span><span class="cap" style="font-size:11px">' + (c[0] === 'redact' ? '本次命中 <b class="mono" data-red>' + ctxHits() + '</b> 处，替换为占位符' : c[2]) + '</span></span><span class="mono cap" style="font-size:11px">' + (c[3] ? tokS(c[3]) : '') + '</span></label>').join('') + '</div></div>' +
     '<div class="col" style="gap:6px"><span class="eb">执行者</span><button type="button" data-act="studioAgent" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--surface);text-align:left"><span style="width:28px;height:28px;border-radius:7px;background:' + ag.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + ag.c) + '</span><span style="flex:1;min-width:0;display:flex;flex-direction:column"><b style="font-size:13px;line-height:18px">' + ag.name + '</b><span class="mono cap" style="font-size:11px;line-height:14px">' + ag.model + '</span></span>' + ic('chev', 12, 'color:var(--ink-3)') + '</button><span class="cap" style="font-size:11px">已检测：' + STUDIO_COPY.detected + '</span></div>' +
     '<div class="row" style="justify-content:space-between;font-size:12px"><span class="row" style="gap:6px;min-width:0"><span class="eb">模板</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(TPLS[st.tpl].name) + ' · ' + TPLS[st.tpl].seq.length + ' 步</span></span><button type="button" class="lnk" data-act="studioTpl">更换</button></div>' +
-    '<div class="row" style="margin-top:auto"><button type="button" class="btn p" data-act="studioStart" style="flex:1;height:32px"' + (active ? ' disabled' : '') + '>' + (run && (run.done || run.stopped) ? '重新生成' : '开始生成') + '</button><button type="button" class="btn" data-act="studioDraft" style="height:32px">存为草稿</button></div></div>' +
-    '<div class="card pad col" style="gap:10px;min-width:0"><div class="row">' + (active ? '<span class="spin"></span>' : run && run.done ? ic('okc', 16, 'color:var(--good)') : ic('clock', 16, 'color:var(--ink-3)')) + '<div style="flex:1;min-width:0"><div class="ct">' + (run ? esc(st.type + ' · ' + file) : '还没有运行') + '</div><div class="mono cap" style="font-size:11px">' + esc(tpl.name) + (run ? ' · ' + (run.done ? '已完成 · ' + f1(seq.reduce((a, i) => a + STEP_DUR[i], 0)) + 's' : run.stopped ? '已停止，已产出部分保留为草稿' : '运行中 · 第 ' + (run.pos + 1) + ' / ' + seq.length + ' 步') : ' · 点「开始生成」') + '</div></div>' + (active ? '<button type="button" class="btn sm" data-act="studioStop">停止</button>' : '') + '</div>' +
+    '<div class="row" style="margin-top:auto"><button type="button" class="btn p" data-act="studioStart" style="flex:1;height:32px"' + (active ? ' disabled' : '') + '>' + (run && (run.done || run.stopped) ? '重新生成' : '开始生成') + '</button><button type="button" class="btn" data-act="studioDraft" style="height:32px">存为草稿</button></div></div>'; }
+function stRun() { const { st, run, g, tpl, seq, file, active, stepsDef, stepState, maxDur } = stCtx(); return '<div class="card pad col" style="gap:10px;min-width:0"><div class="row">' + (active ? '<span class="spin"></span>' : run && run.done ? ic('okc', 16, 'color:var(--good)') : ic('clock', 16, 'color:var(--ink-3)')) + '<div style="flex:1;min-width:0"><div class="ct">' + (run ? esc(st.type + ' · ' + file) : '还没有运行') + '</div><div class="mono cap" style="font-size:11px">' + esc(tpl.name) + (run ? ' · ' + (run.done ? '已完成 · ' + f1(seq.reduce((a, i) => a + STEP_DUR[i], 0)) + 's' : run.stopped ? '已停止，已产出部分保留为草稿' : '运行中 · 第 ' + (run.pos + 1) + ' / ' + seq.length + ' 步') : ' · 点「开始生成」') + '</div></div>' + (active ? '<button type="button" class="btn sm" data-act="studioStop">停止</button>' : '') + '</div>' +
     '<div class="col st-steps" style="gap:0">' + seq.map((i, k) => { const ss = stepState(i); const s2 = stepsDef[i]; const d = STEP_DUR[i]; return '<div class="step ' + ss + '"><span class="mk">' + (ss === 'done' ? '✓' : ss === 'stop' ? '!' : k + 1) + '</span><div style="min-width:0"><div class="t">' + esc(s2[0]) + '</div><div class="s">' + esc(s2[1]) + '</div>' + (i === 2 && ss === 'run' ? '<span class="st-lines" aria-hidden="true"><b style="width:' + (run.lines / g.lines.length * 100) + '%"></b></span>' : '') + '</div>' + (ss === 'done' && d ? '<span class="st-dur"><i><b style="width:' + (d / maxDur * 100) + '%"></b></i>' + d.toFixed(1) + 's</span>' : ss === 'run' ? '<span class="st-dur">…</span>' : '<span></span>') + '</div>'; }).join('') + '</div>' +
-    '<div class="log' + (run ? '' : ' st-idle') + '" id="studioLog"><div class="eb" style="margin-bottom:4px">实时日志</div>' + (run ? run.log.map((l) => '<div style="color:' + (l[0] === '$' ? 'var(--ink-2)' : l[0] === '!' ? 'var(--crit)' : 'var(--ink-3)') + '">' + esc(l) + '</div>').join('') + (run.done || run.stopped ? '' : '<div style="color:var(--ink-1)">› <span class="caret"></span></div>') : '<div class="cap">运行后在这里流式显示 Agent 的输出摘要。⌘L 可展开完整日志。</div>') + '</div></div>' +
-    '<div class="card col" style="overflow:hidden;gap:0;min-width:0"><div class="row" style="padding:8px 12px 0;border-bottom:1px solid var(--line)"><span class="mono" style="font-size:12px;font-weight:600;padding:7px 4px 8px;border-bottom:2px solid var(--ink-1);margin-bottom:-1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(file) + '</span><span style="flex:1"></span>' + (active ? '<span class="aib" style="margin-bottom:6px">' + ic('spark', 11) + '生成中</span>' : run && run.installed ? '<span class="bdg" style="margin-bottom:6px;color:var(--good)">已安装</span>' : run && run.done ? '<span class="bdg" style="margin-bottom:6px">待审阅</span>' : '') + '</div>' +
+    '<div class="log' + (run ? '' : ' st-idle') + '" id="studioLog"><div class="eb" style="margin-bottom:4px">实时日志</div>' + (run ? run.log.map((l) => '<div style="color:' + (l[0] === '$' ? 'var(--ink-2)' : l[0] === '!' ? 'var(--crit)' : 'var(--ink-3)') + '">' + esc(l) + '</div>').join('') + (run.done || run.stopped ? '' : '<div style="color:var(--ink-1)">› <span class="caret"></span></div>') : '<div class="cap">运行后在这里流式显示 Agent 的输出摘要。⌘L 可展开完整日志。</div>') + '</div></div>'; }
+function stOut() { const { st, run, g, file, active, seq, shownLines, adds, ais } = stCtx(); return '<div class="card col" style="overflow:hidden;gap:0;min-width:0"><div class="row" style="padding:8px 12px 0;border-bottom:1px solid var(--line)"><span class="mono" style="font-size:12px;font-weight:600;padding:7px 4px 8px;border-bottom:2px solid var(--ink-1);margin-bottom:-1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(file) + '</span><span style="flex:1"></span>' + (active ? '<span class="aib" style="margin-bottom:6px">' + ic('spark', 11) + '生成中</span>' : run && run.installed ? '<span class="bdg" style="margin-bottom:6px;color:var(--good)">已安装</span>' : run && run.done ? '<span class="bdg" style="margin-bottom:6px">待审阅</span>' : '') + '</div>' +
     '<div style="padding:10px 12px">' + (shownLines ? '<div class="st-sum mono cap"><span style="color:var(--good)">+' + adds + ' 行</span>' + (ais ? ' · <span style="color:var(--ai)">✦ ' + ais + ' 行按你的会话改写</span>' : '') + ' · 写入 ' + esc(g.file) + '</div>' + codeBlock(g.lines.slice(0, shownLines)) : '') + (active && run.step <= 2 ? '<div class="col" style="gap:9px;padding:10px 4px"><div class="shim" style="width:70%"></div><div class="shim" style="width:45%"></div></div>' : '') + (!run ? '<div class="cap" style="padding:30px 8px;text-align:center">产物会边生成边显示在这里</div>' : '') + '</div>' +
     '<div class="col" style="margin-top:auto;padding:12px 16px;border-top:1px solid var(--hair);gap:0"><span class="eb" style="margin-bottom:4px">自检 · 4 道</span>' + checkRows(run, seq) +
     (run && run.installed ? '<div class="row st-inst">' + ic('okc', 14, 'color:var(--good)') + '<span style="flex:1;min-width:0">已写入 <span class="mono">' + esc(g.file) + '</span> · 已备份</span><button type="button" class="btn sm" data-act="studioUndo">撤销</button></div>' : '') +
-    '<div class="row st-acts"><button type="button" class="btn p" data-act="studioInstall"' + (run && run.done && !run.installed ? '' : ' disabled') + '>' + (run && run.installed ? '已安装' : '安装') + '</button><button type="button" class="btn" data-act="studioEditor"' + (run && (run.done || run.stopped) ? '' : ' disabled') + '>在编辑器中打开</button><button type="button" class="btn" data-act="studioSave"' + (run && run.done ? '' : ' disabled') + '>存入资源库</button></div></div></div></div></div>';
-};
-PAGES.studio.after = () => { const l = $('#studioLog'); if (l) l.scrollTop = l.scrollHeight; };
+    '<div class="row st-acts"><button type="button" class="btn p" data-act="studioInstall"' + (run && run.done && !run.installed ? '' : ' disabled') + '>' + (run && run.installed ? '已安装' : '安装') + '</button><button type="button" class="btn" data-act="studioEditor"' + (run && (run.done || run.stopped) ? '' : ' disabled') + '>在编辑器中打开</button><button type="button" class="btn" data-act="studioSave"' + (run && run.done ? '' : ' disabled') + '>存入资源库</button></div></div></div>'; }
+// the live log follows its end while the reader is there (or on the first paint); scrolled up, it stays where it is
+function stLogFollow(el, first) {
+  const l = el.querySelector('#studioLog'); if (!l) return;
+  if (first || l._stEnd !== false) l.scrollTop = l.scrollHeight;
+  if (!l._stWatch) { l._stWatch = 1; l.addEventListener('scroll', () => { l._stEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 24; }, { passive: true }); }
+}
+PAGES.studio = () => region('a9:tbar', ['S.history', () => STUDIO_COPY.hist], stTbar, { after: () => tbarFit() }) +
+  '<div class="content" id="content">' + region('a9:priv', [], stPriv) + '<div class="studio">' +
+  region('a9:form', ['S.studio.type', 'S.studio.goal', 'S.studio.from', 'S.studio.ctx', 'S.studio.agent', 'S.studio.tpl', 'facts', () => { const r = S.studio.run; return r ? [!!r.done, !!r.stopped] : 0; }, () => [STUDIO_COPY.detected, stLiveSig(), CTX.map((c) => c[0] + ':' + c[3]).join(',')]], stForm) +
+  region('a9:run', A9_DEPS, stRun, { after: (el, first) => stLogFollow(el, first) }) +
+  region('a9:out', A9_DEPS, stOut) + '</div></div>';
 // who reads the context pack (preview title + footer); live mode names the gateway's engine instead of the demo agent
 let studioRunner = () => agent(S.studio.agent);
 function ctxPreviewHTML() {
@@ -7909,8 +7983,9 @@ function ctxBundle() {
   return { goal: S.studio.goal, type: S.studio.type, runner: agent(S.studio.agent).cli, template: TPLS[S.studio.tpl].name, persona: personaNow().code, sessions_summary: c.sum ? '46 个会话的结构化摘要（不含原文）' : undefined, friction: c.fric ? { '方向错误': 17, 'review 最长轮次': 11 } : undefined, rules: c.rules ? ['~/.agents/AGENTS.md', 'Hackathon/AGENTS.md', 'team-hub/AGENTS.md'] : undefined, raw_snippets: c.raw ? '（逐条确认后附上）' : undefined, redaction: c.redact ? ctxHits() + ' 处已替换为占位符' : '未脱敏', tokens: ctxTokens() };
 }
 function refreshCtx() {
-  const bar = $('#stTok'); if (bar) bar.outerHTML = tokBar();
-  $$('[data-red]').forEach((x) => { x.textContent = ctxHits(); });
+  if (S.route === 'studio' && RG.canRefresh()) RG.refreshNow(['S.studio.ctx'], 'ctx');
+  else { const bar = $('#stTok'); if (bar) bar.outerHTML = tokBar(); }
+  $$('#modal [data-red]').forEach((x) => { x.textContent = ctxHits(); });
   const pv = $('#ctxPrev'); if (pv) { const a = document.activeElement; const k = a && pv.contains(a) ? a.dataset.k : null; pv.innerHTML = ctxPreviewHTML(); if (k) { const n = pv.querySelector('[data-k="' + k + '"]'); if (n) n.focus({ preventScroll: true }); } }
 }
 // Mark the studio artifact as installed once the install sheet confirms (51-install.js loads after this file, so the wrapper is applied lazily).
@@ -9467,7 +9542,9 @@ function renderPop() {
   } else {
     html = head('今天', popDate() + ' · ' + today.length + ' 会话 · ' + dur(sum(today, (s) => s.live ? liveMin : s.dur)), doneBadge) + popLiveCard() + cxRow() + week + rec + foot;
   }
-  el.innerHTML = html;
+  // morphed in place (24-regions.js rgPut): a live frame or a sim tick changes only the rows that differ — the open panel
+  // keeps its scroll, hover and focus, and nothing re-plays its entrance
+  rgPut(el, html);
 }
 Object.assign(ACT, {
   popOpen: () => { S.pop = false; S.winGone = false; render(); },
@@ -9561,7 +9638,8 @@ function renderHud() {
   // while idle the HUD only appears to show a「完成」for 8 s; a mid-drag render keeps the pill in place (BUG-45)
   if (!S.hud.show || S.hudSim === 'idle' || S.paused || !liveSession() && S.hudSim !== 'done') { h.hidden = true; h.innerHTML = ''; return; }
   h.hidden = false;
-  h.innerHTML = '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="' + S.hud.open + '" aria-label="悬浮组件，点击展开，拖动可移动">' + hudPill() + '</div>' + (S.hud.open && !HDRAG ? hudCard() : '');
+  // morphed in place (rgPut): the pill and the open card keep their nodes, so a render mid-hover / mid-drag changes only the text
+  rgPut(h, '<div class="pill" id="hudPill" role="button" tabindex="0" aria-expanded="' + S.hud.open + '" aria-label="悬浮组件，点击展开，拖动可移动">' + hudPill() + '</div>' + (S.hud.open && !HDRAG ? hudCard() : ''));
   if (HDRAG && HDRAG.moved) { h.style.left = HDRAG.x + 'px'; h.style.top = HDRAG.y + 'px'; h.style.right = 'auto'; h.style.bottom = 'auto'; return; }
   hudPlace();
 }
@@ -9708,7 +9786,8 @@ function renderWidgets() {
     big = (live ? '<button type="button" class="wg" data-act="wgLive" style="display:flex;flex-direction:column;gap:8px;align-items:stretch;text-align:left"><span class="row"><span class="dot live" style="background:' + agent(live.a).c + '"></span><span class="lbl" style="flex:1">运行中 · ' + esc(agent(live.a).name) + '</span><span class="mono" style="font-size:12px" data-live>' + liveElapsed() + '</span></span><span style="font-size:14px;font-weight:600;line-height:1.35">' + (S.numOnly ? '1 个运行中的会话' : esc(live.title)) + '</span>' + ctxBar(S.live.ctx) + '<span class="row cap" style="font-size:11px;gap:10px"><span>工具 <b class="mono" data-livetools>' + S.live.tools + '</b></span><span class="mono" data-hudtool style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span></span></button>' : '') +
       '<button type="button" class="wg" data-act="wgGo" data-r="overview" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;text-align:left">' + trend('摩擦率', fr, s7.fric, sp.fric, (v) => f1(v) + '%', true) + trend('完成率', ok, s7.ok, sp.ok, (v) => Math.round(v) + '%', false) + '</button>';
   }
-  w.innerHTML = menu + squares + (size === 's' ? '' : week + big + rec);
+  // morphed in place (rgPut): each widget keeps its node, so a data change updates only the numbers / bars that moved
+  rgPut(w, menu + squares + (size === 's' ? '' : week + big + rec));
   w.dataset.size = size;
 }
 Object.assign(ACT, {
@@ -12059,14 +12138,14 @@ function liGetBtn(x) {
   return '<button type="button" class="btn sm p" data-act="getLib" data-id="' + esc(x.item_id) + '">' + (x.origin === 'local' ? '安装' : '获取') + '</button>';
 }
 function liFeat(x) {
-  return '<div class="card lb-card" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(LI_ICON[x.kind] || 'file', 13, 'color:var(--ink-1)') + '<b style="font-family:var(--font-sans);color:var(--ink-2)">' + esc(TL.li.kindLabel(x.kind)) + '</b><span>·</span><span>' + liSrc(x) + '</span>' + liSeedTag(x) + '</div>' +
+  return '<div class="card lb-card" data-key="lf:' + esc(x.item_id) + '" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(LI_ICON[x.kind] || 'file', 13, 'color:var(--ink-1)') + '<b style="font-family:var(--font-sans);color:var(--ink-2)">' + esc(TL.li.kindLabel(x.kind)) + '</b><span>·</span><span>' + liSrc(x) + '</span>' + liSeedTag(x) + '</div>' +
     '<div class="mono lb-id"><button type="button" class="lnk" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font:inherit;color:inherit;text-align:left">' + esc(x.name) + '</button></div><div class="lb-desc">' + esc(liDesc(x)) + '</div>' +
     '<div class="lb-match"><b class="mono">' + TLU.num(x.risk_level) + '</b><span class="col" style="flex:1;gap:3px;min-width:0"><span class="mono cap lb-parts">风险等级' + (x.risk && x.risk.length ? ' · ' + esc(x.risk.join('、')) : ' · 无敏感权限') + '</span><span class="mono cap lb-parts">' + (x.version ? 'v' + esc(x.version) + ' · ' : '') + '更新于 ' + liDay(x.updated_at) + '</span></span></div></div>' +
     '<div class="lb-body"><span class="eb">适用 Agent</span>' + ((x.agents && x.agents.length ? x.agents : [null]).map((a) => '<span class="row lb-why">' + ic('check', 13, 'margin-top:2px;color:var(--ink-1);flex:none') + (a ? esc(liAgentName(a)) : '未声明') + '</span>').join('')) +
     '<div class="row lb-foot"><span class="cap lb-fc">' + (x.stars != null ? TLU.num(x.stars) + ' Star' : '—') + '</span><span style="flex:1"></span><span class="mono cap lb-fc">' + (x.installs ? fmt(x.installs) + ' 安装' : x.origin === 'local' ? '本机' : '—') + '</span><span class="row lb-acts"><button type="button" class="btn sm gh" data-act="libHide" data-id="' + esc(x.item_id) + '">不感兴趣</button>' + liGetBtn(x) + '</span></div></div></div>';
 }
 function liRow(x) {
-  return '<div class="lb-row" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><span class="lb-ico">' + ic(LI_ICON[x.kind] || 'file', 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><button type="button" class="lnk mono lb-nm" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font-weight:700;color:var(--ink-1)">' + esc(x.name) + '</button><span class="bdg">' + esc(TL.li.kindLabel(x.kind)) + '</span>' + (x.origin === 'local' ? '<span class="aib">本地生成</span>' : '') + liSeedTag(x) + '</div><div class="cap lb-ell">' + esc(liDesc(x)) + '</div></div>' +
+  return '<div class="lb-row" data-key="lr:' + esc(x.item_id) + '" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><span class="lb-ico">' + ic(LI_ICON[x.kind] || 'file', 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><button type="button" class="lnk mono lb-nm" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font-weight:700;color:var(--ink-1)">' + esc(x.name) + '</button><span class="bdg">' + esc(TL.li.kindLabel(x.kind)) + '</span>' + (x.origin === 'local' ? '<span class="aib">本地生成</span>' : '') + liSeedTag(x) + '</div><div class="cap lb-ell">' + esc(liDesc(x)) + '</div></div>' +
     '<div class="row lb-m" style="gap:6px"><span class="mono cap">风险</span><b class="mono lb-mv">' + TLU.num(x.risk_level) + '</b></div><span class="mono cap lb-users">' + (x.installs ? (x.installs >= 1000 ? f1(x.installs / 1000) + 'k' : x.installs) : x.origin === 'local' ? '本机' : '—') + '</span>' + liGetBtn(x) + '</div>';
 }
 function liBody(vm) {
@@ -12096,7 +12175,7 @@ function liSyncBanner() {
   if (y.state === 'failed') return '<div class="row lb-anon" data-tl="lib-sync" data-state="failed" role="status">' + ic('alert', 14, 'color:var(--warn-m);margin-top:1px') + '<span>首次同步资源目录没有完成（' + esc((y.error && (y.error.message || y.error.code)) || '网络不可用') + '），先显示内置条目。<button type="button" class="lnk" data-act="liSyncRetry">重试</button></span></div>';
   return '<div class="row lb-anon" data-tl="lib-sync" data-state="running" role="status" aria-live="polite">' + ic('sync', 14, 'margin-top:1px') + '<span>正在首次同步资源目录' + (y.total ? ' · 已完成 <b class="mono">' + y.done + ' / ' + y.total + '</b> 个来源' : '') + '。完成前先显示内置条目（标有示例数据）。</span></div>';
 }
-function liSyncPaint() { const b = $('#content [data-tl="lib-sync"]'); if (b) b.outerHTML = liSyncBanner() || '<span hidden></span>'; else if (S.route === 'library' && MODAL_KEY == null) render(); }
+function liSyncPaint() { if (S.route === 'library' && RG.canRefresh()) { RG.refreshNow(['li'], 'lib-sync'); return; } const b = $('#content [data-tl="lib-sync"]'); if (b) b.outerHTML = liSyncBanner() || '<span hidden></span>'; else if (S.route === 'library' && MODAL_KEY == null) render(); }
 function liSyncCount(st) {
   const by = (st && st.coverage && st.coverage.by_source) || {};
   const net = Object.keys(by).filter((k) => by[k].enabled !== false && !/^(bundle|kb)$/.test(by[k].kind || ''));
@@ -12139,21 +12218,30 @@ function liSyncCheck() {
     liSyncStart(c.net.length);
   }, () => { S.li.sync = { state: 'done' }; });
 }
-const LI_DEMO_PAGE = PAGES.library;
-function liPage() {
+const LI_DEMO_TBAR = libTbarHTML, LI_DEMO_BODY = libBodyHTML, LI_PAGE = PAGES.library;
+// before every pass of the A8 regions (and on entering the page): the view, the degraded flag and the first catalog sync
+function liPrep() {
   const v = lvView('library');
   S.li.degraded = !!(v && !v.vm && v.state === 'error' && TL.li.degraded(v.error));
   if (S.li.degraded) {
     if (!S.li.errAt) S.li.errAt = Date.now();
     else if (Date.now() - S.li.errAt > 15000) { S.li.errAt = 0; TL.invalidate((r) => r.path.indexOf('/v1/catalog/') === 0); }
-    return LI_DEMO_PAGE();
+    return v;
   }
   S.li.errAt = 0;
   if (v && v.vm) liSyncCheck();
-  const st = liState(); const n = st.data ? (st.data.items || []).filter((i) => !/^(reverted|archived)$/.test(i.state)).length : null;
-  return tbar('资源库', v && v.vm ? TLU.num(v.vm.total != null ? v.vm.total : v.vm.facets.total) + ' 项' : '', '<label class="row lb-q" style="height:28px;padding:0 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3)">' + ic('search', 15) + '<span class="vh">搜索资源</span><input id="libQ" type="search" data-in="libQ" placeholder="搜索 Skill、Hook、插件、MCP…" value="' + esc(S.lib.q) + '" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)"></label><button type="button" class="btn" data-act="libInstalled">已安装 · <span id="libInstN">' + TLU.num(n) + '</span></button>') +
-    '<div class="content" id="content">' + (v && !v.vm && v.state === 'loading' && S.li.lastVm ? liBody(S.li.lastVm) : TLU.body(v, (vm) => { S.li.lastVm = vm; return liBody(vm); })) + '</div>';
+  return v;
 }
+function liTbar() {
+  const v = TL_VIEWS.library;
+  const st = liState(); const n = st.data ? (st.data.items || []).filter((i) => !/^(reverted|archived)$/.test(i.state)).length : null;
+  return tbar('资源库', v && v.vm ? TLU.num(v.vm.total != null ? v.vm.total : v.vm.facets.total) + ' 项' : '', '<label class="row lb-q" style="height:28px;padding:0 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3)">' + ic('search', 15) + '<span class="vh">搜索资源</span><input id="libQ" type="search" data-in="libQ" placeholder="搜索 Skill、Hook、插件、MCP…" value="' + esc(S.lib.q) + '" style="flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:13px;color:var(--ink-1)"></label><button type="button" class="btn" data-act="libInstalled">已安装 · <span id="libInstN">' + TLU.num(n) + '</span></button>');
+}
+function liBodyView() {
+  const v = TL_VIEWS.library;
+  return (v && !v.vm && v.state === 'loading' && S.li.lastVm ? liBody(S.li.lastVm) : TLU.body(v, (vm) => { S.li.lastVm = vm; return liBody(vm); }));
+}
+function liPage() { liPrep(); return LI_PAGE(); }
 const liCard = (id) => { const v = TL_VIEWS.library; return v && v.vm ? liItems(v.vm).concat(v.vm.items).find((x) => x.item_id === id) || null : null; };
 
 /* ---- item detail ---- */
@@ -12329,6 +12417,12 @@ function liStudioUndo(el, e) {
 function liMarkSample() { const mh = $('#modal .mh h2'); if (mh && !$('#modal [data-tl="sample"]')) mh.insertAdjacentHTML('afterend', '<div>' + TLU.sample() + '</div>'); }
 if (TL.mode === 'live') {
   PAGES.library = TL_PAGES.library = liPage;
+  RG.prep('library', liPrep);
+  libTbarHTML = () => (S.li.degraded ? LI_DEMO_TBAR() : liTbar());
+  libBodyHTML = () => (S.li.degraded ? LI_DEMO_BODY() : liBodyView());
+  // precise invalidation of the A8 regions: the library view (list + facets), the install state, the paging / search /
+  // first-sync state — not every TandemLive tick
+  libLiveSig = () => { const v = TL_VIEWS.library; const y = S.li.sync, m = S.li.more; return [S.li.degraded, v && lvId(v.vm), v && v.state, lvId(TL.resource('/v1/install/state').data), S.li.q, y && [y.state, y.done, y.total, y.error && (y.error.message || y.error.code)], m && [m.key, m.items.length, m.loading, m.next], S.li.inst ? Array.from(S.li.inst) : 0]; };
   const base = Object.assign({}, ACT), baseDraw = drawInstall, r96 = render;
   const isLive = () => !S.li.degraded && TL_VIEWS.library && TL_VIEWS.library.vm;
   const liveInst = () => INST && INST.live;
@@ -12536,14 +12630,17 @@ function lvRecDetail(id) {
 }
 
 // A7 without live rows: the page's own toolbar, dimension row and two-column layout with an honest state, never demo rows.
-function lvRecEmptyPage() {
+function lvRecEmptyParts() {
   const st = lvRecState(); const run = LVR.applied && LVR.applied.run;
   const msg = { pending: null, computing: '正在根据你的会话计算建议…', error: '建议服务暂时不可用，稍后自动重试。', empty: run ? '这次分析没有找到值得改的地方。导入更多会话或过几天再看。' : '还没有建议：Orbit 需要先分析你导入的会话。导入完成后会自动计算，也可以点「重新计算」。' }[st];
   const dims = (LVR.applied && LVR.applied.dims) || DIMS.map((d) => ({ id: d[0], label: d[1], count: 0 }));
   const body = msg ? '<div class="card pad col" data-tl="recs-empty" data-state="' + st + '" style="gap:10px;align-items:flex-start"><span class="eb">优化建议</span><p class="serif" style="margin:0;font-size:17px;line-height:1.5">' + esc(msg) + '</p>' + (st === 'error' ? '' : '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button>') + '</div>' : LV.pend(160);
-  return tbar('优化建议', st === 'pending' ? '' : '0 条' + (run && run.created_at ? ' · ' + lvRecWhen(run.created_at) + ' 更新' : ''), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>') +
-    '<div class="content" id="content"><div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + dims.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + esc(d.id) + '" class="' + (S.recs.dim === d.id ? 'on' : '') + '" aria-selected="' + (S.recs.dim === d.id) + '">' + esc(d.label) + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + TLU.num(d.count || 0) + '</span></button>').join('') + '</div></div>' +
-    '<div class="recs"><div class="stack">' + body + '</div><div style="position:sticky;top:0">' + empty(st === 'pending' ? '正在读取建议…' : '有建议后，这里显示说明、预览和效果追踪') + '</div></div></div>';
+  return {
+    tbar: tbar('优化建议', st === 'pending' ? '' : '0 条' + (run && run.created_at ? ' · ' + lvRecWhen(run.created_at) + ' 更新' : ''), '<button type="button" class="btn" data-act="recalc">' + ic('sync', 14) + '重新计算</button><button type="button" class="btn ai" data-act="ask" data-ctx="recs">' + ic('spark', 14) + '让本地 Agent 深度诊断</button>'),
+    dims: '<div class="frow"><div class="seg" role="tablist" aria-label="优化维度">' + dims.map((d) => '<button type="button" role="tab" data-act="recDim" data-v="' + esc(d.id) + '" class="' + (S.recs.dim === d.id ? 'on' : '') + '" aria-selected="' + (S.recs.dim === d.id) + '">' + esc(d.label) + '<span class="mono" style="font-size:11px;color:var(--ink-3);font-weight:500">' + TLU.num(d.count || 0) + '</span></button>').join('') + '</div></div>',
+    list: '<div class="stack">' + body + '</div>',
+    detail: '<div style="position:sticky;top:0">' + empty(st === 'pending' ? '正在读取建议…' : '有建议后，这里显示说明、预览和效果追踪') + '</div>'
+  };
 }
 const lvRecWhen = (ms) => { const d = new Date(ms); return isNaN(d) ? '—' : (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 // toolbar subtitle of the A7 page (46-a7-recs.js): the live run's time instead of the demo's fixed one
@@ -12562,8 +12659,19 @@ if (TL.mode === 'live') {
 
   // ---- pages: A7 and Lite l-recs keep the demo renderers; overview / Lite home get the rec card appended ----
   const baseRecs = PAGES.recs, baseLiteRecs = PAGES['l-recs'];
-  TL_PAGES.recs = function () { lvView('recs'); lvRecSync(); lvRecInstalls(); return RECS.length || LV.demo ? baseRecs() : lvRecEmptyPage(); };
-  TL_PAGES.recs.after = baseRecs.after;
+  // A7 is region-built (46-a7-recs.js): the page function only runs on entering the page; every later pass (a live frame, a
+  // selection) syncs the rows in RG.prep and the regions pick the honest empty parts or the cards themselves
+  const a7Prep = () => {
+    lvView('recs'); lvRecSync(); lvRecInstalls();
+    // 重新计算 dims the content until a new A7 answer arrives (the regions refresh in place, #content is not rebuilt)
+    if (LVR.staleFrom !== undefined && (LVR.applied !== LVR.staleFrom || Date.now() - LVR.staleT > 10000)) { const c = $('#content'); if (c) c.classList.remove('stale'); delete LVR.staleFrom; }
+  };
+  TL_PAGES.recs = function () { a7Prep(); return baseRecs(); };
+  RG.prep('recs', a7Prep);
+  recEmptyParts = () => (RECS.length || LV.demo ? null : RG.memo('a7e', lvRecEmptyParts));
+  // precise invalidation: the A7 answer, its state, the relations and the per-rec details (not every TandemLive tick)
+  recLiveSig = () => { const a7 = TL.recs.resource('A7', lvScope()); return [lvId(LVR.applied), a7.state, lvId(a7.error), lvId(LVR.rel), Object.keys(LVR.detail).map((k) => k + ':' + lvId(LVR.detail[k])).join(',')]; };
+  recRelTags = (r) => (S.recs.tab === 'why' && LVR.rel[r.id] ? '<div class="row" style="flex-wrap:wrap" data-tl="rec-rel">' + LVR.rel[r.id].map((p) => { const o = RECI[p.a === r.id ? p.b : p.a]; return o ? '<span class="tag" data-tip="' + esc(p.reason || '') + '">' + (p.relation === 'conflicts' ? '与「' : '可搭配「') + esc(o.title.split('：')[0]) + '」' + (p.relation === 'conflicts' ? '冲突' : '') + '</span>' : ''; }).join('') + '</div>' : '');
   PAGES.recs = TL_PAGES.recs;
   PAGES['l-recs'] = function () { lvView('recs'); lvRecSync(['lite']); lvRecInstalls(); return baseLiteRecs(); };
   if (baseLiteRecs.after) PAGES['l-recs'].after = baseLiteRecs.after;
@@ -12581,10 +12689,6 @@ if (TL.mode === 'live') {
     const c = $('#content'); if (!c) return;
     const surface = LVR_ROUTES[S.route];
     if (!surface) return;
-    if (S.route === 'recs' && S.recs.tab === 'why' && LVR.rel[S.recs.sel]) {
-      const ev = c.querySelector('.rc-ev');
-      if (ev && !c.querySelector('[data-tl="rec-rel"]')) ev.insertAdjacentHTML('beforebegin', '<div class="row" style="flex-wrap:wrap" data-tl="rec-rel">' + LVR.rel[S.recs.sel].map((p) => { const o = RECI[p.a === S.recs.sel ? p.b : p.a]; return o ? '<span class="tag" data-tip="' + esc(p.reason || '') + '">' + (p.relation === 'conflicts' ? '与「' : '可搭配「') + esc(o.title.split('：')[0]) + '」' + (p.relation === 'conflicts' ? '冲突' : '') + '</span>' : ''; }).join('') + '</div>');
-    }
     if (S.route === 'recs' && lvRecLive(S.recs.sel)) lvRecDetail(S.recs.sel);
     const ids = [...c.querySelectorAll(S.route === 'recs' ? '.rcard[data-id]' : S.route === 'overview' ? '.ov-recs [data-act="openRec"][data-id]' : S.route === 'l-home' ? '.l-one [data-id]' : '.l-rc[data-id]')].map((el) => el.dataset.id).filter(lvRecLive);
     if (ids.length) TL.recs.viewed(surface, Array.from(new Set(ids))).catch(() => {});
@@ -12641,7 +12745,7 @@ if (TL.mode === 'live') {
   };
   ACT.recalc = () => {
     if (!LVR.applied && lvRecDegraded()) { toast('建议服务暂不可用，稍后再试'); return; }
-    const c = $('#content'); if (c) c.classList.add('stale');
+    const c = $('#content'); if (c) c.classList.add('stale'); LVR.staleFrom = LVR.applied; LVR.staleT = Date.now();
     TL.recs.recompute(lvScope(), true).then((res) => {
       TL.recs.invalidate();
       toast(res.status === 202 ? '正在重新计算建议…' : '建议已按最新数据重算');
@@ -12752,6 +12856,7 @@ if (TL.mode === 'live') {
   // while the user is typing the goal a full re-render would drop the IME composition: patch the stack bar, the preview
   // sheet and the per-item sizes in place when the item set is unchanged
   function tlsPreviewShow(keys) {
+    if (RG.canRefresh() && S.route === 'studio') { refreshCtx(); refreshStudio(); return; }   // region morph keeps the caret / IME
     const a = document.activeElement; const rows = $$('#main .st-ctx');
     if (!(a && a.id === 'studioGoal') || keys !== CTX.map((c) => c[0]).join(',') || rows.length !== CTX.length) { refreshStudio(); refreshCtx(); return; }
     refreshCtx();
@@ -12772,8 +12877,11 @@ if (TL.mode === 'live') {
     return '<div class="st-tok' + (over ? ' over' : '') + '" id="stTok" role="img" aria-label="上下文包 ≈ ' + tokK(tok) + ' tokens，上限 ' + f1(L / 1000) + 'k' + (over ? '，已超出' : '') + '"><div class="st-tok-bar">' + segs + '<span class="st-tok-lim" style="left:' + (L / scale * 100) + '%"></span></div>' +
       '<div class="row st-tok-cap"><span class="mono' + (over ? ' crit' : '') + '" data-tok>≈ ' + tokK(tok) + ' tokens</span><span class="mono cap">上限 ' + f1(L / 1000) + 'k' + (over ? ' · 超出 ' + f1((tok - L) / 1000) + 'k，原始片段会被截断' : ' · ' + tokPct(tok, L)) + '</span></div></div>';
   };
-  const tlsStudioBase = PAGES.studio; const tlsStudioAfter = PAGES.studio.after;
-  PAGES.studio = function () {
+  // A9 is region-built (48-a9-studio.js): the engines / preview / history sync runs before every region pass (RG.prep) as
+  // well as on entering the page; the form region reads the budget and engines through stLiveSig
+  const tlsStudioBase = PAGES.studio;
+  stLiveSig = () => [TLS.limit, TLS.studioDemo, TLS.engine, STUDIO_COPY.detected, STUDIO_COPY.hist];
+  function tlsStudioPrep() {
     const v = lvView('studio'); const d = engines();
     TLS.studioDemo = tlsDemo(v.res.engines);
     if (d && !TLS.engInit) { TLS.engInit = true; TLS.engine = d.default_engine || null; const a = tlsAgOf(TLS.engine); if (a) S.studio.agent = a; }
@@ -12782,9 +12890,9 @@ if (TL.mode === 'live') {
       : TLS.studioDemo ? '本地服务暂不提供生成接口' : '正在检测本地 Agent…';
     const arts = tlsRes('/v1/ai/artifacts', { limit: 20 });
     STUDIO_COPY.hist = Array.isArray(arts.data) ? arts.data.length : (arts.data && arts.data.items ? arts.data.items.length : 0);
-    return tlsStudioBase();
-  };
-  PAGES.studio.after = tlsStudioAfter;
+  }
+  RG.prep('studio', tlsStudioPrep);
+  PAGES.studio = function () { tlsStudioPrep(); return tlsStudioBase(); };
 
   function tlsRunReset() {
     Object.keys(TLS.genDemo).forEach((k) => { GEN[k] = TLS.genDemo[k]; }); TLS.genDemo = {};
