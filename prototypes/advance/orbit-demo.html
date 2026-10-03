@@ -174,11 +174,24 @@ h1.serif,h2.serif,h3.serif{font-weight:600}
 .nav .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav .ct{font:500 11px/1 var(--font-num);color:var(--ink-3)}
 .nav .bd{height:16px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--ink-1);color:var(--bg);font:600 11px/16px var(--font-num);text-align:center}
-.nav .ag .dot{width:9px;height:9px;margin:0 3px}
-.nav .ag.dim{color:var(--ink-3)}
-.nav .ag.dim .dot{opacity:.45}
-.nav .ag.off{color:var(--ink-3)}
-.nav .ag.off .ico{color:var(--ink-4)}
+/* Agents list (multi-select, 25-nav sideAgents): logo in the agent colour; unchecked rows fade to a grey logo, and while only some are picked the checked rows carry the light selected tint; 「仅此」 shows on hover / focus in
+   place of the count. Pinned projects (sidePins): the pin toggle shows the same way. Both stay on the sidebar's own tints. */
+.nav .ag,.nav .pjp{position:relative}
+.nav .ag-ic{flex:none;margin:0 1px;overflow:visible}
+.nav .ag.dim .ag-b,.nav .ag.off .ag-b{color:var(--ink-3)}
+.nav .ag.dim .ag-ic{opacity:.3;filter:grayscale(1)}
+.nav .ag.pk .ag-b{background:var(--sel-off);color:var(--ink-1)}
+.nav .ag .ag-only,.nav .pjp .pin-b{position:absolute;right:4px;top:4px;width:auto;height:20px;padding:0 7px;border-radius:5px;font-size:11px;font-weight:500;color:var(--ink-2);background:var(--sel);opacity:0;pointer-events:none;transition:opacity .12s}
+.nav .pjp .pin-b{width:20px;padding:0;justify-content:center;background:transparent;color:var(--ink-3)}
+.nav .ag:hover .ag-only,.nav .ag .ag-only:focus-visible,.nav .pjp:hover .pin-b,.nav .pjp .pin-b:focus-visible{opacity:1;pointer-events:auto}
+.nav .ag:hover:has(.ag-only) .ct,.nav .ag:has(.ag-only:focus-visible) .ct,.nav .pjp:hover .ct,.nav .pjp:has(.pin-b:focus-visible) .ct{visibility:hidden}
+.nav .ag .ag-only:hover{background:var(--ink-1);color:var(--bg)}
+.nav .pjp .pin-b:hover{background:var(--sel);color:var(--ink-1)}
+.nav .pjp .pin-b.on{color:var(--ink-1)}
+.side .sect .sr-btn{height:18px;padding:0 6px;border:0;border-radius:5px;background:transparent;color:var(--ink-2);font:inherit;font-weight:600}
+.side .sect .sr-btn:hover{background:var(--sel-off);color:var(--ink-1)}
+.sb-note{padding:4px 8px;font-size:11px;line-height:16px;color:var(--ink-3)}
+@media (prefers-reduced-motion:reduce){.nav .ag .ag-only,.nav .pjp .pin-b{transition:none}}
 /* footer: the index indicator row (state dot + count, on the sidebar background) over the user row; both stay on the 10 / 11 / 12px type scale */
 .sb-foot{flex:none;display:flex;flex-direction:column;gap:6px;padding:8px;border-top:1px solid var(--hair)}
 .sb-foot .pv{width:100%;display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:7px;font-size:11px;line-height:14px;color:var(--ink-3);text-align:left;white-space:nowrap;border:0;background:transparent}
@@ -797,8 +810,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .range-widen{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
 .range-note .range-widen{margin-top:0}
 /* sidebar agent with no sessions in the selected range */
-.nav .ag.idle{color:var(--ink-3)}
-.nav .ag.idle .dot{opacity:.55}
+.nav .ag.idle .ag-b{color:var(--ink-3)}
+.nav .ag.idle .ag-ic{opacity:.55}
 
 /* A1 overview: AI-card micro evidence, KPI tiles, outcome share strip, trend controls, persona card, heat line, tool rows, recs (page styles live here, not in 40-pages.css) */
 /* AI card: every column = header row (label + mini viz / regen) → prose → bottom line (evidence link / provenance), so the four bottoms share a baseline */
@@ -963,7 +976,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .fp2 .fp-pl .fp-pd{transform:rotate(calc(-1 * var(--pa,0deg)));transform-origin:center;transform-box:fill-box}
 .fp2 .fp-pl[data-tf]{cursor:default}
 
-/* A3 会话与轨迹（js/42-a3-sessions.js）。时间线本体由 VZ 画（36-viz.css），这里只放页面布局、VZ 之外补画的上下文 / 相对时间轴、
+/* A3 会话轨迹（js/42-a3-sessions.js）。时间线本体由 VZ 画（36-viz.css），这里只放页面布局、VZ 之外补画的上下文 / 相对时间轴、
    事件检视面板、关键时刻联动与列表的截断提示。颜色只走 token：强调色（墨色）表示选中 / 视窗 / 上下文；语义色只给失败、纠偏、情绪。 */
 .tl-card{container-type:inline-size}
 .tl-grid{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:4px 16px;align-items:start}
@@ -1179,7 +1192,14 @@ svg[data-bloom] :is(.fp-pet,.fp-bk){transition:transform .55s cubic-bezier(.34,1
 .pj-tbl col.pj-c-n{width:48px}.pj-tbl col.pj-c-h{width:60px}.pj-tbl col.pj-c-f{width:112px}.pj-tbl col.pj-c-s{width:96px}.pj-tbl col.pj-c-p{width:60px}
 .pj-tbl td{overflow:hidden}
 .pj-name{min-width:0}
-.pj-title{font-weight:600;font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-title{font-weight:600;font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.pj-tn{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.pj-title .bdg{flex:none}
+.pj-pin{flex:none;display:grid;place-items:center;width:18px;height:18px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--ink-3);opacity:0;transition:opacity .12s}
+.pj-tbl tr:hover .pj-pin,.pj-pin:focus-visible,.pj-pin.on{opacity:1}
+.pj-pin.on{color:var(--ink-1)}
+.pj-pin:hover{background:var(--sel-off);color:var(--ink-1)}
+@media (prefers-reduced-motion:reduce){.pj-pin{transition:none}}
 .pj-path{font-size:11px;line-height:15px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pj-pers{text-align:right;letter-spacing:.06em;white-space:nowrap}
 .pj-fric{gap:6px}
@@ -1241,7 +1261,7 @@ svg[data-bloom] :is(.fp-pet,.fp-bk){transition:transform .55s cubic-bezier(.34,1
 .pj-rleg{gap:12px;font-size:11px;cursor:help}
 .pj-rleg i{display:inline-block;width:2px;height:10px;border-radius:1px}
 
-/* A6 情绪与语义（js/45-a6-sentiment.js）。情绪发散色只用 --vz-mood-neg / --vz-mood-pos；纠偏与异常用 --vz-corr；AI 抽取的内容用紫色 .aib 标识。
+/* A6 情绪语义（js/45-a6-sentiment.js）。情绪发散色只用 --vz-mood-neg / --vz-mood-pos；纠偏与异常用 --vz-corr；AI 抽取的内容用紫色 .aib 标识。
    度量条中性灰；前两类摩擦用墨色强调；高频词只用墨阶。 */
 .sn-two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .sn-band{fill-opacity:.14}
@@ -1868,7 +1888,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
    persona, sentiment, tools, library, Lite home / persona / recs) keep the single page scroll. Pane mode only applies while
    the split is side by side; once 90-responsive.css stacks it (content column < 800px, projects < 1100px) the page scrolls
    as before. #content keeps overflow:auto, so a window too short for the panes' 300px floor still scrolls as a whole.
-     会话与轨迹 .sess        list card (search head fixed, #slist scrolls) | detail stack
+     会话轨迹 .sess        list card (search head fixed, #slist scrolls) | detail stack
      Lite 会话轨迹 .l-sess   list card (.slist scrolls)                    | detail stack
      优化建议 .recs           card list                                     | detail column
      项目习惯 .pj (≥1100)     table + scatter                               | project detail
@@ -2084,6 +2104,7 @@ const I = {
   chart: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3',
   grad: 'M2.5 9.5L12 5l9.5 4.5L12 14zM6.5 11.5v4.5c3 2.3 8 2.3 11 0v-4.5M21.5 9.5V15',
   bell: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2.2 2.2 0 0 0 4 0',
+  pin: 'M12 16v5M8.5 3.5h7M10 3.5v6L7 13v2.5h10V13l-3-3.5v-6',
   lock: 'M6.5 11h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5v-6A1.5 1.5 0 0 1 6.5 11zM8 11V7.5a4 4 0 0 1 8 0V11',
   eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6',
   filter: 'M4 5h16l-6.2 7.6V19l-3.6 1.8v-8.2z',
@@ -3904,7 +3925,7 @@ new MutationObserver(() => overlayPlace()).observe($('#overlay'), { attributes: 
 
 /* ============ navigation & render ============ */
 // order = the Advance「洞察」sidebar group; ⌥1…⌥9, the 窗口 menu and the palette's 页面 rows all follow it
-const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sentiment', '情绪与语义'], ['sessions', '会话与轨迹'], ['projects', '项目习惯'], ['tools', '工具调用'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
+const ROUTES = [['overview', '概览'], ['persona', '协作人格'], ['sentiment', '情绪语义'], ['projects', '项目习惯'], ['sessions', '会话轨迹'], ['tools', '工具调用'], ['recs', '优化建议'], ['library', '资源库'], ['studio', '生成工坊']];
 const PAGES = {};
 // RENDER_HOOKS: fn(mainEl, entered) after every page render; entered = true only when go() changed the page (route enter
 // motion runs once per visit, not on every filter re-render). go() also translates a route to the current edition
@@ -4049,26 +4070,70 @@ const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !==
 // sidebar agents (B): 未接入 (never imported: source off and no sessions at all) vs 停用 (imported, then turned off in settings);
 // an agent with no sessions in the selected range fades (.idle) instead of looking like a filter choice
 function agentState(a) { return S.srcOff.has(a.id) ? (a.all ? 'off' : 'none') : 'on'; }
+// Agents list = a multi-select over S.agents (the same set the filter-row Agent menu edits; live requests carry the subset,
+// LV.scope / lvScope): a click checks or unchecks the row, the 「仅此」 button that appears on hover (or ⌥ click) keeps only
+// that agent, and the group head offers 「全部」 while a subset is picked. Unchecking the last one brings every agent back.
+// Each row shows the agent's own logo (34-agent-logos.js) in its identity colour; unchecked rows fade it, 停用 / 未接入 rows
+// draw it in grey with the state as the count.
+const agentOnIds = () => AG.filter((a) => agentState(a) === 'on').map((a) => a.id);
+const agentPickedIds = () => agentOnIds().filter((id) => S.agents.has(id));
+function agentIcon(a, st) { return '<svg class="ag-ic" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">' + agGlyph(a.id, 8, 8, 13, st === 'on' ? a.c : 'var(--ink-4)') + '</svg>'; }
 function sideAgents() {
-  const agCount = (id) => sel({ noExtra: true, agent: id, project: S.project }).length;
+  // each row counts its own sessions whether or not it is checked (sel() would give 0 for an unchecked agent), so the
+  // number says what checking it adds
+  const w = win(S.range);
+  const agCount = (id) => ALL.reduce((n, s) => n + (!s.live && s.a === id && s.d >= w[0] && s.d <= w[1] && (!S.project || s.p === S.project) ? 1 : 0), 0);
+  const onIds = agentOnIds(), picked = agentPickedIds();
   return AG.map((a) => {
     const st = agentState(a), off = st !== 'on', n = off ? 0 : agCount(a.id);
-    const dim = !off && !S.agents.has(a.id), idle = !off && !dim && !n;
-    const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' : (idle ? rangeLabel() + '内没有会话 · ' : '') + '点击：只看 ' + a.name + '；⌥ 点击：加入或移出筛选';
-    return '<button type="button" class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + '" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + tip + '" aria-pressed="' + (S.agents.has(a.id) && !off) + '">' + (off ? ic('slash', 14, 'margin:0 1px') : '<span class="dot" style="background:' + a.c + '"></span>') + '<span class="lb">' + a.name + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>';
+    const on = !off && S.agents.has(a.id), dim = !off && !on, idle = on && !n;
+    const last = on && picked.length === 1;
+    const only = !off && onIds.length > 1 && !last;
+    const pk = on && picked.length < onIds.length; // a subset is picked: checked rows get the sidebar's light selected tint
+    const tip = st === 'none' ? a.name + ' 还没有接入：到「设置 › 数据源」启用后导入' : st === 'off' ? a.name + ' 已在设置中停用' :
+      (idle ? rangeLabel() + '内没有会话 · ' : '') + (last ? '点击：恢复全部 Agent' : on ? '点击：移出筛选' : '点击：加入筛选') + (only ? '；⌥ 点击：只看 ' + a.name : '');
+    return '<div class="ag' + (off ? ' off' : dim ? ' dim' : idle ? ' idle' : '') + (pk ? ' pk' : '') + '" data-a="' + a.id + '">' +
+      '<button type="button" class="ag-b" data-act="agentToggle" data-a="' + a.id + '" data-tip="' + esc(tip) + '" aria-pressed="' + on + '">' + agentIcon(a, st) + '<span class="lb">' + esc(a.name) + '</span><span class="ct">' + (st === 'none' ? '未接入' : st === 'off' ? '停用' : n) + '</span></button>' +
+      (only ? '<button type="button" class="ag-only" data-act="agentOnly" data-a="' + a.id + '" aria-label="只看 ' + esc(a.name) + '" data-tip="只看 ' + esc(a.name) + '">仅此</button>' : '') + '</div>';
   }).join('');
 }
-function sidePins() { return PJ.slice(0, 3).map((p) => p.id).map((id) => '<button type="button" data-act="pinProject" data-p="' + id + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + PJI[id].name + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>').join(''); }
+// group head of the Agents list: the count column label, or 「全部」 while only some agents are picked
+function sideAgentsRight() { return agentPickedIds().length < agentOnIds().length ? '<button type="button" class="sr-btn" data-act="agentAll" data-tip="恢复全部 Agent">全部</button>' : '会话'; }
+/* pinned projects (F26): the user pins / unpins a project from the sidebar row (hover pin button) or the 项目习惯 page
+   (row pin, detail 置顶 button); S.pins is kept in the UI prefs (store 'pins': native prefs in the App, localStorage in the
+   browser — the same in live and demo). Without manual pins the group shows the rule it uses: the 3 projects with the most
+   sessions in the selected range and Agent filter, named in the group head. Ids not (yet) in PJ stay stored and are skipped. */
+S.pins = (() => { const v = store.get('pins', []); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; })();
+const pinsManual = () => S.pins.filter((id) => PJI[id]);
+const isPinned = (id) => S.pins.indexOf(id) >= 0;
+function pinsAuto() { return PJ.filter((p) => p.id !== '_none').map((p) => ({ id: p.id, n: sel({ noExtra: true, project: p.id }).length })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3).map((x) => x.id); }
+function pinToggle(id) {
+  if (!id || id === '_none') return; // '_none' = live sessions without a project: not a project, so not pinnable
+  const i = S.pins.indexOf(id); if (i >= 0) S.pins.splice(i, 1); else S.pins.push(id);
+  store.set('pins', S.pins.slice());
+  render();
+  toast(i >= 0 ? '已取消置顶「' + (PJI[id] ? PJI[id].name : id) + '」' : '已置顶「' + (PJI[id] ? PJI[id].name : id) + '」到侧栏');
+}
+function sidePinsRight() {
+  if (pinsManual().length) return '<span data-tip="你置顶的项目（悬停项目点图钉取消）。全部取消后，自动显示' + rangeLabel() + '会话最多的 3 个项目">已置顶</span>';
+  return '<span data-tip="没有手动置顶时，自动显示' + rangeLabel() + '（按当前 Agent 筛选）会话最多的 3 个项目；悬停项目点图钉可置顶">' + rangeLabel() + '会话最多</span>';
+}
+function sidePins() {
+  const man = pinsManual(), ids = man.length ? man : pinsAuto();
+  if (!ids.length) return '<div class="sb-note">' + rangeLabel() + '内没有项目会话</div>';
+  return ids.map((id) => { const pin = isPinned(id); return '<div class="pjp" data-p="' + esc(id) + '"><button type="button" data-act="pinProject" data-p="' + esc(id) + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + esc(PJI[id].name) + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>' +
+    (id === '_none' ? '' : '<button type="button" class="pin-b' + (pin ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(id) + '" aria-pressed="' + pin + '" aria-label="' + (pin ? '取消置顶 ' : '置顶 ') + esc(PJI[id].name) + '" data-tip="' + (pin ? '取消置顶' : '置顶到侧栏') + '">' + ic('pin', 13) + '</button>') + '</div>'; }).join('');
+}
 function renderSide() {
   if (S.ed === 'lite') { renderSideLite(); return; }
   const n = sel({ noExtra: true }).length;
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
   $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪与语义', 'sentiment') + navBtn('sessions', '会话与轨迹', 'sessions', n) + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools')) +
+    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪语义', 'sentiment') + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('sessions', '会话轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools')) +
     group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
-    group('agents', 'Agents', sideAgents(), '会话') +
-    group('pins', '置顶项目', sidePins()) + '</div>' + sideFoot();
+    group('agents', 'Agents', sideAgents(), sideAgentsRight()) +
+    group('pins', '置顶项目', sidePins(), sidePinsRight()) + '</div>' + sideFoot();
 }
 // the published footer, shared by both editions: index indicator light (live / paused / manual) + session count, then the user row
 // sideIdx() → { st: 'live' | 'busy' | 'off' | 'err', n: session count or null, t: state label }; live mode (96-live-bind) swaps in the
@@ -4179,7 +4244,7 @@ function renderSideLite() {
   $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
     sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
     sideGroup('action', '行动', nav(3, '', recN || '')) +
-    sideGroup('agents', 'Agents', sideAgents(), '会话') + '</div>' + sideFoot();
+    sideGroup('agents', 'Agents', sideAgents(), sideAgentsRight()) + '</div>' + sideFoot();
 }
 // edSet(ed, route?): route = the page to land on in the new edition (a menu / notification route). The swap runs after the
 // thumb animation, so the target is passed in instead of calling go(route) next to edSet (that go would run first, while
@@ -4249,14 +4314,16 @@ Object.assign(ACT, {
   agentToggle: (el, e) => {
     const id = el.dataset.a;
     if (S.srcOff.has(id)) { toast(agent(id).name + (agent(id).all ? ' 已在设置中停用' : ' 还没有接入') + '，先到「设置 › 数据源」启用', { act: '打开设置', onAct: () => openSettings('sources') }); return; }
-    if (e.altKey) { if (S.agents.has(id) && S.agents.size > 1) S.agents.delete(id); else S.agents.add(id); }
-    else if (S.agents.size === 1 && S.agents.has(id)) AG.forEach((a) => S.agents.add(a.id));
-    else { S.agents.clear(); S.agents.add(id); }
+    if (e && e.altKey) { ACT.agentOnly(el); return; }
+    if (S.agents.has(id)) S.agents.delete(id); else S.agents.add(id);
+    if (!agentPickedIds().length) AG.forEach((a) => S.agents.add(a.id));   // nothing left checked = every agent
     render();
   },
+  agentOnly: (el) => { const id = el.dataset.a; if (!AGI[id] || S.srcOff.has(id)) return; S.agents.clear(); S.agents.add(id); render(); },
+  agentAll: () => { AG.forEach((a) => S.agents.add(a.id)); render(); },
   agentMenu: (el) => openDD(el, [{ h: '多选；全部取消时恢复全部' }].concat(agentLegendItems()).concat([{ sep: 1 }, { t: '全部 Agent', v: '*' }]), (v) => {
     if (v === '*') AG.forEach((a) => S.agents.add(a.id));
-    else if (S.agents.has(v)) { S.agents.delete(v); if (!S.agents.size) AG.forEach((a) => S.agents.add(a.id)); } else S.agents.add(v);
+    else if (S.agents.has(v)) { S.agents.delete(v); if (!agentPickedIds().length) AG.forEach((a) => S.agents.add(a.id)); } else S.agents.add(v);
     render();
   }, { keep: true, refresh: () => [{ h: '多选；全部取消时恢复全部' }].concat(agentLegendItems()).concat([{ sep: 1 }, { t: '全部 Agent', v: '*' }]) }),
   // project filter (C): projects with sessions in the range first; 0-session and scratch-* ones fold into 「其他」 (one click
@@ -4288,6 +4355,7 @@ Object.assign(ACT, {
   }),
   clearFilter: (el) => { const k = el.dataset.k; if (k === 'hour') S.hour = null; else S[k] = null; render(); },
   pinProject: (el) => { S.proj.sel = el.dataset.p; go('projects'); },
+  pinToggle: (el) => pinToggle(el.dataset.p),
   palette: () => openPalette(),
   menu: (el) => {
     if (DD && DD.anchor === el) { closeDD(); return; }
@@ -7367,7 +7435,7 @@ PAGES.sessions = () => {
   const right = '<div class="seg" role="group" aria-label="视图模式"><button type="button" data-act="sessMode" data-v="single" class="' + (S.sess.mode === 'single' ? 'on' : '') + '">单个</button><button type="button" data-act="sessMode" data-v="cmp" class="' + (S.sess.mode === 'cmp' ? 'on' : '') + '">对比</button></div><button type="button" class="btn" data-act="playToggle">' + ic(S.sess.playing ? 'pause' : 'play', 13) + (S.sess.playing ? '暂停' : '回放') + '</button><button type="button" class="btn ai" data-act="ask" data-ctx="session">' + ic('spark', 14) + '让 Agent 复盘</button>';
   const listCard = '<div class="card" style="overflow:hidden"><div class="sl-top"><label class="row sl-q">' + ic('search', 14) + '<span class="vh">搜索会话</span><input id="sessQ" type="search" data-in="sessQ" placeholder="搜索标题、项目、Agent…" value="' + esc(S.sess.q) + '" ></label><div class="row cap sl-hd"><span id="sessCount" title="' + esc(sessCount(list)) + '">' + sessCountShort(list) + '</span>' + (S.sess.mode === 'cmp' ? '<span title="依次点选 A、B">下一次点选作为 <b>' + (S.sess.turn === 'B' ? 'B' : 'A') + '</b></span>' : '<span>最新在前</span>') + '</div></div><div class="slist" id="slist">' + sessRows(list) + '</div></div>';
   const meta = sessCount(list);
-  if (!s) return tbar('会话与轨迹', '', right) + '<div class="content" id="content">' + filterRow() + empty('没有会话') + '</div>';
+  if (!s) return tbar('会话轨迹', '', right) + '<div class="content" id="content">' + filterRow() + empty('没有会话') + '</div>';
   const tr = traj(s); const o = OUT[s.out] || OUT.ok; const ag = agent(s.a);
   const errN = tr.ev.filter((e) => e.err).length; const corrN = tr.users.filter((u) => u[2]).length;
   const statBtn = (k, label, v, col) => '<button type="button" data-act="hiStat" data-v="' + k + '" class="' + (S.sess.hi === k ? 'on' : '') + '"' + (k ? ' data-tip="点击在时间轴上高亮"' : '') + '><span class="st-k">' + label + '</span><span class="st-v"' + (col ? ' style="color:' + col + '"' : '') + '>' + v + '</span></button>';
@@ -7397,7 +7465,7 @@ PAGES.sessions = () => {
       '<div class="two tl-two"><div class="card pad"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">关键时刻</span><span class="cap" title="悬停联动图上徽章 · 点击把播放头跳到这一刻">' + (s.featured ? '语义检测' : '规则检测') + ' · 点击跳转</span></div></div><div class="col" style="gap:2px">' + tr.moments.map((m, i) => '<button type="button" class="tl-mom" data-act="moment" data-t="' + m[0] + '" data-mk="' + i + '"><span class="n' + (m[3] ? ' alert' : '') + '">' + (i + 1) + '</span><span class="mono tl-mt">' + absT(s, m[0]) + '</span><span class="tl-mx"><b>' + esc(m[1]) + '</b> ' + esc(m[2]) + '</span></button>').join('') + '</div></div>' +
       '<div class="card pad col"><div class="row"><span class="ct">这次会话的启示</span><span class="aib">' + ic('spark', 11) + 'AI</span></div>' + (A3H.insight ? sessInsightLive(A3H.insight(s, corrN, errN)) : '<p class="tl-ai">' + (s.featured ? '若 AGENTS.md 写明「部署目标：Cloudflare Pages」，可避免第 ② 步的偏离，约省 6 分钟。同一命令连续失败 2 次时，应先检查认证再重试。' : corrN || errN >= 3 ? (corrN ? '本次有 ' + corrN + ' 次纠偏，' : '') + (errN >= 3 ? '出现 ' + errN + ' 次失败，' : '') + '把相关约定写进规则，下次可以少说一次。' : '这次协作很顺：目标清楚、失败少。可以把开场方式记成模板。') + '</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-top:auto"><button type="button" class="btn sm p" data-act="install" data-id="' + (s.featured || s.fric === '方向错误' ? 'deploy-target' : 'acceptance') + '">生成规则</button><button type="button" class="btn sm" data-act="install" data-id="retry-breaker">加 Hook：重复失败提醒</button><button type="button" class="btn sm gh" data-act="inaccurate">不准确</button></div>') + '</div></div>';
   }
-  return tbar('会话与轨迹', meta, right) + '<div class="content" id="content">' + filterRow() + '<div class="sess">' + listCard + '<div class="stack" style="min-width:0">' + detail + '</div></div></div>';
+  return tbar('会话轨迹', meta, right) + '<div class="content" id="content">' + filterRow() + '<div class="sess">' + listCard + '<div class="stack" style="min-width:0">' + detail + '</div></div></div>';
 };
 PAGES.sessions.after = () => {
   const q = $('#sessQ');
@@ -7569,6 +7637,8 @@ Object.assign(ACT, {
  * 散点：VZ scatter 派生类型 pscatter —— 标签避让、回归线 + 95% 置信带、每点到回归线的残差竖线（高于线琥珀 / 低于线绿）、
  *       面积 = 时长的尺寸图例、对比模式 A 实心 / B 描边 + 字母；此项目 vs 基准：项目墨色 / 基准浅灰 + Δ ▲▼；
  * Agent 分工：会话 / 时长 / 完成率三行条；规则与配置覆盖：Agent × 配置类型方块矩阵（评审 §3.5）。 */
+// pin toggle on a project row (F26, pinToggle in 25-nav): shown on row hover, always shown once the project is pinned
+const pjPinBtn = (p) => { if (p.id === '_none') return ''; const on = isPinned(p.id); return '<button type="button" class="pj-pin' + (on ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(p.id) + '" aria-pressed="' + on + '" aria-label="' + (on ? '取消置顶 ' : '置顶 ') + esc(p.name) + '" data-tip="' + (on ? '已置顶到侧栏 · 点击取消' : '置顶到侧栏') + '">' + ic('pin', 12) + '</button>'; };
 const FOLDERS = { confluo: ['Confluo', 'Confluo/docs/plan/v2/demo'], latentskill: ['~/Research/ppb', '~/Research/latentskill（软链接）'], teamhub: ['team-hub'], hackathon: ['Hackathon'], quant: ['Auto Finance & Quant', 'Auto Finance & Quant/packages/datahub'], fhgs: ['FHGS Website/apps/web', 'FHGS Website/apps/stats'], surge: ['~/.config/surge'], tweet: ['Tweet Card'], other: ['~/Research/General', '~/Downloads', '~/Projects/Coffee'] };
 // 各类配置哪些 Agent 读取（示例口径）：AGENTS.md 全部；Hooks / 子代理只有 Claude Code；Skills 为 Claude Code 与 Codex；MCP 除 DeepSeek 外都支持
 const COV_SUP = { 'AGENTS.md': ['cc', 'cx', 'gm', 'ds', 'cp'], Hooks: ['cc'], Skills: ['cc', 'cx'], MCP: ['cc', 'cx', 'gm', 'cp'], '子代理': ['cc'] };
@@ -7647,9 +7717,9 @@ PAGES.projects = () => {
   return tbar('项目习惯', rows.length + ' 个项目 · ' + f1(overall.hours) + ' 小时 · 按协作时长排序', '<button type="button" class="btn' + (S.proj.cmpMode ? ' p' : '') + '" data-act="projCompare">' + (S.proj.cmpMode ? '退出对比' : '对比两个项目') + '</button><button type="button" class="btn ai" data-act="projRule">' + ic('spark', 14) + '为此项目起草规则</button>') +
     '<div class="content" id="content">' + filterRow('<span class="cap">聚合</span><div class="seg" role="group" aria-label="聚合方式"><button type="button" data-act="projGroup" data-v="project" class="' + (S.proj.group === 'project' ? 'on' : '') + '">按项目</button><button type="button" data-act="projGroup" data-v="folder" class="' + (S.proj.group === 'folder' ? 'on' : '') + '">按文件夹</button></div>') +
     '<div class="pj"><div class="stack"><div class="card pad"><table class="tbl pj-tbl"><colgroup><col><col class="pj-c-n"><col class="pj-c-h"><col class="pj-c-f"><col class="pj-c-s"><col class="pj-c-p"></colgroup><thead><tr><th>' + (S.proj.group === 'folder' ? '文件夹' : '项目') + '</th><th style="text-align:right">会话</th><th style="text-align:right">时长</th><th>摩擦率</th><th>Agent 构成</th><th style="text-align:right">此处人格</th></tr></thead><tbody>' +
-    tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + r.p.id + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title">' + esc(t.f || r.p.name) + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + '</div><div class="mono cap pj-path code-t">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + r.p.id + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + r.p.id + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + r.p.id + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="tcode pj-pers" style="font-weight:' + (r.pers.ok && r.pers.code !== 'DIMV' ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '"' + (pc.includes('?') ? ' data-tip="「?」= 项目画像还没有算出该维度"' : '') + '>' + pc + '</td></tr>'; }).join('') + '</tbody></table><div class="cap pj-foot" data-tip="按项目聚合时以 git 根目录归并子文件夹；摩擦率 = 纠偏消息 / 全部消息">' + (S.proj.group === 'folder' ? '子文件夹按会话归入所属项目 · ' : '') + '「—」样本 &lt; 8 个会话 · 「?」维度未定型</div></div>' +
+    tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + r.p.id + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title"><span class="pj-tn">' + esc(t.f || r.p.name) + '</span>' + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + (t.f ? '' : pjPinBtn(r.p)) + '</div><div class="mono cap pj-path code-t">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + r.p.id + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + r.p.id + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + r.p.id + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="tcode pj-pers" style="font-weight:' + (r.pers.ok && r.pers.code !== 'DIMV' ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '"' + (pc.includes('?') ? ' data-tip="「?」= 项目画像还没有算出该维度"' : '') + '>' + pc + '</td></tr>'; }).join('') + '</tbody></table><div class="cap pj-foot" data-tip="按项目聚合时以 git 根目录归并子文件夹；摩擦率 = 纠偏消息 / 全部消息">' + (S.proj.group === 'folder' ? '子文件夹按会话归入所属项目 · ' : '') + '「—」样本 &lt; 8 个会话 · 「?」维度未定型</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">跨项目对比</span><span class="cap">' + (S.proj.cmpMode ? '点另一个项目作为 B' : '面积 = 时长 · 竖线 = 到回归线的残差') + '</span></div><span class="row cap pj-rleg" data-tip="琥珀 = 摩擦率高于同等自主度的预期；绿 = 低于"><span class="row" style="gap:4px"><i style="background:' + VZ.sem.corr + '"></i>高于预期</span><span class="row" style="gap:4px"><i style="background:' + VZ.sem.good + '"></i>低于预期</span></span></div><div class="vz" data-vz="pj-scatter"></div><div class="cap pj-foot">' + (pts.length >= 3 ? '高于回归线的项目最值得先加护栏' : '项目太少，无法拟合') + '</div></div></div>' +
-    '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap code-t">' + esc(p.path) + ' · git: ' + esc(p.git) + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + p.tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div></div><button type="button" class="btn" data-act="finder">在 Finder 中显示</button><button type="button" class="btn" data-act="openAgents">打开 AGENTS.md</button></div>' +
+    '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap code-t">' + esc(p.path) + ' · git: ' + esc(p.git) + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + p.tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div></div>' + (p.id === '_none' ? '' : '<button type="button" class="btn" data-act="pinToggle" data-p="' + esc(p.id) + '" aria-pressed="' + isPinned(p.id) + '">' + ic('pin', 14) + (isPinned(p.id) ? '取消置顶' : '置顶到侧栏') + '</button>') + '<button type="button" class="btn" data-act="finder">在 Finder 中显示</button><button type="button" class="btn" data-act="openAgents">打开 AGENTS.md</button></div>' +
     '<div class="row pj-pline">' + ic('persona', 14) + '<span>' + (pp.ok ? '在这个项目里你是 <b class="tcode" style="color:var(--ink-1);letter-spacing:.04em">' + pp.code + '</b> <b style="color:var(--ink-1)">' + pp.zh + '</b>' + (personaNow().ok && personaNow().code !== pp.code ? '，和整体（<span class="tcode">' + personaNow().code + '</span> ' + personaNow().zh + '）不同' : '，和整体一致') + '。' : '这个项目的会话少于 8 个，暂不判断人格。') + '</span></div></div>' +
     '<div class="pj-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">此项目 vs ' + esc(cmpName) + '</span></div><span class="row cap" style="font-size:11px;gap:10px"><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-1)"></span>' + esc(p.name) + '</span><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-4)"></span>' + esc(cmpName) + '</span></span></div><div class="col" style="gap:8px">' + metrics.map((m) => { const mx = Math.max(m[1], m[2]) || 1; const d = VZ.delta2({ cur: m[1], prev: m[2], unit: m[4] === 'pct' ? undefined : m[4], goodDown: m[5], prevText: false }); const rel = m[2] ? Math.abs(m[1] - m[2]) / Math.abs(m[2]) : 0; return '<div class="pj-vs"><span class="pj-vs-n">' + m[0] + '</span><span class="col" style="gap:2px"><span class="pj-vs-b a" style="width:' + (m[1] / mx * 100) + '%"></span><span class="pj-vs-b" style="width:' + (m[2] / mx * 100) + '%"></span></span><span class="mono pj-vs-v"><b>' + m[3](m[1]) + '</b> / ' + m[3](m[2]) + '</span><span class="mono pj-vs-d ' + (rel < 0.1 ? 'flat' : d.cls) + '">' + (rel < 0.1 ? '≈' : d.text) + '</span></div>'; }).join('') + '</div>' + (S.proj.cmpMode && !cmpRow ? '<div class="cap pj-foot">在表格或散点图里点另一个项目作为 B</div>' : '<div class="cap pj-foot" data-tip="只有摩擦率与要求验证按好坏着色">Δ 相对 ' + esc(cmpName) + ' · 差异 &lt; 10% 记为 ≈</div>') + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 分工</span><span class="cap">' + xs.length + ' 个会话 · 条宽 = 会话占比</span></div></div><div class="pj-share">' + split.map((v, j) => v ? '<span style="width:' + (v / splitTot * 100) + '%;background:' + AG[j].c + '" data-tip="' + AG[j].name + '：' + v + ' 个会话 · ' + Math.round(v / splitTot * 100) + '%"></span>' : '').join('') + '</div><div class="col" style="gap:8px;margin-top:10px">' + agRows.map((r) => '<div class="pj-ag"><span class="row" style="gap:6px;font-size:12px;min-width:0"><span class="pj-dot" style="background:' + r.a.c + '"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + r.a.short + '</span></span><span class="col" style="gap:3px"><span class="pj-ag-r"><span class="cap">会话</span><span class="pj-bar"><i style="width:' + (r.n / agMaxN * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + r.n + '</span></span><span class="pj-ag-r"><span class="cap">时长</span><span class="pj-bar"><i style="width:' + (r.h / agMaxH * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + f1(r.h) + 'h</span></span><span class="pj-ag-r"><span class="cap">完成</span><span class="pj-bar"><i style="width:' + r.ok.toFixed(0) + '%;background:var(--ink-3)"></i></span><span class="mono">' + Math.round(r.ok) + '%</span></span></span></div>').join('') + '</div></div></div>' +
@@ -7827,7 +7897,7 @@ function wordSearch(term) {
 PAGES.sentiment = () => {
   // live: the view model comes from /v1/uiview/sentiment (94-live-sentiment-search.js); mock: derived from the demo rows
   const V = LV.live ? (LVS.view = lvSentView(sel())) : null;
-  const head = tbar('情绪与语义', V ? (V.state === 'ready' ? V.lang : '你的消息') : '你的消息 · 中文 62% · 英文 31% · 混合 7%', '<button type="button" class="btn gh" data-act="moodHow">' + ic('info', 14) + '情绪如何计算</button><button type="button" class="btn ai" data-act="phrasesToRule">' + ic('spark', 14) + '把高频纠偏写成规则</button>');
+  const head = tbar('情绪语义', V ? (V.state === 'ready' ? V.lang : '你的消息') : '你的消息 · 中文 62% · 英文 31% · 混合 7%', '<button type="button" class="btn gh" data-act="moodHow">' + ic('info', 14) + '情绪如何计算</button><button type="button" class="btn ai" data-act="phrasesToRule">' + ic('spark', 14) + '把高频纠偏写成规则</button>');
   if (!LV.live && S.engine === 'stats') return head + '<div class="content" id="content">' + empty('语义分析已关闭：分析引擎设为「仅统计」。<br><br><button type="button" class="btn p" data-act="openSettings" data-tab="analysis">去设置开启</button>') + '</div>';
   const shield = '<span class="row cap">' + ic('shield', 13, 'color:var(--good)') + (V && V.state === 'ready' ? lvSentShield(V) : '语义分析由本地 Agent 完成，原文不离开本机') + '</span>' + (V && V.scope ? '<span class="cap" data-lv="scope">' + esc(V.scope) + '</span>' : '');
   if (V && V.state !== 'ready') { CUR.mood = null; return head + '<div class="content" id="content">' + filterRow(shield) + lvSentShell(V) + '</div>'; }
@@ -11730,10 +11800,10 @@ function lvProjectsPage() {
   return tbar('项目习惯', rows.length + ' 个项目 · ' + f1(hoursAll) + ' 小时 · 按协作时长排序' + (fs === 'pending' || fs === 'computing' ? ' · 更新中' : ''), actions) +
     '<div class="content" id="content">' + filterRow(seg) + lvtpScopeNote() +
     '<div class="pj"><div class="stack"><div class="card pad"><table class="tbl pj-tbl"><colgroup><col><col class="pj-c-n"><col class="pj-c-h"><col class="pj-c-f"><col class="pj-c-s"><col class="pj-c-p"></colgroup><thead><tr><th>' + (S.proj.group === 'folder' ? '文件夹' : '项目') + '</th><th style="text-align:right">会话</th><th style="text-align:right">时长</th><th>摩擦率</th><th>Agent 构成</th><th style="text-align:right">此处人格</th></tr></thead><tbody>' +
-    (tableRows.length ? tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + esc(r.p.id) + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title">' + esc(t.f || r.p.name) + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + '</div><div class="mono cap pj-path code-t">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + esc(r.p.id) + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + esc(r.p.id) + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"' + (r.st.fricLo != null ? ' data-tip="95% 区间 ' + f1(r.st.fricLo * 100) + '% ~ ' + f1(r.st.fricHi * 100) + '%"' : '') + '><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + esc(r.p.id) + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="tcode pj-pers" style="font-weight:' + (r.pers.ok ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '">' + pc + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="cap" data-lv="na">' + (fs === 'pending' || fs === 'computing' ? LV.pend(60) : S.proj.group === 'folder' ? '本地服务没有返回文件夹明细' : '暂无数据') + '</td></tr>') +
+    (tableRows.length ? tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + esc(r.p.id) + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title"><span class="pj-tn">' + esc(t.f || r.p.name) + '</span>' + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + (t.f ? '' : pjPinBtn(r.p)) + '</div><div class="mono cap pj-path code-t">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + esc(r.p.id) + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + esc(r.p.id) + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"' + (r.st.fricLo != null ? ' data-tip="95% 区间 ' + f1(r.st.fricLo * 100) + '% ~ ' + f1(r.st.fricHi * 100) + '%"' : '') + '><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + esc(r.p.id) + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="tcode pj-pers" style="font-weight:' + (r.pers.ok ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '">' + pc + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="cap" data-lv="na">' + (fs === 'pending' || fs === 'computing' ? LV.pend(60) : S.proj.group === 'folder' ? '本地服务没有返回文件夹明细' : '暂无数据') + '</td></tr>') +
     '</tbody></table><div class="cap pj-foot" data-tip="时长 = 会话时间段的并集（含空闲）；摩擦率 = 纠偏候选消息 / 你的消息">' + (S.proj.group === 'folder' ? '子文件夹按会话归入所属项目 · ' : '') + '「—」人格尚未计算或样本不足</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">跨项目对比</span><span class="cap">' + (S.proj.cmpMode ? '点另一个项目作为 B' : '面积 = 时长 · 竖线 = 到回归线的残差') + '</span></div><span class="row cap pj-rleg" data-tip="琥珀 = 摩擦率高于同等自主度的预期；绿 = 低于"><span class="row" style="gap:4px"><i style="background:' + VZ.sem.corr + '"></i>高于预期</span><span class="row" style="gap:4px"><i style="background:' + VZ.sem.good + '"></i>低于预期</span></span></div><div class="vz" data-vz="pj-scatter"></div><div class="cap pj-foot">' + (pts.length >= 3 ? '高于回归线的项目最值得先加护栏' : '项目太少，无法拟合') + '</div></div></div>' +
-    '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap code-t">' + esc(p.path) + ' · git: ' + esc(p.git || '—') + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + (p.tags || []).map((t) => '<span class="tag">' + esc(t) + '</span>').join('') + '</div></div><button type="button" class="btn" data-act="finder">在 Finder 中显示</button>' + (ruleFiles.length ? '<button type="button" class="btn" data-act="openAgents" data-tip="' + esc(ruleFiles[0].path) + '">显示 ' + esc(String(ruleFiles[0].path).split('/').pop()) + '</button>' : '') + '</div>' +
+    '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap code-t">' + esc(p.path) + ' · git: ' + esc(p.git || '—') + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + (p.tags || []).map((t) => '<span class="tag">' + esc(t) + '</span>').join('') + '</div></div><button type="button" class="btn" data-act="pinToggle" data-p="' + p.id + '" aria-pressed="' + isPinned(p.id) + '">' + ic('pin', 14) + (isPinned(p.id) ? '取消置顶' : '置顶到侧栏') + '</button><button type="button" class="btn" data-act="finder">在 Finder 中显示</button>' + (ruleFiles.length ? '<button type="button" class="btn" data-act="openAgents" data-tip="' + esc(ruleFiles[0].path) + '">显示 ' + esc(String(ruleFiles[0].path).split('/').pop()) + '</button>' : '') + '</div>' +
     '<div class="row pj-pline">' + ic('persona', 14) + '<span>' + plineTxt + '</span></div></div>' +
     '<div class="pj-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">此项目 vs ' + esc(cmpName) + '</span></div><span class="row cap" style="font-size:11px;gap:10px"><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-1)"></span>' + esc(p.name) + '</span><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-4)"></span>' + esc(cmpName) + '</span></span></div><div class="col" style="gap:8px">' + (d ? vsRows || LV.na() : D.state === 'error' ? LV.na('本地服务暂不提供项目对比') : pend(150)) + '</div>' + (S.proj.cmpMode && !cmpRow ? '<div class="cap pj-foot">在表格或散点图里点另一个项目作为 B</div>' : '<div class="cap pj-foot" data-tip="只有摩擦率与要求验证按好坏着色">Δ 相对 ' + esc(cmpName) + ' · 95% 区间跨 0 记为 ≈</div>') + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 分工</span><span class="cap">' + st.n + ' 个会话 · 条宽 = 会话占比</span></div></div><div class="pj-share">' + split.map((v, j) => v ? '<span style="width:' + (v / splitTot * 100) + '%;background:' + AG[j].c + '" data-tip="' + esc(AG[j].name) + '：' + v + ' 个会话 · ' + Math.round(v / splitTot * 100) + '%"></span>' : '').join('') + '</div><div class="col" style="gap:8px;margin-top:10px">' + agRows.map((r) => '<div class="pj-ag"><span class="row" style="gap:6px;font-size:12px;min-width:0"><span class="pj-dot" style="background:' + r.a.c + '"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.a.short) + '</span></span><span class="col" style="gap:3px"><span class="pj-ag-r"><span class="cap">会话</span><span class="pj-bar"><i style="width:' + (r.n / agMaxN * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + r.n + '</span></span><span class="pj-ag-r"><span class="cap">时长</span><span class="pj-bar"><i style="width:' + (r.h / agMaxH * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + f1(r.h) + 'h</span></span><span class="pj-ag-r" data-tip="有结果的 ' + r.tn + ' 个任务里被你直接采纳的占比"><span class="cap">采纳</span><span class="pj-bar"><i style="width:' + (r.ok == null ? 0 : r.ok).toFixed(0) + '%;background:var(--ink-3)"></i></span><span class="mono">' + (r.ok == null ? '—' : Math.round(r.ok) + '%') + '</span></span></span></div>').join('') + '</div></div></div>' +
