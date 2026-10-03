@@ -318,10 +318,11 @@ def test_execute_first_votes_for_the_exploration_pole():
     assert axis["direction"] == "E"
 
 
-def test_real_profile_through_reveal_reports_designed_reason_not_a_type():
+def test_real_profile_through_reveal_imputes_the_missing_axis():
     """Integration: a real build_profile output fed to shell.reveal.compose. The profile
-    path never yields a type (orchestration is not extracted), and compose must say so
-    with an explicit reason instead of a half-imputed code."""
+    itself never claims a type (orchestration is not extracted); since main ebdc750e the
+    reveal still shows one, with the missing orchestration axis at 50 and marked unsettled
+    rather than withholding the whole code."""
     from tandem_backend.shell import reveal
 
     events = []
@@ -337,8 +338,11 @@ def test_real_profile_through_reveal_reports_designed_reason_not_a_type():
     assert profile["axes"]["orchestration"]["effective_task_n"] == 0
     overview = {"overview": {"activity_rhythm": {"active_days": 30}}}
     payload = reveal.compose(profile, overview, types={})
-    assert payload["ok"] is False
-    assert payload["reason"] == "insufficient_data"
+    # Withheld only when every axis lacks a value (shell.reveal.reason_for).
+    assert payload["ok"] is True and payload["reason"] is None
     gate = {r["axis"]: r["n_units"] for r in payload["gate"]["axes"]}
-    assert gate["M"] == 0  # the orchestration axis is the designed blocker
-    assert payload["type"] is None
+    assert gate == {"D": 40, "I": 20, "M": 0, "V": 40}
+    axes = {a["axis"]: a for a in payload["axes"]}
+    assert axes["M"]["value"] is None and axes["M"]["letter"] == "M"
+    assert axes["M"]["settled"] is False
+    assert all(axes[k]["settled"] for k in "DIV")

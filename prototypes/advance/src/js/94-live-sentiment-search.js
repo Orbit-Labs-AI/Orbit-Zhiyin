@@ -5,7 +5,8 @@
      are folded into the page's own buckets(S.range); a multi-day (weekly) bucket keeps only the explicit-n weighted median,
      never a made-up P25–P75 band. mood is null until gap G2 lands: glyphs read "—" and, with every bucket null, the mood
      distribution is hidden (only the correction bars remain). Topic / outcome / friction / hour filters are not applied by
-     the server (G3), so the page says so. PHRASES / DRIVERS / QUOTES are rewritten in place for the other readers.
+     the server (G3), so the page says so. PHRASES / QUOTES are rewritten in place for the other readers. 高频词 reads
+     terms.items ({term, count, days}); the old topics / drivers sections are no longer sent or shown.
    - Palette: routes, projects and sessions come from the local spine at once; GET /v1/search adds sessions, messages,
      commands, files, projects, recommendations and library items (debounced, LRU per query) and each result opens its
      ref.page. Phrase sources on A6 use the same endpoint (kinds=message). Missing endpoints render an honest empty state. */
@@ -18,10 +19,9 @@ const lvsMood = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + f1(v));
 function lvSentApply(d) {
   LVS.sent = d || null;
   if (!d) return;
-  // in-place rewrites for other readers (vizkit gallery, A3 mock sayings): real phrases, ok drivers, typical quotes
+  // in-place rewrites for other readers (vizkit gallery, A3 mock sayings): real phrases, typical quotes
   const ph = (d.phrases || []).slice().sort((a, b) => b.n - a.n);
   PHRASES.length = 0; ph.slice(0, 8).forEach((p) => PHRASES.push([p.text, p.n, p.category || '其他']));
-  DRIVERS.length = 0; (d.drivers || []).filter((x) => x.status === 'ok' && x.diff != null).forEach((x) => DRIVERS.push([x.label, x.diff]));
   const q = (t) => '「' + t + '」';
   QUOTES.neg.length = 0; QUOTES.pos.length = 0; QUOTES.mid.length = 0;
   ph.filter((p) => p.category === '纠偏').forEach((p) => QUOTES.neg.push(q(p.text)));
@@ -34,7 +34,7 @@ if (LV.live) {
     days: [7, 30, 90].indexOf(sc.range) >= 0 ? sc.range : Math.min(730, LASTDAY + 1), agent: sc.agents,
     project_id: sc.project && sc.project !== '_none' ? sc.project : null, tz: sc.tz, bucket: 'day' }) }], (d) => lvSentApply(d.s));
 }
-// the page's view model: {state:'ready'|'pending'|'error', lang, ms, allNull, fr, tp, phrases, drivers, note, scope}
+// the page's view model: {state:'ready'|'pending'|'error', lang, ms, allNull, fr, phrases, words, scope}
 function lvSentView(L) {
   const d = LVS.sent;
   if (!d) { const st = LV.feedState('sentiment'); return { state: st === 'error' ? 'error' : 'pending' }; }
@@ -52,22 +52,20 @@ function lvSentView(L) {
   });
   const fr = (d.friction || []).filter((f) => f.sessions > 0).slice().sort((a, b) => b.sessions - a.sessions)
     .map((f) => ({ k: f.label || f.type, type: f.type, n: f.sessions, prev: f.prev != null ? f.prev : null, mood: f.avg_balance, typical: f.typical || [], uids: f.session_uids || [] }));
-  const tp = (d.topics || []).filter((t) => t.sessions > 0).slice().sort((a, b) => b.sessions - a.sessions)
-    .map((t) => ({ k: t.id, label: t.label || t.id, n: t.sessions, mood: t.avg_balance, uids: t.session_uids || [] }));
   const phrases = (d.phrases || []).slice().sort((a, b) => b.n - a.n).slice(0, 8).map((p) => [p.text, p.n, p.category || '其他']);
-  const drivers = (d.drivers || []).map((x) => ({ name: x.label, v: x.status === 'ok' ? x.diff : null, n: x.n_a, nb: x.n_b, ci: x.status === 'ok' && x.lo != null && x.hi != null ? Math.abs(x.hi - x.lo) / 2 : 0, status: x.status }));
+  const words = (((d.terms || {}).items) || []).filter((x) => x && x.term && x.count > 0).slice(0, 60).map((x) => ({ t: String(x.term), n: x.count, d: x.days || 0 }));
   const x = []; if (S.topic) x.push('主题'); if (S.outcome) x.push('结果'); if (S.fric) x.push('摩擦'); if (S.hour != null) x.push('时段');
-  // R4-13: the endpoint is deterministic (lexical rules over redacted messages); only AI facets (friction) and AI topic labels
-  // come from a model, and only when the analysis mode is not 「仅统计」. Badges and the shield say which one the page shows.
+  // R4-13: the endpoint is deterministic (lexical rules over redacted messages); only AI facets (friction) come from a model,
+  // and only when the analysis mode is not 「仅统计」. Badges and the shield say which one the page shows.
   const meta = d.meta || {}; const aiOn = !!meta.mode && meta.mode !== 'stats' && meta.mode !== 'off';
-  const prov = { mood: false, fric: aiOn, topic: aiOn && (d.topics || []).some((t) => t.label_source === 'ai'), phrase: false, ai: aiOn, note: meta.note || '' };
-  return { state: 'ready', meta, prov, lang, ms, allNull: !ms.some((b) => b.dist), fr, tp, phrases, drivers, note: d.drivers_note || '', scope: x.length ? x.join(' / ') + '筛选不计入情绪统计' : '' };
+  const prov = { mood: false, fric: aiOn, phrase: false, terms: false, ai: aiOn, note: meta.note || '' };
+  return { state: 'ready', meta, prov, lang, ms, allNull: !ms.some((b) => b.dist), fr, phrases, words, scope: x.length ? x.join(' / ') + '筛选不计入情绪统计' : '' };
 }
 // cards in their own layout while the endpoint is pending / missing (no table, no mock rows)
 function lvSentShell(V) {
   const body = (h) => (V.state === 'error' ? '<div class="col" style="gap:6px;padding:8px 0">' + LV.na('暂无数据') + '</div>' : LV.pend(h));
   const card = (t, h) => '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">' + t + '</span></div></div>' + body(h) + '</div>';
-  return '<div class="stack" data-lv-sent="' + V.state + '">' + card('情绪分布与纠偏', 236) + '<div class="two sn-two">' + card('摩擦分类', 160) + card('语义主题', 160) + '</div><div class="two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">' + card('你的高频反馈语', 160) + card('情绪的前因', 160) + '</div></div>';
+  return '<div class="stack" data-lv-sent="' + V.state + '">' + card('情绪分布与纠偏', 236) + '<div class="two sn-two">' + card('摩擦分类', 160) + card('你的高频反馈语', 160) + '</div>' + card('高频词', 220) + '</div>';
 }
 // 摩擦 click: the server taxonomy is not the spine's fric column, so filter only when the spine knows the label;
 // otherwise open the newest session of that friction type
@@ -103,7 +101,8 @@ const LVS_GROUP = { session: '会话', message: '消息', command: '命令', fil
 // badge for a live A6 card: AI only when the server says that card came from a model, otherwise a neutral rule badge
 function lvSentBadge(V, k, aiText) {
   if (V && V.prov && V.prov[k]) return AIB(aiText);
-  return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">' + (k === 'topic' ? '规则分类' : '词面规则') + '</span>';
+  if (k === 'terms') return '<span class="bdg" data-lv="rule-badge" data-tip="按词频在本机统计，不调用模型">词频统计</span>';
+  return '<span class="bdg" data-lv="rule-badge" data-tip="按词面规则在本机统计，不调用模型' + (V && V.prov && V.prov.note ? ' · ' + esc(V.prov.note) : '') + '">词面规则</span>';
 }
 function lvSentShield(V) {
   if (V && V.prov && V.prov.ai) return '语义分析由本地 Agent 完成，原文不离开本机';

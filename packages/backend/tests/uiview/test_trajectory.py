@@ -61,7 +61,8 @@ def test_header_stats_and_resume(l1):
     # 2 of 3 human messages are corrections: same "part" as the list row (uiview.outcome).
     assert head["out"] == "part" and head["out_basis"] == "estimate"
     assert head["resume"]["shell"] == "cd /w/p1 && claude --resume native-cc-fix"
-    assert head["resume"]["verified"] is False
+    # The data-layer template documents `claude --resume <id>` (tandem_data.resume).
+    assert head["resume"]["verified"] is True
     assert stats["tools"] == 8 and stats["errors"] == 3 and stats["steps"] == 10
     assert stats["tok"] == 50_000 + 10_000 + 800 + 150_000 + 900
     assert body["trajectory"]["start_min"] == 8 * 60 + 53

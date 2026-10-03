@@ -1,7 +1,10 @@
-"""A6 情绪与语义 + Lite 情绪页 adapter: ``GET /v1/uiview/sentiment``.
+"""A6 情绪与语义 adapter: ``GET /v1/uiview/sentiment``.
 
 Deterministic only: lexical detectors over confirmed, redacted human messages (``v_human_message``),
 optional AI-03 facets read from app.db. Never calls a model; every rate carries its ``n``.
+Sections: language mix, mood / correction series, friction, high-frequency feedback phrases and the
+everyday word cloud (``terms``, built in ``a6_terms``). The former semantic topics and mood drivers
+were removed from the page and are no longer computed.
 """
 
 from __future__ import annotations
@@ -19,11 +22,10 @@ from ..analytics.common import quantile
 from ..analytics.interaction.rules import correction_terms
 from ..analytics.outcome_subjective.extraction import classify_feedback
 from ..analytics.products.feedback import classify_emotion
-from ..analytics.task.taxonomy import DOMAIN_DETAILS, domain_matches
 from ..features.vocab import command_info
 from ..privacy import direct_user_text, redact
-from ..recommend.outcomes import welch
 from .a4a6_common import ManyQuery
+from .a6_terms import build_terms
 
 DAY_MS = 86_400_000
 DEFINITION_VERSION = "a6-corr-v2"  # v2: correction_terms 合并 zh-en-lexicon-v1
@@ -61,19 +63,6 @@ PHRASE_RULES = (  # priority: 纠偏 > 验证 > 规划 > 风格 > 偏好
     ("风格", re.compile(r"简洁|详细|格式|\bconcise\b", re.I)),
     ("偏好", re.compile(r"用中文|用英文|默认")),
 )
-DONE_CRITERIA = re.compile(
-    r"直到|确保|通过|验收|完成后|跑通|测试|\b(?:until|make sure|ensure|pass(?:es)?|done when|tests?)\b",
-    re.I)
-DRIVERS = (
-    ("long_session", "会话超过 90 分钟"),
-    ("consecutive_failures", "连续失败 ≥ 2 次"),
-    ("no_done_criteria", "首条消息没有完成条件"),
-    ("compaction", "发生过上下文压缩"),
-)
-DRIVER_MIN_N = 10
-DRIVER_NOTE = "组间差异仅为相关，不代表原因；样本来自显式情绪表述"
-# 待对齐 AI-04.3：主题命名产物所在的 ai_job.task_id 与结果形状。
-AI_TOPIC_TASKS = ("name.topics", "topic.name")
 
 
 # ------------------------------------------------------------------ pure text helpers
@@ -225,15 +214,6 @@ def fetch_calls(conn, session_ids) -> list[dict]:
                             c["seq"] if c["seq"] is not None else 1 << 62,
                             c["started_at"] or 0, c["call_uid"]))
     return out
-
-
-def fetch_event_kinds(conn, session_ids, kind) -> set[str]:
-    found = set()
-    for chunk in _chunks(session_ids):
-        found.update(r[0] for r in conn.execute(
-            f"SELECT DISTINCT session_uid FROM event WHERE kind=? AND session_uid IN ({_in(chunk)})",
-            [kind, *chunk]))
-    return found
 
 
 def _appdb_rows(appdb, sql, params=()) -> list:
@@ -396,41 +376,6 @@ def build_friction(cur, prev, balances, humans_by_session) -> list[dict]:
     return out
 
 
-def _ai_topic_labels(appdb) -> dict[str, str]:
-    rows = _appdb_rows(appdb, f"SELECT result FROM ai_job WHERE status='ok' AND task_id IN "
-                              f"({_in(AI_TOPIC_TASKS)}) ORDER BY COALESCE(finished_at, created_at) "
-                              f"DESC LIMIT 1", AI_TOPIC_TASKS)
-    if not rows:
-        return {}
-    try:
-        result = json.loads(rows[0][0] or "{}")
-        topics = result.get("topics") if isinstance(result, dict) else None
-        return {str(t["id"]): str(t["label"]) for t in topics or []
-                if isinstance(t, dict) and t.get("id") and t.get("label")}
-    except (ValueError, TypeError, KeyError):
-        return {}
-
-
-def build_topics(humans_by_session, balances, appdb) -> list[dict]:
-    groups: dict[str, list[str]] = defaultdict(list)
-    for uid, msgs in humans_by_session.items():
-        first = next((m["text"] for m in msgs if m["text"]), None)
-        ids = sorted({d["id"] for d in domain_matches(first)[1]}) if first else []
-        for tid in ids or ["other"]:
-            groups[tid].append(uid)
-    names = _ai_topic_labels(appdb)
-    out = []
-    for tid, uids in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0])):
-        vals = [balances[u] for u in uids if u in balances]
-        label = DOMAIN_DETAILS[tid]["label"] if tid in DOMAIN_DETAILS else "其他"
-        out.append({"id": tid, "label": names.get(tid, label),
-                    "label_source": "ai" if tid in names else "taxonomy",
-                    "sessions": len(uids),
-                    "avg_balance": _round(sum(vals) / len(vals)) if vals else None,
-                    "session_uids": sorted(uids)})
-    return out
-
-
 def build_phrases(humans, limit=30) -> list[dict]:
     groups: dict[str, list[dict]] = defaultdict(list)
     for m in humans:
@@ -451,36 +396,6 @@ def build_phrases(humans, limit=30) -> list[dict]:
                     "event_uids": [m["event_uid"] for m in msgs[:3]]})
     out.sort(key=lambda p: (-p["sessions"], -p["n"], p["text"]))
     return out[:limit]
-
-
-def build_drivers(sessions, humans_by_session, calls, balances, compacted) -> list[dict]:
-    streak: dict[str, int] = defaultdict(int)
-    best: dict[str, int] = defaultdict(int)
-    for c in calls:
-        uid = c["root_uid"]
-        streak[uid] = streak[uid] + 1 if c["status"] in FAILED else 0
-        best[uid] = max(best[uid], streak[uid])
-    feats = {}
-    for uid, s in sessions.items():
-        msgs = humans_by_session.get(uid) or []
-        first = next((m["text"] for m in msgs if m["text"]), "")
-        span = (s["end"] - s["started_at"]) if s["started_at"] is not None and s["end"] else 0
-        feats[uid] = {"long_session": span > 90 * 60_000,
-                      "consecutive_failures": best[uid] >= 2,
-                      "no_done_criteria": bool(first) and not DONE_CRITERIA.search(first),
-                      "compaction": uid in compacted}
-    out = []
-    for key, label in DRIVERS:
-        a = [balances[u] for u, f in feats.items() if f[key] and u in balances]
-        b = [balances[u] for u, f in feats.items() if not f[key] and u in balances]
-        row = {"key": key, "label": label, "n_a": len(a), "n_b": len(b)}
-        if len(a) < DRIVER_MIN_N or len(b) < DRIVER_MIN_N:
-            row.update(status="insufficient", diff=None, lo=None, hi=None)
-        else:
-            diff, lo, hi = welch(a, b)
-            row.update(status="ok", diff=_round(diff), lo=_round(lo), hi=_round(hi))
-        out.append(row)
-    return out
 
 
 def build_meta(appdb) -> dict:
@@ -532,11 +447,8 @@ def build_sentiment(conn, appdb, scope, params, *, now_ms: int) -> dict:
         | {"n": len(humans)},
         "series": build_series(humans, sessions, mode, zone),
         "friction": build_friction(cur, prev, balances, by_session),
-        "topics": build_topics(by_session, balances, appdb),
         "phrases": build_phrases(humans),
-        "drivers": build_drivers(sessions, by_session, calls, balances,
-                                 fetch_event_kinds(conn, sessions, "context.compaction")),
-        "drivers_note": DRIVER_NOTE,
+        "terms": build_terms(humans, sessions, zone),
     }
 
 

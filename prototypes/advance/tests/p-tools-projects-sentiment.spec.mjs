@@ -7,8 +7,9 @@
 //       3. 对比模式下点第二个项目：表中出现 A / B 徽标、散点出现 B 环；4. 全局项目筛选 → 详情定位到该项目（BUG-07）；
 //       5. 退出对比后 A 选成原 B → B 被清掉（BUG-71）；6. 覆盖矩阵格子数 = 配置类型数 × 项目用到的 Agent 数。
 //   A6：1. 情绪图为 moodcorr：分布带 + 中位线 + 纠偏柱共用一张 svg，一条游标跨两图；指针移动后游标可见、tooltip 含「情绪中位数」与「纠偏」；
-//       2. 「看表格」切到表格视图并可切回；3. 点一个主题后其它主题仍在（BUG-72）；4. 不同反馈语的出处不同（BUG-73）；
-//       5. 90 天时说明文字为「每周」（BUG-69）；6. AI 抽取内容带紫色 .aib 标识；7. 三页浅 / 深色均无页面错误。
+//       2. 「看表格」切到表格视图并可切回；3. 语义主题、情绪前因两卡已删除；4. 不同反馈语的出处不同（BUG-73）；
+//       5. 90 天时说明文字为「每周」（BUG-69）；6. AI 抽取内容带紫色 .aib 标识；7. 三页浅 / 深色均无页面错误；
+//       8. 高频词：词云不重叠、不出框，Top 10 与 WORDS 一致，悬停显示次数与天数，点击打开命令面板搜索该词；最小窗口与大窗口都正常；空态。
 import { test, expect } from '@playwright/test';
 import { openDemo, go, closeAll } from './helpers.mjs';
 
@@ -115,7 +116,7 @@ test('A5 projects: table fits, scatter has residuals and A/B marks, filters and 
   expect(errors).toEqual([]);
 });
 
-test('A6 sentiment: distribution band with shared cursor, table view, topics, phrase sources and AI badges', async ({ page }) => {
+test('A6 sentiment: distribution band with shared cursor, table view, phrase sources and AI badges', async ({ page }) => {
   only14();
   const errors = await openDemo(page);
   await go(page, 'sentiment');
@@ -141,14 +142,10 @@ test('A6 sentiment: distribution band with shared cursor, table view, topics, ph
   await expect(page.locator('[data-vz="mood"] thead')).toContainText('P25');
   await page.locator('[data-act="moodView"]').click();
   await expect(page.locator('[data-vz="mood"] svg.vz-svg')).toHaveCount(1);
-  // 主题筛选不吞掉其它主题（BUG-72）
-  const before = await page.locator('.sn-topic').count();
-  await page.locator('.sn-topic[data-k="git"]').click();
-  expect(await page.evaluate(() => S.topic)).toBe('git');
-  await expect(page.locator('.sn-topic')).toHaveCount(before);
-  await expect(page.locator('.sn-topic.on')).toHaveCount(1);
-  await page.locator('.sn-topic[data-k="git"]').click();
-  expect(await page.evaluate(() => S.topic)).toBe(null);
+  // 语义主题与情绪前因两卡已删除
+  await expect(page.locator('#main .sn-topic, #main .sn-drv')).toHaveCount(0);
+  await expect(page.locator('#main')).not.toContainText('语义主题');
+  await expect(page.locator('#main')).not.toContainText('情绪的前因');
   // 反馈语按次数降序，出处因短语而异（BUG-73）
   const counts = await page.locator('.sn-ph-n').allInnerTexts();
   const nums = counts.map((t) => +t.replace('×', ''));
@@ -169,7 +166,7 @@ test('A6 sentiment: distribution band with shared cursor, table view, topics, ph
   await expect(page.locator('#main')).toContainText('每周桶');
   await page.evaluate(() => { S.range = 30; render(); });
   // AI 抽取标识
-  expect(await page.locator('#main .aib').count()).toBeGreaterThanOrEqual(4);
+  expect(await page.locator('#main .aib').count()).toBeGreaterThanOrEqual(3);
   expect(errors).toEqual([]);
 });
 
@@ -185,5 +182,68 @@ test('tools, projects and sentiment render in light and dark without errors or o
     }
   }
   await page.evaluate(() => setTheme('light'));
+  expect(errors).toEqual([]);
+});
+
+// 高频词词云：可见词两两不重叠、都在框内；字号随次数单调；Top 10 次数降序；悬停 / 点击；窗口最小 960×640 与大窗口
+const cloudGeo = (page) => page.evaluate(() => {
+  const box = document.querySelector('#main .sn-cloud').getBoundingClientRect();
+  const ws = [...document.querySelectorAll('#main .sn-w')];
+  const vis = ws.filter((w) => !w.classList.contains('off')).map((w) => ({ r: w.getBoundingClientRect(), n: +w.dataset.n, f: parseFloat(w.style.fontSize) }));
+  let ov = 0; for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) { const a = vis[i].r, b = vis[j].r; if (a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1) ov++; }
+  const out = vis.filter(({ r }) => r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1).length;
+  const mono = vis.every((a) => vis.every((b) => !(a.n > b.n) || a.f >= b.f - 0.01));
+  return { n: ws.length, shown: vis.length, ov, out, mono, w: box.width, h: box.height };
+});
+test('A6 高频词: word cloud layout, Top 10, tooltip, click to search, window sizes and empty state', async ({ page }) => {
+  only14();
+  const errors = await openDemo(page);
+  await go(page, 'sentiment');
+  await expect(page.locator('#main .sn-wcard .ct')).toHaveText('高频词');
+  const g = await cloudGeo(page);
+  expect(g.n).toBeGreaterThan(30);
+  expect(g.shown).toBeGreaterThanOrEqual(Math.floor(g.n * 0.9));
+  expect(g).toMatchObject({ ov: 0, out: 0, mono: true });
+  // Top 10：次数降序、与词云同一组数据，带「次」「天」
+  const top = await page.locator('#main .sn-tw:not(.sn-tw-h)').evaluateAll((els) => els.map((e) => [e.querySelector('.sn-tw-t').textContent, +e.querySelector('.sn-tw-n').textContent.replace(/[^\d]/g, ''), e.querySelector('.sn-tw-d').textContent]));
+  expect(top.length).toBe(10);
+  expect(top.map((x) => x[1])).toEqual(top.map((x) => x[1]).slice().sort((a, b) => b - a));
+  expect(top.every((x) => / 天$/.test(x[2]))).toBe(true);
+  expect(await page.locator('#main .sn-w').first().getAttribute('data-k')).toBe(top[0][0]);
+  // 悬停：出现 N 次 · N 天
+  await page.locator('#main .sn-w:not(.off)').first().hover();
+  await expect(page.locator('#tip')).toContainText(/出现 \d+ 次 · \d+ 天/);
+  // 点击：命令面板以该词为查询
+  const word = await page.locator('#main .sn-w:not(.off)').nth(1).getAttribute('data-k');
+  await page.locator('#main .sn-w:not(.off)').nth(1).click();
+  await expect(page.locator('#palQ')).toHaveValue(word);
+  await expect(page.locator('#palList')).not.toBeEmpty();
+  await closeAll(page);
+  await page.locator('#main .sn-tw:not(.sn-tw-h)').first().click();
+  await expect(page.locator('#palQ')).toHaveValue(top[0][0]);
+  await closeAll(page);
+  // 最小窗口 960×640：词云与 Top 10 仍各自完整，内容不横向溢出
+  await page.evaluate(() => { Object.assign(S.win, { x: 40, y: 40, w: 960, h: 640 }); render(); });
+  await expect.poll(async () => (await cloudGeo(page)).w).toBeLessThan(g.w);
+  const gs = await cloudGeo(page);
+  expect(gs).toMatchObject({ ov: 0, out: 0 });
+  expect(gs.shown).toBeGreaterThanOrEqual(Math.floor(gs.n * 0.9));
+  expect(await page.evaluate(() => { const c = document.querySelector('#main .content'); return c.scrollWidth - c.clientWidth; })).toBeLessThanOrEqual(1);
+  // 没有可用词：空态，没有词也没有 Top 10
+  await page.evaluate(() => { Object.assign(S.win, { x: null, y: null, w: null, h: null }); window.__words = WORDS.splice(0); render(); });
+  await expect(page.locator('#main [data-wc-empty]')).toBeVisible();
+  await expect(page.locator('#main .sn-w, #main .sn-tw')).toHaveCount(0);
+  await page.evaluate(() => { WORDS.push(...window.__words); render(); });
+  await expect(page.locator('#main .sn-w').first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('A6 高频词 fits the studio window too', async ({ page }) => {
+  test.skip(test.info().project.name !== 'studio', 'large display only');
+  const errors = await openDemo(page);
+  await go(page, 'sentiment');
+  const g = await cloudGeo(page);
+  expect(g).toMatchObject({ ov: 0, out: 0, mono: true });
+  expect(g.shown).toBe(g.n);
   expect(errors).toEqual([]);
 });

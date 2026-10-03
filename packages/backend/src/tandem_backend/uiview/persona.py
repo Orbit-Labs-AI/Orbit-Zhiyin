@@ -10,9 +10,12 @@ Axes keep the prototype's value semantics (high value → first letter of the pa
 - V 求证 / T 信任 — unit = human-triggered turn; p = share asking for verification or running
   a validation command in the same turn.
 
-value = 100·p. A letter is given only when the whole 95% interval sits on one side of the
-45–55 band and the axis has enough units (D/I/V ≥ 30, M ≥ 10 days) over ≥ 10 active days;
-otherwise ``?``. The persona as a whole needs ≥ 30 sessions (``ok``).
+value = 100·p. Every axis always gets a letter from the value alone: value ≥ 50 → the high
+letter (D / I / M / V), value < 50 → the low letter (S / P / F / T); an axis with no units
+counts as 50. One session is enough (``ok``); only an empty selection has no persona. The
+interval and unit counts stay in the payload as context: ``decided`` marks an axis whose 95%
+interval lies wholly outside the 45–55 band, and ``hint`` gently notes a small sample
+(< ``SOFT_SESSIONS`` sessions) without withholding the type.
 
 Turns of one session are not independent, so the D/V interval is cluster-robust: the
 ratio estimator p = Σk_i/Σn_i over sessions i gets the linearisation variance
@@ -22,9 +25,8 @@ at the session count when the variance is 0; the Wilson interval is taken at n_e
 Duplicating turns inside sessions therefore never narrows the interval. I (one unit per
 session) and M (one unit per day) keep the plain Wilson interval.
 
-All gates and bands live in ``CONFIG``; their provenance and a sensitivity table are in
-``docs/modules/analytics/profiling.md``. They are product defaults, not calibrated against
-a population baseline.
+All bands live in ``CONFIG``; their provenance is in ``docs/modules/analytics/profiling.md``.
+They are product defaults, not calibrated against a population baseline.
 """
 
 from __future__ import annotations
@@ -37,18 +39,19 @@ from . import derive, facts
 from .typecopy import AXES, SOURCE, TYPES, copy
 
 METHOD = "uiview-persona-v0"
-# Every threshold of the classifier in one place (see profiling.md for sources/sensitivity).
+# Every threshold of the classifier in one place (see profiling.md for sources).
 CONFIG = {
-    "min_sessions": 30,          # whole persona: n ≥ 30 sessions (normal-approx rule of thumb)
-    "min_days": 10,              # ≥ 10 active days so one burst does not define a habit
-    "min_units": {"D": 30, "I": 30, "M": 10, "V": 30},
-    "band": (45.0, 55.0),        # undecided band around the 50% midpoint, in value points
+    "soft_sessions": 30,         # below this the payload carries a "more data, more accurate" hint
+    "midpoint": 50,              # value ≥ midpoint → high letter, < midpoint → low letter
+    "band": (45.0, 55.0),        # an axis is ``decided`` when its interval clears this band
     "step_threshold": facts.STEP_THRESHOLD,  # D: a turn with ≥ this many steps is "delegated"
     "z": 1.96,                   # 95% two-sided
 }
-MIN_SESSIONS = CONFIG["min_sessions"]
-MIN_DAYS = CONFIG["min_days"]
-MIN_UNITS = CONFIG["min_units"]
+MIN_SESSIONS = 1
+MIN_DAYS = 1
+MIN_UNITS = {"D": 0, "I": 0, "M": 0, "V": 0}
+SOFT_SESSIONS = CONFIG["soft_sessions"]
+MIDPOINT = CONFIG["midpoint"]
 STEP_THRESHOLD = CONFIG["step_threshold"]
 # Signals each axis actually uses (the prototype's ``AXES.sig`` copy lists aspirational
 # signals that are not computed; the payload reports what is).
@@ -165,28 +168,24 @@ def axis(spec: dict, k: int, n: int, days: int,
         lo, hi = wilson(k, n, CONFIG["z"])
         n_eff, basis = float(n), "wilson"
     lo, hi = round(lo * 100, 1), round(hi * 100, 1)
+    # No "undetermined" band for the letter: it follows the value's lean; no units counts as 50.
+    lean = MIDPOINT if value is None else value
+    letter = spec["hi"] if lean >= MIDPOINT else spec["lo"]
+    state = "no_data" if value is None else "settled"
     band_lo, band_hi = CONFIG["band"]
-    if n < MIN_UNITS[key] or days < MIN_DAYS or value is None:
-        letter, state = "?", "insufficient"
-    elif lo >= band_hi:
-        letter, state = spec["hi"], "settled"
-    elif hi <= band_lo:
-        letter, state = spec["lo"], "settled"
-    else:
-        letter, state = "?", "experimental"
+    decided = value is not None and (lo >= band_hi or hi <= band_lo)
     left, right = LEFT_RIGHT[key]
     return {"k": key, "value": None if value is None else round(value, 1), "lo": lo, "hi": hi,
             "n_units": n, "k_units": k, "unit": UNITS[key], "letter": letter, "state": state,
             "strong": None if value is None else round(max(value, 100 - value)),
             "left": left, "right": right, "dim": spec["dim"], "q": spec["q"], "sig": SIG_USED[key],
-            "ref": REFS[key], "n_eff": round(n_eff, 1), "ci_basis": basis}
+            "ref": REFS[key], "n_eff": round(n_eff, 1), "ci_basis": basis,
+            "decided": decided}
 
 
-def confidence(axes: list[dict]) -> tuple[str, int]:
-    """(label, settled axes). The label follows the statistical state, not session count:
-    0 settled → 低, 1–3 → 中, all 4 → 高."""
-    settled = sum(1 for a in axes if a["state"] == "settled")
-    return ("高" if settled == len(AXES) else "中" if settled else "低"), settled
+def hint(n: int) -> str | None:
+    """Gentle sample-size note; never blocks the type."""
+    return f"基于 {n} 个会话，数据越多越准" if 0 < n < SOFT_SESSIONS else None
 
 
 def persona(rows: list[dict], aux: dict, min_n: int = MIN_SESSIONS) -> dict:
@@ -195,21 +194,22 @@ def persona(rows: list[dict], aux: dict, min_n: int = MIN_SESSIONS) -> dict:
     if n < max(1, min_n):
         return {"ok": False, "classified": False, "n": n, "days": days, "code": None,
                 "zh": None, "en": None, "line": None, "v": None, "axes": [],
-                "conf": "低", "settled_axes": 0}
+                "conf": "低", "hint": None, "decided_axes": 0}
     counts = units(rows, aux)
     clusters = session_counts(rows, aux)
     axes = [axis(spec, *counts[spec["k"]], days, clusters.get(spec["k"])) for spec in AXES]
     code = "".join(a["letter"] for a in axes)
     zh, en, line = copy(code)
-    conf, settled = confidence(axes)
     return {"ok": True, "classified": code in TYPES, "n": n, "days": days, "code": code,
             "zh": zh, "en": en, "line": line, "v": {a["k"]: a["value"] for a in axes},
-            "axes": axes, "conf": conf, "settled_axes": settled}
+            "axes": axes, "conf": "高" if n >= 100 else "中" if n >= SOFT_SESSIONS else "低",
+            "hint": hint(n), "decided_axes": sum(1 for a in axes if a["decided"])}
 
 
 def mini(p: dict) -> dict:
     return {"ok": p["ok"], "code": p["code"], "zh": p["zh"], "en": p["en"], "conf": p["conf"],
-            "settled_axes": p.get("settled_axes", 0), "n": p["n"], "method": METHOD,
+            "n": p["n"], "hint": p["hint"], "decided_axes": p.get("decided_axes", 0),
+            "method": METHOD,
             "axes": [{"k": a["k"], "value": a["value"], "strong": a["strong"],
                       "letter": a["letter"], "left": a["left"], "right": a["right"]}
                      for a in p["axes"]]}
@@ -320,10 +320,10 @@ def evidence(rows: list[dict], aux: dict, p: dict, st: dict, projects: dict) -> 
 
 
 def traits(p: dict) -> list[str]:
-    """Trait chips for settled axes only (an axis showing ``?`` gets no chip)."""
+    """Trait chips for every axis with data (an axis without units gets no chip)."""
     names = {"D": "高吞吐", "S": "亲自掌舵", "I": "边做边想", "P": "先规划", "M": "多线程",
              "F": "单线专注", "V": "验收严格", "T": "信任结果"}
-    return [names[a["letter"]] for a in p["axes"] if a["letter"] in names]
+    return [names[a["letter"]] for a in p["axes"] if a["state"] != "no_data"]
 
 
 def fingerprint(rows: list[dict], agents: list[str], cap: int = 200) -> dict:
@@ -375,21 +375,23 @@ def blind_spots(rows: list[dict]) -> list[dict]:
 
 
 def strengths(p: dict) -> list[dict]:
-    settled = [a for a in p["axes"] if a["letter"] != "?"]
+    settled = [a for a in p["axes"] if a["state"] != "no_data"]
     settled.sort(key=lambda a: -(a["strong"] or 0))
     return [{"k": a["k"], "letter": a["letter"], "text": STRENGTH[a["letter"]],
              "strong": a["strong"], "n_units": a["n_units"]} for a in settled[:3]]
 
 
 def candidates(p: dict, top: int = 6) -> list[dict]:
-    if not p["ok"] or not p["v"] or any(v is None for v in p["v"].values()):
+    if not p["ok"] or not p["v"]:
         return []
+    v = {k: MIDPOINT if x is None else x for k, x in p["v"].items()}
     scored = []
     for code, (zh, en, _) in TYPES.items():
-        parts = [(p["v"][spec["k"]] if code[i] == spec["hi"] else 100 - p["v"][spec["k"]])
+        parts = [(v[spec["k"]] if code[i] == spec["hi"] else 100 - v[spec["k"]])
                  for i, spec in enumerate(AXES)]
         scored.append((-round(sum(parts) / 4, 1), code, zh, en))
-    scored.sort()
+    # Ties (an axis exactly at 50) keep the persona's own code first.
+    scored.sort(key=lambda x: (x[0], x[1] != p["code"], x[1]))
     return [{"code": c, "zh": zh, "en": en, "match": -s, "basis": "axis_distance"}
             for s, c, zh, en in scored[:top]]
 
@@ -460,7 +462,8 @@ def _page(body: dict, params: dict, today: date) -> tuple[dict, list[dict]]:
         "fp": fingerprint(L, agent_ids), "fit": fit(L, agent_ids),
         "strengths": strengths(p), "blind_spots": blind_spots(L),
         "relax": relax(rows, window, f, period, label, first, agents_meta, projects),
-        "low": {"n": p["n"], "need": MIN_SESSIONS},
+        "low": {"n": p["n"], "need": MIN_SESSIONS, "soft": SOFT_SESSIONS},
+        "hint": p["hint"],
         "reveal": {"candidates": candidates(p)},
     }
     return payload, L
@@ -471,7 +474,7 @@ def reveal(body: dict, params: dict, today: date, cap: int = 400) -> dict:
     full, L = _page(body, params, today)
     particles = [{"h": r.get("h"), "mi": r.get("mi"), "dur": r.get("dur"), "a": r.get("a")}
                  for r in L[-cap:]]
-    keep = ("meta", "ok", "classified", "n", "conf", "code", "zh", "en", "line", "low")
+    keep = ("meta", "ok", "classified", "n", "conf", "code", "zh", "en", "line", "low", "hint")
     return {**{k: full[k] for k in keep},
             "axes": [{k: a[k] for k in ("k", "value", "letter", "strong", "left", "right",
                                         "state")} for a in full["axes"]],

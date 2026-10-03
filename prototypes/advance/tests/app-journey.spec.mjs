@@ -33,6 +33,7 @@ function hostInit([endpoint, token, features, native]) {
   window.__nativeMsgs = []; window.__folders = [];
   const fire = (name, detail) => setTimeout(() => window.dispatchEvent(new CustomEvent(name, { detail })), 30);
   window.webkit = { messageHandlers: { tandem: { postMessage(m) {
+    if (m && m.type === 'dragRegions') return;  // layout report from 23-native-drag.js, not a bridge call
     const rec = Object.assign({}, m);
     if (rec.base64 != null) { rec.bytes = Math.floor(rec.base64.length * 3 / 4); delete rec.base64; }
     if (rec.text != null) { rec.bytes = new Blob([rec.text]).size; rec.head = String(rec.text).slice(0, 160); delete rec.text; }
@@ -116,7 +117,7 @@ const mockLeak = (page) => page.evaluate(() => {
 });
 
 // ---- route table shared by live and mock screenshots ----
-const ADV_ROUTES = ['overview', 'persona', 'sessions', 'tools', 'projects', 'sentiment', 'recs', 'library', 'studio'];
+const ADV_ROUTES = ['overview', 'persona', 'sentiment', 'sessions', 'projects', 'tools', 'recs', 'library', 'studio'];
 const LITE_ROUTES = ['l-home', 'l-persona', 'l-sessions', 'l-recs'];
 
 test('live journey: first run → every route → Lite → surfaces', async ({ page, context }) => {
@@ -320,7 +321,7 @@ test('live journey: first run → every route → Lite → surfaces', async ({ p
   mark(await step('a6-sentiment', async () => { await goRoute(page, 'sentiment'); await feedSettled(page, 'sentiment'); }, { settle: 1500 }), 'sentiment');
   mark(await step('a6-mood-view', async (s) => { if (!(await act(page, 'moodView'))) s.notes.push('no moodView'); }));
   mark(await step('a6-friction', async (s) => { if (!(await act(page, 'fricGo', { wait: 1200 }))) s.notes.push('no fricGo'); s.notes.push('route=' + await ev(page, () => S.route)); }));
-  mark(await step('a6-topics', async (s) => { await goRoute(page, 'sentiment'); if (!(await act(page, 'topicSet', { wait: 1200 }))) s.notes.push('no topicSet'); }));
+  mark(await step('a6-words', async (s) => { await goRoute(page, 'sentiment'); if (!(await act(page, 'wordGo', { wait: 1200 }))) s.notes.push('no wordGo'); await page.keyboard.press('Escape'); }));
   await step('a6-reset', async () => { await ev(page, () => { if (typeof ACT.clearFilter === 'function') { S.topic = null; } render(); }); }, { shot: false });
 
   // ---------- A7 recs + install ----------
@@ -647,7 +648,7 @@ test('mock screenshots of the same routes', async ({ page }) => {
   mark(await step('first-run-onboarding', async () => { await ev(page, () => openOnboarding(0)); }, { settle: 800 }));
   mark(await step('onboarding-discovery', async () => { await need(page, 'obNext'); }));
   await step('close-ob', async () => { await closeAll(page); }, { shot: false });
-  const shots = [['overview', 'overview'], ['persona', 'persona'], ['sessions', 'sessions'], ['tools', 'tools'], ['projects', 'projects'], ['sentiment', 'sentiment'], ['recs', 'recs'], ['library', 'library'], ['studio', 'studio']];
+  const shots = [['overview', 'overview'], ['persona', 'persona'], ['sentiment', 'sentiment'], ['sessions', 'sessions'], ['projects', 'projects'], ['tools', 'tools'], ['recs', 'recs'], ['library', 'library'], ['studio', 'studio']];
   for (const [k, r] of shots) mark(await step(k, async () => { await goRoute(page, r); await sleep(900); }, { settle: 800 }), k);
   for (const t of ['general', 'sources', 'privacy', 'analysis', 'notify', 'about']) mark(await step('settings-' + t, async () => { await ev(page, (t) => openSettings(t), t); await sleep(600); }));
   await step('settings-close', async () => { await closeAll(page); }, { shot: false });
