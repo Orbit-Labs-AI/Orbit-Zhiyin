@@ -105,21 +105,18 @@
     return '<svg width="100%" height="8" viewBox="0 0 ' + w + ' 8" preserveAspectRatio="none" aria-hidden="true" style="display:block"' + (tk ? '' : ' data-lv="na"') + '><path d="' + (d || 'M0 0') + '" stroke="var(--ink-4)" stroke-width="1.4"/><path d="' + (e || 'M0 0') + '" stroke="var(--vz-err)" stroke-width="2"/></svg>';
   };
 
-  /* ---------- page wrapper: entry from other surfaces, pending markers, playhead to the real end ---------- */
-  const basePage = PAGES.sessions; const baseAfter = basePage.after;
-  PAGES.sessions = function () {
-    if (S.lvSess && S.lvSess !== LVS.lvSess) { LVS.lvSess = S.lvSess; if (BYID[S.lvSess]) { S.sess.sel = S.lvSess; S.sess.mode = 'single'; } }
-    const s = BYID[S.sess.sel];
-    if (s) {
-      const tr = traj(s);
-      // the playhead was parked at the skeleton's end while the detail loaded: move it to the real end once
-      if (tr.state === 'ready' && LVS.phReady !== s.id) { LVS.phReady = s.id; if (!S.sess.playing) { S.sess.ph = tr.T; S.sess.view = null; S.sess.zoom = 1; } }
-    }
-    let h = basePage();
-    if (s) { const st = traj(s).state; if (st !== 'ready') h = h.replace('<div class="cap tl-sum">', '<div class="cap tl-sum" data-lv="' + (st === 'error' ? 'error' : 'pending') + '"' + (st === 'pending' ? ' aria-busy="true"' : '') + '>'); }
-    return h;
+  /* ---------- region hooks (42-a3-sessions.js sessNorm / regions): entry from other surfaces, playhead to the real end,
+     pending markers, and the signatures that make a detail / search arrival refresh exactly the regions reading it ---------- */
+  A3H.pre = () => { if (S.lvSess && S.lvSess !== LVS.lvSess) { LVS.lvSess = S.lvSess; if (BYID[S.lvSess]) { S.sess.sel = S.lvSess; S.sess.mode = 'single'; } } };
+  // the playhead was parked at the skeleton's end while the detail loaded: move it to the real end once
+  A3H.post = (s) => { if (!s) return; const tr = traj(s); if (tr.state === 'ready' && LVS.phReady !== s.id) { LVS.phReady = s.id; if (!S.sess.playing) { S.sess.ph = tr.T; S.sess.view = null; S.sess.zoom = 1; } } };
+  A3H.sumAttr = (s, tr) => (tr.state === 'ready' ? '' : ' data-lv="' + (tr.state === 'error' ? 'error' : 'pending') + '"' + (tr.state === 'pending' ? ' aria-busy="true"' : ''));
+  const esig = (e) => (e ? e.state + ':' + lvId(e.data) : '-');
+  A3H.detSig = () => {
+    const ids = [S.sess.sel]; if (S.sess.mode === 'cmp' && S.sess.cmp) ids.push(S.sess.cmp, S.sess.sel + '|' + S.sess.cmp);
+    return ids.map((k, i) => esig(i < 2 ? DETAIL.get(k) : CMP.get(k))).join(',');
   };
-  PAGES.sessions.after = baseAfter;
+  A3H.listSig = () => (LVS.search ? LVS.search.q + ':' + LVS.search.state : '');
 
   /* ---------- search: server hits (message text) on top of the local title match ---------- */
   let qTimer = null; let qSeq = 0;
