@@ -79,6 +79,13 @@ def pl(x: float, anchors) -> float:
 
 
 # -- per-session units ------------------------------------------------------------------------
+# Meaning of the per-row unit columns on the wire (dk dn vk ...). Part of
+# ``services.sections.rules_digest``: bump it when a unit changes meaning so cached
+# uiview_facts snapshots are recomputed instead of serving the old unit to new anchors.
+# v2: ``vk`` counts only turns where the user asked for verification (was: asked or ran).
+UNITS_VERSION = "persona-units-v2"
+
+
 def requested_turns(turns) -> int:
     """V axis unit: turns in which *the user* asked for a test / build / check.
 
