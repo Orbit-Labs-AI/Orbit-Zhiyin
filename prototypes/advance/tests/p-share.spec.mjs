@@ -66,6 +66,11 @@ test('parity: the PNG draws what the preview shows; hidden numbers hide in both'
   expect(r.true.png.some((t) => /^\d+%$/.test(t))).toBe(false);
   expect(r.true.png).not.toContain('会话');
   expect(r.false.png.join('')).toContain(r.false.line.slice(0, 10));
+  // the header is the published wordmark (same paths as docs/design/logo/kit/wordmark), champagne on dark, slate on light
+  const wm = await page.evaluate(() => { const d = document.createElement('div'); S.shareDark = true; d.innerHTML = shareCard(sharePersona('30')); const g = d.querySelector('[data-wordmark]'); S.shareDark = false; d.innerHTML += shareCard(sharePersona('30')); const g2 = d.querySelectorAll('[data-wordmark]')[1]; return [g.getAttribute('fill'), g2.getAttribute('fill'), g.querySelectorAll('path').length === ORBIT_WORDMARK.paths.length]; });
+  expect(wm).toEqual(['#d6c7a1', '#5f6b6f', true]);
+  // persona type code in --font-type (SF Pro Rounded)
+  expect(await page.evaluate(() => { const d = document.createElement('div'); d.innerHTML = shareCard(sharePersona('30')); return d.querySelector('text.tcode').getAttribute('style'); })).toMatch(/ui-rounded/);
   expect(errors).toEqual([]);
 });
 

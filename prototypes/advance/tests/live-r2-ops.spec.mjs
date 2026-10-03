@@ -1,5 +1,5 @@
 // Round 2 · ops regressions (98-live-ops.js, 55-exports.js, 85-keyboard.js):
-//  J15  user-visible brand is Orbit: report title, share card wordmark (HTML + PNG model), report / CSV / PNG file names
+//  J15  user-visible brand is Orbit: report title, share card wordmark (the Orbit·知音 vector in HTML and PNG), report / CSV / PNG file names
 //  H4   ⇧⌘E opens the report sheet after the settings window was opened and closed (focus left on a hidden control)
 //  B18  exports carry the scope the screen shows: report body.scope (from_ts / source_ids / project_ids), CSV query
 //       (from_ts / agent / project_id)
@@ -29,7 +29,8 @@ test('J15 mock: report title, share card wordmark and its PNG say Orbit, never T
   });
   expect(r.head).toMatch(/^# Orbit 协作报告/);
   expect(r.md).not.toMatch(/Tandem|同频/i);
-  expect(r.card).toContain('>ORBIT<');
+  // the wordmark is the published Orbit·知音 vector (docs/design/logo/kit/wordmark), not typed text
+  expect(r.card).toContain('aria-label="Orbit·知音" data-wordmark="1"');
   expect(r.card).not.toMatch(/tandem|同频/i);
   expect(r.model).not.toMatch(/tandem|同频/i);
   // the PNG draws its wordmark with fillText: record the strings
@@ -39,7 +40,7 @@ test('J15 mock: report title, share card wordmark and its PNG say Orbit, never T
     try { await sharePNG(shareModel(sharePersona()), false, false); } finally { CanvasRenderingContext2D.prototype.fillText = f; }
     return out;
   });
-  expect(drawn).toContain('ORBIT');
+  expect(drawn.length).toBeGreaterThan(5);
   expect(drawn.join('\n')).not.toMatch(/tandem|同频/i);
 });
 

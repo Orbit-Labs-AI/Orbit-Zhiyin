@@ -76,7 +76,7 @@ function shareModel(sp) {
 const SHARE_C = { dark: { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' }, light: { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' } };
 function shareFonts() {
   const cs = getComputedStyle(document.documentElement); const v = (n) => cs.getPropertyValue(n).trim() || 'sans-serif';
-  return { type: v('--font-type'), serif: v('--font-display'), mono: v('--font-num'), sans: v('--font-sans') };
+  return { type: v('--font-type'), display: v('--font-display'), num: v('--font-num'), sans: v('--font-sans') };
 }
 let SHARE_MCTX = null;
 // 文字宽度（单位格）：在 10 倍字号下量再缩回，避免小字号的取整误差
@@ -93,19 +93,19 @@ function shareWrap(t, maxW, mw, o) {
   if (cur) lines.push(cur);
   return lines;
 }
-/* 版式（留白优先）：页眉 → 花 + 日历环 → 类型码 → 类型名与描述 → 四个数字 → 一行页脚。金句不上卡（放进「复制分享文案」），
+/* 版式（留白优先）：页眉（Orbit·知音 字标，取自 docs/design/logo/kit/wordmark；深色卡用香槟黄）→ 花 + 日历环 → 类型码 → 类型名与描述 → 四个数字 → 一行页脚。金句不上卡（放进「复制分享文案」），
    二维码占位去掉；隐藏数字时类型名以下整体下移，留白均匀。 */
 function shareOps(m, dark, noNum) {
   const C = SHARE_C[dark ? 'dark' : 'light'], F = shareFonts(), mw = shareMeasure(F); const ops = []; const L = 8, R = 92;
   const T = (s, x, y, o) => ops.push(Object.assign({ t: 'text', s: String(s), x, y }, o));
   ops.push({ t: 'rect', x: 0, y: 0, w: 100, h: 125, fill: C.bg });
   // 页眉：字标 + 这张卡的标签胶囊；下一行是卡名与日期
-  T('ORBIT', L, 10, { size: 2.5, weight: 700, family: 'mono', color: C.ink, ls: 0.32 });
+  const wm = ORBIT_WORDMARK, wh = 3.4; ops.push({ t: 'wordmark', x: L, y: 6.6, k: wh / wm.vb[3], fill: dark ? wm.night : wm.ink });
   const tag = m.tag[0] + ' · ' + m.tag[1], tagO = { size: 2, weight: 600, family: 'sans', color: C.ink, ls: 0.06 }; const tw = mw(tag, tagO) + 4.4;
   ops.push({ t: 'rrect', x: R - tw, y: 6.8, w: tw, h: 4.5, r: 2.25, stroke: C.ink, sw: 0.2 });
   T(tag, R - tw / 2, 9.85, Object.assign({ align: 'center' }, tagO));
   T('我的 AI 协作人格 · ' + m.label, L, 16.2, { size: 2.4, family: 'sans', color: C.ink3 });
-  T(m.range || '', R, 16.2, { size: 2.2, weight: 500, family: 'mono', color: C.ink3, align: 'right' });
+  T(m.range || '', R, 16.2, { size: 2.2, weight: 500, family: 'num', color: C.ink3, align: 'right' });
   // 花 + 日历环：12 点起顺时针，最早的一格在最前
   const cx = 75.5, cy = 36.5, rr = 15.6, cells = m.ring.cells || []; const n = cells.length;
   if (n) {
@@ -118,19 +118,19 @@ function shareOps(m, dark, noNum) {
   m.axes.forEach((a) => {
     const lo = { size: 12, weight: 700, family: 'type', color: C.ink }, no = { size: 2.5, family: 'sans', color: C.ink2 };
     T(a.L, x, by, lo); T(a.name, x, by + 4.4, no);
-    if (!noNum && a.strong) T(a.strong, x, by + 7.8, { size: 2.2, weight: 600, family: 'mono', color: C.ink3 });
+    if (!noNum && a.strong) T(a.strong, x, by + 7.8, { size: 2.2, weight: 600, family: 'num', color: C.ink3 });
     x += Math.max(mw(a.L, lo), mw(a.name, no)) + 3.6;
   });
   // 类型名、英文名、描述（最多两行）
   let y = by + (noNum ? 22 : 20);
-  T(m.zh || '', L, y, { size: 7.6, weight: 600, family: 'serif', color: C.ink }); y += 5.4;
-  T(m.en || '', L, y, { size: 3.1, italic: true, family: 'serif', color: C.ink3 }); y += 7.2;
+  T(m.zh || '', L, y, { size: 7.6, weight: 600, family: 'display', color: C.ink }); y += 5.4;
+  T(m.en || '', L, y, { size: 3, weight: 500, family: 'display', color: C.ink3, ls: 0.01 }); y += 7.2;
   const lineO = { size: 2.9, family: 'sans', color: C.ink2 };
   shareWrap(m.line || '', 76, mw, lineO).slice(0, 2).forEach((s) => { T(s, L, y, lineO); y += 4.9; });
   if (!noNum && m.stats.length) {
     const sy = 101.5; ops.push({ t: 'rect', x: L, y: sy, w: R - L, h: 0.12, fill: C.line });
     const cw = (R - L - 6) / 4;
-    m.stats.slice(0, 4).forEach((s, i) => { const sx = L + i * (cw + 2); T(s[0], sx, sy + 8, { size: 4.6, weight: 600, family: 'mono', color: C.ink }); T(s[1], sx, sy + 11.6, { size: 2.2, family: 'sans', color: C.ink3 }); });
+    m.stats.slice(0, 4).forEach((s, i) => { const sx = L + i * (cw + 2); T(s[0], sx, sy + 8, { size: 4.6, weight: 600, family: 'num', color: C.ink }); T(s[1], sx, sy + 11.6, { size: 2.2, family: 'sans', color: C.ink3 }); });
   }
   // 页脚：一行
   T('测测你和 AI 是哪种搭档', L, 119, { size: 2.3, weight: 600, family: 'sans', color: C.ink2 });
@@ -145,6 +145,7 @@ function shareSVG(m, dark, noNum) {
     if (o.t === 'srect') return '<rect x="' + o.x.toFixed(2) + '" y="' + o.y.toFixed(2) + '" width="' + o.w.toFixed(2) + '" height="' + o.h.toFixed(2) + '" fill="none" stroke="' + o.stroke + '" stroke-width="' + o.sw.toFixed(3) + '"/>';
     if (o.t === 'rrect') return '<rect x="' + o.x.toFixed(2) + '" y="' + o.y.toFixed(2) + '" width="' + o.w.toFixed(2) + '" height="' + o.h + '" rx="' + o.r + '" fill="none" stroke="' + o.stroke + '" stroke-width="' + o.sw + '"/>';
     if (o.t === 'arc') { const p0 = [o.cx + o.r * Math.cos(o.a0), o.cy + o.r * Math.sin(o.a0)], p1 = [o.cx + o.r * Math.cos(o.a1), o.cy + o.r * Math.sin(o.a1)]; return '<path d="M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + 'A' + o.r + ' ' + o.r + ' 0 ' + (o.a1 - o.a0 > Math.PI ? 1 : 0) + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + '" fill="none" stroke="' + o.color + '" stroke-opacity="' + o.alpha + '" stroke-width="' + o.sw + '" stroke-linecap="round"/>'; }
+    if (o.t === 'wordmark') return '<g transform="translate(' + o.x.toFixed(2) + ' ' + o.y.toFixed(2) + ') scale(' + o.k.toFixed(5) + ') translate(' + (-ORBIT_WORDMARK.vb[0]) + ' ' + (-ORBIT_WORDMARK.vb[1]) + ')" fill="' + o.fill + '" role="img" aria-label="Orbit·知音" data-wordmark="1">' + ORBIT_WORDMARK.paths.map((d) => '<path d="' + d + '"/>').join('') + '</g>';
     if (o.t === 'flower') return '<g transform="translate(' + o.tx.toFixed(2) + ' ' + o.ty.toFixed(2) + ') scale(' + o.k.toFixed(4) + ')"><path d="' + o.g.minor + '" fill="' + o.mn + '"/><path d="' + o.g.major + '" fill="' + o.mj + '"/><circle cx="40" cy="40" r="' + o.g.hr + '" fill="none" stroke="' + o.mj + '" stroke-width="1.6"/><circle cx="40" cy="40" r="1.6" fill="' + o.mj + '"/></g>';
     if (o.t === 'text') return '<text x="' + o.x.toFixed(2) + '" y="' + o.y.toFixed(2) + '" text-anchor="' + ({ center: 'middle', right: 'end' }[o.align] || 'start') + '" fill="' + o.color + '" font-size="' + o.size + '" font-weight="' + (o.weight || 400) + '"' + (o.italic ? ' font-style="italic"' : '') + (o.ls ? ' letter-spacing="' + (o.ls * o.size).toFixed(3) + '"' : '') + ' style="font-family:' + a(F[o.family || 'sans']) + '"' + (o.family === 'type' ? ' class="tcode"' : '') + '>' + a(o.s) + '</text>';
     return '';
@@ -234,6 +235,7 @@ async function sharePNG(m, dark, noNum) {
     else if (o.t === 'srect') { x.strokeStyle = o.stroke; x.lineWidth = o.sw * u; x.strokeRect(o.x * u, o.y * u, o.w * u, o.h * u); }
     else if (o.t === 'rrect') { const r = o.r * u, X = o.x * u, Y = o.y * u, Wd = o.w * u, Hh = o.h * u; x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + Wd, Y, X + Wd, Y + Hh, r); x.arcTo(X + Wd, Y + Hh, X, Y + Hh, r); x.arcTo(X, Y + Hh, X, Y, r); x.arcTo(X, Y, X + Wd, Y, r); x.closePath(); x.strokeStyle = o.stroke; x.lineWidth = o.sw * u; x.stroke(); }
     else if (o.t === 'arc') { x.globalAlpha = o.alpha; x.strokeStyle = o.color; x.lineWidth = o.sw * u; x.lineCap = 'round'; x.beginPath(); x.arc(o.cx * u, o.cy * u, o.r * u, o.a0, o.a1); x.stroke(); }
+    else if (o.t === 'wordmark' && typeof Path2D === 'function') { x.translate(o.x * u, o.y * u); x.scale(o.k * u, o.k * u); x.translate(-ORBIT_WORDMARK.vb[0], -ORBIT_WORDMARK.vb[1]); x.fillStyle = o.fill; ORBIT_WORDMARK.paths.forEach((d) => x.fill(new Path2D(d))); }
     else if (o.t === 'flower' && typeof Path2D === 'function') {
       x.translate(o.tx * u, o.ty * u); x.scale(o.k * u, o.k * u);
       x.fillStyle = o.mn; x.fill(new Path2D(o.g.minor)); x.fillStyle = o.mj; x.fill(new Path2D(o.g.major));
