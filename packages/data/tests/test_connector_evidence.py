@@ -317,6 +317,47 @@ def test_opencode_mcp_without_inventory_stays_unresolved(tmp_path):
         assert calls(store)["c"]["mcp_server"] is None
 
 
+def test_opencode_inventory_after_import_republishes_mcp_identity(tmp_path):
+    """Import first, scan later: the new server names mark the files stale and the next
+    projection resolves the MCP identity (it used to stay unknown until a full remap)."""
+    from orbit_data.scheduler import stale_files
+
+    records = [
+        sqlrow("session", {"id": "s", "directory": "/fixture"}),
+        sqlrow(
+            "part",
+            {
+                "id": "p",
+                "message_id": "m",
+                "session_id": "s",
+                "time_created": T,
+                "data": canonical(
+                    {"type": "tool", "callID": "c", "tool": "my-server_search", "state": {}}
+                ),
+            },
+        ),
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "opencode", records, "opencode.db", "sqlite_rows")
+        store.rebuild()
+        assert calls(store)["c"]["mcp_server"] is None and not stale_files(store.db)
+        config = tmp_path / "opencode-config"
+        config.mkdir()
+        (config / "opencode.json").write_text(
+            json.dumps({"mcp": {"my-server": {"type": "local", "command": ["x"]}}})
+        )
+        result = scan_inventory(store, InventoryRequest("opencode", config))
+        assert result["remap_files"] == 1
+        stale = set(stale_files(store.db))
+        assert stale
+        store.rebuild(source_ids=stale)
+        got = calls(store)["c"]
+        assert (got["kind"], got["mcp_server"], got["mcp_tool"]) == ("mcp", "my-server", "search")
+        assert not stale_files(store.db)
+        # Same names again: nothing to remap.
+        assert scan_inventory(store, InventoryRequest("opencode", config))["remap_files"] == 0
+
+
 # --- hermes ----------------------------------------------------------------------------
 
 

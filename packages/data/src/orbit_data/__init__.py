@@ -3,7 +3,7 @@
 CONTRACT_VERSION = 1
 SCHEMA_VERSION = 15
 MAPPER_VERSION = "1.6.0"
-REDUCER_VERSION = "1.9.0"
+REDUCER_VERSION = "1.9.1"
 CONTRACT_ID = "orbit-session-v1"
 
 from orbit_data import legacy as _legacy  # noqa: E402

@@ -518,7 +518,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-sw.line{width:12px;height:2px;border-radius:1px}
 .vz-sw.dot{border-radius:50%}
 .vz-lgv{font-family:var(--font-num);font-size:11px;color:var(--ink-1);font-variant-numeric:tabular-nums}
-.vz-tip{position:absolute;z-index:5;pointer-events:none;min-width:120px;max-width:260px;padding:7px 9px;border-radius:8px;background:var(--raised);color:var(--ink-1);box-shadow:var(--sh-pop);font-size:12px;line-height:1.4}
+.vz-tip{position:fixed;z-index:120;pointer-events:none;min-width:120px;max-width:260px;padding:7px 9px;border-radius:8px;background:var(--raised);color:var(--ink-1);box-shadow:var(--sh-pop);font-size:12px;line-height:1.4}
 .vz-th{display:flex;justify-content:space-between;gap:10px;font-weight:600;margin-bottom:3px;white-space:nowrap}
 .vz-th span{color:var(--ink-3);font-weight:400;font-family:var(--font-num);font-size:11px}
 .vz-tr{display:flex;align-items:center;gap:6px;min-height:18px;min-width:0}
@@ -1241,6 +1241,22 @@ svg[data-bloom] :is(.fp-pet,.fp-bk){transition:transform .55s cubic-bezier(.34,1
 @container main (max-width:639px){.tt-fail{grid-template-columns:96px minmax(0,1fr) auto}}
 /* MCP 服务：说明紧跟在列表下，不再被推到卡片底部留出空洞 */
 .tt-mcp-note{font-size:11px;line-height:1.45;margin-top:4px}
+/* F24 MCP 服务：服务名完整显示（可换行，不截断）；有调用的服务点开看其下工具 */
+.tt-mcp-s{display:flex;align-items:flex-start;gap:8px;font-size:12px}
+.tt-mcp-h{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:10px;row-gap:2px;border:0;background:none;padding:3px 6px;margin:-3px -6px;border-radius:6px;font:inherit;color:inherit;text-align:left}
+button.tt-mcp-h{cursor:pointer}
+button.tt-mcp-h:hover,button.tt-mcp-h[aria-expanded="true"]{background:var(--bg)}
+.tt-mcp-h>.ico{align-self:center}
+.tt-mcp-sp{width:12px;flex:none}
+.tt-mcp-n{min-width:0;overflow-wrap:anywhere;color:var(--ink-1)}
+.tt-mcp-n.off{text-decoration:line-through;color:var(--ink-3)}
+.tt-mcp-v{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.tt-mcp-s .tag,.tt-mcp-s .btn{flex:none}
+.tt-mcp-tools{display:flex;flex-direction:column;gap:4px;margin:-2px 0 4px 18px;padding-left:10px;border-left:1px solid var(--hair)}
+.tt-mcp-tnote{margin-top:2px}
+.tt-mcp-t{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(40px,1fr) 116px;gap:8px;align-items:center;font-size:11px;min-height:20px}
+.tt-mcp-tn{overflow-wrap:anywhere;color:var(--ink-1)}
+.tt-mcp-tv{color:var(--ink-2);white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
 
 /* A5 项目习惯（js/44-a5-projects.js）。布局 .pj：内容列 ≥ 1100px 时左（表 + 散点）右（详情）两栏，否则单栏堆叠（修评审 A5-V01 的裁切）。
    颜色：墨色 = 选中项目 / A，浅灰 = 基准；Agent 五色只在构成条与分工条里表示身份；残差竖线用语义色（琥珀高于预期、绿低于）。 */
@@ -3368,6 +3384,7 @@ const OrbitLive = (function () {
       toolCalls: (f, o) => C.send('GET', '/v1/analytics/tool_calls', null, { query: toolCallsQuery(f), signal: o && o.signal }).then(body),
       /* export */
       tables: () => C.send('GET', '/v1/export/tables').then(body),
+      // No UI entry since F20 removed 「导出工具明细 CSV」; kept as the general export API (backend /v1/export/csv)
       // CSV is text, not JSON: read it with the bearer header and hand back the text (status / code on failure)
       csv(table, f) {
         if (C.mode !== 'live') return Promise.reject(Object.assign(new Error('OrbitLive is in mock mode'), { code: 'mock_mode', status: 0 }));
@@ -3511,7 +3528,7 @@ const S = {
   winGone: false, widgets: false,
   persona: { period: 'sep', vs: 'past' },
   sess: { sel: FEAT_ID, q: '', mode: 'single', cmp: null, zoom: 1, axis: 'time', ph: 30.8, playing: false, hi: null },
-  tools: { sort: 'n', dir: -1, failOnly: false, open: null, figma: true, openFail: null },
+  tools: { sort: 'n', dir: -1, failOnly: store.get('toolsFailOnly', true) !== false, open: null, figma: true, openFail: null, mcpOpen: null },   // F24：「仅看失败」默认开，切换后记住
   proj: { sel: 'latentskill', group: 'project', cmp: null },
   recs: { dim: 'all', lv: new Set([1, 2, 3]), aud: 1, sel: 'pr-wrapup', tab: 'preview', scope: 'global', gone: new Set() },
   lib: { tab: 'for', kind: '全部', q: '' },
@@ -4537,7 +4554,7 @@ Object.assign(ACT, {
 const MENUS = {
   apple: () => [{ t: '关于本机', v: demoOnly }, { sep: 1 }, { t: '系统设置…', v: demoOnly }, { t: 'App Store…', v: demoOnly }, { sep: 1 }, { t: '最近使用的项目', sub: 1, v: demoOnly }, { sep: 1 }, { t: '强制退出…', k: '⌥⌘⎋', v: demoOnly }, { sep: 1 }, { t: '睡眠', v: demoOnly }, { t: '重新启动…', v: demoOnly }, { t: '关机…', v: demoOnly }, { sep: 1 }, { t: '锁定屏幕', k: '⌃⌘Q', v: demoOnly }, { t: '退出登录…', k: '⇧⌘Q', v: demoOnly }],
   app: () => [{ t: '关于 Orbit', v: () => openAbout() }, { sep: 1 }, { t: '设置…', k: '⌘,', v: () => openSettings() }, { sep: 1 }, { t: S.paused ? '恢复采集' : '暂停采集', v: () => { S.paused = !S.paused; render(); toast(S.paused ? '已暂停采集，菜单栏图标不再显示状态角标' : '已恢复采集'); } }, { sep: 1 }, { t: '服务', sub: 1, v: demoOnly }, { sep: 1 }, { t: '隐藏 Orbit', k: '⌘H', v: () => ACT.winMin() }, { t: '隐藏其他', k: '⌥⌘H', v: demoOnly }, { t: '全部显示', v: () => showMain() }, { sep: 1 }, { t: '退出 Orbit', k: '⌘Q', v: () => toast('这是 Demo：退出不可用') }],
-  file: () => [{ t: '导出报告…', k: '⇧⌘E', v: () => openReport() }, { t: '导出分享卡…', k: '⇧⌘S', v: () => openShare() }, { t: '导出工具明细 CSV…', v: () => openCSV() }, { sep: 1 }, { t: '关闭窗口', k: '⌘W', v: () => ACT.winClose() }],
+  file: () => [{ t: '导出报告…', k: '⇧⌘E', v: () => openReport() }, { t: '导出分享卡…', k: '⇧⌘S', v: () => openShare() }, { sep: 1 }, { t: '关闭窗口', k: '⌘W', v: () => ACT.winClose() }],
   edit: () => [{ t: '撤销', k: '⌘Z', v: () => undoInstall() }, { t: '重做', k: '⇧⌘Z', dis: true }, { sep: 1 }, { t: '剪切', k: '⌘X', v: () => editCmd('cut') }, { t: '拷贝', k: '⌘C', v: () => editCmd('copy') }, { t: '粘贴', k: '⌘V', v: () => editCmd('paste') }, { t: '全选', k: '⌘A', v: () => editCmd('selectAll') }, { sep: 1 }, { t: '查找…', k: '⌘F', v: () => findCmd() }],
   view: () => [{ h: '外观' }, { t: '跟随系统', on: S.theme === 'system', v: () => { setTheme('system'); render(); } }, { t: '浅色', on: S.theme === 'light', v: () => { setTheme('light'); render(); } }, { t: '深色', on: S.theme === 'dark', v: () => { setTheme('dark'); render(); } }, { sep: 1 }, { t: '悬浮组件', k: '⌥⌘P', on: S.hud.show, v: () => toggleHud() }, { t: '桌面小组件', on: S.widgets, v: () => { S.widgets = !S.widgets; render(); } }, { t: S.ed === 'lite' ? '切换到 Advance' : '切换到 Lite', k: '⌃⌘L', v: () => edToggle() }, { t: (winNarrow() ? S.sideOver : S.side) ? '隐藏侧边栏' : '显示侧边栏', k: '⌃⌘S', v: () => toggleSide() }, { sep: 1 }, { t: S.win.full ? '退出全屏' : '进入全屏', k: '⌃⌘F', v: () => winFullToggle() }],
   window: () => [{ t: '最小化', k: '⌘M', v: () => ACT.winMin() }, { t: S.win.zoom ? '恢复缩放' : '缩放', v: () => winZoomToggle() }, { sep: 1 }, { t: '主窗口', k: kb('⌥0'), on: !S.winGone, v: () => showMain() }, { t: '命令面板', k: '⌘K', v: () => openPalette() }, { t: '设置', k: '⌘,', v: () => openSettings() }, { sep: 1 }].concat(navRoutes().map((r, i) => ({ t: r[1], k: kb('⌥' + (i + 1)), on: S.route === r[0], v: () => go(r[0]) }))),
@@ -4987,13 +5004,14 @@ VZ.emptyHTML = function (spec, h) {
 };
 /* ---------- 渲染入口 ---------- */
 VZ.height = (spec, w) => { const t = VZ.types[spec.type]; return spec.height || (t && t.height ? t.height(spec, w) : VZ.defaultH[spec.type]) || 200; };
-VZ.render = function (spec, w, h, inst) {
+// bare：交互图（VZ.html）不写 <title>，免得原生提示盖住自定义浮层（F23）；名字仍在 aria-label 里
+VZ.render = function (spec, w, h, inst, bare) {
   const t = VZ.types[spec.type]; if (!t) return { svg: '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"><text x="8" y="20" class="vz-ax">未知图表类型 ' + esc(spec.type) + '</text></svg>', model: null };
   h = h || VZ.height(spec, w); w = Math.max(80, Math.round(w)); h = Math.max(24, Math.round(h));
   const ctx = { w, h, inst: inst || { hidden: new Set(), focus: -1 }, vis: VZ.vis(spec, inst) };
   const r = t.render(spec, w, h, ctx);
   const title = spec.title || t.name || spec.type;
-  const svg = '<svg class="vz-svg vz-t-' + spec.type + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(title + (spec.desc ? '。' + spec.desc : '')) + '"' + (r.model && r.model.kind ? ' data-kind="' + r.model.kind + '"' : '') + '><title>' + esc(title) + '</title>' + r.body + (spec.brush ? '<rect class="vz-brush" x="0" y="0" width="0" height="0" hidden/>' : '') + '</svg>';
+  const svg = '<svg class="vz-svg vz-t-' + spec.type + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(title + (spec.desc ? '。' + spec.desc : '')) + '"' + (r.model && r.model.kind ? ' data-kind="' + r.model.kind + '"' : '') + '>' + (bare ? '' : '<title>' + esc(title) + '</title>') + r.body + (spec.brush ? '<rect class="vz-brush" x="0" y="0" width="0" height="0" hidden/>' : '') + '</svg>';
   return { svg, model: r.model || null, h };
 };
 VZ.svg = function (spec, w, h) {
@@ -5012,7 +5030,7 @@ VZ.html = function (spec, w, h, inst) {
   if (spec.view === 'table') return head + VZ.table(spec);
   if (VZ.isEmpty(spec) || VZ.lowSample(spec)) return head + VZ.emptyHTML(spec, h);
   const t = VZ.types[spec.type]; if (t && t.html) { if (inst) inst.model = null; return head + t.html(spec, w, h, inst); }
-  const r = VZ.render(spec, w, h, inst); if (inst) inst.model = r.model;
+  const r = VZ.render(spec, w, h, inst, true); if (inst) inst.model = r.model;
   const lg = VZ.legendHTML(spec, inst);
   const extra = t && t.extra ? t.extra(spec, w, r.model) : '';
   return head + (spec.legend === 'bottom' ? '' : lg) + '<div class="vz-plot" tabindex="0" role="group" aria-roledescription="图表" aria-label="' + esc(spec.title || spec.type) + '（← → 移动焦点，Enter 选择）">' + r.svg + '<div class="vz-tip" role="tooltip" hidden></div><div class="vh" aria-live="polite" data-vz-live></div></div>' + extra + (spec.legend === 'bottom' ? lg : '');
@@ -5059,15 +5077,24 @@ VZ._observe = (el) => { if (VZ._ro) VZ._ro.observe(el); };
 VZ.relayout = () => { $$('.vz').forEach((el) => { const inst = VZ._inst.get(el); if (inst && el.isConnected && Math.abs(el.clientWidth - inst.w) >= 1) VZ.draw(el); }); };
 window.addEventListener('orbit:layout', VZ.relayout);
 /* ---------- 交互：hover / 十字准线 / 键盘 / 点击 / 图例 / brush ---------- */
+// F23：浮层 position:fixed，不被卡片 / .scroll-x 的 overflow 裁切；按所在窗口（.main / .win）与视口的可见区避让边缘，
+// 右侧放不下翻到左侧、上方放不下翻到下方。fixed 的包含块可能是带 container 的祖先（.main），所以摆好后量一次实际位置再校正。
 VZ._tipShow = function (inst, html, x, y) {
   const tip = inst.el.querySelector('.vz-tip'); const plot = inst.el.querySelector('.vz-plot'); if (!tip || !plot) return;
   tip.innerHTML = html; tip.hidden = false;
-  const pw = plot.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
-  let left = x + 12, top = y - th - 10;
-  if (left + tw > pw - 4) left = x - tw - 12; if (left < 4) left = Math.max(4, Math.min(pw - tw - 4, x - tw / 2));
-  if (top < 2) top = y + 16;
+  const pr = plot.getBoundingClientRect(); const host = plot.closest('.main, .panel, .modal, .win');
+  const hr = host ? host.getBoundingClientRect() : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+  const L = Math.max(0, hr.left) + 4, T = Math.max(0, hr.top) + 4, R = Math.min(window.innerWidth, hr.right) - 4, B = Math.min(window.innerHeight, hr.bottom) - 4;
+  const tw = tip.offsetWidth, th = tip.offsetHeight; const px = pr.left + x, py = pr.top + y;
+  let left = px + 12, top = py - th - 10;
+  if (left + tw > R) left = px - tw - 12; if (left < L) left = Math.max(L, Math.min(R - tw, px - tw / 2));
+  if (top < T) top = py + 16; if (top + th > B) top = Math.max(T, B - th);
   tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  const a = tip.getBoundingClientRect();
+  if (Math.abs(a.left - left) > 0.5 || Math.abs(a.top - top) > 0.5) { tip.style.left = (2 * left - a.left) + 'px'; tip.style.top = (2 * top - a.top) + 'px'; }
 };
+// 浮层是 fixed：内容区滚动时收起，免得停在原处
+document.addEventListener('scroll', () => { document.querySelectorAll('.vz-tip:not([hidden])').forEach((t) => { t.hidden = true; }); }, true);
 VZ._tipHide = (inst) => { const tip = inst.el.querySelector('.vz-tip'); if (tip) tip.hidden = true; VZ._hl(inst, -1); };
 VZ._hl = function (inst, i) {
   const svg = inst.el.querySelector('svg.vz-svg'); if (!svg) return; const m = inst.model;
@@ -6902,7 +6929,7 @@ Object.assign(ACT, {
   },
   reindex: () => reindex(),
   report: () => openReport(),
-  ovMore: (el) => openDD(el, [{ t: '重新索引', k: '⌘R', v: () => reindex() }, { t: '导出工具明细 CSV…', v: () => openCSV() }, { t: '键盘快捷键', k: '?', v: () => openKeys() }], (v) => v())
+  ovMore: (el) => openDD(el, [{ t: '重新索引', k: '⌘R', v: () => reindex() }, { t: '键盘快捷键', k: '?', v: () => openKeys() }], (v) => v())
 });
 let OV_IDX = null;
 function reindex() {
@@ -7854,6 +7881,31 @@ function toolDaily(L, share, range) {
   return raw.map((v, i) => { const a = Math.max(0, i - 6); let t = 0; for (let k = a; k <= i; k++) t += raw[k]; return Math.round(t / (i - a + 1) * 10) / 10; });
 }
 const TOOL_SHARE = {}; TOOLS.forEach((t) => { TOOL_SHARE[t[0]] = t[1] / 9860; });
+// F24: MCP 服务卡（Demo 与 live 共用）：服务名完整显示（可换行，不截断），有调用的服务可展开看其下每个工具的次数与失败率。
+// servers: [{ server, calls, err (null = 不计算), errWhy, extra, tag, tagHtml, removed, tools: [{ name, n, err, errWhy }], toolsNote（展开列表下的说明，Demo 标「示例」） }]
+function ttMcpList(servers) {
+  const T = S.tools; const pct = (v) => v == null ? '—' : f1(v * 100) + '%';
+  return servers.map((x) => {
+    const k = 'mcp·' + x.server; const can = !x.removed && x.calls > 0 && x.tools && x.tools.length; const open = can && T.mcpOpen === x.server;
+    const rate = x.calls ? ' · 失败 ' + (x.err == null ? '<span data-tip="' + esc(x.errWhy || '状态未知，不计算错误率') + '">—</span>' : pct(x.err)) : '';
+    const name = '<span class="mono tt-mcp-n' + (x.removed ? ' off' : '') + '">' + esc(k) + '</span>';
+    const stats = '<span class="tt-mcp-v">' + (x.removed ? '已移除 · 可在资源库重装' : fmt(x.calls || 0) + ' 次' + rate + (x.extra || '')) + '</span>';
+    const head = can ? '<button type="button" class="tt-mcp-h" data-act="toggleMcp" data-k="' + esc(x.server) + '" aria-expanded="' + open + '">' + ic(open ? 'chev' : 'chevr', 12, 'flex:none;color:var(--ink-3)') + name + stats + '</button>'
+      : '<div class="tt-mcp-h">' + '<span class="tt-mcp-sp" aria-hidden="true"></span>' + name + stats + '</div>';
+    let h = '<div class="tt-mcp-s" data-mcp="' + esc(x.server) + '">' + head + (x.tagHtml || (x.tag ? '<span class="tag">' + x.tag + '</span>' : '')) + '</div>';
+    if (open) {
+      const mx = Math.max(1, ...x.tools.map((t) => t.n || 0));
+      h += '<div class="tt-mcp-tools" data-lv="mcp-tools">' + x.tools.map((t) => '<div class="tt-mcp-t">' + (t.name ? '<span class="mono tt-mcp-tn">' + esc(t.name) + '</span>' : '<span class="tt-mcp-tn cap" data-tip="记录里没有工具名">(未命名)</span>') + '<span class="tt-fail-bar"><i style="width:' + ((t.n || 0) / mx * 100).toFixed(1) + '%"></i></span><span class="mono tt-mcp-tv">' + fmt(t.n || 0) + ' 次 · 失败 ' + (t.err == null ? '<span data-tip="' + esc(t.errWhy || '状态未知，不计算错误率') + '">—</span>' : pct(t.err)) + '</span></div>').join('') + (x.toolsNote ? '<div class="cap tt-mcp-tnote">' + esc(x.toolsNote) + '</div>' : '') + '</div>';
+    }
+    return h;
+  }).join('');
+}
+// Demo：mcp·browser 下各工具的份额与失败率（示例数据）；总数随筛选跟着明细表那一行走
+const MCP_DEMO_TOOLS = { browser: [['screenshot', 0.5, 0.06], ['navigate', 0.34, 0.09], ['click', 0.16, 0.1]] };
+function ttDemoMcpTools(server, n) {
+  const spec = MCP_DEMO_TOOLS[server] || []; let left = n;
+  return spec.map((t, i) => { const c = i === spec.length - 1 ? left : Math.round(n * t[1]); left -= c; const f = Math.round(c * t[2]); return { name: t[0], n: c, fails: f, err: c ? f / c : null }; }).filter((t) => t.n > 0);
+}
 PAGES.tools = () => {
   if (LV.live) return lvToolsPage();   // live: same cards from /v1/uiview/tools (93-live-tools-projects.js)
   const L = sel(); const st = stats(L);
@@ -7899,6 +7951,9 @@ PAGES.tools = () => {
   const halfTxt = ({ '<5s': '5 s', '5–15s': '15 s', '15–30s': '30 s', '30–60s': '1 分钟', '1–2m': '2 分钟', '2–5m': '5 分钟', '>5m': '5 分钟以上' })[half] || half;
   const fails = FAILS.map((f) => [f[0], f[1], Math.round(st.errors * f[1] / 100), f[2]]); const fmx = Math.max(1, ...fails.map((f) => f[1]));
   const mcpN = S.installed.has('remove-figma') ? 1 : 2;
+  const br = all.find((r) => r.name === 'mcp·browser'); const brTools = br ? ttDemoMcpTools('browser', br.n) : []; const brFails = sum(brTools, (t) => t.fails);
+  const mcpDemo = [{ server: 'browser', calls: br ? br.n : 0, err: br && br.n ? brFails / br.n : null, tools: brTools, toolsNote: '各工具的份额与失败率为示例', tag: '在用' },
+    S.installed.has('remove-figma') ? { server: 'figma', removed: true } : { server: 'figma', calls: 0, extra: ' · 常驻 ≈ 2.1k tokens', tools: [], tagHtml: '<button type="button" class="btn sm" data-act="install" data-id="remove-figma">移除</button>' }];
   const retries = RETRIES.map((r) => [r[0], Math.max(1, Math.round(r[1] * st.errors / 614)), r[2]]);
   const kpis = [
     VZ.kpi({ label: T.failOnly ? '失败次数' : '工具调用', value: fmt(T.failOnly ? st.errors : st.tools), delta: { cur: T.failOnly ? st.errors : st.tools, prev: P ? (T.failOnly ? P.errors : P.tools) : null, goodDown: T.failOnly ? true : null, fmt: 'int' }, trend: weekly((x) => sum(x, (s) => T.failOnly ? s.errors : s.tools), endDay, 12), trendLabel: trendLbl, tip: '每会话 ' + Math.round(st.tools / Math.max(1, st.n)) + ' 次' }),
@@ -7906,15 +7961,15 @@ PAGES.tools = () => {
     VZ.kpi({ label: '需要你审批', value: fmt(approvals), delta: { cur: approvals, prev: approvalsPrev, goodDown: true, fmt: 'int' }, trend: weekly((x) => approvalsOf(toolRows(x)), endDay, 12), trendLabel: trendLbl, tip: '平均等待 38 s · 约 ' + Math.round(approvals * 38 / 3600) + ' 小时被打断（示例）' }),
     VZ.kpi({ label: '子代理派发', value: fmt(task ? task.n : 0), delta: { cur: task ? task.n : 0, prev: taskPrev ? taskPrev.n : null, fmt: 'int' }, trend: weekly((x) => { const t = toolRows(x).find((r) => r.name === 'Task'); return t ? t.n : 0; }, endDay, 12), trendLabel: trendLbl, tip: '平均 96 s · 最多并行 9（示例）' })
   ].join('');
-  return tbar('工具调用', fmt(st.tools) + ' 次调用 · ' + TOOLS.length + ' 种工具 · ' + mcpN + ' 个 MCP 服务', '<button type="button" class="btn" data-act="csv">' + ic('down', 14) + '导出 CSV</button><button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>') +
+  return tbar('工具调用', fmt(st.tools) + ' 次调用 · ' + TOOLS.length + ' 种工具 · ' + mcpN + ' 个 MCP 服务', '<button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>') +
     '<div class="content" id="content">' + filterRow('<button type="button" class="chip' + (T.failOnly ? ' on' : '') + '" data-act="failOnly" aria-pressed="' + T.failOnly + '">' + ic('alert', 13) + '仅看失败</button>') +
     '<div class="stack"><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))">' + kpis + '</div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具明细</span><span class="cap" title="点列头排序 · 点行展开最近调用 · 迷你线为' + rangeLabel() + '每日调用' + (rangeN > 7 ? '（7 天滑动平均）' : '') + '">点行展开最近调用 · 列头可排序</span></div></div><div class="scroll-x"><table class="tbl tt"><thead><tr>' + th('name', '工具') + th('n', T.failOnly ? '失败次数' : '调用次数') + th('err', '错误率', 'right') + th('avg', '耗时 p50 / p95', 'right') + th('ap', '需审批', 'right') + '<th title="每日调用' + (rangeN > 7 ? '，7 天滑动平均' : '') + '">' + rangeLabel() + '</th></tr></thead><tbody>' + (tbody || '<tr><td colspan="6" class="cap">没有失败的调用</td></tr>') + '</tbody></table></div></div>' +
     '<div class="tt-grid"><div class="card pad tt-matrix"><div class="hd"><div class="grow"><span class="ct">调用链 · 下一步是什么</span><span class="cap" title="P(下一步 | 上一步)：行 = 上一步，列 = 下一步；悬停看整行整列">格内 = 下一步的概率 %</span></div></div>' + matrix + '<div class="col tt-ins"><span><b style="color:var(--ink-1)">最常见三步链</b> Grep → Read → Edit（58% → 41%）</span><span><b style="color:var(--ink-1)">命令之后仍是命令 ' + Math.round(TRANS[3][3] * 100) + '%</b>，其中一半是失败后的原样重试 → <button type="button" class="lnk" data-act="openRec" data-id="retry-breaker">重复失败熔断</button></span></div>' +
     '<div class="hd tt-sub"><div class="grow"><span class="ct">失败后原样重试 · Top 5</span><span class="cap" title="同一命令失败后未改参数直接重跑 · 次数与最长连跑">未改参数直接重跑</span></div></div><div class="col" style="gap:4px">' + retries.map((r) => '<div class="tt-retry"><span class="mono tt-cmd" title="' + esc(r[0]) + '">' + esc(r[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (r[1] / retries[0][1] * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v" title="重试 ' + r[1] + ' 次 · 最长连跑 ' + r[2] + ' 次">×' + r[1] + ' · 连跑 ' + r[2] + '</span></div>').join('') + '</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">失败原因</span><span class="cap">' + fmt(st.errors) + ' 次失败 · 按输出聚类</span></div></div><div class="col" style="gap:5px">' + fails.map((f) => '<button type="button" class="tt-fail' + (T.openFail === f[0] ? ' on' : '') + '" data-act="openFail" data-k="' + esc(f[0]) + '" aria-expanded="' + (T.openFail === f[0]) + '"><span class="tt-fail-n">' + f[0] + '</span><span class="tt-fail-bar"><i style="width:' + (f[1] / fmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v">' + f[1] + '% · ' + fmt(f[2]) + ' 次</span></button>' + (T.openFail === f[0] ? '<div class="tt-fail-x"><span class="mono" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">典型：' + esc(f[3]) + '</span><button type="button" class="btn sm" data-act="failSessions">相关会话 →</button></div>' : '')).join('') + '</div></div>' +
     '<div class="card pad col" style="gap:0"><div class="hd" style="margin-bottom:4px"><div class="grow"><span class="ct">审批负担</span><span class="cap">等你点「允许」的时间 · 对数分桶</span></div></div><div class="vz" data-vz="waits"></div><div class="cap tt-wait-note">一半的审批在 <b style="color:var(--ink-1)">' + halfTxt + '</b> 内等到了你 · 共 ' + fmt(wTot) + ' 次（示例）</div><div class="row tt-cta"><span class="tt-cta-t"><b>212 次</b> 只读命令可自动放行</span>' + (S.installed.has('ro-allow') ? '<span class="tag">已安装</span>' : '<button type="button" class="btn sm p" data-act="install" data-id="ro-allow">生成白名单 Hook</button>') + '</div></div>' +
-    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个已连接</span></div></div><div class="row" style="font-size:12px"><span class="mono" style="width:92px">mcp·browser</span><span style="flex:1;color:var(--ink-2)">64 次 · 失败 7.8%</span><span class="tag">在用</span></div>' + (S.installed.has('remove-figma') ? '<div class="row" style="font-size:12px;color:var(--ink-3)"><span class="mono" style="width:92px;text-decoration:line-through">mcp·figma</span><span style="flex:1">已移除 · 可在资源库重装</span></div>' : '<div class="row" style="font-size:12px"><span class="mono" style="width:92px">mcp·figma</span><span style="flex:1;color:var(--ink-2)">0 次 · 常驻 ≈ 2.1k tokens</span><button type="button" class="btn sm" data-act="install" data-id="remove-figma">移除</button></div>') + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(task ? task.n : 0) + ' 次 · 最多并行 9 个</span></div></div><div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">40%</b> 被你中途停止</div></div></div></div></div></div>';
+    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个已连接</span></div></div>' + ttMcpList(mcpDemo) + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(task ? task.n : 0) + ' 次 · 最多并行 9 个</span></div></div><div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">40%</b> 被你中途停止</div></div></div></div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具明细</span><span class="cap" title="点列头排序 · 点行展开最近调用 · 迷你线为' + rangeLabel() + '每日调用' + (rangeN > 7 ? '（7 天滑动平均）' : '') + '">点行展开最近调用 · 列头可排序</span></div></div><div class="scroll-x"><table class="tbl tt"><thead><tr>' + th('name', '工具') + th('n', T.failOnly ? '失败次数' : '调用次数') + th('err', '错误率', 'right') + th('avg', '耗时 p50 / p95', 'right') + th('ap', '需审批', 'right') + '<th title="每日调用' + (rangeN > 7 ? '，7 天滑动平均' : '') + '">' + rangeLabel() + '</th></tr></thead><tbody>' + (tbody || '<tr><td colspan="6" class="cap">没有失败的调用</td></tr>') + '</tbody></table></div></div>' + '</div></div>';
 };
 // 失败后原样重试的命令（示例数据）：[命令, 次数（按 614 次失败的基准缩放）, 最长连跑]
 const RETRIES = [['wrangler deploy --env production', 37, 4], ['npm run build', 21, 3], ['pytest -q tests/', 14, 3], ['gh pr merge --merge', 9, 2], ['latexmk -pdf main.tex', 7, 2]];
@@ -7934,10 +7989,10 @@ TIPS.trans = (i, j) => '<b>' + TRANS_NAMES[+i] + ' → ' + TRANS_NAMES[+j] + '</
 Object.assign(ACT, {
   sortTools: (el) => { const k = el.dataset.k; if (S.tools.sort === k) S.tools.dir *= -1; else { S.tools.sort = k; S.tools.dir = k === 'name' ? 1 : -1; } render(); },
   toggleTool: (el) => { S.tools.open = S.tools.open === el.dataset.t ? null : el.dataset.t; render(); },
-  failOnly: () => { S.tools.failOnly = !S.tools.failOnly; render(); },
+  failOnly: () => { S.tools.failOnly = !S.tools.failOnly; store.set('toolsFailOnly', S.tools.failOnly); render(); },
+  toggleMcp: (el) => { S.tools.mcpOpen = S.tools.mcpOpen === el.dataset.k ? null : el.dataset.k; render(); },
   openFail: (el) => { S.tools.openFail = S.tools.openFail === el.dataset.k ? null : el.dataset.k; render(); },
-  failSessions: () => { S.fric = '工具 / 环境失败'; go('sessions'); toast('已筛选出现「工具 / 环境失败」的会话'); },
-  csv: () => openCSV()
+  failSessions: () => { S.fric = '工具 / 环境失败'; go('sessions'); toast('已筛选出现「工具 / 环境失败」的会话'); }
 });
 
 /* ============ A5 projects ============
@@ -8919,7 +8974,6 @@ function palActions() {
     { t: '问本地 Agent', icon: 'spark', run: () => openAsk(ctx) },
     { t: '导出分享卡', k: kb('⌘⇧S'), icon: 'share', run: () => openShare() },
     { t: '导出报告', k: kb('⌘⇧E'), icon: 'file', run: () => openReport() },
-    { t: '导出工具明细 CSV', icon: 'down', run: () => openCSV() },
     { t: '打开设置', k: kb('⌘,'), icon: 'settings', run: () => openSettings() },
     { t: '重新索引', k: kb('⌥R'), icon: 'sync', run: () => reindex() },
     { t: (S.hud.show ? '隐藏' : '显示') + '悬浮组件', k: kb('⌥⌘P'), icon: 'eye', run: () => toggleHud() },
@@ -9134,7 +9188,7 @@ Object.assign(ACT, {
   typeInfo: (el) => { const k = el.dataset.k; const t = $('#typeLine'); if (t) t.innerHTML = '<b style="color:var(--ink-1)"><span class="tcode">' + k + '</span> ' + TYPES[k][0] + '</b> <i class="serif" style="color:var(--ink-3)">' + TYPES[k][1] + '</i>：' + esc(TYPES[k][2]) + '<br><span class="cap" style="font-size:12px">花：' + esc(BLOOM_READ[k]) + '</span>'; }
 });
 
-/* ============ exports: report, csv, share card ============ */
+/* ============ exports: report, share card ============ */
 const REP_SECS = [['ov', '概览'], ['persona', '协作人格'], ['proj', '项目'], ['fric', '主要摩擦'], ['recs', '建议']];
 // Active filters, as one line for the report header. The persona uses the shared persona scope (personaNow, BUG-06):
 // session-level filters such as topic or outcome do not change it, and the report says so.
@@ -9162,11 +9216,6 @@ function openReport() {
   CUR.report = reportMD();
   openModal(modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" aria-label="报告内容" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.report) + '</textarea></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">Demo 不能直接下载 · 复制后粘贴到任意 Markdown 编辑器</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="repCopy">复制 Markdown</button></div>', 'wide');
   MODAL_KEY = 'report';
-}
-function openCSV() {
-  const rows = toolRows(sel());
-  CUR.csv = ['tool,calls,error_rate,failures,avg_duration,approval_rate'].concat(rows.map((r) => [r.name, r.n, (r.err * 100).toFixed(1) + '%', r.fails, r.avg, Math.round(r.ap * 100) + '%'].join(','))).join('\n');
-  openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · ' + rows.length + ' 种工具 · 复制后可以粘贴到表格软件') + '<div class="mb"><textarea readonly aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.csv) + '</textarea></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyCSV">复制 CSV</button></div>', 'wide');
 }
 // 分享卡金句：16 型各一句（与 packages/backend/src/orbit_backend/exporting/type_copy.py 的 SHARE_QUOTES 逐字一致）
 const SHAREQ = { DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], DPMT: ['把需求讲清楚，', '让产出并行流动。'], DPFV: ['一次只推一件事，', '每一件都严格验收。'], DPFT: ['把想法写成好任务，', '把精力留给关键判断。'],
@@ -9341,7 +9390,6 @@ function shareSaveOne(sp) { const m = shareModel(sp); return sharePNG(m, S.share
 Object.assign(ACT, {
   repSec: (el) => { const k = el.dataset.k; if (el.checked) S.rep.add(k); else S.rep.delete(k); CUR.report = reportMD(); const t = $('#repText'); if (t) t.value = CUR.report; },
   repCopy: () => copyText(CUR.report || reportMD(), '报告'),
-  copyCSV: () => copyText(CUR.csv || '', 'CSV'),
   shareSpan: (el) => { S.shareSpan = el.dataset.v; shareRefresh(); },
   shareTheme: (el) => { S.shareDark = el.dataset.v === 'dark'; shareRefresh(); },
   shareNum: () => { S.shareNoNum = !S.shareNoNum; shareRefresh(); },
@@ -10177,7 +10225,7 @@ function renderSet() {
   if (keepK) { const f = el.querySelector(keepK); if (f) f.focus({ preventScroll: true }); }
 }
 function doReset() {
-  store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null); store.set('range', null); store.set('wgSize', null);
+  store.set('theme', 'system'); store.set('hud', null); store.set('win', null); store.set('side', null); store.set('range', null); store.set('wgSize', null); store.set('toolsFailOnly', null);
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* sandboxed */ }
   try { location.reload(); } catch (e) { toast('请手动刷新页面'); }
 }
@@ -10646,7 +10694,6 @@ function mainAction() {
   else if (r === 'studio') ACT.studioStart();
   else if (r === 'sessions') ACT.resume();
   else if (r === 'persona') openShare();
-  else if (r === 'tools') openCSV();
   else if (r === 'projects') ACT.projRule();
   else if (r === 'sentiment') ACT.phrasesToRule();
   else if (r === 'library') { const x = LIB[0]; if (x) openInstall(x.rec, x); }
@@ -11996,7 +12043,7 @@ function lvtpCallRows(name) {
 }
 function lvToolsPage() {
   const T = S.tools; const fs = LV.feedState('tools'); const b = LVTP.tools;
-  const actions = '<button type="button" class="btn" data-act="csv">' + ic('down', 14) + '导出 CSV</button><button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>';
+  const actions = '<button type="button" class="btn ai" data-act="ask" data-ctx="tools">' + ic('spark', 14) + '找出可自动化的操作</button>';
   const chip = '<button type="button" class="chip' + (T.failOnly ? ' on' : '') + '" data-act="failOnly" aria-pressed="' + !!T.failOnly + '">' + ic('alert', 13) + '仅看失败</button>';
   const head = (meta) => tbar('工具调用', meta, actions) + '<div class="content" id="content">' + filterRow(chip) + lvtpScopeNote();
   if (fs === 'error' && !b) return head('—') + empty('本地服务暂不提供工具统计') + '</div>';
@@ -12053,12 +12100,21 @@ function lvToolsPage() {
   ].join('');
   return head(fmt(H.calls) + ' 次调用 · ' + fmt(all.length || H.tool_kinds) + ' 种工具 · ' + mcpN + ' 个 MCP 服务' + (fs === 'pending' || fs === 'computing' ? ' · 更新中' : '')) +
     '<div class="stack"><div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr))">' + kpis + '</div>' +
-    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具明细</span><span class="cap" title="点列头排序 · 点行展开最近调用 · 迷你线为' + rangeLabel() + '每日调用' + (rangeN > 7 || !rangeN ? '（7 天滑动平均）' : '') + '">点行展开最近调用 · 列头可排序</span></div></div><div class="scroll-x"><table class="tbl tt"><thead><tr>' + th('name', '工具') + th('n', T.failOnly ? '失败次数' : '调用次数') + th('err', '错误率', 'right') + th('avg', '耗时 p50 / p95', 'right') + th('ap', '需审批', 'right') + '<th>' + rangeLabel() + '</th></tr></thead><tbody>' + (tbody || '<tr><td colspan="6" class="cap">没有失败的调用</td></tr>') + '</tbody></table></div></div>' +
     '<div class="tt-grid"><div class="card pad tt-matrix"><div class="hd"><div class="grow"><span class="ct">调用链 · 下一步是什么</span><span class="cap" title="P(下一步 | 上一步)：行 = 上一步，列 = 下一步；悬停看整行整列">格内 = 下一步的概率 %</span></div></div>' + matrix + (ins ? '<div class="col tt-ins">' + ins + '</div>' : '') +
     '<div class="hd tt-sub"><div class="grow"><span class="ct">失败后原样重试 · Top ' + Math.min(5, RETRIES.length || 5) + '</span><span class="cap" title="同一命令失败后未改参数直接重跑 · 次数与最长连跑">未改参数直接重跑</span></div></div><div class="col" style="gap:4px">' + (RETRIES.length ? RETRIES.slice(0, 5).map((r) => '<div class="tt-retry"><span class="mono tt-cmd" title="' + esc(r[0]) + '">' + esc(r[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (r[1] / rmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v" title="重试 ' + r[1] + ' 次 · 最长连跑 ' + r[2] + ' 次">×' + r[1] + ' · 连跑 ' + r[2] + '</span></div>').join('') : '<span class="cap" data-lv="na">没有发现失败后原样重试的命令</span>') + '</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">失败原因</span><span class="cap">' + fmt(FT.total || 0) + ' 次失败 · 按输出聚类' + (FT.unknown_status ? ' · ' + fmt(FT.unknown_status) + ' 次状态未知' : '') + '</span></div></div><div class="col" style="gap:5px">' + (FAILS.length ? FAILS.map((f) => '<button type="button" class="tt-fail' + (T.openFail === f[0] ? ' on' : '') + '" data-act="openFail" data-k="' + esc(f[0]) + '" aria-expanded="' + (T.openFail === f[0]) + '"><span class="tt-fail-n">' + esc(f[0]) + '</span><span class="tt-fail-bar"><i style="width:' + (f[1] / fmx * 100).toFixed(1) + '%"></i></span><span class="mono tt-fail-v">' + f[1] + '% · ' + fmt(f[3]) + ' 次</span></button>' + (T.openFail === f[0] ? '<div class="tt-fail-x"><span class="mono" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">典型：' + esc(f[2]) + '</span>' + (f[4] && f[4].some((u) => BYID[u]) ? '<button type="button" class="btn sm" data-act="openSession" data-id="' + esc(f[4].find((u) => BYID[u])) + '">相关会话 →</button>' : '') + '</div>' : '')).join('') : '<span class="cap" data-lv="na">所选范围内没有失败的调用</span>') + '</div></div>' +
     '<div class="card pad col" style="gap:0"><div class="hd" style="margin-bottom:4px"><div class="grow"><span class="ct">审批负担</span><span class="cap">等你点「允许」的时间 · 对数分桶</span></div></div>' + waitsBody + roCta + '</div>' +
-    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个' + (cov.inventory === 'available' ? '已连接' : '在用（配置未扫描）') + '</span></div></div>' + (mcp.length ? mcp.map((x) => '<div class="row" style="font-size:12px"><span class="mono" style="width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(x.server) + '">mcp·' + esc(x.server) + '</span><span style="flex:1;color:var(--ink-2)">' + fmt(x.calls || 0) + ' 次 · 失败 ' + (lvtpRateWhy(Object.assign({ n: x.calls }, x)) ? '<span data-tip="' + esc(lvtpRateWhy(Object.assign({ n: x.calls }, x))) + '">—</span>' : lvtpPct(x.err)) + (x.resident_tokens ? ' · 常驻 ≈ ' + VZ.fmt(x.resident_tokens, 'k') + ' tokens' : '') + '</span>' + (x.calls ? '<span class="tag">在用</span>' : '<span class="tag">未调用</span>') + '</div>').join('') : '<span class="cap" data-lv="na">所选范围内没有 MCP 调用</span>') + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(SA.dispatches || 0) + ' 次' + (b.parallel && b.parallel.max ? ' · 最多并行 ' + b.parallel.max + ' 个' : '') + '</span></div></div>' + (SA.dispatches ? '<div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + (pg4 && pg4.value != null ? '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">' + Math.round(pg4.value * 100) + '%</b> 被你中途停止（' + pg4.n + ' 次）' : '并行 ≥ 4 的派发样本不足') + '</div>' : '<span class="cap" data-lv="na">所选范围内没有子代理派发</span>') + '</div></div></div></div></div>';
+    '<div class="card pad tt-mcp"><div class="col" style="gap:8px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">MCP 服务</span><span class="cap">' + mcpN + ' 个' + (cov.inventory === 'available' ? '已连接' : '在用（配置未扫描）') + '</span></div></div>' + (mcp.length ? ttMcpList(mcp.map(lvtpMcp)) : '<span class="cap" data-lv="na">所选范围内没有 MCP 调用</span>') + '<div class="cap tt-mcp-note">工具描述每会话常驻上下文，没被调用的服务只消耗 tokens</div></div><div class="col" style="gap:6px"><div class="hd" style="margin:0"><div class="grow"><span class="ct">子代理派发 · 按并行度</span><span class="cap">共 ' + fmt(SA.dispatches || 0) + ' 次' + (b.parallel && b.parallel.max ? ' · 最多并行 ' + b.parallel.max + ' 个' : '') + '</span></div></div>' + (SA.dispatches ? '<div class="vz" data-vz="par"></div><div class="row tt-par-note">' + ic('alert', 13, 'margin-top:1px;color:var(--vz-corr)') + (pg4 && pg4.value != null ? '并行 ≥ 4 的派发有 <b style="color:var(--ink-1)">' + Math.round(pg4.value * 100) + '%</b> 被你中途停止（' + pg4.n + ' 次）' : '并行 ≥ 4 的派发样本不足') + '</div>' : '<span class="cap" data-lv="na">所选范围内没有子代理派发</span>') + '</div></div></div>' +
+    '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">工具明细</span><span class="cap" title="点列头排序 · 点行展开最近调用 · 迷你线为' + rangeLabel() + '每日调用' + (rangeN > 7 || !rangeN ? '（7 天滑动平均）' : '') + '">点行展开最近调用 · 列头可排序</span></div></div><div class="scroll-x"><table class="tbl tt"><thead><tr>' + th('name', '工具') + th('n', T.failOnly ? '失败次数' : '调用次数') + th('err', '错误率', 'right') + th('avg', '耗时 p50 / p95', 'right') + th('ap', '需审批', 'right') + '<th>' + rangeLabel() + '</th></tr></thead><tbody>' + (tbody || '<tr><td colspan="6" class="cap">没有失败的调用</td></tr>') + '</tbody></table></div></div>' + '</div></div>';
+}
+
+// F24: one MCP server for the shared card: full name, its tools from the gateway (name / n / failure rate per tool);
+// an older gateway without per-server tools falls back to the spellings behind the table row (counts only, rate —)
+function lvtpMcp(x) {
+  const why = lvtpRateWhy(Object.assign({ n: x.calls }, x));
+  let tools = Array.isArray(x.tools) ? x.tools.map((t) => { const w = lvtpRateWhy(Object.assign({}, t)); return { name: t.name, n: t.n || 0, err: w ? null : t.err, errWhy: w }; }) : null;
+  if (!tools) { const row = toolRows().find((r) => r.mcp === x.server || r.name === 'mcp·' + x.server); tools = row ? row.aliases.map((a) => ({ name: String(a.name).replace(new RegExp('^mcp__' + x.server.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '__', 'i'), ''), n: a.n, err: null, errWhy: '本地服务版本较旧，没有分工具的成败' })) : []; }
+  return { server: x.server, calls: x.calls || 0, err: why ? null : x.err, errWhy: why, extra: x.resident_tokens ? ' · 常驻 ≈ ' + VZ.fmt(x.resident_tokens, 'k') + ' tokens' : '', tag: x.calls ? '在用' : '未调用', tools };
 }
 
 /* ---------- A5 page ---------- */
@@ -14275,7 +14331,7 @@ if (TL.mode === 'live') {
    - panel: /v1/shell/popover (date, today, opening line, top rec, attention); week bars and yesterday come from the spine.
    - A3: 在 X 中继续 → /resume, 更多 › 不计入分析 / 恢复 → /exclude, 在 Finder 中显示日志 / 在原始日志中打开 → /source_location
      → reveal; A4: an expanded tool row lists its real calls (/v1/analytics/tool_calls).
-   - export: report .md, tool-call .csv, share card .png → ORBIT.native.request('save'); a missing route → honest toast. */
+   - export: report .md, share card .png → ORBIT.native.request('save'); a missing route → honest toast. */
 const TLO = { started: false, off: false, d: null, doneUid: null, tc: {}, share: null };
 const TLO_REASON = { test: '测试会话', private: '隐私', duplicate: '重复', other: '其他' };
 const tloAg = (s) => agent(LV.agentOf(s && s.agent).id);
@@ -14632,14 +14688,14 @@ if (LV.live) {
   });
   TL.on('event', (ev) => { if (/^data\b/.test(ev.name)) TLO.tc = {}; });
 
-  /* ---------- export: report .md · tool-call .csv · share card .png ---------- */
+  /* ---------- export: report .md · share card .png ---------- */
   const unavailable = (what) => (e) => toast(TL.unavailable(e) ? '本地服务暂不支持导出' + what + '，请更新 Orbit 后再试' : '导出' + what + '失败：' + ((e && (e.message || e.code)) || ''));
-  const exportFoot = (act, label) => '<div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">由本机服务生成 · 只含统计，不含对话原文</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn" data-act="' + (act === 'repSave' ? 'repCopy' : 'copyCSV') + '">' + ic('copy', 13) + '复制</button><button type="button" class="btn p" data-act="' + act + '">' + ic('down', 13) + label + '</button></div>';
+  const exportFoot = (act, label) => '<div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">由本机服务生成 · 只含统计，不含对话原文</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn" data-act="repCopy">' + ic('copy', 13) + '复制</button><button type="button" class="btn p" data-act="' + act + '">' + ic('down', 13) + label + '</button></div>';
   // B18: every export carries the scope the screen shows — range, the enabled agents and the project filter
   // (S.project; '_none' = sessions without a project has no backend filter and is dropped)
   function tloExportScope() {
-    const sc = lvScope(); const ls = LV.scope(); const pj = S.project && S.project !== '_none' ? S.project : null;
-    return { report: Object.assign({}, sc, { projects: pj ? [pj] : null }), csv: { from_ts: lvtpFrom(S.range) == null ? undefined : lvtpFrom(S.range), agent: ls.agents || undefined, project_id: pj ? [pj] : undefined } };
+    const sc = lvScope(); const pj = S.project && S.project !== '_none' ? S.project : null;
+    return { report: Object.assign({}, sc, { projects: pj ? [pj] : null }) };
   }
   TLO.exportScope = tloExportScope;
   // H4: the sheet opens on the keystroke and fills when the gateway answers. /v1/export/report waits up to 3 s for sections
@@ -14663,13 +14719,6 @@ if (LV.live) {
   openReport = function () { tloReport(true).catch(unavailable('报告')); };
   wrap('repSec', (base, el) => { const k = el.dataset.k; if (el.checked) S.rep.add(k); else S.rep.delete(k); tloReport(false).catch(unavailable('报告')); });
   ACT.repSave = () => expSave('orbit-report-' + expStamp() + '.md', 'text/markdown', { text: CUR.report || '' });
-  openCSV = function () {
-    TL.ops.csv('tool_calls', Object.assign({ limit: 5000 }, tloExportScope().csv)).then((text) => {
-      CUR.csv = text; const n = Math.max(0, text.split('\n').filter(Boolean).length - 1);
-      openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · tool_calls · ' + n + ' 行 · 也可以复制后粘贴到表格软件') + '<div class="mb"><textarea readonly data-tl="csv" aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(text) + '</textarea></div>' + exportFoot('csvSave', '保存 .csv'), 'wide');
-    }, unavailable('CSV'));
-  };
-  ACT.csvSave = () => expSave('orbit-tool-calls-' + expStamp() + '.csv', 'text/csv', { text: CUR.csv || '' });
   // share card: one gateway card per time span (POST /v1/export/share_card, period = that span, same Agent / project
   // filters as the persona page). Each card shows what the gateway computed for its window — code, axis values (so the
   // flower's proportions), type copy, quote and stats; label / date / day ring come from the spine. A span the gateway
