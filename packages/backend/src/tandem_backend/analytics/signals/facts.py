@@ -7,7 +7,7 @@ not modified here — callers merge by ``session_uid``.
 from collections import defaultdict
 from typing import Any
 
-from ..common import human
+from ..common import final_assistant_uids, human
 from .detectors import SessionView, opportunities
 from .dictionary import RULES_VERSION
 from .outcome import verification_state
@@ -24,12 +24,12 @@ def autonomy_steps(view: SessionView) -> float | None:
         if e.get("turn_uid") and e["session_uid"] in view.main_ids:
             turns[(e["session_uid"], e["turn_uid"])].append(e)
     steps = []
+    finals_all = final_assistant_uids(view.events)
     for events in turns.values():
         if not any(human(e, view.main_ids) for e in events):
             continue
         calls = {e.get("call_id") or e["event_uid"] for e in events if e["kind"] == "tool.call"}
-        finals = [e for e in events if e["kind"] == "message.assistant"
-                  and e.get("attrs", {}).get("phase") in ("final", "final_answer")]
+        finals = [e for e in events if (e["session_uid"], e["event_uid"]) in finals_all]
         steps.append(len(calls) + len(finals))
     if not steps:
         return None

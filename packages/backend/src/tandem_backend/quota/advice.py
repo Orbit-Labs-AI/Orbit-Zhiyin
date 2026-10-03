@@ -2,6 +2,9 @@
 
 Per agent the binding window (lowest headroom) decides the verdict:
 ``avoid`` < 10 % headroom <= ``conserve`` < 30 % <= ``available``; no window -> ``insufficient``.
+An ``estimated_peak`` window (Claude Code: share of the user's own historical peak, not the
+vendor limit) is capped at ``conserve`` and the item carries ``estimated = true``: being
+near one's own record says to pace work, not that the agent is out of quota.
 The recommendation is the comparable agent with the most headroom (observed beats
 estimated on ties). For a tight agent that used several models in the last 7 days, the
 hint points at its second most used model. Without any comparable agent the result is
@@ -17,10 +20,11 @@ BASIS_RANK = {"observed": 0, "observed_reset": 0, "estimated_peak": 1}
 NAMES = {"claude_code": "Claude Code", "codex": "Codex"}
 
 
-def verdict(headroom: float | None) -> str:
+def verdict(headroom: float | None, basis: str | None = None) -> str:
     if headroom is None:
         return "insufficient"
-    return "avoid" if headroom < AVOID else "conserve" if headroom < CONSERVE else "available"
+    v = "avoid" if headroom < AVOID else "conserve" if headroom < CONSERVE else "available"
+    return "conserve" if v == "avoid" and basis == "estimated_peak" else v
 
 
 def model_mix(db, now_ms: int, excluded=()) -> dict[str, list[dict]]:
@@ -36,9 +40,10 @@ def model_mix(db, now_ms: int, excluded=()) -> dict[str, list[dict]]:
 def advise(snapshot: dict, mix: dict[str, list[dict]]) -> dict:
     items = []
     for agent in snapshot["agents"]:
-        v = verdict(agent["headroom"])
+        v = verdict(agent["headroom"], agent["basis"])
         models = mix.get(agent["agent"], [])
-        item = {**agent, "verdict": v, "models": models, "model_hint": None,
+        item = {**agent, "verdict": v, "estimated": agent["basis"] == "estimated_peak",
+                "models": models, "model_hint": None,
                 "reason": _reason(agent, v)}
         if v in ("avoid", "conserve") and len(models) > 1 and models[0]["share"] >= 0.6:
             item["model_hint"] = {
@@ -71,5 +76,8 @@ def _reason(agent: dict, v: str) -> str:
         return "缺少额度数据（无 rate_limits 快照或历史用量不足），无法判断余量"
     window = {"five_hour": "5 小时", "weekly": "每周"}.get(agent["binding_window"],
                                                          agent["binding_window"])
-    estimated = "（按历史峰值估算）" if agent["basis"] == "estimated_peak" else ""
-    return f"{window}窗口剩余约 {agent['headroom']:.0%}{estimated}"
+    if agent["basis"] == "estimated_peak":
+        if agent.get("exceeds_peak"):
+            return f"{window}窗口用量已超过你的历史峰值（按历史峰值估算，非真实额度）"
+        return f"{window}窗口距你的历史峰值约 {agent['headroom']:.0%}（按历史峰值估算，非真实额度）"
+    return f"{window}窗口剩余约 {agent['headroom']:.0%}"

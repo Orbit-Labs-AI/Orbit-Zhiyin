@@ -3,12 +3,18 @@
 import re
 
 from ...privacy import direct_user_text
+from ..common import final_assistant_uids
 from ..semantic_cascade import observation_for
 from .linking import link_feedback_targets
 
-RULE_VERSION = "subjective-outcome-v1"
+RULE_VERSION = "subjective-outcome-v1.1"
 _TARGET = r"(?:(?:这个|这版|这一版|这个结果|这份报告|这份文档|这个交付|这个任务)\s*)?"
-_ACCEPT = re.compile(_TARGET + r"(?:可以了|没问题了|通过验收了?|我接受|我确认接受|符合要求了?|这样可以|很好)|(?:this |that |it )?(?:looks good|works(?: now)?|is acceptable)|accepted|lgtm", re.I)
+_ACCEPT = re.compile(_TARGET + r"(?:可以了|没问题了|通过验收了?|我接受|我确认接受|符合要求了?|这样可以了?|很好)|(?:this |that |it )?(?:looks good|works(?: now)?|is acceptable)|accepted|lgtm", re.I)
+# Short closing acknowledgements ("没问题", "好了", "ok", "perfect"). They are only an
+# acceptance when the whole message is acknowledgement: "好了，现在加个按钮" is a new request.
+# Bare "好的" stays out: it usually acknowledges a plan or question, not a delivery.
+_WEAK_ACCEPT = re.compile(_TARGET + r"(?:没问题|好了|能用了|可以用了|跑通了|不错|挺好)|(?:ok(?:ay)?|perfect|great|nice|done|works for me)(?: now)?", re.I)
+_POLITE = re.compile(r"谢谢(?:你|了|啦)?|多谢|感谢|辛苦了?|thanks?(?: you)?(?: so much| a lot)?|thx|cheers", re.I)
 _REJECT = re.compile(_TARGET + r"(?:还是不行|仍然不行|不对|不符合要求|不能接受|我不接受|我拒收|没有通过验收)|(?:this |that |it )?(?:does not work|doesn't work|still fails|is wrong|is not acceptable)|rejected|not what I (?:wanted|meant)", re.I)
 _COMPLETE = re.compile(r"(?:我确认)?(?:(?:这个|整个)?任务(?:已经|已)?完成了?|(?:这个)?问题(?:已经|已)?解决了?|(?:已经)?解决了)|(?:the )?task (?:is |has been )?completed|(?:the )?(?:problem|issue) (?:is |has been )?(?:fixed|resolved)", re.I)
 _INCOMPLETE = re.compile(r"(?:这个|整个)?任务(?:还没|尚未|没有)完成|(?:这个)?问题(?:还没|尚未|没有)解决|(?:the )?task (?:is )?(?:not complete|incomplete)|(?:the )?(?:problem|issue) (?:is )?not (?:fixed|resolved)", re.I)
@@ -30,7 +36,7 @@ def classify_feedback(text):
         return None
     clean = re.sub(r"\.(?=\s|$)", "。", clean)
     accepted = rejected = complete = incomplete = False
-    evidence, rework = [], []
+    evidence, rework, weak, other = [], [], [], False
     for sentence in re.findall(r"[^。！？!?；;\n]+[。！？!?；;\n]*", clean):
         if re.search(r"[?？]|(?:吗|么|是否|能否)", sentence) or _HYPOTHETICAL.search(sentence):
             continue
@@ -40,6 +46,12 @@ def classify_feedback(text):
             a, r = bool(_ACCEPT.fullmatch(clause)), bool(_REJECT.fullmatch(clause))
             c, i = bool(_COMPLETE.fullmatch(clause)), bool(_INCOMPLETE.fullmatch(clause))
             w = bool(_REWORK.fullmatch(clause))
+            if not (a or r or c or i or w):
+                if _WEAK_ACCEPT.fullmatch(clause):
+                    weak.append(clause)
+                elif clause and not _POLITE.fullmatch(clause):
+                    other = True
+                continue
             if a or r or c or i or w:
                 evidence.append(clause)
                 accepted |= a
@@ -49,6 +61,9 @@ def classify_feedback(text):
                 if w:
                     reason = re.search(r"(?:因为|原因是|\bbecause\b)\s*([^，,。！？!?；;\n]+)", sentence, re.I)
                     rework.append({"request": clause, "reason": reason[1].strip() if reason else None})
+    if weak and not other:
+        evidence.extend(weak)
+        accepted = True
     if not evidence:
         return None
     acceptance = "mixed" if accepted and rejected else "accepted" if accepted else "rejected" if rejected else None
@@ -61,12 +76,17 @@ def classify_feedback(text):
 
 
 def collect_deliveries(events, main_ids):
-    """Observe explicit assistant final messages in main sessions, never self-rated success."""
+    """Observe assistant final messages in main sessions, never self-rated success.
+
+    "Final" follows ``common.final_assistant_uids`` (last assistant message of a turn;
+    Codex ``phase`` labels win where present), so every agent produces deliveries.
+    """
     output = []
+    finals = final_assistant_uids(events)
     for event in events:
         attrs = event.get("attrs", {})
         if (event["session_uid"] not in main_ids or event["kind"] != "message.assistant"
-                or attrs.get("phase") not in ("final", "final_answer") or not event.get("text")
+                or (event["session_uid"], event["event_uid"]) not in finals
                 or event.get("actor") not in (None, "assistant", "unknown")
                 or attrs.get("replayed_from") or attrs.get("duplicate_of")):
             continue

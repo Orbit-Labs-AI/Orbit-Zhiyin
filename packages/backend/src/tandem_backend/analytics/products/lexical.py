@@ -19,7 +19,7 @@ from ..context import AnalysisContext
 from .feedback import calendar_key
 
 Record = dict[str, Any]
-LEXICAL_VERSION = "lexical-v2"
+LEXICAL_VERSION = "lexical-v3"  # v3: HMM for OOV Han, kana/hangul/other scripts
 # A long message repeated verbatim this often is a template (automation loop, pasted
 # boilerplate); its phrases count once in total instead of once per copy.
 TEMPLATE_MIN_COPIES = 3
@@ -31,7 +31,22 @@ STOPWORDS = frozenset(
 NEGATIONS = frozenset(("不", "无", "没"))
 REDACTED = re.compile(r"\[(?:REDACTED[^\]]*|redacted[^\]]*|hidden[^\]]*)\]|<redacted[^>]*>", re.I)
 BOUNDARY = re.compile(r"[，,。！？!?；;：:\n\r()（）\[\]{}]+")
-PIECE = re.compile(r"[\u3400-\u9fff]+|[a-zA-Z][a-zA-Z0-9_+.#'-]*")
+# Script runs, tried in order. Han → jieba; kana (no word separators, no Japanese
+# dictionary bundled) → overlapping character bigrams, the standard dictionary-free CJK
+# indexing unit (Lucene CJKBigramFilter); Hangul → space-delimited eojeol; Latin and every
+# other letter script (Cyrillic, Greek, Arabic, Hebrew, Devanagari, ...) → Unicode word runs.
+# Thai/Lao/Myanmar/Khmer write words without separators and need a dictionary segmenter we
+# do not ship: those characters are counted as ignored (``unsupported_script_n``), never
+# silently turned into one giant token or zero tokens.
+HAN = "\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
+KANA = "\u3040-\u30ff\u31f0-\u31ff"
+HANGUL = "\uac00-\ud7af\u1100-\u11ff\u3130-\u318f"
+UNSEGMENTED = "\u0e00-\u0eff\u1000-\u109f\u1780-\u17ff"
+PIECE = re.compile(
+    f"(?P<han>[{HAN}]+)|(?P<kana>[{KANA}]+)|(?P<hangul>[{HANGUL}]+)|(?P<unsegmented>[{UNSEGMENTED}]+)"
+    r"|(?P<latin>[a-zA-Z][a-zA-Z0-9_+.#'-]*)"
+    f"|(?P<other>[^\\W\\d_{HAN}{KANA}{HANGUL}{UNSEGMENTED}a-zA-Z]+)"
+)
 
 
 @lru_cache(maxsize=1)
@@ -50,20 +65,31 @@ def dictionary_digest() -> str:
         return hashlib.sha256(handle.read()).hexdigest()
 
 
-def sentences(text: str) -> list[list[str]]:
-    """Segment Chinese and preserve technical Latin words; punctuation remains a phrase boundary."""
+def _words(kind: str, piece: str) -> list[str]:
+    if kind == "han":
+        # HMM=True: jieba's fixed, pre-trained character HMM (Viterbi) joins out-of-
+        # dictionary words instead of splitting them into dropped single characters.
+        return list(tokenizer().cut(piece, HMM=True))
+    if kind == "kana":
+        return [piece[i:i + 2] for i in range(len(piece) - 1)] or [piece]
+    if kind == "latin":
+        return [piece.strip(".-'")]
+    return [piece]
+
+
+def segment_text(text: str) -> tuple[list[list[str]], int]:
+    """Clauses of tokens plus the number of characters in unsupported (unsegmented) scripts."""
     normalized = unicodedata.normalize("NFKC", REDACTED.sub(" ", text)).casefold()
-    result = []
+    result, ignored = [], 0
     for clause in BOUNDARY.split(normalized):
         tokens = []
-        for piece in PIECE.findall(clause):
-            piece = piece.strip(".-'")
-            words = (
-                tokenizer().cut(piece, HMM=False)
-                if re.search(r"[\u3400-\u9fff]", piece)
-                else [piece]
-            )
-            for word in words:
+        for match in PIECE.finditer(clause):
+            kind, piece = match.lastgroup, match.group()
+            if kind == "unsegmented":
+                ignored += len(piece)
+                tokens.append("")  # adjacency breaks across ignored text
+                continue
+            for word in _words(kind, piece):
                 if word in STOPWORDS or len(word) < 2 and word not in NEGATIONS:
                     # A removed token breaks adjacency; phrases do not jump across stopwords.
                     tokens.append("")
@@ -71,7 +97,12 @@ def sentences(text: str) -> list[list[str]]:
                     tokens.append(word)
         if tokens:
             result.append(tokens)
-    return result
+    return result, ignored
+
+
+def sentences(text: str) -> list[list[str]]:
+    """Segment Chinese and preserve technical Latin words; punctuation remains a phrase boundary."""
+    return segment_text(text)[0]
 
 
 def normalized_key(text: str) -> str:
@@ -88,7 +119,7 @@ def documents(context: AnalysisContext) -> tuple[list[Record], Record]:
     zone = ZoneInfo(context.scope.display_timezone)
     rows = []
     for event in messages:
-        segments = sentences(event["semantic_text"])
+        segments, ignored = segment_text(event["semantic_text"])
         terms = Counter(term for segment in segments for term in segment if term)
         phrases = Counter()
         for segment in segments:
@@ -113,8 +144,14 @@ def documents(context: AnalysisContext) -> tuple[list[Record], Record]:
                     normalized_key(event["semantic_text"]).encode()
                 ).hexdigest(),
                 "text_available": bool(event["semantic_text"]),
+                "unsupported_script_chars": ignored,
             }
         )
+    ignored_n = sum(row["unsupported_script_chars"] > 0 for row in rows)
+    coverage = {**coverage, "unsupported_script_n": ignored_n}
+    if ignored_n and coverage.get("status") == "available":
+        coverage["status"] = "partial"
+        coverage["reasons"] = [*coverage.get("reasons", []), "unsupported_script_text_ignored"]
     return rows, coverage
 
 
@@ -345,7 +382,9 @@ def lexical_analysis(context: AnalysisContext) -> Record:
         "method": {
             "tokenizer": "jieba-0.42.1",
             "dictionary_sha256": dictionary_digest(),
-            "hmm": False,
+            "hmm": True,
+            "scripts": "han=jieba; kana=char bigrams; hangul/latin/other letters=word runs; "
+                       "thai/lao/myanmar/khmer=ignored and counted",
             "normalization": "NFKC+casefold",
             "stopwords_version": "stopwords-v1",
             "stopwords": sorted(STOPWORDS),
@@ -357,6 +396,7 @@ def lexical_analysis(context: AnalysisContext) -> Record:
         "session_n": terms["session_n"],
         "vocabulary_size": terms["vocabulary_size"],
         "zero_token_message_n": sum(row["token_count"] == 0 for row in rows),
+        "unsupported_script_n": coverage["unsupported_script_n"],
         "terms": terms["rows"],
         "phrases": phrase_rows,
         "phrase_method": {

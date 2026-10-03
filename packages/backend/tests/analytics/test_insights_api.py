@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from signal_fixtures import Session, bundle, retry_session
 
 from tandem_backend.analytics.context import AnalysisContext
+from tandem_backend.analytics.inputs import Scope
 from tandem_backend.analytics.service import analyze_context
 from tandem_backend.api.insights import build_router
 from tandem_backend.models import stable_id
@@ -100,3 +101,56 @@ def test_tool_calls_endpoint(client):
     assert client.get("/v1/analytics/tools/Nope/calls").status_code == 404
     assert client.get("/v1/analytics/tools/Bash/calls", params={"limit": 51}).status_code == 422
     assert client.get("/v1/analytics/tools/Bash/calls", params={"limit": 0}).status_code == 422
+
+
+class _NoProjection:
+    """Gateway stub with no published data: valid requests answer with a null section."""
+
+    class revisions:  # noqa: N801 - mirrors the Gateway attribute
+        @staticmethod
+        def snapshot():
+            return {"data_rev": None, "inventory_rev": 0}
+
+
+@pytest.fixture
+def gateway_client():
+    from tandem_backend.services.gateway import install_error_handlers
+    from tandem_backend.services.routes_analytics import router
+
+    app = FastAPI()
+    install_error_handlers(app)
+    app.include_router(router(_NoProjection()))
+    return TestClient(app)
+
+
+@pytest.mark.parametrize("agent", ["hermes", "kimi", "opencode", "dsh", "pi", "codex",
+                                   "claude_code", "generic"])
+@pytest.mark.parametrize("route", ["presentation", "recommendations"])
+def test_get_routes_accept_every_known_target_agent(gateway_client, route, agent):
+    response = gateway_client.get(f"/v1/analytics/{route}?target_agent={agent}")
+    assert response.status_code == 200, response.text
+    assert response.json()["meta"]["freshness"] != "computing"
+
+
+@pytest.mark.parametrize("route", ["presentation", "recommendations"])
+def test_get_routes_reject_unknown_target_agent(gateway_client, route):
+    response = gateway_client.get(f"/v1/analytics/{route}?target_agent=cursor")
+    assert response.status_code == 422
+    assert "target_agent" in response.json()["error"]["message"]
+
+
+def test_targets_match_the_data_capability_matrix_and_analyzer_accepts_them():
+    from tandem_data.capabilities import MATRIX
+
+    from tandem_backend.analytics.recommendations.analyzer import recommend_bottlenecks
+    from tandem_backend.analytics.recommendations.catalog import TARGETS
+
+    assert {"hermes", "kimi", "opencode", "dsh", "pi", "codex", "claude_code"} <= set(MATRIX)
+    assert TARGETS == {"generic", *MATRIX}
+    data = bundle(corpus())
+    analysis = analyze_context(AnalysisContext.select(data, Scope()), False, with_recommendations=False)
+    for agent in ("hermes", "kimi", "opencode"):
+        result = recommend_bottlenecks(analysis, target_agent=agent)
+        assert "excluded_resources" in result
+    with pytest.raises(ValueError):
+        recommend_bottlenecks(analysis, target_agent="cursor")

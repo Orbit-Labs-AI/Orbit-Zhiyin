@@ -119,7 +119,10 @@ def test_ablation_report_covers_gates_terms_and_bundles(data):
     assert {n for k, n in names if k == "term"} == set(ev.TERMS)
     rc17 = names[("bundle", "RC-17")]
     assert rc17["verdict"] == "keep" and rc17["delta"]["split.repeat_na@3"] > 0
-    assert report["baseline"]["split.hit_rate@3"] >= .5
+    # regression floor at the measured synthetic baseline (2026-10-03), not a loose sanity bound
+    base = report["baseline"]
+    assert base["replay.hit_rate@3"] == 1.0 and base["replay.ndcg@3"] >= .765
+    assert base["split.hit_rate@3"] == 1.0 and base["split.ndcg@3"] >= .881 and base["split.repeat_na@3"] == 0
 
 
 NOW = int(time.time() * 1000)

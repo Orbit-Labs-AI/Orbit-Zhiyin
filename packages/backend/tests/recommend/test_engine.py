@@ -64,7 +64,8 @@ def test_slate_shape_and_ui_keys():
     ui = top["ui"]
     assert ui["why"] == "你手动批准了 212 次 git status、ls 这类只读命令。"
     assert ui["gain"] == "−52 次 / 月" and ui["ev"] == "8 个会话" and ui["compat"] == "Claude Code · Codex"
-    assert ui["save"]["min_month"] == 26 and ui["save"]["label"] == "≈ 26 min" and ui["tok"] == 0
+    # the fixture's .5 min/event has no source → no minutes figure on the card
+    assert ui["save"]["min_month"] is None and ui["save"]["label"] == "未估算" and ui["tok"] == 0
     assert ui["n"] == [20, None]
     assert ui["primary"] == "一键应用" and ui["type"] == "Hook" and ui["icon"] == "bolt"
     assert ui["evq"] == {"session_uids": ["s1", "s2"]} and ui["steps"] == ["预览", "确认写入"]
@@ -130,3 +131,55 @@ def test_perf_200_candidates():
     elapsed = time.perf_counter() - start
     assert len(slate["candidates"]) == 200
     assert elapsed < .15, elapsed  # target < 30 ms; loose bound for CI noise
+
+
+def test_net_non_positive_never_ranks():
+    # weekly .1 × .5 min: B = 1-exp(-.05/30) = .0016653 ; c = .3 ; p = .9 ; f = .5 + .3 + 0 = .8
+    # value = (.0016653*.3*.9*.8)**.25 = (3.5970e-4)**.25 = .13772 ; cost = 1/30
+    # net = .13772/1.03333 - .25 (medium risk) = -.11672 < 0
+    weak = raw("kb:weak", prob=problem(weekly_count=.1), risk={"level": "medium", "flags": []})
+    slate = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([raw("kb:ro-allow"), weak]))
+    ranked = [c for c in slate["candidates"] if c["rank"]]
+    assert [c["rec_key"] for c in ranked] == ["kb:ro-allow"]
+    assert all(c["score"]["utility"] > 0 for c in ranked)
+    gated = next(c for c in slate["candidates"] if c["rec_key"] == "kb:weak")
+    assert gated["excluded"] == engine.NET_NON_POSITIVE and engine.NET_NON_POSITIVE in gated["gates"]["reasons"]
+    assert gated["score"]["utility"] == pytest.approx(.13772 / (1 + 1 / 30) - .25, abs=1e-4)
+
+
+def test_sourced_unit_minutes_use_benefit_scenario_bounds():
+    r = raw("kb:ro-allow", unit_minutes_source="实测：审批对话框平均停留 30 秒")
+    ui = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([r]))["candidates"][0]["ui"]
+    # point: 13.25 × 4.345 × .5 × .9 = 25.906 ; Beta(9,1) ±1.645·sd: sd = √(9/(100·11)) = .090453
+    # reduction = [.9 − .148795, min(1, .9 + .148795)] = [.751205, 1] → low 21.62, high 28.785
+    assert ui["save"]["min_month"] == 26 and ui["save"]["label"] == "≈ 26 min"
+    assert ui["save"]["low"] == 22 and ui["save"]["high"] == 29
+    assert "实测：审批对话框平均停留 30 秒" in ui["save"]["basis"]
+
+
+def test_catalog_entries_never_share_invented_minutes():
+    from tandem_backend.recommend.recall.catalog_route import from_item
+
+    prob = problem(evidence={"session_uids": ["s1"], "signal_ids": [], "event_ids": []})
+    cards = []
+    for item_id in ("a", "b"):
+        r = from_item({"item_id": item_id, "kind": "skill", "name": f"Skill {item_id}", "agents": [],
+                       "license": "MIT", "verified": True}, prob, INPUTS, match_basis="catalog_feature")
+        assert r["unit_minutes"] is None
+        cards.append(narrate._save({"kind": "skill", "problem": prob}, r, INPUTS))
+    assert all(c["min_month"] is None and c["label"] == "未估算" for c in cards)
+
+
+def test_token_pricing_is_symmetric():
+    from tandem_backend.recommend.ranking.rank import score
+    from tandem_backend.recommend.units import CONTEXT_TOKENS_PER_UNIT
+
+    removal = raw("removal:x", kind="removal", unit_minutes=None, resident_tokens=3000,
+                  cost={"setup_minutes": 0, "context_tokens": 0})
+    adding = raw("kb:y", cost={"setup_minutes": 0, "context_tokens": 3000})
+    s_rm, s_add = score(removal, {}, INPUTS, MEMORY), score(adding, {}, INPUTS, MEMORY)
+    # both use 3000 / 2000 = 1.5 units: removal benefit 1 − e^−1.5 = .77687, addition cost 1.5
+    assert CONTEXT_TOKENS_PER_UNIT == 2000
+    assert s_rm["benefit_basis"] == "resident_tokens" and s_rm["benefit"] == pytest.approx(.7769, abs=1e-4)
+    assert s_add["cost"] == pytest.approx(1.5)
+    assert not hasattr(narrate, "TOKEN_MINUTES")

@@ -51,9 +51,24 @@ ORDER BY seq DESC LIMIT 1
 # finished state after minutes), so only the cheap session row is read for it.
 DETAIL_HORIZON_S = 3_600
 USAGE_SQL = """
-SELECT input_tokens, cache_read_tokens, COALESCE(model_id, model_raw) AS model
+SELECT input_tokens, cache_read_tokens, cache_write_tokens, COALESCE(model_id, model_raw) AS model
 FROM model_call WHERE session_uid = ? ORDER BY ts DESC LIMIT 1
 """
+
+
+def context_tokens(usage) -> int | None:
+    """Prompt size of the last model call = fresh input + cache read + cache write.
+
+    The canonical ``model_call.input_tokens`` is *fresh* input for every agent: Anthropic's
+    usage reports ``input_tokens`` without ``cache_read_input_tokens`` and
+    ``cache_creation_input_tokens``, and the connector turns Codex's total ``input_tokens``
+    into fresh by subtracting ``cached_input_tokens`` and ``cache_write_input_tokens``
+    (connectors/src/normalize.ts usageAttrs). The whole prompt is therefore the sum of the
+    three. Unknown fresh input stays unknown; a missing cache bucket counts as 0.
+    """
+    if usage["input_tokens"] is None:
+        return None
+    return usage["input_tokens"] + (usage["cache_read_tokens"] or 0) + (usage["cache_write_tokens"] or 0)
 
 
 def active_sessions(db, since_ms: int, limit: int = MAX_SESSIONS):
@@ -95,8 +110,7 @@ def load_tails(reads, now_ms: int, horizon_s: int = 86_400,
                 calls=[TailCall(**dict(c)) for c in reversed(calls)],
                 pending_permission=pending,
                 usage=None if usage is None else {
-                    "used_tokens": None if usage["input_tokens"] is None
-                    else usage["input_tokens"] + (usage["cache_read_tokens"] or 0),
+                    "used_tokens": context_tokens(usage),
                     "model": usage["model"],
                     "window_tokens": window["window"] if window and window["window"] and
                     window["window"] > 0 else None}))

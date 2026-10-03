@@ -159,11 +159,29 @@ def test_unclocked_events_lower_boundary_and_active_date_coverage():
 
 
 def test_long_spans_keep_totals_without_expanding_unbounded_calendar():
-    result = build_statistics(analysis([row("a", 0, ms("2026-10-01T00:00:00+00:00"))]))
-    assert value(result, "time", "observed_session_span_sum_ms") > 0
-    assert result["activity"]["observed_span_by_hour"]["rows"] is None
-    assert result["activity"]["observed_span_by_hour"]["reason"] == "hour_allocation_budget_exceeded"
+    end = ms("2026-10-01T00:00:00+00:00")
+    result = build_statistics(analysis([row("a", 0, end)]))
+    assert value(result, "time", "observed_session_span_sum_ms") == end
+    hours = result["activity"]["observed_span_by_hour"]
+    # 1970-01-01 .. 2026-10-01 UTC is a whole number of days: every hour gets end/24.
+    assert hours["status"] == "available"
+    assert {r["minutes"] for r in hours["rows"]} == {end / 24 / 60_000}
     assert len(result["activity"]["daily_session_starts"]["rows"]) == 1
+
+
+def test_thousands_of_multi_day_sessions_allocate_exactly_and_fast():
+    import time
+
+    start = ms("2026-03-01T00:30:00+00:00")
+    span = 72 * 3_600_000 + 15 * 60_000  # 72h15m crosses 3 full days plus a partial hour
+    rows = [row(f"s{i}", start + i * 3_600_000, start + i * 3_600_000 + span)
+            for i in range(5000)]
+    began = time.perf_counter()
+    result = build_statistics(analysis(rows, timezone="America/New_York"))  # crosses DST start
+    elapsed = time.perf_counter() - began
+    hours = result["activity"]["observed_span_by_hour"]
+    assert hours["status"] == "available" and elapsed < 1.0, elapsed
+    assert sum(r["minutes"] for r in hours["rows"]) * 60_000 == 5000 * span
 
 
 def test_message_heatmap_uses_joint_observations_not_marginal_product():
