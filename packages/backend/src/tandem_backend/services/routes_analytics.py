@@ -18,6 +18,7 @@ Responses keep the existing section keys and only add a top-level ``meta``.
 
 from __future__ import annotations
 
+import time
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Annotated, Literal
 
@@ -135,6 +136,20 @@ def reject_unknown_params(request: Request) -> None:
     hint = (f"; unsupported filters {unsupported} (use agent_ids, from_ts/until_ts, or "
             f"/v1/search for text)") if unsupported else ""
     raise ApiError(422, "invalid_request", f"Unknown query parameters: {unknown}{hint}")
+
+
+def check_target(target_agent: str) -> None:
+    """``target_agent`` must be a known agent (same set as the recommendation catalogue)."""
+    from ..analytics.recommendations.catalog import TARGETS
+
+    if target_agent not in TARGETS:
+        raise ApiError(422, "invalid_request",
+                       f"Unknown target_agent {target_agent!r}; expected one of {sorted(TARGETS)}")
+
+
+def now_ms() -> int:
+    """Wall clock in epoch ms; one seam so tests can move the presentation day anchor."""
+    return time.time_ns() // 1_000_000
 
 
 class RecomputeRequest(BaseModel):
@@ -395,24 +410,36 @@ def router(gw: Gateway) -> APIRouter:
 
     @api.get("/v1/analytics/presentation")
     def presentation(scope=scope_dependency, window: str | None = None,
-                     target_agent: Literal["generic", "codex", "claude_code"] = "generic",
+                     target_agent: str = "generic",
                      family: Family | None = None, wait_ms: int = wait,
                      if_none_match: str | None = Header(None)):
         from ..analytics.presentation.metrics import window_scope
 
+        check_target(target_agent)
+
+        now = now_ms()
         try:
-            window_scope(scope, window)  # Reject invalid windows before queueing work.
+            # Reject invalid windows before queueing work; anchor relative windows on the
+            # local day so the snapshot key changes exactly when the day does.
+            selected = window_scope(scope, window, now_ts=now)
         except ValueError as error:
             raise ApiError(422, "invalid_request", str(error)) from error
         params = {"window": window, "target_agent": target_agent, "family": family}
-        return serve("presentation", scope, params, wait_ms, if_none_match)
+        bounds = None
+        if window not in (None, "all"):
+            if scope.until_ts is None:
+                params["window_until"] = selected.until_ts
+            bounds = {"name": window, "from_ts": selected.from_ts,
+                      "until_ts": selected.until_ts, "requested_at": now}
+        return serve("presentation", scope, params, wait_ms, if_none_match, window=bounds)
 
     @api.get("/v1/analytics/recommendations")
     def recommendations(scope=scope_dependency,
-                        target_agent: Literal["generic", "codex", "claude_code"] = "generic",
+                        target_agent: str = "generic",
                         kind: Literal["skill", "agent", "hook", "prompt"] | None = None,
                         limit: int = Query(6, ge=1, le=20), family: Family | None = None,
                         wait_ms: int = wait, if_none_match: str | None = Header(None)):
+        check_target(target_agent)
         params = drop_none(context={"agent": target_agent}, kind=kind, limit=limit, family=family)
         return serve("recommendations", scope, params, wait_ms, if_none_match)
 

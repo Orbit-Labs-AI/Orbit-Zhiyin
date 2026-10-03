@@ -172,3 +172,67 @@ def test_insights_routes_are_mounted_and_read_cached_sections(tmp_path, monkeypa
         problems = client.get("/v1/analytics/problems")
         assert problems.status_code == 200, problems.text
         assert client.get("/v1/analytics/metrics?metric=nope").status_code == 422
+
+
+@pytest.mark.serial  # gateway with worker processes and wall-clock waits
+def test_presentation_window_is_stable_within_a_day_and_moves_across_days(tmp_path, monkeypatch):
+    """Gateway route: window=7d anchors on the local day, so the snapshot key is reused all day."""
+    import sys
+    from datetime import datetime
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parents[1] / "services"))
+    from synthetic import write_codex_tree
+
+    from tandem_backend.services import routes_analytics
+    from tandem_backend.services.gateway import Gateway
+    from tandem_backend.services.supervisor import SupervisorConfig
+
+    token = "synthetic-test-token-0123456789abcdef"
+    headers = {"Authorization": f"Bearer {token}"}
+    root = tmp_path / "agents" / "codex"
+    write_codex_tree(root, 4)
+    day = int(datetime.fromisoformat("2026-10-03T09:00:00+00:00").timestamp() * 1000)
+    clock = {"now": day}
+    monkeypatch.setattr(routes_analytics, "now_ms", lambda: clock["now"])
+    config = SupervisorConfig(heartbeat_s=0.3, stale_s=3.0, term_grace_s=1.0,
+                              backoff_s=(0.1, 0.2, 0.4, 0.8), tick_s=0.05,
+                              light_timeout_s=60.0, heavy_timeout_s=120.0)
+    gateway = Gateway(tmp_path / "home", config=config, discovery=lambda: [],
+                      prewarm_debounce_s=3600.0)
+
+    def poll(client, url, ok):
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            response = client.get(url)
+            if ok(response):
+                return response
+            time.sleep(0.1)
+        raise AssertionError(f"{url}: {response.status_code} {response.text[:300]}")
+
+    def read(client):
+        return poll(client, "/v1/analytics/presentation?window=7d&wait_ms=3000",
+                    lambda r: r.status_code == 200 and r.json()["meta"]["freshness"] == "fresh"
+                    ).json()
+
+    with TestClient(gateway.app(token=token, port=8765), base_url="http://127.0.0.1:8765",
+                    headers=headers) as client:
+        source = client.post("/v1/app/sources", json={"agent": "codex", "root": str(root)})
+        job = client.post("/v1/app/jobs", json={"kind": "import", "source_ids": [source.json()["id"]]})
+        poll(client, f"/v1/app/jobs/{job.json()['id']}",
+             lambda r: r.json()["status"] not in ("queued", "running"))
+        first = read(client)
+        clock["now"] = day + 10 * 3600 * 1000  # 19:00 UTC, same day
+        second = read(client)
+        assert second["meta"]["scope_hash"] == first["meta"]["scope_hash"]
+        assert second["meta"]["computed_at"] == first["meta"]["computed_at"]  # snapshot reused
+        window = first["meta"]["window"]
+        end = int(datetime.fromisoformat("2026-10-04T00:00:00+00:00").timestamp() * 1000)
+        assert (window["from_ts"], window["until_ts"]) == (end - 7 * 86400000, end)
+        assert window["requested_at"] == day
+        # The worker computed with exactly the bounds the gateway reports.
+        assert (first["scope"]["from_ts"], first["scope"]["until_ts"]) == (window["from_ts"], end)
+        clock["now"] = day + 24 * 3600 * 1000  # next day
+        third = read(client)
+        assert third["meta"]["scope_hash"] != first["meta"]["scope_hash"]
+        assert third["meta"]["window"]["until_ts"] == third["scope"]["until_ts"] == end + 86400000
