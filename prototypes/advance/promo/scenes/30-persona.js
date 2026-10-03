@@ -111,7 +111,8 @@ scene('30-persona', () => {
   txt(28.8, 40.0, [['eb', '01 · 协作人格']], { x: 160, y: 100 }, {
     anim: K.all(mask(.18, .8, .6), (el, tl, life, t) => {
       const b = t / BEAT, e = E.inOut(lp(b, 31.4, 1.4)), dx = (960 - el.offsetWidth / 2 - 160) * (1 - e);
-      el.style.transform = 'translate(' + dx.toFixed(1) + 'px,-50%)';
+      // 居中时比标题（y 150，72px）上沿高出 18px，不贴字；移到左上时回到 y 100
+      el.style.transform = 'translate(' + dx.toFixed(1) + 'px,calc(-50% - ' + (18 * (1 - e)).toFixed(1) + 'px))';
     })
   });
   txt(29.0, 32.0, [['hv sv pe72', '引入协作人格分析']], { x: 960, y: 150, align: 'c' }, { inB: .8, outB: .6, spread: true });
