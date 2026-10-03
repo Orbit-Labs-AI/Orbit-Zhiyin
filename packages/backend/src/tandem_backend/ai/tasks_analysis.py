@@ -36,18 +36,26 @@ S = "https://json-schema.org/draft/2020-12/schema"
 _NUM = re.compile(r"(?<![A-Za-z0-9_.])-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?%?(?![A-Za-z0-9_])")
 
 
+# A number followed by one of these is a claimed count/measure about the user's data and must
+# come from the query results, however small ("3 个会话", "2 次"). Bare small integers without a
+# unit (list ordinals, "第 1 步", "top 3") stay exempt.
+_UNIT = re.compile(r"\s*(?:个|次|条|项|天|周|小时|分钟|秒|轮|份|处|倍|种|类|session|call|time)")
+
+
 def numbers_ok(text: str, numbers) -> list[str]:
     """Numbers in `text` that are not in the whitelist (empty list = ok).
 
-    Tolerance ±0.051; a percentage may match its fraction and vice versa;
-    integers ≤10 always pass (counts like "3 条").
+    Tolerance ±0.051; a percentage may match its fraction and vice versa; integers ≤10
+    without a unit pass (ordinals, list positions), with a unit they must be whitelisted.
     """
     allowed = [float(n) for n in numbers or []]
+    text = text or ""
     bad = []
-    for m in _NUM.finditer(text or ""):
+    for m in _NUM.finditer(text):
         raw = m.group(0)
         v = float(raw.rstrip("%").replace(",", ""))
-        if v == int(v) and abs(v) <= 10 and not raw.endswith("%"):
+        if (v == int(v) and abs(v) <= 10 and not raw.endswith("%")
+                and not _UNIT.match(text, m.end())):
             continue
         forms = (v, v / 100, v * 100)
         if not any(abs(f - a) <= 0.051 for f in forms for a in allowed):
@@ -349,6 +357,19 @@ ANSWER_SYSTEM = (
 ANSWER_BUDGET = 12_000
 
 
+# Data class each whitelisted query's rows belong to (consent.DATA_CLASSES). corrections /
+# evidence / search return (redacted) user or agent wording -> snippets; the rest are counts,
+# session rows and tool sequences -> summary. Unlisted APIs default to snippets (fail closed).
+API_DATA_CLASS = {"corrections": "snippets", "evidence": "snippets", "search": "snippets",
+                  "metrics": "summary", "sessions": "summary", "problems": "summary",
+                  "projects": "summary", "tools": "summary", "inventory": "summary"}
+
+
+def _granted(ctx, data_class: str) -> bool:
+    check = getattr(ctx, "granted", None)
+    return bool(check(data_class)) if check is not None else data_class == "summary"
+
+
 def _ask_question(ctx, pack: dict) -> str:
     goal = (pack["content"].get("goal") or {}).get("text") or pack.get("goal") or ""
     return goal or (ctx.params or {}).get("question", "")
@@ -365,7 +386,7 @@ def ask_run(ctx, pack: dict) -> dict:
     except Exception as error:  # noqa: BLE001
         if not _call_failed(error):
             raise
-        return _ask_fallback(question, context, str(error))
+        return _ask_fallback(question, context, getattr(error, "reason", None) or str(error))
     intents = list(plan.get("intents") or [])
     kept = []
     for q in plan.get("queries") or []:
@@ -373,6 +394,17 @@ def ask_run(ctx, pack: dict) -> dict:
             kept.append({"api": q["api"], "params": queries.check(q.get("api"), q.get("params"))})
         except (ValueError, KeyError, TypeError) as error:
             ctx.log(f"丢弃越界查询：{error}")
+    planned, kept, withheld = kept, [], set()
+    for q in planned:
+        data_class = API_DATA_CLASS.get(q["api"], "snippets")
+        if _granted(ctx, data_class):
+            kept.append(q)
+        else:
+            withheld.add(data_class)
+            ctx.log(f"未授权 {data_class}，跳过查询 {q['api']}")
+    if planned and not kept and intents != ["other"]:
+        ctx.stage("analyse", "skipped", "需要授权")
+        return _ask_fallback(question, context, "consent_required", missing=sorted(withheld))
     if not kept or intents == ["other"]:
         ctx.stage("analyse", "skipped", "超出范围")
         return {"status": "ok", "result": {**L0.out_of_scope(question), "intents": intents, "queries": kept,
@@ -402,22 +434,49 @@ def ask_run(ctx, pack: dict) -> dict:
     except Exception as error:  # noqa: BLE001
         if not _call_failed(error):
             raise
-        return _ask_fallback(question, context, str(error))
+        return _ask_fallback(question, context, getattr(error, "reason", None) or str(error))
     ctx.stage("draft", "ok")
     return {"status": "ok", "result": {"answer": answer["answer"], "refs": answer["refs"], "next": answer["next"],
                                        "intents": intents, "queries": kept, "source": "ai"},
             "artifact": None, "facets": None}
 
 
-def _ask_fallback(question: str, context: str, reason: str) -> dict:
-    result = L0.out_of_scope(question)
-    return {"status": "fallback", "result": {**result, "intents": [], "queries": [], "source": "template",
-                                             "reason": reason}, "artifact": None, "facets": None}
+# Why a free-form question got no AI answer. The UI shows ``message`` and can act on
+# ``error_code`` (open the consent dialog, the engine settings, retry) instead of telling the
+# user the question was out of scope.
+ASK_ERRORS = {
+    "consent_required": "回答这个问题需要读取脱敏片段，当前引擎还没有这类数据的授权。",
+    "engine_unavailable": "本地 Agent 引擎不可用（未安装、未登录或调用出错）。",
+    "timeout": "本地 Agent 响应超时，请稍后重试。",
+    "budget_exceeded": "这次调用超出了单次花费上限。",
+    "truncated": "模型输出被截断，没有得到完整答案。",
+    "refused": "模型拒绝回答这个问题。",
+    "invalid_output": "模型给出的答案未通过校验（数字或引用与查询结果不一致）。",
+}
+_ENGINE_CODES = {"not_logged_in": "engine_unavailable", "engine_error": "engine_unavailable",
+                 "timeout": "timeout", "budget_exceeded": "budget_exceeded", "truncated": "truncated",
+                 "refused": "refused"}
+
+
+def _error_code(reason: str) -> str:
+    head = str(reason or "").split(":", 1)[0].strip()
+    if head in ASK_ERRORS:
+        return head
+    return _ENGINE_CODES.get(head, "invalid_output")
+
+
+def _ask_fallback(question: str, context: str, reason: str, missing: list[str] | None = None) -> dict:
+    code = _error_code(reason)
+    result = {"answer": ASK_ERRORS[code], "refs": [], "next": "none", "pages": L0.route_pages(question),
+              "intents": [], "queries": [], "source": "template", "error_code": code, "reason": str(reason)}
+    if missing:
+        result["missing"] = missing
+    return {"status": "fallback", "result": result, "artifact": None, "facets": None}
 
 
 ASK_TASK = {
     "task_id": "ask.question", "tier": "L3", "slot": "main", "prompt_version": "ask@1", "schema_version": "1",
-    "input_budget": 14_000, "out_budget": 600, "max_budget_usd": 0.5, "timeout_s": 180,
+    "input_budget": 14_000, "out_budget": 1_200, "max_budget_usd": 0.5, "timeout_s": 180,
     "engines": ("claude_code", "codex", "api_key", "fake"), "pack_items": [("goal", True)],
     "requires_preview": False, "cache_ttl_s": 3600, "stages": ["pack", "analyse", "draft"],
     "system": ANSWER_SYSTEM, "schema": ANSWER_SCHEMA,

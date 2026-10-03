@@ -7,6 +7,7 @@ logged in ``ai_consent_log``; ``raw`` (original text) is never sendable to any e
 from __future__ import annotations
 
 import json
+import re
 import time
 
 from .errors import AIError
@@ -25,6 +26,29 @@ DATA_CLASSES = [
 CLASS_IDS = tuple(item["id"] for item in DATA_CLASSES)
 ALLOWED = {item["id"]: set(item["allowed_engines"]) for item in DATA_CLASSES}
 MODES = ("stats", "agent", "api")
+# Engines a setting may name (registry.ENGINES; "fake" is the test engine).
+KNOWN_ENGINES = (*REAL_ENGINES, "fake")
+SLOT_NAMES = ("cheap", "main")
+# Model ids are passed to CLIs as `--model <id>` / `-m <id>`: allow only id characters
+# (claude-sonnet-5-5, gpt-5.1-codex, claude-opus-5-5[1m], vendor:model) and never a leading
+# "-", which the CLI would parse as another option.
+MODEL_ID = re.compile(r"^(?!-)[A-Za-z0-9._:\-\[\]]+$")
+
+
+def _check_slots(slots) -> None:
+    if not isinstance(slots, dict):
+        raise AIError(422, "invalid_settings", "slots 必须是 {engine: {cheap|main: model}}")
+    for engine, by_slot in slots.items():
+        if engine not in KNOWN_ENGINES:
+            raise AIError(422, "invalid_settings", f"slots 中有未知引擎：{engine}")
+        if not isinstance(by_slot, dict):
+            raise AIError(422, "invalid_settings", f"slots.{engine} 必须是对象")
+        for slot, model in by_slot.items():
+            if slot not in SLOT_NAMES:
+                raise AIError(422, "invalid_settings", f"slots.{engine} 只能有 cheap / main")
+            if model is not None and not (isinstance(model, str) and len(model) <= 128
+                                          and MODEL_ID.match(model)):
+                raise AIError(422, "invalid_settings", f"slots.{engine}.{slot} 不是合法的模型 id")
 DEFAULTS = {"mode": "stats", "default_engine": None, "slots": {}, "daily_usd_cap": 2.0,
             "auto_facet_new": False}
 
@@ -82,6 +106,10 @@ class Consent:
             raise AIError(400, "invalid_request", f"未知设置：{', '.join(sorted(unknown))}")
         if "mode" in settings and settings["mode"] not in MODES:
             raise AIError(400, "invalid_request", "mode 只能是 stats / agent / api")
+        if "slots" in settings:
+            _check_slots(settings["slots"])
+        if settings.get("default_engine") is not None and settings["default_engine"] not in KNOWN_ENGINES:
+            raise AIError(422, "invalid_settings", f"未知引擎：{settings['default_engine']}")
         if "daily_usd_cap" in settings and not (
                 isinstance(settings["daily_usd_cap"], int | float)
                 and settings["daily_usd_cap"] >= 0):
