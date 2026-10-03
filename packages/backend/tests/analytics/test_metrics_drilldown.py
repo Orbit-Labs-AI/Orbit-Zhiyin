@@ -149,10 +149,13 @@ def test_installed_unused_and_resident_tokens():
                  {"inv_id": "3", "type": "mcp", "name": "github"},
                  {"inv_id": "4", "type": "hook", "name": "pre-commit"},
                  {"inv_id": "5", "type": "skill", "name": "off", "enabled": 0}]
+    # (uncached input, cache_read, cache_write): input side = sum of the three buckets.
+    buckets = [("a", (40, 8000, 960)), ("a", (50, 0, 0)), ("b", (7000, 0, 0)), ("c", (8, 0, 7992)),
+               ("d", (100, 5900, 0)), ("e", (10000, 0, 0))]
     model_calls = [{"call_uid": f"m{i}", "session_uid": sid, "ts": 1_790_000_000_000 + i,
-                    "input_tokens": tokens}
-                   for i, (sid, tokens) in enumerate([("a", 9000), ("a", 50), ("b", 7000), ("c", 8000),
-                                                      ("d", 6000), ("e", 10000)])]
+                    "input_tokens": i_, "cache_read_tokens": r, "cache_write_tokens": w,
+                    "output_tokens": 999}
+                   for i, (sid, (i_, r, w)) in enumerate(buckets)]
     others = [Session(sid) for sid in "bcde"]
     for o in others:
         o.user("你好")
@@ -165,3 +168,32 @@ def test_installed_unused_and_resident_tokens():
     resident = facts["resident_tokens_median"]
     assert resident["value"] == 8000 and resident["n"] == 5 and resident["basis"] == "estimated"
     assert installed_unused(None, [])["installed_unused"] is None
+
+
+def _resident(model_calls):
+    sessions = [Session(sid) for sid in sorted({m["session_uid"] for m in model_calls})]
+    for o in sessions:
+        o.user("你好")
+    context, result, _ = analyze(bundle(sessions, model_calls=model_calls))
+    return analyze_signals(context, result)["inventory"]["resident_tokens_median"]
+
+
+def test_resident_tokens_count_cache_buckets_for_claude_shape():
+    # Claude Code: first request is ~all cache_creation; uncached input is single digits.
+    calls = [{"call_uid": f"m{i}", "session_uid": f"s{i}", "ts": 1_790_000_000_000 + i,
+              "input_tokens": 5, "cache_read_tokens": 0, "cache_write_tokens": 20000,
+              "output_tokens": 300} for i in range(5)]
+    resident = _resident(calls)
+    assert resident["value"] == 20005 and resident["n"] == 5
+
+
+def test_resident_tokens_honour_includes_cache_and_unknown_buckets():
+    # includes_cache: reported input already contains cache read/write -> input side = input.
+    calls = [{"call_uid": f"m{i}", "session_uid": f"s{i}", "ts": 1_790_000_000_000 + i,
+              "input_tokens": 12000 + i, "cache_read_tokens": 10000, "cache_write_tokens": 1000,
+              "output_tokens": 50, "input_tokens_semantics": "includes_cache"} for i in range(5)]
+    # an unknown cache bucket makes that session unknown instead of undercounting it
+    calls.append({"call_uid": "mx", "session_uid": "sx", "ts": 1_790_000_000_000,
+                  "input_tokens": 5, "cache_read_tokens": None, "cache_write_tokens": 20000})
+    resident = _resident(calls)
+    assert resident["value"] == 12002 and resident["n"] == 5

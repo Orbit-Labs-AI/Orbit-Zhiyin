@@ -102,7 +102,7 @@ METRICS: dict[str, MetricSpec] = {
                                    _verify_pass, denominator="有已执行验证的会话"),
     "autonomy_steps_median": MetricSpec("median", "每会话自主步数中位数的中位数",
                                         lambda u: u.facts["autonomy_steps"]),
-    "resident_tokens_median": MetricSpec("median", "首个模型请求 input_tokens 的中位数",
+    "resident_tokens_median": MetricSpec("median", "首个模型请求输入侧 token（未缓存+缓存读写）的中位数",
                                          lambda u: u.resident_tokens, "estimated"),
     "unknown_outcome_sessions": MetricSpec("count", "结果为 unknown 的会话数",
                                            lambda u: int(u.facts["outcome"] == "unknown")),

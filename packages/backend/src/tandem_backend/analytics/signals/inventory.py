@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import Any
 
 from ..context import AnalysisContext
+from ..cost_time.tokens import TOKEN_BUCKETS, normalize_token_buckets
 from ..stats import median
 
 Record = dict[str, Any]
@@ -60,8 +61,24 @@ def _brief(item: Record) -> Record:
     return {k: item.get(k) for k in ("inv_id", "type", "name", "evidence", "config_path")}
 
 
+INPUT_SIDE = TOKEN_BUCKETS[:3]  # uncached input + cache_read + cache_write; output excluded
+
+
+def input_side_tokens(row: Record) -> int | None:
+    """Full prompt size of one request: uncached input + cache read + cache write.
+
+    Canonical ``input_tokens`` is *uncached* (``tandem_data.contract.normalize_usage``);
+    for Claude-style agents almost the whole resident context lands in the cache buckets,
+    so the uncached bucket alone is near zero. ``input_tokens_semantics`` is honoured via
+    ``normalize_token_buckets``; any unknown bucket makes the request unknown (None).
+    """
+    buckets = normalize_token_buckets(row)
+    parts = [buckets[k] for k in INPUT_SIDE]
+    return sum(parts) if all(v is not None for v in parts) else None
+
+
 def first_request_tokens(context: AnalysisContext) -> dict[str, int | None] | None:
-    """``input_tokens`` of the first model request per main session (resident overhead proxy)."""
+    """Input-side tokens of the first model request per main session (resident overhead proxy)."""
     if context.model_calls is None:
         return None
     by_session = defaultdict(list)
@@ -71,8 +88,7 @@ def first_request_tokens(context: AnalysisContext) -> dict[str, int | None] | No
     for sid in sorted(context.main_ids):
         rows = sorted(by_session.get(sid, []), key=lambda m: (m.get("ts") is None, m.get("ts") or 0,
                                                                m.get("call_uid") or ""))
-        tokens = rows[0].get("input_tokens") if rows else None
-        out[sid] = tokens if isinstance(tokens, int) and not isinstance(tokens, bool) else None
+        out[sid] = input_side_tokens(rows[0]) if rows else None
     return out
 
 
@@ -80,7 +96,8 @@ def resident_tokens_median(context: AnalysisContext) -> Record:
     tokens = first_request_tokens(context)
     values = None if tokens is None else [v for v in tokens.values() if v is not None]
     return {**median(values, basis="estimated"), "unit": "tokens",
-            "meaning": "每个主会话首个模型请求的 input_tokens 中位数；近似常驻上下文开销"}
+            "meaning": "每个主会话首个模型请求的输入侧 token 中位数（未缓存输入 + 缓存读 + 缓存写，不含输出）；"
+                       "近似常驻上下文开销"}
 
 
 def inventory_facts(context: AnalysisContext, calls: list[Record] | None) -> Record:
