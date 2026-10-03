@@ -115,7 +115,7 @@ $('#dd').addEventListener('click', (e) => {
 });
 function copyText(text, label) {
   const done = () => toast((label || '内容') + '已复制到剪贴板');
-  const fail = () => { openModal(modalHead('手动复制', '浏览器拒绝了剪贴板访问，请选中下面的文字后复制') + '<div class="mb"><textarea id="copyArea" style="width:100%;min-height:200px;font:12px/1.5 var(--mono);border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface)">' + esc(text) + '</textarea></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'); setTimeout(() => { const a = $('#copyArea'); if (a) a.select(); }, 30); };
+  const fail = () => { openModal(modalHead('手动复制', '浏览器拒绝了剪贴板访问，请选中下面的文字后复制') + '<div class="mb"><textarea id="copyArea" style="width:100%;min-height:200px;font:12px/1.5 var(--font-mono);border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface)">' + esc(text) + '</textarea></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'); setTimeout(() => { const a = $('#copyArea'); if (a) a.select(); }, 30); };
   try { navigator.clipboard.writeText(text).then(done, fail); } catch (e) { fail(); }
 }
 /* notifications: 344px banners, slide in from the right (300ms, fades in while sliding), slide back out on dismiss (250ms);

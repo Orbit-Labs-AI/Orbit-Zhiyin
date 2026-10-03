@@ -1,6 +1,6 @@
 /* Lite pages (js/39-lite-pages.js): no components of their own — only size variants of the Advance ones under .lite
    (.card / .pad / .hd, VZ.kpi tiles, .rcard, .srow, .persona-hero + .letters + .fp-wrap, .ax + .track, .evo). Impact comes
-   from scale and space: one serif statement per page, 56px mono numbers, a 120–150px persona code, three blocks at most.
+   from scale and space: one display statement per page, 56px tabular numbers, a 120–150px persona code, three blocks at most.
    Colour stays the Advance rule — identity (agents), status (good / warn / crit), purple only for AI. Entry motion and the
    data-count count-up are shared with Advance (37-motion.js); this file only lays out. */
 .lite{display:flex;flex-direction:column;gap:16px;padding-top:18px}
@@ -15,8 +15,8 @@
 .l-fchip{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 /* big mono numbers: the VZ.kpi tile, larger */
 .lite .vz-kpi{padding:16px 18px 14px;gap:6px}
-.lite .vz-kpi-l{font:600 11px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
-.lite .vz-kpi .v{font-family:var(--mono);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
+.lite .vz-kpi-l{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.lite .vz-kpi .v{font-family:var(--font-num);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
 .lite .vz-kpi-u{font-size:15px}
 .lite .vz-kpi-d{font-size:12px;line-height:16px}
 .lite .vz-kpi.l-warn .v{color:var(--crit)}
@@ -51,7 +51,7 @@
 /* 2 persona: .persona-hero with the letters at display size */
 .lite .persona-hero{grid-template-columns:minmax(0,1fr) 320px;padding:28px 30px;align-items:center}
 .lite .letters{gap:clamp(6px,1.2cqi,16px);margin:18px 0 16px;align-items:flex-end}
-.lite .letters .L{font:600 clamp(84px,15cqi,150px)/.86 var(--serif);letter-spacing:-.01em}
+.lite .letters .L{font:600 clamp(84px,15cqi,150px)/.86 var(--font-display);letter-spacing:-.01em}
 .l-line{margin:14px 0 14px;max-width:560px;font-size:17px;line-height:26px;color:var(--ink-2);text-wrap:pretty}
 .l-acts{margin-top:20px;flex-wrap:wrap}
 .l-fp{padding:12px}
@@ -87,10 +87,10 @@
 .lite .l-snums .vz-kpi .v{font-size:40px;line-height:44px}
 .l-tl{position:relative;height:64px;margin:8px 12px 4px}
 .l-rail{position:absolute;left:0;right:0;top:15px;height:2px;border-radius:1px;background:var(--line)}
-.l-node{position:absolute;top:4px;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 11px/24px var(--mono);text-align:center;box-shadow:0 0 0 3px var(--surface);cursor:default;z-index:1}
+.l-node{position:absolute;top:4px;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 11px/24px var(--font-num);text-align:center;box-shadow:0 0 0 3px var(--surface);cursor:default;z-index:1}
 .l-node.bad{background:var(--crit)}
 .l-phs{position:absolute;left:0;right:0;top:40px;height:20px}
-.l-ph{position:absolute;top:0;height:20px;border-left:1px solid var(--line);font:11px/20px var(--mono);color:var(--ink-3);padding-left:6px;overflow:hidden;white-space:nowrap}
+.l-ph{position:absolute;top:0;height:20px;border-left:1px solid var(--line);font:11px/20px var(--font-num);color:var(--ink-3);padding-left:6px;overflow:hidden;white-space:nowrap}
 .l-ph:first-child{border-left:0;padding-left:0}
 .l-steps{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column}
 .l-steps li{display:grid;grid-template-columns:24px 56px auto minmax(0,1fr);gap:10px;align-items:baseline;padding:9px 0;border-top:1px solid var(--hair);font-size:13px}

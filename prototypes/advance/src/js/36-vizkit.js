@@ -79,7 +79,7 @@ VZ.hatchId = () => 'vzh' + (VZ._uid++);
 VZ.hatchDefs = (id) => '<defs><pattern id="' + id + '" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><line class="vz-hatch-ln" x1="0" y1="0" x2="0" y2="5"/></pattern></defs>';
 VZ.num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 VZ.r1 = (v) => Math.round(v * 10) / 10;
-// 文字宽度估算（px）。mono = true 按等宽字体（刻度、数值用 var(--mono)：ASCII 0.6em，中日韩 1em）；否则按 SF / 苹方的比例字体
+// 文字宽度估算（px）。mono = true 按等宽字体（刻度、数值用 var(--font-num)：ASCII 0.6em，中日韩 1em）；否则按 SF / 苹方的比例字体
 VZ.tw = (s, size, mono) => { s = String(s == null ? '' : s); let w = 0; for (const ch of s) { const c = ch.charCodeAt(0); if (mono) { w += c > 0x2e7f ? 1 : c >= 0x2000 && c <= 0x2bff ? 0.8 : 0.6; continue; } w += c > 0x2e7f ? 1 : c >= 0x2000 && c <= 0x2bff ? (c === 0x2022 || c === 0x2013 ? 0.5 : 0.8) : /[0-9]/.test(ch) ? 0.64 : /[A-Z%@#]/.test(ch) ? 0.74 : /[ .,:·/|'()\[\]]/.test(ch) ? 0.32 : /[mwMW]/.test(ch) ? 0.9 : 0.56; } return w * (size || 11); };
 VZ.twm = (s, size) => VZ.tw(s, size, true);
 VZ.tickFmt = (f) => (v) => ((f === '1f' || f === '2f') && Number.isInteger(v)) ? VZ.fmt(v) : VZ.fmt(v, f);

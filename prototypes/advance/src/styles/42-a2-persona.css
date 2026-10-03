@@ -44,10 +44,10 @@
 .pe-fit-h .cap{font-size:11px}
 .pe-fit-m{font-size:11px;line-height:15px;color:var(--ink-3)}
 .pe-fit-m .nw{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* pass 2: hero line in the AI-prose serif + three mono facts; one-line footnotes; strengths / blind spots as aligned rows; fit name at 13 */
-.pe-line{margin:12px 0 0;max-width:580px;font:500 15px/1.55 var(--serif);color:var(--ink-1);text-wrap:balance}
-.pe-line .btn{vertical-align:1px;margin-left:2px;font-family:var(--sans)}
-.pe-line .aib{margin-right:6px;vertical-align:2px;font-family:var(--sans);font-weight:500}
+/* pass 2: hero line in display sans + three tabular facts; one-line footnotes; strengths / blind spots as aligned rows; fit name at 13 */
+.pe-line{margin:12px 0 0;max-width:580px;font:500 15px/1.55 var(--font-display);color:var(--ink-1);text-wrap:balance}
+.pe-line .btn{vertical-align:1px;margin-left:2px;font-family:var(--font-sans)}
+.pe-line .aib{margin-right:6px;vertical-align:2px;font-family:var(--font-sans);font-weight:500}
 .pe-facts{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12px;line-height:16px;color:var(--ink-3)}
 .pe-facts b{color:var(--ink-1);font-weight:600}
 .pe-foot{margin-top:8px;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

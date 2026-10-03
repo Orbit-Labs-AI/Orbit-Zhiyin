@@ -4,21 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Orbit 交互 Demo</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,500&display=swap">
 <style>
 /* Tokens, fonts, resets.
    Stage = a Mac desktop: fixed 24px menu bar, desktop widgets under the windows, a resizable main window, a settings panel,
    floating HUD, menu-bar panel and notifications. Visual language (unchanged from the published demo): warm paper — warm
-   grey desk, warm white window and sidebar material, white cards; serif for titles / persona code / AI prose; mono for
-   numbers, eyebrows, meta and code. Controls are monochrome: --accent / --pri are the ink (black in light, near-white in
+   grey desk, warm white window and sidebar material, white cards; one sans family — SF Pro (Latin, tabular digits) +
+   PingFang SC (Chinese); titles are larger 600-weight sans; SF Mono only for code, paths, commands, IDs and keycaps. Controls are monochrome: --accent / --pri are the ink (black in light, near-white in
    dark) and drive filled buttons, switches, badges, selected tokens, menu highlight and chart selection; colour only
    carries identity (agent hues) and status (good / warn / crit, AI purple). The focus ring (--focus) is the only blue.
    --orbit is the brand slate of the Orbit mark; it is used only by the mark, the north half of the compass needle and the
    00 reference triangle on the persona compass.
    Dark layers desk #0f0f11 → window #161619 → sidebar ≈ #242429 → card #2f2f34 (adjacent pairs ≥ 1.15 contrast).
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
-   Fonts: UI = system-ui (SF Pro / PingFang in Chrome); the brand serif / mono come from Google Fonts when online and fall
-   back to Georgia + Songti SC / Menlo offline (ui-serif / ui-monospace are ignored by Chrome). */
+   Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono. */
 :root{
 --desk:#d9d5cc;--desk-2:#cbc6bb;--menubar:rgba(246,245,242,.88);
 --bg:#f5f4f0;--sb:rgba(236,235,229,.8);--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:rgba(251,250,248,.94);--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--sep:rgba(23,24,27,.1);
@@ -34,9 +32,13 @@
 --wg:#ffffff;--wg-edge:rgba(23,24,27,.08);
 --sh-card:0 1px 2px rgba(20,22,26,.04);--sh-raise:0 1px 2px rgba(20,22,26,.08),0 0 0 .5px rgba(20,22,26,.07);--sh-pop:0 16px 40px rgba(20,24,30,.18),0 0 0 .5px rgba(20,24,30,.12);--sh-win:0 0 0 .5px rgba(20,24,30,.18),0 22px 60px rgba(20,24,30,.24),0 1px 2px rgba(0,0,0,.05);
 --ease:cubic-bezier(.2,.8,.2,1);
---sans:system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei","Segoe UI",sans-serif;
---serif:"Source Serif 4",ui-serif,"New York",Georgia,"Songti SC","Noto Serif SC",serif;
---mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace;
+/* Type (macOS 14+, offline): SF Pro for Latin and digits, PingFang SC for Chinese, SF Mono only for code /
+ paths / commands / IDs / shortcuts. Latin first so each script lands on its own face; -apple-system lets
+ the system switch SF Pro Text/Display by size. Numbers use the same sans with tabular-nums. */
+--font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+--font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+--font-num:var(--font-sans);
+--font-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace,"PingFang SC","Hiragino Sans GB";
 --side-w:240px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -72,7 +74,7 @@ color-scheme:dark}
 
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
+body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--font-sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable],pre,code,.code,.log,.ask-a,.tbl td,.sharecard{-webkit-user-select:text;user-select:text}
 button,input,textarea,select{font:inherit;color:inherit;margin:0;line-height:1.25}
 button{cursor:default}
@@ -82,8 +84,12 @@ h1,h2,h3{line-height:1.25}
 :focus:not(:focus-visible){outline:none}
 input[type="checkbox"],input[type="radio"],input[type="range"],progress{accent-color:var(--accent)}
 svg{display:block}
-.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.serif{font-family:var(--serif)}
+/* .mono = numbers / meta (sans, tabular figures); .serif = display headings (sans 600). Real code-like text uses
+   var(--font-mono) via .code-t and the selectors below. Class names are kept to avoid churn. */
+.mono{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.serif{font-family:var(--font-display);font-style:normal}
+h1.serif,h2.serif,h3.serif{font-weight:600}
+.code-t,code,pre,kbd,samp,.tt-cmd,.lb-id,.sb-path,#srcPath{font-family:var(--font-mono);font-variant-numeric:normal}
 .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* desktop stage: the menu bar is a fixed 24px element of the stage (never folds with the window), the wallpaper sits under
@@ -156,8 +162,8 @@ svg{display:block}
 .nav .ico{color:var(--ink-3)}
 .nav button[aria-current="page"] .ico{color:var(--ink-1)}
 .nav .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nav .ct{font:500 11px/1 var(--mono);color:var(--ink-3)}
-.nav .bd{height:16px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--ink-1);color:var(--bg);font:600 11px/16px var(--mono);text-align:center}
+.nav .ct{font:500 11px/1 var(--font-num);color:var(--ink-3)}
+.nav .bd{height:16px;min-width:16px;padding:0 5px;border-radius:8px;background:var(--ink-1);color:var(--bg);font:600 11px/16px var(--font-num);text-align:center}
 .nav .ag .dot{width:9px;height:9px;margin:0 3px}
 .nav .ag.dim{color:var(--ink-3)}
 .nav .ag.dim .dot{opacity:.45}
@@ -171,17 +177,17 @@ svg{display:block}
 .sb-foot .pv .cap{font-size:11px;line-height:14px}
 .sb-foot .pv span{min-width:0}
 .sb-foot .me{display:flex;align-items:center;gap:8px;padding:0 2px 0 4px}
-.sb-foot .av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--ink-1);color:var(--bg);font:600 11px/1 var(--mono)}
+.sb-foot .av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--ink-1);color:var(--bg);font:600 11px/1 var(--font-num)}
 .sb-foot .nm{font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-foot .pc{word-spacing:-.2em;font-size:10px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-foot .pc{font-size:10px;line-height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-foot .ib{width:24px;height:24px;color:var(--ink-3)}
-/* content column with the page's toolbar on the same 52px line as the lights (serif page title, mono meta — the demo's type voice) */
+/* content column with the page's toolbar on the same 52px line as the lights (600-weight sans title, tabular meta) */
 .main{grid-column:2;grid-row:1/-1;position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg);container:main/inline-size}
 .tbar{flex:none;height:52px;display:flex;align-items:center;gap:8px;padding:0 16px 0 20px;white-space:nowrap;min-width:0;box-shadow:0 .5px 0 var(--hair);transition:padding-left .2s var(--ease)}
 .win.nosb .tbar{padding-left:146px}
 .tbar .grow{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:10px;overflow:hidden}
-.tbar h1{margin:0;font:600 22px/26px var(--serif);letter-spacing:-.01em;white-space:nowrap;flex:none}
-.tbar .meta{font:12px/16px var(--mono);word-spacing:-.25em;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tbar h1{margin:0;font:600 22px/26px var(--font-display);letter-spacing:-.01em;white-space:nowrap;flex:none}
+.tbar .meta{font:12px/16px var(--font-num);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .tbar .tright{display:flex;align-items:center;gap:8px;flex:none;min-width:0}
 .tbar .btn{height:28px;border-radius:7px}
 .tbar .ib{width:28px;height:28px;border-radius:7px}
@@ -190,7 +196,7 @@ svg{display:block}
 .tmore-pop>*{justify-content:flex-start}
 .tsearch{height:28px;width:160px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border:0;border-radius:7px;background:var(--field);color:var(--ink-3);font-size:13px;text-align:left;margin-left:4px}
 .tsearch span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.tsearch kbd{font:11px var(--sans);color:var(--ink-4)}
+.tsearch kbd{font:11px var(--font-sans);color:var(--ink-4)}
 .tsearch.ico-only{width:28px;padding:0;justify-content:center}
 .tsearch.ico-only span,.tsearch.ico-only kbd{display:none}
 .content{flex:1;min-height:0;overflow:auto;padding:0 20px 24px;overscroll-behavior:contain}
@@ -232,7 +238,7 @@ body.native .win.nosb .tbar{padding-left:20px}
    other control) and the cross-fade between editions. The thumb follows #win[data-ed], so it slides on the existing element
    before the sidebar re-renders; the content then swaps under a View Transition (ed-side / ed-main) or the .ed-in fallback. */
 .edsw{position:relative;flex:none;display:grid;grid-template-columns:1fr 1fr;height:30px;margin:0 10px 10px;padding:2px;border-radius:9px;background:var(--field)}
-.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
+.edsw button{position:relative;z-index:1;border:0;background:transparent;border-radius:7px;font:600 12px/1 var(--font-sans);letter-spacing:.01em;color:var(--ink-3);transition:color .2s var(--ease)}
 .edsw button[aria-checked="true"]{color:var(--ink-1)}
 .edsw button:hover{color:var(--ink-1)}
 .edsw-thumb{position:absolute;z-index:0;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:7px;background:var(--surface);box-shadow:var(--sh-raise);transition:transform .32s cubic-bezier(.3,1.35,.5,1)}
@@ -263,13 +269,13 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* primitives: three button tiers (filled .p / bordered / plain .gh), 24px controls (20px .sm, 28px in the toolbar), 6px radius,
    ink (--pri / --ink-1) for the filled button, switch, selected filter token and count badge — one colour, as in the
    published demo; checkboxes / radios take the same ink through accent-color; AI purple only on .ai / .aib.
-   Eyebrows (.eb), badges (.bdg), keycaps (.kbd) and every count stay mono — part of the demo's visual language. */
+   Eyebrows (.eb) are small uppercase sans; badges (.bdg) and counts use tabular figures; keycaps (.kbd) use SF Mono. */
 .ico{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-card);min-width:0}
 .pad{padding:16px}
 .ct{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
 .cap{font-size:12px;line-height:16px;color:var(--ink-3)}
-.eb{font:600 11px/14px var(--mono);letter-spacing:.08em;word-spacing:-.25em;text-transform:uppercase;color:var(--ink-3)}
+.eb{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .hd .grow{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .btn{height:24px;padding:0 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-1);font-size:13px;font-weight:500;line-height:1.25;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;box-shadow:0 .5px 1px rgba(0,0,0,.06)}
@@ -298,10 +304,10 @@ body.native .win.nosb .tbar{padding-left:20px}
 .chip.dash{border-style:dashed;color:var(--ink-2);background:transparent;box-shadow:none}
 .chip.sm{height:20px;font-size:12px;padding:0 7px;border-radius:5px}
 .tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:999px;border:1px solid var(--line);font-size:11px;color:var(--ink-2);white-space:nowrap}
-.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 11px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.bdg{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--sunken);font:500 11px/1 var(--font-num);color:var(--ink-2);white-space:nowrap}
 .aib{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:var(--ai-bg);color:var(--ai);font-size:11px;font-weight:600;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
-.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--surface);font:600 11px/1 var(--mono);color:var(--ink-2);white-space:nowrap}
+.kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--surface);font:600 11px/1 var(--font-mono);color:var(--ink-2);white-space:nowrap}
 .sw{position:relative;width:34px;height:20px;border-radius:999px;background:var(--ink-4);flex:none;border:0;padding:0;transition:background .15s}
 .sw.on{background:var(--ink-1)}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.08);transition:left .15s var(--ease),background .15s}
@@ -341,14 +347,14 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-plot{position:relative;outline:none;border-radius:8px;touch-action:pan-y}
 .vz-plot:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 /* Type: ticks and numbers are monospace (same as the live demo's .chart text and .eb eyebrows); names, notes and axis titles stay in the UI sans. */
-.vz svg.vz-svg{display:block;max-width:100%;overflow:visible;font:11px var(--sans)}
-.vz-svg text{font-size:11px;font-family:var(--sans);fill:var(--ink-3);font-variant-numeric:tabular-nums;user-select:none}
-.vz-svg .vz-ax{font-size:11px;font-family:var(--mono);fill:var(--ink-3)}
+.vz svg.vz-svg{display:block;max-width:100%;overflow:visible;font:11px var(--font-sans)}
+.vz-svg text{font-size:11px;font-family:var(--font-sans);fill:var(--ink-3);font-variant-numeric:tabular-nums;user-select:none}
+.vz-svg .vz-ax{font-size:11px;font-family:var(--font-num);fill:var(--ink-3)}
 .vz-svg .vz-major{fill:var(--ink-2);font-weight:500}
 .vz-svg .vz-axl{font-size:11px;fill:var(--ink-3)}
 .vz-svg .vz-cat{font-size:12px;fill:var(--ink-2)}
 .vz-svg .vz-strong{fill:var(--ink-1);font-weight:600}
-.vz-svg .vz-val{font-size:11px;font-family:var(--mono);fill:var(--ink-1);font-weight:600}
+.vz-svg .vz-val{font-size:11px;font-family:var(--font-num);fill:var(--ink-1);font-weight:600}
 .vz-svg .vz-val.vz-good{fill:var(--good)}
 .vz-svg .vz-val.vz-bad{fill:var(--crit)}
 .vz-svg .vz-note{font-size:11px;fill:var(--ink-2)}
@@ -357,8 +363,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-svg .vz-callout{fill:var(--ink-1)}
 .vz-svg .vz-nlbl{fill:var(--ink-1)}
 .vz-svg .vz-span-lbl{font-size:11px;fill:var(--ink-1)}
-.vz-svg .vz-inbar{font-size:10px;font-family:var(--mono);font-weight:600;fill:#fff}
-.vz-svg .vz-cv{font-size:10px;font-family:var(--mono);font-weight:600;fill:var(--ink-1)}
+.vz-svg .vz-inbar{font-size:10px;font-family:var(--font-num);font-weight:600;fill:#fff}
+.vz-svg .vz-cv{font-size:10px;font-family:var(--font-num);font-weight:600;fill:var(--ink-1)}
 .vz-svg .vz-cv.on{fill:var(--bg)}
 .vz-svg .vz-ct-svg{font-size:12px;font-weight:600;fill:var(--ink-1)}
 .vz-grid{stroke:var(--hair);stroke-width:1;fill:none}
@@ -436,7 +442,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-dim{opacity:.15}
 .vz-marker line{stroke:var(--ink-4);stroke-width:1;stroke-dasharray:2 2}
 .vz-marker rect,.vz-marker circle{fill:var(--ink-1);stroke:none}
-.vz-marker text{fill:var(--surface);font-size:10px;font-weight:700;font-family:var(--mono)}
+.vz-marker text{fill:var(--surface);font-size:10px;font-weight:700;font-family:var(--font-num)}
 .vz-marker.vz-hot line{stroke:var(--vz-accent);stroke-dasharray:none}
 .vz-marker.alert rect,.vz-marker.alert circle{fill:var(--vz-corr)}
 .vz-marker.alert text{fill:#fff}
@@ -464,14 +470,14 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-sw{width:10px;height:10px;border-radius:2px;background:var(--c);flex:none}
 .vz-sw.line{width:12px;height:2px;border-radius:1px}
 .vz-sw.dot{border-radius:50%}
-.vz-lgv{font-family:var(--mono);font-size:11px;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.vz-lgv{font-family:var(--font-num);font-size:11px;color:var(--ink-1);font-variant-numeric:tabular-nums}
 .vz-tip{position:absolute;z-index:5;pointer-events:none;min-width:120px;max-width:260px;padding:7px 9px;border-radius:8px;background:var(--raised);color:var(--ink-1);box-shadow:var(--sh-pop);font-size:12px;line-height:1.4}
 .vz-th{display:flex;justify-content:space-between;gap:10px;font-weight:600;margin-bottom:3px;white-space:nowrap}
-.vz-th span{color:var(--ink-3);font-weight:400;font-family:var(--mono);font-size:11px}
+.vz-th span{color:var(--ink-3);font-weight:400;font-family:var(--font-num);font-size:11px}
 .vz-tr{display:flex;align-items:center;gap:6px;min-height:18px;min-width:0}
 .vz-tk{width:12px;height:2px;border-radius:1px;background:var(--c);flex:none}
 .vz-tk.rect{width:10px;height:10px;border-radius:2px}
-.vz-tv{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-1);white-space:nowrap}
+.vz-tv{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-1);white-space:nowrap}
 .vz-tn{color:var(--ink-3);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vz-empty{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink-3);font-size:12px;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;text-align:left}
 .vz-empty-ic{stroke:var(--ink-4);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
@@ -495,7 +501,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .vz-kpi .v{font-size:26px;line-height:30px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:normal}
 .vz-kpi-u{font-size:13px;color:var(--ink-3)}
 .vz-kpi .v{font-variant-numeric:tabular-nums}
-.vz-kpi-d{font:600 11px/16px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-2)}
+.vz-kpi-d{font:600 11px/16px var(--font-num);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-2)}
 .vz-kpi-d.vz-good{color:var(--good)}
 .vz-kpi-d.vz-bad{color:var(--crit)}
 .vz-tbl{margin-top:2px;max-height:360px;overflow:auto}
@@ -545,7 +551,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 
 /* Lite pages (js/39-lite-pages.js): no components of their own — only size variants of the Advance ones under .lite
    (.card / .pad / .hd, VZ.kpi tiles, .rcard, .srow, .persona-hero + .letters + .fp-wrap, .ax + .track, .evo). Impact comes
-   from scale and space: one serif statement per page, 56px mono numbers, a 120–150px persona code, three blocks at most.
+   from scale and space: one display statement per page, 56px tabular numbers, a 120–150px persona code, three blocks at most.
    Colour stays the Advance rule — identity (agents), status (good / warn / crit), purple only for AI. Entry motion and the
    data-count count-up are shared with Advance (37-motion.js); this file only lays out. */
 .lite{display:flex;flex-direction:column;gap:16px;padding-top:18px}
@@ -560,8 +566,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .l-fchip{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 /* big mono numbers: the VZ.kpi tile, larger */
 .lite .vz-kpi{padding:16px 18px 14px;gap:6px}
-.lite .vz-kpi-l{font:600 11px/14px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
-.lite .vz-kpi .v{font-family:var(--mono);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
+.lite .vz-kpi-l{font:600 11px/14px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+.lite .vz-kpi .v{font-family:var(--font-num);font-size:52px;line-height:58px;font-weight:600;letter-spacing:-.03em}
 .lite .vz-kpi-u{font-size:15px}
 .lite .vz-kpi-d{font-size:12px;line-height:16px}
 .lite .vz-kpi.l-warn .v{color:var(--crit)}
@@ -596,7 +602,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* 2 persona: .persona-hero with the letters at display size */
 .lite .persona-hero{grid-template-columns:minmax(0,1fr) 320px;padding:28px 30px;align-items:center}
 .lite .letters{gap:clamp(6px,1.2cqi,16px);margin:18px 0 16px;align-items:flex-end}
-.lite .letters .L{font:600 clamp(84px,15cqi,150px)/.86 var(--serif);letter-spacing:-.01em}
+.lite .letters .L{font:600 clamp(84px,15cqi,150px)/.86 var(--font-display);letter-spacing:-.01em}
 .l-line{margin:14px 0 14px;max-width:560px;font-size:17px;line-height:26px;color:var(--ink-2);text-wrap:pretty}
 .l-acts{margin-top:20px;flex-wrap:wrap}
 .l-fp{padding:12px}
@@ -632,10 +638,10 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lite .l-snums .vz-kpi .v{font-size:40px;line-height:44px}
 .l-tl{position:relative;height:64px;margin:8px 12px 4px}
 .l-rail{position:absolute;left:0;right:0;top:15px;height:2px;border-radius:1px;background:var(--line)}
-.l-node{position:absolute;top:4px;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 11px/24px var(--mono);text-align:center;box-shadow:0 0 0 3px var(--surface);cursor:default;z-index:1}
+.l-node{position:absolute;top:4px;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 11px/24px var(--font-num);text-align:center;box-shadow:0 0 0 3px var(--surface);cursor:default;z-index:1}
 .l-node.bad{background:var(--crit)}
 .l-phs{position:absolute;left:0;right:0;top:40px;height:20px}
-.l-ph{position:absolute;top:0;height:20px;border-left:1px solid var(--line);font:11px/20px var(--mono);color:var(--ink-3);padding-left:6px;overflow:hidden;white-space:nowrap}
+.l-ph{position:absolute;top:0;height:20px;border-left:1px solid var(--line);font:11px/20px var(--font-num);color:var(--ink-3);padding-left:6px;overflow:hidden;white-space:nowrap}
 .l-ph:first-child{border-left:0;padding-left:0}
 .l-steps{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column}
 .l-steps li{display:grid;grid-template-columns:24px 56px auto minmax(0,1fr);gap:10px;align-items:baseline;padding:9px 0;border-top:1px solid var(--hair);font-size:13px}
@@ -695,7 +701,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .legend button.off{opacity:.38}
 .legend .sq{width:10px;height:10px;border-radius:2px}
 .chart{width:100%;height:auto;overflow:visible}
-.chart text{fill:var(--ink-3);font:10.5px var(--mono)}
+.chart text{fill:var(--ink-3);font:10.5px var(--font-num)}
 .hov:hover{opacity:.85}
 .tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 .tbl th{text-align:left;font-weight:500;font-size:11px;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -708,7 +714,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .persona-hero{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:28px;padding:24px 28px}
 .letters{display:flex;gap:20px;align-items:flex-end;margin-top:14px;flex-wrap:wrap}
 .letters button{display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;padding:0;color:inherit}
-.letters .L{font:600 100px/.92 var(--serif)}
+.letters .L{font:600 100px/.92 var(--font-display)}
 .fp-wrap{position:relative;display:flex;flex-direction:column;align-items:center;border-radius:12px;background-color:var(--bg);background-image:radial-gradient(var(--line) 1px,transparent 1.2px);background-size:14px 14px;padding:8px}
 .evo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .evo button{width:98px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);text-align:left}
@@ -725,7 +731,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .srow:hover{background:var(--bg)}
 .srow.sel{background:var(--bg);box-shadow:inset 0 0 0 1.5px var(--ink-1)}
 .srow .t{flex:1;min-width:0;font-size:13px;font-weight:600;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.srow .m{font:11px/15px var(--mono);color:var(--ink-3);padding-left:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .m{font:11px/15px var(--font-num);color:var(--ink-3);padding-left:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dayh{height:28px;display:flex;align-items:flex-end;padding:0 6px 5px;font-size:11px;font-weight:600;color:var(--ink-3)}
 .band{background:var(--a1t);border-top:4px solid var(--a1);padding:10px 16px 12px;border-radius:11px 11px 0 0}
 .stats7{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
@@ -739,7 +745,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .rcard{padding:12px 14px;display:flex;flex-direction:column;gap:4px;text-align:left;width:100%}
 .rcard.sel{box-shadow:0 0 0 2px var(--ink-1)}
 .rcard.inst{opacity:.85}
-.code{font:11.5px/19px var(--mono);padding:8px 0;margin:0;background:var(--sunken);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:420px}
+.code{font:11.5px/19px var(--font-mono);padding:8px 0;margin:0;background:var(--sunken);border:1px solid var(--line);border-radius:9px;overflow:auto;max-height:420px}
 .code div{display:grid;grid-template-columns:34px minmax(0,1fr)}
 .code .n{text-align:right;padding-right:10px;color:var(--ink-4);user-select:none}
 .code .t{white-space:pre-wrap;padding-right:10px;word-break:break-word}
@@ -748,8 +754,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .lib-feat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .studio{display:grid;grid-template-columns:316px minmax(0,1fr) 372px;gap:12px;align-items:start}
 .step{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--hair);align-items:start}
-.step .mk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 10.5px/1 var(--mono)}
-.log{flex:1;min-height:160px;border-radius:9px;background:var(--sunken);border:1px solid var(--line);padding:10px 12px;font:11px/17px var(--mono);overflow:auto;max-height:340px}
+.step .mk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 10.5px/1 var(--font-num)}
+.log{flex:1;min-height:160px;border-radius:9px;background:var(--sunken);border:1px solid var(--line);padding:10px 12px;font:11px/17px var(--font-mono);overflow:auto;max-height:340px}
 .log div{white-space:pre-wrap;word-break:break-all}
 
 /* A1 overview: AI-card micro evidence, KPI tiles, outcome share strip, trend controls, persona card, heat line, tool rows, recs (page styles live here, not in 40-pages.css) */
@@ -877,10 +883,10 @@ body.native .win.nosb .tbar{padding-left:20px}
 .pe-fit-h .cap{font-size:11px}
 .pe-fit-m{font-size:11px;line-height:15px;color:var(--ink-3)}
 .pe-fit-m .nw{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* pass 2: hero line in the AI-prose serif + three mono facts; one-line footnotes; strengths / blind spots as aligned rows; fit name at 13 */
-.pe-line{margin:12px 0 0;max-width:580px;font:500 15px/1.55 var(--serif);color:var(--ink-1);text-wrap:balance}
-.pe-line .btn{vertical-align:1px;margin-left:2px;font-family:var(--sans)}
-.pe-line .aib{margin-right:6px;vertical-align:2px;font-family:var(--sans);font-weight:500}
+/* pass 2: hero line in display sans + three tabular facts; one-line footnotes; strengths / blind spots as aligned rows; fit name at 13 */
+.pe-line{margin:12px 0 0;max-width:580px;font:500 15px/1.55 var(--font-display);color:var(--ink-1);text-wrap:balance}
+.pe-line .btn{vertical-align:1px;margin-left:2px;font-family:var(--font-sans)}
+.pe-line .aib{margin-right:6px;vertical-align:2px;font-family:var(--font-sans);font-weight:500}
 .pe-facts{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12px;line-height:16px;color:var(--ink-3)}
 .pe-facts b{color:var(--ink-1);font-weight:600}
 .pe-foot{margin-top:8px;font-size:11px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -925,13 +931,13 @@ body.native .win.nosb .tbar{padding-left:20px}
 .tl-ctx-area{fill:var(--vz-accent);fill-opacity:.1}
 .tl-ctx-line{fill:none;stroke:var(--vz-accent);stroke-width:1.5;stroke-linejoin:round}
 .tl-ctx-th{stroke:var(--ink-3);stroke-width:1;stroke-dasharray:3 3}
-.tl-ctx-tick{font:10px var(--mono);fill:var(--ink-3);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.tl-ctx-tick{font:10px var(--font-num);fill:var(--ink-3);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 .tl-ctx-comp line{stroke:var(--ink-1);stroke-width:1}
-.tl-ctx-lbl{font-size:10px;font-family:var(--mono);fill:var(--ink-1);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
+.tl-ctx-lbl{font-size:10px;font-family:var(--font-num);fill:var(--ink-1);paint-order:stroke;stroke:var(--surface);stroke-width:3px;stroke-linejoin:round}
 /* 播放头菱形手柄上移到绘图区底边，不再压住底轴时刻（如 14:32）；拖动热区不变 */
 .tl-box .vz-playhead path{transform:translateY(-15px)}
 /* 顶部相对时间轴 */
-.tl-rel{font:10px var(--mono);fill:var(--ink-4)}
+.tl-rel{font:10px var(--font-num);fill:var(--ink-4)}
 .tl-rel-tick,.tl-rel-base{stroke:var(--hair);stroke-width:1}
 .tl-read{gap:10px;flex-wrap:wrap;min-height:22px;margin-top:4px}
 .tl-now{font-weight:700;font-size:13px;color:var(--ink-1)}
@@ -951,7 +957,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .tl-ihd{display:flex;flex-direction:column;gap:1px}
 .tl-it{font-size:15px;line-height:20px;font-weight:700;color:var(--ink-1);font-variant-numeric:tabular-nums}
 .tl-kv{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:baseline}
-.tl-kv .k{font:11px/18px var(--mono);color:var(--ink-3);white-space:nowrap}
+.tl-kv .k{font:11px/18px var(--font-num);color:var(--ink-3);white-space:nowrap}
 .tl-kv .v{min-width:0;overflow-wrap:anywhere;color:var(--ink-1)}
 .tl-kv .v.mono{font-size:12px}
 .tl-blist{margin:2px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;font-size:11px}
@@ -969,7 +975,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* 关键时刻列表：与图上徽章双向联动（hover = hot，播放头已过 = on） */
 .tl-mom{display:grid;grid-template-columns:18px 44px minmax(0,1fr);gap:8px;align-items:start;font-size:12px;line-height:18px;border:0;background:none;padding:3px 6px;margin:0 -6px;border-radius:7px;text-align:left;width:calc(100% + 12px);color:var(--ink-2)}
 .tl-mom:hover,.tl-mom.hot{background:var(--field)}
-.tl-mom .n{width:18px;height:18px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 10px/18px var(--mono);text-align:center}
+.tl-mom .n{width:18px;height:18px;border-radius:50%;background:var(--ink-1);color:var(--surface);font:700 10px/18px var(--font-num);text-align:center}
 .tl-mom .n.alert{background:var(--vz-corr);color:#fff}
 .tl-mom.on .n{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent)}
 .tl-mt{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
@@ -1066,7 +1072,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .tm-h{font-size:11px;color:var(--ink-3);text-align:center;padding:0 0 2px;white-space:nowrap}
 .tm-corner{text-align:right;font-size:10px;padding-right:6px;cursor:help}
 .tm-rh{font-size:11px;line-height:32px;color:var(--ink-2);padding-right:6px;white-space:nowrap;text-align:right}
-.tm-c{height:32px;min-width:36px;border:0;border-radius:4px;font:600 11px var(--mono);font-variant-numeric:tabular-nums;padding:0;display:grid;place-items:center;cursor:default;transition:box-shadow .12s,opacity .12s}
+.tm-c{height:32px;min-width:36px;border:0;border-radius:4px;font:600 11px var(--font-num);font-variant-numeric:tabular-nums;padding:0;display:grid;place-items:center;cursor:default;transition:box-shadow .12s,opacity .12s}
 .tm-c.diag{box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--ink-1) 35%,transparent)}
 .tm-c.peak{box-shadow:inset 0 0 0 2px var(--ink-1)}
 .tm-n{font-size:11px;line-height:32px;color:var(--ink-3);text-align:right;padding-left:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -1110,7 +1116,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 /* 散点：残差竖线与 A / B 标记 */
 .pj-res{stroke:var(--c);stroke-width:1.5;stroke-opacity:.85}
 .pj-ring{fill:none;stroke:var(--ink-1);stroke-width:2}
-.vz-svg .pj-ab{font:700 10px var(--mono);fill:var(--surface)}
+.vz-svg .pj-ab{font:700 10px var(--font-num);fill:var(--surface)}
 .vz-svg .pj-ab.ring{fill:var(--ink-1);paint-order:stroke;stroke:var(--surface);stroke-width:3px}
 /* 此项目 vs 基准：成对条 + Δ */
 .pj-key{width:10px;height:8px;border-radius:2px;display:inline-block}
@@ -1242,7 +1248,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .rc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);min-height:20px}
 .rc-top .lvl{margin-right:1px}
 .rc-save{margin-left:auto;display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
-.rc-save b{font:600 15px/18px var(--mono);color:var(--ink-1);font-variant-numeric:tabular-nums}
+.rc-save b{font:600 15px/18px var(--font-num);color:var(--ink-1);font-variant-numeric:tabular-nums}
 .rc-save .u{font-size:11px;color:var(--ink-3)}
 .rc-title{font-size:13px;font-weight:600;line-height:18px;color:var(--ink-1)}
 .rc-why{font-size:12px;line-height:17px;color:var(--ink-2)}
@@ -1253,7 +1259,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .rc-ag .dot{width:7px;height:7px;box-shadow:0 0 0 1px var(--surface)}
 .rc-ag .dot+.dot{margin-left:-2px}
 .rc-ag>span:not(.dot){margin-left:4px;color:var(--ink-2)}
-.rc-tok{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);white-space:nowrap}
+.rc-tok{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-num);white-space:nowrap}
 .rc-tok.good{color:var(--good)}
 .rc-foot{display:flex;align-items:center;gap:8px;padding-top:4px}
 /* 原指标：放在操作行左侧（不再单独占一行），过长时省略，完整值在 tooltip */
@@ -1264,8 +1270,8 @@ body.native .win.nosb .tbar{padding-left:20px}
 .rc-h{margin:4px 0 0;font-size:22px;line-height:28px;text-wrap:balance}
 .rc-kpis{display:flex;flex-wrap:wrap;gap:0 14px;margin:12px 0 0;border-top:1px solid var(--hair)}
 .rc-kpi{flex:1 1 120px;display:flex;flex-direction:column;gap:3px;padding:10px 0;min-width:0}
-.rc-kpi .v{font:600 18px/24px var(--mono);color:var(--ink-1);font-variant-numeric:tabular-nums;white-space:nowrap}
-.rc-kpi .v small{font:500 11px/1 var(--mono);color:var(--ink-3);margin-left:4px}
+.rc-kpi .v{font:600 18px/24px var(--font-num);color:var(--ink-1);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rc-kpi .v small{font:500 11px/1 var(--font-num);color:var(--ink-3);margin-left:4px}
 .rc-kpi .v.good{color:var(--good)}
 .rc-kpi .cap{font-size:11px;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rc-kpi .rc-ag{flex-wrap:wrap}
@@ -1294,7 +1300,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .rc-days i{display:block;height:6px;border-radius:2px;background:var(--line)}
 .rc-days i.base{background:var(--h3)}
 .rc-days i.on{background:var(--accent)}
-.rc-days i.mark{height:auto;background:none;border-radius:0;font:10px/1 var(--mono);color:var(--ink-1);text-align:center}
+.rc-days i.mark{height:auto;background:none;border-radius:0;font:10px/1 var(--font-num);color:var(--ink-1);text-align:center}
 .rc-dlbl{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:14px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .rc-dlbl>span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 /* 时间轴标签兼作哑铃图图例：灰 = 安装前，accent = 安装后 */
@@ -1435,7 +1441,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 .st-steps .step .s{font-size:11px;line-height:16px;color:var(--ink-3)}
 .st-lines{display:block;height:3px;width:min(160px,100%);margin-top:5px;border-radius:2px;background:var(--sunken);overflow:hidden}
 .st-lines b{display:block;height:100%;background:var(--ai);transition:width .2s var(--ease)}
-.st-dur{display:flex;align-items:center;justify-content:flex-end;gap:5px;font:11px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.st-dur{display:flex;align-items:center;justify-content:flex-end;gap:5px;font:11px var(--font-num);color:var(--ink-3);font-variant-numeric:tabular-nums}
 .st-dur i{display:block;width:40px;height:4px;border-radius:2px;background:var(--sunken);overflow:hidden;flex:none}
 .st-dur i b{display:block;height:100%;background:var(--ink-3)}
 @keyframes st-pulse{0%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 0 var(--ai-bg)}70%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 6px transparent}100%{box-shadow:inset 0 0 0 1.5px var(--ai),0 0 0 0 transparent}}
@@ -1472,7 +1478,7 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .st-priv .lnk{line-height:18px}
 /* idle log: no run yet → a short hint box instead of a 160px empty well; it grows to the normal log once a run starts */
 .log.st-idle{flex:none;min-height:0;padding:12px;display:flex;flex-direction:column;gap:4px}
-.log.st-idle .cap{font:12px/18px var(--sans);text-wrap:balance}
+.log.st-idle .cap{font:12px/18px var(--font-sans);text-wrap:balance}
 /* pass 2: banner is one line (detail in the title tooltip); log lines wrap at spaces, not inside words; artifact actions
    sit right-aligned with the primary last, as in a macOS sheet, instead of a full-width disabled bar */
 .st-priv{align-items:center;flex-wrap:nowrap}
@@ -1511,8 +1517,8 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .snap.near{background:var(--ink-1)}
 .widgets{position:absolute;z-index:5;left:24px;top:42px;width:364px;display:flex;flex-direction:column;gap:20px}
 .wg{border-radius:20px;background:var(--wg);color:var(--ink-1);box-shadow:0 10px 30px rgba(0,0,0,.14),0 0 0 .5px var(--wg-edge);padding:14px 16px;overflow:hidden;text-align:left;border:0;width:100%}
-.wg .lbl{font:600 10px/13px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
-.wg .mono,.wg .cap.mono{word-spacing:-.2em}
+.wg .lbl{font:600 10px/13px var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+
 .wg-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
 .desk.fs .widgets{display:none}
 .notes{position:absolute;z-index:80;top:32px;right:16px;width:min(344px,calc(100% - 32px));display:flex;flex-direction:column;gap:8px;pointer-events:none}
@@ -1526,7 +1532,7 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .nt:hover .nt-x,.nt .nt-x:focus-visible{opacity:1}
 .nt.out{animation:slideout .25s var(--ease) forwards;pointer-events:none}
 /* mono meta mixed with CJK: a mono space is .6em, which makes「10 月 1 日」read letter-spaced — tighten spaces only */
-.pop .mono{word-spacing:-.25em}
+
 @keyframes slideout{to{opacity:0;transform:translateX(24px)}}
 /* App 图标：Orbit 标志，暖白底 + 石板灰（图标本身不随深浅色变化，所以在这里把 --orbit 固定为浅色值） */
 .appicon{--orbit:#5f6b6f;width:32px;height:32px;border-radius:22.46%;overflow:hidden;background:#f5f4f0;box-shadow:inset 0 0 0 .5px rgba(23,24,27,.14),0 1px 2px rgba(20,22,26,.12);display:grid;place-items:center;flex:none}
@@ -1631,7 +1637,7 @@ mark.st-leak{background:var(--crit-bg);color:var(--crit);border-radius:3px;paddi
 .modal.wide{width:min(820px,var(--sheet-max-w,calc(100% - 80px)))}
 .modal.full{width:min(980px,var(--sheet-max-w,calc(100% - 80px)))}
 .modal .mh{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 0}
-.modal .mh h2{margin:0;font:600 17px/22px var(--serif);flex:1;min-width:0}
+.modal .mh h2{margin:0;font:600 17px/22px var(--font-display);flex:1;min-width:0}
 .modal .mh .mx{flex:none;width:22px;height:22px;color:var(--ink-3)}
 .modal .mb{padding:14px 20px}
 .modal .mf{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:12px 20px 18px;flex-wrap:wrap}
@@ -1717,7 +1723,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .gen .code{animation:fadein .45s var(--ease) var(--g-grow,0ms) both}
 .gen.skip,.gen.skip *{animation:none!important}
 .g-side{display:flex;flex-direction:column;gap:12px;min-width:0}
-.g-count{font-size:12px;min-height:16px;word-spacing:-.2em}
+.g-count{font-size:12px;min-height:16px}
 .g-res{display:flex;flex-direction:column;gap:6px}
 .gen .code{background:none;border:0;padding:0;margin:0;max-height:none;overflow:visible;font:inherit}
 .gen .letters{gap:14px;margin-top:2px;flex-wrap:nowrap}
@@ -1753,7 +1759,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 .g-card{position:absolute;width:112px;margin:-24px 0 0 -56px;padding:6px 9px 7px;border-radius:9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 6px;align-items:baseline;box-shadow:var(--sh-pop)}
 .g-card .c{font-size:12px;font-weight:700;letter-spacing:.06em}
 .g-card .pc{font-size:11px;font-weight:600;color:var(--ink-3)}
-.g-card .z{grid-column:1/-1;font:600 12px/1.3 var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-card .z{grid-column:1/-1;font:600 12px/1.3 var(--font-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .g-card.win{border-color:var(--ink-1);box-shadow:0 0 0 .5px var(--ink-1),var(--sh-pop)}
 .g-card.win .pc{color:var(--ink-1)}
 .g-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -3066,7 +3072,7 @@ const TandemLive = (function () {
     '.tl-kpi b{display:block;font-size:22px;font-weight:600;color:var(--ink-1,#17181b)}.tl-kpi span{font-size:12px;color:var(--ink-3,#62666f)}' +
     '.tl-table{width:100%;border-collapse:collapse;font-size:12.5px}.tl-table th,.tl-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--hair,#eeece7)}.tl-table td.n,.tl-table th.n{text-align:right;font-variant-numeric:tabular-nums}' +
     '.tl-table tr[data-tl-sel]{cursor:pointer}.tl-table tr.on{background:var(--sunken,#f0efeb)}.tl-empty{text-align:center;color:var(--ink-3,#62666f);padding:32px 16px}' +
-    '.tl-ev{font:12px/1.5 var(--mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
+    '.tl-ev{font:12px/1.5 var(--font-mono,ui-monospace,monospace);padding:4px 0;border-bottom:1px solid var(--hair,#eeece7)}';
   const SERVICE_OK = ['ok', 'idle', 'stopped', 'running', 'ready'];
   const REASONS = { timeout: '分析超时', worker_crashed: '分析进程异常退出', service_unavailable: '分析服务不可用', service_stopped: '分析服务已停止', analysis_failed: '分析出错', projection_pending: '数据投影尚未完成' };
   const ui = {
@@ -3388,7 +3394,7 @@ $('#dd').addEventListener('click', (e) => {
 });
 function copyText(text, label) {
   const done = () => toast((label || '内容') + '已复制到剪贴板');
-  const fail = () => { openModal(modalHead('手动复制', '浏览器拒绝了剪贴板访问，请选中下面的文字后复制') + '<div class="mb"><textarea id="copyArea" style="width:100%;min-height:200px;font:12px/1.5 var(--mono);border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface)">' + esc(text) + '</textarea></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'); setTimeout(() => { const a = $('#copyArea'); if (a) a.select(); }, 30); };
+  const fail = () => { openModal(modalHead('手动复制', '浏览器拒绝了剪贴板访问，请选中下面的文字后复制') + '<div class="mb"><textarea id="copyArea" style="width:100%;min-height:200px;font:12px/1.5 var(--font-mono);border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--surface)">' + esc(text) + '</textarea></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>'); setTimeout(() => { const a = $('#copyArea'); if (a) a.select(); }, 30); };
   try { navigator.clipboard.writeText(text).then(done, fail); } catch (e) { fail(); }
 }
 /* notifications: 344px banners, slide in from the right (300ms, fades in while sliding), slide back out on dismiss (250ms);
@@ -3902,7 +3908,7 @@ function fpSVG(L, p, size, opt) {
   for (let k = 0; k < 48; k++) { const h = Math.floor(k / 2); const v = (k % 2 === 0 ? hc[h] : (hc[h] + hc[(h + 1) % 24]) / 2) / hm2; const a = (k + 0.5) / 48 * Math.PI * 2; const p1 = pt(C, 100, a), p2 = pt(C, 104 + v * 24, a); hours += 'M' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1) + 'L' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1); }
   const dots = L.map((s) => { const a = (s.h + s.mi / 60) / 24 * Math.PI * 2; const q = pt(C, 140 + Math.min(s.dur, 126) / 126 * 40, a); const r = (2.3 + Math.min(s.msgs, 20) / 20 * 2).toFixed(1); return '<circle class="fpd" cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + r + '" fill="' + agent(s.a).c + '" stroke="var(--surface)" stroke-width="1.2"' + (opt.interactive ? ' data-tf="sess|' + s.id + '" data-act="openSession" data-id="' + s.id + '" style="cursor:pointer"' : '') + '/>'; }).join('');
   const g = petals(p, C, 1);
-  const lbl = opt.labels ? Object.keys(DIRS).map((k) => { const vals = { D: p.v.D, S: 100 - p.v.D, I: p.v.I, P: 100 - p.v.I, M: p.v.M, F: 100 - p.v.M, V: p.v.V, T: 100 - p.v.V }; const q = pt(C, 16 + vals[k] * 0.56 + 11, DIRS[k] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 4).toFixed(1) + '" text-anchor="middle" font-size="11" font-family="var(--mono)" font-weight="' + (vals[k] >= 50 ? 700 : 500) + '" fill="' + (vals[k] >= 50 ? 'var(--ink-1)' : 'var(--ink-3)') + '">' + k + '</text>'; }).join('') + [['00', 0], ['06', 90], ['12', 180], ['18', 270]].map((h) => { const q = pt(C, 194, h[1] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 3.5).toFixed(1) + '" text-anchor="middle" font-size="9.5" font-family="var(--mono)" fill="var(--ink-3)">' + h[0] + '</text>'; }).join('') : '';
+  const lbl = opt.labels ? Object.keys(DIRS).map((k) => { const vals = { D: p.v.D, S: 100 - p.v.D, I: p.v.I, P: 100 - p.v.I, M: p.v.M, F: 100 - p.v.M, V: p.v.V, T: 100 - p.v.V }; const q = pt(C, 16 + vals[k] * 0.56 + 11, DIRS[k] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 4).toFixed(1) + '" text-anchor="middle" font-size="11" font-family="var(--font-num)" font-weight="' + (vals[k] >= 50 ? 700 : 500) + '" fill="' + (vals[k] >= 50 ? 'var(--ink-1)' : 'var(--ink-3)') + '">' + k + '</text>'; }).join('') + [['00', 0], ['06', 90], ['12', 180], ['18', 270]].map((h) => { const q = pt(C, 194, h[1] * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + (q[1] + 3.5).toFixed(1) + '" text-anchor="middle" font-size="9.5" font-family="var(--font-num)" fill="var(--ink-3)">' + h[0] + '</text>'; }).join('') : '';
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 400 400" role="img" aria-label="协作指纹：内核是四个维度，中环是 24 小时节律，外环每个点是一个会话" style="overflow:visible;max-width:100%;height:auto"><circle cx="200" cy="200" r="186" fill="var(--surface)" stroke="var(--line)"/><circle cx="200" cy="200" r="132" fill="none" stroke="var(--hair)"/><circle cx="200" cy="200" r="96" fill="none" stroke="var(--line)"/><circle cx="200" cy="200" r="68" fill="var(--bg)" stroke="var(--hair)"/><g class="hours"><path d="' + hours + '" fill="none" stroke="var(--ink-3)" stroke-width="3.2" stroke-linecap="round"/></g><g class="dots">' + dots + '</g><g class="pet"><path d="' + g.minor + '" fill="var(--h2)"/><path d="' + g.major + '" fill="var(--ink-1)"/></g><circle cx="200" cy="200" r="5" fill="var(--surface)" stroke="var(--ink-1)" stroke-width="1.5"/>' + lbl + '</svg>';
 }
 TIPS.sess = (id) => { const s = BYID[id]; if (!s) return ''; return '<b>' + esc(s.title) + '</b>\n<span class="mono" style="opacity:.8;font-size:11px">' + agent(s.a).name + ' · ' + md(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + dur(s.dur) + '</span>'; };
@@ -3989,7 +3995,7 @@ VZ.hatchId = () => 'vzh' + (VZ._uid++);
 VZ.hatchDefs = (id) => '<defs><pattern id="' + id + '" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><line class="vz-hatch-ln" x1="0" y1="0" x2="0" y2="5"/></pattern></defs>';
 VZ.num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 VZ.r1 = (v) => Math.round(v * 10) / 10;
-// 文字宽度估算（px）。mono = true 按等宽字体（刻度、数值用 var(--mono)：ASCII 0.6em，中日韩 1em）；否则按 SF / 苹方的比例字体
+// 文字宽度估算（px）。mono = true 按等宽字体（刻度、数值用 var(--font-num)：ASCII 0.6em，中日韩 1em）；否则按 SF / 苹方的比例字体
 VZ.tw = (s, size, mono) => { s = String(s == null ? '' : s); let w = 0; for (const ch of s) { const c = ch.charCodeAt(0); if (mono) { w += c > 0x2e7f ? 1 : c >= 0x2000 && c <= 0x2bff ? 0.8 : 0.6; continue; } w += c > 0x2e7f ? 1 : c >= 0x2000 && c <= 0x2bff ? (c === 0x2022 || c === 0x2013 ? 0.5 : 0.8) : /[0-9]/.test(ch) ? 0.64 : /[A-Z%@#]/.test(ch) ? 0.74 : /[ .,:·/|'()\[\]]/.test(ch) ? 0.32 : /[mwMW]/.test(ch) ? 0.9 : 0.56; } return w * (size || 11); };
 VZ.twm = (s, size) => VZ.tw(s, size, true);
 VZ.tickFmt = (f) => (v) => ((f === '1f' || f === '2f') && Number.isInteger(v)) ? VZ.fmt(v) : VZ.fmt(v, f);
@@ -5638,7 +5644,7 @@ function ovMini(kind, a, b) {
 function ovPersEmpty(pers) {
   const n = pers.n || 0; const need = Math.max(0, 30 - n);
   const why = pers.error ? '画像暂时取不到，稍后会自动重试' : need ? '再积累 ' + need + ' 个会话后揭晓' : '当前筛选下暂不计算画像';
-  return '<div class="ov-code" data-lv="pers-empty"><span class="serif ov-code-l" style="color:var(--ink-4)">????</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600;color:var(--ink-3)">尚未揭晓</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-4)">Not yet revealed</span></span></div>' +
+  return '<div class="ov-code" data-lv="pers-empty"><span class="serif ov-code-l" style="color:var(--ink-4)">????</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600;color:var(--ink-3)">尚未揭晓</span><span class="serif" style="font-size:15px;color:var(--ink-4)">Not yet revealed</span></span></div>' +
     '<div class="col" style="gap:5px"><div class="row" style="justify-content:space-between;gap:8px"><span class="cap">' + why + '</span>' + (need ? '<span class="mono cap">' + n + ' / 30</span>' : '') + '</div>' +
     (need ? '<div style="height:4px;border-radius:2px;background:var(--sunken);overflow:hidden"><i style="display:block;height:100%;width:' + Math.min(100, n / 30 * 100).toFixed(0) + '%;background:var(--ink-3);border-radius:2px"></i></div>' : '') + '</div>' +
     '<div class="col" style="gap:12px;margin:auto 0" aria-label="四个维度尚无数值">' + AXES.map((ax) => '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)"><span class="mono">' + ax.L + ' ' + ax.Ln + '</span><span style="height:10px;border-radius:5px;border:1px dashed var(--line)"></span><span class="mono" style="text-align:right">' + ax.Rn + ' ' + ax.R + '</span></div>').join('') + '</div>';
@@ -5697,7 +5703,7 @@ PAGES.overview = () => {
     '<div class="vz" data-vz="ov-trend"></div><div class="row ov-brush" id="ovBrush" hidden><span class="cap" id="ovBrushTxt"></span><button type="button" class="lnk" data-act="ovBrushClear">清除刷选</button></div><div class="cap ov-foot" title="图例只影响本图：点击隐藏，⌥ 点击只看；在图上拖选一段时间，上方指标卡按该范围重算">点击图例隐藏 · 拖选时段重算指标卡</div></div>' +
     // 人格卡：四维度双向条（数值跟随胜出极，评审 A1-V10）
     '<div class="card pad ov-pers"><div class="row ov-pers-h"><span class="eb">协作人格 · ' + rangeLabel() + '</span><span class="row" style="gap:6px"><span class="tag">实验性</span><span class="bdg">置信度 ' + (pers.ok ? pers.conf : '低') + ' · n=' + pers.n + '</span></span></div>' +
-    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;font-style:italic;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
+    (pers.pending ? LV.pend(150) : pers.ok ? '<button type="button" class="ov-code" data-act="go" data-r="persona"><span class="serif ov-code-l">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:20px;font-weight:600">' + pers.zh + '</span><span class="serif" style="font-size:15px;color:var(--ink-3)">' + pers.en + '</span></span></button><div class="vz" data-vz="ov-axes"></div>' : ovPersEmpty(pers)) +
     (note ? '<span class="cap" style="font-size:11px">' + esc(note) + '</span>' : '') +
     '<button type="button" class="row lnk" data-act="go" data-r="persona" style="margin-top:auto;justify-content:space-between;width:100%;text-decoration:none"><span class="cap">查看完整画像</span>' + ic('arrow', 14) + '</button></div></div>' +
     '<div class="three ov-three">' +
@@ -5919,7 +5925,7 @@ function fp2SVG(L, p, size, opt) {
   const planets = '<g class="fp-pls">' + orb.planets.map((x) => '<g class="fp-pl" data-a="' + x.a.id + '" data-pa="' + x.deg + '" style="--pa:' + x.deg + 'deg"' + (opt.interactive ? ' data-tf="fpp|' + x.a.id + '"' : '') + '><circle cx="200" cy="' + (C - FPG.PR) + '" r="9" fill="' + x.a.c + '" fill-opacity=".2"/><circle class="fp-pd" cx="200" cy="' + (C - FPG.PR) + '" r="4.6" fill="' + x.a.c + '" stroke="var(--surface)" stroke-width="1.3"/></g>').join('') + '</g>';
   // 外框：120 道刻度（每 3°），整点较长、每 6 小时最长；每 3 小时一个方位数字，00 / 06 / 12 / 18 用衬线当作四方位；00 外侧基准三角（--orbit）
   const tk = ['', '', '']; for (let i = 0; i < 120; i++) { const w = i % 30 === 0 ? 2 : i % 5 === 0 ? 1 : 0; const a = i * 3 * Math.PI / 180; tk[w] += 'M' + f(pt(C, 194.5, a)) + 'L' + f(pt(C, [190.5, 187.5, 184][w], a)); }
-  const hrs = [0, 3, 6, 9, 12, 15, 18, 21].filter((h) => !sm || h % 6 === 0).map((h) => { const card = h % 6 === 0; const q = pt(C, card ? (sm ? 170 : 171.5) : 176, h * 15 * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central"' + (card ? ' font-size="' + (sm ? 17 : 15) + '" font-family="var(--serif)" font-weight="700" fill="var(--ink-1)" paint-order="stroke" stroke="var(--bg)" stroke-width="4"' : ' font-size="9.5" font-family="var(--mono)" fill="var(--ink-3)"') + '>' + String(h).padStart(2, '0') + '</text>'; }).join('');
+  const hrs = [0, 3, 6, 9, 12, 15, 18, 21].filter((h) => !sm || h % 6 === 0).map((h) => { const card = h % 6 === 0; const q = pt(C, card ? (sm ? 170 : 171.5) : 176, h * 15 * Math.PI / 180); return '<text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central"' + (card ? ' font-size="' + (sm ? 17 : 15) + '" font-family="var(--font-display)" font-weight="700" fill="var(--ink-1)" paint-order="stroke" stroke="var(--bg)" stroke-width="4"' : ' font-size="9.5" font-family="var(--font-num)" fill="var(--ink-3)"') + '>' + String(h).padStart(2, '0') + '</text>'; }).join('');
   // 中环：节律带（每半小时一个采样点，半径 98 → 118）+ 24 个小刻度
   const hc = new Array(24).fill(0); L.forEach((s) => { hc[s.h]++; });
   const hm2 = Math.max(1, ...hc);
@@ -5935,8 +5941,8 @@ function fp2SVG(L, p, size, opt) {
     const a = av[i]; const sl = p.axes && p.axes[i] && p.axes[i].letter; const ch = sl ? sl : a.strong < 55 ? '?' : a.letter; const d = AXR[x], rad = d * Math.PI / 180, len = fpRoseLen(a.strong);
     const q = pt(C, len + 11 * k, rad);
     const sq = [q[0], q[1] + (d === 0 ? -13 : 13) * k];
-    return '<g class="fp-ax" data-k="' + x + '"><text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 15 * k + '" font-family="var(--serif)" font-weight="600" fill="' + (ch === '?' ? 'var(--ink-3)' : 'var(--ink-1)') + '" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + ch + '</text>' +
-      (opt.labels && !sm ? '<text x="' + sq[0].toFixed(1) + '" y="' + sq[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 9 * k + '" font-family="var(--mono)" fill="var(--ink-3)" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + a.strong + '</text>' : '') + '</g>';
+    return '<g class="fp-ax" data-k="' + x + '"><text x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 15 * k + '" font-family="var(--font-display)" font-weight="600" fill="' + (ch === '?' ? 'var(--ink-3)' : 'var(--ink-1)') + '" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + ch + '</text>' +
+      (opt.labels && !sm ? '<text x="' + sq[0].toFixed(1) + '" y="' + sq[1].toFixed(1) + '" text-anchor="middle" dominant-baseline="central" font-size="' + 9 * k + '" font-family="var(--font-num)" fill="var(--ink-3)" paint-order="stroke" stroke="var(--bg)" stroke-width="3">' + a.strong + '</text>' : '') + '</g>';
   }).join('');
   // 指针：细长双头菱形，北半 --orbit 实心、南半空心描边；--hd = 协作重心。画在玫瑰之上、字母与分数之下
   const hd = fpHeading(L); const NL = FPG.NL;
@@ -5980,7 +5986,7 @@ PAGES.persona = () => {
   if (!p.ok) {
     const frac = Math.min(1, L.length / 30); const a = frac * Math.PI * 2; const x = 56 + 46 * Math.sin(a), y = 56 - 46 * Math.cos(a);
     const relax = peRelax([per[0], per[1]]);
-    return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--mono)" fill="var(--ink-1)">' + L.length + '/30</text></svg><div class="col" style="flex:1;min-width:240px">' +
+    return tbar('协作人格', filt + '基于 ' + L.length + ' 个会话 · ' + per[2], right) + '<div class="content" id="content"><div class="card pad pe-low"><svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" fill="none" stroke="var(--line)" stroke-width="10"/>' + (frac > 0 ? '<path d="M56 10 A46 46 0 ' + (frac > 0.5 ? 1 : 0) + ' 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="var(--ink-1)" stroke-width="10" stroke-linecap="round"/>' : '') + '<text x="56" y="62" text-anchor="middle" font-size="18" font-weight="700" font-family="var(--font-num)" fill="var(--ink-1)">' + L.length + '/30</text></svg><div class="col" style="flex:1;min-width:240px">' +
       (allOff ? '<h2 class="serif" style="margin:0;font-size:24px">所有数据源已停用</h2><p style="margin:0;color:var(--ink-2)">人格需要会话数据。到「设置 › 数据源」重新启用至少一个 Agent，分析会立即恢复。</p><div class="row"><button type="button" class="btn p" data-act="openSettings" data-tab="sources">打开设置 · 数据源</button></div>'
         : '<h2 class="serif" style="margin:0;font-size:24px">再积累 ' + (30 - L.length) + ' 个会话后揭晓</h2><p style="margin:0;color:var(--ink-2)">当前筛选下样本太少，人格需要足够的会话才可靠。' + (relax.length ? '放宽下面任一筛选可以补到：' : '可以放宽筛选，或换一个统计周期。') + '</p>' +
         (relax.length ? '<div class="pe-relax">' + relax.map((r) => '<button type="button" class="chip on" data-act="peRelax" data-k="' + r.k + '">' + esc(r.t) + ic('x', 12) + '<b class="mono" style="color:' + (r.n >= 30 ? 'var(--good)' : 'var(--ink-3)') + '">移除后 n≈' + r.n + '</b></button>').join('') + '</div>' : '') +
@@ -6006,7 +6012,7 @@ PAGES.persona = () => {
     '<div class="content" id="content"><div class="stack">' +
     '<div class="card persona-hero"><div class="col" style="gap:0;min-width:0"><div class="row" style="flex-wrap:wrap"><span class="eb" title="Your agent collaboration type">你的协作人格</span><span class="tag" data-tip="维度信号与权重是初版设想，待真实数据校准">实验性</span><span class="bdg">置信度 ' + p.conf + ' · n=' + p.n + '</span></div>' +
     '<div class="letters" data-hero="code">' + p.code.split('').map((ch, i) => { const a = axisView(p, i); return '<button type="button" data-act="axisJump" data-tf="axis|' + i + '"><span class="L">' + ch + '</span><span style="font-size:12px;color:var(--ink-2);white-space:nowrap">' + (ch === '?' ? '未定型' : a.name) + ' <span class="mono" style="color:var(--ink-1);font-weight:600">' + a.strong + '</span></span></button>'; }).join('') + '</div>' +
-    '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;font-style:italic;color:var(--ink-3)">' + p.en + '</span></div>' +
+    '<div class="row" style="align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap"><span class="serif" style="font-size:36px;line-height:1.1;font-weight:600">' + p.zh + '</span><span class="serif" style="font-size:24px;color:var(--ink-3)">' + p.en + '</span></div>' +
     '<p class="pe-line"><span class="aib">' + ic('spark', 11) + 'AI 撰写</span>' + esc(p.line) + '<button type="button" class="btn sm gh" data-act="notMe">不像我？</button></p><div class="pe-facts mono"><span><b>' + f1(st.per) + '</b> 条消息 / 会话</span><span><b>' + f1(st.auto) + '</b> 步自主 / 轮</span><span><b>' + Math.round(st.verify) + '%</b> 要求验证</span></div>' +
     '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:12px">' + traits.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div>' +
     (note ? '<div class="cap" style="margin-top:8px;font-size:11px" title="人格只按时间、Agent 与项目计算，和侧栏、报告一致">' + esc(note) + '</div>' : '') +
@@ -6463,7 +6469,7 @@ PAGES.sessions = () => {
   } else {
     const summary = A3H.summary(s, tr, [Math.round(tr.T) + ' 分钟', s.msgs + ' 条消息', s.tools + ' 次工具', corrN ? corrN + ' 次纠偏' : null, errN ? errN + ' 次失败' : null, tr.comps.length ? tr.comps.length + ' 次压缩' : null, s.live ? '运行中' : o[2]].filter(Boolean).join(' · '));
     const sw = (st) => '<span class="tl-sw" style="' + st + '"></span>'; const li = (h) => '<span class="tl-li">' + h + '</span>';
-    detail = '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row sb-meta"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + A3H.model(s, ag) + '</span><span>·</span><span class="sb-path" title="' + esc(A3H.path(s)) + '">' + esc(A3H.path(s)) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif sb-title">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row sb-sub"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
+    detail = '<div class="card" style="overflow:hidden"><div class="band" style="background:' + ag.t + ';border-top-color:' + ag.c + '"><div class="mono row sb-meta"><span class="dot" style="background:' + ag.c + '"></span><b style="font-family:var(--font-sans);color:var(--ink-2)">' + ag.name + '</b><span>·</span><span>' + A3H.model(s, ag) + '</span><span>·</span><span class="sb-path" title="' + esc(A3H.path(s)) + '">' + esc(A3H.path(s)) + '</span></div><div class="row" style="margin-top:4px;flex-wrap:wrap"><h2 class="serif sb-title">' + esc(s.title) + '</h2><button type="button" class="btn" data-act="resume">' + ic('term', 14) + '在 ' + ag.short + ' 中继续</button><button type="button" class="ib" data-act="sessMore" aria-label="更多操作" style="background:var(--surface);border:1px solid var(--line)">' + ic('more', 16, 'stroke-width:2.6') + '</button></div><div class="row sb-sub"><span class="mono">' + mdz(s.d) + ' ' + hm(s.h, s.mi) + ' · ' + (s.live ? '运行中 ' + liveElapsed() : dur(s.dur)) + '</span><span class="row" style="gap:4px;color:' + o[1] + ';font-weight:600">' + ic(o[0], 14) + o[2] + '</span>' + (corrN ? '<span class="row" style="gap:4px;color:var(--crit);font-weight:600">' + ic('alert', 14) + corrN + ' 次纠偏</span>' : '') + (S.excluded.has(s.id) ? '<span class="tag">不计入分析</span>' : '') + '</div></div>' +
       '<div class="stats7">' + statBtn('user', '你的消息', s.msgs) + statBtn('', 'Agent 步数', A3H.steps(s)) + statBtn('tools', '工具调用', s.tools) + statBtn('err', '错误', s.errors, s.errors ? 'var(--crit)' : '') + statBtn('corr', '纠偏', s.corr, s.corr ? 'var(--crit)' : '') + statBtn('', '上下文峰值', A3H.ctxPeak(s, tr)) + statBtn('', 'Tokens', A3H.tok(s)) + '</div></div>' +
       '<div class="card pad tl-card"><div class="hd" style="margin-bottom:6px"><div class="grow"><span class="ct">轨迹</span></div><div class="seg" role="group" aria-label="横轴"><button type="button" data-act="axis" data-v="time" class="' + (S.sess.axis === 'steps' ? '' : 'on') + '">时间</button><button type="button" data-act="axis" data-v="steps" class="' + (S.sess.axis === 'steps' ? 'on' : '') + '">步数</button></div><div class="seg" role="group" aria-label="缩放"><button type="button" data-act="zoom" data-v="-1" aria-label="缩小">−</button><button type="button" data-act="zoom" data-v="1" aria-label="放大">+</button><button type="button" data-act="zoom" data-v="0" class="' + (S.sess.view ? '' : 'on') + '">适应</button></div><span class="cap mono tl-zl" id="tlZoom">' + (S.sess.view ? f1(S.sess.zoom) + '×' : '全程') + '</span><button type="button" class="btn sm gh" data-act="tlTools" aria-pressed="false">' + ic('grid', 13) + '展开工具泳道</button></div>' +
       '<div class="cap tl-sum">' + summary + '</div><div class="tl-grid"><div class="tl-main"><div class="tl-ov" id="tlOv" aria-label="总览条"></div><div class="tl-box" id="tlBox"></div><div class="row tl-read" id="tlRead">' + readout(s) + '</div>' +
@@ -6533,7 +6539,7 @@ Object.assign(ACT, {
   tlOpenLog: () => { const s = BYID[S.sess.sel]; if (s) toast('已在原始日志中打开（演示）：' + agent(s.a).path); },
   hiStat: (el) => { const v = el.dataset.v; if (!v) return; S.sess.hi = S.sess.hi === v ? null : v; render(); },
   moment: (el) => { S.sess.evd = null; S.sess.ev = null; tlSeek(+el.dataset.t); },
-  resume: () => { const s = BYID[S.sess.sel]; const ag = agent(s.a); const cmd = ag.resume + ' ' + s.id.replace('sess-', ''); openModal(modalHead('在 ' + ag.name + ' 中继续这个会话', '会在终端中打开；Demo 不会执行任何命令') + '<div class="mb col"><div class="row" style="padding:10px 12px;border-radius:9px;background:var(--sunken);border:1px solid var(--line)"><span class="mono" style="flex:1;font-size:12.5px;word-break:break-all">cd ' + esc(PJI[s.p].path) + ' &amp;&amp; ' + esc(cmd) + '</span><button type="button" class="btn sm" data-act="copyCmd" data-v="' + esc('cd "' + PJI[s.p].path.replace('~', '$HOME') + '" && ' + cmd) + '">复制</button></div><p class="cap" style="margin:0">Orbit 只负责打开终端并填入命令，确认前不会运行。</p></div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="resumeGo">在终端中打开</button></div>'); },
+  resume: () => { const s = BYID[S.sess.sel]; const ag = agent(s.a); const cmd = ag.resume + ' ' + s.id.replace('sess-', ''); openModal(modalHead('在 ' + ag.name + ' 中继续这个会话', '会在终端中打开；Demo 不会执行任何命令') + '<div class="mb col"><div class="row" style="padding:10px 12px;border-radius:9px;background:var(--sunken);border:1px solid var(--line)"><span class="mono code-t" style="flex:1;font-size:12.5px;word-break:break-all">cd ' + esc(PJI[s.p].path) + ' &amp;&amp; ' + esc(cmd) + '</span><button type="button" class="btn sm" data-act="copyCmd" data-v="' + esc('cd "' + PJI[s.p].path.replace('~', '$HOME') + '" && ' + cmd) + '">复制</button></div><p class="cap" style="margin:0">Orbit 只负责打开终端并填入命令，确认前不会运行。</p></div><div class="mf"><button type="button" class="btn" data-act="closeModal">取消</button><button type="button" class="btn p" data-act="resumeGo">在终端中打开</button></div>'); },
   resumeGo: () => { closeModal(); toast('已在终端中打开（演示）'); },
   copyCmd: (el) => copyText(el.dataset.v, '命令'),
   sessMore: (el) => { const s = BYID[S.sess.sel]; openDD(el, [{ t: '复制会话 ID', v: () => copyText(s.id, '会话 ID') }, { t: '在 Finder 中显示日志', v: () => toast('已在 Finder 中显示（演示）：' + agent(s.a).path) }, { sep: 1 }, { t: S.excluded.has(s.id) ? '重新计入分析' : '标记为不计入分析', v: () => { if (S.excluded.has(s.id)) S.excluded.delete(s.id); else S.excluded.add(s.id); render(); toast(S.excluded.has(s.id) ? '已从统计中排除这个会话，所有页面已重算；它仍留在列表里，可随时恢复' : '已重新计入分析'); } }], (v) => v()); },
@@ -6582,7 +6588,7 @@ PAGES.tools = () => {
       '<td class="tt-err"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-ebar" aria-hidden="true"><i style="width:' + Math.min(100, r.err / 0.15 * 100).toFixed(0) + '%;background:' + (r.err > 0.1 ? 'var(--vz-err)' : r.err > 0.03 ? 'var(--ink-3)' : 'var(--ink-4)') + '"></i></span><span class="mono" style="min-width:44px;text-align:right;color:' + (r.err > 0.1 ? 'var(--crit)' : 'var(--ink-2)') + ';font-weight:' + (r.err > 0.1 ? 600 : 400) + '">' + f1(r.err * 100) + '%</span></span></td>' +
       '<td class="tt-dur"><span class="row" style="gap:6px;justify-content:flex-end"><span class="tt-dbar" data-tip="p50 ' + f1(p50(r)) + ' s · p95 ' + f1(p95(r)) + ' s" aria-hidden="true"><i class="p95" style="width:' + (Math.sqrt(p95(r) / mxDur) * 100).toFixed(1) + '%"></i><i class="p50" style="width:' + (Math.sqrt(p50(r) / mxDur) * 100).toFixed(1) + '%"></i></span><span class="mono" style="min-width:40px;text-align:right">' + r.avg + '</span></span></td>' +
       '<td class="mono tt-ap" style="text-align:right">' + (r.ap ? Math.round(r.ap * 100) + '%' : '—') + '</td><td class="tt-sp">' + VZ.spark(sp, { w: 80, h: 22, label: r.name + '：' + rangeLabel() + '每日调用' }) + '</td></tr>';
-    if (open) h += '<tr class="tt-open"><td colspan="6"><div class="col" style="gap:3px;padding:4px 0 6px">' + Array.from({ length: 5 }, (_, i) => { const s = recent[Math.floor(rr() * Math.min(recent.length, 12))] || recent[0]; const fail = rr() < r.err * 2.2; const dur = fail ? p95(r) * (0.6 + rr() * 0.8) : p50(r) * (0.5 + rr() * 1.4); return '<div class="row mono tt-call"><span style="color:var(--ink-3)">' + (s ? md(s.d) + ' ' + hm(s.h, Math.min(59, s.mi + i * 7)) : md(119 - i)) + '</span><span class="tt-cmd">' + esc(r.cmds[Math.floor(rr() * r.cmds.length)]) + '</span><span style="color:' + (fail ? 'var(--crit)' : 'var(--good)') + ';min-width:38px">' + (fail ? 'exit ' + (1 + Math.floor(rr() * 2)) : 'ok') + '</span><span style="color:var(--ink-3);min-width:46px;text-align:right">' + (dur < 10 ? f1(dur) : Math.round(dur)) + ' s</span>' + (s ? '<button type="button" class="lnk" data-act="openSession" data-id="' + s.id + '" style="font-family:var(--sans)">在轨迹中查看 →</button>' : '') + '</div>'; }).join('') + '</div></td></tr>';
+    if (open) h += '<tr class="tt-open"><td colspan="6"><div class="col" style="gap:3px;padding:4px 0 6px">' + Array.from({ length: 5 }, (_, i) => { const s = recent[Math.floor(rr() * Math.min(recent.length, 12))] || recent[0]; const fail = rr() < r.err * 2.2; const dur = fail ? p95(r) * (0.6 + rr() * 0.8) : p50(r) * (0.5 + rr() * 1.4); return '<div class="row mono tt-call"><span style="color:var(--ink-3)">' + (s ? md(s.d) + ' ' + hm(s.h, Math.min(59, s.mi + i * 7)) : md(119 - i)) + '</span><span class="tt-cmd">' + esc(r.cmds[Math.floor(rr() * r.cmds.length)]) + '</span><span style="color:' + (fail ? 'var(--crit)' : 'var(--good)') + ';min-width:38px">' + (fail ? 'exit ' + (1 + Math.floor(rr() * 2)) : 'ok') + '</span><span style="color:var(--ink-3);min-width:46px;text-align:right">' + (dur < 10 ? f1(dur) : Math.round(dur)) + ' s</span>' + (s ? '<button type="button" class="lnk" data-act="openSession" data-id="' + s.id + '" style="font-family:var(--font-sans)">在轨迹中查看 →</button>' : '') + '</div>'; }).join('') + '</div></td></tr>';
     return h;
   }).join('');
   // 调用链矩阵：行 = 上一步、列 = 下一步；行 n 取自明细表（Web = WebFetch + WebSearch）
@@ -6722,9 +6728,9 @@ PAGES.projects = () => {
   return tbar('项目习惯', rows.length + ' 个项目 · ' + f1(overall.hours) + ' 小时 · 按协作时长排序', '<button type="button" class="btn' + (S.proj.cmpMode ? ' p' : '') + '" data-act="projCompare">' + (S.proj.cmpMode ? '退出对比' : '对比两个项目') + '</button><button type="button" class="btn ai" data-act="projRule">' + ic('spark', 14) + '为此项目起草规则</button>') +
     '<div class="content" id="content">' + filterRow('<span class="cap">聚合</span><div class="seg" role="group" aria-label="聚合方式"><button type="button" data-act="projGroup" data-v="project" class="' + (S.proj.group === 'project' ? 'on' : '') + '">按项目</button><button type="button" data-act="projGroup" data-v="folder" class="' + (S.proj.group === 'folder' ? 'on' : '') + '">按文件夹</button></div>') +
     '<div class="pj"><div class="stack"><div class="card pad"><table class="tbl pj-tbl"><colgroup><col><col class="pj-c-n"><col class="pj-c-h"><col class="pj-c-f"><col class="pj-c-s"><col class="pj-c-p"></colgroup><thead><tr><th>' + (S.proj.group === 'folder' ? '文件夹' : '项目') + '</th><th style="text-align:right">会话</th><th style="text-align:right">时长</th><th>摩擦率</th><th>Agent 构成</th><th style="text-align:right">此处人格</th></tr></thead><tbody>' +
-    tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + r.p.id + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title">' + esc(t.f || r.p.name) + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + '</div><div class="mono cap pj-path">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + r.p.id + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + r.p.id + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + r.p.id + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="mono pj-pers" style="font-weight:' + (r.pers.ok && r.pers.code !== 'DIMV' ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '"' + (pc.includes('?') ? ' data-tip="「?」= 该维度落在 45–55 之间，尚未定型"' : '') + '>' + pc + '</td></tr>'; }).join('') + '</tbody></table><div class="cap pj-foot" data-tip="按项目聚合时以 git 根目录归并子文件夹；摩擦率 = 纠偏消息 / 全部消息">' + (S.proj.group === 'folder' ? '子文件夹按会话归入所属项目 · ' : '') + '「—」样本 &lt; 8 个会话 · 「?」维度未定型</div></div>' +
+    tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + r.p.id + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title">' + esc(t.f || r.p.name) + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + '</div><div class="mono cap pj-path code-t">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + r.p.id + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + r.p.id + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + r.p.id + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="mono pj-pers" style="font-weight:' + (r.pers.ok && r.pers.code !== 'DIMV' ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '"' + (pc.includes('?') ? ' data-tip="「?」= 该维度落在 45–55 之间，尚未定型"' : '') + '>' + pc + '</td></tr>'; }).join('') + '</tbody></table><div class="cap pj-foot" data-tip="按项目聚合时以 git 根目录归并子文件夹；摩擦率 = 纠偏消息 / 全部消息">' + (S.proj.group === 'folder' ? '子文件夹按会话归入所属项目 · ' : '') + '「—」样本 &lt; 8 个会话 · 「?」维度未定型</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">跨项目对比</span><span class="cap">' + (S.proj.cmpMode ? '点另一个项目作为 B' : '面积 = 时长 · 竖线 = 到回归线的残差') + '</span></div><span class="row cap pj-rleg" data-tip="琥珀 = 摩擦率高于同等自主度的预期；绿 = 低于"><span class="row" style="gap:4px"><i style="background:' + VZ.sem.corr + '"></i>高于预期</span><span class="row" style="gap:4px"><i style="background:' + VZ.sem.good + '"></i>低于预期</span></span></div><div class="vz" data-vz="pj-scatter"></div><div class="cap pj-foot">' + (pts.length >= 3 ? '高于回归线的项目最值得先加护栏' : '项目太少，无法拟合') + '</div></div></div>' +
-    '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap">' + esc(p.path) + ' · git: ' + esc(p.git) + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + p.tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div></div><button type="button" class="btn" data-act="finder">在 Finder 中显示</button><button type="button" class="btn" data-act="openAgents">打开 AGENTS.md</button></div>' +
+    '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap code-t">' + esc(p.path) + ' · git: ' + esc(p.git) + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + p.tags.map((t) => '<span class="tag">' + t + '</span>').join('') + '</div></div><button type="button" class="btn" data-act="finder">在 Finder 中显示</button><button type="button" class="btn" data-act="openAgents">打开 AGENTS.md</button></div>' +
     '<div class="row pj-pline">' + ic('persona', 14) + '<span>' + (pp.ok ? '在这个项目里你是 <b class="mono" style="color:var(--ink-1);letter-spacing:.04em">' + pp.code + '</b> <b style="color:var(--ink-1)">' + pp.zh + '</b>' + (personaNow().ok && personaNow().code !== pp.code ? '，和整体（' + personaNow().code + ' ' + personaNow().zh + '）不同' : '，和整体一致') + '。' : '这个项目的会话少于 8 个，暂不判断人格。') + '</span></div></div>' +
     '<div class="pj-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">此项目 vs ' + esc(cmpName) + '</span></div><span class="row cap" style="font-size:11px;gap:10px"><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-1)"></span>' + esc(p.name) + '</span><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-4)"></span>' + esc(cmpName) + '</span></span></div><div class="col" style="gap:8px">' + metrics.map((m) => { const mx = Math.max(m[1], m[2]) || 1; const d = VZ.delta2({ cur: m[1], prev: m[2], unit: m[4] === 'pct' ? undefined : m[4], goodDown: m[5], prevText: false }); const rel = m[2] ? Math.abs(m[1] - m[2]) / Math.abs(m[2]) : 0; return '<div class="pj-vs"><span class="pj-vs-n">' + m[0] + '</span><span class="col" style="gap:2px"><span class="pj-vs-b a" style="width:' + (m[1] / mx * 100) + '%"></span><span class="pj-vs-b" style="width:' + (m[2] / mx * 100) + '%"></span></span><span class="mono pj-vs-v"><b>' + m[3](m[1]) + '</b> / ' + m[3](m[2]) + '</span><span class="mono pj-vs-d ' + (rel < 0.1 ? 'flat' : d.cls) + '">' + (rel < 0.1 ? '≈' : d.text) + '</span></div>'; }).join('') + '</div>' + (S.proj.cmpMode && !cmpRow ? '<div class="cap pj-foot">在表格或散点图里点另一个项目作为 B</div>' : '<div class="cap pj-foot" data-tip="只有摩擦率与要求验证按好坏着色">Δ 相对 ' + esc(cmpName) + ' · 差异 &lt; 10% 记为 ≈</div>') + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 分工</span><span class="cap">' + xs.length + ' 个会话 · 条宽 = 会话占比</span></div></div><div class="pj-share">' + split.map((v, j) => v ? '<span style="width:' + (v / splitTot * 100) + '%;background:' + AG[j].c + '" data-tip="' + AG[j].name + '：' + v + ' 个会话 · ' + Math.round(v / splitTot * 100) + '%"></span>' : '').join('') + '</div><div class="col" style="gap:8px;margin-top:10px">' + agRows.map((r) => '<div class="pj-ag"><span class="row" style="gap:6px;font-size:12px;min-width:0"><span class="pj-dot" style="background:' + r.a.c + '"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + r.a.short + '</span></span><span class="col" style="gap:3px"><span class="pj-ag-r"><span class="cap">会话</span><span class="pj-bar"><i style="width:' + (r.n / agMaxN * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + r.n + '</span></span><span class="pj-ag-r"><span class="cap">时长</span><span class="pj-bar"><i style="width:' + (r.h / agMaxH * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + f1(r.h) + 'h</span></span><span class="pj-ag-r"><span class="cap">完成</span><span class="pj-bar"><i style="width:' + r.ok.toFixed(0) + '%;background:var(--ink-3)"></i></span><span class="mono">' + Math.round(r.ok) + '%</span></span></span></div>').join('') + '</div></div></div>' +
@@ -7031,7 +7037,7 @@ function libBody() {
   const sub = Lb.tab === 'for' ? (p.ok ? '依据人格 ' + p.code + '、近 30 天的摩擦和已安装内容' : '人格尚未分类，只按近 30 天的摩擦和已安装内容推荐') : Lb.tab === 'peer' ? '来自开启匿名贡献的同类型用户（示例）' : Lb.tab === 'hot' ? '按安装量排序（示例）' : '只在本机，不上传';
   const sortSeg = Lb.tab === 'for' ? '<div class="seg lb-sort" role="tablist" aria-label="排序">' + [['pain', '解决你的问题'], ['match', '综合匹配'], ['users', '社区安装量']].map((s) => '<button type="button" role="tab" data-act="libSort" data-v="' + s[0] + '" class="' + (Lb.sort === s[0] ? 'on' : '') + '" aria-selected="' + (Lb.sort === s[0]) + '">' + s[1] + '</button>').join('') + '</div>' : '';
   const legend = '<div class="lb-legend cap">匹配度 = ' + LIB_W.map((w, i) => '<span class="row" style="gap:4px"><i style="background:' + LIB_SEG[i] + '"></i>' + w[0] + ' ×' + w[1] + '</span>').join('<span>+</span>') + '</div>';
-  const featCard = (x) => { const parts = libParts(x); return '<div class="card lb-card"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(x.icon, 13, 'color:var(--ink-1)') + '<b style="font-family:var(--sans);color:var(--ink-2)">' + x.kind + '</b><span>·</span><span>' + x.src + '</span>' + (Lb.tab === 'for' ? '<span style="margin-left:auto" class="mono" data-tf="match|' + x.id + '" tabindex="0">' + (Lb.sort === 'pain' ? '痛点覆盖 <b>' + x.sc[1] + '</b>' : Lb.sort === 'users' ? (x.users ? fmt(x.users) + ' 安装' : '本机') : '匹配 <b>' + x.m + '</b>') + '</span>' : '') + '</div><div class="mono lb-id">' + x.id + '</div><div class="lb-desc">' + esc(x.desc) + '</div>' +
+  const featCard = (x) => { const parts = libParts(x); return '<div class="card lb-card"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(x.icon, 13, 'color:var(--ink-1)') + '<b style="font-family:var(--font-sans);color:var(--ink-2)">' + x.kind + '</b><span>·</span><span>' + x.src + '</span>' + (Lb.tab === 'for' ? '<span style="margin-left:auto" class="mono" data-tf="match|' + x.id + '" tabindex="0">' + (Lb.sort === 'pain' ? '痛点覆盖 <b>' + x.sc[1] + '</b>' : Lb.sort === 'users' ? (x.users ? fmt(x.users) + ' 安装' : '本机') : '匹配 <b>' + x.m + '</b>') + '</span>' : '') + '</div><div class="mono lb-id">' + x.id + '</div><div class="lb-desc">' + esc(x.desc) + '</div>' +
     '<div class="lb-match" data-tf="match|' + x.id + '" tabindex="0"><b class="mono">' + x.m + '</b><span class="col" style="flex:1;gap:3px;min-width:0">' + matchBar(x) + '<span class="mono cap lb-parts">' + LIB_W.map((w, i) => w[0].slice(0, 2) + ' ' + parts[i]).join(' · ') + '</span></span></div></div>' +
     '<div class="lb-body"><span class="eb">解决你的问题</span>' + x.why.map((w) => '<span class="row lb-why">' + ic('check', 13, 'margin-top:2px;color:var(--ink-1);flex:none') + esc(w) + '</span>').join('') + '<div class="row lb-foot"><span class="cap lb-fc">' + x.compat + '</span><span style="flex:1"></span><span class="mono cap lb-fc">' + (x.users ? fmt(x.users) + ' 安装' : '本机') + '</span><span class="row lb-acts"><button type="button" class="btn sm gh" data-act="libHide" data-id="' + x.id + '">不感兴趣</button>' + getBtn(x) + '</span></div></div></div>'; };
   const moreRow = (x) => '<div class="lb-row"><span class="lb-ico">' + ic(x.icon, 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><b class="mono lb-nm">' + x.id + '</b><span class="bdg">' + x.kind + '</span>' + (x.local ? '<span class="aib">本地生成</span>' : '') + '</div><div class="cap lb-ell">' + esc(x.desc) + '</div></div><div class="row lb-m" style="gap:6px" data-tf="match|' + x.id + '" tabindex="0">' + matchBar(x, 'sm') + '<b class="mono lb-mv">' + x.m + '</b></div><span class="mono cap lb-users">' + (x.users ? (x.users >= 1000 ? f1(x.users / 1000) + 'k' : x.users) : '本机') + '</span>' + getBtn(x) + '</div>';
@@ -7703,13 +7709,13 @@ function reportMD() {
 }
 function openReport() {
   CUR.report = reportMD();
-  openModal(modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" aria-label="报告内容" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.report) + '</textarea></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">Demo 不能直接下载 · 复制后粘贴到任意 Markdown 编辑器</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="repCopy">复制 Markdown</button></div>', 'wide');
+  openModal(modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" aria-label="报告内容" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.report) + '</textarea></div><div class="mf"><span class="cap" style="margin-right:auto;font-size:11px">Demo 不能直接下载 · 复制后粘贴到任意 Markdown 编辑器</span><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="repCopy">复制 Markdown</button></div>', 'wide');
   MODAL_KEY = 'report';
 }
 function openCSV() {
   const rows = toolRows(sel());
   CUR.csv = ['tool,calls,error_rate,failures,avg_duration,approval_rate'].concat(rows.map((r) => [r.name, r.n, (r.err * 100).toFixed(1) + '%', r.fails, r.avg, Math.round(r.ap * 100) + '%'].join(','))).join('\n');
-  openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · ' + rows.length + ' 种工具 · 复制后可以粘贴到表格软件') + '<div class="mb"><textarea readonly aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.csv) + '</textarea></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyCSV">复制 CSV</button></div>', 'wide');
+  openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · ' + rows.length + ' 种工具 · 复制后可以粘贴到表格软件') + '<div class="mb"><textarea readonly aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(CUR.csv) + '</textarea></div><div class="mf"><button type="button" class="btn" data-act="closeModal">关闭</button><button type="button" class="btn p" data-act="copyCSV">复制 CSV</button></div>', 'wide');
 }
 const SHAREQ = { DIMV: ['把目标交出去，', '把验收留给自己。'], DIFV: ['让 Agent 带路，', '方向由我来核实。'], DIMT: ['同时开很多条线，', '顺着结果往前走。'], DIFT: ['放手让它发挥，', '享受意外的收获。'], DPMV: ['先把规格写清楚，', '再让每个 Agent 各司其职。'], SIFV: ['一次只做一件事，', '每一步都亲自确认。'], SPFV: ['先规划，再打磨，', '每一处都亲手确认。'] };
 function sharePersona() { const per = PERIODS[S.persona.period]; const L = sel({ win: [per[0], per[1]] }); return { L, p: persona(L), label: /月$/.test(per[2]) ? '2026 年 ' + per[2].replace(' ', ' ') : per[2] }; }
@@ -7725,12 +7731,12 @@ function shareCard(sp) {
   const g = petals(p, 40, 0.68); const q = SHAREQ[p.code] || ['和 AI 一起，', '找到自己的节奏。'];
   const nAg = new Set(L.map((s) => s.a)).size;
   return '<div class="sharecard" style="background:' + C.bg + ';color:' + C.ink + '"><div style="position:relative;height:100%;padding:7cqw 7.5cqw 6.5cqw;display:flex;flex-direction:column">' +
-    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--mono);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:2cqw"><span style="font:700 2.6cqw/1 var(--font-num);letter-spacing:.32em">ORBIT</span><span style="font-size:2.5cqw;color:' + C.ink3 + '">我的 AI 协作人格 · ' + esc(sp.label) + '</span></div>' +
     '<svg viewBox="0 0 80 80" style="position:absolute;right:5cqw;top:12cqw;width:32cqw;height:32cqw" aria-hidden="true"><path d="' + g.minor + '" fill="' + C.mn + '"/><path d="' + g.major + '" fill="' + C.mj + '"/></svg>' +
-    '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:600 14cqw/.9 var(--serif)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--mono);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
-    '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--serif)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--serif);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
-    '<div style="margin-top:5cqw;font:500 4.6cqw/1.5 var(--serif)">「' + esc(q[0]) + '<br>' + esc(q[1]) + '」</div>' +
-    (nn ? '' : '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2cqw;margin-top:6cqw;padding-top:4cqw;border-top:1px solid ' + C.line + '">' + [[fmt(p.st.n), '会话'], [Math.round(p.st.hours) + 'h', '协作时长'], [nAg, 'Agent'], [f1(p.st.auto) + '×', '自主比']].map((x) => '<div><div style="font:600 5.4cqw/1.1 var(--mono)">' + x[0] + '</div><div style="font-size:2.4cqw;color:' + C.ink3 + ';margin-top:.6cqw">' + x[1] + '</div></div>').join('') + '</div>') +
+    '<div style="display:flex;gap:3.4cqw;margin-top:9cqw;align-items:flex-end;position:relative">' + AXES.map((ax, i) => { const v = axisView(p, i); return '<div style="display:flex;flex-direction:column;gap:.8cqw"><span style="font:600 14cqw/.9 var(--font-display)">' + v.letter + '</span><span style="font-size:2.6cqw;color:' + C.ink2 + '">' + v.name + '</span>' + (nn ? '' : '<span style="font:600 2.4cqw/1 var(--font-num);color:' + C.ink3 + '">' + v.strong + '%</span>') + '</div>'; }).join('') + '</div>' +
+    '<div style="margin-top:7cqw;font:600 8.4cqw/1.05 var(--font-display)">' + esc(p.zh) + '</div><div style="font:italic 400 3.6cqw/1.3 var(--font-display);color:' + C.ink3 + ';margin-top:1cqw">' + esc(p.en) + '</div>' +
+    '<div style="margin-top:5cqw;font:500 4.6cqw/1.5 var(--font-display)">「' + esc(q[0]) + '<br>' + esc(q[1]) + '」</div>' +
+    (nn ? '' : '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2cqw;margin-top:6cqw;padding-top:4cqw;border-top:1px solid ' + C.line + '">' + [[fmt(p.st.n), '会话'], [Math.round(p.st.hours) + 'h', '协作时长'], [nAg, 'Agent'], [f1(p.st.auto) + '×', '自主比']].map((x) => '<div><div style="font:600 5.4cqw/1.1 var(--font-num)">' + x[0] + '</div><div style="font-size:2.4cqw;color:' + C.ink3 + ';margin-top:.6cqw">' + x[1] + '</div></div>').join('') + '</div>') +
     '<div style="margin-top:auto;display:flex;align-items:flex-end;gap:3cqw"><div style="flex:1;min-width:0"><div style="font-size:3.4cqw;font-weight:600">测测你和 AI 是哪种搭档</div><div style="font-size:2.3cqw;color:' + C.ink3 + ';margin-top:1cqw">[下载链接] · 全部分析在本机完成</div></div>' + qrSVG(p.code, C) + '</div></div></div>';
 }
 function shareBody() {
@@ -7780,7 +7786,7 @@ async function sharePNG(m, dark, noNum) {
   try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* fonts optional */ }
   const W = 1080, H = 1350, u = W / 100; const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const x = cv.getContext('2d'); const cs = getComputedStyle(document.documentElement);
-  const F = { serif: cs.getPropertyValue('--serif').trim() || 'serif', mono: cs.getPropertyValue('--mono').trim() || 'monospace', sans: cs.getPropertyValue('--sans').trim() || 'sans-serif' };
+  const F = { serif: cs.getPropertyValue('--font-display').trim() || 'sans-serif', mono: cs.getPropertyValue('--font-num').trim() || 'sans-serif', sans: cs.getPropertyValue('--font-sans').trim() || 'sans-serif' };
   const C = dark ? { bg: '#131417', ink: '#f1f1f3', ink2: '#c3c6cc', ink3: '#8f949c', line: 'rgba(255,255,255,.14)', mj: '#f1f1f3', mn: '#4a4d54' } : { bg: '#f5f4f0', ink: '#17181b', ink2: '#45484f', ink3: '#62666f', line: '#dcd9d2', mj: '#17181b', mn: '#c0bdb5' };
   const L = 7.5 * u, R = W - 7.5 * u;
   const text = (t, px, py, font, col, align) => { x.font = font; x.fillStyle = col; x.textAlign = align || 'left'; x.fillText(t, px, py); };
@@ -7925,7 +7931,7 @@ function obLiveStep() {
     : '<div class="srcrow" style="opacity:.75"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">' + (L.state === 'error' ? '读取来源失败' : '没有找到 Agent 会话目录') + '</b><span class="cap" style="display:block;font-size:11px">' + (L.state === 'error' ? esc(L.loadErr || '本机服务没有响应') : '可以在下面手动添加文件夹') + '</span></span><span></span><span></span></div>';
   const opts = '<option value="auto">自动识别</option>' + Object.keys(LV.AGENTS).filter((k) => LV.AGENTS[k].key === k).map((k) => '<option value="' + k + '"' + (L.manual.agent === k ? ' selected' : '') + '>' + esc(LV.AGENTS[k].name) + '</option>').join('');
   const add = '<div class="srcrow ob-add"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('plus', 15) + '</span><span class="row" style="gap:6px;min-width:0"><select class="ob-agent" data-chg="obAgent" aria-label="来源的 Agent"' + (busy ? ' disabled' : '') + ' style="height:26px;max-width:132px">' + opts + '</select>' +
-    (host ? '<span class="cap" style="font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">选择一个会话日志目录</span>' : '<input class="mono ob-path" id="obPath" data-in="obPath" placeholder="~/.claude" value="' + esc(L.manual.path || '') + '" aria-label="文件夹路径"' + (busy ? ' disabled' : '') + ' style="height:26px;min-width:0;flex:1;font-size:11px">') + '</span><span></span>' +
+    (host ? '<span class="cap" style="font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">选择一个会话日志目录</span>' : '<input class="mono ob-path code-t" id="obPath" data-in="obPath" placeholder="~/.claude" value="' + esc(L.manual.path || '') + '" aria-label="文件夹路径"' + (busy ? ' disabled' : '') + ' style="height:26px;min-width:0;flex:1;font-size:11px">') + '</span><span></span>' +
     '<button type="button" class="btn sm" data-act="obAddFolder"' + (busy || L.adding ? ' disabled' : '') + '>' + (L.adding ? '添加中…' : host ? '添加文件夹…' : '添加') + '</button></div>';
   const chosen = rows.filter((x) => L.sel.has(x.id));
   const tot = chosen.reduce((a, x) => a + (x.est || 0), 0);
@@ -8461,14 +8467,14 @@ function renderSet() {
     body = card('已检测到的 Agent', '自动扫描默认目录 · 只读会话日志，不读凭据文件', srcRows().map((r) => '<div class="srcrow" style="opacity:' + (r.on ? 1 : 0.55) + '"><span style="width:30px;height:30px;border-radius:8px;background:' + r.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + r.c) + '</span><div style="min-width:0"><div class="row" style="gap:6px;flex-wrap:wrap"><b style="font-size:13px">' + r.name + '</b><span class="mono cap" style="font-size:11px">' + r.ver + '</span><span class="row" style="gap:3px;font-size:11px;color:' + r.st[2] + '">' + ic(r.st[1], 12) + r.st[0] + '</span></div><div class="mono cap" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + r.path + ' · ' + r.n + ' 个会话</div></div><span class="mono cap when" style="font-size:11px">' + r.st[3] + '</span>' + swBtn(r.on, 'setSrc', r.attrs, '启用 ' + r.name) + '</div>').join('') +
       S.extraSrc.map((x, i) => '<div class="srcrow"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('db', 15) + '</span><div style="min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + esc(x.name) + '</b><span class="bdg">' + ({ jsonl: 'JSONL', sqlite: 'SQLite', md: 'Markdown' })[x.fmt] + '</span><span class="row" style="gap:3px;font-size:11px;color:var(--good)">' + ic('okc', 12) + '正常</span></div><div class="mono cap" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.path) + ' · ' + x.n + ' 个会话</div></div><span class="mono cap when" style="font-size:11px">刚刚</span><button type="button" class="btn sm gh" data-act="setRmSrc" data-i="' + i + '">移除</button></div>').join('') +
       srcMissing().map((m) => '<div class="srcrow" style="opacity:.75"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><div><b style="font-size:13px">' + esc(m.name) + '</b><div class="cap" style="font-size:11px">' + m.hint + '</div></div><span class="when"></span><button type="button" class="btn sm" data-act="setAddSrc" data-v="' + esc(m.v) + '">指定…</button></div>').join('') +
-      (S.addSrc ? '<div class="col" style="gap:10px;margin-top:10px;padding:12px;border-radius:10px;background:var(--sunken)"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><label class="l" for="srcName">名称</label><input id="srcName" value="' + esc(S.addSrc === 'Cursor' ? 'Cursor' : '导出的聊天记录') + '" style="' + FIELD + '"><label class="l" for="srcPath">位置</label><input id="srcPath" value="' + esc(S.addSrc === 'Cursor' ? '~/Library/Application Support/Cursor/User/workspaceStorage' : '~/Documents/chat-export') + '" style="' + FIELD + ';font-family:var(--mono)"><span class="l">格式</span>' + seg('setParser', S.addSrcFmt, [['jsonl', 'JSONL'], ['sqlite', 'SQLite'], ['md', 'Markdown 导出']], '格式') + '</div><div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="setAddCancel">取消</button><button type="button" class="btn sm p" data-act="setAddDo">添加并索引</button></div></div>' : ''),
+      (S.addSrc ? '<div class="col" style="gap:10px;margin-top:10px;padding:12px;border-radius:10px;background:var(--sunken)"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><label class="l" for="srcName">名称</label><input id="srcName" value="' + esc(S.addSrc === 'Cursor' ? 'Cursor' : '导出的聊天记录') + '" style="' + FIELD + '"><label class="l" for="srcPath">位置</label><input id="srcPath" value="' + esc(S.addSrc === 'Cursor' ? '~/Library/Application Support/Cursor/User/workspaceStorage' : '~/Documents/chat-export') + '" style="' + FIELD + ';font-family:var(--font-mono)"><span class="l">格式</span>' + seg('setParser', S.addSrcFmt, [['jsonl', 'JSONL'], ['sqlite', 'SQLite'], ['md', 'Markdown 导出']], '格式') + '</div><div class="row" style="justify-content:flex-end"><button type="button" class="btn sm" data-act="setAddCancel">取消</button><button type="button" class="btn sm p" data-act="setAddDo">添加并索引</button></div></div>' : ''),
       '<button type="button" class="btn sm" data-act="setMap">工具名映射表</button>') +
       '<div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-act="setAddSrc">' + ic('plus', 14) + '添加自定义来源…</button><span class="cap" style="font-size:11px">支持 JSONL、SQLite、Markdown 导出</span></div>' +
       card('索引方式', '', '<div class="form">' + row('更新', seg('setIdx', S.index, [['live', '实时（FSEvents）'], ['hour', '每小时'], ['manual', '仅手动']], '索引方式'), '低电量时自动降为每小时') + row('暂停采集', swBtn(S.paused, 'setPause', '', '暂停采集'), '暂停后菜单栏图标不显示状态角标，也不产生任何事件') + row('立即重新索引', '<button type="button" class="btn sm" data-act="setReindex">' + ic('sync', 13) + '重新索引</button>', '已索引 ' + srcIndexed() + ' 个会话') + '</div>');
   } else if (t === 'privacy') {
     const rd = redact(S.ruleSample);
     body = card('脱敏规则', '入库前执行；命中的内容替换为占位符，原文不会写入 Orbit 的数据库', ruleRows().map((r) => '<div class="row" style="padding:7px 0;border-bottom:1px solid var(--hair)"><span style="flex:1;font-size:13px">' + r.label + '</span><span class="mono cap" style="font-size:11px">' + esc(r.ph) + '</span>' + swBtn(r.on, 'setRule', ' data-k="' + esc(r.k) + '"' + (r.locked ? ' disabled' : ''), String(r.label).replace(/<[^>]*>/g, '').trim()) + '</div>').join('') +
-      (S.ruleTest ? '<div class="col" style="gap:8px;margin-top:12px"><label class="eb" for="rdIn">测试文本</label><textarea id="rdIn" data-in="setTestIn" rows="4" style="width:100%;border-radius:8px;border:1px solid var(--line);background:var(--surface);padding:8px 10px;font:12px/1.6 var(--mono);color:var(--ink-1);resize:vertical">' + esc(S.ruleSample) + '</textarea><div class="row" style="justify-content:space-between"><span class="eb">入库后</span><span class="mono cap" id="rdN" style="font-size:11px">命中 ' + rd.n + ' 处</span></div><div id="rdOut" style="padding:8px 10px;border-radius:8px;background:var(--sunken);font:12px/1.7 var(--mono);white-space:pre-wrap;word-break:break-all">' + rd.html + '</div></div>' : ''),
+      (S.ruleTest ? '<div class="col" style="gap:8px;margin-top:12px"><label class="eb" for="rdIn">测试文本</label><textarea id="rdIn" data-in="setTestIn" rows="4" style="width:100%;border-radius:8px;border:1px solid var(--line);background:var(--surface);padding:8px 10px;font:12px/1.6 var(--font-mono);color:var(--ink-1);resize:vertical">' + esc(S.ruleSample) + '</textarea><div class="row" style="justify-content:space-between"><span class="eb">入库后</span><span class="mono cap" id="rdN" style="font-size:11px">命中 ' + rd.n + ' 处</span></div><div id="rdOut" style="padding:8px 10px;border-radius:8px;background:var(--sunken);font:12px/1.7 var(--font-mono);white-space:pre-wrap;word-break:break-all">' + rd.html + '</div></div>' : ''),
       '<button type="button" class="btn sm" data-act="setTest">' + (S.ruleTest ? '收起测试' : '测试规则…') + '</button>') +
       card('匿名贡献', S.anon ? '已开启：只上传人格代码与已装资源名，用于「相似用户」统计' : '关闭：不上传任何内容。开启后只上传人格代码与已装资源名', '<div class="row" style="gap:10px">' + swBtn(S.anon, 'setAnon', '', '匿名贡献') + '<span class="cap" style="font-size:11px">会话内容、项目名、路径永远不会上传</span></div>') +
       card('数据存储', '', '<div class="col" style="gap:8px"><div class="row" style="flex-wrap:wrap"><span class="mono" style="font-size:12px;flex:1;min-width:200px">~/Library/Application Support/Orbit</span><b class="mono" style="font-size:12px">812 MB</b></div><div class="row" style="flex-wrap:wrap;gap:8px"><button type="button" class="btn sm" data-act="setFinder">在 Finder 中显示</button><button type="button" class="btn sm" data-act="setExport">导出全部（JSON）</button><button type="button" class="btn sm dg" data-act="setClear">清除全部数据…</button></div></div>');
@@ -10165,8 +10171,8 @@ function lvtpCallRows(name) {
   return items.map((c) => {
     const d = c.started_at != null ? new Date(c.started_at) : null; const fail = BAD[c.status]; const ok = OK[c.status];
     const cmd = c.command_head ? (c.args_summary && c.args_summary.indexOf(c.command_head) === 0 ? c.args_summary : c.command_head) : (c.args_summary || (c.files || []).join(' ') || c.name);
-    return '<div class="row mono tt-call"><span style="color:var(--ink-3)">' + (d ? (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hm(d.getHours(), d.getMinutes()) : '—') + '</span><span class="tt-cmd">' + esc(cmd || '—') + '</span><span style="color:' + (fail ? 'var(--crit)' : ok ? 'var(--good)' : 'var(--ink-3)') + ';min-width:38px">' + (fail ? (c.exit_code != null ? 'exit ' + c.exit_code : '失败') : ok ? 'ok' : '未知') + '</span><span style="color:var(--ink-3);min-width:46px;text-align:right">' + (c.duration_ms == null ? '—' : c.duration_ms < 10000 ? f1(c.duration_ms / 1000) + ' s' : Math.round(c.duration_ms / 1000) + ' s') + '</span>' + (BYID[c.session_uid] ? '<button type="button" class="lnk" data-act="openSession" data-id="' + esc(c.session_uid) + '" style="font-family:var(--sans)">在轨迹中查看 →</button>' : '') + '</div>';
-  }).join('') + (e.data && e.data.has_more ? '<div class="row" style="justify-content:flex-start"><button type="button" class="lnk" data-act="lvtpMore" style="font-family:var(--sans)">更多调用 →</button></div>' : '');
+    return '<div class="row mono tt-call"><span style="color:var(--ink-3)">' + (d ? (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hm(d.getHours(), d.getMinutes()) : '—') + '</span><span class="tt-cmd">' + esc(cmd || '—') + '</span><span style="color:' + (fail ? 'var(--crit)' : ok ? 'var(--good)' : 'var(--ink-3)') + ';min-width:38px">' + (fail ? (c.exit_code != null ? 'exit ' + c.exit_code : '失败') : ok ? 'ok' : '未知') + '</span><span style="color:var(--ink-3);min-width:46px;text-align:right">' + (c.duration_ms == null ? '—' : c.duration_ms < 10000 ? f1(c.duration_ms / 1000) + ' s' : Math.round(c.duration_ms / 1000) + ' s') + '</span>' + (BYID[c.session_uid] ? '<button type="button" class="lnk" data-act="openSession" data-id="' + esc(c.session_uid) + '" style="font-family:var(--font-sans)">在轨迹中查看 →</button>' : '') + '</div>';
+  }).join('') + (e.data && e.data.has_more ? '<div class="row" style="justify-content:flex-start"><button type="button" class="lnk" data-act="lvtpMore" style="font-family:var(--font-sans)">更多调用 →</button></div>' : '');
 }
 function lvToolsPage() {
   const T = S.tools; const fs = LV.feedState('tools'); const b = LVTP.tools;
@@ -10327,10 +10333,10 @@ function lvProjectsPage() {
   return tbar('项目习惯', rows.length + ' 个项目 · ' + f1(hoursAll) + ' 小时 · 按协作时长排序' + (fs === 'pending' || fs === 'computing' ? ' · 更新中' : ''), actions) +
     '<div class="content" id="content">' + filterRow(seg) + lvtpScopeNote() +
     '<div class="pj"><div class="stack"><div class="card pad"><table class="tbl pj-tbl"><colgroup><col><col class="pj-c-n"><col class="pj-c-h"><col class="pj-c-f"><col class="pj-c-s"><col class="pj-c-p"></colgroup><thead><tr><th>' + (S.proj.group === 'folder' ? '文件夹' : '项目') + '</th><th style="text-align:right">会话</th><th style="text-align:right">时长</th><th>摩擦率</th><th>Agent 构成</th><th style="text-align:right">此处人格</th></tr></thead><tbody>' +
-    (tableRows.length ? tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + esc(r.p.id) + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title">' + esc(t.f || r.p.name) + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + '</div><div class="mono cap pj-path">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + esc(r.p.id) + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + esc(r.p.id) + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"' + (r.st.fricLo != null ? ' data-tip="95% 区间 ' + f1(r.st.fricLo * 100) + '% ~ ' + f1(r.st.fricHi * 100) + '%"' : '') + '><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + esc(r.p.id) + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="mono pj-pers" style="font-weight:' + (r.pers.ok ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '">' + pc + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="cap" data-lv="na">' + (fs === 'pending' || fs === 'computing' ? LV.pend(60) : S.proj.group === 'folder' ? '本地服务没有返回文件夹明细' : '暂无数据') + '</td></tr>') +
+    (tableRows.length ? tableRows.map((t) => { const r = t.r; const on = r.p.id === p.id, on2 = cmpRow && r.p.id === cmpRow.p.id; const tot2 = r.split.reduce((a, b) => a + b, 0) || 1; const pc = r.pers.ok ? r.pers.code : '—'; return '<tr class="click' + (on || on2 ? ' sel' : '') + '" data-act="pickProject" data-p="' + esc(r.p.id) + '" aria-selected="' + !!on + '"><td class="pj-name"><div class="pj-title">' + esc(t.f || r.p.name) + ((S.proj.cmpMode && on) || on2 ? ' <span class="bdg">' + (on ? 'A' : 'B') + '</span>' : '') + '</div><div class="mono cap pj-path code-t">' + esc(t.f ? '归入 ' + r.p.name : r.p.path) + '</div></td><td class="mono" style="text-align:right" data-count="' + t.n + '" data-ck="pj-n:' + esc(r.p.id) + ':' + esc(t.f || '') + '">' + t.n + '</td><td class="mono" style="text-align:right" data-count="' + f1(t.h) + '" data-ck="pj-h:' + esc(r.p.id) + ':' + esc(t.f || '') + '">' + f1(t.h) + 'h</td><td><span class="row pj-fric"' + (r.st.fricLo != null ? ' data-tip="95% 区间 ' + f1(r.st.fricLo * 100) + '% ~ ' + f1(r.st.fricHi * 100) + '%"' : '') + '><span class="pj-bar"><i style="width:' + (r.st.fric / fricMax * 100).toFixed(1) + '%"></i></span><span class="mono">' + f1(r.st.fric) + '%</span></span></td><td><div class="pj-split" data-tf="split|' + esc(r.p.id) + '" tabindex="0">' + r.split.map((v, j) => v ? '<span style="width:' + (v / tot2 * 100) + '%;background:' + AG[j].c + '"></span>' : '').join('') + '</div></td><td class="mono pj-pers" style="font-weight:' + (r.pers.ok ? 700 : 500) + ';color:' + (r.pers.ok ? 'var(--ink-1)' : 'var(--ink-3)') + '">' + pc + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="cap" data-lv="na">' + (fs === 'pending' || fs === 'computing' ? LV.pend(60) : S.proj.group === 'folder' ? '本地服务没有返回文件夹明细' : '暂无数据') + '</td></tr>') +
     '</tbody></table><div class="cap pj-foot" data-tip="时长 = 会话时间段的并集（含空闲）；摩擦率 = 纠偏候选消息 / 你的消息">' + (S.proj.group === 'folder' ? '子文件夹按会话归入所属项目 · ' : '') + '「—」人格尚未计算或样本不足</div></div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">跨项目对比</span><span class="cap">' + (S.proj.cmpMode ? '点另一个项目作为 B' : '面积 = 时长 · 竖线 = 到回归线的残差') + '</span></div><span class="row cap pj-rleg" data-tip="琥珀 = 摩擦率高于同等自主度的预期；绿 = 低于"><span class="row" style="gap:4px"><i style="background:' + VZ.sem.corr + '"></i>高于预期</span><span class="row" style="gap:4px"><i style="background:' + VZ.sem.good + '"></i>低于预期</span></span></div><div class="vz" data-vz="pj-scatter"></div><div class="cap pj-foot">' + (pts.length >= 3 ? '高于回归线的项目最值得先加护栏' : '项目太少，无法拟合') + '</div></div></div>' +
-    '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap">' + esc(p.path) + ' · git: ' + esc(p.git || '—') + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + (p.tags || []).map((t) => '<span class="tag">' + esc(t) + '</span>').join('') + '</div></div><button type="button" class="btn" data-act="finder">在 Finder 中显示</button>' + (ruleFiles.length ? '<button type="button" class="btn" data-act="openAgents" data-tip="' + esc(ruleFiles[0].path) + '">显示 ' + esc(String(ruleFiles[0].path).split('/').pop()) + '</button>' : '') + '</div>' +
+    '<div class="stack"><div class="card pad"><div class="row" style="gap:12px;flex-wrap:wrap"><span style="width:36px;height:36px;border-radius:9px;background:var(--sunken);display:grid;place-items:center">' + ic('projects', 18) + '</span><div style="flex:1;min-width:200px"><div class="row" style="align-items:baseline;gap:10px;flex-wrap:wrap"><h2 class="serif" style="margin:0;font-size:22px">' + esc(p.name) + '</h2><span class="mono cap code-t">' + esc(p.path) + ' · git: ' + esc(p.git || '—') + '</span></div><div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap">' + (p.tags || []).map((t) => '<span class="tag">' + esc(t) + '</span>').join('') + '</div></div><button type="button" class="btn" data-act="finder">在 Finder 中显示</button>' + (ruleFiles.length ? '<button type="button" class="btn" data-act="openAgents" data-tip="' + esc(ruleFiles[0].path) + '">显示 ' + esc(String(ruleFiles[0].path).split('/').pop()) + '</button>' : '') + '</div>' +
     '<div class="row pj-pline">' + ic('persona', 14) + '<span>' + plineTxt + '</span></div></div>' +
     '<div class="pj-two"><div class="card pad"><div class="hd"><div class="grow"><span class="ct">此项目 vs ' + esc(cmpName) + '</span></div><span class="row cap" style="font-size:11px;gap:10px"><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-1)"></span>' + esc(p.name) + '</span><span class="row" style="gap:4px"><span class="pj-key" style="background:var(--ink-4)"></span>' + esc(cmpName) + '</span></span></div><div class="col" style="gap:8px">' + (d ? vsRows || LV.na() : D.state === 'error' ? LV.na('本地服务暂不提供项目对比') : pend(150)) + '</div>' + (S.proj.cmpMode && !cmpRow ? '<div class="cap pj-foot">在表格或散点图里点另一个项目作为 B</div>' : '<div class="cap pj-foot" data-tip="只有摩擦率与要求验证按好坏着色">Δ 相对 ' + esc(cmpName) + ' · 95% 区间跨 0 记为 ≈</div>') + '</div>' +
     '<div class="card pad"><div class="hd"><div class="grow"><span class="ct">Agent 分工</span><span class="cap">' + st.n + ' 个会话 · 条宽 = 会话占比</span></div></div><div class="pj-share">' + split.map((v, j) => v ? '<span style="width:' + (v / splitTot * 100) + '%;background:' + AG[j].c + '" data-tip="' + esc(AG[j].name) + '：' + v + ' 个会话 · ' + Math.round(v / splitTot * 100) + '%"></span>' : '').join('') + '</div><div class="col" style="gap:8px;margin-top:10px">' + agRows.map((r) => '<div class="pj-ag"><span class="row" style="gap:6px;font-size:12px;min-width:0"><span class="pj-dot" style="background:' + r.a.c + '"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.a.short) + '</span></span><span class="col" style="gap:3px"><span class="pj-ag-r"><span class="cap">会话</span><span class="pj-bar"><i style="width:' + (r.n / agMaxN * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + r.n + '</span></span><span class="pj-ag-r"><span class="cap">时长</span><span class="pj-bar"><i style="width:' + (r.h / agMaxH * 100).toFixed(0) + '%;background:' + r.a.c + '"></i></span><span class="mono">' + f1(r.h) + 'h</span></span><span class="pj-ag-r" data-tip="有结果的 ' + r.tn + ' 个任务里被你直接采纳的占比"><span class="cap">采纳</span><span class="pj-bar"><i style="width:' + (r.ok == null ? 0 : r.ok).toFixed(0) + '%;background:var(--ink-3)"></i></span><span class="mono">' + (r.ok == null ? '—' : Math.round(r.ok) + '%') + '</span></span></span></div>').join('') + '</div></div></div>' +
@@ -10975,7 +10981,7 @@ function liGetBtn(x) {
   return '<button type="button" class="btn sm p" data-act="getLib" data-id="' + esc(x.item_id) + '">' + (x.origin === 'local' ? '安装' : '获取') + '</button>';
 }
 function liFeat(x) {
-  return '<div class="card lb-card" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(LI_ICON[x.kind] || 'file', 13, 'color:var(--ink-1)') + '<b style="font-family:var(--sans);color:var(--ink-2)">' + esc(TL.li.kindLabel(x.kind)) + '</b><span>·</span><span>' + liSrc(x) + '</span>' + liSeedTag(x) + '</div>' +
+  return '<div class="card lb-card" data-tl-item="' + esc(x.item_id) + '" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="cursor:pointer"><div class="lb-head"><div class="mono row cap lb-meta">' + ic(LI_ICON[x.kind] || 'file', 13, 'color:var(--ink-1)') + '<b style="font-family:var(--font-sans);color:var(--ink-2)">' + esc(TL.li.kindLabel(x.kind)) + '</b><span>·</span><span>' + liSrc(x) + '</span>' + liSeedTag(x) + '</div>' +
     '<div class="mono lb-id"><button type="button" class="lnk" data-act="liDetail" data-id="' + esc(x.item_id) + '" style="font:inherit;color:inherit;text-align:left">' + esc(x.name) + '</button></div><div class="lb-desc">' + esc(liDesc(x)) + '</div>' +
     '<div class="lb-match"><b class="mono">' + TLU.num(x.risk_level) + '</b><span class="col" style="flex:1;gap:3px;min-width:0"><span class="mono cap lb-parts">风险等级' + (x.risk && x.risk.length ? ' · ' + esc(x.risk.join('、')) : ' · 无敏感权限') + '</span><span class="mono cap lb-parts">' + (x.version ? 'v' + esc(x.version) + ' · ' : '') + '更新于 ' + liDay(x.updated_at) + '</span></span></div></div>' +
     '<div class="lb-body"><span class="eb">适用 Agent</span>' + ((x.agents && x.agents.length ? x.agents : [null]).map((a) => '<span class="row lb-why">' + ic('check', 13, 'margin-top:2px;color:var(--ink-1);flex:none') + (a ? esc(liAgentName(a)) : '未声明') + '</span>').join('')) +
@@ -11157,7 +11163,7 @@ function liDraw() {
     const paths = liUniq(TL.li.helpers.liTargets(pv).filter((t) => !st.sel.disabled.has(t.idx) && t.mappable), (t) => t.display);
     const blocked = pv.requires_override && !st.overrideRisk;
     html = modalHead('写入 ' + paths.length + ' 个文件？', '修改前会自动备份，随时可以撤销') + liProg(2) +
-      '<div class="mb col" style="gap:12px" data-tl="inst-confirm"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono col" style="font-size:12px;word-break:break-all;gap:2px">' + paths.map((t) => esc(t.display)).join('<br>') + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(liBackupDir(pv)) + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + TLU.num(tot.adds) + (tot.dels ? ' / −' + TLU.num(tot.dels) : '') + ' 行</span><span class="l">风险</span><span style="font-size:12px">' + esc(LI_RISK[risk.level] || risk.level || '—') + (risk.flags && risk.flags.length ? ' · ' + esc(risk.flags.join('、')) : '') + '</span></div>' +
+      '<div class="mb col" style="gap:12px" data-tl="inst-confirm"><div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:8px 12px"><span class="l">写入</span><span class="mono col code-t" style="font-size:12px;word-break:break-all;gap:2px">' + paths.map((t) => esc(t.display)).join('<br>') + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(liBackupDir(pv)) + '</span><span class="l">变更</span><span class="mono" style="font-size:12px">+' + TLU.num(tot.adds) + (tot.dels ? ' / −' + TLU.num(tot.dels) : '') + ' 行</span><span class="l">风险</span><span style="font-size:12px">' + esc(LI_RISK[risk.level] || risk.level || '—') + (risk.flags && risk.flags.length ? ' · ' + esc(risk.flags.join('、')) : '') + '</span></div>' +
       (pv.requires_override ? '<label class="row" style="align-items:flex-start;gap:8px;padding:10px 12px;border-radius:9px;border:1px solid var(--line)"><input type="checkbox" data-chg="liOverride"' + (st.overrideRisk ? ' checked' : '') + ' style="margin-top:2px;accent-color:var(--ink-1)"><span class="col" style="gap:2px"><b style="font-size:12.5px">我已了解风险，仍然写入</b><span class="cap" style="font-size:11.5px">该资源的风险等级需要你明确确认。</span></span></label>' : '') +
       (pv.requires_trust ? '<div class="row cap" style="font-size:11.5px">' + ic('info', 13, 'margin-top:2px') + '<span>写入后需要在对应 Agent 里信任该项目配置才会生效。</span></div>' : '') +
       '<div class="row cap" style="font-size:11.5px;align-items:flex-start">' + ic('info', 13, 'margin-top:2px') + '<span>这是整个流程里唯一真正写盘的一步，写入的是预览中确认过的内容。</span></div></div>' +
@@ -11165,7 +11171,7 @@ function liDraw() {
   } else {
     const r = st.result || {}; const left = r.undo_until_ms ? Math.max(0, Math.ceil((r.undo_until_ms - Date.now()) / 1000)) : 0;
     html = modalHead('已写入 ' + TLU.num((r.written || []).length) + ' 个文件', left && left <= 600 ? left + ' 秒内可直接撤销' : '可在「已安装」里随时撤销') + liProg(3) +
-      '<div class="mb col" style="gap:10px" data-tl="inst-done">' + liUniq(r.written || [], (w) => w.display || w.path).map((w) => '<div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:4px 12px"><span class="l">写入</span><span class="mono" style="font-size:12px;word-break:break-all">' + esc(w.display || w.path) + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(w.backup_path ? liTilde(w.backup_path, liHomeOf(st.preview)) : '新建文件，撤销时删除') + '</span></div>').join('') +
+      '<div class="mb col" style="gap:10px" data-tl="inst-done">' + liUniq(r.written || [], (w) => w.display || w.path).map((w) => '<div class="form" style="grid-template-columns:52px minmax(0,1fr);gap:4px 12px"><span class="l">写入</span><span class="mono code-t" style="font-size:12px;word-break:break-all">' + esc(w.display || w.path) + '</span><span class="l">备份</span><span class="mono" style="font-size:12px;color:var(--ink-3);word-break:break-all">' + esc(w.backup_path ? liTilde(w.backup_path, liHomeOf(st.preview)) : '新建文件，撤销时删除') + '</span></div>').join('') +
       liWarnRows(r.warnings) + (r.requires_trust_note ? '<div class="cap">' + esc(r.requires_trust_note) + '</div>' : '') +
       '<div class="row" style="gap:8px;padding:10px 12px;border-radius:9px;background:var(--sunken);font-size:12.5px;align-items:flex-start">' + ic('clock', 14, 'margin-top:2px') + '<span><b>' + (r.state === 'observing' ? '观察期已开始' : '已安装') + '</b><span class="cap" style="display:block;margin-top:2px">安装记录 ' + esc(r.install_id) + ' 已写入台账。</span></span></div></div>' +
       '<div class="mf"><button type="button" class="btn" data-act="instUndo">撤销</button><span style="flex:1"></span><button type="button" class="btn p" data-act="instClose" autofocus>完成</button></div>';
@@ -11200,7 +11206,7 @@ function liUndo(iid, title) {
     return r.ok !== false;
   }, (e) => {
     const d = e.detail || {}; const bad = (d.results || []).filter((x) => x.status !== 'reverted' && x.status !== 'already_reverted');
-    openModal(modalHead('无法自动撤销', e.code === 'revert_refused' ? '这些文件在安装后被改动过，Orbit 不会覆盖你的修改' : esc(e.message || e.code)) + '<div class="mb col" style="gap:8px" data-tl="revert-refused">' + bad.map((x) => '<div class="col" style="gap:4px"><span class="mono" style="font-size:12px">' + esc(x.path) + '</span>' + (x.diff && x.diff.lines ? liDiff({ lines: x.diff.lines.map((l) => ({ n: l.n, op: l.op, text: String(l.text == null ? '' : l.text), gap: !!l.gap })) }) : '') + (x.manual_steps || []).map((s) => '<span class="cap">· ' + esc(s) + '</span>').join('') + '</div>').join('') + (bad.length ? '' : TLU.errorCard(e)) + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">知道了</button></div>');
+    openModal(modalHead('无法自动撤销', e.code === 'revert_refused' ? '这些文件在安装后被改动过，Orbit 不会覆盖你的修改' : esc(e.message || e.code)) + '<div class="mb col" style="gap:8px" data-tl="revert-refused">' + bad.map((x) => '<div class="col" style="gap:4px"><span class="mono code-t" style="font-size:12px">' + esc(x.path) + '</span>' + (x.diff && x.diff.lines ? liDiff({ lines: x.diff.lines.map((l) => ({ n: l.n, op: l.op, text: String(l.text == null ? '' : l.text), gap: !!l.gap })) }) : '') + (x.manual_steps || []).map((s) => '<span class="cap">· ' + esc(s) + '</span>').join('') + '</div>').join('') + (bad.length ? '' : TLU.errorCard(e)) + '</div><div class="mf"><button type="button" class="btn p" data-act="closeModal">知道了</button></div>');
     return false;
   });
 }
@@ -12556,7 +12562,7 @@ if (LV.live) {
   function callRow(c) {
     const s = BYID[c.session_uid]; const ok = ST_OK[c.status]; const t = c.started_at ? new Date(c.started_at) : null;
     const dur = c.duration_ms != null ? c.duration_ms / 1000 : null;
-    return '<div class="row mono tt-call" data-tl="call"><span style="color:var(--ink-3)">' + (t ? (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '—') + '</span><span class="tt-cmd">' + esc(c.args_summary || c.command_head || (c.files || []).join(' ') || c.name || '—') + '</span><span style="color:' + (ok ? 'var(--good)' : 'var(--crit)') + ';min-width:38px">' + (ok ? 'ok' : c.exit_code != null ? 'exit ' + c.exit_code : esc(c.status || '—')) + '</span><span style="color:var(--ink-3);min-width:46px;text-align:right">' + (dur == null ? '—' : (dur < 10 ? f1(dur) : Math.round(dur)) + ' s') + '</span>' + (s ? '<button type="button" class="lnk" data-act="openSession" data-id="' + esc(s.id) + '" style="font-family:var(--sans)">在轨迹中查看 →</button>' : '') + '</div>';
+    return '<div class="row mono tt-call" data-tl="call"><span style="color:var(--ink-3)">' + (t ? (t.getMonth() + 1) + '/' + t.getDate() + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0') : '—') + '</span><span class="tt-cmd">' + esc(c.args_summary || c.command_head || (c.files || []).join(' ') || c.name || '—') + '</span><span style="color:' + (ok ? 'var(--good)' : 'var(--crit)') + ';min-width:38px">' + (ok ? 'ok' : c.exit_code != null ? 'exit ' + c.exit_code : esc(c.status || '—')) + '</span><span style="color:var(--ink-3);min-width:46px;text-align:right">' + (dur == null ? '—' : (dur < 10 ? f1(dur) : Math.round(dur)) + ' s') + '</span>' + (s ? '<button type="button" class="lnk" data-act="openSession" data-id="' + esc(s.id) + '" style="font-family:var(--font-sans)">在轨迹中查看 →</button>' : '') + '</div>';
   }
   RENDER_HOOKS.push((m) => {
     if (S.route !== 'tools' || !S.tools || !S.tools.open) return;
@@ -12583,7 +12589,7 @@ if (LV.live) {
   // H4: the sheet opens on the keystroke and fills when the gateway answers. /v1/export/report waits up to 3 s for sections
   // a filter change has just invalidated, so opening only after the response looked like ⇧⌘E did nothing. TLO.repSeq drops
   // an answer that arrives after the sheet was closed, replaced or re-requested.
-  const repSheet = () => modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" data-tl="report-pending" aria-label="报告内容" aria-busy="true" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">正在生成报告…</textarea></div>' + exportFoot('repSave', '保存 .md');
+  const repSheet = () => modalHead('导出报告', rangeLabel() + ' · ' + winLabel() + ' · 跟随主窗口的筛选') + '<div class="mb" style="display:flex;flex-wrap:wrap;gap:16px"><div class="col" style="gap:8px;width:150px;flex:none"><span class="eb">包含</span>' + REP_SECS.map((x) => '<label class="row" style="font-size:13px"><input type="checkbox" data-chg="repSec" data-k="' + x[0] + '"' + (S.rep.has(x[0]) ? ' checked' : '') + ' style="accent-color:var(--ink-1)">' + x[1] + '</label>').join('') + '<span class="eb" style="margin-top:8px">格式</span><span style="font-size:13px">Markdown</span></div><textarea readonly id="repText" data-tl="report-pending" aria-label="报告内容" aria-busy="true" style="flex:1;min-width:min(260px,100%);min-height:340px;font:12px/1.55 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">正在生成报告…</textarea></div>' + exportFoot('repSave', '保存 .md');
   const repBusy = (on) => { $$('#modal [data-act="repSave"], #modal [data-act="repCopy"]').forEach((b) => { b.disabled = on; }); const t = $('#repText'); if (t) { t.dataset.tl = on ? 'report-pending' : 'report'; t.setAttribute('aria-busy', String(on)); } };
   TLO.repSeq = 0;
   function tloReport(first) {
@@ -12604,7 +12610,7 @@ if (LV.live) {
   openCSV = function () {
     TL.ops.csv('tool_calls', Object.assign({ limit: 5000 }, tloExportScope().csv)).then((text) => {
       CUR.csv = text; const n = Math.max(0, text.split('\n').filter(Boolean).length - 1);
-      openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · tool_calls · ' + n + ' 行 · 也可以复制后粘贴到表格软件') + '<div class="mb"><textarea readonly data-tl="csv" aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(text) + '</textarea></div>' + exportFoot('csvSave', '保存 .csv'), 'wide');
+      openModal(modalHead('导出工具明细 CSV', rangeLabel() + ' · tool_calls · ' + n + ' 行 · 也可以复制后粘贴到表格软件') + '<div class="mb"><textarea readonly data-tl="csv" aria-label="CSV 内容" style="width:100%;min-height:260px;font:12px/1.6 var(--font-mono);border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--surface);color:var(--ink-1);resize:vertical">' + esc(text) + '</textarea></div>' + exportFoot('csvSave', '保存 .csv'), 'wide');
     }, unavailable('CSV'));
   };
   ACT.csvSave = () => expSave('orbit-tool-calls-' + expStamp() + '.csv', 'text/csv', { text: CUR.csv || '' });
