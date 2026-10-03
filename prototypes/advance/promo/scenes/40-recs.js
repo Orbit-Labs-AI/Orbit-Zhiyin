@@ -1,5 +1,7 @@
-/* 40-recs 4（b39.4–55.1） — STORYBOARD.md v17「4 优化建议」, hand-offs H11 (in) / H12 (out).
-   Left: the five AGD dots in one column (x 220, cp 260 / cc 400 / ds 540 / cx 680 / gm 820). Middle: six real recommendation
+/* 40-recs 4（b39.4–55.1） — STORYBOARD.md v17「4 优化建议」+ v17.1 T10 / T10′, hand-offs T10 (in) / T11 (out).
+   Left: the five AGD dots in one short column (x 330, cp 372 / cc 456 / ds 540 / cx 624 / gm 708, r 30); when entry n
+   nears the centre line the dots it links to step forward to x 386, light up and emit the links; the type word wipes in
+   left → right as the first link reaches the card (the entry comes out of its dots). Middle: six real recommendation
    cards of deck 0 (Advance, light) in one column that scrolls up at one slow constant speed (204 px/beat, no holds);
    entry n (big type word + card) reaches the centre line at b41.6 + 2.4n, links to 2–3 Agent dots (solid = the app's
    recAgents, dashed = a filled-in neighbour) and adds its share to one of the two counters on the right (recTotal of the
@@ -22,8 +24,10 @@ scene('40-recs', () => {
   const sel = (id) => '.rcard[data-id="' + id + '"]';
   const card = (D, id) => D.querySelector(sel(id));
 
-  /* ---------- H11: the dots leave the compass rim and stand in one column ---------- */
-  AGD.key(39.4, 'column', { x: 220, y0: 260, gap: 140, r: 36, order: ORD, dur: 1.6, stag: .1, arc: 30 });
+  /* ---------- T10: the dots leave the compass rim and close into one short column (each travels 90–470 px, ranked by
+     their y on the compass, so no paths cross; ds lands on the centre line, where T11 merges the column) ---------- */
+  const COLX = 330, STEP_X = 56;                                 // column x; a linked dot steps forward to 386
+  AGD.key(39.4, 'column', { x: COLX, y0: 372, gap: 84, r: 30, order: ORD, dur: 1.6, stag: .08, arc: 20 });
 
   /* ---------- app data (read once; nothing hard-coded) ---------- */
   const W = decks[0].W;
@@ -68,21 +72,23 @@ scene('40-recs', () => {
       AGD.pulse(i, ARR[n] - .05, 1.08, .6);
     });
   });
-  // the dots that are linked light up, the rest sit at a .6; the column breathes (±4 / ±8 px, 7–9.5-beat periods) so no
-  // dot stands frozen; the follow blends out by b55.0, so the merge (H12) starts from the exact column
-  const lit = (i, b) => {
+  // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
+  // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
+  // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b55.0, so the merge (T11)
+  // starts from the exact column (ds at (330, 540))
+  const near = (i, b, d) => {
     let v = 0;
     IDS.forEach((_, n) => {
       if (!LINKS[n].solid.includes(i) && !LINKS[n].dash.includes(i)) return;
       const [b0, b1] = LIVE[n];
-      v = Math.max(v, Math.min(E.inOut(lp(b, b0, .3)), 1 - E.inOut(lp(b, b1 - .3, .3))));
+      v = Math.max(v, Math.min(E.inOut(lp(b, b0, d)), 1 - E.inOut(lp(b, b1 - d, d))));
     });
     return v;
   };
-  AGD.follow(41.4, 55.0, (i, b, q) => {
+  AGD.follow(40.9, 55.0, (i, b, q) => {
     const h = hash01(i, 11), px = 7 + 2.5 * hash01(i, 12), py = 7.5 + 2 * hash01(i, 13);
-    return { a: .6 + .4 * lit(i, b), x: q.x + 4 * Math.sin(2 * Math.PI * (b / px + h)), y: q.y + 8 * Math.sin(2 * Math.PI * (b / py + h * 1.7)) };
-  }, { blend: .6 });
+    return { a: .6 + .4 * near(i, b, .3), x: q.x + STEP_X * near(i, b, .4) + 4 * Math.sin(2 * Math.PI * (b / px + h)), y: q.y + 8 * Math.sin(2 * Math.PI * (b / py + h * 1.7)) };
+  }, { blend: .4 });
 
   /* ---------- deck 0: six cards in one column (b40.0 set-up, b40.6–55.1 on screen: the first card rises while the dots still fly, H11) ---------- */
   const advLight = (d) => { const Wd = decks[d].W; if (Wd.eval('S.ed') !== 'advance') Wd.eval("S.ed='advance';store.set('edition','advance');document.querySelector('#win').dataset.ed='advance'"); Wd.setTheme('light'); };
@@ -143,16 +149,21 @@ scene('40-recs', () => {
   });
   tween(0, 55.08, 0, { o: 0 }, E.lin);
 
-  // the type word of each entry rides 24 px above its card's top-left corner, blurred and dimmed with it
+  // the type word of each entry rides 24 px above its card's top-left corner, blurred and dimmed with it. It is not on
+  // screen before its entry is emitted: it wipes in left → right (.35 beats, soft 15 % edge) from the moment the first link
+  // reaches the card's left edge (link start + .4: the link is drawn to ≈98 %, the stepping dot has landed at 386)
+  const WIPE = IDS.map((_, n) => LIVE[n][0] + .4);
   IDS.forEach((id, n) => {
-    const b0 = Math.max(40.55, ARR[n] - 3.5), b1 = Math.min(55.1, n < 5 ? ARR[n] + 3.5 : 55.1);
+    const b0 = WIPE[n] - .05, b1 = Math.min(55.1, n < 5 ? ARR[n] + 3.5 : 55.1);
     txt(b0, b1, [['xl sv r4-w', WORD[n]]], { x: CX, y: -400 }, {
-      anim: (el) => {
-        const F = FOC[n], p = elXY(0, sel(id), 0, 0);
+      anim: (el, tl, life, t) => {
+        const F = FOC[n], p = elXY(0, sel(id), 0, 0), w = E.inOut(lp(t / BEAT, WIPE[n], .35));
         el.style.left = p[0].toFixed(1) + 'px'; el.style.top = (p[1] - 24).toFixed(1) + 'px';
         el.style.transform = 'translate(0,-100%)';
         el.style.opacity = F.a.toFixed(3);
         el.style.filter = F.bl > .05 ? 'blur(' + F.bl.toFixed(2) + 'px)' : 'none';
+        const m = w >= 1 ? 'none' : 'linear-gradient(90deg,#000 ' + (115 * w - 15).toFixed(1) + '%,transparent ' + (115 * w).toFixed(1) + '%)';
+        el.style.maskImage = m; el.style.webkitMaskImage = m;
       }
     });
   });
