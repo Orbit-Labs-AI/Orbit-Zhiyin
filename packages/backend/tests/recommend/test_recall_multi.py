@@ -320,3 +320,26 @@ def test_hashed_threshold_boundary():
     assert score == pytest.approx(1.)  # identical text → cosine 1
     assert "same" in dict(hashed.rank("同一命令连续失败", docs, threshold=score))
     assert "same" not in dict(hashed.rank("同一命令连续失败", docs, threshold=score + 1e-6))
+
+
+def test_catalog_problem_queries_go_through_the_admission_layer():
+    """R9: problem queries are purpose=recommendation with scene / language / evidence ids, under the
+    problem type and the session frictions it maps to; rows the admission layer did not admit are dropped."""
+    class Admitting(FakeCatalog):
+        def match(self, request):
+            response = super().match(request)
+            for row in response["items"]:
+                row["admission"] = {"tier": "none" if row["item_id"] == "lexical-only" else "rule_admitted",
+                                    "review": None}
+            return response
+
+    catalog = Admitting()
+    result = recall_all(make(many("identical_retries")), {}, catalog=catalog)
+    problem_requests = [r for r in catalog.requests if r.problem_id]
+    assert problem_requests and all(r.purpose == "recommendation" and r.scene and r.language and r.evidence_ids
+                                    and r.profile_evidence_ids and r.agents for r in problem_requests)
+    assert {r.problem_type for r in problem_requests} >= {"tool_env_failure", "retry_same_call", "tool_error"}
+    assert all(r.purpose == "library" for r in catalog.requests if not r.problem_id)  # profile match only
+    keys = {c["rec_key"]: c for c in result["candidates"]}
+    assert "catalog:lexical-only" not in keys
+    assert keys["catalog:cat-0"]["source"]["admission"] == "rule_admitted"
