@@ -199,7 +199,10 @@ scene('40-recs', () => {
   AGD.key(63.2, 'column', { x: 330, y0: 540, gap: 0, r: 30, a: 1, order: ORD, dur: .4, stag: 0 });
   // v18.4: as they close (b63.5 = film 86.4) the top dot becomes the orb — five mini Agent badges, the same face 50-tools
   // keeps through b106 — instead of showing only the cc logo until 50-tools' own orb morph
-  AGD.morph(63.35, 0, 'orb', { dur: .4 });
+  // QA r4: a .4-beat morph swapped faces in ~3 frames mid-close; .7 beats from b63.15 grows the orb face while the column
+  // closes, and dots 1–4 stop velocity-stretching into a smeared oval stack under it
+  AGD.morph(63.15, 0, 'orb', { dur: .7 });
+  AGD.morph(63.2, [1, 2, 3, 4], 'dot', { vs: 0, dur: .2, stag: 0 });
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
   // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
   // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b63.0, so the merge (T11)
