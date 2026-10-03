@@ -165,19 +165,19 @@ test('persona page: periods, comparison group, diverging axes, evolution chart a
   await page.evaluate(() => ACT.period({ dataset: { v: 'jun' } }));
   await expect(page.locator('#main .evo button.on')).toContainText('2026-06');
   await page.evaluate(() => ACT.period({ dataset: { v: 'sep' } }));
-  // 指纹外环：24 段；点一段展开该小时的会话点，再点收起
+  // 指纹外环：16 型；点一型展开偏向它的会话点，再点收起
   const fp = page.locator('#main svg.fp2');
-  await expect(fp.locator('.fps')).toHaveCount(24);
+  await expect(fp.locator('.fps')).toHaveCount(16);
   await expect(fp.locator('.fpd')).toHaveCount(0);
-  const h = await page.evaluate(() => CUR.fp.byH.findIndex((x) => x.length > 0));
-  await page.evaluate((hh) => ACT.fpHour({ dataset: { h: String(hh) } }), h);
+  const h = await page.evaluate(() => CUR.fp.byT.findIndex((x) => x.length > 0));
+  await page.evaluate((hh) => ACT.fpType({ dataset: { t: String(hh) } }), h);
   const dots = await page.locator('#main svg.fp2 .fpd').count();
-  expect(dots).toBe(await page.evaluate((hh) => CUR.fp.byH[hh].length, h));
+  expect(dots).toBe(await page.evaluate((hh) => CUR.fp.byT[hh].length, h));
   expect(dots).toBeGreaterThan(0);
-  await expect(page.locator('#main svg.fp2 .fps.dim')).toHaveCount(23);
-  await page.evaluate((hh) => ACT.fpHour({ dataset: { h: String(hh) } }), h);
+  await expect(page.locator('#main svg.fp2 .fps.dim')).toHaveCount(15);
+  await page.evaluate((hh) => ACT.fpType({ dataset: { t: String(hh) } }), h);
   await expect(page.locator('#main svg.fp2 .fpd')).toHaveCount(0);
-  expect(await page.evaluate(() => S.persona.fpHour)).toBeNull();
+  expect(await page.evaluate(() => S.persona.fpType)).toBeNull();
   expect(errors).toEqual([]);
 });
 
