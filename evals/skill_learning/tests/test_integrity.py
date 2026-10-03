@@ -84,3 +84,41 @@ def test_preregistration_rejects_overlap_and_prior_test_exposure():
     protocol["prior_exposed_families"].append(family)
     with pytest.raises(ValueError, match="Previously exposed"):
         validate_protocol(protocol)
+
+
+@pytest.mark.parametrize("split", ["validation", "test"])
+def test_native_pipeline_refuses_nonhistory_before_creating_output(tmp_path, split):
+    from evals.skill_learning.pipeline import capture
+
+    output = tmp_path / "output"
+    with pytest.raises(ValueError, match="history"):
+        capture([{"split": split, "root": str(tmp_path / "source")}], output, 1)
+    assert not output.exists()
+
+
+def test_usage_requires_observed_read_and_later_method_evidence(tmp_path):
+    from evals.skill_learning.trace import observe
+
+    session = tmp_path / "sessions/run.jsonl"
+    session.parent.mkdir()
+    rows = [
+        {"customType": "orbit.benchmark.injection", "data": {"skills": [{"name": "skill"}]}},
+        {"type": "message", "message": {"role": "assistant", "content": [{"type": "toolCall", "id": "before"}]}},
+        {"customType": "orbit.benchmark.activation", "data": {"skill": "skill", "observation": "body_read", "success": True}},
+        {"type": "message", "message": {"role": "assistant", "content": [{"type": "toolCall", "id": "after"}]}},
+        {"customType": "orbit.benchmark.hook", "data": {"code": 2}},
+        {"customType": "orbit.benchmark.hook", "data": {"code": 1}},
+    ]
+    session.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    result = observe(tmp_path)
+    assert result["skills"][0]["actual_usage"] is None
+    assert result["counts"]["successfully_read_skills"] == 1
+    assert result["counts"]["hook_blocks"] == 1
+    assert result["counts"]["hook_errors"] == 1
+    for invalid in ("before", "nonexistent"):
+        with pytest.raises(ValueError, match="later observed"):
+            observe(tmp_path, {"skills": {"skill": {"used": True,
+                "evidence": [{"tool_call_id": invalid, "step": "Validate saved output"}]}}})
+    result = observe(tmp_path, {"skills": {"skill": {"used": True,
+        "evidence": [{"tool_call_id": "after", "step": "Validate saved output"}]}}})
+    assert result["counts"]["confirmed_used_skills"] == 1

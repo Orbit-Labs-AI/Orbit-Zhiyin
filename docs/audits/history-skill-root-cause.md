@@ -12,6 +12,8 @@
 - 旧完整性记录：12 sessions、880 events、459 records；unknown / unparsed / capture errors 均为 0。
 - 后端漏斗 API 保存 candidate ID、类型、分数、证据与每一级原因；原始捕获完整性依然由导入验证报告证明，未观测的 runtime 数据保持 unknown。
 
+另以 `447d88fe` 的产品代码通过真实 Gateway 完成一次重新导入，结果保存在 `run-005/legacy-e2e-current`：12 sources / sessions、459 mapped records、880 events、198 tool calls，12 个源引用和 459 条记录 hash 全部验证通过，unparsed=0。分析 worker → 推荐运行 → 漏斗 API 均通过，14.313 秒、0 模型调用，最终仍是 1 hook + 1 rule。该入口脚本当时是开发中的 `evals/skill_learning/pipeline.py`，产品代码已提交；它补足快照重放不等于新导入的边界。
+
 ## 候选在哪里丢失
 
 | 阶段 | 观测 | 含义 |

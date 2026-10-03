@@ -28,6 +28,10 @@ python3 scripts/heavy.py uv run python -m evals.skill_learning.development audit
 
 `development headroom` 配对运行 vanilla 与人工参考 intervention，每次最多两个 worker；`development run` 用于 history 和 validation 的指定 arm。其命令拒绝 test。运行前应记录余额与 provider；不要在配对组间静默切换 provider。
 
+`pipeline --selection sources.json --output NEW_DIRECTORY --expected-sessions N` 将显式选择的原生 Pi history 通过真实 Gateway 导入任务、分析 worker、推荐与漏斗持久化 API。selection 的每项包含 `root` 和 `split="history"`；其他 split、重复来源或导入期间变化的文件都拒绝。它不调用模型，不自动发现其他来源，也不启用目录联网同步。
+
+`trace --run ATTEMPT [--review REVIEW.json]` 从原生 session 提取注入和读取记录。人工方法使用审计采用 `skills: {name: {used, evidence: [{tool_call_id, step}], note}}`；声明 `used=true` 必须有已记录的成功 body read，以及读取后的真实工具调用 ID。没有审阅的使用情况保持 null。
+
 单元检查不调用模型、不需要 Docker：
 
 ```bash

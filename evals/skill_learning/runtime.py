@@ -293,6 +293,8 @@ def one_run(study: dict, task: dict, output: Path, docker: str, credentials: Pat
                   "runtime_files": tree(code), "study_digest": object_digest(study),
                   "task": task, "assets": tree(assets) if assets else None}
     save(output / "provenance.json", provenance)
+    if assets:
+        save(output / "assets-manifest.json", read(assets / "manifest.json"))
     name = create_container(docker, study, task, assets)
     started = time.time()
     try:
