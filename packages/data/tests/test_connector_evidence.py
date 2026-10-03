@@ -402,3 +402,58 @@ def test_hermes_legacy_mcp_names_errors_and_approvals(tmp_path):
             "tool_error",
             "harness_error",
         )
+
+
+# --- pi --------------------------------------------------------------------------------
+
+
+def test_pi_bash_status_line_gives_exit_code_and_interrupt(tmp_path):
+    texts = {
+        "c-exit": "fatal: not a repo\n\nCommand exited with code 128",
+        "c-abort": "partial\n\nCommand aborted",
+        "c-timeout": "Command timed out after 30 seconds",
+        # Not the trailing status line: no exit code may be read from it.
+        "c-plain": "Command exited with code 3 was printed by the script\nthen it failed",
+    }
+    records = [{"type": "session", "id": "s", "timestamp": "2026-10-02T00:00:00Z"}]
+    records.append(
+        {
+            "type": "message",
+            "id": "a",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"type": "toolCall", "id": cid, "name": "bash", "arguments": {}}
+                    for cid in texts
+                ],
+            },
+        }
+    )
+    for index, (cid, text) in enumerate(texts.items()):
+        records.append(
+            {
+                "type": "message",
+                "id": f"r{index}",
+                "parentId": "a",
+                "message": {
+                    "role": "toolResult",
+                    "toolCallId": cid,
+                    "toolName": "bash",
+                    "content": [{"type": "text", "text": text}],
+                    "isError": True,
+                },
+            }
+        )
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "pi", records)
+        store.rebuild()
+        got = {
+            cid: (r["status"], r["exit_code"], r["error_class"], r["failure_kind"])
+            for cid, r in calls(store).items()
+        }
+        assert got == {
+            "c-exit": ("failed", 128, None, "nonzero_exit"),
+            "c-abort": ("interrupted", None, None, "interrupted"),
+            "c-timeout": ("failed", None, "timeout", "harness_error"),
+            "c-plain": ("failed", None, None, None),
+        }

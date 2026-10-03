@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from tandem_data.connectors.base import NATIVE_KEY_MATCH, BaseMapper, Mapping
@@ -10,6 +11,26 @@ def reported_cost(usage) -> float | None:
     if isinstance(cost, dict):
         cost = cost.get("total")
     return cost if isinstance(cost, int | float) and not isinstance(cost, bool) else None
+
+
+# coding-agent/src/core/tools/bash.ts appends one status line to a failed bash result
+# (appendStatus): "Command exited with code N", "Command aborted", "Command timed out
+# after N seconds". structuredContent.exit_code is not persisted in the session.
+_BASH_EXIT = re.compile(r"(?:^|\n)Command exited with code (-?\d+)$")
+_BASH_TIMEOUT = re.compile(r"(?:^|\n)Command timed out after \d+ seconds$")
+
+
+def bash_failure(text) -> dict:
+    """Failure evidence from the bash tool's trailing status line; {} when absent."""
+    if not isinstance(text, str):
+        return {}
+    if match := _BASH_EXIT.search(text):
+        return {"exit_code": int(match.group(1))}
+    if text == "Command aborted" or text.endswith("\nCommand aborted"):
+        return {"status": "interrupted"}
+    if _BASH_TIMEOUT.search(text):
+        return {"error_class": "timeout"}
+    return {}
 
 
 class PiMapper(BaseMapper):
@@ -144,6 +165,10 @@ class PiMapper(BaseMapper):
                 else "human"
             )
             events = self.message(record, message, origin=origin)
+            if message.get("role") == "toolResult" and message.get("toolName") == "bash":
+                for event in events:
+                    if event.kind == "tool.result" and event.attrs.get("status") == "failed":
+                        event.attrs.update(bash_failure(event.text))
             if not events:
                 events = [self.make(record, "context.inject", "message.metadata", ext=message)]
             for event in events:
