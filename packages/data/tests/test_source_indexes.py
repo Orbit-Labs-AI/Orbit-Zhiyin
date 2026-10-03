@@ -5,14 +5,14 @@ import sqlite3
 import pytest
 import zstandard
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.discovery import inputs
-from tandem_data.query import event_page, trajectory_page
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.source_reader import SourceUnavailable, record_source
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.discovery import inputs
+from orbit_data.query import event_page, trajectory_page
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.source_reader import SourceUnavailable, record_source
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 LONG = "完整正文🙂\n" * 9000
 
@@ -253,7 +253,7 @@ def test_trajectory_page_uses_session_indexes_not_full_record_scan(tmp_path, mon
     import contextlib
     import re
 
-    import tandem_data.query as query
+    import orbit_data.query as query
 
     root = tmp_path / "claude"
     write_rows(

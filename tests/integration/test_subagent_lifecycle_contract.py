@@ -1,10 +1,10 @@
 """One child run can produce many lifecycle events; none are human messages."""
 
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
-from tandem_backend.analytics.respond import analyze_respond
+from orbit_backend.analytics.respond import analyze_respond
 
 
 def test_activity_is_not_spawn_and_child_identity_is_never_ui_item_identity(tmp_path):

@@ -3,8 +3,8 @@ import tomllib
 
 import pytest
 
-from tandem_backend.install.env import environment
-from tandem_backend.install.targets import (
+from orbit_backend.install.env import environment
+from orbit_backend.install.targets import (
     REASON_TEXT,
     TABLE,
     PlanError,
@@ -66,7 +66,7 @@ GRID = {
     ("command", "claude_code", "project"): ("P/.claude/commands/ship.md", "create_file", None),
     ("setting", "claude_code", "user"): ("H/.claude/settings.json", "merge_json", ""),
     ("setting", "claude_code", "project"): ("P/.claude/settings.local.json", "merge_json", ""),
-    ("permission_rule", "codex", "user"): ("H/.codex/rules/tandem-demo.rules", "create_file", None),
+    ("permission_rule", "codex", "user"): ("H/.codex/rules/orbit-demo.rules", "create_file", None),
     ("permission_rule", "codex", "project"): "codex_project_rules_unsupported_v1",
     ("rule", "codex", "user"): ("H/.codex/AGENTS.md", "md_block", None),
     ("rule", "codex", "project"): ("P/AGENTS.md", "md_block", None),
@@ -109,7 +109,7 @@ def test_landing_grid(key, env, info, project):
     assert first["requires_trust"] == (kind == "hook" and agent == "codex")
     assert [t["idx"] for t in targets] == list(range(len(targets)))
     if action in ("md_block", "toml_block"):
-        assert first["block_id"] == "tandem:demo"
+        assert first["block_id"] == "orbit:demo"
     if scope == "project" and want.startswith(str(project)):
         assert first["shared_layer"] == ("settings.local.json" not in want)
         assert first["scope"] == ("local" if "settings.local.json" in want else "project")
@@ -151,11 +151,11 @@ def test_hook_with_script(env, info):
                "matcher": None, "script": {"name": "check.sh", "text": "#!/bin/sh\n"}}
     targets = resolve_targets(spec("hook", ["claude_code", "codex"], payload=payload), info, env=env)
     script, settings, cx_script, cx_hooks = targets
-    want = f"{env.home}/.claude/hooks/tandem-demo-check.sh"
+    want = f"{env.home}/.claude/hooks/orbit-demo-check.sh"
     assert script["path"] == want and script["file_mode"] == 0o755 and script["action"] == "create_file"
     assert settings["content"] == [{"hooks": [{"type": "command", "command": f"bash {want}"}]}]
     assert script["group"] == settings["group"] == "hook:demo"
-    assert cx_script["path"] == f"{env.home}/.codex/hooks/tandem-demo-check.sh"
+    assert cx_script["path"] == f"{env.home}/.codex/hooks/orbit-demo-check.sh"
     assert cx_hooks["requires_trust"] and cx_hooks["path"].endswith(".codex/hooks.json")
     full = resolve_targets(spec("hook"), info, env=env)[0]
     assert full["content"] == [{"matcher": "Bash", "hooks": [{"type": "command", "command": "echo hi", "timeout": 5}]}]
@@ -217,7 +217,7 @@ def test_unsupported_and_undetected_agents(env, info, tmp_path):
     assert [t["reason"] for t in other] == ["agent_not_supported_v1"] * 2
     empty = tmp_path / "nohome"
     empty.mkdir()
-    from tandem_backend.install.env import Env
+    from orbit_backend.install.env import Env
 
     bare = environment(Env(home=empty, environ={}, search_dirs=[]))
     targets = resolve_targets(spec("rule"), bare)

@@ -1,4 +1,4 @@
-"""Minimal tandem.db / app.db stand-ins for the analysis AI package; temporary HOME only."""
+"""Minimal orbit.db / app.db stand-ins for the analysis AI package; temporary HOME only."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ FACET_DDL = """CREATE TABLE IF NOT EXISTS ai_facet (session_uid TEXT NOT NULL, p
  job_id TEXT, created_at INTEGER NOT NULL, PRIMARY KEY(session_uid,prompt_version,schema_version))"""
 
 
-class TandemDB:
+class OrbitDB:
     """Writable builder plus a read-only `reads()` factory like `gw.reads.read`."""
 
     def __init__(self, path: Path):
@@ -130,8 +130,8 @@ def user_home(tmp_path, monkeypatch) -> Path:
 
 
 @pytest.fixture
-def tdb(tmp_path, user_home) -> TandemDB:
-    return TandemDB(tmp_path / "tandem.db")
+def tdb(tmp_path, user_home) -> OrbitDB:
+    return OrbitDB(tmp_path / "orbit.db")
 
 
 @pytest.fixture
@@ -140,7 +140,7 @@ def appdb(tmp_path) -> FakeAppDB:
 
 
 @pytest.fixture
-def tandem_home(tmp_path) -> Path:
-    path = tmp_path / "tandem-home"
+def orbit_home(tmp_path) -> Path:
+    path = tmp_path / "orbit-home"
     path.mkdir()
     return path

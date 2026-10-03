@@ -16,7 +16,7 @@
    }
   },
   {
-   "id": "tandem_db",
+   "id": "orbit_db",
    "status": "ok",
    "ms": 0.0,
    "detail": {
@@ -108,8 +108,8 @@
   "total_bytes": 1995218165760
  },
  "db": {
-  "tandem_db": 34058240,
-  "tandem_wal": 0,
+  "orbit_db": 34058240,
+  "orbit_wal": 0,
   "app_db": 409600,
   "catalog_db": 10469376,
   "analysis": 18817024,

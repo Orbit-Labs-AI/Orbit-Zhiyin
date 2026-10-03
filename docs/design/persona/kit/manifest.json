@@ -1,8 +1,8 @@
 {
   "product": "Orbit",
   "generator": "docs/design/persona/export.mjs",
-  "sourceCommit": "ff1bfd04c0ea820bbee01fc9a7b76675bd7d8fb1",
-  "source": "prototypes/advance/tandem-demo.html（花：src/js/35-visuals.js；表盘：src/js/41-a2-persona.js；类型名：src/js/05-data.js）",
+  "sourceCommit": "83f1103bb61d1b256bbc40b1683677729dffc8b5",
+  "source": "prototypes/advance/orbit-demo.html（花：src/js/35-visuals.js；表盘：src/js/41-a2-persona.js；类型名：src/js/05-data.js）",
   "base": "docs/design/persona/kit/（file 相对此目录）",
   "data": "表盘为 Demo 示例数据（画像页默认「近 90 天」），不代表真实统计",
   "colors": {
@@ -30,7 +30,7 @@
       "width": 1440,
       "height": 1440,
       "data": "demo",
-      "bytes": 290208
+      "bytes": 172311
     },
     {
       "file": "dial/dial-dark.svg",
@@ -40,7 +40,7 @@
       "width": 416,
       "height": 416,
       "data": "demo",
-      "bytes": 91112
+      "bytes": 91160
     },
     {
       "file": "dial/dial-light.png",
@@ -50,7 +50,7 @@
       "width": 1440,
       "height": 1440,
       "data": "demo",
-      "bytes": 293237
+      "bytes": 171585
     },
     {
       "file": "dial/dial-light.svg",
@@ -60,7 +60,7 @@
       "width": 416,
       "height": 416,
       "data": "demo",
-      "bytes": 91110
+      "bytes": 91158
     },
     {
       "file": "flowers/png/DIFT-dark-128.png",
@@ -71,7 +71,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4956
+      "bytes": 2397
     },
     {
       "file": "flowers/png/DIFT-dark-512.png",
@@ -82,7 +82,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 22652
+      "bytes": 10086
     },
     {
       "file": "flowers/png/DIFT-light-128.png",
@@ -93,7 +93,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 5139
+      "bytes": 2382
     },
     {
       "file": "flowers/png/DIFT-light-512.png",
@@ -104,7 +104,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 23152
+      "bytes": 10047
     },
     {
       "file": "flowers/png/DIFV-dark-128.png",
@@ -115,7 +115,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4504
+      "bytes": 2340
     },
     {
       "file": "flowers/png/DIFV-dark-512.png",
@@ -126,7 +126,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 20908
+      "bytes": 10412
     },
     {
       "file": "flowers/png/DIFV-light-128.png",
@@ -137,7 +137,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4710
+      "bytes": 2459
     },
     {
       "file": "flowers/png/DIFV-light-512.png",
@@ -148,7 +148,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 21310
+      "bytes": 10582
     },
     {
       "file": "flowers/png/DIMT-dark-128.png",
@@ -159,7 +159,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4313
+      "bytes": 1979
     },
     {
       "file": "flowers/png/DIMT-dark-512.png",
@@ -170,7 +170,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 19543
+      "bytes": 9035
     },
     {
       "file": "flowers/png/DIMT-light-128.png",
@@ -181,7 +181,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4611
+      "bytes": 1996
     },
     {
       "file": "flowers/png/DIMT-light-512.png",
@@ -192,7 +192,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 20360
+      "bytes": 9003
     },
     {
       "file": "flowers/png/DIMV-dark-128.png",
@@ -203,7 +203,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 5279
+      "bytes": 2759
     },
     {
       "file": "flowers/png/DIMV-dark-512.png",
@@ -214,7 +214,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 24766
+      "bytes": 12013
     },
     {
       "file": "flowers/png/DIMV-light-128.png",
@@ -225,7 +225,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 5500
+      "bytes": 2854
     },
     {
       "file": "flowers/png/DIMV-light-512.png",
@@ -236,7 +236,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 25390
+      "bytes": 12020
     },
     {
       "file": "flowers/png/DPFT-dark-128.png",
@@ -247,7 +247,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4293
+      "bytes": 2095
     },
     {
       "file": "flowers/png/DPFT-dark-512.png",
@@ -258,7 +258,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 20266
+      "bytes": 8811
     },
     {
       "file": "flowers/png/DPFT-light-128.png",
@@ -269,7 +269,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4445
+      "bytes": 2093
     },
     {
       "file": "flowers/png/DPFT-light-512.png",
@@ -280,7 +280,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 20755
+      "bytes": 8870
     },
     {
       "file": "flowers/png/DPFV-dark-128.png",
@@ -291,7 +291,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3814
+      "bytes": 2070
     },
     {
       "file": "flowers/png/DPFV-dark-512.png",
@@ -302,7 +302,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 17702
+      "bytes": 9607
     },
     {
       "file": "flowers/png/DPFV-light-128.png",
@@ -313,7 +313,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3946
+      "bytes": 2092
     },
     {
       "file": "flowers/png/DPFV-light-512.png",
@@ -324,7 +324,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 17970
+      "bytes": 9162
     },
     {
       "file": "flowers/png/DPMT-dark-128.png",
@@ -335,7 +335,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3661
+      "bytes": 1705
     },
     {
       "file": "flowers/png/DPMT-dark-512.png",
@@ -346,7 +346,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 16171
+      "bytes": 7731
     },
     {
       "file": "flowers/png/DPMT-light-128.png",
@@ -357,7 +357,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3848
+      "bytes": 1794
     },
     {
       "file": "flowers/png/DPMT-light-512.png",
@@ -368,7 +368,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 16895
+      "bytes": 7642
     },
     {
       "file": "flowers/png/DPMV-dark-128.png",
@@ -379,7 +379,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 5286
+      "bytes": 2713
     },
     {
       "file": "flowers/png/DPMV-dark-512.png",
@@ -390,7 +390,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 25030
+      "bytes": 11896
     },
     {
       "file": "flowers/png/DPMV-light-128.png",
@@ -401,7 +401,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 5506
+      "bytes": 2890
     },
     {
       "file": "flowers/png/DPMV-light-512.png",
@@ -412,7 +412,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 25954
+      "bytes": 12289
     },
     {
       "file": "flowers/png/SIFT-dark-128.png",
@@ -423,7 +423,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3501
+      "bytes": 1973
     },
     {
       "file": "flowers/png/SIFT-dark-512.png",
@@ -434,7 +434,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 15557
+      "bytes": 8458
     },
     {
       "file": "flowers/png/SIFT-light-128.png",
@@ -445,7 +445,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3687
+      "bytes": 1940
     },
     {
       "file": "flowers/png/SIFT-light-512.png",
@@ -456,7 +456,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 15989
+      "bytes": 8090
     },
     {
       "file": "flowers/png/SIFV-dark-128.png",
@@ -467,7 +467,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4313
+      "bytes": 2327
     },
     {
       "file": "flowers/png/SIFV-dark-512.png",
@@ -478,7 +478,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 20106
+      "bytes": 11142
     },
     {
       "file": "flowers/png/SIFV-light-128.png",
@@ -489,7 +489,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4525
+      "bytes": 2387
     },
     {
       "file": "flowers/png/SIFV-light-512.png",
@@ -500,7 +500,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 20749
+      "bytes": 11007
     },
     {
       "file": "flowers/png/SIMT-dark-128.png",
@@ -511,7 +511,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3755
+      "bytes": 1829
     },
     {
       "file": "flowers/png/SIMT-dark-512.png",
@@ -522,7 +522,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 16476
+      "bytes": 8237
     },
     {
       "file": "flowers/png/SIMT-light-128.png",
@@ -533,7 +533,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3984
+      "bytes": 1924
     },
     {
       "file": "flowers/png/SIMT-light-512.png",
@@ -544,7 +544,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 17279
+      "bytes": 8384
     },
     {
       "file": "flowers/png/SIMV-dark-128.png",
@@ -555,7 +555,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3861
+      "bytes": 2172
     },
     {
       "file": "flowers/png/SIMV-dark-512.png",
@@ -566,7 +566,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 18386
+      "bytes": 10373
     },
     {
       "file": "flowers/png/SIMV-light-128.png",
@@ -577,7 +577,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4072
+      "bytes": 2264
     },
     {
       "file": "flowers/png/SIMV-light-512.png",
@@ -588,7 +588,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 18971
+      "bytes": 10560
     },
     {
       "file": "flowers/png/SPFT-dark-128.png",
@@ -599,7 +599,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3658
+      "bytes": 1888
     },
     {
       "file": "flowers/png/SPFT-dark-512.png",
@@ -610,7 +610,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 16821
+      "bytes": 8403
     },
     {
       "file": "flowers/png/SPFT-light-128.png",
@@ -621,7 +621,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4013
+      "bytes": 2167
     },
     {
       "file": "flowers/png/SPFT-light-512.png",
@@ -632,7 +632,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 17897
+      "bytes": 8889
     },
     {
       "file": "flowers/png/SPFV-dark-128.png",
@@ -643,7 +643,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4189
+      "bytes": 2385
     },
     {
       "file": "flowers/png/SPFV-dark-512.png",
@@ -654,7 +654,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 19648
+      "bytes": 11335
     },
     {
       "file": "flowers/png/SPFV-light-128.png",
@@ -665,7 +665,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4350
+      "bytes": 2446
     },
     {
       "file": "flowers/png/SPFV-light-512.png",
@@ -676,7 +676,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 20098
+      "bytes": 11224
     },
     {
       "file": "flowers/png/SPMT-dark-128.png",
@@ -687,7 +687,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3171
+      "bytes": 1573
     },
     {
       "file": "flowers/png/SPMT-dark-512.png",
@@ -698,7 +698,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 14182
+      "bytes": 6990
     },
     {
       "file": "flowers/png/SPMT-light-128.png",
@@ -709,7 +709,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3387
+      "bytes": 1637
     },
     {
       "file": "flowers/png/SPMT-light-512.png",
@@ -720,7 +720,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 14990
+      "bytes": 6979
     },
     {
       "file": "flowers/png/SPMV-dark-128.png",
@@ -731,7 +731,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 3864
+      "bytes": 2133
     },
     {
       "file": "flowers/png/SPMV-dark-512.png",
@@ -742,7 +742,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 18183
+      "bytes": 10592
     },
     {
       "file": "flowers/png/SPMV-light-128.png",
@@ -753,7 +753,7 @@
       "format": "png",
       "width": 128,
       "height": 128,
-      "bytes": 4102
+      "bytes": 2236
     },
     {
       "file": "flowers/png/SPMV-light-512.png",
@@ -764,7 +764,7 @@
       "format": "png",
       "width": 512,
       "height": 512,
-      "bytes": 18741
+      "bytes": 10505
     },
     {
       "file": "flowers/svg/DIFT-dark.svg",
@@ -1301,7 +1301,7 @@
       "format": "png",
       "width": 1968,
       "height": 2060,
-      "bytes": 226312
+      "bytes": 145191
     },
     {
       "file": "sheet/types-light.png",
@@ -1310,7 +1310,7 @@
       "format": "png",
       "width": 1968,
       "height": 2060,
-      "bytes": 231068
+      "bytes": 148723
     }
   ]
 }

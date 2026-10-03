@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from fact_db import GROUP, build
 
-from tandem_backend import features
-from tandem_backend.recommend import engine, problems, section
+from orbit_backend import features
+from orbit_backend.recommend import engine, problems, section
 
 
 @pytest.fixture(autouse=True)

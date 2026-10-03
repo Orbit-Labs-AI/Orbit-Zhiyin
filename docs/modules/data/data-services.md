@@ -1,6 +1,6 @@
 # 本地数据服务：检索、resume、能力、占用与清除、脱敏规则、insights
 
-本文说明 `tandem_data` 在导入主链之外提供的只读服务（清除除外）。它们读取已发布的投影 `tandem.db`，不改 L0–L3 数据，不联网，也不读取 Agent 目录；`insights` 只读调用方显式给出的目录。
+本文说明 `orbit_data` 在导入主链之外提供的只读服务（清除除外）。它们读取已发布的投影 `orbit.db`，不改 L0–L3 数据，不联网，也不读取 Agent 目录；`insights` 只读调用方显式给出的目录。
 
 | 功能 | 模块 | CLI | HTTP |
 | --- | --- | --- | --- |
@@ -12,7 +12,7 @@
 | DT-10 规则清单 / 预览 | `privacy_rules.py` | `privacy-rules`、`privacy-preview --text …` | `GET /v1/privacy/rules`、`POST /v1/privacy/preview {"text": …}` |
 | DT-18 `/insights` 对照 | `insights.py` | `insights --path <usage-data> [--match]` | 不提供（路径须由本机用户显式给出） |
 
-CLI 形如 `uv run tandem-data --home .tandem search "修复第 7"`。这些子命令在打开可写 `Store` 之前处理，不会建库或迁移。HTTP 路由在 `tandem_backend/api/data_routes.py`，由 `register(app, home)` 挂载；`api/routes.py` 未改，集成时在 `create_app` 末尾加一行 `data_routes.register(app, canonical_home)`。
+CLI 形如 `uv run orbit-data --home .orbit search "修复第 7"`。这些子命令在打开可写 `Store` 之前处理，不会建库或迁移。HTTP 路由在 `orbit_backend/api/data_routes.py`，由 `register(app, home)` 挂载；`api/routes.py` 未改，集成时在 `create_app` 末尾加一行 `data_routes.register(app, canonical_home)`。
 
 ## 检索（DT-23）
 
@@ -21,7 +21,7 @@ CLI 形如 `uv run tandem-data --home .tandem search "修复第 7"`。这些子�
 - **过滤**：`source_ids` 按 `session.source_id` 过滤；时间窗对消息用 `event.ts`，对工具调用用 `tool_call.started_at`（缺失时取会话开始时间），对标题和项目用 `session.started_at`。不同来源的命中互不重叠，所以分来源计数之和等于合并计数。
 - **排序**：相关度 × 类型权重（标题 3、项目 2、命令和文件 1.5、消息 1）× 时间衰减（半衰期 30 天，最低 0.25）。相关度对 FTS 命中由 bm25 映射到 [1, 2)，对 `LIKE` 命中固定为 1。
 - **返回**：`total`、`truncated`、按类型的 `counts` 和分页后的 `hits`。每条命中包含 `session_uid`、`source_id`、`agent`、`title`、`project`、`hit_type`、`event_uid` 或 `call_uid`、`ts`、`score`、`snippet`。片段先在匹配点前后 2000 字符的窗口内重新执行 `privacy.redact`，再截取，所以落在窗口边缘的密钥也能识别。
-- **实测**（med 合成数据：900 个会话，77,403 个事件，`tandem.db` 约 404 MiB；Apple M4 Pro 14 核 48 GB；并行任务同时占用 CPU，负载约 32；每个查询取 3 次中的最好值）：
+- **实测**（med 合成数据：900 个会话，77,403 个事件，`orbit.db` 约 404 MiB；Apple M4 Pro 14 核 48 GB；并行任务同时占用 CPU，负载约 32；每个查询取 3 次中的最好值）：
   - 无 `event_search` 表：中文子串（走 `LIKE` 回退）33–43 ms，英文词、命令头、项目名 3–11 ms。
   - 在副本上临时建 trigram `event_search` 表（只收录消息和标题，建表耗时 0.7 s）：中文子串 23–43 ms；2 字符查询仍走 `LIKE`，约 78 ms。
   - 两条路径的命中数一致。
@@ -61,11 +61,11 @@ CLI 形如 `uv run tandem-data --home .tandem search "修复第 7"`。这些子�
 
 同时返回逐表字节数。med 库（404 MiB）在页缓存热时约 110 ms。首次调用要读遍所有页，冷缓存时实测 1.8 s，CPU 和 IO 繁忙时实测 5.2 s；full 规模（约 2.8 GB）的冷缓存耗时未实测，按体积估计会更长，前端应异步加载。
 
-`purge_all(home, confirm)` 只删除 `tandem.db`、`-wal`、`-shm`、`-journal`、`raw/` 和 `cache/capabilities.json`，`catalog.db` 等其他文件保留。删除前先完成全部检查，任一项不通过即拒绝，且不删除任何文件：
+`purge_all(home, confirm)` 只删除 `orbit.db`、`-wal`、`-shm`、`-journal`、`raw/` 和 `cache/capabilities.json`，`catalog.db` 等其他文件保留。删除前先完成全部检查，任一项不通过即拒绝，且不删除任何文件：
 
 - 确认词不完全等于 `DELETE ALL LOCAL DATA`；
 - 数据目录本身是符号链接，或是文件系统根目录、用户主目录；
-- 目录里既没有 `tandem.db` 也没有 `raw/`；
+- 目录里既没有 `orbit.db` 也没有 `raw/`；
 - 删除集合中出现符号链接，或有路径解析到数据目录之外；
 - 导入锁 `import.lock` 被占用（HTTP 409）。
 

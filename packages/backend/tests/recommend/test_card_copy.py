@@ -3,8 +3,8 @@
 
 from test_engine import INPUTS, MEMORY, fake_recall, problem, raw
 
-from tandem_backend.recommend import engine, kb, narrate, problems
-from tandem_backend.recommend.recall import catalog_route, kb_route, models
+from orbit_backend.recommend import engine, kb, narrate, problems
+from orbit_backend.recommend.recall import catalog_route, kb_route, models
 
 ITEM = {"item_id": "skill:vendor/pack/protein-design", "kind": "skill", "name": "protein-design",
         "summary": "Design proteins with diffusion models and validate folds.", "url": "https://example.test/x",
@@ -85,7 +85,7 @@ def test_slate_cards_never_show_placeholder_numbers():
 def test_plugin_cache_removals_disable_the_plugin_without_absolute_paths():
     import os
 
-    from tandem_backend.recommend.recall import subtract
+    from orbit_backend.recommend.recall import subtract
 
     home = os.path.expanduser("~")
     cache = f"{home}/.claude/plugins/cache/vendor/bio-pack/1.2.0/skills/fold/SKILL.md"
@@ -110,7 +110,7 @@ def test_plugin_cache_removals_disable_the_plugin_without_absolute_paths():
 
 
 def test_session_claiming_card_without_uids_is_gated():
-    from tandem_backend.recommend.ranking import gates
+    from orbit_backend.recommend.ranking import gates
 
     mix = [{"model_id": "m", "effort": "high", "agent": "claude_code", "sessions": 90, "readonly_sessions": 70,
             "tokens": 10}]

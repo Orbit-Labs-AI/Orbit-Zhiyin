@@ -10,10 +10,10 @@ captured with instead of failing against rows written a moment later.
 import json
 import sqlite3
 
-from tandem_data.contract import canonical
-from tandem_data.query import current_projection, projection_state
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store, readonly_connection
+from orbit_data.contract import canonical
+from orbit_data.query import current_projection, projection_state
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store, readonly_connection
 
 
 def line(session, text):
@@ -38,7 +38,7 @@ def runs(store):
 
 
 def state(home):
-    with readonly_connection(home / "tandem.db") as db:
+    with readonly_connection(home / "orbit.db") as db:
         db.execute("BEGIN")
         return projection_state(db)
 
@@ -70,7 +70,7 @@ def test_retained_file_neither_rebuilds_other_imports_nor_stays_pending(tmp_path
 
         fresh = state(store.home)
         assert not fresh["pending"] and fresh["retained_files"] == 1
-        with readonly_connection(store.home / "tandem.db") as db:
+        with readonly_connection(store.home / "orbit.db") as db:
             db.execute("BEGIN")
             current_projection(db)  # Settled: even the strict check reads it as current.
 

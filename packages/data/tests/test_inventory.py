@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from tandem_data import SCHEMA_VERSION
-from tandem_data.analysis_input import AnalysisScope, read_analysis
-from tandem_data.cli import main
-from tandem_data.inventory import InventoryRequest, read_inventory, scan_inventory
-from tandem_data.inventory.reader import MAX_BYTES
-from tandem_data.store import Store
+from orbit_data import SCHEMA_VERSION
+from orbit_data.analysis_input import AnalysisScope, read_analysis
+from orbit_data.cli import main
+from orbit_data.inventory import InventoryRequest, read_inventory, scan_inventory
+from orbit_data.inventory.reader import MAX_BYTES
+from orbit_data.store import Store
 
 
 def write(root, path, value):
@@ -127,7 +127,7 @@ def test_empty_missing_errors_and_deleted_items_are_distinct(tmp_path, monkeypat
     root = tmp_path / "codex"
     root.mkdir()
     times = iter((100, 200, 300, 400))
-    monkeypatch.setattr("tandem_data.inventory.now_ms", lambda: next(times))
+    monkeypatch.setattr("orbit_data.inventory.now_ms", lambda: next(times))
     with Store(tmp_path / "data") as store:
         assert read_inventory(store.home)["items"] is None
         request = InventoryRequest("codex", root)
@@ -268,11 +268,9 @@ def test_bounds_missing_root_and_cli(tmp_path, capsys):
 def test_upgrade_from_v4_keeps_session_tables_and_inventory_survives_rebuild(tmp_path):
     home = tmp_path / "data"
     home.mkdir()
-    with sqlite3.connect(home / "tandem.db") as connection:
+    with sqlite3.connect(home / "orbit.db") as connection:
         for name in ("001.sql", "002.sql", "003.sql", "004.sql"):
-            connection.executescript(
-                files("tandem_data").joinpath("migrations/" + name).read_text()
-            )
+            connection.executescript(files("orbit_data").joinpath("migrations/" + name).read_text())
     root = tmp_path / "codex"
     write(root, "AGENTS.md", "rule")
     with Store(home) as store:
@@ -336,7 +334,7 @@ def test_publication_is_atomic_when_writing_an_item_fails(tmp_path, monkeypatch)
         def fail(*args, **kwargs):
             raise sqlite3.IntegrityError("synthetic write failure")
 
-        monkeypatch.setattr("tandem_data.inventory.insert", fail)
+        monkeypatch.setattr("orbit_data.inventory.insert", fail)
         with pytest.raises(sqlite3.IntegrityError):
             scan_inventory(store, request)
         assert read_inventory(store.home) == before

@@ -2,9 +2,9 @@
 
 import pytest
 
-from tandem_data.contract import canonical
-from tandem_data.reduce import _duration
-from tandem_data.store import Store
+from orbit_data.contract import canonical
+from orbit_data.reduce import _duration
+from orbit_data.store import Store
 
 
 def timed(ts, semantics, quality="reported"):

@@ -1,11 +1,11 @@
 """Measure all explicit surfaces, including data omitted from the display prefix."""
 
-from tandem_backend.analysis import analyze
-from tandem_backend.content import measure_length, visible_text
-from tandem_backend.feedback import signals
-from tandem_backend.models import Event, ParsedSession, Session
-from tandem_backend.pipeline_eval import _write_case
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.content import measure_length, visible_text
+from orbit_backend.feedback import signals
+from orbit_backend.models import Event, ParsedSession, Session
+from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.store import Store, import_codex
 
 
 def test_later_numeric_clause_keeps_the_abstract_surface_and_explicit_cap(tmp_path):

@@ -1,10 +1,10 @@
 # Orbit 会话数据契约 v1
 
-数据库契约为 `tandem-session-v1`；分析对象契约为 `analysis-input-v1`。本文件描述已经实现的结构。字段字典由实际 DDL 生成，不能把旧设计草图或 TypeScript staging 库当成这一版。
+数据库契约为 `orbit-session-v1`；分析对象契约为 `analysis-input-v1`。本文件描述已经实现的结构。字段字典由实际 DDL 生成，不能把旧设计草图或 TypeScript staging 库当成这一版。
 
-- 权威 DDL：[迁移目录](../../packages/data/src/tandem_data/migrations/)，当前来源索引迁移为 [006.sql](../../packages/data/src/tandem_data/migrations/006.sql)
-- L2 语义校验：[event-v1.schema.json](../../packages/data/src/tandem_data/schemas/event-v1.schema.json)
-- 全部表的字段、类型、可空性、外键和建表语句：[tables-v1.schema.json](../../packages/data/src/tandem_data/schemas/tables-v1.schema.json)
+- 权威 DDL：[迁移目录](../../packages/data/src/orbit_data/migrations/)，当前来源索引迁移为 [006.sql](../../packages/data/src/orbit_data/migrations/006.sql)
+- L2 语义校验：[event-v1.schema.json](../../packages/data/src/orbit_data/schemas/event-v1.schema.json)
+- 全部表的字段、类型、可空性、外键和建表语句：[tables-v1.schema.json](../../packages/data/src/orbit_data/schemas/tables-v1.schema.json)
 - 可运行命令：[packages/data](../../packages/data/README.md)
 - 分析消费语义：[analysis-inputs.md](analysis-inputs.md)
 
@@ -139,7 +139,7 @@ L2 文本、attrs、ext 经过版本化脱敏；凭据字段与令牌匹配被�
 SQL 查询示例：
 
 ```sql
--- 本机只读打开 tandem.db，先 BEGIN，再读所需表，最后 COMMIT。
+-- 本机只读打开 orbit.db，先 BEGIN，再读所需表，最后 COMMIT。
 SELECT session_uid,seq,event_uid,text,attrs
 FROM v_human_message ORDER BY session_uid,seq;
 
@@ -152,7 +152,7 @@ FROM record_event re JOIN raw_record r USING(record_uid)
 JOIN source_revision v USING(revision_uid) WHERE re.event_uid=:event_uid;
 ```
 
-导出 L3 CSV 与标准事件 JSONL 使用 `tandem-data export --table ... --output ...`。CSV 面向表结构，JSON 文本列进入分析对象前需解析；普通导出不是公开发布。
+导出 L3 CSV 与标准事件 JSONL 使用 `orbit-data export --table ... --output ...`。CSV 面向表结构，JSON 文本列进入分析对象前需解析；普通导出不是公开发布。
 
 ## 6. Connector 接口与跨语言对接
 

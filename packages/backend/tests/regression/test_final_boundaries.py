@@ -1,10 +1,10 @@
 import pytest
 from test_supplemental_requirements import run
 
-from tandem_backend.feedback import reader_context
-from tandem_backend.pipeline_eval import evidence_checks
-from tandem_backend.privacy import redact
-from tandem_backend.recommend import recommend
+from orbit_backend.feedback import reader_context
+from orbit_backend.pipeline_eval import evidence_checks
+from orbit_backend.privacy import redact
+from orbit_backend.recommend import recommend
 
 
 @pytest.mark.parametrize('text', ['请解释如何成为开发者。', '写一篇关于如何成为开发者的文章。'])

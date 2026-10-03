@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from tandem_backend.ai.generate.util import CallFailed
+from orbit_backend.ai.generate.util import CallFailed
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -59,7 +59,7 @@ class FakeCtx:
         return False
 
     def reads(self):
-        raise RuntimeError("no tandem.db in generate tests")
+        raise RuntimeError("no orbit.db in generate tests")
 
     def read_app(self):
         raise RuntimeError("no app.db in generate tests")

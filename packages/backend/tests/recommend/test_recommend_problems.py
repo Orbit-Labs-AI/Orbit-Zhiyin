@@ -1,7 +1,7 @@
 import pytest
 
-from tandem_backend.recommend import problems
-from tandem_backend.recommend.problems import wilson_lo
+from orbit_backend.recommend import problems
+from orbit_backend.recommend.problems import wilson_lo
 
 
 def signal(rule_id, root, *, group=None, value=2, project="p1"):

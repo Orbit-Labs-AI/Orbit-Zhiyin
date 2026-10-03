@@ -7,16 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.install import applier, store
-from tandem_backend.install.errors import (
+from orbit_backend.appdb import AppDB
+from orbit_backend.install import applier, store
+from orbit_backend.install.errors import (
     InstallError,
     OpConflict,
     PlanError,
     RiskBlocked,
     StaleError,
 )
-from tandem_backend.install.service import InstallService
+from orbit_backend.install.service import InstallService
 
 from .test_fetch import COMMIT, FakeFetcher
 
@@ -34,8 +34,8 @@ CATALOG = {i["id"]: i for i in (SKILL_ITEM, MCP_ITEM, PLUGIN_ITEM)}
 
 @pytest.fixture
 def svc(tmp_path, env):
-    db = AppDB(tmp_path / "tandem" / "app.db")
-    service = InstallService(db, tmp_path / "tandem", env=env, fetcher=FakeFetcher(), catalog_lookup=CATALOG.get)
+    db = AppDB(tmp_path / "orbit" / "app.db")
+    service = InstallService(db, tmp_path / "orbit", env=env, fetcher=FakeFetcher(), catalog_lookup=CATALOG.get)
     yield service
     db.close()
 
@@ -78,7 +78,7 @@ def test_permission_rule_full_cycle_claude_and_codex(svc, fake_home):
     result = svc.apply(plan["plan_id"], preview["preview_digest"])
     settings = json.loads((fake_home / ".claude/settings.json").read_text())
     assert settings["permissions"]["allow"] == ["Bash(git status:*)", "Bash(git diff:*)"]
-    rules = (fake_home / ".codex/rules/tandem-ro-git.rules").read_text()
+    rules = (fake_home / ".codex/rules/orbit-ro-git.rules").read_text()
     assert 'prefix_rule(pattern=["git","status"]' in rules
     assert result["state"] == "installed" and result["undo_until_ms"] > 0
     assert [w["status"] for w in result["written"]] == ["modify", "create"]
@@ -235,7 +235,7 @@ def test_apply_failure_rolls_back(svc, fake_home, monkeypatch):
     assert failed.value.code == "apply_failed"
     monkeypatch.setattr(applier, "_atomic_write", real)
     assert snapshot(fake_home) == before
-    assert not (fake_home / ".codex/rules/tandem-ro-git.rules").exists()
+    assert not (fake_home / ".codex/rules/orbit-ro-git.rules").exists()
     entries = store.ledger_page(svc.appdb)
     assert {e["action"] for e in entries} == {"install_begin", "install_failed"}
     assert store.state_list(svc.appdb) == []
@@ -334,7 +334,7 @@ def test_sweeps(svc):
 
 
 def test_cli_ledger(svc, capsys):
-    from tandem_backend.cli.commands import main
+    from orbit_backend.cli.commands import main
 
     _, _, result = run(svc, spec_source())
     main(["--home", str(svc.home), "install", "ledger", "--limit", "2"])
@@ -344,8 +344,8 @@ def test_cli_ledger(svc, capsys):
 
 @pytest.mark.parametrize("change", [(5, "X"), (0, "X"), (59, "X"), (30, None)])
 def test_trimmed_diff_matches_line_diff(change):
-    from tandem_backend.install.diff import line_diff
-    from tandem_backend.install.service import _diff
+    from orbit_backend.install.diff import line_diff
+    from orbit_backend.install.service import _diff
 
     before = [f"line {i % 7}" for i in range(60)]
     after = list(before)

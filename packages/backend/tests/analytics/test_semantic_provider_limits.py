@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from tandem_backend.analytics.semantic_cascade import Budget
-from tandem_backend.analytics.semantic_cascade import provider as module
+from orbit_backend.analytics.semantic_cascade import Budget
+from orbit_backend.analytics.semantic_cascade import provider as module
 
 
 def fake_cli(tmp_path, body):

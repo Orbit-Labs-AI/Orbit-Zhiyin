@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
-from tandem_catalog.api import create_catalog_app
-from tandem_catalog.contracts import Record, Resource
-from tandem_catalog.service import CatalogService
+from orbit_catalog.api import create_catalog_app
+from orbit_catalog.contracts import Record, Resource
+from orbit_catalog.service import CatalogService
 
 from .test_local import PAYLOAD
 from .test_storage import publish
@@ -14,7 +14,7 @@ def make_client(tmp_path, decorate=None):
             name=f"Retry helper {n}", summary="retry flaky tests", url="https://x", agents=["codex"])) for n in range(6)]
     rows.append(Record(native_id="m", resource=Resource(item_id="model:x", type="model", name="X", url="u",
                        metadata={"provider": "acme", "model_id": "x"})))
-    publish(service.store, rows, source="tandem-seeds")
+    publish(service.store, rows, source="orbit-seeds")
     return TestClient(create_catalog_app(service, decorate)), service
 
 

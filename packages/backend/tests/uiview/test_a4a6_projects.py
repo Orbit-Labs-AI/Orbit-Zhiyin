@@ -1,4 +1,4 @@
-"""A5 项目 adapter over a synthetic three-project tandem.db (tmp_path only)."""
+"""A5 项目 adapter over a synthetic three-project orbit.db (tmp_path only)."""
 
 from __future__ import annotations
 
@@ -12,18 +12,18 @@ import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.features.service import FeatureService
-from tandem_backend.services.gateway import install_error_handlers
-from tandem_backend.uiview import a4a6_projects as P
-from tandem_backend.uiview import a4a6_sentiment as S
+from orbit_backend.appdb import AppDB
+from orbit_backend.features.service import FeatureService
+from orbit_backend.services.gateway import install_error_handlers
+from orbit_backend.uiview import a4a6_projects as P
+from orbit_backend.uiview import a4a6_sentiment as S
 
-from .a4a6_ps_fixture import DAY, MIN, T0, Tandem, ro
+from .a4a6_ps_fixture import DAY, MIN, T0, Orbit, ro
 
 FLOW = ["git status", "pytest -q", "git commit"]
 
 
-def seed(t: Tandem) -> None:
+def seed(t: Orbit) -> None:
     t.project("p1", name="confluo", git="github.com/org/confluo")
     t.project("p2", name="web")
     t.project("p3", name="tiny")
@@ -72,7 +72,7 @@ def home(tmp_path):
 
 @pytest.fixture
 def db(home):
-    t = Tandem(home)
+    t = Orbit(home)
     seed(t)
     yield t
     t.close()
@@ -304,8 +304,8 @@ def _count(client, path, **params):
 
 def test_routes_respect_exclusion_and_source_range(db, home, monkeypatch):
     """A5/A6 see the same session set as analytics_scope (UT-01)."""
-    from tandem_backend.appdata import sources_scope
-    from tandem_backend.sessionops import exclusion
+    from orbit_backend.appdata import sources_scope
+    from orbit_backend.sessionops import exclusion
 
     # x1/x2 (p2) share a phrase (phrases need >= 2 sessions) and fail twice (rule friction,
     # so x1's opening message is the friction ``typical`` quote).

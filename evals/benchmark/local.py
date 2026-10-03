@@ -12,22 +12,22 @@ from dataclasses import asdict
 from pathlib import Path
 from uuid import uuid4
 
-from tandem_data.service import wait_for_maintenance
+from orbit_data.service import wait_for_maintenance
 
 from evals.analytics.robustness import metrics as fact_metrics
 from evals.analytics.robustness import save, signature
 from evals.analytics.robustness_invariants import validate_result
-from tandem_backend.analytics import FEATURE_VERSION
-from tandem_backend.analytics.common import human
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.cost_time.features import usage
-from tandem_backend.analytics.diagnostics import diagnostics, terminal_text
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.data_access.store import CanonicalStore
-from tandem_backend.privacy import direct_user_text
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.service import recommend
+from orbit_backend.analytics import FEATURE_VERSION
+from orbit_backend.analytics.common import human
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.cost_time.features import usage
+from orbit_backend.analytics.diagnostics import diagnostics, terminal_text
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.data_access.store import CanonicalStore
+from orbit_backend.privacy import direct_user_text
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.service import recommend
 
 from .contracts import METHODS, NONE_ACTION, ExecutionRecord, TemporalSample
 from .metrics import forward_utility, recommendation_quality
@@ -121,7 +121,7 @@ def family_input(families):
 
 
 def _snapshot_stamp(home):
-    database = (Path(home) / "tandem.db").resolve()
+    database = (Path(home) / "orbit.db").resolve()
     hashes = {}
     for path in (database, Path(str(database) + "-wal")):
         if path.exists() and path.stat().st_size:
@@ -131,7 +131,7 @@ def _snapshot_stamp(home):
                     digest.update(block)
             hashes[path.name] = digest.hexdigest()
     with sqlite3.connect(
-        f"{(Path(home) / 'tandem.db').resolve().as_uri()}?mode=ro", uri=True
+        f"{(Path(home) / 'orbit.db').resolve().as_uri()}?mode=ro", uri=True
     ) as db:
         return {
             "schema_version": db.execute("PRAGMA user_version").fetchone()[0],
@@ -144,7 +144,7 @@ def _snapshot_stamp(home):
 
 def _native_main_ids(home):
     with sqlite3.connect(
-        f"{(Path(home) / 'tandem.db').resolve().as_uri()}?mode=ro", uri=True
+        f"{(Path(home) / 'orbit.db').resolve().as_uri()}?mode=ro", uri=True
     ) as db:
         return {
             row[0]

@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import re
 
-from tandem_backend.recommend import engine
-from tandem_backend.recommend.recall.catalog_route import from_item
+from orbit_backend.recommend import engine
+from orbit_backend.recommend.recall.catalog_route import from_item
 
 INPUTS = {"agents": {"codex": 30}, "sessions": {"main": 30, "weeks": 4},
           "facts": {"failures_by_software": [{"software": "wrangler", "sessions": 3}]},
@@ -79,7 +79,7 @@ def test_no_placeholders_in_card_text():
 
 
 def test_removals_sharing_a_rule_are_not_duplicates():
-    from tandem_backend.recommend.ranking.hygiene import dedupe
+    from orbit_backend.recommend.ranking.hygiene import dedupe
 
     def removal(key, title):
         return {"rec_key": key, "title": title, "basis": "problem", "links": {"kb_id": "disable-unused"},

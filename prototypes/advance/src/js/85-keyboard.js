@@ -6,7 +6,7 @@
 // screen, ⌘M minimise, ⌘K palette, ⌘, settings, ⇧⌘S share card, ⇧⌘E report, ⌥⌘P HUD, ⌃⌥T panel, ⌥R reindex (⌘R), ⌥T chart/table
 // (⌘T), ⌘F find, ⌘↩ main action, ⌘Z undo install, ⌘[ back, ? shortcuts, Space play/pause (sessions).
 // KB_DID[cmd] = when the page handled a shortcut that the native menu also carries (95-live-native.js LVN.command skips the
-// menu's tandem:command for the same cmd right after, so a key never acts twice whichever side sees it first).
+// menu's orbit:command for the same cmd right after, so a key never acts twice whichever side sees it first).
 const KB_DID = {};
 const kbDid = (c) => { KB_DID[c] = Date.now(); };
 document.addEventListener('keydown', (e) => {
@@ -60,7 +60,7 @@ document.addEventListener('keydown', (e) => {
   if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyM' && !typing) { e.preventDefault(); ACT.winMin(); return; }
   if ((mod || e.altKey) && e.code === 'BracketLeft' && !typing) { e.preventDefault(); kbDid('back'); goBack(); return; }
   // in the native App the browser-safe ⌥ bindings also answer to ⌘ (⌘1–9 pages, ⌘0 main window, ⌘T chart / table);
-  // ⌘R stays with the App menu (刷新 → tandem:command refresh)
+  // ⌘R stays with the App menu (刷新 → orbit:command refresh)
   const appKey = e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && nativeShell();
   if (appKey && /^Digit[0-9]$/.test(e.code)) { e.preventDefault(); kbDid('page'); if (e.code === 'Digit0') showMain(); else { const r = navRoutes()[+e.code.slice(5) - 1]; if (r) go(r[0]); } return; }
   if (appKey && e.code === 'KeyT') { e.preventDefault(); kbDid('chartTable'); if (S.route === 'overview') { S.view = S.view === 'chart' ? 'table' : 'chart'; render(); toast(S.view === 'chart' ? '已切换为图表' : '已切换为表格'); } else toast('图表 ↔ 表格只在概览页可用'); return; }

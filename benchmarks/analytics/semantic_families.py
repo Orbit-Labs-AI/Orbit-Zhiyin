@@ -6,8 +6,8 @@ import statistics
 import time
 import tracemalloc
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def workload(count):

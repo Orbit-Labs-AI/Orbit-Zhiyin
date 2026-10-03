@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from tandem_backend.ai.generate.hooks_replay import replay
-from tandem_backend.ai.generate.templates import get
+from orbit_backend.ai.generate.hooks_replay import replay
+from orbit_backend.ai.generate.templates import get
 
 
 # Fixtures use the canonical tool_call.status vocabulary written by the connectors

@@ -3,10 +3,10 @@
 import argparse
 import json
 
-from tandem_backend.recommend.catalog import load_catalog
-from tandem_backend.recommend.contracts import RecommendationContext
-from tandem_backend.recommend.families import prepare_item
-from tandem_backend.recommend.ranking.filters import filter_item
+from orbit_backend.recommend.catalog import load_catalog
+from orbit_backend.recommend.contracts import RecommendationContext
+from orbit_backend.recommend.families import prepare_item
+from orbit_backend.recommend.ranking.filters import filter_item
 
 
 def main():

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from tandem_backend.appdb import AppDB
-from tandem_backend.recommend import outcomes, store
+from orbit_backend.appdb import AppDB
+from orbit_backend.recommend import outcomes, store
 
 DAY = store.DAY
 INSTALLED = 1_800_000_000_000
@@ -150,7 +150,7 @@ def test_revert_and_ev05_funnel(db):
 
 
 def test_public_api_for_install(db):
-    import tandem_backend.recommend as rec
+    import orbit_backend.recommend as rec
 
     cid = seed(db)
     tid = rec.register_tracking(db, "inst9", cid, INSTALLED)

@@ -1,12 +1,12 @@
 """Large homes must not turn per-call evidence into a gigabyte payload or snapshot."""
 
-from tandem_backend.analytics.history import history_for
-from tandem_backend.analytics.products import analyze_product_store
-from tandem_backend.analytics.products.payload import compact
-from tandem_backend.analytics.products.tools import EVIDENCE_LIMIT, analyze_tools
-from tandem_backend.cli import demo_home
-from tandem_backend.data_access.ingest import ingest
-from tandem_backend.data_access.store import CanonicalStore
+from orbit_backend.analytics.history import history_for
+from orbit_backend.analytics.products import analyze_product_store
+from orbit_backend.analytics.products.payload import compact
+from orbit_backend.analytics.products.tools import EVIDENCE_LIMIT, analyze_tools
+from orbit_backend.cli import demo_home
+from orbit_backend.data_access.ingest import ingest
+from orbit_backend.data_access.store import CanonicalStore
 
 
 def _calls(sessions: int, per_session: int) -> list[dict]:
@@ -59,7 +59,7 @@ def test_identical_product_request_reuses_snapshot_instead_of_recomputing(tmp_pa
         calls.append(args)
         raise AssertionError("identical request at the same revision must not recompute")
 
-    monkeypatch.setattr("tandem_backend.analytics.products.service._product_store", forbidden)
+    monkeypatch.setattr("orbit_backend.analytics.products.service._product_store", forbidden)
     assert analyze_product_store(store) == first and not calls
     runs = history_for(store).list_runs(engine="products")
     assert runs["total"] == 2 and {r["status"] for r in runs["items"]} == {"completed"}
@@ -72,9 +72,9 @@ def test_presentation_bounds_per_call_evidence_but_keeps_aggregates():
     import json
     from pathlib import Path
 
-    from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-    from tandem_backend.analytics.presentation import bounded_presentation, build_presentation
-    from tandem_backend.analytics.service import analyze_bundle
+    from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+    from orbit_backend.analytics.presentation import bounded_presentation, build_presentation
+    from orbit_backend.analytics.service import analyze_bundle
 
     raw = json.loads((Path(__file__).parents[1] / "fixtures/bottleneck-features-v1.json")
                      .read_text(encoding="utf-8"))

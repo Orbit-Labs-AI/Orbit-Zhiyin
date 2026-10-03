@@ -20,5 +20,5 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm install --global pnpm@11.25.0
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @tandem/connectors check
+      - run: pnpm --filter @orbit/connectors check
       - run: node packages/connectors/dist/cli.js --help

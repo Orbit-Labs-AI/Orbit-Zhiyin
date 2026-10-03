@@ -7,11 +7,11 @@ import os
 import pytest
 from _integrity import assert_integrity, build_relation_tree, differing_tables, logical_digest
 
-from tandem_data import parallel
-from tandem_data.pipeline import rebuild
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data import parallel
+from orbit_data.pipeline import rebuild
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 
 def _sources(folder):
@@ -56,7 +56,7 @@ def test_parallel_import_matches_serial_for_fixtures_and_relations(
     tmp_path, monkeypatch, defer_search_index
 ):
     if defer_search_index:
-        import tandem_data.parallel as parallel
+        import orbit_data.parallel as parallel
 
         monkeypatch.setattr(parallel, "DEFER_SEARCH_INDEX_FILES", 0)
         finish = parallel.DeferredSearchIndex.finish
@@ -138,7 +138,7 @@ def test_parallel_rebuild_matches_serial_for_codex_fork(tmp_path):
 
 
 def test_workers_one_is_the_serial_path(tmp_path, monkeypatch):
-    import tandem_data.parallel as parallel
+    import orbit_data.parallel as parallel
 
     def forbidden(*_, **__):
         raise AssertionError("workers=1 must not plan parallel work")
@@ -185,7 +185,7 @@ def test_changed_source_during_parallel_map_aborts_publication(tmp_path, workers
         store.db.execute(
             "UPDATE source_file SET watermark=json_remove(watermark,'$.projected_revision')"
         )
-        from tandem_data.source_reader import SourceUnavailable
+        from orbit_data.source_reader import SourceUnavailable
 
         with pytest.raises(SourceUnavailable):
             rebuild(store, workers=workers)
@@ -193,9 +193,9 @@ def test_changed_source_during_parallel_map_aborts_publication(tmp_path, workers
 
 
 def test_cached_source_paths_match_source_reader(tmp_path):
-    from tandem_data import parallel
-    from tandem_data.discovery import inputs
-    from tandem_data.source_reader import SourceUnavailable, source_path
+    from orbit_data import parallel
+    from orbit_data.discovery import inputs
+    from orbit_data.source_reader import SourceUnavailable, source_path
 
     root = tmp_path / "pi"
     outside = tmp_path / "outside"
@@ -225,8 +225,8 @@ def test_cached_source_paths_match_source_reader(tmp_path):
 
 
 def test_grouped_capture_isolates_a_failing_file(tmp_path, monkeypatch):
-    import tandem_data.parallel as parallel
-    from tandem_data.discovery import inputs
+    import orbit_data.parallel as parallel
+    from orbit_data.discovery import inputs
 
     root = dict(_sources(tmp_path))["claude_code"]
     target = sorted(root.rglob("*.jsonl"))[1]

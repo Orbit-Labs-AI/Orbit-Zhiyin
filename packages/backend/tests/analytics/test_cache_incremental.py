@@ -6,12 +6,12 @@ import sqlite3
 import pytest
 from cache_fixtures import build_home, normalized, reingest, write_session
 
-from tandem_backend.analytics import cache as cache_module
-from tandem_backend.analytics.cache import AnalysisCache, clear_memory_cache
-from tandem_backend.analytics.context import AnalysisContext
-from tandem_backend.analytics.history import history_for, recorded
-from tandem_backend.analytics.inputs import Scope
-from tandem_backend.analytics.service import (
+from orbit_backend.analytics import cache as cache_module
+from orbit_backend.analytics.cache import AnalysisCache, clear_memory_cache
+from orbit_backend.analytics.context import AnalysisContext
+from orbit_backend.analytics.history import history_for, recorded
+from orbit_backend.analytics.inputs import Scope
+from orbit_backend.analytics.service import (
     ROW_STATS,
     SECTIONS,
     _row_sessions,
@@ -19,7 +19,7 @@ from tandem_backend.analytics.service import (
     analyze_store,
     compute_row_cores,
 )
-from tandem_backend.data_access.store import CanonicalStore
+from orbit_backend.data_access.store import CanonicalStore
 
 
 def reference(store, scope, with_text):
@@ -110,7 +110,7 @@ def test_parallel_chunks_equal_serial_rows(tmp_path, monkeypatch):
     bundle = store.analysis_bundle(Scope())
     context = AnalysisContext.select(bundle, Scope())
     sids = [s["session_uid"] for s in _row_sessions(context)]
-    monkeypatch.setattr("tandem_backend.analytics.service.PARALLEL_CHUNK", 4)
+    monkeypatch.setattr("orbit_backend.analytics.service.PARALLEL_CHUNK", 4)
     before = ROW_STATS["parallel_chunks"]
     parallel = compute_row_cores(context, sids, parallel=True)
     assert ROW_STATS["parallel_chunks"] - before == 3  # really ran in worker processes
@@ -142,7 +142,7 @@ def test_version_and_fingerprint_changes_invalidate(tmp_path, monkeypatch):
     assert cache.sections(Scope(), ["overview"])["freshness"]["cache_hit"] is True
 
     # Moving one event to a new rowid (same count, same seq) invalidates exactly its tree.
-    connection = sqlite3.connect(home / "tandem.db")
+    connection = sqlite3.connect(home / "orbit.db")
     connection.execute("PRAGMA foreign_keys=OFF")
     rowid = connection.execute("SELECT max(rowid) FROM event").fetchone()[0]
     connection.execute("UPDATE event SET rowid=? WHERE rowid=?", (rowid + 100, rowid))
@@ -153,7 +153,7 @@ def test_version_and_fingerprint_changes_invalidate(tmp_path, monkeypatch):
     assert moved["freshness"]["rows"] == {"computed": 1, "reused": 5}
     assert moved["freshness"]["input_fp"] != base["freshness"]["input_fp"]
 
-    monkeypatch.setattr("tandem_backend.analytics.FEATURE_VERSION", "feature-test-bump")
+    monkeypatch.setattr("orbit_backend.analytics.FEATURE_VERSION", "feature-test-bump")
     bumped = cache.sections(Scope(), ["overview"])
     assert bumped["freshness"]["cache_hit"] is False
     assert bumped["freshness"]["rows"] == {"computed": 6, "reused": 0}
@@ -162,9 +162,9 @@ def test_version_and_fingerprint_changes_invalidate(tmp_path, monkeypatch):
 
     # Taxonomy and preference rule versions enter analysis_digest, so they key the cache too.
     for target in (
-        "tandem_backend.analytics.task.taxonomy.TAXONOMY_VERSION",
-        "tandem_backend.analytics.preference.PREFERENCE_VERSION",
-        "tandem_backend.analytics.preference.PREFERENCE_EVIDENCE_VERSION",
+        "orbit_backend.analytics.task.taxonomy.TAXONOMY_VERSION",
+        "orbit_backend.analytics.preference.PREFERENCE_VERSION",
+        "orbit_backend.analytics.preference.PREFERENCE_EVIDENCE_VERSION",
     ):
         monkeypatch.setattr(target, "rule-test-bump")
         retuned = cache.sections(Scope(), ["overview"])
@@ -172,7 +172,7 @@ def test_version_and_fingerprint_changes_invalidate(tmp_path, monkeypatch):
         assert retuned["freshness"]["algo_version"] != base["freshness"]["algo_version"], target
         monkeypatch.undo()
 
-    from tandem_backend.analytics.products.contracts import RULE_VERSIONS
+    from orbit_backend.analytics.products.contracts import RULE_VERSIONS
 
     monkeypatch.setitem(RULE_VERSIONS, "task", "task-test-bump")
     ruled = cache.sections(Scope(), ["overview"])
@@ -260,7 +260,7 @@ def test_tampered_section_is_reported_not_recomputed(tmp_path):
 
 
 def test_legacy_stores_are_not_cached(tmp_path):
-    from tandem_backend.store import Store
+    from orbit_backend.store import Store
 
     store = Store(tmp_path / "legacy.sqlite")
     assert not cache_module.supports_cache(store)
@@ -308,12 +308,12 @@ def test_large_sections_only_point_at_the_section_cache_in_the_run_snapshot(
 
 
 def test_large_selections_skip_the_process_pool(monkeypatch):
-    from tandem_backend.analytics import service
+    from orbit_backend.analytics import service
 
     monkeypatch.setattr(service, "_max_workers", lambda: 4)
     assert service._wants_parallel(500, None, 10_000) is True
     assert service._wants_parallel(500, None, service.PARALLEL_MAX_EVENTS + 1) is False
-    monkeypatch.setenv("TANDEM_ANALYSIS_PARALLEL_MAX_EVENTS", "1000000")
+    monkeypatch.setenv("ORBIT_ANALYSIS_PARALLEL_MAX_EVENTS", "1000000")
     assert service._wants_parallel(500, None, service.PARALLEL_MAX_EVENTS + 1) is True
     assert service._wants_parallel(500, True, 10**9) is True  # explicit request wins
 
@@ -321,17 +321,17 @@ def test_large_selections_skip_the_process_pool(monkeypatch):
 @pytest.mark.parametrize(
     ("target", "method"),
     [
-        ("tandem_backend.analytics.work_graph.index.WORK_GRAPH_VERSION", "work_graph"),
-        ("tandem_backend.analytics.presentation.PRESENTATION_VERSION", "presentation"),
-        ("tandem_backend.analytics.presentation.diagnostics.RULE_VERSION", "presentation_diagnostics"),
-        ("tandem_backend.analytics.recommendations.policy.ALGORITHM_VERSION", "bottleneck_recommendations"),
-        ("tandem_backend.recommend.contracts.RESULT_VERSION", "recommendation_pipeline"),
+        ("orbit_backend.analytics.work_graph.index.WORK_GRAPH_VERSION", "work_graph"),
+        ("orbit_backend.analytics.presentation.PRESENTATION_VERSION", "presentation"),
+        ("orbit_backend.analytics.presentation.diagnostics.RULE_VERSION", "presentation_diagnostics"),
+        ("orbit_backend.analytics.recommendations.policy.ALGORITHM_VERSION", "bottleneck_recommendations"),
+        ("orbit_backend.recommend.contracts.RESULT_VERSION", "recommendation_pipeline"),
     ],
 )
 def test_downstream_rule_versions_invalidate_every_key(monkeypatch, target, method):
     """Bumping a work-graph / presentation / recommendation version must change both keys."""
-    from tandem_backend.analytics.products.contracts import rule_versions
-    from tandem_backend.services import sections
+    from orbit_backend.analytics.products.contracts import rule_versions
+    from orbit_backend.services import sections
 
     monkeypatch.setattr(sections, "_RULES", None)
     algo, rules = cache_module.algo_version(), sections.rules_digest()
@@ -344,8 +344,8 @@ def test_downstream_rule_versions_invalidate_every_key(monkeypatch, target, meth
 
 
 def test_analysis_methods_report_downstream_versions(tmp_path):
-    from tandem_backend.analytics.presentation import PRESENTATION_VERSION
-    from tandem_backend.analytics.work_graph import WORK_GRAPH_VERSION
+    from orbit_backend.analytics.presentation import PRESENTATION_VERSION
+    from orbit_backend.analytics.work_graph import WORK_GRAPH_VERSION
 
     home, _ = build_home(tmp_path, 2)
     methods = analyze_store(CanonicalStore(home), with_text=False)["analysis_methods"]

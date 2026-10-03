@@ -5,9 +5,9 @@ import sqlite3
 import pytest
 from test_migration_008 import LEGACY_FTS
 
-from tandem_data import SCHEMA_VERSION
-from tandem_data.contract import canonical
-from tandem_data.store import Store
+from orbit_data import SCHEMA_VERSION
+from orbit_data.contract import canonical
+from orbit_data.store import Store
 
 
 @pytest.mark.parametrize("layout", ["main_v10", "analytics_preview_v9"])
@@ -45,7 +45,7 @@ def test_fact_migrations_preserve_records_and_rebuild_native_facts(tmp_path, lay
         before_records = [tuple(row) for row in before_records]
         before_events = [tuple(row) for row in before_events]
 
-    with sqlite3.connect(home / "tandem.db") as db:
+    with sqlite3.connect(home / "orbit.db") as db:
         # Neither historical layout has the v14 cost/failure/file fields.
         db.execute("DROP TABLE tool_call_file")
         for table, column in (

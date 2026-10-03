@@ -1,7 +1,7 @@
 // Screenshot every page at several window sizes for visual review (not a test).
 //   node tools/shoot.mjs [--html file] [--out dir] [--sizes mac-14,small] [--routes overview,sessions]
 //                        [--theme light|dark] [--ed lite|advance] [--full]
-// Writes <out>/<size>-<theme>-<route>.png. Default html is ../tandem-demo.html, default out is ../shots.
+// Writes <out>/<size>-<theme>-<route>.png. Default html is ../orbit-demo.html, default out is ../shots.
 // Sizes are the Playwright projects in playwright.config.mjs; routes default to every page the demo defines.
 import { chromium } from '@playwright/test';
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const SIZES = Object.fromEntries(config.projects.map((p) => [p.name, p.use]));
 
-const html = path.resolve(opt('--html', path.join(here, '..', 'tandem-demo.html')));
+const html = path.resolve(opt('--html', path.join(here, '..', 'orbit-demo.html')));
 const out = path.resolve(opt('--out', path.join(here, '..', 'shots')));
 const sizes = opt('--sizes', 'mac-14').split(',');
 const unknown = sizes.filter((s) => !SIZES[s]);

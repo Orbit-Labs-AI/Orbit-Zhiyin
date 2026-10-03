@@ -4,10 +4,10 @@
 import json
 from pathlib import Path
 
-from tandem_data.inventory import InventoryRequest, read_inventory, scan_inventory
-from tandem_data.store import Store
+from orbit_data.inventory import InventoryRequest, read_inventory, scan_inventory
+from orbit_data.store import Store
 
-from tandem_backend.services.worker_ingest import inventory_request
+from orbit_backend.services.worker_ingest import inventory_request
 
 
 def write(root: Path, rel: str, value) -> Path:
@@ -70,7 +70,7 @@ def test_second_account_and_data_home_are_never_authorized(tmp_path):
     home = tmp_path / "home"
     root = home / ".claude-work"
     write(root, ".claude.json", {"mcpServers": {"work-mcp": {}}})
-    data = home / "tandem-data"
+    data = home / "orbit-data"
     data.mkdir(parents=True)
     (root / "home-link").symlink_to(home)
     (root / "data-link").symlink_to(data)

@@ -8,11 +8,11 @@ import time
 import pytest
 from ai_support import answer_task
 
-from tandem_backend.ai import AIUnavailable
-from tandem_backend.ai.engines import EngineResult
-from tandem_backend.ai.errors import AIError
-from tandem_backend.ai.runner import now_ms
-from tandem_backend.ai.service import AIService
+from orbit_backend.ai import AIUnavailable
+from orbit_backend.ai.engines import EngineResult
+from orbit_backend.ai.errors import AIError
+from orbit_backend.ai.runner import now_ms
+from orbit_backend.ai.service import AIService
 
 
 def wait_done(svc, job_id: str, timeout: float = 5.0) -> dict:
@@ -147,7 +147,7 @@ def artifact_task(task_id: str) -> dict:
         return {"status": "ok", "result": output, "facets": [
             {"session_uid": "s1", "content_hash": "h1", "prompt_version": "facet@1.1",
              "schema_version": "1.1", "status": "ok", "json": {"goal": "x"}}],
-            "artifact": {"kind": "rule", "template_id": "rules/paragraph@1", "name": "r1",
+            "artifact": {"kind": "rule", "template_id": "rules/paragraph@2", "name": "r1",
                          "payload": {"text": "always run tests"},
                          "files": [{"path": "CLAUDE.md", "lines": [["+", "always run tests"]]}],
                          "checks": {"lint": {"status": "ok"}}, "personalized": True}}
@@ -215,7 +215,7 @@ def test_usage_summary(ai_svc):
 
 
 def test_job_reports_telemetry_and_notifies(ai_svc, monkeypatch):
-    from tandem_backend import platform
+    from orbit_backend import platform
 
     metrics, notes = [], []
     monkeypatch.setattr(platform, "record", lambda name, value=1.0, **tags:

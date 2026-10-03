@@ -6,8 +6,8 @@ confidence = coverage * min(1, n / target_n), recurrence = min(1, count / (3 * m
 
 import pytest
 
-from tandem_backend.analytics.recommendations.policy import RecommendationPolicy
-from tandem_backend.analytics.recommendations.rules import evaluate_features
+from orbit_backend.analytics.recommendations.policy import RecommendationPolicy
+from orbit_backend.analytics.recommendations.rules import evaluate_features
 
 CONTEXT = {"root_session_uid": "s"}
 

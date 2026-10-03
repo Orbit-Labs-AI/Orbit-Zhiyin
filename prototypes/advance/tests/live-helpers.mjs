@@ -1,12 +1,12 @@
 // Live-mode test harness shared by every live-<slice>.spec.mjs (owned by slice 0).
 //   const gw = await stubGateway(page, 'core');                    // prototypes/shared/fixtures/core/routes.json
 //   const gw = await stubGateway(page, ['core', 'tools'], { 'GET /v1/uiview/tools': { status: 404 } });
-//   await openLive(page, 'tools');                                 // http://tandem.test/app?live=1#tools
+//   await openLive(page, 'tools');                                 // http://orbit.test/app?live=1#tools
 // Fixture map values: a file name (in the fixture folder), a JSON body, {status, body, headers, delay}, or (req, url) => one of those.
 // gw.set(key, value) swaps an answer mid-test, gw.push(frames) queues SSE frames for the next /v1/events connection,
 // gw.seen lists every request ({method, path, query, auth}).
-// LIVE_GATEWAY=http://127.0.0.1:<port> TANDEM_TOKEN=<token> switches /v1/* to a pass-through proxy (no CORS: the page still
-// runs on http://tandem.test); /v1/events then answers an empty stream so the test never hangs on a live SSE connection.
+// LIVE_GATEWAY=http://127.0.0.1:<port> ORBIT_TOKEN=<token> switches /v1/* to a pass-through proxy (no CORS: the page still
+// runs on http://orbit.test); /v1/events then answers an empty stream so the test never hangs on a live SSE connection.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,8 +15,8 @@ import { expect } from '@playwright/test';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, '..', '..');
 export const FIXTURES = path.join(ROOT, 'shared', 'fixtures');
-export const ADV_FILE = path.join(ROOT, 'advance', 'tandem-demo.html');
-export const ORIGIN = 'http://tandem.test';
+export const ADV_FILE = path.join(ROOT, 'advance', 'orbit-demo.html');
+export const ORIGIN = 'http://orbit.test';
 export const PASS = process.env.LIVE_GATEWAY ? process.env.LIVE_GATEWAY.replace(/\/+$/, '') : null;
 export const fx = (rel) => JSON.parse(fs.readFileSync(path.join(FIXTURES, rel), 'utf8'));
 export const sseText = (frames) => frames.map((f, i) => 'id: ' + (f.id != null ? f.id : i + 1) + '\nevent: ' + f.event + '\ndata: ' + JSON.stringify(f.data || {}) + '\n\n').join('');
@@ -38,18 +38,18 @@ export async function stubGateway(page, dirs, extra, opts) {
   state.set = (k, v) => { map[k] = v; };
   state.push = (frames) => { state.queue.push(frames); };
   state.count = (p) => state.seen.filter((x) => x.path === p).length;
-  const token = opts.token || process.env.TANDEM_TOKEN || 'test-token';
+  const token = opts.token || process.env.ORBIT_TOKEN || 'test-token';
   await page.addInitScript(([o, t, nat]) => {
-    window.__TANDEM_ENDPOINT__ = o; window.__TANDEM_TOKEN__ = t;
+    window.__ORBIT_ENDPOINT__ = o; window.__ORBIT_TOKEN__ = t;
     if (nat) {
       window.__ORBIT_NATIVE__ = nat;
       window.__nativeMsgs = []; window.__dragRegions = [];
       // dragRegions (23-native-drag.js) is a layout report, kept apart so the op / reply assertions see only bridge calls
-      window.webkit = { messageHandlers: { tandem: { postMessage: (m) => (m && m.type === 'dragRegions' ? window.__dragRegions : window.__nativeMsgs).push(JSON.parse(JSON.stringify(m))) } } };
+      window.webkit = { messageHandlers: { orbit: { postMessage: (m) => (m && m.type === 'dragRegions' ? window.__dragRegions : window.__nativeMsgs).push(JSON.parse(JSON.stringify(m))) } } };
     }
   }, [ORIGIN, token, opts.native || null]);
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  await page.route(/^http:\/\/tandem\.test\//, async (route) => {
+  await page.route(/^http:\/\/orbit\.test\//, async (route) => {
     const req = route.request(); const u = new URL(req.url());
     state.seen.push({ method: req.method(), path: u.pathname, query: u.search, auth: req.headers().authorization || null });
     if (u.pathname === '/app' || u.pathname === '/app/') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(ADV_FILE, 'utf8') });

@@ -4,12 +4,12 @@ import json
 
 from fastapi.testclient import TestClient
 
-from tandem_backend.analytics.history import history_for
-from tandem_backend.analytics.products import analyze_product_store
-from tandem_backend.api import create_app
-from tandem_backend.cli import demo_home, main
-from tandem_backend.data_access.ingest import ingest
-from tandem_backend.data_access.store import CanonicalStore
+from orbit_backend.analytics.history import history_for
+from orbit_backend.analytics.products import analyze_product_store
+from orbit_backend.api import create_app
+from orbit_backend.cli import demo_home, main
+from orbit_backend.data_access.ingest import ingest
+from orbit_backend.data_access.store import CanonicalStore
 
 
 def test_api_stores_successes_failures_and_complete_vocabulary(tmp_path):
@@ -68,8 +68,8 @@ def test_repeat_compare_and_cli_history_preserve_earlier_results(tmp_path):
 
 
 def test_previous_window_report_and_history_include_complete_baseline(tmp_path):
-    from tandem_backend.analytics.inputs import Scope
-    from tandem_backend.analytics.products.render import html_report, terminal_report
+    from orbit_backend.analytics.inputs import Scope
+    from orbit_backend.analytics.products.render import html_report, terminal_report
 
     home = tmp_path / "data"
     ingest(home, "codex", demo_home(tmp_path / "source"))
@@ -88,7 +88,7 @@ def test_previous_window_report_and_history_include_complete_baseline(tmp_path):
 
 
 def test_bounded_report_snapshot_retains_persistent_history(tmp_path):
-    from tandem_backend.profiling.analysis import analyze
+    from orbit_backend.profiling.analysis import analyze
 
     home = tmp_path / "data"
     ingest(home, "codex", demo_home(tmp_path / "source"))

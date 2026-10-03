@@ -2,9 +2,9 @@
 
 from fastapi.testclient import TestClient
 
-from tandem_catalog.api import create_catalog_app
-from tandem_catalog.contracts import Record, Resource
-from tandem_catalog.service import CatalogService
+from orbit_catalog.api import create_catalog_app
+from orbit_catalog.contracts import Record, Resource
+from orbit_catalog.service import CatalogService
 
 from .test_storage import publish
 
@@ -19,7 +19,7 @@ def make(tmp_path):
         Record(native_id="h", resource=Resource(item_id="hook:x", type="hook", name="x hooks", url="https://x/h",
                                                 manifest=HOOKS, body="secret body")),
         Record(native_id="s", resource=Resource(item_id="skill:y", type="skill", name="y", url="https://y")),
-    ], source="tandem-seeds")
+    ], source="orbit-seeds")
     return service
 
 

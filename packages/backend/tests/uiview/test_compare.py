@@ -2,7 +2,7 @@ from datetime import UTC
 
 import pytest
 
-from tandem_backend.uiview import compare, sessions, trajectory
+from orbit_backend.uiview import compare, sessions, trajectory
 
 from .l1_builder import *  # noqa: F403 - pytest fixtures
 from .l1_builder import DAY, MIN, T0, codex_unknown, handwritten_cc

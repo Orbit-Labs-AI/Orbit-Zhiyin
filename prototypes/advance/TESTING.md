@@ -80,6 +80,22 @@ A1 概览 + A2 协作人格（分支 ui/p-overview-persona）。每个用例从�
  8 fit        契合度条有 95% 区间；停用来源的 Agent 不可点、点击 soloAgent 不改筛选（BUG-49）
  9 low-sample 样本不足时列出「移除后 n≈」的放宽芯片并可一键放宽（A2-V08）；全部来源停用时给「打开设置 · 数据源」（BUG-50）
 
+### p-pane-scroll.spec.mjs（2 个用例）
+
+窗格独立滚动（styles/88-panes.css + js/88-panes.js）：主从分栏并排时各窗格自己滚，页面不滚；堆叠时退回整页滚动。
+流程：
+  1. mac-14：会话与轨迹、优化建议、生成工坊、导出分享卡里，对每个窗格滚动滚轮 → 只有它动，其他窗格与 #content 不动；
+     从别页进入会话页时，列表里靠后的选中行在列表窗格内可见，#content 不滚。
+  2. 全部尺寸：内容列够宽（≥ 800px）时会话页进入窗格模式且 #content 不溢出，否则整页滚动。
+
+### p-share.spec.mjs（2 个用例）
+
+分享卡（src/js/55-exports.js）：每个时间长度一张卡，卡上的人格就是该窗口算出的人格；预览（SVG）与 PNG 共用一份绘制指令。
+流程（mac-14，示例数据）：
+  1. openShare() 列出 近 7 / 30 / 90 天与全部；点每一行，预览换成那个窗口的类型码与标签（周卡 / 月卡 / 季卡 / 全时卡）；
+     Lite 的「导出分享卡」打开同一个弹窗
+  2. sharePNG 是 1080 × 1350，画出的文字与 SVG 预览完全相同；页眉是 Orbit·知音 字标，类型码用 --font-type
+
 ### p-recs-library.spec.mjs（8 个用例）
 
 A7 优化建议 + A8 资源库 + 安装闭环（branch ui/p-recs-library）。
@@ -187,7 +203,7 @@ Flow per test:
                      hangs 52px under the window top; Return triggers the default button, Esc closes.
  8. shortcuts        ⌥2 → persona, ⌘K → palette, ⌥0 restores a closed window; menu labels match the bindings.
  9. page hook/event  PAGES[route].keys(e) returning true consumes the key, false lets globals run; toggling the sidebar
-                     dispatches window 'tandem:layout' with {win, side, main}.
+                     dispatches window 'orbit:layout' with {win, side, main}.
 10. dark contrast    selected sidebar row vs sidebar ≥ 1.3; window / sidebar / card pairwise ≥ 1.15 in dark mode.
 11. overflow         no horizontal overflow (document, #main, #win inside the viewport) with the sidebar shown / hidden,
                      zoomed and in full screen, on three representative pages.

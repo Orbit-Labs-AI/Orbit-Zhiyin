@@ -14,7 +14,7 @@
     }
   },
   "meta": {
-    "contract": "tandem-app-v1",
+    "contract": "orbit-app-v1",
     "scope_hash": "sha256:fx-overview",
     "data_rev": 42,
     "rules_version": "rules-fx",

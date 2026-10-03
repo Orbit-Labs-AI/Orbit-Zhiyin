@@ -12,8 +12,8 @@
 
 | 输入来源 | 谁生成 | 给分析模块什么 | 什么时候需要 |
 | --- | --- | --- | --- |
-| `tandem.db` 的 L3 | 采集与标准化模块从 L2 派生 | `project`、`session`、`turn`、`tool_call`、`model_call`、`session_feature`、`link` | 基础统计、项目与模型比较、工具和协作过程分析 |
-| `tandem.db` 的 L2 `event` | 各 Agent 连接器标准化、合并、去重 | 按会话排序的标准事件、正文、结构化属性和追溯 ID | 需求与反馈、语义分析、过程重建、证据下钻 |
+| `orbit.db` 的 L3 | 采集与标准化模块从 L2 派生 | `project`、`session`、`turn`、`tool_call`、`model_call`、`session_feature`、`link` | 基础统计、项目与模型比较、工具和协作过程分析 |
+| `orbit.db` 的 L2 `event` | 各 Agent 连接器标准化、合并、去重 | 按会话排序的标准事件、正文、结构化属性和追溯 ID | 需求与反馈、语义分析、过程重建、证据下钻 |
 | `source`、`source_file`、L1 `raw_record` | 发现、增量读取与记账 | 来源身份、采集覆盖、解析异常、原始记录位置 | 判断样本边界和数据质量；按证据定位原文 |
 | L0 `raw/` 与附件归档 | 采集模块归档原始字节 | 截断文本的全文、原生结构、历史文件代次 | L2 不足时按 ID 局部读取；不作为每次分析的全量输入 |
 | `inventory_item` | 本机配置扫描 | 已安装并启用的 Skill、MCP、Hook、规则、插件及作用域 | 判断「已装、启用、观察到使用」各自的含义 |
@@ -534,7 +534,7 @@ token 的统一计算口径：
 | --- | --- | --- |
 | [数据获取与标准化方案，`f377366`](https://github.com/ActionMesh-AI/Hackathon/blob/f3773669f95f90ba88576e0e06b29c71d11091a4/docs/plan/data-acquisition.md)（[PR #6](https://github.com/ActionMesh-AI/Hackathon/pull/6)） | L2 身份、可空时间、usage 粒度、L3 基础表与 Catalog 的目标设计 | DDL 是草图，不表示全量实现；本文使用它的字段含义，补充分析入口的消费要求 |
 | [连接器 DDL，`d3351bb`](https://github.com/ActionMesh-AI/Hackathon/blob/d3351bb5559ccf079cb68e636d18f3b14b2229fc/packages/connectors/schema/001.sql) 与 [事件 Schema](https://github.com/ActionMesh-AI/Hackathon/blob/d3351bb5559ccf079cb68e636d18f3b14b2229fc/packages/connectors/schema/events.schema.json) | 已建立本地归档、记账、数据库和 Schema 基础；该提交尚未提供具体 Agent 解析器 | `event.ts` 仍必填且无 `event_path`；严格 attrs 尚未接入统一 time 和 usage scope；缺部分会话/工具质量字段、目录和基础特征表。不能在旧 Schema 下直接写入本文扩展字段 |
-| [分析后端数据类型，`b996c79`](https://github.com/ActionMesh-AI/Hackathon/blob/b996c79b46605ce0181e4437c78de732ad01389d/src/tandem_backend/models.py) 与 [存储](https://github.com/ActionMesh-AI/Hackathon/blob/b996c79b46605ce0181e4437c78de732ad01389d/src/tandem_backend/store.py)（[PR #5](https://github.com/ActionMesh-AI/Hackathon/pull/5)） | 已用 Codex 日志生成分析原型，采用自己的 `sessions/events` 与消息附加数据 | 表名、ID、事件类型、ISO 时间和目标 L2/L3 不同，尚未直接消费 `tandem.db`。现有 cwd 项目与事件模型筛选也不能直接替代仓库级项目和逐次模型口径 |
+| [分析后端数据类型，`b996c79`](https://github.com/ActionMesh-AI/Hackathon/blob/b996c79b46605ce0181e4437c78de732ad01389d/src/tandem_backend/models.py) 与 [存储](https://github.com/ActionMesh-AI/Hackathon/blob/b996c79b46605ce0181e4437c78de732ad01389d/src/tandem_backend/store.py)（[PR #5](https://github.com/ActionMesh-AI/Hackathon/pull/5)） | 已用 Codex 日志生成分析原型，采用自己的 `sessions/events` 与消息附加数据 | 表名、ID、事件类型、ISO 时间和目标 L2/L3 不同，尚未直接消费 `orbit.db`。现有 cwd 项目与事件模型筛选也不能直接替代仓库级项目和逐次模型口径 |
 | [后端导入器](https://github.com/ActionMesh-AI/Hackathon/blob/b996c79b46605ce0181e4437c78de732ad01389d/src/tandem_backend/importers/codex.py)、[画像说明](https://github.com/ActionMesh-AI/Hackathon/blob/b996c79b46605ce0181e4437c78de732ad01389d/docs/backend/profiling.md)、[过程架构](https://github.com/ActionMesh-AI/Hackathon/blob/b996c79b46605ce0181e4437c78de732ad01389d/docs/backend/architecture.md) | 已有镜像核对、问答回执、参数摘要、状态范围、完整篇幅测量与样本隔离等逻辑 | 接入统一表时保留这些信息和边界；旧原型只排除部分非用户来源，不能替代目标契约的全部来源分类。累计 token 也不能直接当 `model_call` |
 
 建议先接通「范围与覆盖 + 主会话 + 真人消息 + 回复 + 配对工具」的最小输入，保持原型已有的证据与隔离能力；再按实际数据层进度接入逐次模型、快照、基础特征、安装清单与 Catalog。分析开发者可先用本文的虚构对象和自己的构造案例实现输入消费，来源尚不支持的能力明确返回未知。具体算法和模块范围仍沿用团队确认，不因某个字段出现在本文就扩大 MVP。

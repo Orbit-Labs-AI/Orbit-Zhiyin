@@ -1,6 +1,6 @@
 import pytest
 
-from tandem_catalog.models import (
+from orbit_catalog.models import (
     canonical_model_id,
     normalize_effort,
     resolve_benchmark_model,
@@ -93,13 +93,13 @@ def test_resolve_benchmark_model(display, expected):
 # --- risk.py: static estimate --------------------------------------------------------------------
 
 def _skill(body="", policy="licensed", **kwargs):
-    from tandem_catalog.contracts import Resource
+    from orbit_catalog.contracts import Resource
     return Resource(item_id="r", type=kwargs.pop("type", "skill"), name="r", url="https://example.org",
                     body=body, body_policy=policy, **kwargs)
 
 
 def test_metadata_only_without_commands_is_unknown_not_safe():
-    from tandem_catalog.risk import scan
+    from orbit_catalog.risk import scan
     result = scan(_skill(policy="metadata"))
     assert result["verdict"] == "unknown" and "body_not_read" in result["reasons"]
     assert scan(_skill("# Notes\nPlain advice only."))["verdict"] == "safe"
@@ -113,7 +113,7 @@ def test_metadata_only_without_commands_is_unknown_not_safe():
     ("````sh\n```\ngit push --force\n````\n", "destructive"),           # longer fence holds ``` inside
 ])
 def test_code_blocks_of_every_markdown_form_are_scanned(body, flag):
-    from tandem_catalog.risk import assess
+    from orbit_catalog.risk import assess
     assert flag in assess(_skill(body))[0]
 
 
@@ -124,13 +124,13 @@ def test_code_blocks_of_every_markdown_form_are_scanned(body, flag):
     "A paragraph line\n    rm -rf continues the paragraph, not a code block",
 ])
 def test_prose_warnings_and_comments_are_not_destructive(body):
-    from tandem_catalog.risk import assess, scan
+    from orbit_catalog.risk import assess, scan
     flags, _ = assess(_skill(body))
     assert "destructive" not in flags
     assert scan(_skill(body))["verdict"] != "dangerous"
 
 
 def test_declared_hook_command_is_dangerous():
-    from tandem_catalog.risk import scan
+    from orbit_catalog.risk import scan
     hook = _skill(policy="metadata", type="hook", install={"hook": {"event": "Stop", "command": "rm -rf .cache"}})
     assert scan(hook)["verdict"] == "dangerous"

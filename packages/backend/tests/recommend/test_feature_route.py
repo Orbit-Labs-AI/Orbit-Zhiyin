@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 from test_recall_multi import READONLY, make
 
-from tandem_backend.recommend.recall import feature_route
-from tandem_backend.recommend.recall.multi import recall_all
+from orbit_backend.recommend.recall import feature_route
+from orbit_backend.recommend.recall.multi import recall_all
 
 
 class FakeStore:
@@ -110,7 +110,7 @@ def _cand(i, plugin, basis="profile", kind="rule"):
 
 
 def test_one_plugin_family_never_fills_the_slate():
-    from tandem_backend.recommend.ranking import hygiene, slate
+    from orbit_backend.recommend.ranking import hygiene, slate
 
     assert hygiene.family(_cand(0, "bio")) == "github.com:42:plugins/bio"
     assert hygiene.family({"source": {"origin": "kb", "item_id": "x"}}) is None

@@ -1,4 +1,4 @@
-/* ============ live binding: status strip + endpoint wiring (TandemLive, js/06-live-client.js; core in 90-live-core.js) ============
+/* ============ live binding: status strip + endpoint wiring (OrbitLive, js/06-live-client.js; core in 90-live-core.js) ============
    Mock mode (file://, opened on its own) changes nothing. Live mode keeps every polished page: 90-live-core hydrates the
    demo globals from /v1/uiview/facts and page feeds (LV.feed) overwrite page constants right before each render. This file
    only puts the status strip (import progress, service banner, connecting / computing / stale / failed badge) at the top of
@@ -103,7 +103,7 @@ if (LV.live) {
     TL.invalidate((r) => r === TL.statusResource());
     TL.ensureStatus().catch(() => { /* the strip keeps the last status */ });
   }, 20000);
-  const baseRender = render, baseSide = renderSide;
+  const baseRender = render;
   render = function () {
     LV.pump(S.route);
     baseRender();
@@ -112,10 +112,14 @@ if (LV.live) {
     const strip = lvStrip(S.route);
     if (strip) c.insertAdjacentHTML('afterbegin', strip);
   };
-  renderSide = function () {
-    baseSide();
-    const el = $('#side') && $('#side').querySelector('.sb-foot .pv .row.cap span');
-    if (el) el.textContent = LV.state === 'connecting' ? (TL.error ? '本机服务未连接' : '正在连接本机服务') : '已索引 ' + fmt(ALL.length) + ' 个会话 · 本机服务';
+  // sidebar indicator, in order: gateway unreachable / connecting, collection paused, spine read failed, computing; once ready
+  // the index mode — S.paused / S.index mirror the gateway's collection.paused and settings.sync_mode (97-live-studio-settings)
+  sideIdx = function () {
+    if (LV.state === 'connecting') return TL.error ? { st: 'err', n: null, t: '本机服务未连接' } : { st: 'busy', n: null, t: '正在连接本机服务' };
+    if (S.paused) return sideMode(null);   // the gateway answered collection.paused; nothing is being indexed
+    if (LV.state === 'error') return { st: 'err', n: ALL.length || null, t: '数据读取失败' };
+    if (LV.state === 'computing') return { st: 'busy', n: ALL.length || null, t: '索引中' };
+    return sideMode(ALL.length);
   };
   TL.start();
 }

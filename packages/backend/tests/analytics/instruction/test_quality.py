@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.analytics.instruction import extract_instruction_constraints
+from orbit_backend.analytics.instruction import extract_instruction_constraints
 
 CASES = json.loads((Path(__file__).parents[2] / "fixtures" / "instruction-quality.json").read_text())
 
@@ -67,7 +67,7 @@ SUBJECTIVE = [c for c in json.loads(
 
 def test_short_acknowledgements_are_accepted_only_without_follow_up_request():
     """Explicit-feedback recall for closing acknowledgements (audit B10) with precision on negatives."""
-    from tandem_backend.analytics.outcome_subjective.extraction import classify_feedback
+    from orbit_backend.analytics.outcome_subjective.extraction import classify_feedback
 
     positives = [c for c in SUBJECTIVE if c["expected"]]
     negatives = [c for c in SUBJECTIVE if not c["expected"]]

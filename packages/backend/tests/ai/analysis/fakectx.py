@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import jsonschema
 
-from tandem_backend.ai.tasks_analysis import CallFailed
+from orbit_backend.ai.tasks_analysis import CallFailed
 
 DAY = 86_400_000
 NOW = 1_790_000_000_000  # fixed "now" (ms) so windows are deterministic

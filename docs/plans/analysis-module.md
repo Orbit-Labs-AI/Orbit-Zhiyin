@@ -2,9 +2,9 @@
 
 > 状态：方案（不等同当前能力） · 维护者 `yhyfhgs` · 核对版本 main `0c96334` · 适用：Advance / Lite（另注明处除外）
 
-> 版本：2026-10-02 第 2 版（按评审意见修订）。依据：**origin/main `6f31203`**（PR #28 结构迁移之后；后端算法与 PR #19 合入时相同，只是目录搬到 `packages/backend/src/tandem_backend/`）。已合入 main：PR #9 / #14（`packages/data`，tandem-session-v1，`migrations/001–004.sql`，`user_version = 4`，`contract.KINDS` 26 种）、PR #11（`packages/connectors`，Codex TypeScript connector，事件 Schema 25 种、缺 `permission.request`，35 项构造回归）、PR #12 / #15（Lite Demo 与 Lite / Advance 命名）、PR #13 / #16 / #17（`MistyHuang03`，`analytics/{task,preference,instruction,outcome_subjective}`）、PR #19 / #24（`genius-FXC`，`analytics/{respond,interaction,cost_time,outcome}`，`bottleneck-features-v1`）、PR #26 / #29（推荐与 catalog）、PR #30（`docs/plans/analysis-review.md`，八族职责与两版 UI 缺口）。未合入：PR #27 `feat/feature-display-metrics`（`genius-FXC`，`analytics/presentation/`，`presentation-v1`）、PR #31 `feat/local-inventory`（`yhyfhgs`，DT-09 七个 Agent 的安装清单扫描）、PR #32 `feat/analytics-products`（`yhyfhgs`，`analytics/products/`，`analysis-products-v1`）、PR #33 `feat/data-app-integration`。模块契约 [`contract.md`](module-contract.md) 第 2 版 + 本轮评审统一结论（并入第 3 版的条目见 §11）。
+> 版本：2026-10-02 第 2 版（按评审意见修订）。依据：**origin/main `6f31203`**（PR #28 结构迁移之后；后端算法与 PR #19 合入时相同，只是目录搬到 `packages/backend/src/orbit_backend/`）。已合入 main：PR #9 / #14（`packages/data`，orbit-session-v1，`migrations/001–004.sql`，`user_version = 4`，`contract.KINDS` 26 种）、PR #11（`packages/connectors`，Codex TypeScript connector，事件 Schema 25 种、缺 `permission.request`，35 项构造回归）、PR #12 / #15（Lite Demo 与 Lite / Advance 命名）、PR #13 / #16 / #17（`MistyHuang03`，`analytics/{task,preference,instruction,outcome_subjective}`）、PR #19 / #24（`genius-FXC`，`analytics/{respond,interaction,cost_time,outcome}`，`bottleneck-features-v1`）、PR #26 / #29（推荐与 catalog）、PR #30（`docs/plans/analysis-review.md`，八族职责与两版 UI 缺口）。未合入：PR #27 `feat/feature-display-metrics`（`genius-FXC`，`analytics/presentation/`，`presentation-v1`）、PR #31 `feat/local-inventory`（`yhyfhgs`，DT-09 七个 Agent 的安装清单扫描）、PR #32 `feat/analytics-products`（`yhyfhgs`，`analytics/products/`，`analysis-products-v1`）、PR #33 `feat/data-app-integration`。模块契约 [`contract.md`](module-contract.md) 第 2 版 + 本轮评审统一结论（并入第 3 版的条目见 §11）。
 >
-> 路径对照（PR #28 之后）：`src/tandem_backend/` → `packages/backend/src/tandem_backend/`；旧链路 `feedback / bottlenecks / portrait / analysis / trajectory / content.py` → `profiling/*.py`（根级同名文件只剩兼容导出）；`api.py` → `api/routes.py`；`evaluation / pipeline_eval / reader_eval.py` → `evaluation/{readability,pipeline,reader}.py`；`docs/contracts/analysis-inputs.md` → `docs/contracts/analysis-inputs.md`；`docs/backend/*` → `docs/modules/analytics/*`、`docs/architecture/*`；Advance Demo `prototypes/advance/src` → `prototypes/advance/src`；Lite Demo → `prototypes/lite/tandem-benchmark-demo.html`（页面表 `docs/design/lite-review.md`）。配套文档 `recommendation.md`、`ai.md`、`evaluation.md` 若仍引用 `c97c818` / `f4a2cde` 与旧路径，按本表换算。
+> 路径对照（PR #28 之后）：`src/orbit_backend/` → `packages/backend/src/orbit_backend/`；旧链路 `feedback / bottlenecks / portrait / analysis / trajectory / content.py` → `profiling/*.py`（根级同名文件只剩兼容导出）；`api.py` → `api/routes.py`；`evaluation / pipeline_eval / reader_eval.py` → `evaluation/{readability,pipeline,reader}.py`；`docs/contracts/analysis-inputs.md` → `docs/contracts/analysis-inputs.md`；`docs/backend/*` → `docs/modules/analytics/*`、`docs/architecture/*`；Advance Demo `prototypes/advance/src` → `prototypes/advance/src`；Lite Demo → `prototypes/lite/orbit-benchmark-demo.html`（页面表 `docs/design/lite-review.md`）。配套文档 `recommendation.md`、`ai.md`、`evaluation.md` 若仍引用 `c97c818` / `f4a2cde` 与旧路径，按本表换算。
 >
 > 本文回答「各种 session 要分析什么」，并把每一项落到数据契约的真实列名、现有代码与 Demo 面板上。不实现算法；写清输入 → 处理 → 输出、MVP 与迭代、复杂度。标「待验证」的是需要真实数据或实测才能定的技术假设（只引契约 §7 编号，见 §12）；标「实验性」的是界面上必须如此标注的产物。成员一律用 GitHub 账号指代；版本名统一为 Lite / Advance。三张端到端功能卡（只读放行、重复失败熔断、高频纠偏 → 规则）与合并后的前端升级表在 `docs/plans/feature-map.md`，本文只写各卡的第 2 段「触发与证据」（§8）。
 
@@ -16,7 +16,7 @@
 4. **真人分母、未知保持未知、分母 < 5 不出数**（§4）。沿用 main 的保守口径：真人消息 = `v_human_message`；状态未知不当成功；缺事件不等于没发生；时间未知不进有界统计；fork / replay 副本不计数。MVP 的区间只有 Wilson（`profiling/analysis.wilson_interval` 已有）；Newcombe、Beta-Binomial、bootstrap 与响应里的 `method` 字段全部 v1。
 5. **会话结果只有一套对外口径**：AN-19 `outcome ∈ {completed, partially_completed, abandoned, unknown}`；AI-03 facet 五态经 §2.3 映射表进入，`outcome_basis` 增 `facet`；`completed_rate` 分母 = `outcome ≠ unknown`，另报 `unknown_n`。验证证据只认 `outcome.extract_validation_runs()` 的 `executed = true` 记录，只命中 `command_head` 的是 `verify_candidate`（proxy），不作 `completed` 的证据。
 6. **摩擦 → 问题 → 推荐是单向链**：检测器产 `signal`（每会话每类型最多参与一次会话级计数），AN-06 按 `(problem_type, key, scope)` 聚合，`min_sessions` 按类型（`repeated_instruction` = 2，其余 3）∧ Wilson 下界 ≥ 阈值（契约 V1）升级为 `problem`；推荐只吃 `problem`、`profile` 与 AN-11 的清单事实（§2.4、§8）。
-7. **第一件事是 AN-16**：把 PR #14 已合入的 `tandem_data.analysis_input.read_analysis()` 适配成 `AnalysisInputBundle`（`analytics/inputs.py` 的 canonical 适配器尚未闭环），用真实 `tandem.db` 重跑现有 analytics，核对 `human_origin` 覆盖（契约 V11，阻塞 MVP）。
+7. **第一件事是 AN-16**：把 PR #14 已合入的 `orbit_data.analysis_input.read_analysis()` 适配成 `AnalysisInputBundle`（`analytics/inputs.py` 的 canonical 适配器尚未闭环），用真实 `orbit.db` 重跑现有 analytics，核对 `human_origin` 覆盖（契约 V11，阻塞 MVP）。
 8. **计算管线 = 会话行物化 + section 缓存**（§5，负责人已决定，替代原「查询现算、不建缓存」）：会话行按根会话树指纹物化到 `analysis.sqlite` 的 `session_result`，各端点 section 按 `(request_key, input_fp)` 缓存，只重算变化的会话树；`signal / problem` 用确定性 ID（`stable_id(session_uid, kind, event_uid)`、`stable_id(type, key, scope, scope_id)`），`problem` 的 `resolved / dismissed` 写 `label`，section 先查进程内 LRU、再查 `analysis_section`；`analysis.db` 在 MVP 只存用户状态（`candidate / label / install_ledger / tracking`）。性能预算：100k 事件冷算 ≤ 10 s（首次导入后带 `analysis_run` 进度）、热查询 ≤ 1 s（契约 V4，阻塞 MVP）；审计实测 10 万事件冷算 40.9 s，不满足原「查询现算」的前提，因此会话行物化与 section 缓存提前到 MVP（[审计](../audits/analysis-audit.md) §3.3）。
 9. **目录不再搬**：八族（`task / instruction / preference / interaction / respond / cost_time / outcome / outcome_subjective`）已全部在 main；MVP 只新增 `analytics/signals.py`（检测器适配、映射表、AN-06 升级、规则时刻）与 `analytics/stats.py`（Wilson、`insufficient`），四轴写在 `profiling/portrait.py` 旁；组合层以 PR #27 `analytics/presentation/` 与 PR #32 `analytics/products/` 中先合入者为底，另一个 rebase 并入，本文 §2 的口径是两者的验收标准（§5.2）。
 10. **MVP 判定规则**（契约 §2.1 第 3 版）：MVP = Lite 8 页需要的数据 + Advance 三张安装闭环卡；只服务 Advance 独有界面（A9 工坊、ASK、菜单栏 / HUD / 小组件、首次启动、SET-21 周报、A1-06 上期对比、A3 阶段带与情绪泳道）的 feature 一律 v1。据此 AN-07 情绪、AN-13 实时状态、AN-14 `report_snapshot` 表、AN-12 的周序列与 `compare_previous`、AN-03 阶段打标、AN-10 的 EB / bootstrap 全部 v1（§6）。
@@ -26,7 +26,7 @@
 
 ### 1.1 八层
 
-每层写：单位与身份键（tandem-session-v1 列名）、这一层独有的指标、向上聚合规则、现状。所有层共用 `Scope`（`display_timezone / project_ids / model_ids / effort_raw / from_ts / until_ts / root_session_uids / excluded_session_uids / include_children / scene`，补充 `source_ids`；PR #27 另有 `agent_ids`、PR #32 有 `source_ids`，合并时统一为 `source_ids`）。
+每层写：单位与身份键（orbit-session-v1 列名）、这一层独有的指标、向上聚合规则、现状。所有层共用 `Scope`（`display_timezone / project_ids / model_ids / effort_raw / from_ts / until_ts / root_session_uids / excluded_session_uids / include_children / scene`，补充 `source_ids`；PR #27 另有 `agent_ids`、PR #32 有 `source_ids`，合并时统一为 `source_ids`）。
 
 | 层 | 单位与身份 | 这一层独有的指标 | 向上聚合 | 现状 |
 | --- | --- | --- | --- | --- |
@@ -65,7 +65,7 @@ Demo 的主题 / 结果 / 摩擦 / 时段芯片（FB-04…FB-06）、A1-23 星�
 
 ## 2. 指标体系
 
-表列约定：**字段**写 tandem-session-v1 / analysis-input-v1 的真实列名；**分母 · 置信度**写分母单位与区间方法（MVP 只有 `wilson` 比例与 `—` 计数；`eb / bootstrap` 标注的行一律 v1）；**Demo** 写 [`feature-map.md`](feature-map.md) §5 条目 ID，Lite 页名写「Lite·页」；**阶段** 按 §0.10 的判定规则；**现状** 写代码名称（`main:` 省略，只写模块）或 `PR#27 / PR#32 / 计划`。所有比例在分母 < 5 时输出 `insufficient`，5–30 必须带区间（契约 §1）。`basis` 取值：`measured`、`estimated`（含 `duration_quality = estimated` 或价目表折算）、`proxy`（词面或结构代理）、`unknown`。
+表列约定：**字段**写 orbit-session-v1 / analysis-input-v1 的真实列名；**分母 · 置信度**写分母单位与区间方法（MVP 只有 `wilson` 比例与 `—` 计数；`eb / bootstrap` 标注的行一律 v1）；**Demo** 写 [`feature-map.md`](feature-map.md) §5 条目 ID，Lite 页名写「Lite·页」；**阶段** 按 §0.10 的判定规则；**现状** 写代码名称（`main:` 省略，只写模块）或 `PR#27 / PR#32 / 计划`。所有比例在分母 < 5 时输出 `insufficient`，5–30 必须带区间（契约 §1）。`basis` 取值：`measured`、`estimated`（含 `duration_quality = estimated` 或价目表折算）、`proxy`（词面或结构代理）、`unknown`。
 
 ### 2.1 使用概况与节律（AN-01 / AN-12）
 
@@ -384,7 +384,7 @@ A3 时间线**沿用本地 `ui/vizkit` 分支（`07ee181` 密度泳道 / 关键�
 
 ```mermaid
 flowchart LR
-  DB[(tandem.db 只读<br/>tandem_data.analysis_input.read_analysis)] --> AD[AN-16 canonical_bundle<br/>AnalysisInputBundle]
+  DB[(orbit.db 只读<br/>orbit_data.analysis_input.read_analysis)] --> AD[AN-16 canonical_bundle<br/>AnalysisInputBundle]
   LEG[(legacy .local/*.sqlite)] -. DT-20 过渡 .-> AD
   AD --> SEL[inputs.select<br/>排除原因 · 重放剔除 · 未来返回隔离]
   SEL --> FAM[八族<br/>task · instruction · preference · interaction<br/>respond · cost_time · outcome · outcome_subjective]
@@ -415,7 +415,7 @@ flowchart LR
 
 四条特征族分支都已在 main，`analytics/common.py` 只有一份，`FEATURE_VERSION` 已按合并顺序递增（PR #13 `v2` → PR #17 `v2.1-subjective` → PR #19 `v2.2-bottleneck`）；后续分支在 rebase 时继续递增（PR #27 `presentation-v1`、PR #32 `analysis-products-v1` 是组合层自己的版本，不改 `FEATURE_VERSION`）。MVP 期间不迁移任何旧模块。
 
-| 目录（`packages/backend/src/tandem_backend/`） | 作者 | 承载的 AN ID | 说明 |
+| 目录（`packages/backend/src/orbit_backend/`） | 作者 | 承载的 AN ID | 说明 |
 | --- | --- | --- | --- |
 | `analytics/common.py`、`inputs.py`、`service.py`、`bottleneck.py` | main | AN-16、AN-01 调度 | `service.analyze_bundle` 保留；PR #32 `context.py / semantic.py` 把「选择一次、建索引、八族、组合」拆成有名称的步骤（`docs/plans/analysis-review.md` 建议） |
 | `analytics/respond/` | genius-FXC | AN-04（DFG、三步链、子代理关系）、AN-05.2 `retry_loop`（经 `retry_links`）、AN-02 工具字段 | `calls / sequence / relations / features` |
@@ -451,7 +451,7 @@ flowchart LR
 
 | 顺序 | 内容 | 复用 | 新写 | 复杂度 |
 | --- | --- | --- | --- | --- |
-| 1 | AN-16 `canonical_bundle` + 真实 `tandem.db` 重跑 analytics，核对 `human_origin` 覆盖（契约 V11）；`analysis_run` 进度 | `read_analysis()`、`AnalysisInputBundle.from_dict`、PR #32 `context.py` | 适配器约 150 行 | S |
+| 1 | AN-16 `canonical_bundle` + 真实 `orbit.db` 重跑 analytics，核对 `human_origin` 覆盖（契约 V11）；`analysis_run` 进度 | `read_analysis()`、`AnalysisInputBundle.from_dict`、PR #32 `context.py` | 适配器约 150 行 | S |
 | 2 | AN-01 `metrics` 端点 + AN-10 `stats.py`（只 Wilson + `insufficient`）+ 响应 `n / lo / hi / basis / status`；AN-01 的 MVP 指标清单 = 现有测量 + Lite 用到的约 20 项：`sessions`、`active_minutes / observed_span`、`human_messages_by_day`、`by_hour × weekday`、`correction_signal_rate`、`turns_per_session`、`by_tool`、`failure_rate`、`transitions`、`by_error_class`、`subagent_spawn_count`、`token_buckets`、`completed_rate / outcome_mix`、`by_file_language`、`clusters / embedding`、`phrases_top`、`friction_type_mix`、`sessions_by_source`、四轴 + §2.13 注册表 | `feature_dictionary`、`wilson_interval()`、PR #27 / #32 组合层 | 端点 + 聚合约 250 行 | M |
 | 3 | AN-19 合成器（显式反馈 = `classify_feedback`，验证 = `extract_validation_runs`，facet 映射，结构补 `interrupted` 与「最后一条是纠偏」）；AN-02 补 `outcome / verify_* / edit_without_verify / autonomy_steps` | `outcome/`、`outcome_subjective/`、`portrait.interaction` | 约 60 行 | S |
 | 4 | AN-05 四个检测器：`correction`（现有 proxy 改写成 `signal` 行）、`retry_loop`（`retry_links` 适配器约 40 行）、`would_prompt`、`missing_verification`；`risky_command` 词表版；现有 `explanation_revision / long_response / unexplained_terms / requirement / subjective_feedback / interruption` 转 `signal` 行；`rules_version` | `correction_terms`、`retry_links`、`validation_runs`、DT-13 只读 / 破坏性命令词表 | 约 250 行 | M |
@@ -462,7 +462,7 @@ flowchart LR
 | 9 | AN-11 `resident_tokens_median`；PR #31 合入后接 `installed_unused / rule_coverage / rule_file_stats` | `model_call` 首条、`inventory_item` | 约 80 行 | S |
 | 10 | AN-14 MVP = 复用 `cli report / analytics --output` 与 PR #32 同源导出，口径对齐 `metrics` | `application/reports.py` | 约 40 行 | S |
 
-MVP 完成标准：Lite 8 页与 Advance A1–A6 的每个数字都能回到 `overview / metrics / sessions / profile / signals / problems` 端点，且每个比例带 n 与 Wilson 区间（EV-01.2 做成检查项）；三张安装闭环卡的第 2 段（§8）可用；在三位成员本机 `tandem.db` 上冷算 ≤ 10 s、热查询 ≤ 1 s。
+MVP 完成标准：Lite 8 页与 Advance A1–A6 的每个数字都能回到 `overview / metrics / sessions / profile / signals / problems` 端点，且每个比例带 n 与 Wilson 区间（EV-01.2 做成检查项）；三张安装闭环卡的第 2 段（§8）可用；在三位成员本机 `orbit.db` 上冷算 ≤ 10 s、热查询 ≤ 1 s。
 
 ### 6.2 v1 / v2 与「过于复杂先不做」
 
@@ -496,7 +496,7 @@ ID 沿用契约 §2.3；AN-19 为本文新增；AN-05 拆为 05.1 / 05.2，AN-08
 | AN-13 | 实时状态 | 运行中 / 空闲 / `failing` / `stalled` / 刚完成、当前工具、`context_used_ratio`（有观测时）；SSE 带 `session_uid`；MB-13 优先级 | `watch` 事件、`session.status`、`source_file.watermark`、尾部增量 `retry_loop` | `GET /v1/analytics/realtime`（SSE） | DT-02（PR #11 `watch.ts`） | v1（只服务菜单栏 / HUD） | PR#32「最后观测状态」（明确生命周期事件）；`watch.ts` 只采集 | yhyfhgs | MistyHuang03 |
 | AN-14 | 固定口径快照与报告 | MVP 复用 `cli report / analytics --output` 与 PR #32 同源导出；`report_snapshot(kind ∈ weekly/share_card/menubar/persona_fixed)` 表 v1 | `metrics`、`problems_top`、`profile` | `export/*`；`report_snapshot`（v1） | AN-01、AN-06、AN-08 | MVP（导出）；v1（快照表） | main:`application/reports.py`、`cli report`；PR#32 同源导出 | MistyHuang03 | genius-FXC |
 | AN-15 | 质量下降诊断 | `change_flags` 触发后依次查模型 / 档位、harness 版本、压缩、上下文、skill 移除 | AN-12、`model_call`、`session.harness_version`、`inventory_item` | `problem(type = quality_drop)` + 检查表 | AN-12、AN-06、DT-09 | v1 | 计划 | MistyHuang03 | yhyfhgs |
-| AN-16 | 分析输入适配与范围 | `canonical_bundle()` 读合入后的 `read_analysis()`（透传 `usage_snapshots / statistical_members / diagnostics`）；`Scope` 补 `source_ids`；legacy 适配器保留到退役；`human_origin` 覆盖核对；`analysis_run` 进度与 `GET /v1/analytics/status` | `tandem.db`（只读）、legacy 库 | `AnalysisInputBundle`、`meta{coverage, selection, versions, freshness}` | DT-19、DT-20 | MVP（第一件事） | main:`analytics/inputs.py`（`Scope`、`legacy_bundle`、`select`）、`data_access/store.py`；PR#32 `context.py`；canonical 适配闭环计划 | MistyHuang03 | yhyfhgs |
+| AN-16 | 分析输入适配与范围 | `canonical_bundle()` 读合入后的 `read_analysis()`（透传 `usage_snapshots / statistical_members / diagnostics`）；`Scope` 补 `source_ids`；legacy 适配器保留到退役；`human_origin` 覆盖核对；`analysis_run` 进度与 `GET /v1/analytics/status` | `orbit.db`（只读）、legacy 库 | `AnalysisInputBundle`、`meta{coverage, selection, versions, freshness}` | DT-19、DT-20 | MVP（第一件事） | main:`analytics/inputs.py`（`Scope`、`legacy_bundle`、`select`）、`data_access/store.py`；PR#32 `context.py`；canonical 适配闭环计划 | MistyHuang03 | yhyfhgs |
 | AN-17 | 任务上下文与明确要求 | 任务 `task_id`、场景、读者、交付语言、8 维度要求与篇幅契约；指令 8 字段约束与时点解析；`domain / task_type`（task-taxonomy-v1，`type_source ∈ rule/facet`）；要求—交付—反馈关联 | 真人文本、交付、`turn` | `attrs.scene / task_id`、`signal(kind = requirement)`、`instruction` 记录、`task.domain / task_type` | AN-16 | MVP（已实现） | main:`profiling/feedback.py`、`analytics/instruction/`、`analytics/task/taxonomy.py` | MistyHuang03 | yhyfhgs |
 | AN-18 | 无监督文本表示 | 字符 n-gram TF-IDF → SVD → DBSCAN 簇、PCA 坐标、前缀拟合新颖度；簇不命名；MVP 显示「簇 #k」+ 前 5 个 `top_terms`；`similar_sessions` v1 | 真人文本（会话粒度） | `text{clusters, coordinates, top_terms, novelty}` | AN-16 | MVP（已实现） | main:`analytics/text.py`、`task/representation.py` | MistyHuang03 | genius-FXC |
 | AN-19 | 会话结果判定 | 约 60 行合成器：`outcome` 四态 + `outcome_basis`（`explicit_feedback > verify_pass > facet > structural`）、facet 映射表、`verify_requested / verify_ran / verify_pass / verify_candidate / edit_without_verify`、`rework_rate`；不把「声称完成」当完成 | `outcome_subjective.classify_feedback`、`outcome.extract_validation_runs`、`session_facet.outcome`、`turn.status`、AN-05 信号 | AN-02 行字段、`metrics(completed_rate, abandoned_rate, verify_ran_rate, verify_pass_rate, edit_without_verify_rate, rework_rate)` | AN-16、AN-05 | MVP（合成器） | main:`analytics/outcome/`（客观验证与验收匹配已实现）、`analytics/outcome_subjective/`（显式反馈已实现）；合成器计划 | genius-FXC | MistyHuang03 |
@@ -563,7 +563,7 @@ ID 沿用契约 §2.3；AN-19 为本文新增；AN-05 拆为 05.1 / 05.2，AN-08
 | 外壳 | SB-09、REV-01、EXP-04、WG-02、POP-06 / WG-03 / WG-04 / SET-21 | AN-14、AN-12 | 文本模拟 | v1：`report_snapshot(persona_fixed / weekly / share_card / menubar)`、`metrics?bucket=week` |
 | 外壳 | SET-20 不计入分析 | AN-16 | 会话从列表消失（BUG-19） | `Scope.excluded_session_uids` + 可恢复列表 |
 
-### 9.2 Lite Demo（main `prototypes/lite/tandem-benchmark-demo.html`，8 页）对应
+### 9.2 Lite Demo（main `prototypes/lite/orbit-benchmark-demo.html`，8 页）对应
 
 | Lite 页 | 由哪个 AN 驱动 | Lite 示例逻辑 | 真实替换 |
 | --- | --- | --- | --- |
@@ -629,7 +629,7 @@ ID 沿用契约 §2.3；AN-19 为本文新增；AN-05 拆为 05.1 / 05.2，AN-08
 
 | # | 假设 | 验证方式 | 相关 |
 | --- | --- | --- | --- |
-| V1 | 问题升级阈值 `min_sessions`（§2.4 按类型）∧ `wilson_lo ≥ 0.05` 在三位成员本机数据上既不漏也不吵 | AN-06 跑真实 `tandem.db`，人工看前 20 条 | AN-06 |
+| V1 | 问题升级阈值 `min_sessions`（§2.4 按类型）∧ `wilson_lo ≥ 0.05` 在三位成员本机数据上既不漏也不吵 | AN-06 跑真实 `orbit.db`，人工看前 20 条 | AN-06 |
 | V2 | 四轴单位门槛 `n_units ≥ 30 ∧ 活跃天 ≥ 10` 下 Wilson 区间宽度多数 ≤ 20 个百分点；D 轴阈值 `autonomy_steps ≥ 5` 不是全 0 或全 1；M 轴判定线 50% | 本机数据跑 `profile` | AN-08.2 |
 | V3 | 中文纠偏 / 挫败词表精度 ≥ 0.5；agentsview 阈值改按字符后召回可接受 | 每人 30 条命中标注（EV-02 MVP 口径） | AN-05.1 |
 | V4 | 10 万事件 / 90 天窗口查询现算冷算 ≤ 10 s、热查询 ≤ 1 s；`read_analysis(max_events = 100000)` 够一个窗口 | 原型计时；会话行物化与 section 缓存已提前启用（审计 §3.3） | AN-16、AN-01 |

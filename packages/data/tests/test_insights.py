@@ -3,11 +3,11 @@ import os
 
 import pytest
 
-from tandem_data import insights
-from tandem_data.insights import match_sessions, numeric_summary, read_usage_data
-from tandem_data.service import ImportRequest, ImportService
-from tandem_data.store import Store
-from tandem_data.validation.fixtures import create_sources
+from orbit_data import insights
+from orbit_data.insights import match_sessions, numeric_summary, read_usage_data
+from orbit_data.service import ImportRequest, ImportService
+from orbit_data.store import Store
+from orbit_data.validation.fixtures import create_sources
 
 SECRET = "sk-ant-" + "Z9y8X7w6V5u4T3s2R1q0"
 
@@ -81,7 +81,7 @@ def test_numeric_summary():
     assert numeric_summary(None) == {}
 
 
-def test_match_with_tandem_sessions(tmp_path):
+def test_match_with_orbit_sessions(tmp_path):
     roots = create_sources(tmp_path / "fixtures")
     home = tmp_path / "home"
     with Store(home) as store:
@@ -90,11 +90,11 @@ def test_match_with_tandem_sessions(tmp_path):
         row["session_id"]: row
         for row in match_sessions(home, read_usage_data(usage_tree(tmp_path)))
     }
-    assert rows["demo"]["tandem"]["tool_calls"] == 1
-    assert rows["demo"]["tandem"]["human_messages"] >= 1
+    assert rows["demo"]["orbit"]["tool_calls"] == 1
+    assert rows["demo"]["orbit"]["human_messages"] >= 1
     assert rows["demo"]["insights"]["tool_counts"] == {"Bash": 1}
     assert rows["demo"]["outcome"] == "fully_achieved"
-    assert rows["orphan"]["tandem"] is None
+    assert rows["orphan"]["orbit"] is None
     with pytest.raises(FileNotFoundError):
         match_sessions(tmp_path / "nohome", {"sessions": []})
 

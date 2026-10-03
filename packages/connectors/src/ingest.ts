@@ -28,7 +28,7 @@ export class CodexConnector {
   private running = false;
   constructor(store: ConnectorStore, root: string) {
     this.store = store; this.root = realpathSync(resolve(root)); this.sourceId = `codex:${uid(this.root).slice(0,20)}`;
-    if (within(this.root,realpathSync(store.directory))) throw new Error('Tandem data directory must be outside CODEX_HOME');
+    if (within(this.root,realpathSync(store.directory))) throw new Error('Orbit data directory must be outside CODEX_HOME');
     store.db.prepare('INSERT OR IGNORE INTO source VALUES(?,?,?,?,?,?)')
       .run(this.sourceId,'codex',this.root,basename(this.root),1,Date.now());
   }

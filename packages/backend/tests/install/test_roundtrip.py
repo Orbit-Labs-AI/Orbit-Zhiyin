@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tandem_backend.install import applier
+from orbit_backend.install import applier
 
 SETTINGS = """{
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
@@ -73,18 +73,18 @@ CASES = {
     "setting_set": ("settings.json", SETTINGS, lambda p: [
         t(0, p, "merge_json", pointer="", content={"model": "sonnet"}, write_mode="set")]),
     "claude_md": ("CLAUDE.md", CLAUDE_MD, lambda p: [
-        t(0, p, "md_block", content="## Tandem\n- run tests", block_id="tandem:tests")]),
+        t(0, p, "md_block", content="## Orbit\n- run tests", block_id="orbit:tests")]),
     "agents_md_new": ("AGENTS.md", None, lambda p: [
-        t(0, p, "md_block", content="Prefer small commits.", block_id="tandem:commits",
+        t(0, p, "md_block", content="Prefer small commits.", block_id="orbit:commits",
           agent="codex")]),
     "codex_toml": ("config.toml", CONFIG_TOML, lambda p: [
         t(0, p, "toml_block", content='[mcp_servers.gh]\ncommand = "gh-mcp"',
-          block_id="tandem:gh", agent="codex")]),
+          block_id="orbit:gh", agent="codex")]),
     "skill_files": ("skills/lint-fix/SKILL.md", None, lambda p: [
         t(0, p, "create_file", content=SKILL),
         t(1, p.parent / "scripts" / "fix.sh", "create_file", content="#!/bin/sh\nruff\n",
           file_mode=0o755)]),
-    "codex_rules": ("rules/tandem-git.rules", None, lambda p: [
+    "codex_rules": ("rules/orbit-git.rules", None, lambda p: [
         t(0, p, "create_file", content='prefix_rule(pattern=["git", "status"])\n',
           agent="codex")]),
 }
@@ -170,7 +170,7 @@ def test_unrelated_edit_still_reverts_our_unit(tmp_path, name):
         assert data == {**json.loads(original), "unrelatedKey": {"added": "later"}}
     else:
         text = path.read_text()
-        assert "tandem:" not in text and "# user note" in text
+        assert "orbit:" not in text and "# user note" in text
     assert _revert(recs, env)[0]["status"] == "already_reverted"
 
 

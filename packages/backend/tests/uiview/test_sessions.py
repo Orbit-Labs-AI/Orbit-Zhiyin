@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from tandem_backend.sessionops import exclusion
-from tandem_backend.uiview import sessions
+from orbit_backend.sessionops import exclusion
+from orbit_backend.uiview import sessions
 
 from .l1_builder import *  # noqa: F403 - pytest fixtures
 from .l1_builder import DAY, MIN, T0, codex_unknown, handwritten_cc
@@ -176,8 +176,8 @@ def _facts_client(gateway, facts_rows):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from tandem_backend.services.gateway import install_error_handlers
-    from tandem_backend.uiview import routes_sessions
+    from orbit_backend.services.gateway import install_error_handlers
+    from orbit_backend.uiview import routes_sessions
 
     app = FastAPI()
     install_error_handlers(app)
@@ -231,7 +231,7 @@ def test_overlay_unit_rules():
 def test_route_search_uses_full_session_cover(client, l1, monkeypatch):
     """UT-03: the list filter takes every session the search sources hit, and passes the
     cover's completeness through as meta.search_partial."""
-    from tandem_backend import features
+    from orbit_backend import features
 
     populate(l1, 9)
     calls = []

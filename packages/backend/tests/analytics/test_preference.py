@@ -2,13 +2,13 @@ import copy
 
 import pytest
 
-from tandem_backend.analytics.common import clauses, evidence, semantic_coverage, semantic_messages
-from tandem_backend.analytics.preference import (
+from orbit_backend.analytics.common import clauses, evidence, semantic_coverage, semantic_messages
+from orbit_backend.analytics.preference import (
     extract_explicit_preferences,
     resolve_effective_preferences,
     summarize_preferences,
 )
-from tandem_backend.analytics.preference.rules import preference_values
+from orbit_backend.analytics.preference.rules import preference_values
 
 
 def test_common_boundary_and_missing_coverage(fixtures):

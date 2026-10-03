@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import tandem_data.analysis_history as module
-from tandem_data.analysis_history import AnalysisHistory
+import orbit_data.analysis_history as module
+from orbit_data.analysis_history import AnalysisHistory
 
 
 def _complete(history: AnalysisHistory, key: str, payload: str) -> str:
@@ -78,7 +78,7 @@ def test_piecewise_encoding_matches_one_json_dump():
     import random
     import zlib
 
-    from tandem_data.analysis_history import _json, _json_pieces
+    from orbit_data.analysis_history import _json, _json_pieces
 
     rng = random.Random(7)
 

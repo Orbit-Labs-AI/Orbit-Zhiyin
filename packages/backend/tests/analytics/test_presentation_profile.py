@@ -5,9 +5,9 @@ from datetime import datetime
 
 import pytest
 
-from tandem_backend.analytics.inputs import AnalysisInputBundle, Scope
-from tandem_backend.analytics.presentation.profile import build_profile
-from tandem_backend.analytics.service import analyze_bundle
+from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope
+from orbit_backend.analytics.presentation.profile import build_profile
+from orbit_backend.analytics.service import analyze_bundle
 
 
 def _ts(text):
@@ -323,7 +323,7 @@ def test_real_profile_through_reveal_imputes_the_missing_axis():
     itself never claims a type (orchestration is not extracted); since main ebdc750e the
     reveal still shows one, with the missing orchestration axis at 50 and marked unsettled
     rather than withholding the whole code."""
-    from tandem_backend.shell import reveal
+    from orbit_backend.shell import reveal
 
     events = []
     for i in range(40):

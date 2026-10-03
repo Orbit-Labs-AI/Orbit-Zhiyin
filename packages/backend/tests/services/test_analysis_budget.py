@@ -7,10 +7,10 @@ import time
 from contextlib import contextmanager
 from types import SimpleNamespace
 
-from tandem_backend.services.routes_analytics import failure_error
-from tandem_backend.services.sections import estimate_events
-from tandem_backend.services.snapshots import SnapshotStore
-from tandem_backend.services.supervisor import AnalysisQueue, SupervisorConfig
+from orbit_backend.services.routes_analytics import failure_error
+from orbit_backend.services.sections import estimate_events
+from orbit_backend.services.snapshots import SnapshotStore
+from orbit_backend.services.supervisor import AnalysisQueue, SupervisorConfig
 
 REV = (1, 1)
 
@@ -129,7 +129,7 @@ def test_live_rss_over_the_kill_limit_fails_the_task(tmp_path):
 
 
 def test_runs_left_open_by_a_dead_worker_are_failed(tmp_path):
-    from tandem_data.analysis_history import AnalysisHistory
+    from orbit_data.analysis_history import AnalysisHistory
 
     history = AnalysisHistory(tmp_path / "analysis.sqlite")
     run_id = history.start("features", {})

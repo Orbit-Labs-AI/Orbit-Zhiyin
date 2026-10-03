@@ -2,12 +2,12 @@
 
 import json
 
-from tandem_backend.analysis import analyze
-from tandem_backend.cli import demo_home, main
-from tandem_backend.importers.codex import _status, parse_rollout
-from tandem_backend.narrative import explain, markdown
-from tandem_backend.recommend import recommend
-from tandem_backend.store import Store, import_codex
+from orbit_backend.analysis import analyze
+from orbit_backend.cli import demo_home, main
+from orbit_backend.importers.codex import _status, parse_rollout
+from orbit_backend.narrative import explain, markdown
+from orbit_backend.recommend import recommend
+from orbit_backend.store import Store, import_codex
 
 
 def test_archive_restore_then_exclusion_removes_all_session_evidence(tmp_path):
@@ -79,7 +79,7 @@ def test_demo_does_not_open_unused_database(tmp_path):
     unused = tmp_path / "never-create.sqlite"
     main(["--db", str(unused), "demo", "--output", str(tmp_path / "demo")])
     assert not unused.exists()
-    assert (tmp_path / "demo" / "data" / "tandem.db").exists()
+    assert (tmp_path / "demo" / "data" / "orbit.db").exists()
     assert not (tmp_path / "demo" / "demo.sqlite").exists()
 
 

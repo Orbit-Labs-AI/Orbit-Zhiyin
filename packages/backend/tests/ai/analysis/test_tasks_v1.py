@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from ai_analysis_fakectx import DAY, NOW, FakeCtx
 
-from tandem_backend.ai import pack as P
-from tandem_backend.ai.tasks_v1 import TASKS, metric_paths
+from orbit_backend.ai import pack as P
+from orbit_backend.ai.tasks_v1 import TASKS, metric_paths
 
 SCOPE = {"start_ms": NOW - 30 * DAY, "end_ms": NOW + DAY}
 
@@ -38,9 +38,9 @@ def feedback_db(tdb):
         tdb.event("s1", kind, actor, text, NOW - DAY + i * 1000, f"s1-{'h' if actor == 'human' else 'a'}{i}")
 
 
-def test_feedback_pack_and_ai_merge(tdb, appdb, tandem_home):
+def test_feedback_pack_and_ai_merge(tdb, appdb, orbit_home):
     feedback_db(tdb)
-    pack = build("classify.feedback", tdb, appdb, tandem_home, params={"session_uids": ["s1"]})
+    pack = build("classify.feedback", tdb, appdb, orbit_home, params={"session_uids": ["s1"]})
     items = pack["content"]["feedback_items"]["items"]
     assert [i["event_uid"] for i in items] == ["s1-h2"]
     assert items[0]["prev_assistant"] == "我改了 UI 测试" and items[0]["context"] == "task"
@@ -53,9 +53,9 @@ def test_feedback_pack_and_ai_merge(tdb, appdb, tandem_home):
     assert "<input>" in ctx.calls[0]["prompt"] and "sig:s1-h2" in ctx.calls[0]["prompt"]
 
 
-def test_feedback_foreign_id_falls_back_to_rule(tdb, appdb, tandem_home):
+def test_feedback_foreign_id_falls_back_to_rule(tdb, appdb, orbit_home):
     feedback_db(tdb)
-    pack = build("classify.feedback", tdb, appdb, tandem_home, params={"event_uids": ["s1-h2"]})
+    pack = build("classify.feedback", tdb, appdb, orbit_home, params={"event_uids": ["s1-h2"]})
     bad = {"items": [{"signal_id": "sig:made-up", "is_correction": True, "feedback_kind": "correct",
                       "friction_type": "none", "sentiment": "neutral", "confidence": "low"}]}
     ctx, out = run("classify.feedback", pack, bad, bad)
@@ -66,9 +66,9 @@ def test_feedback_foreign_id_falls_back_to_rule(tdb, appdb, tandem_home):
     assert out["result"]["key"] == "s1-h2"
 
 
-def test_feedback_empty_never_calls_engine(tdb, appdb, tandem_home):
+def test_feedback_empty_never_calls_engine(tdb, appdb, orbit_home):
     tdb.session("s1", humans=["好的", "继续"])
-    pack = build("classify.feedback", tdb, appdb, tandem_home, params={"session_uids": ["s1"]})
+    pack = build("classify.feedback", tdb, appdb, orbit_home, params={"session_uids": ["s1"]})
     ctx, out = run("classify.feedback", pack)
     assert ctx.calls == [] and out["result"] == {"key": "default", "items": [], "source": "empty",
                                                  "prompt_version": "classify.feedback@1"}
@@ -83,9 +83,9 @@ def failures_db(tdb):
     result_event(tdb, "s1-c0", "s1", "FAILED tests/test_a.py::test_x - AssertionError")
 
 
-def test_failure_names_groups_and_ai(tdb, appdb, tandem_home):
+def test_failure_names_groups_and_ai(tdb, appdb, orbit_home):
     failures_db(tdb)
-    pack = build("cluster.failure_names", tdb, appdb, tandem_home)
+    pack = build("cluster.failure_names", tdb, appdb, orbit_home)
     groups = pack["content"]["failures"]["groups"]
     assert [g["error_class"] for g in groups] == ["test_failed", "not_found"]
     assert groups[0]["members"][0]["text"].startswith("FAILED") or groups[0]["members"][1]["text"]
@@ -97,9 +97,9 @@ def test_failure_names_groups_and_ai(tdb, appdb, tandem_home):
     assert clusters["not_found"]["name"] == "找不到文件或命令" and clusters["not_found"]["named_by"] == "rule"
 
 
-def test_failure_names_gate(tdb, appdb, tandem_home):
+def test_failure_names_gate(tdb, appdb, orbit_home):
     failures_db(tdb)
-    pack = build("cluster.failure_names", tdb, appdb, tandem_home)
+    pack = build("cluster.failure_names", tdb, appdb, orbit_home)
     validate = TASKS["cluster.failure_names"]["validate"]
     errors = validate({"clusters": [{"error_class": "test_failed", "name": "失败 3 次", "member_ids": ["s1-c2"]},
                                     {"error_class": "nope", "name": "x", "member_ids": []}]}, pack)
@@ -134,11 +134,11 @@ def test_topic_names_single_cluster_is_skipped():
 
 # ---------------------------------------------------------------- classify.failure_cause
 
-def test_failure_cause_only_unknown_and_rules(tdb, appdb, tandem_home):
+def test_failure_cause_only_unknown_and_rules(tdb, appdb, orbit_home):
     tdb.session("s1", tools=[("bash", "shell", "rm", "failed", None), ("bash", "shell", "ls", "failed", "timeout"),
                              ("bash", "shell", "curl", "error", "unknown")])
     result_event(tdb, "s1-c0", "s1", "rm: /x: Permission denied")
-    pack = build("classify.failure_cause", tdb, appdb, tandem_home)
+    pack = build("classify.failure_cause", tdb, appdb, orbit_home)
     items = pack["content"]["unknown_failures"]["items"]
     assert {i["call_uid"] for i in items} == {"s1-c0", "s1-c2"}
     fallback = TASKS["classify.failure_cause"]["fallback"](pack, "off")
@@ -173,9 +173,9 @@ REVIEW_OK = {
                 {"text": "改做法：先读报错再重试", "mechanism": "workflow", "evidence_ids": []}]}
 
 
-def test_session_review_pack_ai_and_handoff(tdb, appdb, tandem_home):
+def test_session_review_pack_ai_and_handoff(tdb, appdb, orbit_home):
     review_db(tdb)
-    pack = build("narrate.session_review", tdb, appdb, tandem_home, params={"session_uid": "s1"})
+    pack = build("narrate.session_review", tdb, appdb, orbit_home, params={"session_uid": "s1"})
     src = pack["content"]["session_review"]
     assert src["key"] == "s1" and src["row"]["tool_errors"] == 2
     assert src["key_moments"][0]["kind"] == "failure_run" and src["signals"][0]["event_uid"] == "s1-h1"
@@ -187,9 +187,9 @@ def test_session_review_pack_ai_and_handoff(tdb, appdb, tandem_home):
     assert "handoff" not in lessons[1]
 
 
-def test_session_review_gate_and_fallback(tdb, appdb, tandem_home):
+def test_session_review_gate_and_fallback(tdb, appdb, orbit_home):
     review_db(tdb)
-    pack = build("narrate.session_review", tdb, appdb, tandem_home, params={"session_uid": "s1"})
+    pack = build("narrate.session_review", tdb, appdb, orbit_home, params={"session_uid": "s1"})
     bad = {**REVIEW_OK, "summary": "这次一定能提升 45 分钟", "main_evidence_ids": ["ghost"]}
     errors = TASKS["narrate.session_review"]["validate"](bad, pack)
     assert any("ghost" in e for e in errors) and any("45" in e for e in errors)
@@ -242,9 +242,9 @@ def test_weekly_fallback_template():
     assert "未测" in res["sections"][2]["text"]
 
 
-def test_weekly_snapshot_loader(tdb, appdb, tandem_home):
+def test_weekly_snapshot_loader(tdb, appdb, orbit_home):
     tdb.session("s1", humans=["a", "不对"], tools=[("bash", "shell", "ls", "failed", "x")])
-    snap = build("narrate.weekly", tdb, appdb, tandem_home)["content"]["snapshot"]
+    snap = build("narrate.weekly", tdb, appdb, orbit_home)["content"]["snapshot"]
     assert snap["metrics"]["sessions"] == 1 and snap["window"]["start_ms"] == SCOPE["start_ms"]
 
 

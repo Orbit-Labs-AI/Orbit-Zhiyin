@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from tandem_backend.recommend import kb, mechanism
+from orbit_backend.recommend import kb, mechanism
 
 MVP_TYPES = {"permission_friction", "tool_env_failure", "missing_verification", "communication_gap",
              "repeated_instruction", "resident_cost", "wrong_approach", "installed_unused", "context_loss",

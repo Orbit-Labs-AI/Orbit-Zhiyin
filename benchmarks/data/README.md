@@ -11,7 +11,7 @@ uv run python -m benchmarks.data.live_sync --preset med --minutes 8 --output .lo
 
 ## 实时同步探针（`live_sync.py`）
 
-在临时 `TANDEM_HOME` 上起源码网关，导入合成来源（本页 `synthetic.py` 的 Claude Code / pi / DSH，加一个带 `state_5.sqlite` 的 Codex 目录和一个父会话缺失的子代理），开 `sync_mode=live` 并开始首次导入；同时每 2 s 追加一行 Claude 会话、每 1 s 改一行 Codex `threads`，每秒读 `/v1/sessions` 与 `/v1/status`。报告每个任务的状态、耗时、各阶段开始次数（`rebuild_attempts` = `reset_projection` 次数）、重建范围（closure / source）、最大重试序号，以及读取结果分布、WAL 最大 / 结束大小与遗留溢出目录。用来复现与核对[导入流程](../../docs/development/import-pipeline.md)中的根因与修复，不作 CI 门槛；`--work` 保留工作目录以便查看网关日志。
+在临时 `ORBIT_HOME` 上起源码网关，导入合成来源（本页 `synthetic.py` 的 Claude Code / pi / DSH，加一个带 `state_5.sqlite` 的 Codex 目录和一个父会话缺失的子代理），开 `sync_mode=live` 并开始首次导入；同时每 2 s 追加一行 Claude 会话、每 1 s 改一行 Codex `threads`，每秒读 `/v1/sessions` 与 `/v1/status`。报告每个任务的状态、耗时、各阶段开始次数（`rebuild_attempts` = `reset_projection` 次数）、重建范围（closure / source）、最大重试序号，以及读取结果分布、WAL 最大 / 结束大小与遗留溢出目录。用来复现与核对[导入流程](../../docs/development/import-pipeline.md)中的根因与修复，不作 CI 门槛；`--work` 保留工作目录以便查看网关日志。
 
 ## 合成数据（`synthetic.py`）
 
@@ -35,7 +35,7 @@ uv run python -m benchmarks.data.live_sync --preset med --minutes 8 --output .lo
 
 `manifest.json`：`agents.<agent>.{sessions,events,records,files}` 是期望计数（事件数按 `synthetic.EVENTS` 中钉住的每类记录事件数计算，mapper 改变事件形态时须同步更新）；`large_outputs[]` 记录 `{agent, session(native_id), bytes, sha256}`；`inventory.items[]` 记录 `{type, name, locator, content_hash}`；`totals` 为合计。
 
-## 逻辑摘要（`tandem_data.validation.integrity`）
+## 逻辑摘要（`orbit_data.validation.integrity`）
 
 - `logical_digest(home)`：按固定顺序对以下分区求 sha256；`section_digests(home)` 给出各分区的摘要与行数，用于定位差异。
   1. `raw_record (record_uid, file_id, locator, version, sha256, native_type, disposition, session_uid)`

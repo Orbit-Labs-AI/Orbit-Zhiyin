@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from fakectx import FakeCtx, hook_pack
 
-from tandem_backend.ai.generate import TASKS
-from tandem_backend.ai.generate.tasks import STAGES, pick_template
-from tandem_backend.ai.generate.util import CallFailed, Cancelled
+from orbit_backend.ai.generate import TASKS
+from orbit_backend.ai.generate.tasks import STAGES, pick_template
+from orbit_backend.ai.generate.util import CallFailed, Cancelled
 
 HOOK = {"matcher": "Bash", "threshold": 3, "message": "测试已连续失败，先看错误输出再重试。", "command_heads": ["pnpm test"]}
 CONTRACT_KEYS = {"task_id", "tier", "slot", "prompt_version", "schema_version", "input_budget", "out_budget",

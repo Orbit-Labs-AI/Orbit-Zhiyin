@@ -4,13 +4,13 @@ import copy
 
 import pytest
 
-from tandem_backend.analytics.recommendations import RecommendationPolicy, recommend_bottlenecks
-from tandem_backend.analytics.recommendations.catalog import (
+from orbit_backend.analytics.recommendations import RecommendationPolicy, recommend_bottlenecks
+from orbit_backend.analytics.recommendations.catalog import (
     builtin_resources,
     load_catalog,
     vetted_catalog,
 )
-from tandem_backend.analytics.recommendations.ranking import rank_resources
+from orbit_backend.analytics.recommendations.ranking import rank_resources
 
 
 def signal(uid="s", rule="identical_retries", capabilities=None):

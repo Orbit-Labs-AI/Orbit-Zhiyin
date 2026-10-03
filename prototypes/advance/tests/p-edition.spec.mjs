@@ -18,7 +18,7 @@ test('the sidebar switch swaps editions, maps the route and persists', async ({ 
   // same sidebar components as Advance: groups, Agents list, footer
   await expect(page.locator('#side .sect')).toHaveCount(3);
   await expect(page.locator('#side .nav .ag')).toHaveCount(5);
-  await expect(page.locator('#side .sb-foot .pv')).toHaveCount(1);
+  await expect(page.locator('#side .sb-foot .pv .pv-dot')).toHaveCount(1);
   await page.keyboard.press('Alt+Digit4');
   await expect.poll(() => ed(page)).toEqual(['lite', 'l-recs']);
   await page.reload();

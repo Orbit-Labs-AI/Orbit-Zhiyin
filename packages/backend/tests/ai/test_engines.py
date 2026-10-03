@@ -12,16 +12,16 @@ from pathlib import Path
 import pytest
 from ai_support import ANSWER
 
-from tandem_backend.ai import capabilities, engines, isolation, prices
-from tandem_backend.ai.capabilities import Capabilities
-from tandem_backend.ai.engines import (
+from orbit_backend.ai import capabilities, engines, isolation, prices
+from orbit_backend.ai.capabilities import Capabilities
+from orbit_backend.ai.engines import (
     ApiKeyEngine,
     ClaudeCodeEngine,
     CodexEngine,
     EngineRequest,
     FakeEngine,
 )
-from tandem_backend.appdb import AppDB
+from orbit_backend.appdb import AppDB
 
 
 def request(**overrides) -> EngineRequest:
@@ -35,7 +35,7 @@ def test_claude_argv_env_cwd_and_marker(fake_cli, ai_env, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-not-a-real-key")
     monkeypatch.setenv("CLAUDE_CODE_SOMETHING", "1")
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    home = ai_env.tmp / "tandem"
+    home = ai_env.tmp / "orbit"
     result = ClaudeCodeEngine(home).call(request(model="sonnet", max_budget_usd=0.1))
     assert result.error is None and result.output == {"answer": "ok"}
     assert result.usage == {"input": 120, "cache_read": 30, "cache_write": 10, "output": 40}
@@ -54,13 +54,13 @@ def test_claude_argv_env_cwd_and_marker(fake_cli, ai_env, monkeypatch):
         assert key not in call["env"]
     assert call["env"]["NO_COLOR"] == "1"
     cwd = Path(call["cwd"]).resolve()
-    assert cwd == (home / "agent-cwd").resolve() and (cwd / ".tandem-ai").is_file()
+    assert cwd == (home / "agent-cwd").resolve() and (cwd / ".orbit-ai").is_file()
     first, rest = call["stdin"].split("\n", 1)
     assert first == isolation.marker_line("test.echo", "aj_1") and rest == "SECRET-PROMPT-TEXT"
 
 
 def test_claude_error_modes(fake_cli, ai_env):
-    engine = ClaudeCodeEngine(ai_env.tmp / "tandem")
+    engine = ClaudeCodeEngine(ai_env.tmp / "orbit")
     fake_cli.mode = "budget"
     assert engine.call(request()).error == "budget_exceeded"
     fake_cli.mode = "notlogged"
@@ -72,7 +72,7 @@ def test_claude_not_installed(ai_env):
 
 
 def test_codex_argv_usage_and_cleanup(fake_cli, ai_env):
-    home = ai_env.tmp / "tandem"
+    home = ai_env.tmp / "orbit"
     result = CodexEngine(home).call(request())
     assert result.error is None and result.output == {"answer": "ok"}
     assert result.usage == {"input": 800, "cache_read": 200, "cache_write": 0, "output": 50}
@@ -98,7 +98,7 @@ def test_codex_price_table_when_model_known(fake_cli, ai_env):
 
 def test_cancel_and_timeout_kill_process_group(fake_cli, ai_env):
     fake_cli.mode = "sleep"
-    engine = ClaudeCodeEngine(ai_env.tmp / "tandem")
+    engine = ClaudeCodeEngine(ai_env.tmp / "orbit")
     cancel = threading.Event()
     threading.Timer(0.3, cancel.set).start()
     started = time.monotonic()
@@ -270,14 +270,14 @@ def test_detect_and_cache(fake_cli, ai_env, monkeypatch):
     db.close()
 
 
-def test_is_tandem_ai_session(ai_env):
-    home = ai_env.tmp / "tandem"
+def test_is_orbit_ai_session(ai_env):
+    home = ai_env.tmp / "orbit"
     cwd = isolation.cwd(home)
-    assert isolation.is_tandem_ai_session(cwd, None, home)
-    assert isolation.is_tandem_ai_session(cwd / "sub", None, home)
-    assert isolation.is_tandem_ai_session(cwd, None)  # Marker file, no home given.
-    assert isolation.is_tandem_ai_session("/x", "[tandem-analysis v1 task=a job=b]\nhi")
-    assert not isolation.is_tandem_ai_session("/x", "hello", home)
+    assert isolation.is_orbit_ai_session(cwd, None, home)
+    assert isolation.is_orbit_ai_session(cwd / "sub", None, home)
+    assert isolation.is_orbit_ai_session(cwd, None)  # Marker file, no home given.
+    assert isolation.is_orbit_ai_session("/x", "[orbit-analysis v1 task=a job=b]\nhi")
+    assert not isolation.is_orbit_ai_session("/x", "hello", home)
     assert oct(cwd.stat().st_mode & 0o777) == "0o700"
     assert set(isolation.env()) <= {*isolation.ENV_KEEP, *isolation.ENV_OPTIONAL, *isolation.ENV_NETWORK, "NO_COLOR"}
 

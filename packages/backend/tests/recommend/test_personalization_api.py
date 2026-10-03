@@ -3,15 +3,15 @@
 from fastapi.testclient import TestClient
 from test_recommend_pipeline import correction_bundle, ready_item, write_family
 
-from tandem_backend.analytics.service import analyze_bundle
-from tandem_backend.api import create_app
+from orbit_backend.analytics.service import analyze_bundle
+from orbit_backend.api import create_app
 
 
 def test_api_preferences_benefits_and_validation_reach_the_real_pipeline(tmp_path, monkeypatch):
     directory = tmp_path / "catalog"
     directory.mkdir()
     write_family(directory, "skills", [ready_item(v, preference_support={"detail": [v]}) for v in ("brief", "detailed")])
-    monkeypatch.setattr("tandem_backend.analytics.service.analyze_store",
+    monkeypatch.setattr("orbit_backend.analytics.service.analyze_store",
                         lambda store, scope, with_text: analyze_bundle(correction_bundle(), scope, with_text))
     with TestClient(create_app(db=tmp_path / "synthetic.sqlite", recommendation_catalog=directory)) as client:
         route = "/v1/analytics/recommendations"

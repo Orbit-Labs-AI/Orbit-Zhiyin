@@ -14,7 +14,7 @@ const root = path.join(here, '..');
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 const FPS = +opt('--fps', 60), SCALE = +opt('--scale', 2), FROM = +opt('--from', 0);
-const out = path.resolve(opt('--out', path.join(here, 'out', 'tandem-promo.mp4')));
+const out = path.resolve(opt('--out', path.join(here, 'out', 'orbit-promo.mp4')));
 const audio = path.join(here, 'out', 'soundtrack.wav');
 const framesDir = opt('--frames', null);
 // --only 16,20.5,…: capture just the frames at these beats (into --frames) for a quick contact sheet

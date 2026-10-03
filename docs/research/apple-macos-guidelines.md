@@ -86,8 +86,8 @@
 **建议**
 
 1. 修快捷键冲突：「隐藏其他」与「显示 HUD」同为 ⌥⌘H，先注册的「隐藏其他」赢，HUD 快捷键实际无效；`apps/desktop/README.md` 写 HUD 为 ⌥⌘H，设置页与快捷键面板写 ⌥⌘P，三处不一致。统一为 ⌥⌘P（页面已用），小组件的 ⌥⌘W 与系统「全部关闭」的惯例键相同，建议改为无快捷键或 ⌥⌘D（见 findings）。
-2. 增加「前往 / 页面」菜单（或放进「显示」），列出 Advance 的页面并带 ⌘1–9；加「导出」「分享卡」「报告」「重新索引」项。菜单点击仍通过 `tandem:command` 派发，页面 JS 快捷键保留给浏览器与 mock。
-3. `⌘Z`：Edit 菜单的 `undo:` 先于页面 keydown 被菜单拦截，WKWebView 对 `undo:` 的校验结果决定页面的「撤销安装」是否还能收到按键 —— **待实机验证**。更稳的做法是编辑菜单的「撤销」在页面有可撤销安装时走 `tandem:command undo`。
+2. 增加「前往 / 页面」菜单（或放进「显示」），列出 Advance 的页面并带 ⌘1–9；加「导出」「分享卡」「报告」「重新索引」项。菜单点击仍通过 `orbit:command` 派发，页面 JS 快捷键保留给浏览器与 mock。
+3. `⌘Z`：Edit 菜单的 `undo:` 先于页面 keydown 被菜单拦截，WKWebView 对 `undo:` 的校验结果决定页面的「撤销安装」是否还能收到按键 —— **待实机验证**。更稳的做法是编辑菜单的「撤销」在页面有可撤销安装时走 `orbit:command undo`。
 4. 显示 / 隐藏项按状态改标题：全屏、HUD、小组件、侧栏。HUD 与小组件已用 `validateMenuItem` 打勾表示开关状态（菜单栏与状态栏菜单一致），可保持。
 5. 菜单项标题检查：「刷新」「重新载入页面」含义相近，建议合并为「刷新」，「重新载入页面」放到按住 ⌥ 的动态项里（只能是辅助途径）。
 
@@ -203,7 +203,7 @@
 **Orbit 现状**
 
 - `config.websiteDataStore = .nonPersistent()`：与随机端口叠加，导致页面 `localStorage` 偏好每次启动全丢 —— **第一阶段正在改为原生 `ui-prefs.json` 持久化**。补充一点：即使改为持久化数据存储，origin 含随机端口也会让 `localStorage` 按 origin 隔离而失效，所以原生持久化方案是对的；若将来想用 `localStorage`，需要给网关固定端口或用 `WKWebsiteDataStore(forIdentifier:)` 配合稳定 origin。
-- 脚本：`bootstrapScript` 在文档开始时注入 `__TANDEM_TOKEN__`、`__TANDEM_ENDPOINT__`、`__ORBIT_NATIVE__`；消息处理器校验 `isMainFrame` 与 origin（host + port），这是对的。
+- 脚本：`bootstrapScript` 在文档开始时注入 `__ORBIT_TOKEN__`、`__ORBIT_ENDPOINT__`、`__ORBIT_NATIVE__`；消息处理器校验 `isMainFrame` 与 origin（host + port），这是对的。
 - 没有设置 `isInspectable`，发布版无法用 Safari 检查页面，排查「原生壳里的 UI 与浏览器里不一致」只能靠日志。
 - 导航策略：非网关来源的 http(s) 链接交给默认浏览器，`window.open` / `target=_blank` 不新开 WebView，符合预期。
 
@@ -243,11 +243,11 @@
 - 公证要求启用 Hardened Runtime；Hardened Runtime 默认禁止 JIT、未签名可执行内存、动态库注入等，需要时用 entitlements 逐项放开，且只开必要的；entitlements 只加在可执行文件上，共享库、框架继承宿主的。
 - 调试：Xcode 调试器、Instruments、Organizer；WKWebView 用 Safari Web Inspector（需 `isInspectable`）。
 
-**Orbit 现状**（`apps/desktop/build.py`）：ad-hoc 签名为默认，设置 `TANDEM_SIGN_IDENTITY` 时加 `--options runtime --timestamp`，设置 `TANDEM_NOTARY_PROFILE` 时 `notarytool submit --wait` 并 staple。`LSMinimumSystemVersion = 14.0`、`NSHighResolutionCapable`、`LSApplicationCategoryType` 都有，并有 Mach-O `minos` 检查，这点做得细。
+**Orbit 现状**（`apps/desktop/build.py`）：ad-hoc 签名为默认，设置 `ORBIT_SIGN_IDENTITY` 时加 `--options runtime --timestamp`，设置 `ORBIT_NOTARY_PROFILE` 时 `notarytool submit --wait` 并 staple。`LSMinimumSystemVersion = 14.0`、`NSHighResolutionCapable`、`LSApplicationCategoryType` 都有，并有 Mach-O `minos` 检查，这点做得细。
 
 **不足**
 
-1. Developer ID 路径只传了 `--options runtime`，没有任何 `--entitlements`；随包的 `tandem-helper` 是 PyInstaller `--onedir` 产物，这类产物在 Hardened Runtime 下通常需要 `com.apple.security.cs.allow-unsigned-executable-memory` 与 `com.apple.security.cs.disable-library-validation`，否则公证通过后启动会闪退 —— **待用真实 Developer ID 验证**，目前本机只走 ad-hoc。
+1. Developer ID 路径只传了 `--options runtime`，没有任何 `--entitlements`；随包的 `orbit-helper` 是 PyInstaller `--onedir` 产物，这类产物在 Hardened Runtime 下通常需要 `com.apple.security.cs.allow-unsigned-executable-memory` 与 `com.apple.security.cs.disable-library-validation`，否则公证通过后启动会闪退 —— **待用真实 Developer ID 验证**，目前本机只走 ad-hoc。
 2. 使用 `codesign --deep` 一次签整个包。Apple 不推荐用 `--deep` 做签名（嵌套代码应由内向外逐个签），在公证时更容易被拒。
 3. 未沙盒化（App Sandbox 关闭，读取 `~/.claude` 等目录靠用户选择与完整磁盘访问），所以 `chooseFolder` 里保存的 security-scoped bookmark 其实用不上，反而每次选择都追加一份到 `UserDefaults`，重复选择同一目录会不断累积并重复 `startAccessingSecurityScopedResource`。
 

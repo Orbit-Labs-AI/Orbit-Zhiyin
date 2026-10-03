@@ -1,4 +1,4 @@
-/* ============ live binding: recommendations (TandemLive.recs, js/06-live-client.js) ============
+/* ============ live binding: recommendations (OrbitLive.recs, js/06-live-client.js) ============
    Mock mode changes nothing. In live mode the demo renderers stay as they are (A7 cards and detail, A1「本周建议」, Lite
    l-home「本周最值得做的一件事」and l-recs, menubar「本周最值得做」): this file swaps the rows they read (RECS / RECI / REC_X)
    for GET /v1/recommendations, and recOrder / recTop(surface) put the backend's stable top slate (surface A1 / lite / menubar) first.
@@ -21,9 +21,9 @@ if (TL.mode === 'live' && !LV.demo) {
   RECS.length = 0; Object.keys(RECI).forEach((k) => { delete RECI[k]; }); Object.keys(REC_X).forEach((k) => { delete REC_X[k]; });
   S.installed.clear(); S.recs.sel = null;
 }
-// Cand → RECS row: the shared mapper (TandemLive.recs.row) plus real agents, ui.save / ui.tok and the source link.
+// Cand → RECS row: the shared mapper (OrbitLive.recs.row) plus real agents, ui.save / ui.tok and the source link.
 function lvRecRow(c) {
-  const r = TandemLive.recs.row(c); const u = c.ui || {};
+  const r = OrbitLive.recs.row(c); const u = c.ui || {};
   const nat = c.agents || {}; const bids = ((c.target && c.target.agents) || Object.keys(nat)).filter(Boolean);
   const ids = [], parts = []; r.native = Object.keys(nat).filter((k) => nat[k] === 'native').map((b) => LV.agentOf(b).id);
   bids.forEach((b) => { const m = LV.agentOf(b); if (ids.indexOf(m.id) >= 0) return; ids.push(m.id); parts.push(r.native.indexOf(m.id) >= 0 ? m.name : '转换给 ' + m.short); });
