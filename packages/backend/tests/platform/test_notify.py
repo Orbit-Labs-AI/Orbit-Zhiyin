@@ -197,6 +197,7 @@ def test_observe_failed_job_and_degraded_service(gw, clock):
     assert rows[1]["payload"]["job_id"] == "j1" and rows[1]["body"] == "坏了"
 
 
+@pytest.mark.serial
 def test_emit_is_fast(gw, clock):
     n = make(gw, clock)
     n.set_policy({"rate_limit": {"per_minute": 100000, "per_hour": 100000}})

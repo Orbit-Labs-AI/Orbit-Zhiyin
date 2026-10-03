@@ -1,7 +1,9 @@
 """Synthetic connector regressions: subagent linkage, origins, record destinations."""
 
 import json
+from datetime import UTC, datetime
 
+from tandem_data.analysis_input import AnalysisScope, read_analysis
 from tandem_data.contract import canonical
 from tandem_data.service import ImportRequest, ImportService
 from tandem_data.store import Store
@@ -338,7 +340,7 @@ def test_codex_background_exec_startup_has_no_fake_zero_duration(tmp_path):
     def command(native, started, completed, duration):
         return {
             "type": "event_msg",
-            "timestamp": ISO.format(1),
+            "timestamp": datetime.fromtimestamp((T + 1000) / 1000, UTC).isoformat(),
             "payload": {
                 "type": "item_completed",
                 "turn_id": "t",
@@ -368,12 +370,29 @@ def test_codex_background_exec_startup_has_no_fake_zero_duration(tmp_path):
         calls = {
             row["native_call_id"]: row
             for row in store.db.execute(
-                "SELECT native_call_id, duration_ms, duration_source, duration_quality"
+                "SELECT native_call_id, duration_ms, duration_source, duration_quality,"
+                " native_execution_ms, wall_elapsed_ms, ended_at"
                 " FROM tool_call"
             )
         }
         assert calls["background"]["duration_ms"] is None
         assert calls["background"]["duration_quality"] == "missing"
+        assert calls["background"]["native_execution_ms"] is None
+        assert calls["background"]["wall_elapsed_ms"] is None
+        assert calls["background"]["ended_at"] is None
+        observed = store.db.execute(
+            "SELECT ts,attrs FROM event WHERE kind='tool.result'"
+            " AND json_extract(attrs,'$.duration_unmeasured')=1"
+        ).fetchone()
+        assert observed["ts"] == T + 1000
+        assert json.loads(observed["attrs"])["time"]["semantics"] == "written"
+        inside = read_analysis(store.home, AnalysisScope("UTC", from_ts=T, until_ts=T + 2000))
+        call = next(row for row in inside["tool_calls"] if row["native_call_id"] == "background")
+        assert call["result_event_uid"] is not None
+        assert call["ended_at"] is None and call["duration_ms"] is None
+        earlier = read_analysis(store.home, AnalysisScope("UTC", from_ts=T, until_ts=T + 500))
+        call = next(row for row in earlier["tool_calls"] if row["native_call_id"] == "background")
+        assert call["result_event_uid"] is None and call["status"] == "unknown"
         assert calls["measured"]["duration_ms"] == 3000
         assert calls["measured"]["duration_quality"] == "reported"
 

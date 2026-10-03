@@ -9,7 +9,7 @@ VALIDATION_KINDS = {"test", "build", "check", "lint", "typecheck"}
 RESULTS = {"passed", "failed", "interrupted", "unknown"}
 
 
-COMMAND_SCOPES = {"command", "command_return", "command_transport"}
+COMMAND_SCOPES = {"command", "command_return", "command_transport", "direct_command"}
 
 
 SCOPE_KEYS = {"project_id", "artifact_uid", "artifact_revision", "coverage"}
@@ -17,6 +17,12 @@ SCOPE_KEYS = {"project_id", "artifact_uid", "artifact_revision", "coverage"}
 
 def _command_kind(call):
     """Recognize an explicitly complete direct command, never a mention/head only."""
+    spec = call.get("command_spec")
+    if isinstance(spec, dict):
+        return (spec.get("validation_kind") if spec.get("schema_version") == "command-spec-v1"
+                and spec.get("command_complete") is True and not call.get("is_wrapper")
+                and call.get("kind") == "shell" and spec.get("validation_kind") in VALIDATION_KINDS
+                else None)
     command = call.get("command_head") or ""
     if (call.get("command_complete") is not True or call.get("is_wrapper")
             or call.get("kind") != "shell" or re.search(r"[;&|<>`$\n]", command)):

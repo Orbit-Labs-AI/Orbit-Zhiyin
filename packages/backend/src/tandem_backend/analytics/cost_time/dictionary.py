@@ -2,10 +2,9 @@
 
 FEATURES = {'cost_time.durations.execution_duration_sum_ms': {'name': 'cost_time.durations.execution_duration_sum_ms',
                                                    'unit': 'ms',
-                                                   'rule': 'Sum native/reported durations of known calls; '
-                                                           'estimates separate',
-                                                   'source': 'Respond execution intervals + explicit '
-                                                             'duration reports',
+                                                   'rule': 'Sum explicitly reported native execution durations; '
+                                                           'wall spans and estimates separate',
+                                                   'source': 'tool_call.native_execution_ms or legacy explicit report',
                                                    'denominator': None,
                                                    'type': 'deterministic_derived',
                                                    'missing_semantics': 'null if unsupported; '

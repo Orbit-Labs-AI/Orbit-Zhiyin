@@ -51,6 +51,7 @@ JSON_COLUMNS = {
     "source_stat",
     "note",
     "detail",
+    "command_spec",
 }
 
 
@@ -132,12 +133,17 @@ def model_call_row(row) -> dict:
 
     model_call only holds ``usage_scope='call'`` / ``measurement='delta'`` usage events (the
     event CHECK and the reducer enforce it; cumulative snapshots live in usage_snapshot), and
-    each row is keyed by one native request key, so its boundary is reliable by construction.
+    identity and boundary quality remain explicit. The compatibility boolean is derived
+    from those qualities; a stable row key alone never proves a request boundary.
     """
     result = decoded(row)
     result.setdefault("usage_scope", "call")
     result.setdefault("measurement", "delta")
-    result.setdefault("boundary_reliable", bool(result.get("call_uid")))
+    result["boundary_reliable"] = (
+        bool(result.get("call_uid"))
+        and result.get("request_identity_quality") in ("reported", "derived")
+        and result.get("boundary_quality") in ("reported", "observed")
+    )
     if result.get("cost_source") == "price_table":
         result.setdefault("price_table_version", PRICE_TABLE_VERSION)
     return result
@@ -483,6 +489,8 @@ def read_analysis(
                     error_class=None,
                     ended_at=None,
                     duration_ms=None,
+                    wall_elapsed_ms=None,
+                    native_execution_ms=None,
                     duration_source="unknown",
                     duration_quality="missing",
                     approval=None,

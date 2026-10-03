@@ -33,7 +33,8 @@ def extract_validation_runs(calls, until_ts=None):
             else:
                 unknown += 1
             continue
-        scope = meta.get("scope") if declared else c.get("validation_scope")
+        spec = c.get("command_spec") or {}
+        scope = meta.get("scope") if declared else c.get("validation_scope", spec.get("validation_scope"))
         available = c.get("result_available_at", c.get("ended_at"))
         visible = until_ts is None or (timestamp(available) and available < until_ts)
         result, reason, report_id = "unknown", "missing_or_unscoped_result", None
@@ -51,10 +52,17 @@ def extract_validation_runs(calls, until_ts=None):
             reason = "result_not_visible_at_cutoff"
         elif c.get("is_wrapper") or c.get("status_scope") not in COMMAND_SCOPES:
             reason = "outer_or_unknown_status_scope"
+        # A later annotation can identify the check/scope only when it exists.
+        # The result timestamp alone must not backdate that relationship.
+        if declared:
+            available = max(available, meta["available_at"]) if timestamp(available) and timestamp(meta.get("available_at")) else None
         runs.append({"validation_uid": stable_id(c["session_uid"], c["call_uid"], "validation"),
                      "session_uid": c["session_uid"], "call_uid": c["call_uid"],
                      "task_uid": c.get("task_uid"), "root_session_uid": c.get("root_session_uid"), "kind": kind,
-                     "check_name": meta.get("check_name") if declared else c.get("command_head"),
+                     "task_identity_quality": c.get("task_identity_quality", "explicit"),
+                     "check_name": meta.get("check_name") if declared else
+                         " ".join(str(v) for v in (spec.get("executable"), spec.get("subcommand")) if v)
+                         or c.get("command_head"),
                      "validation_result": result, "validation_scope": scope,
                      "criterion_uids": meta.get("criterion_uids", []) if declared else [],
                      "validation_evidence": {"call_event_uid": c.get("call_event_uid"),
@@ -64,7 +72,8 @@ def extract_validation_runs(calls, until_ts=None):
                      "seq": c.get("seq"), "result_seq": c.get("result_seq"),
                      "status_scope": c.get("status_scope") if visible else None,
                      "raw_status": c.get("status") if visible else None,
-                     "identification_source": meta.get("source") if declared else "complete_direct_command",
+                     "identification_source": meta.get("source") if declared else
+                         "structured_command_spec" if spec else "complete_direct_command",
                      "missing_reason": reason})
     return {"validation_runs": runs if calls is not None else None,
             "validation_candidates": candidates if calls is not None else None,

@@ -1,6 +1,8 @@
 import builtins
 import time
 
+import pytest
+
 from tandem_backend.recommend import engine, narrate
 
 UI_KEYS = {"dim", "type", "icon", "lvl", "aud", "title", "gain", "why", "ev", "evq", "compat", "primary", "target",
@@ -113,6 +115,7 @@ def test_recall_import_failure(monkeypatch):
     assert slate["diagnostics"] == [{"source": "recall", "status": "unavailable"}]
 
 
+@pytest.mark.serial
 def test_perf_200_candidates():
     cands = []
     kinds = [("permission_rule", "hook"), ("skill", "skill"), ("rule", "rule"), ("hook", "hook"), ("mcp", "mcp")]

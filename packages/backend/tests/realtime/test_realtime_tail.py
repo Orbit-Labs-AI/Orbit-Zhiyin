@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from realtime_fixtures import ATTRS, NOW, Reads
 
 from tandem_backend.realtime.tail import ACTIVE_SQL, load_tails
@@ -37,6 +38,7 @@ def _bulk(tandem, sessions=20_000, active=30):
     db.execute("ANALYZE")
 
 
+@pytest.mark.serial
 def test_active_query_uses_index_and_is_fast(tandem):
     _bulk(tandem)
     plan = [row[3] for row in tandem.db.execute(

@@ -12,7 +12,7 @@ from .preference import (
     summarize_preference_evidence,
     summarize_preferences,
 )
-from .task import segment_tasks, summarize_task_distribution
+from .task import summarize_task_distribution
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ class SemanticAnalysis:
 def analyze_semantics(context: AnalysisContext) -> SemanticAnalysis:
     """Extract task, preference and instruction evidence without mutating family returns."""
     events = context.events if context.bundle.events is not None else None
-    task_result = segment_tasks(events, context.sessions)
+    task_result = context.work_index.task_result
     tasks = {key: value for key, value in task_result.items() if key != "task_by_event"}
     if events is None:
         tasks["records"] = None

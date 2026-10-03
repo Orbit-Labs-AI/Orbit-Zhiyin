@@ -97,7 +97,11 @@ def test_task_scope_does_not_leak_between_roots():
 
 
 def test_unknown_project_and_ambiguous_task_preferences_remain_unresolved():
-    analysis = analysis_with("帮我实现接口", "新任务：帮我测试数据库")
+    data = correction_bundle()
+    data.events[-1]["text"] = "新任务：帮我测试数据库"
+    data.events[-1]["attrs"]["task_uid"] = "fictional-second-task"
+    data.events[1]["text"] = "帮我实现接口"
+    analysis = analyze_bundle(data, with_text=False)
     assert len(analysis["tasks"]["records"]) > 1
     result = recommend(analysis, catalog=choice_catalog(), context={"preferences": [
         {"scope": "task", "target_id": analysis["tasks"]["records"][0]["task_id"], "dimension": "detail", "value": "brief"},

@@ -48,13 +48,15 @@ def evaluate_features(features, policy, context):
         refs = list({(r["kind"], r["session_uid"], r["id"]): r for r in refs if r["id"] and r["session_uid"]}.values())
         if not refs:
             return
-        signals.append({"signal_id": stable_id(rule, context, group), "rule_id": rule,
+        signal = {"signal_id": stable_id(rule, context, group), "rule_id": rule,
                         "capabilities": capabilities, "reason": reason, "metrics": metrics,
                         "evidence": sorted(refs, key=lambda r: (r["session_uid"], r["kind"], r["id"])),
                         "scope": {**context, "group": group}, "effective_n": n, "coverage": round(clamp(coverage), 4),
                         "confidence": round(clamp(coverage) * min(1., n / target_n), 4),
                         "severity": round(clamp(severity), 4), "recurrence": round(min(1., count / (minimum * 3)), 4),
-                        "hypothesis": hypothesis, "evaluation_metrics": evaluation_metrics})
+                        "hypothesis": hypothesis, "evaluation_metrics": evaluation_metrics}
+        signals.append(signal)
+        return signal
 
     rows = interaction.get("message_intents")
     reviewed = [r for r in rows or [] if r.get("state") == "confirmed" and r.get("source")
@@ -84,6 +86,35 @@ def evaluate_features(features, policy, context):
              rate / (policy.correction_min_rate * 2), "检验针对已知摩擦类型的干预是否减少确认纠偏，同时保留原任务验收要求。",
              ["interaction.confirmed_correction_rate", "outcome.acceptance_results"])
         assessment(rule, "triggered", "确认纠偏达到样本、覆盖与比例门槛。")
+
+    inferred = [r for r in rows or [] if r.get("state") == "inferred" and r.get("source") == "semantic_model"
+                and r.get("event_uid") and r.get("session_uid") and r.get("intents")
+                and r.get("missing_reason") is None]
+    inferred_corrections = [r for r in inferred if "correction" in r["intents"] and r.get("task_uid")
+                            and r.get("target_event_uid") in r.get("evidence_event_uids", [])]
+    inferred_coverage = len(inferred) / denominator if denominator else 0
+    inferred_rate = len(inferred_corrections) / len(inferred) if inferred else None
+    if (len(inferred) >= policy.intent_min_samples and inferred_coverage >= policy.annotation_min_coverage
+            and len(inferred_corrections) >= policy.correction_min_count and inferred_rate >= policy.correction_min_rate):
+        friction = {t for r in inferred_corrections for t in r.get("friction_types") or []}
+        capabilities = sorted(({"scope_alignment"} if friction & {"understanding", "scope"} or not friction else set())
+                              | ({"debugging"} if "execution" in friction else set())
+                              | ({"verification"} if "verification" in friction else set()))
+        inferred_signal = emit("correction_density", capabilities,
+             f"模型推断的 {len(inferred)} 条意图中有 {len(inferred_corrections)} 条关联纠偏；可复核原句并试验相应干预，尚无独立精度校准。",
+             [metric("interaction.semantic_observations.correction_count", len(inferred_corrections)),
+              metric("interaction.semantic_observations.correction_rate", inferred_rate, len(inferred), "ratio")],
+             [evidence("event", r["session_uid"], uid, r.get("task_uid")) for r in inferred_corrections for uid in r["evidence_event_uids"]],
+             len(inferred_corrections), policy.correction_min_count, len(inferred), policy.intent_min_samples * 2,
+             inferred_coverage, inferred_rate / (policy.correction_min_rate * 2),
+             "先核对推断纠偏与目标；再检验干预是否有益，不把模型标签当用户确认或已测收益。",
+             ["interaction.semantic_observations", "outcome.acceptance_results"], group={"evidence_tier": "model_inferred"})
+        if inferred_signal is not None:
+            inferred_signal.update(evidence_tier="model_inferred", calibrated_probability=None,
+                                   confidence_semantics="coverage/sample support heuristic, not semantic correctness probability")
+            assessments.append({"rule_id": "correction_density", "status": "candidate_triggered",
+                            "source_tier": "model_inferred", "scope": context,
+                            "reason": "有边界的推断观察达到候选试验门槛；人工标注不作为有输出的前提。"})
 
     rule = "repeated_requirements"
     requirements = [r for r in reviewed if r.get("task_uid") and isinstance(r.get("requirements"), list)]

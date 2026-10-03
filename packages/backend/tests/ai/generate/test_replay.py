@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from tandem_backend.ai.generate.hooks_replay import replay
 from tandem_backend.ai.generate.templates import get
 
@@ -43,6 +45,7 @@ def test_skipped_without_calls():
     assert replay(get("paragraph"), {}, [FAILING])["status"] == "skipped"
 
 
+@pytest.mark.serial
 def test_replay_performance_8_sessions_x_200_calls():
     calls = ([_call(tool="Edit", exts=[".py"]), _call("pytest", "error"), _call("pytest")] * 67)[:200]
     sessions = [{"session_uid": f"s{i}", "title": "", "evidence": i < 3, "calls": calls} for i in range(8)]

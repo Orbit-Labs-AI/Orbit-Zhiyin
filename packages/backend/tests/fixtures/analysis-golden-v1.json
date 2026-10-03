@@ -26,27 +26,73 @@
    "keys": [
     {
      "duration": {
+      "approval_wait": {
+       "effective_n": null,
+       "over_one_hour_contribution": null,
+       "over_one_hour_n": null,
+       "p50_ms": null,
+       "p90_ms": null,
+       "p99_ms": null,
+       "sum_ms": null,
+       "top_calls": [],
+       "top_k": null,
+       "top_k_contribution": null,
+       "unknown_n": null
+      },
+      "approval_wait_sum_ms": null,
+      "compatibility": {
+       "execution_duration_sum_ms": null,
+       "reliable_interval_union_ms": null
+      },
       "effective_n": null,
       "estimated_log_gap_sum_ms": null,
       "estimated_n": null,
       "execution_duration_sum_ms": null,
       "execution_durations": [
        {
+        "approval_wait_ms": null,
         "call_uid": null,
         "ended_at": null,
         "estimated_log_gap_ms": null,
         "evidence_event_uids": [],
         "execution_duration_ms": null,
+        "native_exceeds_wall": null,
+        "native_execution_ms": null,
         "quality": null,
+        "reported_tool_duration_ms": null,
         "session_uid": null,
         "source": null,
-        "started_at": null
+        "started_at": null,
+        "wall_elapsed_ms": null
        }
       ],
       "interval_effective_n": null,
       "meaning": null,
       "median_execution_duration_ms": null,
+      "native_execution": {
+       "effective_n": null,
+       "over_one_hour_contribution": null,
+       "over_one_hour_n": null,
+       "p50_ms": null,
+       "p90_ms": null,
+       "p99_ms": null,
+       "sum_ms": null,
+       "top_calls": [
+        {
+         "call_uid": null,
+         "duration_ms": null,
+         "evidence_event_uids": [],
+         "session_uid": null
+        }
+       ],
+       "top_k": null,
+       "top_k_contribution": null,
+       "unknown_n": null
+      },
+      "native_execution_sum_ms": null,
+      "native_wall_mismatch_n": null,
       "p90_execution_duration_ms": null,
+      "p99_execution_duration_ms": null,
       "reliable_interval_union_ms": null,
       "session_spans": [
        {
@@ -61,7 +107,23 @@
         "unknown_n": null
        }
       ],
-      "unknown_n": null
+      "unknown_n": null,
+      "wall_effective_n": null,
+      "wall_elapsed": {
+       "effective_n": null,
+       "over_one_hour_contribution": null,
+       "over_one_hour_n": null,
+       "p50_ms": null,
+       "p90_ms": null,
+       "p99_ms": null,
+       "sum_ms": null,
+       "top_calls": [],
+       "top_k": null,
+       "top_k_contribution": null,
+       "unknown_n": null
+      },
+      "wall_elapsed_sum_ms": null,
+      "wall_interval_union_ms": null
      },
      "features": {
       "assistant_message_count": null,
@@ -95,17 +157,24 @@
       "cumulative_regressed_keys": [],
       "cumulative_snapshots": null,
       "duplicate_request_rows": null,
+      "invalid_request_reasons": {},
       "invalid_request_rows": null,
       "known_call_tokens": null,
       "latency_effective_n": null,
       "legacy_latest_reports": null,
       "median_latency_ms": null,
       "median_ttft_ms": null,
+      "model_latency_sum_ms": null,
       "models": {
        "synthetic-model-large": null,
        "synthetic-model-small": null
       },
+      "p90_model_latency_ms": null,
+      "p99_model_latency_ms": null,
       "price_table_versions": [],
+      "request_boundary_qualities": {
+       "legacy_reliable": null
+      },
       "request_count": null,
       "request_evidence": [
        {
@@ -134,7 +203,7 @@
      }
     }
    ],
-   "sha256": "11d5e1176b6e69cbe4fa0facc83d49019bef8b5c613a0e5d1c7bc27f7d94c15c"
+   "sha256": "85897d922eacf4795ed6517965b70dfc0cc12bab0e76071d1fe60169cc0d0488"
   },
   "products.statistics.sample_counts": {
    "keys": {
@@ -3134,27 +3203,73 @@
        "deferred": [],
        "display_timezone": null,
        "durations": {
+        "approval_wait": {
+         "effective_n": null,
+         "over_one_hour_contribution": null,
+         "over_one_hour_n": null,
+         "p50_ms": null,
+         "p90_ms": null,
+         "p99_ms": null,
+         "sum_ms": null,
+         "top_calls": [],
+         "top_k": null,
+         "top_k_contribution": null,
+         "unknown_n": null
+        },
+        "approval_wait_sum_ms": null,
+        "compatibility": {
+         "execution_duration_sum_ms": null,
+         "reliable_interval_union_ms": null
+        },
         "effective_n": null,
         "estimated_log_gap_sum_ms": null,
         "estimated_n": null,
         "execution_duration_sum_ms": null,
         "execution_durations": [
          {
+          "approval_wait_ms": null,
           "call_uid": null,
           "ended_at": null,
           "estimated_log_gap_ms": null,
           "evidence_event_uids": [],
           "execution_duration_ms": null,
+          "native_exceeds_wall": null,
+          "native_execution_ms": null,
           "quality": null,
+          "reported_tool_duration_ms": null,
           "session_uid": null,
           "source": null,
-          "started_at": null
+          "started_at": null,
+          "wall_elapsed_ms": null
          }
         ],
         "interval_effective_n": null,
         "meaning": null,
         "median_execution_duration_ms": null,
+        "native_execution": {
+         "effective_n": null,
+         "over_one_hour_contribution": null,
+         "over_one_hour_n": null,
+         "p50_ms": null,
+         "p90_ms": null,
+         "p99_ms": null,
+         "sum_ms": null,
+         "top_calls": [
+          {
+           "call_uid": null,
+           "duration_ms": null,
+           "evidence_event_uids": [],
+           "session_uid": null
+          }
+         ],
+         "top_k": null,
+         "top_k_contribution": null,
+         "unknown_n": null
+        },
+        "native_execution_sum_ms": null,
+        "native_wall_mismatch_n": null,
         "p90_execution_duration_ms": null,
+        "p99_execution_duration_ms": null,
         "reliable_interval_union_ms": null,
         "session_spans": [
          {
@@ -3169,7 +3284,23 @@
           "unknown_n": null
          }
         ],
-        "unknown_n": null
+        "unknown_n": null,
+        "wall_effective_n": null,
+        "wall_elapsed": {
+         "effective_n": null,
+         "over_one_hour_contribution": null,
+         "over_one_hour_n": null,
+         "p50_ms": null,
+         "p90_ms": null,
+         "p99_ms": null,
+         "sum_ms": null,
+         "top_calls": [],
+         "top_k": null,
+         "top_k_contribution": null,
+         "unknown_n": null
+        },
+        "wall_elapsed_sum_ms": null,
+        "wall_interval_union_ms": null
        },
        "grain": null,
        "usage": {
@@ -3182,17 +3313,24 @@
         "cumulative_regressed_keys": [],
         "cumulative_snapshots": null,
         "duplicate_request_rows": null,
+        "invalid_request_reasons": {},
         "invalid_request_rows": null,
         "known_call_tokens": null,
         "latency_effective_n": null,
         "legacy_latest_reports": null,
         "median_latency_ms": null,
         "median_ttft_ms": null,
+        "model_latency_sum_ms": null,
         "models": {
          "synthetic-model-large": null,
          "synthetic-model-small": null
         },
+        "p90_model_latency_ms": null,
+        "p99_model_latency_ms": null,
         "price_table_versions": [],
+        "request_boundary_qualities": {
+         "legacy_reliable": null
+        },
         "request_count": null,
         "request_evidence": [
          {
@@ -3351,13 +3489,35 @@
        "rollback_restart_events": [],
        "sequence_unknown_call_n": null,
        "status": null,
+       "subagent_activity_event_count": null,
+       "subagent_instance_count": null,
+       "subagent_parent_conflicts": [],
+       "subagent_parent_unknown_n": null,
        "subagent_relations": [
         {
+         "activity_event_uids": [],
          "child_session_uid": null,
          "join_event_uids": [],
+         "observing_session_uids": [],
          "parent_session_uid": null,
          "source": null,
          "spawn_event_uids": []
+        }
+       ],
+       "subagent_runs": [
+        {
+         "child_session_uid": null,
+         "completed_at": null,
+         "evidence_uids": [],
+         "observing_session_uids": [],
+         "parent_relation_sources": [],
+         "parent_session_uid": null,
+         "source": null,
+         "spawn_call_uid": null,
+         "started_at": null,
+         "status": null,
+         "subagent_run_uid": null,
+         "time_basis": null
         }
        ],
        "tool_sequence": [
@@ -3397,6 +3557,10 @@
          "status": null,
          "status_scope": null,
          "subagent_session_uid": null,
+         "task_evidence_uids": [],
+         "task_identity_quality": null,
+         "task_relation_source": null,
+         "task_uid": null,
          "tool_result_status": null,
          "turn_uid": null
         }
@@ -3484,6 +3648,7 @@
         "compaction_count": null,
         "confirmed_same_argument_failed_retries": null,
         "consecutive_failed_calls": null,
+        "deprecated_metrics": [],
         "error_count": null,
         "interruption_count": null,
         "max_consecutive_failure_run": null,
@@ -3738,7 +3903,11 @@
          "session_ffcd4d9c1b03c9529b781fa1": []
         },
         "subagent_spawn_count": null,
+        "subagent_spawn_unknown_events": null,
         "transition_count": null,
+        "transition_edge_reuse_count": null,
+        "transition_edge_reuse_rate": null,
+        "transition_reuse_meaning": null,
         "transitions": [
          {
           "count": null,
@@ -3961,17 +4130,24 @@
       "cumulative_regressed_keys": [],
       "cumulative_snapshots": null,
       "duplicate_request_rows": null,
+      "invalid_request_reasons": {},
       "invalid_request_rows": null,
       "known_call_tokens": null,
       "latency_effective_n": null,
       "legacy_latest_reports": null,
       "median_latency_ms": null,
       "median_ttft_ms": null,
+      "model_latency_sum_ms": null,
       "models": {
        "synthetic-model-large": null,
        "synthetic-model-small": null
       },
+      "p90_model_latency_ms": null,
+      "p99_model_latency_ms": null,
       "price_table_versions": [],
+      "request_boundary_qualities": {
+       "legacy_reliable": null
+      },
       "request_count": null,
       "request_evidence": [
        {
@@ -4000,7 +4176,7 @@
      }
     }
    ],
-   "sha256": "6fb15f161c9fda3b641f222721cb8c4b463c31343b081f72088ef866d4f3a3ec"
+   "sha256": "1af635ae8ad9737231d036c236d1fc0d6a84ca89e87709e9ae392b38f788c65c"
   },
   "sessions.bottleneck_features": {
    "keys": [
@@ -5388,27 +5564,73 @@
        "deferred": [],
        "display_timezone": null,
        "durations": {
+        "approval_wait": {
+         "effective_n": null,
+         "over_one_hour_contribution": null,
+         "over_one_hour_n": null,
+         "p50_ms": null,
+         "p90_ms": null,
+         "p99_ms": null,
+         "sum_ms": null,
+         "top_calls": [],
+         "top_k": null,
+         "top_k_contribution": null,
+         "unknown_n": null
+        },
+        "approval_wait_sum_ms": null,
+        "compatibility": {
+         "execution_duration_sum_ms": null,
+         "reliable_interval_union_ms": null
+        },
         "effective_n": null,
         "estimated_log_gap_sum_ms": null,
         "estimated_n": null,
         "execution_duration_sum_ms": null,
         "execution_durations": [
          {
+          "approval_wait_ms": null,
           "call_uid": null,
           "ended_at": null,
           "estimated_log_gap_ms": null,
           "evidence_event_uids": [],
           "execution_duration_ms": null,
+          "native_exceeds_wall": null,
+          "native_execution_ms": null,
           "quality": null,
+          "reported_tool_duration_ms": null,
           "session_uid": null,
           "source": null,
-          "started_at": null
+          "started_at": null,
+          "wall_elapsed_ms": null
          }
         ],
         "interval_effective_n": null,
         "meaning": null,
         "median_execution_duration_ms": null,
+        "native_execution": {
+         "effective_n": null,
+         "over_one_hour_contribution": null,
+         "over_one_hour_n": null,
+         "p50_ms": null,
+         "p90_ms": null,
+         "p99_ms": null,
+         "sum_ms": null,
+         "top_calls": [
+          {
+           "call_uid": null,
+           "duration_ms": null,
+           "evidence_event_uids": [],
+           "session_uid": null
+          }
+         ],
+         "top_k": null,
+         "top_k_contribution": null,
+         "unknown_n": null
+        },
+        "native_execution_sum_ms": null,
+        "native_wall_mismatch_n": null,
         "p90_execution_duration_ms": null,
+        "p99_execution_duration_ms": null,
         "reliable_interval_union_ms": null,
         "session_spans": [
          {
@@ -5423,7 +5645,23 @@
           "unknown_n": null
          }
         ],
-        "unknown_n": null
+        "unknown_n": null,
+        "wall_effective_n": null,
+        "wall_elapsed": {
+         "effective_n": null,
+         "over_one_hour_contribution": null,
+         "over_one_hour_n": null,
+         "p50_ms": null,
+         "p90_ms": null,
+         "p99_ms": null,
+         "sum_ms": null,
+         "top_calls": [],
+         "top_k": null,
+         "top_k_contribution": null,
+         "unknown_n": null
+        },
+        "wall_elapsed_sum_ms": null,
+        "wall_interval_union_ms": null
        },
        "grain": null,
        "usage": {
@@ -5436,17 +5674,24 @@
         "cumulative_regressed_keys": [],
         "cumulative_snapshots": null,
         "duplicate_request_rows": null,
+        "invalid_request_reasons": {},
         "invalid_request_rows": null,
         "known_call_tokens": null,
         "latency_effective_n": null,
         "legacy_latest_reports": null,
         "median_latency_ms": null,
         "median_ttft_ms": null,
+        "model_latency_sum_ms": null,
         "models": {
          "synthetic-model-large": null,
          "synthetic-model-small": null
         },
+        "p90_model_latency_ms": null,
+        "p99_model_latency_ms": null,
         "price_table_versions": [],
+        "request_boundary_qualities": {
+         "legacy_reliable": null
+        },
         "request_count": null,
         "request_evidence": [
          {
@@ -5605,13 +5850,35 @@
        "rollback_restart_events": [],
        "sequence_unknown_call_n": null,
        "status": null,
+       "subagent_activity_event_count": null,
+       "subagent_instance_count": null,
+       "subagent_parent_conflicts": [],
+       "subagent_parent_unknown_n": null,
        "subagent_relations": [
         {
+         "activity_event_uids": [],
          "child_session_uid": null,
          "join_event_uids": [],
+         "observing_session_uids": [],
          "parent_session_uid": null,
          "source": null,
          "spawn_event_uids": []
+        }
+       ],
+       "subagent_runs": [
+        {
+         "child_session_uid": null,
+         "completed_at": null,
+         "evidence_uids": [],
+         "observing_session_uids": [],
+         "parent_relation_sources": [],
+         "parent_session_uid": null,
+         "source": null,
+         "spawn_call_uid": null,
+         "started_at": null,
+         "status": null,
+         "subagent_run_uid": null,
+         "time_basis": null
         }
        ],
        "tool_sequence": [
@@ -5651,6 +5918,10 @@
          "status": null,
          "status_scope": null,
          "subagent_session_uid": null,
+         "task_evidence_uids": [],
+         "task_identity_quality": null,
+         "task_relation_source": null,
+         "task_uid": null,
          "tool_result_status": null,
          "turn_uid": null
         }
@@ -5738,6 +6009,7 @@
         "compaction_count": null,
         "confirmed_same_argument_failed_retries": null,
         "consecutive_failed_calls": null,
+        "deprecated_metrics": [],
         "error_count": null,
         "interruption_count": null,
         "max_consecutive_failure_run": null,
@@ -5992,7 +6264,11 @@
          "session_ffcd4d9c1b03c9529b781fa1": []
         },
         "subagent_spawn_count": null,
+        "subagent_spawn_unknown_events": null,
         "transition_count": null,
+        "transition_edge_reuse_count": null,
+        "transition_edge_reuse_rate": null,
+        "transition_reuse_meaning": null,
         "transitions": [
          {
           "count": null,
@@ -6029,7 +6305,7 @@
      "session_uid": null
     }
    ],
-   "sha256": "1107818ae5bbf55ac667b8a28d45ee280bcd8f983c24debb35945bd84adc07f9"
+   "sha256": "e227351e68b5b3363c280f4b2193a2ab19a18fbcd6fd2ef42fecce7ce535d5e8"
   },
   "sessions.features": {
    "keys": [
@@ -6074,17 +6350,24 @@
       "cumulative_regressed_keys": [],
       "cumulative_snapshots": null,
       "duplicate_request_rows": null,
+      "invalid_request_reasons": {},
       "invalid_request_rows": null,
       "known_call_tokens": null,
       "latency_effective_n": null,
       "legacy_latest_reports": null,
       "median_latency_ms": null,
       "median_ttft_ms": null,
+      "model_latency_sum_ms": null,
       "models": {
        "synthetic-model-large": null,
        "synthetic-model-small": null
       },
+      "p90_model_latency_ms": null,
+      "p99_model_latency_ms": null,
       "price_table_versions": [],
+      "request_boundary_qualities": {
+       "legacy_reliable": null
+      },
       "request_count": null,
       "request_evidence": [
        {
@@ -6113,7 +6396,7 @@
      }
     }
    ],
-   "sha256": "4d6df50e2c713a511eb9aa87c3bab7178c02ea566a0aeb41698f9ef49c49ac6e"
+   "sha256": "4476e5283f4da0cfdc49d0ebe1583d083cf001916e36fa465cce2401c1f7d7f2"
   },
   "statistics.sample_counts": {
    "keys": {
@@ -6286,12 +6569,153 @@
    },
    "sha256": "86be5a6fac38c46ef26edeb79db708102af738991e8471f57b073933f76cd7d0"
   },
+  "work_graph": {
+   "keys": {
+    "confidence_semantics": null,
+    "edges": [
+     {
+      "available_at": null,
+      "confidence": {
+       "calibrated_probability": null,
+       "tier": null
+      },
+      "coverage": {
+       "missing_reasons": [],
+       "status": null
+      },
+      "edge_uid": null,
+      "evidence_uids": [],
+      "from_node_uid": null,
+      "kind": null,
+      "missing_reasons": [],
+      "source": null,
+      "state": null,
+      "to_node_uid": null
+     }
+    ],
+    "nodes": [
+     {
+      "attributes": {
+       "boundary_quality": null,
+       "child_session_uid": null,
+       "completed_at": null,
+       "condition": null,
+       "dimension": null,
+       "domain": [],
+       "exit_code": null,
+       "feature": null,
+       "kind": null,
+       "link_reason": null,
+       "link_status": null,
+       "model_id": null,
+       "name_raw": null,
+       "native_artifact_id": null,
+       "parent_session_uid": null,
+       "path": null,
+       "polarity": null,
+       "project_id": null,
+       "related_session_ids": [],
+       "request_id": null,
+       "request_identity_quality": null,
+       "result": null,
+       "rework_feedback": [],
+       "scope": {
+        "identity_quality": null,
+        "kind": null,
+        "target_id": null
+       },
+       "started_at": null,
+       "status": null,
+       "status_scope": null,
+       "targets": null,
+       "task_identity_quality": null,
+       "task_type": [],
+       "user_acceptance": null,
+       "user_confirmed_completion": null,
+       "value": null
+      },
+      "available_at": null,
+      "confidence": {
+       "calibrated_probability": null,
+       "tier": null
+      },
+      "coverage": {
+       "missing_reasons": [],
+       "status": null
+      },
+      "entity_uid": null,
+      "evidence_uids": [],
+      "kind": null,
+      "node_uid": null,
+      "session_uid": null,
+      "source": null,
+      "task_uid": null
+     }
+    ],
+    "schema_version": null,
+    "status": null,
+    "summary": {
+     "ambiguous_child_tasks": [],
+     "assignment_semantics": null,
+     "child_task_unknown_n": null,
+     "edges_by_kind": {
+      "BELONGS_TO_TASK": null,
+      "RETRIES": null,
+      "SPAWNS": null
+     },
+     "edges_by_state": {
+      "candidate": null,
+      "confirmed": null
+     },
+     "invalid_instruction_replacements": [],
+     "nodes_by_kind": {
+      "Artifact": null,
+      "Feedback": null,
+      "Instruction": null,
+      "ModelCall": null,
+      "PreferenceObservation": null,
+      "SubagentRun": null,
+      "Task": null,
+      "ToolCall": null,
+      "Turn": null
+     },
+     "unassigned_calls": null,
+     "unassigned_events": null,
+     "unassigned_model_calls": null
+    },
+    "task_trajectories": [
+     {
+      "acceptance_sets": [],
+      "counts": {
+       "candidate_retries": null,
+       "tool_failed": null,
+       "tool_success": null
+      },
+      "members": {
+       "Feedback": [],
+       "Instruction": [],
+       "ModelCall": [],
+       "PreferenceObservation": [],
+       "SubagentRun": [],
+       "ToolCall": [],
+       "Turn": []
+      },
+      "missing_reasons": [],
+      "task_node_uid": null,
+      "task_success": null,
+      "task_uid": null
+     }
+    ]
+   },
+   "sha256": "403aba3c0b652683f064c81b8c49622578c4371ba1e842c52e4f457f632031a4"
+  },
   "workflow": {
    "keys": {
     "branch_count": null,
     "compaction_count": null,
     "confirmed_same_argument_failed_retries": null,
     "consecutive_failed_calls": null,
+    "deprecated_metrics": [],
     "error_count": null,
     "interruption_count": null,
     "max_consecutive_failure_run": null,
@@ -6546,7 +6970,11 @@
      "session_ffcd4d9c1b03c9529b781fa1": []
     },
     "subagent_spawn_count": null,
+    "subagent_spawn_unknown_events": null,
     "transition_count": null,
+    "transition_edge_reuse_count": null,
+    "transition_edge_reuse_rate": null,
+    "transition_reuse_meaning": null,
     "transitions": [
      {
       "count": null,
@@ -6556,7 +6984,7 @@
      }
     ]
    },
-   "sha256": "52fe67ca2727e83d07e986952f93397ebb7c46ba22da202d804a1fe898519caf"
+   "sha256": "60b86027b4575926d5f72d05285fc4db956515a3332fcc1546101d7edee82e89"
   }
  },
  "values": {

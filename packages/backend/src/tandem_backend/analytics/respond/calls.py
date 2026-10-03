@@ -74,6 +74,13 @@ def project_call_sequence(calls, events):
                 reason = "call_identity_conflict"
             else:
                 seq, reason = event["seq"], None
+                for key in ("task_uid", "task_identity_quality", "task_relation_source", "task_evidence_uids"):
+                    if event.get(key) is not None:
+                        call[key] = event[key]
+                attrs = event.get("attrs", {})
+                if (call.get("argument_digest") and call["argument_digest"] == attrs.get("argument_digest")
+                        and attrs.get("argument_digest_basis") == "canonical_json"):
+                    call.setdefault("argument_digest_kind", "canonical_json")
         call.update(seq=seq, sequence_basis="selected_call_event_native_seq" if seq is not None else None,
                     sequence_unknown_reason=reason)
         projected.append(call)

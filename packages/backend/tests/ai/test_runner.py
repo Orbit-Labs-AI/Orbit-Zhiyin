@@ -30,6 +30,7 @@ def count(svc, table: str) -> int:
         return db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
 
+@pytest.mark.serial
 def test_ok_then_cached(ai_svc):
     submitted = ai_svc.submit("test.echo", {"slots": {"goal": "tidy rules"}})
     assert submitted["status"] in ("queued", "running", "ok") and not submitted["cached"]

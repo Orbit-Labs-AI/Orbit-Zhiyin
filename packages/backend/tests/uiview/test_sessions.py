@@ -157,6 +157,7 @@ def test_live_overlay_from_realtime_snapshot(client, gateway, l1):
 
 
 @pytest.mark.parametrize("n", [600])
+@pytest.mark.serial
 def test_list_build_is_fast(l1, n):
     populate(l1, n, base=T0)
     started = time.perf_counter()

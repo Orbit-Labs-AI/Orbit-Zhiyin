@@ -4,6 +4,8 @@ import time
 from contextlib import contextmanager
 from dataclasses import replace
 
+import pytest
+
 from tandem_backend.install import env as envmod
 from tandem_backend.install.env import (
     build_env,
@@ -162,6 +164,7 @@ def test_build_env_uses_install_home(tmp_path, monkeypatch):
     assert built.home == tmp_path
 
 
+@pytest.mark.serial
 def test_time_budget_and_memo(env, tmp_path):
     cache = tmp_path / "cache"
     environment(env, cache_dir=cache)  # warm the probe cache

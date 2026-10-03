@@ -251,9 +251,9 @@ def router(gw: Gateway) -> APIRouter:
 
     outer = APIRouter()
 
-    @outer.get("/v1/catalog/status", tags=["resource catalog"])
-    def status():  # Registered before catalog_router's /status, so this one answers.
+    def status_summary():
         return {**service.store.stats(), "coverage": service.coverage(), "first_sync": service.first_sync_state()}
 
-    outer.include_router(catalog_router(service, decorate, profile=library_profile, installed_summary=installed_summary))
+    outer.include_router(catalog_router(service, decorate, profile=library_profile,
+                                       installed_summary=installed_summary, status_summary=status_summary))
     return outer

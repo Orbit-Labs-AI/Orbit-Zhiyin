@@ -3,6 +3,7 @@
 import json
 import time
 
+import pytest
 from test_storage_dedup import import_home, write_sessions
 
 from tandem_data.query import current_projection, source_status, trajectory_page
@@ -104,6 +105,7 @@ def test_freshness_detects_every_incomplete_file(tmp_path):
             store.db.execute("UPDATE source_file SET watermark=? WHERE file_id=?", original[::-1])
 
 
+@pytest.mark.serial
 def test_trajectory_page_matches_reference_query(tmp_path):
     source = tmp_path / "claude"
     write_sessions(source)

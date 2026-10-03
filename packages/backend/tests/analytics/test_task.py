@@ -1,5 +1,7 @@
 import copy
 
+import pytest
+
 from tandem_backend.analytics.common import semantic_messages
 from tandem_backend.analytics.task import (
     extract_task_features,
@@ -101,3 +103,33 @@ def test_cross_session_goal_order_uses_time_and_preserves_native_seq(fixtures):
     assert record["task_goal"] == "目标改为编写脚本"
     skewed = [e("a", "second", 1, ts=0), e("b", "first", 0, ts=200)]
     assert [m["event_uid"] for m in chronological_messages(skewed)] == ["first", "second"]
+
+
+@pytest.mark.parametrize("text,kind", [
+    ("请给初学者写一份程序教程", "create"),
+    ("帮我为同事写一封邮件", "create"),
+    ("请用两段话介绍项目报告的结构", "explain"),
+    ("Please describe the report structure", "explain"),
+])
+def test_named_recipient_and_introductory_requests_keep_goal_evidence(text, kind, fixtures):
+    s, e, _ = fixtures
+    record = segment_tasks([e(text)], [s()])["records"][0]
+    assert record["task_goal"] == text and record["task_type"] == [kind]
+    assert record["semantic_status"] == "candidate"
+    assert record["label_evidence"]["task_type"][kind][0]["event_uid"] == "e"
+
+
+@pytest.mark.parametrize("text", [
+    "不要给初学者写教程", "历史记录：请给初学者写教程", "他刚刚介绍了项目结构",
+    '“请给初学者写教程”', "请用表格", "请把回答简短一点", "这封介绍信", "默认回答简短一点",
+])
+def test_goal_coverage_does_not_turn_quoted_status_or_format_controls_into_goals(text, fixtures):
+    s, e, _ = fixtures
+    result = extract_task_features(semantic_messages([e(text)], [s()]))
+    assert result["task_goal"] is None
+
+
+def test_analyzing_a_writing_request_does_not_become_a_writing_action(fixtures):
+    s, e, _ = fixtures
+    result = extract_task_features(semantic_messages([e("请分析给初学者写教程的需求")], [s()]))
+    assert result["task_type"] == ["analyze"]

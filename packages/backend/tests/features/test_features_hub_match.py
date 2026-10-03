@@ -1,5 +1,7 @@
 import time
 
+import pytest
+
 from tandem_backend.features.hub import QueryHub
 
 
@@ -48,6 +50,7 @@ def test_match_scores(home, make_service, catalog):
     assert svc.match(profile, k=1)[0]["item_id"] == "a"
 
 
+@pytest.mark.serial
 def test_hub_close(home, tmp_path):
     from tandem_backend.appdb import AppDB
 

@@ -28,7 +28,10 @@ def resolve_instruction_scope(instructions, task, at=None):
         if reason:
             unresolved.append({"event_uid": row["event_uid"], "reason": reason})
             continue
-        incoming = row["constraints"]
+        inferred = [c for c in row["constraints"] if c.get("source") == "semantic_model"]
+        unresolved.extend({"constraint_uid": c["constraint_uid"], "reason": "model_inference_not_execution_authority"}
+                          for c in inferred)
+        incoming = [c for c in row["constraints"] if c.get("source") != "semantic_model"]
         for uid in row.get("supersedes_instruction_ids", []):
             prior = history.get(uid)
             replacement = next((c for c in incoming if prior

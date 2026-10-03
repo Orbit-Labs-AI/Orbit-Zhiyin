@@ -40,6 +40,13 @@ def summarize_subjective_outcomes(feedback, deliveries, *, status="available", h
               "rework_feedback_count": sum(bool(f["rework_feedback"]) for f in linked)}
     unknowns = dict(Counter(f["link_reason"] for f in unresolved))
     unknowns.update(human_origin=unknown_origin_count, unmeasurable_text=unmeasurable_text_count)
+    inferred = [f for f in feedback if f.get("label_source") == "semantic_model"]
     return {"status": "partial" if status != "available" or unresolved or unknown_origin_count or unmeasurable_text_count else "available",
             "counts": counts, "effective_n": len(linked), "unknown_n": len(unresolved) + unknown_origin_count + unmeasurable_text_count,
-            "unknown_reasons": unknowns, "delivery_states": list(states.values()), "task_success": None}
+            "unknown_reasons": unknowns, "delivery_states": list(states.values()), "task_success": None,
+            **({"semantic_observations": {"feedback_count": len(inferred),
+                "targeted_feedback_count": sum(bool(f["delivery_event_uid"]) for f in inferred),
+                "partial_acceptance_count": sum(f["user_acceptance"] == "partial" for f in inferred),
+                "rework_count": sum(bool(f["rework_feedback"]) for f in inferred),
+                "quality": "model_inferred", "calibrated_probability": None,
+                "evidence_event_uids": [f["event_uid"] for f in inferred]}} if inferred else {})}

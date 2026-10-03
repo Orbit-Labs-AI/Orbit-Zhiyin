@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from ..common import human
+from ..common import human, reported_task_identity
 from ..context import AnalysisContext
 from ..instruction import resolve_instruction_scope
 from ..preference import resolve_effective_preferences
@@ -62,6 +62,12 @@ def task_links(
     links = {}
     for event in events:
         sid, attrs = event["session_uid"], event.get("attrs", {})
+        if event.get("task_uid"):
+            links[event["event_uid"]] = {
+                "task_id": event["task_uid"],
+                "basis": "explicit" if reported_task_identity(event) else "candidate_boundary",
+            }
+            continue
         declared = (
             attrs.get("task_id")
             if attrs.get("task_id_source") in ("native", "human_confirmed")
@@ -230,15 +236,15 @@ def session_journey(
     for task in index.by_session.get(row["session_uid"], ()):
         # Inferred boundary links are display-only; do not feed them back as confirmed acceptance IDs.
         records = (
-            list(index.native_records.get((row["session_uid"], task["native_task_id"]), ()))
-            if task.get("native_task_id")
+            list(index.native_records.get((row["session_uid"], task["task_id"]), ()))
+            if reported_task_identity(task)
             else []
         )
         effective = resolve_instruction_scope(
             records,
             {
                 "session_uid": row["session_uid"],
-                "task_id": task.get("native_task_id") or task["task_id"],
+                "task_id": task["task_id"],
             },
             at=context.scope.until_ts - 1 if context.scope.until_ts is not None else None,
         )

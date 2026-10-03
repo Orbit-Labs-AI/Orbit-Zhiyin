@@ -1,7 +1,6 @@
 """Canonical token buckets and reliable per-request identities."""
 
-
-
+from collections import Counter
 
 TOKEN_BUCKETS = ("input_tokens", "cache_read_tokens", "cache_write_tokens", "output_tokens")
 
@@ -41,11 +40,23 @@ def token_total(row):
 
 def prepare_requests(model_calls):
     unique, conflicts, duplicate_n, invalid_n = {}, set(), 0, 0
+    reasons, qualities = Counter(), Counter()
     for c in model_calls or []:
         key = (c.get("session_uid"), c.get("call_uid"))
-        if not (c.get("usage_scope") == "call" and c.get("measurement") == "delta"
-                and key[0] and key[1] and c.get("boundary_reliable") is True):
+        # Typed L3 rows carry identity/boundary quality, not duplicate call/delta
+        # fields. Legacy adapters retain their explicit measurement contract.
+        typed = "request_identity_quality" in c or "boundary_quality" in c
+        reason = (
+            "missing_request_identity" if not all(key) else
+            "non_call_delta" if (c.get("usage_scope", "call" if typed else None) != "call"
+                                 or c.get("measurement", "delta" if typed else None) != "delta") else
+            "unknown_request_identity" if typed and c.get("request_identity_quality") not in ("reported", "derived") else
+            "unreliable_request_boundary" if typed and c.get("boundary_quality") not in ("reported", "observed") else
+            "unreliable_request_boundary" if not typed and c.get("boundary_reliable") is not True else None
+        )
+        if reason:
             invalid_n += 1
+            reasons[reason] += 1
             continue
         if key in unique:
             if c != unique[key]:
@@ -55,6 +66,9 @@ def prepare_requests(model_calls):
         else:
             unique[key] = c
     valid = [c for key, c in unique.items() if key not in conflicts]
+    qualities.update(c.get("boundary_quality", "legacy_reliable") for c in valid)
     return {"requests": valid, "invalid_request_rows": invalid_n,
+            "invalid_request_reasons": dict(sorted(reasons.items())),
+            "request_boundary_qualities": dict(sorted(qualities.items())),
             "duplicate_request_rows": duplicate_n,
             "conflicting_request_ids": [{"session_uid": sid, "call_uid": uid} for sid, uid in sorted(conflicts)]}
