@@ -130,6 +130,9 @@ def test_old_ledger_gets_link_columns(tmp_path, env):
     with db.write() as conn:
         conn.execute("DROP TABLE install_ledger")
         conn.execute("CREATE TABLE install_ledger (entry_id TEXT PRIMARY KEY, ts INTEGER, actor TEXT, action TEXT)")
+        conn.execute("DELETE FROM schema_version WHERE module = 'install'")  # as an older release left it
+    db.close()
+    db = AppDB(tmp_path / "app.db")  # the appdb migration step adds the columns on open
     InstallService(db, tmp_path, env=env)
     with db.read() as conn:
         assert {"inv_id", "catalog_item_id"} <= {r[1] for r in conn.execute("PRAGMA table_info(install_ledger)")}
@@ -252,4 +255,4 @@ def test_maintain_sweeps_old_plans(setup):
     plan = svc.plan({"type": "catalog", "id": "docs-mcp"}, agents=["claude_code"])
     with svc.appdb.write() as db:
         db.execute("UPDATE install_plan SET created_at = 1 WHERE plan_id = ?", (plan["plan_id"],))
-    assert svc.maintain() == {"idle": 0, "backups": 0, "plans": 1, "linked": 0}
+    assert svc.maintain() == {"triggered": 0, "idle": 0, "kept": 0, "backups": 0, "plans": 1, "linked": 0}

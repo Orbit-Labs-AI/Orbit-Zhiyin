@@ -199,6 +199,21 @@ def agent_list(agent: list[str] | None, agents: str | None) -> list[str] | None:
     return out or None
 
 
+def range_scope(source_ids: Annotated[list[str] | None, Query()] = None,
+                excluded_session_uids: Annotated[list[str] | None, Query()] = None) -> dict:
+    """FastAPI dependency: the source range and exclusion list ``analytics_scope`` applies.
+
+    A5/A6 keep their own ``project_id`` / ``since`` parameters but must see the same session
+    set as A1/A3/A4: ``default_source_ids`` (disabled sources dropped) plus the persisted
+    ``sessionops.exclusion`` list merged with any explicit ``excluded_session_uids``.
+    """
+    from ..services.routes_analytics import analytics_scope
+
+    scope = analytics_scope(source_ids=source_ids, excluded_session_uids=excluded_session_uids)
+    return {"source_ids": scope.source_ids,
+            "excluded_session_uids": list(scope.excluded_session_uids or [])}
+
+
 def facet_sessions(gw, facets: dict, tz: str | None = None, wait_ms: int = 0):
     """Main-session ids whose ``uiview_facts`` row matches topic / outcome / fric / hour.
 

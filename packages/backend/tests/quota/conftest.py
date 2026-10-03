@@ -41,3 +41,14 @@ def tandem(home, tmp_path):  # noqa: F811
     t.db_path = home / "tandem.db"
     yield t
     t.db.close()
+
+
+@pytest.fixture(autouse=True)
+def _reset_exclusion_provider():
+    """Every gateway registers the process-wide exclusion provider; exclusion.merged is
+    fail-closed, so a provider left over from an earlier test's closed app.db must not leak."""
+    from tandem_backend.sessionops import exclusion
+
+    exclusion.set_provider(None)
+    yield
+    exclusion.set_provider(None)

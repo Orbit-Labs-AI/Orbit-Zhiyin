@@ -202,7 +202,9 @@ def run(ctx: EvalContext) -> SuiteResult:
     changed = [k for k, v in _stamp(probe + real).items() if stamps.get(k, v) != v]
     checks.append(Check("install.real_home_untouched", not outside and not changed,
                         detail=", ".join(outside + changed)))
-    if ctx.real:
-        checks.append(Check("install.real_smoke", True, detail="skipped: real smoke not implemented"))
     cells = len(SPECS) * len(AGENTS)
-    return SuiteResult(ID, checks, metrics={"cells": cells, "written": len(written)})
+    # A real-machine smoke run is not implemented; report that as a metric, never as a passed check.
+    metrics = {"cells": cells, "written": len(written)}
+    if ctx.real:
+        metrics["real_smoke"] = "not_implemented"
+    return SuiteResult(ID, checks, metrics=metrics)

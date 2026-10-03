@@ -365,5 +365,683 @@
         "requested"
       ]
     }
+  },
+  {
+    "id": "recall-pos-01",
+    "split": "recall-v1.3",
+    "text": "别动其他文件",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-02",
+    "split": "recall-v1.3",
+    "text": "别改测试文件",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-03",
+    "split": "recall-v1.3",
+    "text": "千万不要删除数据库",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-04",
+    "split": "recall-v1.3",
+    "text": "不许推送到远端",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-05",
+    "split": "recall-v1.3",
+    "text": "不准修改 package.json",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-06",
+    "split": "recall-v1.3",
+    "text": "切勿提交 .env",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-07",
+    "split": "recall-v1.3",
+    "text": "你别再加新依赖了",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-08",
+    "split": "recall-v1.3",
+    "text": "Don't push to main",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-09",
+    "split": "recall-v1.3",
+    "text": "never commit secrets",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-10",
+    "split": "recall-v1.3",
+    "text": "别碰 migrations 目录",
+    "expected": {
+      "prohibited_actions": [
+        "prohibited"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-11",
+    "split": "recall-v1.3",
+    "text": "你要先写计划再动手",
+    "expected": {
+      "execution_order": [
+        "plan_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-12",
+    "split": "recall-v1.3",
+    "text": "你需要先给出方案",
+    "expected": {
+      "execution_order": [
+        "plan_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-13",
+    "split": "recall-v1.3",
+    "text": "先出个方案给我看",
+    "expected": {
+      "execution_order": [
+        "plan_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-14",
+    "split": "recall-v1.3",
+    "text": "先列一个计划",
+    "expected": {
+      "execution_order": [
+        "plan_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-15",
+    "split": "recall-v1.3",
+    "text": "Please write a plan first",
+    "expected": {
+      "execution_order": [
+        "plan_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-16",
+    "split": "recall-v1.3",
+    "text": "先分析一下原因",
+    "expected": {
+      "execution_order": [
+        "discuss_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-17",
+    "split": "recall-v1.3",
+    "text": "先讨论一下接口设计",
+    "expected": {
+      "execution_order": [
+        "discuss_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-18",
+    "split": "recall-v1.3",
+    "text": "记得跑一下测试",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-19",
+    "split": "recall-v1.3",
+    "text": "跑下测试确认一下",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-20",
+    "split": "recall-v1.3",
+    "text": "改完后运行 npm test",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-21",
+    "split": "recall-v1.3",
+    "text": "改完跑一下 pytest",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-22",
+    "split": "recall-v1.3",
+    "text": "提交前执行 ruff 检查",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-23",
+    "split": "recall-v1.3",
+    "text": "记得补充单元测试",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-24",
+    "split": "recall-v1.3",
+    "text": "确保构建通过",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-25",
+    "split": "recall-v1.3",
+    "text": "Run the tests before you finish",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-26",
+    "split": "recall-v1.3",
+    "text": "make sure the build passes",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-27",
+    "split": "recall-v1.3",
+    "text": "仔细检查一遍",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-28",
+    "split": "recall-v1.3",
+    "text": "请运行 cargo test",
+    "expected": {
+      "verification_requirements": [
+        "requested"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-29",
+    "split": "recall-v1.3",
+    "text": "只修改 src/app.swift",
+    "expected": {
+      "requested_autonomy": [
+        "scoped"
+      ],
+      "allowed_scope": [
+        "restricted"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-30",
+    "split": "recall-v1.3",
+    "text": "仅修改 README.md",
+    "expected": {
+      "requested_autonomy": [
+        "scoped"
+      ],
+      "allowed_scope": [
+        "restricted"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-31",
+    "split": "recall-v1.3",
+    "text": "only edit the parser module",
+    "expected": {
+      "requested_autonomy": [
+        "scoped"
+      ],
+      "allowed_scope": [
+        "restricted"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-32",
+    "split": "recall-v1.3",
+    "text": "请用表格输出",
+    "expected": {
+      "format_requirements": [
+        "format"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-33",
+    "split": "recall-v1.3",
+    "text": "结果写成 JSON",
+    "expected": {
+      "format_requirements": [
+        "format"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-34",
+    "split": "recall-v1.3",
+    "text": "用 Markdown 列表回复",
+    "expected": {
+      "format_requirements": [
+        "format"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-35",
+    "split": "recall-v1.3",
+    "text": "return the answer as a markdown table",
+    "expected": {
+      "format_requirements": [
+        "format"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-36",
+    "split": "recall-v1.3",
+    "text": "用 pnpm 安装依赖",
+    "expected": {
+      "tool_requirements": [
+        "tool"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-37",
+    "split": "recall-v1.3",
+    "text": "使用 git 管理改动",
+    "expected": {
+      "tool_requirements": [
+        "tool"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-38",
+    "split": "recall-v1.3",
+    "text": "use uv to run scripts",
+    "expected": {
+      "tool_requirements": [
+        "tool"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-39",
+    "split": "recall-v1.3",
+    "text": "等我确认后再改",
+    "expected": {
+      "requested_autonomy": [
+        "ask_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-40",
+    "split": "recall-v1.3",
+    "text": "ask me before deleting anything",
+    "expected": {
+      "requested_autonomy": [
+        "ask_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-41",
+    "split": "recall-v1.3",
+    "text": "无需询问，直接改",
+    "expected": {
+      "requested_autonomy": [
+        "explicit"
+      ],
+      "execution_order": [
+        "execute_first"
+      ]
+    }
+  },
+  {
+    "id": "recall-pos-42",
+    "split": "recall-v1.3",
+    "text": "验收标准：所有测试通过",
+    "expected": {
+      "acceptance_criteria": [
+        "criterion"
+      ]
+    }
+  },
+  {
+    "id": "recall-neg-01",
+    "split": "recall-v1.3",
+    "text": "别人的代码不用管",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-02",
+    "split": "recall-v1.3",
+    "text": "以前面的列表为准",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-03",
+    "split": "recall-v1.3",
+    "text": "昨天跑了测试",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-04",
+    "split": "recall-v1.3",
+    "text": "测试已经通过了",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-05",
+    "split": "recall-v1.3",
+    "text": "他说别动其他文件",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-06",
+    "split": "recall-v1.3",
+    "text": "例如：不许推送",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-07",
+    "split": "recall-v1.3",
+    "text": "这个函数别名是 foo",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-08",
+    "split": "recall-v1.3",
+    "text": "你好",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-09",
+    "split": "recall-v1.3",
+    "text": "谢谢",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-10",
+    "split": "recall-v1.3",
+    "text": "继续",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-11",
+    "split": "recall-v1.3",
+    "text": "看一下这个报错",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-12",
+    "split": "recall-v1.3",
+    "text": "为什么测试失败了？",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-13",
+    "split": "recall-v1.3",
+    "text": "能解释一下这个计划吗？",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-14",
+    "split": "recall-v1.3",
+    "text": "日志里写着 do not push",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-15",
+    "split": "recall-v1.3",
+    "text": "我之前要求先给方案",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-16",
+    "split": "recall-v1.3",
+    "text": "示例：先写计划",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-17",
+    "split": "recall-v1.3",
+    "text": "\"不要运行测试\"",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-18",
+    "split": "recall-v1.3",
+    "text": "`别改测试文件`",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-19",
+    "split": "recall-v1.3",
+    "text": "程序会自动运行测试",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-20",
+    "split": "recall-v1.3",
+    "text": "CI 每天跑测试",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-21",
+    "split": "recall-v1.3",
+    "text": "这个按钮是别处复制的",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-22",
+    "split": "recall-v1.3",
+    "text": "以后再说",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-23",
+    "split": "recall-v1.3",
+    "text": "以上就是全部内容",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-24",
+    "split": "recall-v1.3",
+    "text": "what does 'never commit' mean?",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-25",
+    "split": "recall-v1.3",
+    "text": "the plan was approved yesterday",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-26",
+    "split": "recall-v1.3",
+    "text": "tests are flaky on CI",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-27",
+    "split": "recall-v1.3",
+    "text": "我们用 pnpm",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-28",
+    "split": "recall-v1.3",
+    "text": "git 仓库在哪里？",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-29",
+    "split": "recall-v1.3",
+    "text": "帮我看看这个 diff",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-30",
+    "split": "recall-v1.3",
+    "text": "把这段话翻译成英文",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-31",
+    "split": "recall-v1.3",
+    "text": "请解释 lint 的含义",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-32",
+    "split": "recall-v1.3",
+    "text": "如果有时间就补测试吧?",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-33",
+    "split": "recall-v1.3",
+    "text": "这个模块不能用了",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-34",
+    "split": "recall-v1.3",
+    "text": "不行",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-35",
+    "split": "recall-v1.3",
+    "text": "重来",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-36",
+    "split": "recall-v1.3",
+    "text": "可以了",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-37",
+    "split": "recall-v1.3",
+    "text": "好的",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-38",
+    "split": "recall-v1.3",
+    "text": "那就这样",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-39",
+    "split": "recall-v1.3",
+    "text": "表格里的数据不对",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-40",
+    "split": "recall-v1.3",
+    "text": "列表第三项是什么",
+    "expected": {}
+  },
+  {
+    "id": "recall-neg-41",
+    "split": "recall-v1.3",
+    "text": "报告的格式有问题吗？",
+    "expected": {}
   }
 ]

@@ -532,8 +532,6 @@ def library(store, *, profile: dict | None = None, lexical: dict | None = None, 
                 feats.setdefault(r[0], []).append(r)
         hidden = conn.execute("SELECT count(*) FROM catalog_item WHERE listable=1 AND item_id IN "
                               "(SELECT value FROM json_each(?))", (json.dumps(list(exclude)),)).fetchone()[0] if exclude else 0
-    top_overlap = max(overlap.values(), default=0) or 1
-    top_lexical = max(lexical.values(), default=0) or 1
     window = profile.get("window_days")
     items = []
     for row in rows:
@@ -552,10 +550,10 @@ def library(store, *, profile: dict | None = None, lexical: dict | None = None, 
                 # Strongest hit, relative to the user's top friction; extracted text counts 0.6.
                 friction = max(friction, min(1.0, entry["weight"] / top_friction * ORIGIN_WEIGHT.get(origin, 0.6)))
         matched.sort(key=lambda m: (m["feature"] != "friction", -m["_w"], m["feature"], m["value"]))
-        if ok:
-            fo = overlap.get(item_id, 0.0) / top_overlap
-        else:
-            fo = lexical.get(item_id, 0.0) / top_lexical if lexical else 0.0
+        # Absolute parts: the weighted share of the profile the item covers, or the retrieval
+        # score of the query (search.route_strength). Never divided by the best candidate, so
+        # a page of weak hits cannot show a high match and one item scores the same in any page.
+        fo = overlap.get(item_id, 0.0) if ok else lexical.get(item_id, 0.0)
         parts = {"feature_overlap": round(min(1.0, fo), 4), "friction": round(friction, 4), "trust": trust(row)}
         m = round(100 * sum(LIBRARY_WEIGHTS[k] * v for k, v in parts.items()))
         why = []

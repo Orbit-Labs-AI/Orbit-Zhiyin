@@ -4,51 +4,26 @@ Aliases map a native model string (``claude-sonnet-4-5-20250929``, ``anthropic/c
 ``us.anthropic.claude-haiku-4-5-v1:0``) to a canonical id. They are seeded into ``model_alias``
 with ``INSERT OR IGNORE`` so user-maintained rows always win.
 
-Prices are public first-party list prices in USD per million tokens. A cost is only computed
-for a resolved model with a price row and complete token buckets; everything else stays NULL
-(``cost_source`` NULL) so cost cards show "unknown", never zero. The cost of a subscription
-session is the API-equivalent list price, not what the user paid.
+Prices live in ``prices.json`` (USD per million tokens, each row tied to a provider source
+URL and retrieval date). A cost is only computed for a resolved model with a price row and
+complete token buckets; everything else stays NULL (``cost_source`` NULL) so cost cards show
+"unknown", never zero. Anthropic cache writes are priced per TTL bucket: when a call wrote
+cache tokens but the 1h/5m split is not reported, the cost is NULL rather than assuming the
+cheaper 5m rate. The cost of a subscription session is the API-equivalent list price, not
+what the user paid.
 """
 
 from __future__ import annotations
 
+import json
 import re
+from importlib.resources import files
 
-PRICE_TABLE_VERSION = "anthropic-list-2026-09"
-
-# canonical id -> (input, output, cache_read, cache_write_5m) USD per MTok.
-_CLAUDE = {
-    "claude-fable-5-1": (10.0, 50.0),
-    "claude-fable-5": (10.0, 50.0),
-    "claude-opus-5-5": (4.0, 20.0),
-    "claude-opus-5": (5.0, 25.0),
-    "claude-opus-4-8": (5.0, 25.0),
-    "claude-opus-4-7": (5.0, 25.0),
-    "claude-opus-4-6": (5.0, 25.0),
-    "claude-opus-4-5": (5.0, 25.0),
-    "claude-opus-4-1": (15.0, 75.0),
-    "claude-opus-4": (15.0, 75.0),
-    "claude-sonnet-5-5": (2.0, 10.0),
-    "claude-sonnet-5": (2.0, 10.0),
-    "claude-sonnet-4-6": (3.0, 15.0),
-    "claude-sonnet-4-5": (3.0, 15.0),
-    "claude-sonnet-4": (3.0, 15.0),
-    "claude-3-7-sonnet": (3.0, 15.0),
-    "claude-3-5-sonnet": (3.0, 15.0),
-    "claude-haiku-4-5": (1.0, 5.0),
-    "claude-3-5-haiku": (0.8, 4.0),
-}
-PRICES = {
-    model: (inp, out, round(inp * 0.1, 6), round(inp * 1.25, 6))
-    for model, (inp, out) in _CLAUDE.items()
-}
-_CACHE_READ_OVERRIDES = {
-    "claude-fable-5-1": 0.25,
-    "claude-opus-5-5": 0.20,
-    "claude-sonnet-5-5": 0.20,
-}
-for _model, _read in _CACHE_READ_OVERRIDES.items():
-    PRICES[_model] = (*PRICES[_model][:2], _read, PRICES[_model][3])
+_TABLE = json.loads(files("tandem_data").joinpath("prices.json").read_text())
+PRICE_TABLE_VERSION = _TABLE["version"]
+PRICE_SOURCES: dict[str, dict] = _TABLE["sources"]
+# canonical id -> row (input, output, cache_read, cache_write_5m, cache_write_1h, ...).
+PRICES: dict[str, dict] = _TABLE["models"]
 
 _PREFIX = re.compile(r"^(?:[a-z0-9-]+\.)?(?:anthropic[./:])|^(?:openai|google|models)/")
 _DATE = re.compile(r"(?:-|@)(?:20\d{6}|\d{4}-\d{2}-\d{2})$")
@@ -97,14 +72,39 @@ def canonical_model(raw: str | None) -> tuple[str, str | None] | None:
     return value, family
 
 
-def cost_usd(model_id: str | None, tokens: dict) -> float | None:
-    """List-price USD for one call with complete buckets; None when unpriced or incomplete."""
+def _count(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def cost_usd(
+    model_id: str | None, tokens: dict, *, cache_write_1h: int | None = None
+) -> float | None:
+    """List-price USD for one call with complete buckets; None when unpriced or incomplete.
+
+    ``tokens`` holds the four normalized buckets; ``cache_write_1h`` is the part of
+    ``cache_write_tokens`` written with a 1-hour TTL (Anthropic ``cache_creation``), or None
+    when the harness did not report the split.
+    """
     price = PRICES.get(model_id or "")
     if price is None:
         return None
-    buckets = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
-    values = [tokens.get(name) for name in buckets]
+    inp, out, read = (tokens.get(n) for n in ("input_tokens", "output_tokens", "cache_read_tokens"))
+    write = tokens.get("cache_write_tokens")
     # Missing buckets are never inferred as zero.
-    if any(not isinstance(value, int) or isinstance(value, bool) for value in values):
+    if not all(_count(value) for value in (inp, out, read)):
         return None
-    return round(sum(v * p for v, p in zip(values, price, strict=True)) / 1_000_000, 8)
+    total = inp * price["input"] + out * price["output"] + read * price["cache_read"]
+    if price.get("cache_write_billed", True):
+        if not _count(write):
+            return None
+        if write:
+            if not _count(cache_write_1h) or cache_write_1h > write:
+                return None
+            total += (write - cache_write_1h) * price["cache_write_5m"]
+            total += cache_write_1h * price["cache_write_1h"]
+    elif write is not None and not _count(write):
+        return None
+    limit = price.get("max_prompt_tokens")
+    if limit is not None and inp + read + (write or 0) > limit:
+        return None
+    return round(total / 1_000_000, 8)

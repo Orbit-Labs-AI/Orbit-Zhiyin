@@ -44,7 +44,7 @@ _lru_lock = threading.Lock()
 
 
 def algo_version() -> str:
-    """H(FEATURE_VERSION, RULE_VERSIONS, INSTRUCTION/TAXONOMY/PREFERENCE, VECTOR, READER versions).
+    """H(FEATURE_VERSION, rule_versions(), INSTRUCTION/TAXONOMY/PREFERENCE, VECTOR, READER versions).
 
     Read at call time. Every version that enters ``analysis_digest`` is part of it, so a
     rule change never serves a cached section or row computed under the old rules.
@@ -55,7 +55,7 @@ def algo_version() -> str:
     from . import instruction as instruction_module
     from . import preference as preference_module
     from .lexicon import LEXICON_VERSION
-    from .products.contracts import RULE_VERSIONS
+    from .products.contracts import rule_versions
     from .task import representation as vectors
     from .task import taxonomy
     from .task.topics import TOPIC_VERSION
@@ -63,7 +63,7 @@ def algo_version() -> str:
     return digest(
         CACHE_FORMAT,
         FEATURE_VERSION,
-        dict(RULE_VERSIONS),
+        rule_versions(),
         instruction_module.INSTRUCTION_VERSION,
         taxonomy.TAXONOMY_VERSION,
         preference_module.PREFERENCE_VERSION,

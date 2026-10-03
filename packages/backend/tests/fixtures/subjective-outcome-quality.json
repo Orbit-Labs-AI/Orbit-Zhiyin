@@ -323,5 +323,255 @@
     "id": "cn-example-multiline",
     "text": "下面是示例：\n可以了",
     "expected": null
+  },
+  {
+    "id": "weak-accept-01",
+    "split": "recall-v1.1",
+    "text": "没问题",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-02",
+    "split": "recall-v1.1",
+    "text": "好了",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-03",
+    "split": "recall-v1.1",
+    "text": "能用了",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-04",
+    "split": "recall-v1.1",
+    "text": "跑通了",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-05",
+    "split": "recall-v1.1",
+    "text": "ok",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-06",
+    "split": "recall-v1.1",
+    "text": "perfect",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-07",
+    "split": "recall-v1.1",
+    "text": "好了，谢谢",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-08",
+    "split": "recall-v1.1",
+    "text": "ok, thanks",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-09",
+    "split": "recall-v1.1",
+    "text": "Perfect!",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-10",
+    "split": "recall-v1.1",
+    "text": "不错",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-11",
+    "split": "recall-v1.1",
+    "text": "这样可以了",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-12",
+    "split": "recall-v1.1",
+    "text": "done, thanks",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-13",
+    "split": "recall-v1.1",
+    "text": "跑通了，谢谢",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-14",
+    "split": "recall-v1.1",
+    "text": "okay",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-15",
+    "split": "recall-v1.1",
+    "text": "没问题，辛苦了",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-16",
+    "split": "recall-v1.1",
+    "text": "能用了，感谢",
+    "expected": [
+      "accepted",
+      null,
+      false
+    ]
+  },
+  {
+    "id": "weak-accept-neg-01",
+    "split": "recall-v1.1",
+    "text": "好了，现在加个按钮",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-02",
+    "split": "recall-v1.1",
+    "text": "ok, now add tests",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-03",
+    "split": "recall-v1.1",
+    "text": "没问题吗？",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-04",
+    "split": "recall-v1.1",
+    "text": "如果没问题就合并",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-05",
+    "split": "recall-v1.1",
+    "text": "他说没问题",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-06",
+    "split": "recall-v1.1",
+    "text": "好了吗",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-07",
+    "split": "recall-v1.1",
+    "text": "ok so what next?",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-08",
+    "split": "recall-v1.1",
+    "text": "请把好了改成完成",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-09",
+    "split": "recall-v1.1",
+    "text": "“没问题”这句话怎么翻译",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-10",
+    "split": "recall-v1.1",
+    "text": "跑通了吗？",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-11",
+    "split": "recall-v1.1",
+    "text": "perfect 这个词是什么意思？",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-12",
+    "split": "recall-v1.1",
+    "text": "要是能用了就告诉我",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-13",
+    "split": "recall-v1.1",
+    "text": "not ok",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-14",
+    "split": "recall-v1.1",
+    "text": "好了没有",
+    "expected": null
+  },
+  {
+    "id": "weak-accept-neg-15",
+    "split": "recall-v1.1",
+    "text": "不错的话再说",
+    "expected": null
   }
 ]
