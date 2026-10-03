@@ -411,7 +411,8 @@ def build_meta(appdb) -> dict:
 def _window(params, now_ms, zone=None):
     """``[since, until)``. Without ``since``, ``days`` = the last N local calendar days of
     ``zone`` including today (A1 / A3 ``range`` windows), not N×24 h back from now: a rolling
-    window would start mid-day and give the first day bucket a partial count."""
+    window would start mid-day and give the first day bucket a partial count. An explicit
+    ``since`` / ``until`` of 0 is a bound, not "missing"."""
     until = params["until"] if params.get("until") is not None else now_ms
     since = params.get("since")
     if since is None:

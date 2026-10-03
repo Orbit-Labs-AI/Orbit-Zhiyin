@@ -278,10 +278,10 @@ class JobService:
         self.publish = publish
         self.progress_interval_s = progress_interval_s
         self.progress_sent: dict[str, tuple[tuple, float]] = {}
+        self.progress_counts: dict[str, dict[str, int]] = {}
         # Called once per import job that finished with new data (completed / partial), on
         # the worker reader thread; the gateway binds it to queue follow-up work.
         self.on_import_done: Callable[[dict], None] | None = None
-        self.progress_counts: dict[str, dict[str, int]] = {}
 
     def _event(self, job: dict) -> None:
         self.publish("job", "job", {k: job.get(k) for k in (

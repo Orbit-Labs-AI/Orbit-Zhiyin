@@ -500,6 +500,7 @@ def _rank(store, conn, index, request, routes, passage_rows, wanted, query_featu
                            "agent_support": {a: m["support"] for a, m in matrix.items() if m["support"] != "unknown"},
                            "support_basis": matrix, "admission": index.admission(item_id, request.problem_type),
                            "difficulty": row["difficulty"], "last_seen": row["last_seen"], "version_id": row["latest_version"],
+                           # Metadata completeness rubric (catalog-quality-v1), never an effectiveness score.
                            "quality": quality_report,
                            "content_hash": row["content_hash"], "score": relevance, "score_parts": {"routes": parts[item_id],
                            "evidence": evidence, "rrf": fusion[item_id], "feature_coverage": coverage,

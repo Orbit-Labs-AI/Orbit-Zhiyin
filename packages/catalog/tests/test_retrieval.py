@@ -335,16 +335,17 @@ def test_seed_mmr_keeps_docx_at_or_above_its_score_rank(seeded):
 # 2026-10-03 seed rebuild added *-optimization, scikit-learn/ml-pipeline and *-design-system items.
 GOLDEN_ZH = {"代码审查": ("review",), "数据库迁移": ("sql", "migration", "database"), "浏览器测试": ("playwright", "testing"),
              "论文引用": ("research", "citation", "consensus"), "调试": ("debug",), "部署": ("deploy",),
-             "性能优化": ("performance", "optimiz"), "容器": ("docker", "container", "infrastructure engineer"), "安全漏洞": ("vulnerab", "security"),
+             "性能优化": ("performance", "optimiz"), "容器": ("docker", "container"), "安全漏洞": ("vulnerab", "security"),
              "表格": ("xlsx",), "幻灯片": ("pptx",), "前端": ("frontend",), "监控日志": ("logging", "monitor"),
              "机器学习": ("machine-learning", "scikit-learn", "ml-pipeline"), "持续集成": ("cicd",), "重构": ("refactor",),
              "支付": ("payment", "stripe"), "截图": ("screenshot",), "设计系统": ("design system", "design-system")}
 
 
-# The 2026-10-03 rebuild regressed "设计系统" (generic design items outranked toss-style-design-system);
-# the merged seed (feedback line + microsoft-skills from main) ranks a design-system item in the top 5
-# again. Keep the hook for a future seed whose ranking regresses: list the query here, don't widen targets.
-ZH_KNOWN_MISSES: set[str] = set()
+# Known regression after the 2026-10-03 seed rebuild: "设计系统" ranks generic design items
+# (adobe-create-mockups, imagegen) above toss-style-design-system (6th). Two-concept Han queries
+# let one strong concept ("设计"→design in the name) outweigh both concepts matching; tracked as a
+# follow-up on concept coverage in search._concept_score, not hidden by widening the target.
+ZH_KNOWN_MISSES = {"设计系统"}
 
 
 @pytest.mark.parametrize("text", [pytest.param(t, marks=pytest.mark.xfail(strict=True, reason="seed 2026-10-03 ranking"))

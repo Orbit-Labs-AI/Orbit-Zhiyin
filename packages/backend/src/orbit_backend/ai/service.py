@@ -291,8 +291,8 @@ class AIService:
                  pack.get("goal_source", req.get("goal_source")),
                  json.dumps({**req, "_data": self._data_identity(),
                              "_narrative_input_fingerprint": narrative_input_fingerprint(
-                                 task, pack, req.get("scope"))}, ensure_ascii=False,
-                            default=str), pack.get("preview_digest"),
+                                 task, pack, req.get("scope"))},
+                            ensure_ascii=False, default=str), pack.get("preview_digest"),
                  now_ms()))
         if waiter:
             self.runner.waiters.add(job_id)

@@ -352,21 +352,22 @@ if (TL.mode === 'live') {
   };
   // 来源如实写在回答末尾：预置问题是规则模板在本机查询出的（没有调用模型）；自由提问与专业分析由本地 Agent 作答；
   // 模型失败时后端回 status=fallback 与说明文字，照样显示说明，不当成回答
-  const tlsAskSrc = (d) => d._fallback || d.error_code ? '本地 Agent 没有答成' + (d.error_code ? '（' + d.error_code + '）' : '') + '，以上是说明，不是回答'
-    : d.source === 'ai' || d.source === 'cache' ? '本地 Agent 回答' + (d.source === 'cache' ? '（缓存）' : '') + ' · 只发送了脱敏后的查询结果'
+  const tlsAskSrc = (d) => d.source === 'ai' || d.source === 'cache' ? '本地 Agent 回答' + (d.source === 'cache' ? '（缓存）' : '') + ' · 只发送了脱敏后的查询结果'
+    : d.error_code ? '本地 Agent 没有答成（' + d.error_code + '），以上是说明，不是回答'
+    : d.analysis_session && d.analysis_session.validation === 'fallback' ? '没有通过校验的 AI 分析 · 以上是本机统计给出的保底说明'
     : '规则模板 · 在本机查询你的数据生成，没有调用模型';
-  const tlsAnswerBody = (d) => d.summary != null ? [d.summary, ...(d.findings || []).map((f) => (f.kind === 'hypothesis' ? '待验证的推测：' : '观察：') + f.text + ((f.evidence_ids || []).length ? '\n证据：' + f.evidence_ids.join('、') : '')), (d.next_steps || []).length ? '下一步：\n' + d.next_steps.join('\n') : '', (d.limitations || []).length ? '分析边界：\n' + d.limitations.join('\n') : ''].filter(Boolean).join('\n\n') : (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '');
-  const tlsAnswer = (d) => tlsAnswerBody(d) + '\n\n— ' + tlsAskSrc(d);
+  const tlsAnswer = (d) => (d.summary != null ? [d.summary, ...(d.findings || []).map((f) => (f.kind === 'hypothesis' ? '待验证的推测：' : '观察：') + f.text + ((f.evidence_ids || []).length ? '\n证据：' + f.evidence_ids.join('、') : '')), (d.next_steps || []).length ? '下一步：\n' + d.next_steps.join('\n') : '', (d.limitations || []).length ? '分析边界：\n' + d.limitations.join('\n') : ''].filter(Boolean).join('\n\n') : (d.answer || '') + ((d.refs || []).length ? '\n\n引用：' + d.refs.map((r) => r.kind + ' ' + r.id).join('、') : '')) + '\n\n— ' + tlsAskSrc(d);
   function tlsThinking(q, preset) { const a = $('#askA'); if (a) a.innerHTML = '<div class="mono cap" style="font-size:11px;margin-bottom:6px">问：' + esc(q) + '</div><span class="cap" data-tl="ask-wait">' + (preset ? '正在本机查询…' : '本地 Agent 正在回答…') + '</span>'; }
   function tlsAsk(body, q) {
     tlsCancelQuestion();
     const request = { owner: ASK, ctl: new AbortController(), job: null }; TLS.question = request;
     const current = () => TLS.question === request && ASK === request.owner && MODAL_KEY === 'ask';
-    body = Object.assign({}, body, { scope: ASK.scope, session_uid: ASK.session_uid });
     const task = ASK.template;
+    const preset = !task && body.preset_index != null;
+    body = Object.assign({}, body, { scope: ASK.scope, session_uid: ASK.session_uid });
     const path = task ? '/v1/ai/jobs' : '/v1/ai/ask';
     const payload = task ? { task_id: task, scope: ASK.scope, goal: q, goal_source: 'ask', params: { question: q, session_uid: ASK.session_uid } } : body;
-    clearInterval(ASKT); tlsThinking(q, !task && body.preset_index != null);
+    clearInterval(ASKT); tlsThinking(q, preset);
     TL.send('POST', path, payload).then((r) => {
       const d = r.data || {};
       if (!current()) { if (d.job_id) TL.send('POST', '/v1/ai/jobs/' + encodeURIComponent(d.job_id) + '/cancel', {}).catch(() => {}); return null; }
@@ -375,7 +376,7 @@ if (TL.mode === 'live') {
       request.job = d.job_id;
       return TL.pollJob(d.job_id, null, { signal: request.ctl.signal }).then((job) => {
         request.job = null;
-        if (job.status === 'fallback' && job.result) return Object.assign({}, job.result, { _fallback: true });
+        if (job.status === 'fallback' && job.result) return job.result;
         if (TLS_DONE.indexOf(job.status) < 0) throw Object.assign(new Error(job.status === 'cancelled' ? '已取消' : (job.error && (job.error.message || job.error.code || job.error)) || '回答失败'), { status: 500, code: 'job_' + job.status });
         return job.result || {};
       });

@@ -69,8 +69,10 @@ def test_search_preserves_review_language_and_explicit_support(tmp_path):
                                                "agent_support": {"codex": "native"}})])
         item = service.match(MatchRequest(text="debug"))["items"][0]
         assert item["verification"] == "repository_and_source_read" and item["language"] == "en"
-        # support = the full per-agent matrix (unknown included); agent_support = known levels only.
+        # The declared level survives next to the format-inferred matrix (support = full matrix,
+        # agent_support = known levels only, support_basis = where each level came from).
         assert item["support"]["codex"] == "native" and item["agent_support"]["codex"] == "native"
+        assert item["support_basis"]["codex"]["basis"] == "declared_level"
         assert item["quality"]["dimensions"]["source_read"]
         assert service.library(q="debug")["items"][0]["quality"] == item["quality"]
     finally:
@@ -125,6 +127,10 @@ def test_app_model_directory_uses_explicit_path_before_environment(tmp_path, mon
         service.close()
         explicit.close()
     monkeypatch.delenv('ORBIT_CATALOG_MODEL_DIR')
+    # Without the variable the service discovers <home>/models, $ORBIT_HOME/models and the App default
+    # under HOME; point those at empty directories so a model installed on this machine is not found.
+    monkeypatch.setenv('HOME', str(tmp_path / 'user'))
+    monkeypatch.delenv('ORBIT_HOME', raising=False)
     unset = CatalogService(tmp_path / 'unset.db')
     try:
         assert unset.model_dir is None

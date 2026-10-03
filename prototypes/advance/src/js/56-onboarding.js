@@ -69,7 +69,7 @@ function drawOB() {
   let b = '';
   if (s === 0) {
     b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div>' + wordmark(18) + '<h2 class="serif" style="margin:8px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
-      [['eye', '整理会话轨迹', '汇总对话、工具调用与任务结果，保留来源证据'], ['chart', '看见协作习惯', '先计算统计指标，再查看卡点、反馈和改进方向'], ['bot', '按需连接本地 Agent', '用专业模板深入分析，沿用 Agent 自己的模型配置']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
+      [['eye', '整理会话轨迹', '只读本地日志，汇总对话、工具调用与任务结果，保留来源证据'], ['chart', '看见协作习惯', '先计算统计指标，再查看卡点、反馈和改进方向'], ['bot', '按需连接本地 Agent', 'AI 功能默认关闭；开启后用专业模板深入分析，沿用 Agent 自己的模型配置，只发送脱敏摘要']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
   } else if (s === 1 && OB.live) {
     b = obLiveStep();

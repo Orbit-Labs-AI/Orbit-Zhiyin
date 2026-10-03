@@ -54,7 +54,7 @@
 
 ## 推荐可靠性审计更新
 
-2026-10-03 增加 Microsoft 官方 skills 来源并扩大随包离线种子至 1,543 项；新版快照按来源 revision 更新旧安装，已完成网络同步的来源仍优先。`features-4` 增加任务阶段、产物和实践维度，bootstrap 会按投影版本一次重建旧特征索引。
+2026-10-03 增加 Microsoft 官方 skills 默认来源（联网同步）；新版快照按来源 revision 更新旧安装，已完成网络同步的来源仍优先。随包离线种子取分层抽样重建的版本（1,987 项、17 个来源，由 `orbit-catalog snapshot` 生成），尚未含 microsoft-skills，下次从同步池重建种子时纳入（审计记录中的 1,543 项是该来源单独追加到旧种子时的数字）。`features-4` 增加任务阶段、产物和实践维度，bootstrap 会按投影版本一次重建旧特征索引。
 
 卡片与检索响应新增 `quality` 元数据完整度报告（五维证据、缺失项、版本与明确的未评测/未审计状态），检索保留 verification、language、声明支持矩阵。向量加载或编码失败时保留 BM25/特征结果并返回降级诊断。精确条数、来源 revision、测试与边界见 [推荐可靠性审计](../../docs/audits/recommendation-reliability-2026-10-03.md)。
 

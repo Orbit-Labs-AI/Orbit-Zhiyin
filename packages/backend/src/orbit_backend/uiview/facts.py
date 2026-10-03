@@ -20,6 +20,8 @@ from zoneinfo import ZoneInfo
 from . import CONTRACT, metrics, outcome
 
 UIDS = "(SELECT value FROM json_each(?))"
+# Turn statuses that do not say how a turn ended (tool results are classified by metrics.tool_state).
+UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
 FRIC = ("方向错误", "工具 / 环境失败", "改动过度", "误解需求", "并行会话冲突",
         "流程过重（子代理）", "额度 / 用量中断")
 TOPICS = ("git", "design", "paper", "data", "quant", "net", "other")
@@ -94,8 +96,6 @@ ROLLBACK_GIT = {"revert", "reset", "restore", "checkout"}
 GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 # Words in a pasted log or code block are not the user asking for a redo: only short messages count.
 REDO_MAX_CHARS = 400
-# Turn statuses that say nothing about how the turn ended (the persona "known outcome" share).
-UNKNOWN_STATUS = frozenset((None, "", "unknown", "running", "pending"))
 # Turn statuses that mean the user (or the user's approval policy) stopped the agent. ``failed`` /
 # ``error`` are tool, API or environment failures, not steering, so the D axis does not count them.
 USER_STOPPED = frozenset(("interrupted", "aborted", "cancelled", "rejected"))
