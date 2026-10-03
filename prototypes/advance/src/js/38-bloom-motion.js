@@ -26,7 +26,7 @@
 //     flower on the share card svg[data-span]; RENDER_HOOKS in #main, a MutationObserver elsewhere): the same fold / unfold,
 //     quicker (fold 170 ms, unfold 150–520 ms), when the type at the same place changes. Hover turn is CSS (43-bloom-motion.css).
 //   type codes (the persona letters [data-hero="code"], the overview code .ov-code-l, the sidebar user row): the letters
-//     that changed rise in (380 ms from 150 ms, 45 ms apart), landing as the new flower opens.
+//     that changed rise in (380 ms from 80 ms, 45 ms apart), landing as the new flower opens.
 // prefers-reduced-motion: no fold, no morph, no glide — the new flower cross-fades in (160 ms) and everything else is instant.
 const BM = { snap: new Map(), small: new WeakMap(), codes: new Map(), ed: null };
 const BM_IN = 'cubic-bezier(.55,.06,.8,.4)', BM_OUT = 'cubic-bezier(.22,.7,.28,1)', BM_IO = 'cubic-bezier(.45,.05,.3,1)';
@@ -197,7 +197,7 @@ function bmCode(el, key, delay) {
 }
 function bmCodes(m, entered) {
   if (entered) Array.from(BM.codes.keys()).forEach((k) => { if (k.startsWith('main|')) BM.codes.delete(k); });
-  $$('[data-hero="code"], .ov-code-l', m).forEach((el, i) => { if (!el.closest('[data-hero="code"]') || el.matches('[data-hero="code"]')) bmCode(el, 'main|' + S.route + '|' + i, 150); });
+  $$('[data-hero="code"], .ov-code-l', m).forEach((el, i) => { if (!el.closest('[data-hero="code"]') || el.matches('[data-hero="code"]')) bmCode(el, 'main|' + S.route + '|' + i, 80); });
 }
 
 /* ---------- small flowers ---------- */
