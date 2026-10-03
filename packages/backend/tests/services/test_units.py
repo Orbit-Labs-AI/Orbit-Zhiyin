@@ -206,3 +206,23 @@ def test_import_done_hook_fires_only_for_imports_with_data(tmp_path, codex_root,
     assert len(calls) == fired and state.job(job["id"])["status"] == status
     jobs.finished(job["id"], status, [], None)  # a late duplicate "done" is ignored
     assert len(calls) == fired
+
+
+def test_tool_map_lists_static_names_per_agent():
+    """SET-11: the static map says which agent registers which name (classification is per
+    agent), instead of the agent-less union table."""
+    from tandem_backend.appdata.toolmap import tool_map
+
+    body = tool_map(None)
+    assert body["agents"] == ["claude_code", "codex", "dsh", "hermes", "kimi", "opencode", "pi"]
+    rows = {(n["agent"], n["name"]): k["kind"] for k in body["kinds"] for n in k["names"]}
+    # Hand-picked from the per-agent tables documented in tandem_data/tool_kinds.py.
+    assert rows[("claude_code", "bash")] == "shell"
+    assert rows[("codex", "apply_patch")] == "file.edit"
+    assert rows[("kimi", "shell")] == "shell"
+    assert ("codex", "bash") not in rows and ("kimi", "bash") not in rows
+    # Known names without an analytic category are listed under "other", not dropped.
+    assert rows[("claude_code", "toolsearch")] == "other"
+    assert all(n["agent"] is not None and n["calls"] is None
+               for k in body["kinds"] for n in k["names"])
+    assert body["observed"] == 0
