@@ -20,8 +20,9 @@ def make_client(tmp_path, decorate=None):
 
 def test_list_facets_detail_and_search_endpoints(tmp_path):
     marked = []
-    client, _ = make_client(tmp_path, decorate=lambda cards: marked.extend(c["item_id"] for c in cards))
+    client, service = make_client(tmp_path, decorate=lambda cards: marked.extend(c["item_id"] for c in cards))
     with client:
+        assert client.get("/v1/catalog/status").json() == service.store.stats()
         page = client.get("/v1/catalog/items", params={"kind": ["skill"], "limit": 2, "sort": "name"}).json()
         assert page["total"] == 3 and len(page["items"]) == 2 and page["next_cursor"]
         rest = client.get("/v1/catalog/items", params={"kind": "skill", "limit": 2, "sort": "name",
