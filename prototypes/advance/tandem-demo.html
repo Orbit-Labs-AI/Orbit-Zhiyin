@@ -1814,6 +1814,66 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 /* onboarding step counter (3 / 4) and the genesis stage label (03 / 生长 …) are two different counters: a hairline keeps them apart */
 .g-top [data-g="n"]+.g-stage:not(:empty){padding-left:10px;border-left:1px solid var(--line)}
 
+/* Pane scrolling. A page whose body is a side-by-side master / detail split no longer scrolls as a whole: the page guide and
+   filter rows stay put, the split fills the rest of the window and every pane scrolls on its own (overscroll stays inside
+   it), so scrolling a long list never moves the detail next to it. Pages that are one column of stacked cards (overview,
+   persona, sentiment, tools, library, Lite home / persona / recs) keep the single page scroll. Pane mode only applies while
+   the split is side by side; once 90-responsive.css stacks it (content column < 800px, projects < 1100px) the page scrolls
+   as before. #content keeps overflow:auto, so a window too short for the panes' 300px floor still scrolls as a whole.
+     会话与轨迹 .sess        list card (search head fixed, #slist scrolls) | detail stack
+     Lite 会话轨迹 .l-sess   list card (.slist scrolls)                    | detail stack
+     优化建议 .recs           card list                                     | detail column
+     项目习惯 .pj (≥1100)     table + scatter                               | project detail
+     生成工坊 .studio         task card | run card | artifact card — each card scrolls itself and is only as tall as its
+                              content; at 800–999px the artifact card moves under the run card in the right column
+   Panes carry a 4px inset (padding + negative margin) so selection rings and card shadows at their edges are not clipped,
+   and 24px of bottom padding (the content column's own bottom padding moves into the panes). go() starts every pane at the
+   top on a page change; js/88-panes.js keeps the selected row / card visible in its own pane. */
+@container main (min-width:800px){
+  .content:has(>:is(.sess,.recs,.studio),>.lite>.sess){display:flex;flex-direction:column;padding-bottom:0}
+  :where(.content:has(>:is(.sess,.recs,.studio),>.lite>.sess))>*{flex:none}
+  .content>:is(.sess,.recs,.studio),.content>.lite:has(>.sess){flex:1 1 0;min-height:300px}
+  .content>.lite:has(>.sess){padding-bottom:0}
+  .lite>.sess{flex:1 1 0;min-height:0}
+  .content>.sess,.lite>.sess,.content>.recs{grid-template-rows:minmax(0,1fr);align-items:stretch}
+  /* the list card fills its column; only the rows scroll under the search / title head */
+  .sess>.card{display:flex;flex-direction:column;min-height:0}
+  :where(.sess>.card)>*{flex:none}
+  .sess>.card>.slist,.lite .sess>.card>.slist{flex:1 1 0;min-height:0;max-height:none;overscroll-behavior:contain}
+  .sess>.stack,.recs>*{min-height:0;overflow:auto;overscroll-behavior:contain;margin:-4px -4px 0;padding:4px 4px 24px}
+  .sess>.card{margin-bottom:24px}
+  .recs>:last-child{position:static!important}
+  /* studio: each card is its own pane, sized to its content up to the pane height */
+  .content>.studio{grid-template-rows:minmax(0,1fr);align-items:start;padding-bottom:24px}
+  .content>.studio>.card{max-height:100%;min-height:0;overflow:auto!important;overscroll-behavior:contain}
+  /* 开始生成 / 存为草稿 stay reachable at the bottom of the task card while its options scroll */
+  .content>.studio>.card:first-child>.row:last-child{position:sticky;bottom:-16px;z-index:1;margin-bottom:-16px;padding:8px 0 16px;background:var(--surface)}
+}
+@container main (min-width:800px) and (max-width:999px){
+  .content>.studio{grid-template-rows:minmax(0,auto) minmax(200px,1fr)}
+  .content>.studio>.card:first-child{grid-row:1/3}
+  .content .studio>.card:last-child{grid-column:2;grid-row:2}
+}
+@container main (min-width:1100px){
+  .content:has(>.pj){display:flex;flex-direction:column;padding-bottom:0}
+  :where(.content:has(>.pj))>*{flex:none}
+  .content>.pj{flex:1 1 0;min-height:300px;grid-template-rows:minmax(0,1fr);align-items:stretch}
+  .content>.pj>*{min-height:0;overflow:auto;overscroll-behavior:contain;margin:-4px -4px 0;padding:4px 4px 24px}
+}
+/* sheets: title and buttons stay, the body scrolls (the palette has no .mb and keeps its own list scroll). A sheet whose
+   body is a preview + options pair (导出分享卡) scrolls each column on its own while they sit side by side; 导出报告's text
+   box already scrolls itself, and its options column is short. */
+.modal:not(.pal):has(>.mb){display:flex;flex-direction:column;overflow:hidden}
+:where(.modal:not(.pal):has(>.mb))>*{flex:none}
+.modal:not(.pal)>.mb{flex:0 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain}
+.modal.wide{container:sheet/inline-size}
+@container sheet (min-width:600px){
+  #shareBody{flex-wrap:nowrap!important;align-items:stretch!important;overflow:hidden}
+  #shareBody>*{min-height:0;overflow:auto;overscroll-behavior:contain}
+}
+/* every other scroller keeps its wheel to itself at the ends */
+.set .body,.pop,.obox,.modal,.code,.log,.vz-tbl,[data-ob="sources"]{overscroll-behavior:contain}
+
 /* Responsive = container queries. "win" is the main window (.win), "main" the content column (.main, i.e. window minus
    sidebar). Page grids break on the content width, never on the viewport. The thresholds follow the published demo: the
    default window on a 14" display (content column 836px) keeps every side-by-side layout, the 820px "fit" stage (788px)
@@ -3780,6 +3840,8 @@ function go(route, keepScroll) {
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
   edRemember(route);   // App: the page to come back to next launch (26-edition.js)
   try { history.replaceState(null, '', '#' + route); } catch (e) { /* sandboxed */ }
+  // a fresh visit starts the page and each of its panes (88-panes.css) at the top instead of restoring the last scroll
+  if (!keepScroll) UI_SCROLLED.forEach((el) => { if (!el.closest('#side')) UI_SCROLLED.delete(el); });
   render();
   if (!keepScroll) { const c = $('#content'); if (c) c.scrollTop = 0; }
 }
@@ -3831,6 +3893,7 @@ function render() {
   // (toast / sheet / overlay / popover / HUD) against the new content instead of a second applyWin()
   placeDeps();
   uiRestore(snap);
+  paneSync();
   if (window.__lvRendered) window.__lvRendered();
 }
 function renderMain() {
@@ -6754,6 +6817,7 @@ function sessPickPartial() {
   sl.querySelectorAll('.srow').forEach((b) => { const on = b.dataset.id === S.sess.sel || b.dataset.id === S.sess.cmp; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); });
   if (PAGES.sessions.after) PAGES.sessions.after();
   RENDER_HOOKS.forEach((fn) => { try { fn(m, false); } catch (e) { console.error(e); } });
+  paneSync();   // the new session's detail starts at the top of its pane (88-panes.js)
   if (window.__lvRendered) window.__lvRendered();
   return true;
 }
@@ -9705,6 +9769,34 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '?') { e.preventDefault(); openKeys(); return; }
   if (e.key === ' ' && S.route === 'sessions' && !tg.closest('button,a,input,textarea,select,[tabindex]')) { e.preventDefault(); ACT.playToggle(); }
 });
+
+/* ============ pane scrolling (styles/88-panes.css) ============ */
+// Master–detail pages scroll per pane. After every render (25-nav.js, after the scroll positions are put back) and after the
+// sessions page's partial pick (42-a3-sessions.js) this keeps the selected session row / rec card visible inside its own
+// list pane, and starts the detail pane at the top when the selection changed. Only the pane moves: scrollIntoView would
+// also scroll #content and the window. Route changes start every pane at the top (go() in 25-nav.js).
+const PANES = [
+  { list: '.sess>.card>.slist', item: '.srow.sel', detail: '.sess>.stack' },
+  { list: '.recs>.stack', item: '.rcard.sel', detail: '.recs>:last-child' }
+];
+function paneReveal(el, pane) {
+  if (!el || !pane || pane.scrollHeight <= pane.clientHeight + 1) return;
+  const r = el.getBoundingClientRect(), p = pane.getBoundingClientRect(), pad = 8;
+  if (r.top < p.top + pad) pane.scrollTop -= p.top + pad - r.top;
+  else if (r.bottom > p.bottom - pad) pane.scrollTop += Math.min(r.bottom - p.bottom + pad, r.top - p.top - pad);
+}
+function paneSync() {
+  const m = $('#main'); if (!m) return;
+  const last = paneSync.last || (paneSync.last = {});
+  PANES.forEach((d, i) => {
+    const list = m.querySelector(d.list); if (!list) { delete last[i]; return; }
+    const sel = $$(d.item, list); const key = S.route + '|' + sel.map((x) => x.dataset.id || '').join(',');
+    if (last[i] === key) return;
+    const was = last[i]; last[i] = key;
+    if (was && was.split('|')[0] === S.route) { const det = m.querySelector(d.detail); if (det) det.scrollTop = 0; }
+    if (sel[0]) paneReveal(sel[0], list);
+  });
+}
 
 /* ============ live core (slice 0): spine hydration, agent map, page feeds, native bridge ============
    Mock mode (file://, no gateway) changes nothing here: LV.live is false, nothing is fetched and 05-data stays as generated.
