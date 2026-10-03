@@ -162,6 +162,12 @@ class GenerationContext:
         raise CallFailed("Generation failed the product slot validator")
 
 
+def history_pack(spec: dict, **kwargs) -> dict:
+    # The measured Pi has no installed assets. Product defaults otherwise inspect
+    # the host's ~/.claude/CLAUDE.md and ~/.codex/AGENTS.md even with an empty DB.
+    return packs.build(spec, slots={"existing_rules": [], "inventory": []}, **kwargs)
+
+
 def ours(study: dict, output: Path, credentials: Path) -> None:
 
     folder = output / "adaptation/ours"
@@ -238,8 +244,8 @@ def ours(study: dict, output: Path, credentials: Path) -> None:
                 params = {"session_uids": card["evidence"]["session_uids"], "candidate": {
                     "evidence_session_uids": card["evidence"]["session_uids"],
                     "top_signal_event_uids": card["generate"].get("evidence_ids", [])}}
-                pack = packs.build(spec, reads=canonical.connect, appdb=appdb, home=home, scope=inputs["scope"],
-                                   goal=card["summary"], goal_source="candidate", params=params)
+                pack = history_pack(spec, reads=canonical.connect, appdb=appdb, home=home, scope=inputs["scope"],
+                                    goal=card["summary"], goal_source="candidate", params=params)
                 gen_dir = folder / "generation" / str(card["rank"])
                 ctx = GenerationContext(study, gen_dir, credentials, pack, params)
                 save(gen_dir / "pack.json", pack)

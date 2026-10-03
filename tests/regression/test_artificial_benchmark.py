@@ -1,7 +1,7 @@
 """Guard experimental accounting and separation from hidden evaluation assets."""
 
 import pytest
-from evals.artificial_benchmark.adaptation import add_spec
+from evals.artificial_benchmark.adaptation import add_spec, history_pack, packs
 from evals.artificial_benchmark.evaluate import aggregate, compare
 from evals.artificial_benchmark.runner import summarize_events
 from evals.artificial_benchmark.study import offline_verifier, strip_skills
@@ -98,3 +98,12 @@ def test_personalization_cannot_write_outside_its_asset_directory(tmp_path):
     with pytest.raises(ValueError, match="escapes personalization"):
         add_spec(tmp_path, manifest, spec)
     assert not (tmp_path / "escape.txt").exists()
+
+
+def test_history_only_generation_does_not_inspect_host_rules(monkeypatch, tmp_path):
+    inspected = []
+    monkeypatch.setattr(packs, "_rule_files", lambda context: inspected.append(True) or [])
+    spec = {"task_id": "isolation-probe", "pack_items": [("existing_rules", True), ("inventory", True)]}
+    pack = history_pack(spec, reads=None, appdb=None, home=tmp_path)
+    assert inspected == []
+    assert pack["content"] == {"existing_rules": [], "inventory": []}
