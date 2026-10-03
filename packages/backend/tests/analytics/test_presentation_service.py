@@ -34,7 +34,7 @@ def test_all_eight_families_feed_serializable_immutable_sections():
     assert view["tools"]["call_count"] >= 1
     assert view["projects"][0]["completion"]["value"] is None
     assert view["projects"][0]["declared_acceptance_sets"]
-    assert view["profile"]["code"] is None
+    assert "code" not in view["profile"]  # profile no longer claims a four-letter code
     assert view["resources"]["popular"]["value"] is None
     assert view["overview"]["collaboration_duration"]["value"] == sum(
         s["features"]["observed_session_span_ms"] for s in analysis["sessions"])
