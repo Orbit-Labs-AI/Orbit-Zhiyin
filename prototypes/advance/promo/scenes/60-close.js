@@ -51,19 +51,20 @@ scene('60-close', () => {
   // v17.7 交接：orb 里的 5 个小徽章（02-agents micro：logo 点外 .5R、半径 .3R、方位 6·b + 72i − 90，R = r·k 1.15）就是拆开后的 5 个点——
   // 点 i 从自己那枚小徽章的位置与大小起步（点 0 带着 orb 在拆开的前 .5 拍缩到 cc 小徽章处），不再 5 个都以 orb 的 r 40 叠在中心、
   // 先闪成一颗 cc 大点
-  const spMini = (i, b) => {
-    const s = s0(0), R = s.r * 1.15, a = (6 * (HB + (SHIFT['60-close'] || 0)) + 72 * i - 90) * Math.PI / 180;
-    // v18.1 (h)：orb 先在原地 .35 拍内散开（compass 键 dur .35：小徽章就地成为点 1–4，cc 在中心由 r 40 缩到 .3R），
-    // 散完才挪到 cc 小徽章处——不再一边挪一边淡出、orb 里的小徽章与点 1–4 错位成重影
-    const u = i ? 1 : E.inOut(clamp((b - HB - .2) / .45)), w = i ? 1 : E.inOut(clamp((b - HB) / .3));
-    return { x: s.x + .5 * R * Math.cos(a) * u, y: s.y + .5 * R * Math.sin(a) * u, r: lerp(s.r, .3 * R, w) };
-  };
+  // v18.2：分裂第一帧起 5 个点（含 cc）就是 orb 里的 5 枚小徽章（位置、大小原样，r .3R ≈ 14），随即沿各自方向弹出到
+  // 半径约 70 的一圈（SP_POP 拍，E.out）——整团从 orb 的约 100 px 直接长大，不再先缩成一小团；圆环同步撑到 70，点一落圈就骑在环上。
+  // 方位用极坐标：从小徽章方位 β_i 随 e_i 滑到螺旋方位（差值取近的一边；随 e 走，圆还小时相邻点不挤在 cc 43° / cx 62° 这种近方位上），
+  // 途中分道：gm 要越过 ds / cp，走外道（+72 px），ds / cp 让到内道（−26）；cc 紧跟 cx，cc 走内道 −30、cx 外道 +34，彗星尾不压 logo
+  const SP_POP = .5, SP_R0 = 70, SP_LANE = [-30, 34, 72, -26, -26];
+  const spOrb = () => { const s = s0(0), R = s.r * 1.15; return { x: s.x, y: s.y, m: .5 * R, r: .3 * R }; };
+  const spBeta = (i) => 6 * (HB + (SHIFT['60-close'] || 0)) + 72 * i;          // 小徽章方位（罗盘角，顺时针，0 = 上）
 
   /* ---------- deck 2：收拢罗盘 = 圆环 → 罗盘 → 圆环（H13–H15） ---------- */
   // b69.2 直接设定：罗盘中心 (400, 400) → 舞台 (960, 540)，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）；s 从 .001
   // 随点的半径长到 1（b70.92，罗盘 b71.04 展开前已是 1）；这时圆环的裁剪全是空的（5 段长度都是 0），画面上只有中心的合并点
   tween(2, HB, 0, { x: 400, y: 400, s: SP_S0, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
-  tween(2, HB, SP_RD, { s: 1 }, spRing);
+  // v18.2：前 SP_POP 拍圆环至少撑到 SP_R0（点弹出的那一圈），之后照常按 spRing 长到 1
+  tween(2, HB, SP_RD, { s: 1 }, (p) => Math.max(spRing(p), SP_R0 / 300 * E.out(clamp(p * SP_RD / SP_POP))));
   // 读类型码时慢推 1 → 1.025（b72.2–74.2，sine），收回圆环时同一段退回 1（b74.2–75.4，与 fold 同曲线），M6 起圆环仍是 R 300
   tween(2, 72.2, 2.0, { s: 1.025 }, E.sine);
   tween(2, 74.2, 1.2, { s: 1 }, E.inOut);
@@ -91,14 +92,29 @@ scene('60-close', () => {
   // T13：b69.2 起底下是罗盘编队（.4 拍内把合并点的五色细环淡掉；x / y / r 由下面的螺旋 follow 全权接管），
   // follow 从 b69.0 挂上（b69.2 前返回 null，不影响 50-tools），b69.2 时权重已是 1，起点就是交来的合并点；
   // e_i = 1 之后 follow 的结果与罗盘编队完全重合，b71.2–71.4 的退出混合看不出来，点继续骑在展开的罗盘外圈上
-  AGD.key(HB, 'compass', { dur: .35, stag: 0 });        // v18.1：.7 → .35，orb 就地散开（见 spMini）            // v17.7：.4 → .7，orb 拆开与 head 冒出同段（不先闪成一颗 cc 大点）
+  AGD.key(HB, 'compass', { dur: .1, stag: 0 });          // v18.2：.35 → .1，点 1–4 在 orb 的小徽章处一帧内接上（不闪空）
+  // v18.2 orb 外壳：分裂那一刻 5 枚小徽章原样成为 5 个点，orb 的深色圆盘与五色细弧画在点的下层（AGD.back），随点一起
+  // 张开到约 SP_R0 + 10 并在 .45 拍内淡掉——五色弧张到点落圈的半径，交给随后画出的圆环；不再在点上面盖一个缩小的 orb
+  AGD.back(HB, HB + .45, (b) => {
+    const O = spOrb(), t = E.out(lp(b, HB, .45)), R = lerp(O.m / .5, SP_R0 + 10, t), a = 1 - t;
+    if (a <= .002) return '';
+    const fb = b + (SHIFT['60-close'] || 0), mK = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= fb).pop();
+    const sp = mK ? agV(mK.o, 'spin', 6, fb, 0, mK.sh) * (fb - mK.b) : 6 * fb;
+    let s = '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="#0e0f12" opacity="' + (.9 * a * a).toFixed(3) + '"/>';
+    for (let m = 0; m < 5; m++) s += '<path d="' + agArc(O.x, O.y, R + 7, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="1.5" opacity="' + a.toFixed(3) + '"/>';
+    return s;
+  });
   AGD.follow(69.0, 71.4, (i, b) => {
-    if (b < HB) return null;
+    if (b <= HB) return null;                                  // b69.2 这一帧仍是完整的 orb（50-tools 交来的 r 40）
     // R = 徽章到中心的实际距离 = 圆环当帧半径（deck 2 的 s 已随点放大，不再乘 e_i）；徽章大小按 s 1 的 19 取
-    const e = spE(i, b), G = spG()[i][1], c = cpBadge(i), C = cpStage(400, 400), s = spMini(i, b);
-    const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]), th = (dc - G * (1 - e)) * Math.PI / 180;
-    // v18.1：拆开后 .3 拍内长到 r ≥ 15（logo 约 30 px 宽），之后再随 e 长到罗盘徽章的 19
-    return { x: C[0] + R * Math.sin(th) + (s.x - C[0]) * (1 - e), y: C[1] - R * Math.cos(th) + (s.y - C[1]) * (1 - e), r: Math.max(lerp(s.r, c.r / decks[2].C.s, e), lerp(s.r, 15, E.inOut(lp(b, HB, .3)))) };
+    const e = spE(i, b), [d0, G] = spG()[i], c = cpBadge(i), C = cpStage(400, 400), O = spOrb();
+    const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]);
+    let D = spWrap(spBeta(i) - (d0 - G)); if (D > 180) D -= 360;               // 小徽章方位 − 螺旋起点方位（近的一边）
+    const pop = E.out(lp(b, HB, SP_POP)), wA = e;
+    const th = (dc - G * (1 - e) + D * (1 - wA)) * Math.PI / 180, rad = lerp(O.m, R, pop) + SP_LANE[i] * Math.sin(Math.PI * wA);
+    const cx = lerp(O.x, C[0], pop), cy = lerp(O.y, C[1], pop);
+    // 第一帧 r = 小徽章的 .3R（≈ 14），.35 拍内长到 16（logo ≈ 27 px），之后再随 e 长到罗盘徽章的 19
+    return { x: cx + rad * Math.sin(th), y: cy - rad * Math.cos(th), r: Math.max(lerp(O.r, c.r / decks[2].C.s, e), lerp(O.r, 16, E.out(lp(b, HB, .35)))) };
   }, { blend: .2 });
   /* v17.7 F3「6」形态（场景拍）：
      · b69.2 先显式回 dot（50-tools 交来的合并 orb 随 compass 键 .4 拍拆开）；b69.5 + .06i 起每个点变 head（rot 'vel'，尾尖朝着
@@ -106,7 +122,7 @@ scene('60-close', () => {
      · 花开到位（b71.95）五点一起朝花心收成 petal（hold .3，同 3 的合拢），类型码全亮 b72.64 起 glow 顺时针扫过（cc cx ds cp gm）
      · 收回圆环（b74.3–74.9）dot → bead，rot 取圆环切线（同 1e 穿在 R 300 圆环上的样子） */
   const DEG = 180 / Math.PI, CW = [0, 1, 3, 4, 2];
-  AGD.morph(HB, 0, 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .3 });   // QA：不走 'dot'（会混入 orb，b106.3 缩小的 orb 里 5 枚小徽章与点 1–4 叠成重影），cc logo 随 orb 缩到 .3R 淡入，不再留一颗无 logo 的空圆盖住点 1–4
+  AGD.morph(HB, 0, 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01 });  // v18.2：cc 第一帧就在自己的小徽章处、同大小；orb 的外壳交给下面的 AGD.back 张开淡掉   // QA：不走 'dot'（会混入 orb，b106.3 缩小的 orb 里 5 枚小徽章与点 1–4 叠成重影），cc logo 随 orb 缩到 .3R 淡入，不再留一颗无 logo 的空圆盖住点 1–4
   // 点 1–4 拆开时就是普通圆徽章（'bead' 参数写成与 dot 完全相同）：'dot' 在 merged > 0 时会混入 orb，各点自带 5 枚小徽章与色弧、
   // 叠在 orb 上成一团重影；用不触发 orb 混合的同形写法，它们从 orb 里的小徽章原样长出
   AGD.morph(HB, [1, 2, 3, 4], 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01, stag: 0 });
