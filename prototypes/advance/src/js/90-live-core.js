@@ -297,7 +297,8 @@ LV.ready = (route) => !LV.live || LV.feedState(route) === 'ready';
 LV.pend = (h) => '<div class="lv-pend" data-lv="pending" style="height:' + (h || 120) + 'px" aria-busy="true"></div>';
 // nothing published yet and the data still on its way: charts say so instead of 暂无数据 / 所选范围内没有会话 (F08)
 { const vzE = VZ.emptyText; VZ.emptyText = (spec) => { const b = dataBusy(); return b ? b.t : vzE(spec); }; }
-LV.na = (txt) => '<span class="cap" data-lv="na">' + esc(txt || (dataBusy() ? dataBusy().t : '暂无数据')) + '</span>';
+// F08: while importing / analysing every 「no data」 slot says so — explicit fallbacks (「暂无数据」, 「没有工具调用」) included
+LV.na = (txt) => { const b = dataBusy(); return '<span class="cap" data-lv="na"' + (b ? ' data-busy' : '') + '>' + esc(b ? b.t : txt || '暂无数据') + '</span>'; };
 
 /* ---- spine: /v1/uiview/facts → ALL / BYID / AG / PJ ---- */
 function lvToday() {

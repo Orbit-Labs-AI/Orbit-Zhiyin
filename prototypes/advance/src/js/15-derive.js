@@ -277,13 +277,15 @@ function recTop(surface) { return recOrder(surface).filter((r) => !S.installed.h
 // was applied or set aside; no sessions, data still on its way (dataBusy, F08) and recommendations still being computed each
 // say so instead. k: busy | computing | error | none | empty | done; t: the sentence; s: the short form for small slots
 function recNone() {
-  if (typeof dataBusy === 'function' && dataBusy()) return { k: 'busy', t: '正在分析会话，建议会在分析完成后给出。', s: '建议计算中' };
+  const busy = typeof dataBusy === 'function' ? dataBusy() : null;
+  if (busy) return { k: 'busy', t: busy.t.replace(/…$/, '') + '，建议会在完成后给出。', s: '建议计算中' };
+  // no sessions is the true reason before any rec-service state (a live rec error with nothing imported is not the story)
+  if (!ALL.length) return { k: 'none', t: '还没有会话，导入会话后才会给出建议。', s: '暂无建议' };
   if (LV.live && typeof lvRecState === 'function') {
     const st = lvRecState();
     if (st === 'pending' || st === 'computing') return { k: 'computing', t: '正在计算建议…', s: '建议计算中' };
     if (st === 'error') return { k: 'error', t: '建议暂时取不到，稍后自动重试。', s: '建议暂时取不到' };
   }
-  if (!ALL.length) return { k: 'none', t: '还没有会话，导入会话后才会给出建议。', s: '暂无建议' };
   const all = RECS.filter((r) => r.aud <= S.recs.aud);
   if (all.length && all.every((r) => S.installed.has(r.id) || S.recs.gone.has(r.id))) return { k: 'done', t: '建议都已处理。', s: '建议都已处理' };
   return { k: 'empty', t: '这段时间没有新的建议。', s: '暂无建议' };

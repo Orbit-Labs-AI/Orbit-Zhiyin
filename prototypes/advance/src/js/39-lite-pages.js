@@ -67,16 +67,18 @@ PAGES['l-home'] = () => {
   const pers = personaNow(); const busy = dataBusy();   // 导入 / 分析还在进行（F08）：说明进度，不写「没有会话」
   // live: the L0 insight lede of /v1/uiview/overview (same scope) when it is there; the persona line otherwise
   const ins = LV.live && LV.ready('l-home') && LV.ov ? LV.ov.insight : null;
-  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : busy ? busy.t.replace(/…$/, '') + '，完成后在这里给出协作画像。' : '所选范围还没有会话，暂时无法给出协作画像。';
-  const ev = busy ? busyNote(busy) : st.n ? (st.verKnown ? Math.round(st.verify) + '% 的会话要求验证 · ' : '') + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + pctKnown(st.ok, st.okKnown) : '这段时间没有会话';
+  const lede = ins && ins.lede ? ins.lede : pers.ok ? '你像一位' + pers.zh + '：' + pers.line + (pers.hint ? '（' + pers.hint + '）' : '') : busy ? busyNote(busy) : '所选范围还没有会话，暂时无法给出协作画像。';
+  const ev = busy ? '' :   // busy: the lede already is the one status line (with the imported count)
+    st.n ? (st.verKnown ? Math.round(st.verify) + '% 的会话要求验证 · ' : '') + fmt(st.corr) + ' 条纠偏消息 · 完成率 ' + pctKnown(st.ok, st.okKnown) : '这段时间没有会话';
   // 没有会话时那句话是固定说明，不是 AI 写的：不挂解读标记（F21）；有话时按来源标 AI 或规则
   const said = (ins && ins.lede) || pers.ok;
   const hero = '<div class="card pad l-hero"><div class="col l-lede">' + (said ? '<div class="row" style="flex-wrap:wrap">' + ovInsBadge(ins) + '<span class="cap">' + (LV.live ? esc(ovInsWhen(ins)) : '本地 Claude Code 生成 · 9/30 23:10') + '</span></div>' : '') +
-    '<p class="serif l-say">' + esc(lede) + '</p><span class="cap mono l-ev">' + ev + '</span></div>' +
+    '<p class="serif l-say">' + esc(lede) + '</p>' + (ev ? '<span class="cap mono l-ev">' + ev + '</span>' : '') + '</div>' +
     (pers.ok ? '<button type="button" class="ov-code l-code" data-act="go" data-r="l-persona" aria-label="查看协作画像：' + pers.code + ' ' + pers.zh + '"><span class="eb">协作画像 · ' + rangeLabel() + '</span><span class="serif ov-code-l" data-hero="code">' + pers.code + '</span><span class="row" style="align-items:baseline;flex-wrap:wrap;gap:8px"><span class="serif l-zh">' + pers.zh + '</span><span class="serif l-en">' + pers.en + '</span></span><span class="cap">查看协作画像 →</span></button>'
-      : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + (busy ? '<span class="l-ez">' + esc(busy.t) + '</span><span class="cap">分析完成后自动显示</span>' : '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false)) + '</div>') + '</div>';
+      : '<div class="ov-code l-code l-code-e" data-lv="pers-empty"><span class="eb">协作画像</span>' + emptyBloomSVG(72) + (busy ? '<span class="cap">分析完成后自动显示</span>' : '<span class="l-ez">还没有长出来</span><span class="cap">有 1 个会话，就能看到你的协作画像</span>' + emptyActs(false)) + '</div>') + '</div>';
   const d = (cur, prev, o) => P ? Object.assign({ cur, prev }, o) : { text: S.range ? '无可比上期' : '全部历史 · 不比较', cls: '' };
-  const tiles = [
+  // F08: nothing measured yet while importing / analysing — four 「—」 with 计算中, never 0
+  const tiles = busy ? ['会话', '协作时长', '摩擦率', '完成率'].map((l) => VZ.kpi({ label: l, value: '—', sub: '计算中', cls: 'l-busy' })).join('') : [
     liteCount(VZ.kpi({ label: '会话', value: fmt(st.n), delta: d(st.n, P && P.n, { unit: 'pct', goodDown: false, fmt: 'int' }), act: 'go', attrs: ' data-r="l-sessions"' }), st.n),
     liteCount(VZ.kpi({ label: '协作时长', value: st.hours >= 100 ? fmt(st.hours) : f1(st.hours), unit: 'h', delta: d(st.hours, P && P.hours, { unit: 'pct', goodDown: false, fmt: (v) => f1(v) + 'h' }) }), st.hours, st.hours >= 100 ? 0 : 1),
     (st.msgs ? liteCount(VZ.kpi({ label: '摩擦率', value: f1(st.fric), unit: '%', delta: P && P.msgs ? d(st.fric, P.fric, { unit: 'pt', goodDown: true, fmt: (v) => f1(v) + '%' }) : null }), st.fric, 1) : VZ.kpi({ label: '摩擦率', value: '—', sub: busy ? '' : '没有你发出的消息' })),
@@ -198,6 +200,7 @@ PAGES['l-sessions'] = () => {
 /* ---------- 4 优化建议：一句总收益（占协作时间 / token 的比例）→ 前三条大卡（应用 / 已应用 · 撤销）→ 全部与资源库 ---------- */
 PAGES['l-recs'] = () => {
   const all = recOrder('lite'); const top = all.slice(0, 3);
+  const busy = dataBusy();   // F08: importing / analysing — one status line in the hero, no counts
   const open = top.filter((r) => !S.installed.has(r.id));
   // the total: shares of the real trajectory; alternatives on one problem count once (recTotal), and recs without a
   // share never add a made-up 0 %
@@ -208,6 +211,7 @@ PAGES['l-recs'] = () => {
         (tot.t != null && tot.k != null ? '<span class="cap mono l-tot2">token 预计省下 ' + fmtPct(tot.k) + ' · 按近期真实轨迹的占比计算</span>' : '<span class="cap mono l-tot2">按近期真实轨迹的占比计算</span>')
       : open.length ? '<p class="serif l-say">这 ' + open.length + ' 件事还没有节省比例的估计。应用后 7 天，在效果追踪里看实际变化。</p>'
       : top.length ? '<p class="serif l-say">前三条都已应用。7 天后看效果追踪，或在 Advance 里挑下一条。</p>'
+      : busy ? '<p class="serif l-say">' + esc(busyNote(busy)) + '</p>'
       : '<p class="serif l-say">' + esc(/^(busy|computing|error|none)$/.test(recNone().k) ? recNone().t : '还没有建议。积累更多会话、分析完成后，这里会给出最值得做的几件事。') + '</p>') + '</div>';
   const card = (r, i) => {
     const inst = S.installed.get(r.id);
@@ -216,9 +220,9 @@ PAGES['l-recs'] = () => {
       '<div class="rc-title serif">' + esc(r.title) + '</div><div class="rc-why">' + esc(r.why) + '</div>' +
       '<div class="rc-foot"><span class="l-gain">' + liteSaveSpan(r.id) + '<span class="mono l-g2">' + esc(recShare(r)) + '</span></span><span style="flex:1"></span>' + state + '</div></div></div>';
   };
-  return liteBar('优化建议', all.length + ' 条 · 这里只看最值得做的 3 条') +
-    '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : empty('没有可见的建议')) + '</div>' +
-    liteFoot([['recs', '查看全部 ' + all.length + ' 条建议'], ['library', '资源库']]) + '</div></div>';
+  return liteBar('优化建议', busy ? busyMeta(busy) : all.length + ' 条 · 这里只看最值得做的 3 条') +
+    '<div class="content" id="content"><div class="lite l-recs">' + hero + '<div class="stack">' + (top.length ? top.map(card).join('') : busy ? '' : empty('没有可见的建议')) + '</div>' +
+    liteFoot((busy ? [] : [['recs', all.length ? '查看全部 ' + all.length + ' 条建议' : '打开优化建议']]).concat([['library', '资源库']])) + '</div></div>';
 };
 
 Object.assign(ACT, {

@@ -18,6 +18,9 @@ const NOW = new Date('2026-10-03T12:00:00+08:00');
 test.beforeEach(async ({ page }) => { ONLY('mac-14'); await page.clock.setFixedTime(NOW); await page.emulateMedia({ reducedMotion: 'reduce' }); });
 
 const FALSE_CLAIMS = /没有会话|还没有接入|都已处理|查看 0 条建议/;
+// numbers nothing has measured yet (F08): 「0 个会话」「0 次」「全部 0」「▲ 0%」, and error fallbacks standing in for the busy state
+const FAKE_ZERO = /\b0(\.0)? ?(个会话|次|条|会话|h\b)|全部 0\b|▲ 0%|暂无数据|暂时不可用|样本不足/;
+const zeroTiles = (page, sel) => page.locator(sel + ' .vz-kpi .v').evaluateAll((els) => els.map((e) => e.textContent.trim()).filter((t) => /^0(\.0)?$/.test(t)));
 const ADV = ['overview', 'persona', 'sentiment', 'projects', 'sessions', 'tools', 'recs'];
 const LITE = ['l-home', 'l-persona', 'l-sessions', 'l-recs'];
 
@@ -36,14 +39,24 @@ test('computing: titles and cards say the data is being analysed on every page, 
       await expect.poll(() => page.evaluate(() => S.route)).toBe(r);
       const txt = await page.locator('#main').innerText();
       expect(txt, ed + ' ' + r).not.toMatch(FALSE_CLAIMS);
+      expect(txt, ed + ' ' + r).not.toMatch(FAKE_ZERO);
+      expect(await zeroTiles(page, '#main'), ed + ' ' + r).toEqual([]);
       await expect(page.locator('#main [data-act="liteImport"]'), ed + ' ' + r).toHaveCount(0);
     }
   }
   // sidebar, widgets and the menubar popover
   expect(await page.locator('#side').innerText()).not.toMatch(FALSE_CLAIMS);
   await page.evaluate(() => { S.widgets = true; S.pop = true; render(); });
-  expect(await page.locator('#widgets').innerText()).not.toMatch(FALSE_CLAIMS);
-  expect(await page.locator('#pop').innerText()).not.toMatch(FALSE_CLAIMS);
+  for (const sz of ['s', 'm', 'l']) {
+    await page.evaluate((x) => { S.wgSize = x; render(); }, sz);
+    const wt = await page.locator('#widgets').innerText();
+    expect(wt, 'widgets ' + sz).not.toMatch(FALSE_CLAIMS);
+    expect(wt, 'widgets ' + sz).not.toMatch(FAKE_ZERO);
+    expect(wt, 'widgets ' + sz).toContain('计算中');
+  }
+  const pt = await page.locator('#pop').innerText();
+  expect(pt).not.toMatch(FALSE_CLAIMS);
+  expect(pt).not.toMatch(FAKE_ZERO);
   expect(errors).toEqual([]);
 });
 
@@ -52,7 +65,7 @@ test('empty: 还没有会话 is said, never 建议都已处理', async ({ page }
   await stubGateway(page, ['core'], { 'GET /v1/uiview/facts': fx('core/facts-empty.json') });
   await openLive(page, 'overview');
   expect(await page.evaluate(() => [LV.state, !!dataBusy()])).toEqual(['empty', false]);
-  expect(await page.evaluate(() => recNone().k)).not.toBe('done');
+  expect(await page.evaluate(() => recNone().k)).toBe('none');   // no sessions is the reason, before any rec-service state
   const txt = await page.locator('#main').innerText();
   expect(txt).not.toMatch(/都已处理|查看 0 条建议/);
   await page.evaluate(() => { edSet('lite'); go('l-home'); });
