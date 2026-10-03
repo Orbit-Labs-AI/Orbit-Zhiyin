@@ -28,7 +28,12 @@ def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:
     verified = sum(1 for r in rows if r.get("verify"))
     ok_n = sum(1 for r in rows if r.get("out") == "ok")
     if n:
-        good = (f"{round(st['verify'])}% 的会话要求或运行了验证，估计完成率 {round(st['ok'])}%。")
+        parts = []
+        if st["verify"] is not None:
+            parts.append(f"{round(st['verify'])}% 的会话要求或运行了验证")
+        if st["ok"] is not None:
+            parts.append(f"估计完成率 {round(st['ok'])}%")
+        good = ("，".join(parts) + "。") if parts else "这段时间的验证与完成情况未知。"
     else:
         good = "这段时间还没有会话。"
     fr = sorted(derive.count_by(rows, "fric").items(), key=lambda kv: (-kv[1], kv[0]))
@@ -54,6 +59,6 @@ def build(rows: list[dict], st: dict, p: dict, projects: dict) -> dict:
              "evidence_n": None, "ref": RECS_REF}
     return {"lede": lede(p), "when": WHEN, "basis": "l0_template",
             "good": {"text": good, "evidence_n": ok_n, "verified_n": verified,
-                     "ok_est": round(st["ok"], 1) if n else None, "basis": "estimate",
+                     "ok_est": round(st["ok"], 1) if n and st["ok"] is not None else None, "basis": "estimate",
                      "ref": {"page": "sessions", "filter": {"outcome": "ok"}}},
             "stuck": stuck, "next": next_}

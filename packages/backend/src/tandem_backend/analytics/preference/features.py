@@ -6,7 +6,17 @@ from heapq import heappop, heappush
 
 from ...models import stable_id
 from ..common import clauses, evidence, semantic_coverage, semantic_messages
-from .rules import CHANGE, EXPLICIT, GLOBAL, PROJECT, REPORTED, REVOKE, TASK, preference_values
+from .rules import (
+    CHANGE,
+    EXCLUSIVE,
+    EXPLICIT,
+    GLOBAL,
+    PROJECT,
+    REPORTED,
+    REVOKE,
+    TASK,
+    preference_values,
+)
 
 PREFERENCE_VERSION = "preference-v2"
 
@@ -104,7 +114,11 @@ def extract_explicit_preferences(events, sessions, task_by_event=None):
         eligible = [p for p in group.values() if _earlier(p, record)]
         if record["operation"] in ("revise", "revoke") and record["preference_scope"]["kind"] != "unknown":
             for previous in eligible:
-                if (record["operation"] == "revoke" or record["polarity"] == "avoid") and previous["value"] != record["value"]:
+                # Revokes/avoids, and revisions on multi-valued dimensions (tool, format),
+                # only touch the same value; only exclusive dimensions replace other values.
+                if (record["operation"] == "revoke" or record["polarity"] == "avoid"
+                        or not EXCLUSIVE.get(record["preference_type"], False)) \
+                        and previous["value"] != record["value"]:
                     continue
                 record["preference_history"].append({"relation": "revokes" if record["operation"] == "revoke" else "supersedes",
                     "preference_id": previous["preference_id"], "visible_at": record["effective_at"],
@@ -163,7 +177,9 @@ def resolve_effective_preferences(history, task=None, at=None):
             continue
         positive = {r["value"] for r in records if r["polarity"] == "prefer"}
         negative = {r["value"] for r in records if r["polarity"] == "avoid"}
-        if len(positive) > 1 or positive & negative:
+        # Several preferred values only conflict on single-valued (exclusive) dimensions.
+        multiple = len(positive) > 1 and EXCLUSIVE.get(key[0], False)
+        if multiple or positive & negative:
             conflicts.append({"preference_type": key[0], "scope": records[0]["preference_scope"],
                               "preference_ids": [r["preference_id"] for r in records], "reason": "unresolved_values"})
         else:

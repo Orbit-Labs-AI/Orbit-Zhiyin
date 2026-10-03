@@ -42,6 +42,7 @@ L3_TABLES = (
     "turn",
     "tool_call",
     "tool_call_event",
+    "tool_call_file",
     "model_call",
     "usage_snapshot",
     "session_feature",

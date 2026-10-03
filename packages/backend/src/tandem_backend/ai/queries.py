@@ -97,13 +97,26 @@ def run(api: str, params: dict | None, *, reads, appdb=None, home=None) -> dict:
         scope = {**scope, "_exclude": _excluded(appdb)}
         with reads() as conn:
             rows = _SQL[api](conn, params, scope, limit, home, appdb)
+    extra: dict = {}
+    if api == "inventory":
+        # Totals and the unused list come from the full inventory, not the trimmed rows, so
+        # "已装 N 个" / "近 30 天未调用" stay correct beyond the first page.
+        rows = list(rows)
+        extra["totals"] = inventory_totals(rows)
+        unused, _ = redact_value([{"type": r["type"], "name": r["name"]} for r in rows if not r["calls_30d"]][:50])
+        extra["unused"] = unused
+        hooks, _ = redact_value([r["name"] for r in rows if r["type"] == "hook"][:50])
+        extra["hooks"] = hooks
+        rows = rows[:limit]
     rows, _ = redact_value(list(rows)[:20])
     refs: dict = {k: [] for k in ("session", "event", "problem", "candidate", "metric")}
     numbers: set[float] = set()
     P.collect_refs(rows, refs, numbers, numeric=True)
     if api == "metrics":
         refs["metric"] = [r["metric"] for r in rows]
-    return {"api": api, "rows": rows,
+    for t in (extra.get("totals") or {}).values():
+        numbers.update((float(t["count"]), float(t["unused"])))
+    return {"api": api, "rows": rows, **extra,
             "refs": [{"kind": k, "id": i} for k, ids in refs.items() for i in ids],
             "numbers": sorted(numbers)}
 
@@ -255,20 +268,57 @@ def _tools(conn, params, scope, limit, home, appdb):
              if classes.get(name) else None, "mcp_server": a[5]} for name, a in ranked]
 
 
+INVENTORY_WINDOW_DAYS = 30
+
+
 def _inventory(conn, params, scope, limit, home, appdb):
-    start, end, _ = P.window({"days": 30})
-    where, args = P.window_sql(start, end, None, home)
+    """Every installed component of the latest scans with its calls in the last 30 days.
+
+    Calls count main sessions *and* their subagent/workflow children (an MCP used only by a
+    subagent is in use) and honour persisted exclusions. Returns all components ordered by
+    calls (desc); ``run`` aggregates totals before trimming to ``limit``."""
+    start, end, _ = P.window({"days": INVENTORY_WINDOW_DAYS})
+    where, args = P.window_sql(start, end, None, home, **_filters(scope))
     try:
-        rows = conn.execute(
-            f"SELECT i.type, i.name, i.enabled, (SELECT COUNT(*) FROM tool_call t WHERE"
-            f" (t.mcp_server=i.name OR t.skill=i.name) AND t.session_uid IN"
-            f" (SELECT s.session_uid FROM session s WHERE {where}))"
-            f" FROM inventory_item i WHERE i.scan_id IN ({P.latest_scans_sql()})"
-            f" GROUP BY i.type, i.name ORDER BY i.type, i.name LIMIT ?", [*args, limit]).fetchall()
+        items = conn.execute(
+            f"SELECT i.type, i.name, MAX(i.enabled) FROM inventory_item i WHERE i.scan_id IN"
+            f" ({P.latest_scans_sql()}) GROUP BY i.type, i.name").fetchall()
     except Exception:  # noqa: BLE001 - inventory tables may be absent
         return []
-    return [{"type": r[0], "name": r[1], "enabled": None if r[2] is None else bool(r[2]), "calls_30d": r[3]}
-            for r in rows]
+    owner = P.with_children(conn, [r[0] for r in conn.execute(
+        f"SELECT s.session_uid FROM session s WHERE {where}", args)])
+    by_mcp: dict[str, int] = {}
+    by_skill: dict[str, int] = {}
+    for chunk in P._chunks(list(owner)):
+        for mcp, skill, n in conn.execute(
+                f"SELECT mcp_server, skill, COUNT(*) FROM tool_call WHERE session_uid IN"
+                f" ({P.placeholders(chunk)}) AND (mcp_server IS NOT NULL OR skill IS NOT NULL)"
+                f" GROUP BY mcp_server, skill", chunk):
+            if mcp:
+                by_mcp[mcp] = by_mcp.get(mcp, 0) + n
+            if skill:
+                by_skill[skill] = by_skill.get(skill, 0) + n
+
+    def calls(kind, name):
+        if kind == "mcp":
+            return by_mcp.get(name, 0)
+        if kind == "skill":
+            return by_skill.get(name, 0)
+        return by_mcp.get(name, 0) + by_skill.get(name, 0)
+
+    rows = [{"type": t, "name": n, "enabled": None if e is None else bool(e), "calls_30d": calls(t, n)}
+            for t, n, e in items]
+    return sorted(rows, key=lambda r: (-r["calls_30d"], r["type"], r["name"]))
+
+
+def inventory_totals(rows: list[dict]) -> dict:
+    """{type: {"count", "unused"}} over the full (untrimmed) inventory."""
+    totals: dict[str, dict] = {}
+    for r in rows:
+        t = totals.setdefault(r["type"], {"count": 0, "unused": 0})
+        t["count"] += 1
+        t["unused"] += not r["calls_30d"]
+    return dict(sorted(totals.items()))
 
 
 _SQL = {"metrics": _metrics, "sessions": _sessions, "problems": _problems, "evidence": _evidence,

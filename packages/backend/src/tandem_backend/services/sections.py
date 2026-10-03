@@ -287,10 +287,10 @@ def _products(store, scope, params, memo):
 
 
 def _presentation(store, scope, params, memo):
-    from ..analytics.presentation import build_presentation
+    from ..analytics.presentation import bounded_presentation
     from ..analytics.presentation.metrics import window_scope
 
-    selected = window_scope(scope, params.get("window"))
+    selected = window_scope(scope, params.get("window"), now_ts=params.get("window_until"))
     result = dict(memo.analysis(store, selected, False, params.get("_rev")))
     target, family = params.get("target_agent", "generic"), params.get("family")
     if target != "generic" or family:
@@ -298,7 +298,7 @@ def _presentation(store, scope, params, memo):
 
         result["bottleneck_recommendations"] = recommend(result, context={"agent": target},
                                                          family=family)
-    return _summarised(build_presentation(result))
+    return _summarised(bounded_presentation(result))
 
 
 def _recommendations(store, scope, params, memo):
@@ -382,9 +382,9 @@ def rules_digest() -> str:
     if _RULES is None:
         from .. import __version__
         from ..analytics import FEATURE_VERSION
-        from ..analytics.products.contracts import RULE_VERSIONS
+        from ..analytics.products.contracts import rule_versions
 
-        payload = json.dumps([RULE_VERSIONS, FEATURE_VERSION, __version__, sorted(SECTIONS),
+        payload = json.dumps([rule_versions(), FEATURE_VERSION, __version__, sorted(SECTIONS),
                               {"full_pass_with_text": WITH_TEXT}], sort_keys=True)
         _RULES = hashlib.sha256(payload.encode()).hexdigest()[:12]
     return _RULES

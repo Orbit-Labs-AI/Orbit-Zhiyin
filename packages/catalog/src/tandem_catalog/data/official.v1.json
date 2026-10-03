@@ -382,7 +382,7 @@
  {
   "id": "env-quirks-rule",
   "type": "rule",
-  "name": "AGENTS.md：写明 {software} 的环境约定",
+  "name": "AGENTS.md：写明所用软件的环境约定",
   "summary": "把反复踩到的软件环境问题（登录、版本、路径）写进规则文件。",
   "official": true,
   "agents": [
@@ -464,7 +464,8 @@
    },
    "problem_types": [
     "tool_env_failure"
-   ]
+   ],
+   "title_template": "AGENTS.md：写明 {software} 的环境约定"
   }
  },
  {
@@ -818,7 +819,7 @@
  {
   "id": "repeated-instruction-rule",
   "type": "rule",
-  "name": "把重复说的要求写进规则：{instruction}",
+  "name": "把重复说的要求写进规则",
   "summary": "你在多个会话里重复同一要求，写进 AGENTS.md 一次即可。",
   "official": true,
   "agents": [
@@ -900,7 +901,8 @@
    },
    "problem_types": [
     "repeated_instruction"
-   ]
+   ],
+   "title_template": "把重复说的要求写进规则：{instruction}"
   }
  },
  {
@@ -1883,7 +1885,7 @@
  {
   "id": "project-build-hook",
   "type": "hook",
-  "name": "编辑后自动运行 {build_command}",
+  "name": "编辑后自动运行构建命令",
   "summary": "在项目里加一个 PostToolUse hook，每次 Edit / Write 后自动构建，问题当场暴露。",
   "official": true,
   "agents": [
@@ -1977,7 +1979,8 @@
    },
    "problem_types": [
     "late_build_failure"
-   ]
+   ],
+   "title_template": "编辑后自动运行 {build_command}"
   }
  },
  {

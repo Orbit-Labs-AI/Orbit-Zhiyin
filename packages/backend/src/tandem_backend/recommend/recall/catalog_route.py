@@ -19,6 +19,10 @@ from ..narrate import TRIAL_FALLBACK, TYPE_LABEL, TYPE_ZH, audience_default
 from .kb_route import evidence_of, project_of, target_agents
 from .sparse import tokenize
 
+# catalog_item.verification values meaning "repository and resource source were read"
+# (same set as tandem_catalog.index.VERIFIED; anything else, or a missing field, is unverified).
+VERIFIED = ("repository_and_skill_read", "repository_and_source_read")
+
 TYPE_KIND = {"skill": "skill", "plugin": "plugin", "marketplace": "plugin", "mcp_server": "mcp", "hook": "hook",
              "subagent": "subagent", "command": "prompt", "rule": "rule", "workflow": "workflow", "guide": "workflow",
              "output_style": "prompt", "lsp_server": "plugin", "model": "model"}
@@ -43,7 +47,10 @@ def _user_trial(text: str | None) -> str:
 def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: str) -> dict:
     """RawCand from a normalised catalog item dict (catalog response row or legacy seed)."""
     kind = item["kind"]
-    support = item.get("support") or {agent: "native" for agent in item.get("agents") or ()}
+    # Only an explicit support matrix (legacy seeds) states native/manual; a catalog row's ``agents``
+    # list is often inferred by the connector, so it stays a hint and every agent is "unknown"
+    # (agent_supported → needs_context) until the catalog provides a declared matrix.
+    support = dict(item.get("support") or {})
     risk_flags = list(item.get("risk") or ())
     limitation = item.get("limitation") or ""
     level = 4 if any(word in limitation for word in NOT_INSTALLABLE) else min(4, max(1, int(item.get("difficulty") or 2)))
@@ -69,7 +76,8 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
                    "license": item.get("license"), "version": item.get("version_id"),
                    "verified": bool(item.get("verified"))},
         "target": {"agents": target_agents(support, inputs), "scope": "project" if project_of(problem) else "user",
-                   "project_id": project_of(problem), "path_hint": None},
+                   "project_id": project_of(problem), "path_hint": None,
+                   "agents_listed": list(item.get("agents") or ())},
         "track": {"triggered": (problem or {}).get("type") or "使用次数", "mechanical": "调用次数",
                   "guardrail": "会话摩擦率", "follow_days": 7, "extend_days": 28},
         "trial": {"steps": steps, "metric": (problem or {}).get("type") or "使用次数",
@@ -80,7 +88,7 @@ def from_item(item: dict, problem: dict | None, inputs: dict, *, match_basis: st
                  "reversible": True},
         "risk": {"level": "medium" if len(risk_flags) > 1 else "low", "flags": risk_flags},
         "requirements": {"tools": [], "software": []}, "gates_hint": {"scenes": None, "language": None},
-        "unit_minutes": 1., "tags": list(item.get("tags") or ()), "file": None,
+        "unit_minutes": None, "tags": list(item.get("tags") or ()), "file": None,
         "explain_hints": {"reason_template": reason, "mechanism": mechanism,
                           "trial": _user_trial(item.get("trial")), "limitation": limitation,
                           "vars": dict((problem or {}).get("vars") or {})},
@@ -96,7 +104,8 @@ def _normalise_catalog(row: dict) -> dict | None:
             "summary": row.get("summary") or "", "url": row.get("url"), "agents": row.get("agents") or [],
             "license": row.get("license"), "difficulty": row.get("difficulty"), "risk": row.get("risk") or [],
             "language": row.get("language"), "content_hash": row.get("content_hash"),
-            "version_id": row.get("version_id"), "verified": True, "tags": tags, "score": row.get("score", 0.)}
+            "version_id": row.get("version_id"), "verified": row.get("verification") in VERIFIED,
+            "tags": tags, "score": row.get("score", 0.)}
 
 
 @lru_cache(maxsize=1)
@@ -181,8 +190,8 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
         meta["vector"] = {"status": "not_configured"}
         return _fallback(active, inputs)
 
-    agents = sorted((inputs.get("agents") or {}).items(), key=lambda kv: (-kv[1], kv[0]))
-    top_agent = [agents[0][0]] if agents else []
+    # every agent the user actually runs, so resources for a secondary agent are not filtered out
+    top_agent = sorted(a for a, n in (inputs.get("agents") or {}).items() if n and n > 0)
     words = _task_words(inputs)
     queries: list[tuple[dict | None, object]] = []
     for problem in active:
