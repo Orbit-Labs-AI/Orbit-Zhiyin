@@ -76,6 +76,7 @@ def report(output: Path) -> dict:
                 pairs.append({"task_id": task["task_id"], "left": left, "right": right,
                               "verdict": compare(a, b)})
     overlaps = {r["test"] for r in read(output / "tasks/split-overlap.json") if r["same_environment"]}
+    paper_overlap = read(output / "tasks/paper-overlap.json")
     adaptation = {}
     for arm in ("ours", "llm"):
         calls = [read(p) for p in sorted((output / "adaptation" / arm).rglob("trajectory.json"))]
@@ -89,7 +90,8 @@ def report(output: Path) -> dict:
                                 for a in ARMS} for f in FAMILIES},
                "nonidentical_environment_tests": {a: aggregate([r for r in rows if r["arm"] == a and r["task_id"] not in overlaps])
                                                    for a in ARMS},
-               "identical_environment_test_ids": sorted(overlaps), "paired": pairs, "adaptation": adaptation,
+               "identical_environment_test_ids": sorted(overlaps), "paper_overlap": paper_overlap,
+               "paired": pairs, "adaptation": adaptation,
                "amortized_horizons": {}}
     for arm in ARMS:
         online = summary["arms"][arm]["mean_tokens"]
@@ -164,6 +166,9 @@ def report(output: Path) -> dict:
     lines += ["", "## 7. 有效性边界", "",
               f"{len(overlaps)} 道 test 与 history 环境文件完全相同：" + ", ".join(sorted(overlaps)) + "。"
               "单独给出排除这些任务后的统计，不能把全量结果解释为新数据泛化。",
+              f"文件整理的 history/test 每对共享 {min(r['shared_papers'] for r in paper_overlap)}–"
+              f"{max(r['shared_papers'] for r in paper_overlap)} / 100 篇论文；"
+              "排除完全相同环境后的子集仍然存在部分输入重叠。",
               "history 中 weighted-gdp-calculation-2 缺少上游 verifier，标为未评分并保留轨迹；所有 held-out verifier 齐全。",
               "只有四个任务族、每组每题一次；公开数据可能已进入模型训练集。缓存、API 延迟和并发影响耗时，耗时仅作次要指标。",
               "本实验不等同于官方 SkillLearnBench 协议；镜像去掉预装技能，工具通过 Pi Docker adapter，"

@@ -215,6 +215,12 @@ def prepare(source: Path, output: Path, pi: Path, apt_mirror: str | None = None,
                for h in tasks if h["split"] == "history" for t in tasks if t["split"] == "test"
                and h["family"] == t["family"]]
     save(output / "tasks/split-overlap.json", overlap)
+    papers = {t["task_id"]: set(re.findall(r"https://arxiv.org/pdf/[^\s]+", t["dockerfile"]))
+              for t in tasks if t["family"] == "organize-messy-files"}
+    save(output / "tasks/paper-overlap.json", [
+        {"history": r["history"], "test": r["test"],
+         "shared_papers": len(papers[r["history"]] & papers[r["test"]]), "papers_per_task": 100}
+        for r in overlap if r["history"] in papers])
     return draft
 
 
@@ -311,6 +317,9 @@ def freeze(output: Path, docker: str = "docker") -> dict:
                  planned_adaptation_files=code_digests(),
                  preflight_sha256=digest(output / "container-preflight.json"),
                  personalization_preflight_sha256=digest(output / "personalization-preflight.json"))
+    study["input_preparation_audits"] = {name: digest(output / name) for name in (
+        "tasks/paper-overlap.json", "paper-downloads.json", "paper-image-hashes.json", "download-cache-change.json")
+        if (output / name).is_file()}
     save(output / "benchmark_manifest.json", study)
     (output / "benchmark_manifest.sha256").write_text(digest(output / "benchmark_manifest.json") + "\n")
     return study
