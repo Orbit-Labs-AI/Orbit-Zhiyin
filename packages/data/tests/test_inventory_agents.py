@@ -513,11 +513,15 @@ def test_claude_plugin_manifest_command_and_agent_paths_supplement_defaults(tmp_
     root = tmp_path / "claude"
     write(root, "settings.json", {"enabledPlugins": {"tools@market": True}})
     plugin = root / "plugins/cache/market/tools/1.0.0"
-    write(plugin, ".claude-plugin/plugin.json", {
-        "name": "tools",
-        "commands": ["./extra-commands", "./single/deploy.md", "./commands", "../escape"],
-        "agents": "./custom/reviewer.md",
-    })
+    write(
+        plugin,
+        ".claude-plugin/plugin.json",
+        {
+            "name": "tools",
+            "commands": ["./extra-commands", "./single/deploy.md", "./commands", "../escape"],
+            "agents": "./custom/reviewer.md",
+        },
+    )
     write(plugin, "commands/ship.md", "Ship it")
     write(plugin, "extra-commands/ops/rollback.md", "Roll back")
     write(plugin, "single/deploy.md", "Deploy")
