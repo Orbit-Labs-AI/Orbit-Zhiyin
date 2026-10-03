@@ -1,7 +1,9 @@
-# Recommendation
+# App 推荐实现
 
-App 使用的推荐引擎是 **engine v2**：`services/routes_recommend.py`（`/v1/recommendations*`）→ `runs.py` → `engine.build_slate`（`recall/multi` 11 路召回 → 加权 RRF → `ranking/gates` → `ranking/rank` → `ranking/slate` → `narrate`）。`service.recommend` 是另一套 service 栈，只服务 `/v1/analytics/recommendations` 与 analytics 展示；原画像 API 通过 `legacy.py` 兼容。两栈关系、路由表、排序公式与常数依据，以及七类资源接收、契约、召回、排序与限制见 [模块说明](../../../../../docs/modules/recommendation/engine.md)。
+App 路径为 `services/routes_recommend.py → runs.py → engine.build_slate`：问题与多路召回、RRF、资格、排序、多样性选择及卡片解释。analytics 的 `service.recommend` 是另一入口，旧报告由 `legacy.py` 兼容。
 
-从仓库根运行 `uv run pytest -q packages/backend/tests/recommend`，构造验收运行 `uv run python -m evals.recommendation.demo`。
+目录输入、来源同步和索引分别由本模块适配与 `orbit_catalog` 承担；不要把固定旧目录当当前 App 的全部候选。推荐结果保留问题证据、来源、未知上下文、未匹配和效果状态。
 
-`catalog.py` 管理七类资源输入；`legacy_catalog.py` 与 `resource_fetch.py` 保留原固定目录和显式刷新能力。来源抓取与独立索引的 `orbit_catalog` 已由 packages/catalog workspace 包接入。
+修改权重、资格或解释时同步规则版本与范围/反例测试。用户反馈、安装和实际效果各自记录，不用推荐分数证明收益。实现职责和公式解释见[推荐手册](../../../../../docs/modules/recommendation/engine.md)。
+
+从根运行：`python3 scripts/heavy.py uv run pytest -q packages/backend/tests/recommend`。构造演示入口为 `uv run python -m evals.recommendation.demo`；它不证明真实任务收益。

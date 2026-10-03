@@ -79,4 +79,8 @@ uv run python -m orbit_backend evaluate --output .local/instruction-validation/e
 
 ## 评审中暂缓的问题
 
-评审发现三项 P2：直接说“请检查代码／请构建项目”时可能漏识别；“无需确认直接执行”这类连写可能漏掉执行顺序；build、ruff、lint 等动作的允许与禁止可能漏报冲突。按用户指示，本轮暂缓修复，具体例子和原评论见 [特征族待办](../../packages/backend/src/orbit_backend/analytics/instruction/README.md#评审中暂缓的三项-p2)。
+该轮评审暂缓了三项 P2，原意见保留如下；是否仍存在须按当前实现重新核对，不能从历史结论推定：
+
+- “请检查代码／请构建项目”可能漏识别为核验要求：[原意见](https://github.com/ActionMesh-AI/Hackathon/pull/16#discussion_r4163524616)。
+- “无需确认直接执行”等连写可能漏掉执行顺序：[原意见](https://github.com/ActionMesh-AI/Hackathon/pull/16#discussion_r4163547545)。
+- build、ruff、lint 等动作的允许与禁止可能漏报冲突：[原意见](https://github.com/ActionMesh-AI/Hackathon/pull/16#discussion_r4163547547)。

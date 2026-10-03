@@ -1,159 +1,75 @@
-# 使用指南
+# CLI 指南
 
-ActionMesh AI 团队的 Hackathon 比赛项目。
+CLI 适合显式导入、分析、导出与脚本集成。先完成[开发环境](setup.md)，所有命令从仓库根执行。App 使用方法见[用户指南](../guides/README.md)。
 
-## 项目资料
+## 命令与数据目录
 
-- 仓库初始化：2026-09-30
-- 设计参考：[docs/design](../design/README.md)（Lite / Advance 的设计归属、[Orbit 品牌](../design/brand.md)、[Demo 说明](../design/demo.md)与视觉案例）
-- 数据方案：[docs/archive/plans/data-acquisition.md](../archive/plans/data-acquisition.md)（模块 1、5 的会话与生态数据获取、标准化、基础统计与存储）
-- 会话格式调研：[docs/research/agent-sessions](../research/agent-sessions/README.md)（pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 的会话与轨迹数据形态，源码级对比）
-- 分析开发输入：[docs/contracts/analysis-inputs.md](../contracts/analysis-inputs.md)（输入来源、L2/L3 字段解释、统计口径与当前实现差异）
-- UI 分析与验收：[组合分析说明](../modules/analytics/analysis-products.md)（`analysis-report`、工具占比、调用转移、情绪图表及本地 session 验收）
-- Codex 数据连接器：[packages/connectors](../../packages/connectors/README.md)（只读采集、L0/L1 归档、analysis-input-v1 标准事件与派生表）
-- 会话数据实现：[packages/data](../../packages/data/README.md)（实际 SQLite 数据库、L0/L1 归档、L2/L3 预处理和 connector 桥接）
-- App 数据入口：[模块边界与接入方式](../architecture/data-pipeline.md)（macOS、统一 workspace、分页查询、重算与旧库兼容）
+`orbit` 是应用 CLI，`orbit-data` 是数据层工具，`orbit-catalog` 管理独立资源库，`orbit-helper` 启动 App 服务。可用选项以各命令 `--help` 为准。
 
-## App 版本
+全局参数放在子命令前，例如 `uv run orbit --home .local/my-orbit analytics`。默认 home 是 `~/Library/Application Support/Orbit`，可用 `ORBIT_HOME` 或 `--home` 覆盖；演示、真实样本和评测分别使用独立目录。
 
-| 版本 | 设计来源 | 设计参考 |
-| --- | --- | --- |
-| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/ActionMesh-AI/Hackathon/pull/12)） | [Lite Demo](../../prototypes/lite/orbit-benchmark-demo.html)、[范围与审查](../archive/design/lite-review.md) |
-| **Advance** | `yhyfhgs` 的桌面 App 设计 | [Advance Demo](../../prototypes/advance/orbit-demo.html)、[视觉案例 v1](../design/visual-cases-v1) |
-
-版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。两版已合为同一个 App（[`orbit-demo.html`](../../prototypes/advance/orbit-demo.html) 侧栏顶部切换），Lite 原稿保留为设计来源，具体说明见[设计资料](../design/README.md)。画板与 Demo 仍是使用示例数据的设计参考，MVP 功能范围由三位成员共同确认；现有界面与交互的调整由对应设计任务另行推进。
-
-## 先试后端
-
-Orbit 面向 macOS App。后端通过统一 L0–L3 数据层读取本地 Agent 记录，按项目和模型整理，再分析协作要求、卡点与资源。支持 Codex、Claude Code、DeepSeek Harness、pi、Hermes、OpenCode、Kimi；实际信息覆盖以原生证据为准。前端 [Lite Demo](../../prototypes/lite/orbit-benchmark-demo.html) 与 [Advance Demo](../../prototypes/advance/orbit-demo.html) 仍是设计参考。
-
-分析入口遵循 [analysis-input-v1](../contracts/analysis-inputs.md)，目标契约与当前存储支持范围分开说明。
-
-需要 Python 3.13 和 uv（`.python-version` 固定运行时）。backend 与 data 共用根目录 `uv.lock`：
+## 示例与报告
 
 ```sh
-uv sync --locked --all-packages --dev
 uv run orbit demo
-uv run orbit evaluate
-uv run pytest -q packages/backend/tests tests
-uv run pytest -q packages/data/tests
+uv run orbit demo --view profile
+uv run orbit demo --view bottlenecks
+uv run orbit demo --view process
 ```
 
-demo 使用虚构数据，CLI 按“数据 → 画像 → 瓶颈 → 推荐”直接展示。结果目录同时保存 `profile.md / bottlenecks.md / process.md / report.md` 及对应 JSON。评价结果在 `.local/evaluation.json`。通过自动检查表示已排除部分明显错误，仍需要读者验收。
+默认 `.local/demo/` 保存 Markdown/JSON 报告与 `.local/demo/data/` 的构造数据。运行 `uv run orbit evaluate` 使用独立样本评价，不把评测结果写成用户历史。
 
-```sh
-.venv/bin/orbit demo --view profile
-.venv/bin/orbit demo --view bottlenecks
-.venv/bin/orbit demo --view process
-```
-
-不指定想要哪个 skill，也能先生成画像与瓶颈；资源目录只参与最后的匹配。推导过程见 [画像怎样产生](../modules/analytics/profiling.md)。这次展示使用 CLI，无需接入前端。
-
-`evaluate` 跑文字对照、整条链路的构造场景，以及新增措辞和组合要求；`--suite pipeline / probe` 可以分别选择。结果保留误报、漏报和证据检查。这些样例用于改进规则；在独立临时数据库中运行，正常数据不会被改写。
-
-## 导入本地数据
+## 发现和导入
 
 ```sh
 uv run orbit discover
-uv run orbit ingest --agent codex --root "$HOME/.codex"
-uv run orbit ingest --agent claude_code --root "$HOME/.claude"
-uv run orbit verify
-uv run orbit report
-uv run orbit analytics --display-timezone Asia/Shanghai
-uv run orbit serve
+uv run orbit --home /absolute/orbit-home ingest --agent codex --root /absolute/authorized-codex-home
+uv run orbit --home /absolute/orbit-home verify
+uv run orbit --home /absolute/orbit-home rebuild
 ```
 
-`discover` 只列来源，`ingest` 才启用指定根目录。CLI、App 和 API 默认共用 `~/Library/Application Support/Orbit/`（`orbit.db` 与 `raw/`），可用 `ORBIT_HOME` 或 `--home` 指定；仓库开发可用 `--home .orbit`。报告在 `.local/report/`，API 文档在 <http://127.0.0.1:8765/docs>。真实数据只留在本地，API 默认只监听本机。
+`discover` 只发现，`ingest` 明确启用所写来源。Agent 标识见[导入指南](../guides/importing-data.md)。`--limit N` 限制输入文件，不表示最近 N 个会话；home 与来源根不得互相包含。
 
-统一数据层完整保留 L0，分析用 `analytics --from-ts / --until-ts`（UTC 毫秒、右端不包含）与 `--exclude-session`（canonical session UID）选择样本，范围与数据版本随结果返回。不要把评价中用户给出的标准重新当作历史偏好导入。旧命令 `import --codex-home` 默认也进入新数据层。
+进度在 stderr，结构化输出在 stdout；`--no-progress` 关闭进度。取消与重试见[导入流程](import-pipeline.md)。`rebuild` 使用已捕获或索引的输入，不会恢复已经丢失的原文。
 
-已有 MVP 库需显式通过 `--db .local/orbit.sqlite` 使用兼容模式，原有持久采样策略保持原样。新入口不会改写旧库或静默忽略旧采样参数。迁移需显式从原始来源或 staging 重新导入；旧 JSON ledger 无法补出缺失的 L0/L1。
-
-## 真实历史的进度、取消与大库分析
-
-首次全量导入会归档原文、逐条脱敏/校验并生成 L2/L3；文件数不等于会话数。终端在 stderr 显示 `capture → reset_projection → prepare → map → derive → validate_projection → published` 的阶段、文件/记录数量与耗时，stdout 仍是 JSON。`--no-progress` 可关闭进度。单个大文件和事务更新期间只显示当前阶段，不提供虚假的总完成百分比或剩余时间。同一项目的 Git 探测在单次重算内复用，下次重算重新探测。打开数据库时幂等补齐派生表的外键索引，避免延迟外键检查随数据量增长反复扫描子表；逻辑 schema 版本和字段契约不变。
-
-Ctrl+C 以退出码 130 结束；当前投影事务回滚，已提交的原始归档保留。重新运行原来的 `ingest` 会跳过未变化文件并重新执行未完成的标准化；已有归档可直接用 `uv run orbit --home .orbit rebuild` 重算。未完成标准化时不能运行分析，不能把 L1 默认的 `unparsed` 数量当成已确认的解析错误。
-
-先试真实样本时使用独立目录，避免旧库的其他文件也参与重算：
+## 分析与导出
 
 ```sh
-uv run orbit --home .local/real-sample ingest --agent codex --root "${CODEX_HOME:-$HOME/.codex}" --limit 3
-uv run orbit --home .local/real-sample analytics --display-timezone Asia/Shanghai --output .local/real-sample-report/analytics.json
-uv run orbit --home .local/real-sample report --output .local/real-sample-report
+uv run orbit --home /absolute/orbit-home analytics --no-text --display-timezone Asia/Shanghai --output .local/report/analytics.json
+uv run orbit --home /absolute/orbit-home report --output .local/report
+uv run orbit --home /absolute/orbit-home analysis-report --display-timezone Asia/Shanghai --output .local/analysis-report
 ```
 
-Codex 的子代理继承前缀按原生边界识别：能找到父记录时关联到父证据；父历史已不可用时，保留为带 `parent_evidence=unavailable` 的注入上下文和诊断，不制造父链接，也不重复计为子代理的人类输入、工具调用或用量。分析覆盖会标明 `inherited_parent_evidence_unavailable`。ImageView、clock.sleep、image_gen.generation、FunctionCallOutput、tool_search、compaction 和目标更新使用对应标准事件；未报告的工具状态继续为 unknown。
+`analytics` 输出特征，`report` 组织画像与建议，`analysis-report` 生成同一组合快照的 JSON/CSV/离线图表。`--no-text` 只跳过文本表示，其他分析仍运行。
 
-`--limit` 选择来源文件，不保证最近 N 个会话。来源根目录与数据目录不能包含彼此；例如仓库位于 `~/.codex/worktrees/` 时，输出目录应显式放在该来源目录之外。
+用 `--from-ts` / `--until-ts` 选择 UTC 毫秒区间 `[from, until)`，并按命令支持的项目、模型、来源、会话与排除参数缩小范围。未知时间不补入确定窗口；上下文不增加统计分母。
 
-分析与报告默认不限制事件数量，也不截断正文。可显式设置 `--max-events` 预算（包含所选轮次的上下文），在解码正文前检查；超限会明确失败，不返回部分分析结果。可以用 `--project-id` 或 `--from-ts / --until-ts` 缩小范围，两种报告入口都支持 UTC 毫秒时间范围，左闭右开。需要控制资源占用时可以显式指定预算：
+事件预算是子命令前的全局参数：
 
 ```sh
-uv run orbit --home .orbit --max-events 500000 analytics --no-text --display-timezone Asia/Shanghai --output .local/report/analytics.json
-uv run orbit --home .orbit --max-events 500000 report --output .local/report
+uv run orbit --home /absolute/orbit-home --max-events 500000 analytics --no-text
 ```
 
-读取轮次首尾事件改为单次遍历，不再为每一轮扫描整个事件集合。分析和报告只读取所需的标准字段，不批量解码 event.ext 中的重复原生副本；覆盖说明会标记 native_event_payload 为 excluded，完整已存证据仍可按事件/记录 ID 回看，原始归档不变。
+默认没有此预算限制；超预算明确失败，不返回伪装完整的部分结果。覆盖状态的解释见[分析指南](../guides/understanding-analysis.md)。
 
-`--max-events` 是命令前的全局参数，预算可用于控制内存和计算需求。`--no-text` 只跳过 TF-IDF/SVD 文本表示、聚类和时间新颖度，其他分析仍运行；全量文本新颖度需要对历史前缀反复拟合，大库会更慢。缺失或未知值仍保留覆盖说明，不能当成零成本或成功。
-
-## 如何理解 partial / unavailable / excluded
-
-终端会同时打印状态、缺口数量、原因和下一步；分析 JSON 与 API 的 `coverage_report`、Markdown 的“数据覆盖说明”使用同一套共享契约。
-
-| 状态 | 含义 | 处理 |
-| --- | --- | --- |
-| available | 输入可用，观察到的空集也可以是有效结果 | 不表示每个字段都已知，也不表示工具执行成功 |
-| partial | 已有事实可分析，但部分证据缺失或无法确定 | 按 reasons / reason_counts 定位缺口，保留未知值 |
-| unavailable | 没有这一类可用输入，例如未扫描安装配置 | 按需显式接入对应来源，不把缺失当零 |
-| excluded | 调用方按配置或范围主动省略 | 如 --no-text、按需读取原生扩展正文或会话筛选 |
-
-工具调用配对不足会分别显示缺调用、缺结果和时间范围之外的结果；事件覆盖会显示文本截断、缺时间、缺父证据等计数。没有额外排除任何会话时，sample_exclusions 为 available、rows=0。未启用的安装清单与独立 Catalog 不影响已有会话分析成功。
-
-旧快照曾保存截断文本时，升级后可从保留的归档重算恢复完整内容；已丢失的原文或父历史无法通过改状态恢复。旧库没有记录扫描边界时会显示 source_scan_boundary_unknown；需要确认完整来源范围，应在 Agent 来源目录之外的数据目录显式重新 ingest。架构与扩展方式见[模块化数据入口](../architecture/data-pipeline.md)。
-
-## 核对推荐来源
-
-离线目录自带 10 个公开来源的固定版本。需要重新核对时运行：
+## 证据与历史
 
 ```sh
-.venv/bin/orbit catalog-refresh
+uv run orbit --home /absolute/orbit-home evidence <事件ID> --json
+uv run orbit --home /absolute/orbit-home analysis-history --limit 20
+uv run orbit --home /absolute/orbit-home analysis-history --run-id <运行ID>
 ```
 
-它从 GitHub 官方 API 读取仓库信息和 Markdown，核对版本与内容哈希，结果保存在 `.local/catalog.json`。`--latest` 才会更新到当前默认分支，`--resource-id humanizer-zh` 可以只核对一个来源。导入和分析不需要联网。
+只读取所选证据，分享输出前检查隐私。运行历史与事实库存储独立，详见[统计与历史](../modules/analytics/statistics-history.md)。
 
-目录包括规则、skills、插件、MCP、hooks、基准和代理。现阶段只对分析中有明确匹配的 skill 建议一次小范围试用：必须同时有画像证据、瓶颈证据，以及适合场景和语言的资源。真实收益需要另测。
+## 服务与其他工具
 
-## 看实现与版本报告
+`uv run orbit --home <目录> serve --port 8765` 启动报告 API；`pnpm dev --home <目录>` 是同一入口的薄脚本。live UI 使用 [App gateway](setup.md#启动-app-gateway)，两者不要混用。
 
-- [Preference 与 Task 特征族：实现及五类验证](../audits/preference-task-validation.md)
-  — 新增 `/v1/analytics/preferences`、`/v1/analytics/tasks`；证据、范围、版本与未知状态可追溯。
-- [Feature Analytics MVP：真实数据案例、特征字典与输入缺口](../modules/analytics/feature-analytics.md)
-  — 运行 `.venv/bin/orbit --db .local/history.sqlite analytics --display-timezone Asia/Shanghai --output .local/feature-analytics/analytics.json`；新增 `/v1/analytics/*`，未知值不填零。
-- [先验这条链路](acceptance.md)
-- [今晚先跑通什么](../archive/backend-mvp-plan.md)
-- [当前版本：完整过滤凭据并核对交付证据](../releases/backend/v0.13.6.md)
-- [怎样验“说人话”](../modules/evaluation/reader-review.md)
-- [各版记录](../releases/backend/README.md)
-- [模块与接口](../architecture/backend.md)
-- [这些数字说明什么](../modules/analytics/modeling.md)
-- [调研与取舍](../research/backend-research.md)
+安装 CLI 的 `install environment` 与 `install ledger` 用于查看，实际写入经 App 预览确认。资源同步与检索用 [orbit-catalog](../../packages/catalog/README.md)；旧报告固定资源核对保留 `catalog-refresh`，不等同当前 App Catalog。
 
-官方 dsh 源码作为固定版本的 submodule 放在 `third_party/deepseek-harness`。需要查源码时运行 `git submodule update --init --depth 1`；它不参与后端启动。
+TypeScript staging 通过 `orbit import-connector --connector-home <目录>` 接入，两库分开；见[connector](../../packages/connectors/README.md)。
 
-## 使用标准 Codex Connector
+## 兼容旧数据
 
-采集进程使用 TypeScript、Node ≥24.7 与 pnpm，输出独立 staging 库；通过 `packages/data` 的归档桥接进入统一数据库，避免两套 schema 共写同一个文件。
-
-```sh
-cd packages/connectors
-pnpm install --frozen-lockfile
-pnpm check
-pnpm orbit --help
-```
-
-初始化、增量导入、重算、监听、数据契约和真实来源验证范围见 [Connector README](../../packages/connectors/README.md)。
-
-已有 staging 用 `uv run orbit import-connector --connector-home .local/codex-staging` 接入，源文件已删除也可从归档处理。普通 `orbit ingest --agent codex` 可直接使用 Python canonical connector。两种采集方式最终使用同一份 Python L2/L3 规则，两个包不得共写同一份 SQLite。
-- [多 Agent 数据导入模块与一键验收](../modules/data/agent-connectors.md)（统一 Python canonical 链路）
+旧 MVP 数据库通过显式 `--db <文件>` 读取，保留旧采样约定。不能把旧文件改名为 `orbit.db`，也不能假设旧 ledger 能补出 L0/L1。历史品牌迁移由 [legacy.py](../../packages/data/src/orbit_data/legacy.py)负责，新代码和命令统一用 orbit。

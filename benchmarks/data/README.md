@@ -1,71 +1,24 @@
-# 数据导入基准与完整性回归
+# 数据导入与同步基准
 
-只使用构造数据，不读取本机任何 Agent 目录。背景与基线见数据模块审计（`docs/audits/data-audit.md` §3、§5.6）。
+用固定构造来源比较导入阶段、增量、维护、查询和逻辑完整性。默认不读取任何个人 Agent 目录。
 
 ```sh
-uv run python -m benchmarks.data.synthetic --preset small --out .local/benchmarks/data/synthetic
-uv run python -m benchmarks.data.import_bench --preset med --check --output .local/benchmarks/data-med.json
-uv run pytest -q packages/data/tests/test_import_integrity.py
-uv run python -m benchmarks.data.live_sync --preset med --minutes 8 --output .local/benchmarks/live-sync.json
+python3 scripts/heavy.py uv run python -m benchmarks.data.import_bench --preset med --check --output .local/benchmarks/data-med.json
+python3 scripts/heavy.py uv run python -m benchmarks.data.live_sync --preset med --minutes 8 --output .local/benchmarks/live-sync.json
 ```
 
-## 实时同步探针（`live_sync.py`）
+## 输入与计时
 
-在临时 `ORBIT_HOME` 上起源码网关，导入合成来源（本页 `synthetic.py` 的 Claude Code / pi / DSH，加一个带 `state_5.sqlite` 的 Codex 目录和一个父会话缺失的子代理），开 `sync_mode=live` 并开始首次导入；同时每 2 s 追加一行 Claude 会话、每 1 s 改一行 Codex `threads`，每秒读 `/v1/sessions` 与 `/v1/status`。报告每个任务的状态、耗时、各阶段开始次数（`rebuild_attempts` = `reset_projection` 次数）、重建范围（closure / source）、最大重试序号，以及读取结果分布、WAL 最大 / 结束大小与遗留溢出目录。用来复现与核对[导入流程](../../docs/development/import-pipeline.md)中的根因与修复，不作 CI 门槛；`--work` 保留工作目录以便查看网关日志。
+`synthetic.py` 按 preset/seed 生成多来源、子代理、fork、重复与大输出等构造记录，manifest 保存预期身份、计数和哈希。mapper 形态变化时独立检查预期，不用实际输出反向生成 oracle。
 
-## 合成数据（`synthetic.py`）
+import_bench 分别报告生成、首次导入、各阶段、库存、维护、空间、UI 查询、无变化重扫和单文件追加。维护默认与首导分开计时；不同模式、源树路径和硬件不能混成一个对照。
 
-同一预设与 seed 两次生成，所有文件（含 SQLite 来源库与 `manifest.json`）字节一致。
+live_sync 启动临时 gateway，在构造来源中追加/更新记录，观察任务、重建次数、读取、WAL 与残留目录；用于定位同步退避和整源重复工作，不作普通 CI 门槛。
 
-| 来源 | 覆盖的形态 |
-| --- | --- |
-| `claude_code` | 主会话；每 10 个会话 1 个 subagent（含 `.meta.json`）；1 个 `--resume` 新会话，复制前 2 轮，记为 replayed |
-| `pi` | 主会话；每 10 个会话 1 个 `parentSession` 分叉，逐字复制父会话第 1 轮 |
-| `dsh` | `session.v4.jsonl`；每 10 个会话附 1 个 `session.v3.jsonl` 旧代，L1 入账、L2 ignored |
-| `opencode` | SQLite 来源 `opencode.db` |
-| inventory | `inventory/claude_code`：skills、MCP、hooks、plugins、rules（CLAUDE.md 与 `rules/`） |
+## 逻辑等价
 
-每个来源的工具输出中每 20 个有 1 个 ≥40 KB（5%）。
+`orbit_data.validation.integrity` 的 logical_digest、section_digests 和 invariants 按明确排序比较 L1 去向、贡献关系、标准事件、L3、诊断与库存。过程时间等已声明字段可排除，事实与覆盖不能随意忽略。
 
-| 预设 | 每个 JSONL 来源会话 × 轮 | opencode 会话 | 事件 | 用途 |
-| --- | --- | --- | --- | --- |
-| `small` | 10 × 4 | 4 | 801 | CI 回归，导入 <1 s |
-| `med` | 300 × 15 | 30 | 约 8 万 | 本地对比 |
-| `full` | 2000 × 15 | 100 | 约 53 万 | 与审计基线对比（审计数据为 3×2000×15，无 subagent/resume/opencode） |
+身份依赖来源根，因此比较使用同一源树路径。VACUUM 或索引布局变化可改变文件字节，但不应改变逻辑摘要。验证先于速度解释，失败时保留具体分区差异。
 
-`manifest.json`：`agents.<agent>.{sessions,events,records,files}` 是期望计数（事件数按 `synthetic.EVENTS` 中钉住的每类记录事件数计算，mapper 改变事件形态时须同步更新）；`large_outputs[]` 记录 `{agent, session(native_id), bytes, sha256}`；`inventory.items[]` 记录 `{type, name, locator, content_hash}`；`totals` 为合计。
-
-## 逻辑摘要（`orbit_data.validation.integrity`）
-
-- `logical_digest(home)`：按固定顺序对以下分区求 sha256；`section_digests(home)` 给出各分区的摘要与行数，用于定位差异。
-  1. `raw_record (record_uid, file_id, locator, version, sha256, native_type, disposition, session_uid)`
-  2. `record_event` 全表
-  3. 每个会话经 `query.event_page()` 读回的全部事件
-  4. L3：`project / session / turn / tool_call / tool_call_event / model_call / usage_snapshot / session_feature / link`，排除 `captured_at / observed_at / last_scan_at / completed_at / detected_at / discovered_at`
-  5. `ingest_issue (code, stage, file_id, record_uid)`
-  6. 每个 inventory 来源最新快照的 `(agent, type, name, locator, content_hash)`
-- 排序在 SQL 中显式指定，与 rowid、索引、页布局无关；VACUUM、REINDEX 后不变。标识符包含来源根路径，只有同一份源树（同一路径）的导入结果可以比较。
-- `invariants(home)`：`store.verify()`、`foreign_key_check`、记账视图一致性、无出处事件、发布事件数；`problems` 为空表示全部成立。
-
-并行、增量、去重等改动的等价判定：同一源树上，旧路径与新路径的 `logical_digest` 必须相同。
-
-## 基准输出（`import_bench.py`）
-
-默认工作目录 `.local/benchmarks/data`（已忽略）；源树按预设与 seed 缓存，数据库每次全新创建，结束后删除（`--keep` 保留）。
-
-| 字段 | 内容 |
-| --- | --- |
-| `environment` | Python、SQLite、平台、CPU 型号、逻辑核数、内存、启动时负载 |
-| `preset / parameters / seed / repeats` | 规模与 UI 查询重复次数 |
-| `dataset` | 生成耗时（复用缓存时为 null）、源大小 MB、manifest 计数 |
-| `first_import` | 总秒数、按进度阶段（capture / map / derive_sessions / validate_projection 等）分秒数、各 Agent 秒数、事件/秒、MB/秒 |
-| `maintenance` | 默认 `--maintenance wait`：首导计时结束后同步执行导入后维护（`Store.maintain`），记录动作、前后字节、页大小、slack 与秒数；`size` 因此是维护后的体积。`--maintenance off` 跳过 |
-| `inventory_scan` | 秒数与条目数 |
-| `size` | checkpoint 后库体积 MB、`dbstat` 分表与索引 MB、`event.text/attrs/ext` 字节 |
-| `ui_queries_ms` | 12 条 UI 关键查询，取 `repeats` 次最好成绩（与审计 §3.6 相同） |
-| `integrity` | `--check` 时：摘要、摘要耗时、不变量问题（`--skip-verify` 跳过逐行 verify） |
-| `noop_rescan_seconds` | 无变化重扫全部来源 |
-| `append_one_file` | 给 1 个 pi 文件追加 1 行后重扫 pi 的秒数与分阶段耗时；结束后还原源文件；`--no-append` 跳过 |
-| `audit_baseline` | 仅 `full`：审计基线（383.4 s、2822 MB、189.6 s）及实测比值 |
-
-计时受并发负载影响；记录 `load_average_at_start`，对比时说明规模、硬件与负载。
+历史测量见[数据审计](../../docs/audits/data-audit.md)，当前策略见[导入性能](../../docs/modules/data/import-performance.md)。真实环境结果如另行授权取得，必须与构造结果分列。

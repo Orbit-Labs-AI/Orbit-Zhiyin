@@ -1,38 +1,23 @@
-# Orbit 宣传片
+# Orbit 宣传片工程
 
-约 55 秒、纯黑背景的 Orbit 产品宣传片。逐镜与关键帧脚本见 [STORYBOARD.md](STORYBOARD.md)，所学参考片的动效总结见 [REFERENCES.md](REFERENCES.md)。画面来自正在运行的 App（`../orbit-demo.html`）：两份 App 轮流出镜，每个镜头只显示其中一个组件。另外两样由宣传片自己绘制：
-- **人格罗盘**：宣传片自己的罗盘（外框 + 玫瑰 + 指针 + 光带），几何取自 App 0.0.3 及之前的指南针表盘并接入 App 的数据；0.0.4 的 App 表盘已改为旋转对称的人格之花、每个 Agent 一条曲线与外框类型码，宣传片尚未同步，见 [Demo 说明](../../../docs/design/demo.md)。
-- **Orbit 标志**：用和 `docs/design/logo` spiral 变体相同的锥形螺旋实时生成。
+本目录包含宣传片的舞台、场景、配乐和逐帧渲染工具。[分镜](STORYBOARD.md)与[参考研究](REFERENCES.md)记录对应版本的创作依据。片中的人格、收益和“7 天后”均为演示叙事，不是实际用户试验或收益承诺。
 
-全片回答开场的两个问题：
-- **01 人格分析**：数字碎成粒子落进罗盘 → 指针扫过 16 型 → 四条证据逐个锁定字母 → 揭晓「指挥家 DIMV」→ 优势与盲点。
-- **02 推荐 → 效率**：点盲点旁的「建议 →」打开推荐 → 每条建议省下的协作时间占比逐张汇入 15.6% → 一键安装 → 7 天后前后对比 → 「省下 15.6% 的协作时间」（按真实轨迹的占比，不折算小时）。
-之后快速带过轨迹回放、生成工坊、问本地 Agent 和桌面上的各项功能，最后罗盘收回成 Orbit 标志。
+## 资产与版本
 
-| 文件 | 作用 |
-| --- | --- |
-| `promo.html` / `promo.css` | 1920×1080 舞台：`#app0`/`#app1` 两份 App 与 `#cam2` 罗盘，各有一组 `.cam`/`.rig` 镜头；`#orbit` 画 Orbit 标志与行星；`#fx` 放文字 |
-| `promo.js` | 引擎（以拍为单位，124 BPM）：`shot()`/`tween()` 镜头、`txt()`/`tag()` 文字、`drive()`/`every()` 逐帧驱动、`clickAt()` 光标与点击 bloom、`drawCompass()` 罗盘、`orbitAt()` 标志、`stageXY()`/`elXY()` 屏幕坐标、虚拟时钟 |
-| `scenes/00-kit.js` | 各场景共用的文字形式（`K.words`、`K.big`、`K.swap`、`K.blurIn`、`K.centerOut`、`K.scramble`、`K.decode`、`K.type`、`K.mark`、`K.strike`、`K.count`、`K.pop`）和圆形穿越门 `portal()` |
-| `scenes/10-open.js` … `60-close.js` | 各段落，各自用 `scene(name, fn)` 注册，按文件名顺序运行；拍段与交接约定见 STORYBOARD.md |
-| `STORYBOARD.md` | 逐镜与关键帧：拍号、秒数、组件、镜头与动效、文字形式、声音、交接 |
-| `REFERENCES.md` | 参考片的节奏、转场、文字、组件手法，以及 v6 复盘 |
-| `music.py` | 用 numpy/scipy 合成配乐，输出到 `out/soundtrack.wav` |
-| `render.mjs` | 在 Playwright 的虚拟时钟上逐帧截图，再用 ffmpeg 与配乐合成 MP4 |
+场景从 `../orbit-demo.html` 提取组件，另有片内罗盘和标志绘制。该片的旧指南针罗盘与当前 App 人格之花不同；更新宣传物前需按[设计规范](../../../docs/design/README.md)核对，不把旧镜头当作当前界面。
 
-## 用法
+`promo.html`/`promo.css` 管舞台，`promo.js` 管镜头与时钟，`scenes/` 管分段，`music.py` 生成配乐，`render.mjs` 通过 Playwright 和 ffmpeg 输出视频。当前分镜的时长与拍号属于版本化设计，修改场景时同步对应说明。
 
-```bash
+## 运行
+
+先准备仓库依赖、Playwright Chromium 和 ffmpeg。从 `prototypes/advance` 执行：
+
+```sh
 uv run --with numpy --with scipy python promo/music.py
-node build.mjs && node promo/render.mjs            # -> promo/out/orbit-promo.mp4
+node build.mjs
+node promo/render.mjs
 ```
 
-`render.mjs` 的参数：`--fps 60`、`--scale 2`（按 2× 渲染后缩放到 1080p）、`--from/--to <秒>`、`--frames <目录>`（输出 JPG 序列而不是 MP4）、`--only 16,20.5`（只截取这几拍的画面，用于快速出联系表）、`--debug`（打印镜头目标的位置）。环境变量 `PROMO_PAGE=<文件名>` 可以渲染同目录下的另一个页面（例如只加载某几个场景的测试页）。
+全片渲染是重负载，从根工作区调度时使用 `scripts/heavy.py`。渲染支持 fps、scale、from/to、frames、only 和 debug 等选项，以脚本 `--help` 或参数定义为准。静态预览打开 `promo.html`，最终时间轴以虚拟时钟逐帧输出为准。
 
-预览：用任意静态服务器打开 `promo/promo.html`，点击「播放」即可带配乐实时播放（`?t=<秒>` 可从中间开始，`?debug` 会显示当前拍号）。实时预览的效果取决于机器性能，最终成片以 `render.mjs` 的输出为准。
-
-## 卡点原理
-
-每一帧先把时钟推进整数毫秒，再执行 `PROMO.sync(t)`：所有镜头和字幕都只由 `t` 计算；App 里正在进行的 CSS 动画和过渡也会暂停，并把进度设到同一时刻；JS 定时器和 `requestAnimationFrame` 则由 Playwright 的假时钟驱动。因此无论机器快慢，画面都会准确落在拍子上。View Transition 不受虚拟时钟控制，所以渲染时会关闭，改走 App 自带的回退动画。
-
-成片、帧序列与 `out/` 都不进仓库。
+视频、音频与帧序列写入忽略的 `out/`，不提交大型生成物。引用任何节省百分比时明确标成示例，发布前同步现行 UI、许可与产品边界。

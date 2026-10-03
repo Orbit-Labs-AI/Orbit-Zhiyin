@@ -1,12 +1,24 @@
-# UI 原型
+# Orbit 界面源码与演示
 
-原型都使用示例数据，与生产数据入口分别运行。Lite 与 Advance 已合为同一个 App，侧栏顶部一键切换：
+`advance` 是当前 App 共用的 Web UI：Lite 和 Advance 在侧栏顶部切换，共享组件、数据适配和动效。`lite` 保留最初的独立设计原稿，不再作为另一套产品组件体系扩展。
 
-| 原型 | 设计归属 | 入口 | 检查 |
-| --- | --- | --- | --- |
-| App（Lite + Advance） | Lite：genius-FXC；Advance：yhyfhgs | [单文件 HTML](advance/orbit-demo.html)、[源码](advance/src)；`#l-home` 以 Lite 打开 | pnpm check:ui |
-| Lite 原稿 | genius-FXC | [单文件 HTML](lite/orbit-benchmark-demo.html) | pnpm --filter @orbit/prototype-lite check |
+| 目录 | 用途 | 入口 |
+| --- | --- | --- |
+| `advance` | 统一 App 源码与生成 HTML | [orbit-demo.html](advance/orbit-demo.html)、[src](advance/src/) |
+| `lite` | `genius-FXC` 的 Lite 设计来源 | [原稿](lite/orbit-benchmark-demo.html) |
+| `shared` | 共用 live 请求、状态和 SSE 客户端 | [OrbitLive](shared/README.md) |
 
-App 的 HTML 是生成产物，编辑 src 后执行 `pnpm --filter @orbit/prototype-advance build`。版本切换与路由映射在 `src/js/26-edition.js`，Lite 四页在 `39-lite-pages.js`，两版共用的动效在 `37-motion.js`。Lite 页面只用已有组件拼装，差异仅限 `.lite` 作用域下的尺寸变体。截图 `node tools/shoot.mjs --ed lite` 可拍 Lite 四页。Lite 原稿保留原有独立 HTML 编辑方式，作为设计来源。
+## 两种数据模式
 
-设计规范与画板位于 [docs/design](../docs/design/README.md)。正式 macOS UI 接入未来的 apps/desktop；原型通过不代表真实数据接入或安装包已完成。
+独立打开 HTML 使用示例数据，可直接体验交互。由 gateway 的 `/app` 或 `/lite` 托管时进入 live 模式，原生宿主也使用此路径。当前已有真实 App 接线，不能再将整个目录描述为“等待未来接入”。
+
+## 修改与验证
+
+```sh
+pnpm --filter @orbit/prototype-advance build
+python3 scripts/heavy.py pnpm check:ui
+```
+
+修改 `advance/src/` 后重新生成 HTML，不手改生成产物。`26-edition.js` 管版本路由，`39-lite-pages.js` 组合 Lite 页面；共用样式和动效优先复用。更新共享适配层先同步副本，再构建。
+
+Lite 设计来自 `genius-FXC`，Advance 来自 `yhyfhgs`。视觉规范和素材在[设计文档](../docs/design/README.md)，浏览器检查见[测试说明](advance/TESTING.md)，原生运行见[桌面宿主](../apps/desktop/README.md)。

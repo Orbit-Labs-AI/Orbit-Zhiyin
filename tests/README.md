@@ -1,10 +1,15 @@
-# 产品集成测试
+# 跨包与服务流程测试
 
-根 tests 只管理跨模块与产品流程：
+根 `tests/` 管理跨模块行为，模块内部测试随各包维护。
 
-- integration：canonical 数据层、backend、TypeScript staging 之间的契约、范围、分页、重算、只读与来源归档。
-- e2e：从仓库外运行 CLI，核对导入、报告、API 会话和证据，以及评价不改变报告；这是服务流程验收，尚不包含原生 App UI。
+| 目录 | 验证什么 |
+| --- | --- |
+| `integration` | data/backend/TypeScript staging 的契约、桥接、范围、分页和来源只读 |
+| `e2e` | CLI、API、导入、证据、报告与评价隔离的服务流程 |
+| `regression` | 跨包固定行为与分析结果等价性等回归 |
 
-`pnpm check:integration` 自动构建 staging producer。没有构建产物时测试失败，防止漏掉桥接验收。
+`pnpm check:integration` 会先构建 producer，再运行相应测试；缺构建产物时必须失败。按[测试指南](../docs/development/testing.md)使用 heavy 闸门和适当并发。
 
-模块内部测试分别在 packages/backend/tests、packages/data/tests 和 packages/connectors/tests；原型行为在 prototypes/advance/tests。不要把真实历史、派生数据库或截图产物加入测试资源。
+Web UI 行为在 `prototypes/advance/tests`，原生 App 验证另见[Mac App](../docs/development/mac-app.md)。服务流程通过不等于系统通知、菜单、权限等原生体验通过。
+
+fixtures 只含构造或充分脱敏数据，不读取默认个人 home，不提交真实日志、数据库、token 或运行截图。
