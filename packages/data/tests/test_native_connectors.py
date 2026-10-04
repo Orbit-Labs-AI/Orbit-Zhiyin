@@ -179,6 +179,23 @@ def test_claude_denial_interruption_split_usage_and_sidechain(tmp_path):
         assert_sound(store)
 
 
+def test_claude_unknown_first_record_still_has_an_unknown_event(tmp_path):
+    # The first record also carries session.meta; a new type there must not pass as UI noise.
+    common = {"sessionId": "s", "timestamp": ISO, "cwd": "/fixture"}
+    records = [
+        {**common, "type": "future-header", "new_field": 1},
+        {**common, "type": "user", "uuid": "u", "message": {"content": "hi"}},
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records)
+        store.rebuild()
+        kinds = [r["kind"] for r in rows(store, "event")]
+        assert kinds.count("unknown") == 1 and "session.meta" in kinds
+        notes = [r["note"] for r in rows(store, "raw_record")]
+        assert '{"reason":"non-trajectory UI record"}' not in notes
+        assert_sound(store)
+
+
 def test_claude_result_without_error_flag_is_completed(tmp_path):
     # Synthetic: Claude Code omits is_error on success; only explicit errors are failures.
     common = {"sessionId": "s", "timestamp": ISO, "cwd": "/fixture", "promptId": "p"}
