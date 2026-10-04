@@ -207,8 +207,10 @@ scene('40-recs', () => {
   // v18.6 R1: as they close (b63.15–63.85) the top dot becomes the merged look — ONE clean circle (dark core, five-colour
   // 72° rim ring + soft glow, no cc logo, no mini badges), the same circle 50-tools carries on from b55.0 (its scene beats)
   // .7 beats so the logo fades while the column closes; dots 1–4 stop velocity-stretching and hide under dot 0
-  AGD.morph(63.15, 0, 'orb', { dur: .7 });
-  AGD.morph(63.2, [1, 2, 3, 4], 'dot', { vs: 0, dur: .2, stag: 0 });
+  // QA: the morph finishes as the column closes (b63.6) so no cc logo lingers inside the closed circle, and dots 1–4 shrink
+  // (k .55) while they close so their rims never peek out under it; they come back to k 1 only after 50-tools has faded them
+  AGD.morph(63.0, 0, 'orb', { dur: .6 });
+  AGD.morph(63.2, [1, 2, 3, 4], 'dot', { vs: 0, k: .35, dur: .3, stag: 0, hold: .7, back: .3 });
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
   // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
   // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b63.0, so the merge (T11)
