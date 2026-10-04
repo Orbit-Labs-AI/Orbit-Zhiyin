@@ -285,7 +285,16 @@ scene('30-persona', () => {
   // 标题与强调行：在场时各自慢慢离开罗盘（标题连同眉题上漂 12px、强调行下漂 10px，配合罗盘慢推），左移开始 .4 拍后
   // （MV + .4 = b33.2，罗盘才移出 10%）退场：标题 b29.45–33.2 完整可读 3.75 拍，强调行 b29.1 起解码（步长 .04），b29.85–33.2 约 3.35 拍
   const drift = (px) => (el, tl, life) => { el.style.transform = 'translate(-50%,calc(-50% + ' + (px * clamp(tl / life)).toFixed(1) + 'px))'; };
-  txt(29.0, MV + 1.0, [['hv sv pe72', '读懂你的 Agent 协作人格']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
+  // v18.8：标题不再在 MV + 1.0 退场，而是 FLIP 停靠到左上（眉标 y 100 之下）陪整个分析段到 CO：MV 起 MVD 拍 E.inOut，
+  // 左沿 960 − w/2 → 160，scale 1 → .56（以左沿中线为原点，72 → ≈ 40px），y 保持 150；上漂 12px 只在 MV 前，停靠时收回
+  txt(29.0, CO, [['hv sv pe72', '读懂你的 Agent 协作人格']], { x: 960, y: 150, align: 'c' }, {
+    anim: K.all(mask(.18, 1.0, .6, true), (el, tl, life, t) => {
+      const b = t / BEAT, e = E.inOut(lp(b, MV, MVD)), dx = (160 - (960 - el.offsetWidth / 2)) * e;
+      const dy = -12 * clamp((b - 29.0) / (MV - 29.0)) * (1 - e);
+      el.style.transformOrigin = '0 50%';
+      el.style.transform = 'translate(-50%,calc(-50% + ' + dy.toFixed(1) + 'px)) translate(' + dx.toFixed(1) + 'px,0) scale(' + lerp(1, .56, e).toFixed(4) + ')';
+    })
+  });
   // v18.2：v18.3 文案改为「读懂…」+「从每个会话里…」；价值行紧贴标题（y 222，原 y 975 画面底），与标题同漂 −12px，读成一组标题块
   txt(29.1, MV + 1.0, [['lt pe44 pe-or', '从每个会话里，认出你的协作方式']], { x: 960, y: 222, align: 'c' }, { anim: K.all(K.decode({ step: .04, dur: .5, out: .6, spread: true }), drift(-12)) });
 
