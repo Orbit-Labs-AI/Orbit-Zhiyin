@@ -44,7 +44,7 @@ RULES: tuple[dict, ...] = (
         "category": "credential",
         "scope": "text",
         "marker": "<redacted:private_key>",
-        "description": "PEM 私钥块（-----BEGIN … PRIVATE KEY----- 到 END）。",
+        "description": "PEM 与 OpenPGP 私钥块（-----BEGIN … PRIVATE KEY----- 到 END）；缺少 END 行的截断块连同其后的 base64 与头字段行一并替换。",
         "example": "-----BEGIN PRIVATE KEY-----\nMIIfixture\n-----END PRIVATE KEY-----",
     },
     {

@@ -529,13 +529,15 @@ class ClaudeMapper(BaseMapper):
                     ext=unused(data, ("type", "summary")),
                 )
             )
+        elif typ in (
+            "last-prompt",
+            "atis-latch",
+            "bridge-session",
+            "frame-link",
+            "launched",
+        ) or str(typ).startswith("artifact-"):
+            # The first record also carries session.meta; only known UI types are ignored.
+            return Mapping(events, "ignored", "non-trajectory UI record")
         else:
-            return (
-                Mapping(events, "ignored", "non-trajectory UI record")
-                if events
-                else Mapping(disposition="ignored", reason="non-trajectory UI record")
-                if typ in ("last-prompt", "atis-latch", "bridge-session", "frame-link", "launched")
-                or str(typ).startswith("artifact-")
-                else Mapping(events + self.unknown(record).events)
-            )
+            return Mapping(events + self.unknown(record).events)
         return Mapping(events, references=usage_references)

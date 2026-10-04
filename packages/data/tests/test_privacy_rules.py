@@ -95,6 +95,13 @@ TOKEN_CASES = [
     ("password_flag", "tool --password pa55word --x", "pa55word", "docker login --password-stdin"),
     ("token_flag", "gh --token 'abc def' repo", "abc def", "count --token-limit 5"),
     ("api_key_flag", "cli --api-key K3y-value", "K3y-value", "cli --api-key --verbose"),
+    (
+        "url_password_with_at",
+        "DATABASE_URL=postgres://admin:P@ssw0rd!@db.example.invalid:5432/app",
+        "ssw0rd",
+        "https://example.invalid/path?mail=a@b.invalid",
+    ),
+    ("url_user_with_at", "https://me@example.invalid:pa55@host.invalid/x", "pa55", "a@b.invalid"),
 ]
 
 
@@ -154,3 +161,33 @@ def test_vendor_tokens_in_plain_text_are_redacted(name):
 )
 def test_vendor_prefixes_in_prose_are_not_redacted(text):
     assert redact(text) == text
+
+
+# Key bodies are assembled at runtime so no literal resembles a live key.
+_KEY_LINE = ("b3BlbnNzaC1rZXktdjE" + _ALNUM * 3)[:64]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # ``head -3 id_ed25519``, or a tool output the harness cut before the END line.
+        "$ head -3 id\n-----BEGIN OPENSSH PRIVATE KEY-----\n" + _KEY_LINE + "\n" + _KEY_LINE[:20],
+        # An unparsable (cut) JSON payload keeps its newlines escaped.
+        '{"output": "-----BEGIN RSA PRIVATE KEY-----\\nProc-Type: 4,ENCRYPTED\\n'
+        + _KEY_LINE
+        + "\\n"
+        + _KEY_LINE[:12],
+        "-----BEGIN PGP PRIVATE KEY BLOCK-----\n\n" + _KEY_LINE + "\n=abcd\n"
+        "-----END PGP PRIVATE KEY BLOCK-----\n",
+    ],
+)
+def test_private_key_material_is_redacted_without_an_end_line(text):
+    redacted = redact(text)
+    assert "<redacted:private_key>" in redacted
+    assert _KEY_LINE[:9] not in redacted
+    assert "Proc-Type" not in redacted
+
+
+def test_private_key_header_in_code_is_kept():
+    code = 'if pem.startswith("-----BEGIN PRIVATE KEY-----"):\n    load(pem)'
+    assert redact(code) == code

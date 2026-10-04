@@ -19,7 +19,7 @@ from pathlib import Path
 import zstandard as zstd
 
 from orbit_data import CONTRACT_ID, SCHEMA_VERSION, legacy, payload
-from orbit_data.contract import RawRecord, canonical, now_ms, shape, uid
+from orbit_data.contract import RawRecord, canonical, native_json, now_ms, shape, uid
 
 PAGE_SIZE = 16384
 # Bulk imports leave B-tree pages partly empty (random-key indexes, rows that grow when the
@@ -801,7 +801,7 @@ class Store:
                 try:
                     if format_name in ("jsonl", "jsonl_zstd") and not line.endswith(b"\n"):
                         continue
-                    data = json.loads(line)
+                    data = native_json(line)
                     if not isinstance(data, dict):
                         continue
                     locator = (

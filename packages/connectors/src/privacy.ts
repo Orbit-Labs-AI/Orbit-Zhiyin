@@ -10,7 +10,9 @@ function secretKey(key:string):boolean {
 }
 export function redact(text: string): string {
   return text
-    .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '<redacted:private_key>')
+    // PEM and OpenPGP private keys; a block cut before its END line (`head key.pem`, a truncated
+    // tool output) still loses every following `Name: value` or base64 line (real or escaped newline).
+    .replace(/-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----(?:[\s\S]*?-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|(?:(?:\r?\n|(?:\\r)?\\n)[ \t]*(?:[A-Za-z][A-Za-z-]*:[^\r\n\\]*|[A-Za-z0-9+/=]+)?)+)/g, '<redacted:private_key>')
     .replace(/(?:sk-(?:proj-|ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})\b/g, '<redacted:api_key>')
     // Vendor token formats (documented prefixes): Slack xox[abpr]-, Google API AIza + 35, Stripe sk_/rk_ live|test,
     // npm_ + 36, GitLab glpat- + 20, Hugging Face hf_ + 30+, Google OAuth ya29., and three-part JWTs (eyJ header + eyJ payload).
@@ -23,7 +25,8 @@ export function redact(text: string): string {
     .replace(/((?:Proxy-)?Authorization\s*:\s*)[^\r\n]+/gi,'$1<redacted:authorization>')
     .replace(/((?:Cookie|Set-Cookie)\s*:\s*)[^\r\n]+/gi,'$1<redacted:cookie>')
     .replace(/((?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|secret)\s*[=:]\s*["']?)[^\s"'`,;}{]{8,}/gi, '$1<redacted:secret>')
-    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+(?::[^\s/@]*)?@/gi, '$1<redacted:credentials>@');
+    // Userinfo runs to the last "@" of the authority: raw "@" in passwords is common.
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#`<>]+@/gi, '$1<redacted:credentials>@');
 }
 /** L0 alone holds original bytes. L1/L2 never hold inline media, credentials or account identities. */
 export function sanitize(value: unknown, key = '', maxBytes = 32*1024*1024, toolBudget = 8192): Json {
