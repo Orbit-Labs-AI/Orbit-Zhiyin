@@ -71,7 +71,7 @@ function leave(el, q, spread, o) {
 // the drift / push alone, for blocks whose fade is done elsewhere (e.g. the engine's mask):
 //   txt(…, { anim: K.all(mask(.18, 1, .6), K.exit({ out: .6, dir: { dx: -32, dy: 0 }, push: 1.06 })) })
 K.exit = (o = {}) => (el, tl, life) => drift(el, exitQ(tl, life, o.out ?? .6), o);
-// v18.3 eyebrow markup: wraps each Latin / digit / · run in <span class="ebl"> (.3em)
+// v18.3 eyebrow markup: wraps each Latin / digit / · run in <span class="ebl"> (.12em since v18.7)
 // and leaves CJK at the .eb tracking (.06em). Tags and entities are left alone; idempotent.
 const EB_RUN = /[A-Za-z0-9·]+/g;
 // v18.7: the spaces around every · become U+2009 thin spaces (mono word spaces left a hole), as do the spaces between digits and CJK (「16 种」), so the separator, not the tracking, splits the groups
