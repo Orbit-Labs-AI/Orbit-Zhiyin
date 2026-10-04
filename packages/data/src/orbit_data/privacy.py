@@ -152,8 +152,9 @@ def redact(text: str) -> str:
     # JSON/YAML keys and shell assignments, including quoted values with spaces.
     assignment_pattern = r"(?P<prefix>\b(?P<key>[A-Za-z_][A-Za-z0-9_.-]*)[\"']?\s*[=:]\s*)(?P<value>\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^\s\"'`,;}{]+)"
     text = re.sub(assignment_pattern, assignment, text)
+    # Userinfo runs to the last "@" of the authority: raw "@" in passwords is common.
     return re.sub(
-        r"\b([a-z][a-z0-9+.-]*://)[^\s/@:]+(?::[^\s/@]*)?@",
+        r"\b([a-z][a-z0-9+.-]*://)[^\s/?#`<>]+@",
         r"\1<redacted:credentials>@",
         text,
         flags=re.I,

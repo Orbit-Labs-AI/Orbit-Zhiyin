@@ -95,6 +95,13 @@ TOKEN_CASES = [
     ("password_flag", "tool --password pa55word --x", "pa55word", "docker login --password-stdin"),
     ("token_flag", "gh --token 'abc def' repo", "abc def", "count --token-limit 5"),
     ("api_key_flag", "cli --api-key K3y-value", "K3y-value", "cli --api-key --verbose"),
+    (
+        "url_password_with_at",
+        "DATABASE_URL=postgres://admin:P@ssw0rd!@db.example.invalid:5432/app",
+        "ssw0rd",
+        "https://example.invalid/path?mail=a@b.invalid",
+    ),
+    ("url_user_with_at", "https://me@example.invalid:pa55@host.invalid/x", "pa55", "a@b.invalid"),
 ]
 
 
