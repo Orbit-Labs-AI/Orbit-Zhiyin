@@ -103,7 +103,7 @@ scene('60-close', () => {
   // 张开到约 SP_R0 + 10 并在 .45 拍内淡掉——五色弧张到点落圈的半径，交给随后画出的圆环；不再在点上面盖一个缩小的 orb
   AGD.back(HB, HB + .45, (b) => {
     // v18.6：外壳就是 02-agents 的一个圆（深色圆盘、无描边、贴边 3 px 五色弧，弧方位冻结在交接拍）
-    const O = spOrb(), t = E.out(lp(b, HB, .45)), R = lerp(O.R, SP_R0 + 10, t), a = 1 - t, sp = O.sp;
+    const O = spOrb(), t = E.out(lp(b, HB, .45)), R = lerp(O.R, SP_R0 + 10, t), a = 1 - E.out(lp(b, HB, .25)), sp = O.sp;   // 交接 QA：五色弧 .25 拍内淡完，不再在 b107.0–107.1 罩住刚长出的五个点（「袋里五个圆」）
     if (a <= .002) return '';
     let s = '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="#0e0f12" opacity="' + (.9 * a * a).toFixed(3) + '"/>';
     // QA v18.6：外壳带上 orb 的 halo（模糊色弧）与 core（渐变圆面），交接帧不再一帧丢掉光晕与灰圆面
