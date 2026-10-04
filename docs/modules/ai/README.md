@@ -24,3 +24,4 @@ App AI service 处理用户可见任务。analytics 的 [semantic_cascade](../..
 
 本地 Agent 仍可能调用其配置的远端模型。用户说明见[使用 AI](../../guides/ai.md)，验证记录见[AI 可靠性审计](../../audits/analysis-ai-reliability-2026-10-03.md)。
 
+显式技能学习与反例修订同样遵守 Scope、授权和材料边界，不能用调用方 slots 替换已选择轨迹或用 test 数据修订。入口与效果限制见[推荐模块](../recommendation/engine.md#历史技能学习)。
