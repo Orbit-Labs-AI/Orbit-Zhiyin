@@ -161,7 +161,7 @@ scene('10-intro', () => {
   // falls straight to the middle slot, the side ones (cc / cp) to the ends. ph(b, i) puts dot i at RING_A[i] degrees
   const RING_A = [252, 324, 180, 36, 108];
   AGD.key(0.35, 'ring', { ...AGD.P.cluster, ph: (b, i) => RING_A[i] - 72 * i, dur: .4, stag: .02 });
-  AGD.morph(0.3, 0, 'dot', { dur: .25 });            // melted by b0.55, before dots 1–4 are half out (no orb + badges double image)
+  AGD.morph(0.42, 0, 'dot', { dur: .2 });            // QA: logo only once the split is under way (no cc inside the one circle); melted by b0.62, before dots 1–4 are half out (no orb + badges double image)
   // v18.6 R2: no velocity smear anywhere in 1a–1c; the four new dots blink as they land on the cluster
   AGD.noStretch(0, 20);
   AGD.blink([1, 2, 3, 4], .62, { stag: .03 });
@@ -274,7 +274,7 @@ scene('10-intro', () => {
   /* v17.7 F3 1b — the dots lead every element of the shot (v18.6 R2: round badges that blink, no pills / tails) */
   // the box grows out of the dots: they blink as it starts (b7.0), cx blinks as 「从」 wipes in above it (b6.95)
   AGD.blink([0, 2, 3, 4], BX - .2, { stag: .02 });
-  AGD.blink(1, 6.95);
+  AGD.blink(1, 6.95, { v: 1, k: 1.1 });              // QA: full glow — at .8 cx's blue flash vanished into the blue light behind it
   // typing: the dot that will take the prompt stands on the arc as a caret (38 px, the box caret's height) that bobs on
   // every key — the pulse reads typeOn's character beats, the same grid as the key sounds — while the box caret takes its
   // colour; .2 beat before the send it rounds back into its badge, which blinks as the bubble pops (c.send's light trail)
