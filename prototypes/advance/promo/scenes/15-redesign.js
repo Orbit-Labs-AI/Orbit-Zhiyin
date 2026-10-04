@@ -19,7 +19,10 @@
    发送前 .2 拍变 tail；每个纠正气泡的点先出尾巴（.15 拍，描边 1.6 + 底色 .15 一拍，代替旧的 .94 缩一下），气泡收回时尾巴先收、点再圆；
    b13.85 ds 变笔头沿荧光笔方向右上滑 24 / 18 px 再回；b15.9「重新定义」落定时弧两端轻压（h .92）；b19.85 五点变 pill 把输入框收回；
    b20.4 起展开成环途中逐个变 bead；虚线圆从五颗珠子处向两侧画出（b22.1–22.9）；三行硬切各让珠子沿环前跳 4°（spin 改 9/5.7，交接角仍 228°）；
-   「everyone」落定（b23.0）珠子 glow .5 一拍；三行大字从最近珠子一侧轻移 12 px 进场。 */
+   「everyone」落定（b23.0）珠子 glow .5 一拍；三行大字从最近珠子一侧轻移 12 px 进场。
+   v18.6 R2「圆形 + 闪烁」：1d 去掉 pill / head / tail 与速度拉伸（noStretch b11.8–27.4），光标倒下后各段直接圆回带 logo 的圆点；
+   b12.38 五点 blink（「但，」离开 + 输入框长出），气泡从圆点弹出时该点 blink + 暖色描边（.5 拍正弦），ds 到荧光笔处 b13.95 blink，
+   「重新定义」落定 b15.9 cc / cp blink，输入框收回 b20.42 五点 blink；打字 caret 与 1e 珠子保留。 */
 'use strict';
 css(`
 .k .ln.rd-h{font-size:100px}
@@ -116,7 +119,8 @@ scene('15-redesign', () => {
   });
   txt(12.35, 20.7, [['sv rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
     { anim: K.all(K.blurIn({ spread: .05, dur: .2, out: .6, spread2: true }), cjRise), tick: drift(true) });
-  for (let i = 0; i < 5; i++) AGD.pulse(i, 12.35, .9, .5);
+  // v18.6 R2: no flinch — the round dots blink once as 「但，」 leaves them and the input box grows out of them (b12.38)
+  AGD.blink('all', 12.38, { stag: .03 });
   const markBy = (el, b) => {
     const p = BUB.reduce((s, u) => s + E.inOut(clamp((b - u.b0 + .25) / .4)), 0) / BUB.length;
     el.querySelectorAll('.mk').forEach((m) => { m.style.backgroundSize = (p * 100).toFixed(1) + '% .26em'; });
@@ -213,50 +217,32 @@ scene('15-redesign', () => {
   });
 
   /* ---------- v17.7 Agent 点形态（STORYBOARD「v17.7」F3 1c 末条 / 1d / 1e） ---------- */
-  // one state per dot at a time, highest priority wins: caret (typing, 3) > tail / head (bubble up, highlighter, 2) >
-  // pill (box grows / retracts, 1) > the resting bead; a morph is registered only where a dot's state changes, so every
-  // change blends from the live shape (no restarts, no pops)
+  // v18.6 R2「圆形 + 闪烁」: through 1d the dots stay round Agent badges — no pill pulls, no comet head, no bubble tails,
+  // no velocity stretch. One state per dot: the typing caret (R3, kept) > the round dot. Every bubble pops from its dot
+  // with a blink; as all of them are corrections (kind 'fix'), the blink is warm — the rim warms and thickens for
+  // ≈ .5 beat (sine), no tail, no flinch
   const bump = (b, t, len) => { const u = (b - t) / len; return u > 0 && u < 1 ? Math.sin(Math.PI * u) : 0; };
   const plate = (b, t0, t1, ramp) => Math.min(E.inOut(clamp((b - t0) / ramp)), E.inOut(clamp((t1 - b) / ramp)));
-  const BOX = [960, 880];
-  // 「重新定义」 lands (b15.9) with a light press of the arc's low ends (cc / cp, h × .92 for .2 beat)
-  const press = (i) => (b) => (i === 0 || i === 4 ? 1 - .08 * bump(b, 15.8, .2) : 1);
-  // a bubble's dot: tail toward it, the stroke pulled wider and warmer for a beat as it pops (被打断: no shrink, no shake)
-  const fx = (i) => (b) => BUB.filter((u) => u.i === i).reduce((v, u) => Math.max(v, plate(b, u.b0 - .15, u.b0 + .85, .2)), 0);
-  const ST = {
-    rest: (i) => ['bead', { w: 2.2, h: (b) => 1.85 * press(i)(b), rad: .9, ls: .9 }, .4],     // a string of beads rising with the lines
-    pill: () => ['pill', { aim: BOX, w: 2.6 }, .3],                                            // the box is pulled out of / back into them
-    head: () => ['head', { rot: 0, w: 2.6, h: 1.5 }, .2],                                      // points along the highlighter
-    caret: (i, w) => ['caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)) }, .25],
-    tail: (i) => ['tail', { rot: 0, tailDir: UP[i] ? -90 : 90, h: (b) => 2 * press(i)(b), ring: (b) => 1 + .6 * fx(i)(b), fill: (b) => .15 * fx(i)(b) }, .15]
-  };
-  const WIN = [];                                                                              // { i, t0, t1, st, pr, w }
-  for (let i = 0; i < 5; i++) { WIN.push({ i, t0: 12.2, t1: 12.9, st: 'pill', pr: 1 }, { i, t0: 19.85, t1: 20.4, st: 'pill', pr: 1 }); }
-  for (const w of TY) WIN.push({ i: w.i, t0: w.K[0] - .2, t1: w.send != null ? w.send - .2 : 19.85, st: 'caret', pr: 3, w });
-  for (const u of BUB) WIN.push({ i: u.i, t0: u.send != null ? u.send - .2 : u.b0 - .15, t1: u.b1 - POUT, st: 'tail', pr: 2 });
-  WIN.push({ i: 3, t0: 13.65, t1: 14.4, st: 'head', pr: 2 });
-  for (let i = 0; i < 5; i++) {
-    const W = WIN.filter((w) => w.i === i), at = (b) => W.filter((w) => b >= w.t0 && b < w.t1).sort((p, q) => q.pr - p.pr || q.t0 - p.t0)[0];
-    const T = [...new Set(W.flatMap((w) => [w.t0, w.t1]))].filter((t) => t >= 12.2 && t < 20.4).sort((p, q) => p - q);
-    let prev = 'pill';                                                                         // the hand-off below owns b12.2
-    for (const t of T) {
-      const w = at(t), id = w ? (w.st === 'caret' ? 'caret' + w.t0 : w.st) : 'rest';
-      if (id === prev) continue;
-      const [name, o, dur] = ST[w ? w.st : 'rest'](i, w);
-      if (prev === 'tail' && id === 'rest') {                                                   // the tail is drawn in first, then the dot rounds
-        AGD.morph(t, i, 'tail', { ...ST.tail(i)[1], tail: 0, dur: .2 });
-        AGD.morph(t + .2, i, name, { ...o, dur: .3 });
-      } else AGD.morph(t, i, name, { ...o, dur });
-      prev = id;
-    }
+  const POP = (u) => (u.send != null ? u.send + .15 : u.b0);
+  const wb = (i) => (b) => BUB.filter((u) => u.i === i).reduce((v, u) => Math.max(v, bump(b, POP(u) - .05, .5)), 0);
+  const REST = (i) => ({ warm: (b) => wb(i)(b), ring: (b) => 1 + .5 * wb(i)(b), vs: 0 });
+  for (const u of BUB) AGD.blink(u.i, POP(u), { v: .7 });
+  const WIN = TY.map((w) => ({ i: w.i, t0: w.K[0] - .2, t1: w.send != null ? w.send - .2 : 19.85, w }));
+  for (const w of WIN) {
+    AGD.morph(w.t0, w.i, 'caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)), dur: .25 });
+    AGD.morph(w.t1, w.i, 'dot', { ...REST(w.i), dur: .3 });                                   // the caret rounds back
   }
-  // b18.7 hand-off (F3 1c): 1c's five-colour caret falls over — every segment turns 90° (.4 beat) as the arc opens —
-  // then rounds back out (.5 beat, the logos return) as a pill aimed at the input box about to grow out of them
-  // v18.3: the fall-over is a .24-beat ride, then straight into the pill (b12.04, .45 beat) so outside the ride the dots
-  // are never thin dim dashes (the arc key grows r 16 → 34 meanwhile); the box (b12.5) is pulled out while they round
+  // 「重新定义」 lands (b15.9): the arc's low ends (cc / cp) blink (was a press of their height)
+  AGD.blink([0, 4], 15.9, { k: 1.08 });
+  // b18.7 hand-off (F3 1c): 1c's five-colour caret falls over — every segment turns 90° (.24 beat) as the arc opens —
+  // then its segments round back into the round dots (.5 beat, E.out, the logos return; v18.6: no pill phase); the box
+  // grows out of them with a blink (b12.38, above)
   AGD.morph(11.8, 'all', 'caret', { hpx: 24, rot: 90, dur: .24, stag: .03 });
-  AGD.morph(12.04, 'all', 'pill', { aim: BOX, w: 2.6, dur: .5, stag: .03, ease: E.out }); // E.out: thick + dark within ~.12 beat, no thin pale dashes
-  // the highlighter (「交互本身」, from b13.85): ds becomes a pen head, rises from the arc onto the band under 「交互本身」
+  for (let i = 0; i < 5; i++) AGD.morph(12.04 + .03 * i, i, 'dot', { ...REST(i), dur: .5, ease: E.out });
+  // the box shrinks back into the dots (b20.1–20.5): they blink as it lands
+  AGD.blink('all', 20.42, { stag: .03 });
+  AGD.noStretch(11.8, 27.4);
+  // the highlighter (「交互本身」, from b13.85): ds (v18.6: round, no comet head; it blinks as it reaches the band) rises from the arc onto the band under 「交互本身」
   // (b13.72–14.0, as 「交互本身」 steps in), rides the tip of the stroke as it starts to draw (x 1010 + 402·progress, the line's 6 px/beat drift) and
   // drops back onto the arc by b14.5, before its own bubble (b14.55). v18.1: was a 24 / 18 px nudge ≈ 300 px below the band
   const hm = (b) => E.inOut(clamp((b - 13.72) / .28)) * (1 - E.inOut(clamp((b - 14.2) / .3)));
@@ -266,6 +252,7 @@ scene('15-redesign', () => {
     const h = hm(b), tx = tipX(b) - 10, ty = 328 - 6 * (b - 12.8);                         // just under the band, nose at the tip
     return { x: lerp(q.x, tx, h), y: lerp(q.y, ty, h) };
   }, { blend: .05 });
+  AGD.blink(3, 13.95, { v: .6 });
   // 1e: on the way out to the ring each dot becomes a bead (ls .85) threaded on the dashed circle; 「everyone」 lands
   // (b23.0) with a beat of glow
   AGD.morph(20.4, 'all', 'bead', { ls: .85, dur: .8, stag: .05, glow: (b) => .5 * plate(b, CUT[2] + .3, CUT[2] + 1.3, .3) });
