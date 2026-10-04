@@ -1,18 +1,35 @@
 # Orbit Backend
 
-当前实现：产品编排、本机 API、CLI、画像、特征分析、推荐与报告。Python import 仍为 `orbit_backend`，安装后的命令仍为 `orbit`。
+`orbit_backend` 提供应用编排、CLI、报告 API、App gateway、分析、推荐、AI、安装与导出。会话事实由 `orbit_data` 读取，资源索引由 `orbit_catalog` 管理，后端不维护平行原生日志解析器。
 
-从仓库根执行：
+## 从仓库根运行
 
 ```sh
-uv sync --locked --all-packages --dev
+bash scripts/bootstrap.sh
 uv run orbit demo
-uv run pytest -q packages/backend/tests
+pnpm dev --home .local/demo/data
+```
+
+`orbit serve` 是报告 API；桌面界面使用 `orbit-helper gateway`。令牌和 live UI 启动见[开发环境](../../docs/development/setup.md)。Python 固定 3.13，使用根 `uv.lock`。
+
+## 实现入口
+
+| 目录 | 职责 |
+| --- | --- |
+| `application`、`cli`、`api` | 用例、命令与报告接口 |
+| `services`、`appdb` | gateway、worker、任务与应用状态 |
+| `analytics`、`profiling`、`features` | 同范围测量、画像与特征 |
+| `uiview`、`realtime` | 页面组合与可观察运行态 |
+| `recommend`、`ai`、`install` | 建议、可选模型任务、安装与撤销 |
+| `reporting`、`exporting`、`evaluation` | 报告、导出和独立评价 |
+
+旧入口通过兼容层导出，新业务逻辑放职责模块。范围、缺失值和证据遵循[契约](../../docs/contracts/README.md)。
+
+## 验证与构建
+
+```sh
+python3 scripts/heavy.py uv run pytest -q packages/backend/tests
 uv build --package orbit-backend
 ```
 
-模块测试位于 `tests/`：`analytics/` 与 `bottleneck/` 按特征族组织，`regression/` 保留旧画像、报告和兼容行为的回归。跨 data/backend/TypeScript 的测试属于根目录 `tests/integration/`，运行前必须构建 connector。
-
-会话事实由 `orbit_data` 管理；后端只通过数据读取与导入服务接入，不新增原生日志解析器。旧库显式经 `legacy/` 访问。
-
-职责目录：`application` 组织用例，`api` / `cli` 提供入口，`profiling` 处理画像与要求，`analytics` 保留特征族，`recommend` 管理现有资源匹配，`reporting` 输出报告，`evaluation` 提供运行时评价。根级旧模块仅作兼容导出。整体依赖见 [模块接入表](../../docs/architecture/module-map.md)。
+跨包接口另按[测试指南](../../docs/development/testing.md)验证。模块测试在本包 `tests/`，跨包与服务流程在根 `tests/`。真实会话和数据库不作为测试资源提交。完整导航见[模块参考](../../docs/modules/README.md)。

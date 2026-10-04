@@ -1,22 +1,26 @@
-# 性能评测
+# 性能基准
 
-只使用构造数据，按规模输出耗时；`analytics/instruction.py` 与 `recommendation.py` 另报 `tracemalloc` 的 Python 堆峰值（单独一次追踪运行，不计入耗时；不含原生扩展与进程 RSS）。不属于每次 PR 的硬件无关正确性门禁。
+性能工具以明确规模报告耗时、吞吐和内存，不作为每次 PR 的固定正确性门槛。默认使用构造数据，不读取本机 Agent 历史。
 
-```sh
-uv run python -m benchmarks.analytics.instruction --output .local/benchmarks/instruction.json
-uv run python -m benchmarks.analytics.semantic_families --sizes 100 1000 --repeats 3
-uv run python -m benchmarks.analytics.subjective_outcomes --sizes 1000 10000 --repeats 3
-uv run python -m benchmarks.analytics.full_pipeline --sizes 500 1000 2500 --repeats 3
-```
+## 选择入口
 
-## 分析全流程
+| 内容 | 入口 |
+| --- | --- |
+| 分析全流程 | `uv run python -m benchmarks.analytics.full_pipeline --sizes 500 1000 2500 --repeats 3` |
+| Instruction | `uv run python -m benchmarks.analytics.instruction --output .local/benchmarks/instruction.json` |
+| 语义族 | `uv run python -m benchmarks.analytics.semantic_families --sizes 100 1000 --repeats 3` |
+| 主观反馈 | `uv run python -m benchmarks.analytics.subjective_outcomes --sizes 1000 10000 --repeats 3` |
+| 数据导入与同步 | [数据基准](data/README.md) |
+| Catalog | `uv run python benchmarks/catalog_bench.py --items 20000 --seed 7` |
 
-`analytics/full_pipeline.py` 按读取、bundle、select、会话行、文本、lexical、statistics、聚合、products、JSON 序列化、历史写入输出各阶段独占耗时（重复取中位数，先预热一次，生成或导入耗时单列为 setup）。
+以上重负载入口前加 `python3 scripts/heavy.py` 排队。实际参数以各工具 `--help` 为准，输出放 `.local/`。
 
-- `--with-text` 计入文本表示；`--canonical` 先把构造来源经 ingest 写入临时 `orbit.db`，再测量 `read_analysis`；`--profile` 对最大规模跑一次 cProfile，报告前 30 行；`--output` 另存 JSON。
-- 输入来自 `analytics/synthetic.py`：固定种子、完全虚构，不读本机会话。同一生成器也驱动 [结果等价性回归](../docs/development/testing.md#性能与等价性)。
-- 基准不作 CI 硬门槛。性能改动应同时通过等价性回归；金标更新须在 PR 描述中说明原因与差异。
+## 测量合同
 
-保留运行时、硬件、样本规模、重复次数和计时边界。性能与语义质量分开解释；质量评测见 [evals](../evals/README.md)。
+记录提交、运行时、硬件、负载、规模、seed、预热、重复次数和计时边界。分析 full_pipeline 将读取、计算、序列化和历史写入等阶段分开；`--with-text`、`--canonical`、`--profile` 改变测量范围，比较时需一致。
 
-`recommendation.py` 提供推荐入口的耗时观察，由 `bash scripts/test-recommend.sh` 调用，分别测量 4 项和 1,000 项构造目录；计时不包含 analytics、网络抓取或 Skill 执行。记录中位数、最大值与 `peak_traced_kib`，不设置依赖本机速度的正确性门禁。
+性能优化同时核对逻辑结果。分析使用[等价性回归](../tests/regression/test_analysis_equivalence.py)，数据使用逻辑摘要；有意改变结果时解释差异，不为通过测试重生成金标。
+
+ToyHash 等构造向量仅用于流程测量，不代表真实模型吞吐或质量；单机耗时也不是产品 SLA。质量与收益见 [evals](../evals/README.md)。
+
+Instruction 与 recommendation 工具另以独立追踪运行报告 tracemalloc 的 Python 堆峰值；该数值不包含原生扩展或进程 RSS，也不计入常规耗时。

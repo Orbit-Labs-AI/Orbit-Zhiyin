@@ -1,5 +1,8 @@
 # 本地分析模块审计：功能覆盖、持久化与性能
 
+> 文档状态：审计快照。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../README.md)。
+
+
 > 审计基线：`feat/yhyfhgs-dev` @ `747b0da`（已含 main 的 PR #32 `analytics/products/`、PR #34、PR #35）。
 > 进行中的分支：PR #27 `feat/feature-display-metrics`（`presentation/`、四轴画像，genius-FXC）、PR #37 `feat/preference-v2`、PR #39 `fix/analysis-coverage-status`、PR #33 `feat/data-app-integration`。本文不重复它们的工作，任务包也尽量避开它们修改的文件。
 > 性能数据全部来自构造数据（脚本见本文 §4.1），没有读取本机真实会话。

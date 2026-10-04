@@ -1,44 +1,34 @@
-# 分析与推荐鲁棒性验收
+# 分析与推荐鲁棒性
 
-从仓库根使用现有 `.venv` 运行，无需 `uv`。真实输入必须明确提供已有 canonical 数据库目录；所有产物写入新的、忽略的 `.local` 子目录。这些工具不调用模型、不安装或执行 Skill。
+鲁棒性验证使用可解释扰动检查事实、关系和推荐如何变化，不能把规则自身生成的标签当作独立真值。工具不默认调用模型、安装资源或启用个人来源。
+
+## 验证维度
+
+| 变化 | 应保持或改变什么 |
+| --- | --- |
+| 同身份重复、输入重排、无关 UI 字段 | 有效事实与推荐保持一致；冲突身份明确失败 |
+| 增加有依据的重试 | 对应关系和次数变化，原失败数不凭空变化 |
+| 删除失败事实 | 相应信号改变，其他无关族不被污染 |
+| 全量与分批增量 | 同源树各逻辑层和分析结果一致 |
+| 未知类型、坏行、半帧 | 保留记账和原因，恢复后可继续投影 |
+| 空范围、子代理、历史截止 | 不串范围、不引入未来结果 |
+| 库存、权限和偏好变化 | 只改变相应适用条件和排序，不篡改历史事实 |
+| 更大数据规模 | 记录实际范围、耗时和内存，超限不冒充全量 |
+
+## 运行入口
+
+先查看工具 `--help`，使用明确的 canonical home 与新的忽略输出目录：
 
 ```sh
-.venv/bin/python -m evals.analytics.robustness --home .local/backend-nine-hour/current-data --output .local/robustness/run-01
-.venv/bin/python -m evals.analytics.robustness_native --home .local/backend-nine-hour/current-data --output .local/robustness/native-01
-.venv/bin/python -m evals.analytics.robustness_faults --output .local/robustness/faults-01
-.venv/bin/python -m evals.analytics.robustness_scale --home .local/backend-nine-hour/current-data --output .local/robustness/scale-01
+python3 scripts/heavy.py uv run python -m evals.analytics.robustness --home /absolute/orbit-home --output .local/robustness/run-01
+python3 scripts/heavy.py uv run python -m evals.analytics.robustness_native --home /absolute/orbit-home --output .local/robustness/native-01
+python3 scripts/heavy.py uv run python -m evals.analytics.robustness_faults --output .local/robustness/faults-01
 ```
 
-第一条默认以快照最新记录为截止点选取七天；`--from-ts / --until-ts` 可固定 UTC 毫秒范围。原生重建默认使用数据库已启用来源中已索引的文件清单，不扩大来源；未提供截止点时分析整个重建快照。需要比较同一个七天窗口时，两条命令应显式使用同一对时间参数。
+原生重建只使用已授权、已索引的输入清单；时间比较显式传同一对 `--from-ts / --until-ts`，不要混用工具不同的默认窗口。未完成案例和错误单独记录，不能用已完成部分表示整次成功。
 
-每个案例保存八个特征族和每个 Skill 的 `diagnostics.json / diagnostics.txt`、推荐及关系校验；原生案例另存导入与数据库完整性结果。零推荐保持零推荐，缺失环境保持 `needs_context`，历史日志中的效用保持未测量。输出不成功时返回非零，不以已完成的部分案例代表整个运行成功。
+## 解释结果
 
-## 验收依据
+比较前声明允许忽略的过程字段；事实、覆盖、证据和关系均参与比较。改变查询范围要重新读取 canonical bundle，不能只过滤旧 events 后继续复用旧 L3。
 
-| 级别 | 案例 | 固定预期 |
-| --- | --- | --- |
-| P0 | 重试注入 | 独立构造失败种子，再增加三个成功重试：已确认重试恰好增加 3，失败数保持不变；推荐信号引用新增证据 |
-| P0 | 失败消融 | 删除已知失败调用及其起止事件后，失败计数归零；真人消息、Token、项目和偏好不变 |
-| P0 | 顺序与字段 | 反转输入数组、增加无关界面字段、复制相同 canonical 记录，不改变事实或推荐；相同身份的冲突记录显式报错 |
-| P0 | 关系校验 | 每种身份按自己的粒度验证：事件来源、真人分母、任务归属边、图端点、推荐信号和证据、时间可见性、Token 守恒 |
-| P1 | 全量与增量 | 同一文件清单倒序一次导入、正序分三批导入，各原始／映射／派生逻辑层和分析事实一致 |
-| P1 | 幂等 | 相同文件再次导入，changed=0，各逻辑层不变；不修改来源 |
-| P1 | 原生文件副本 | 相同来源、原生会话 ID 和完整解码内容的副本只贡献一组事件；两份原始记录及对应事件引用均保留。正文相同的不同输入仍分别计数 |
-| P1 | 范围与上下文 | 单项目、单主会话、纯子代理、空选择；分析固定时分别改变权限、工具、安装状态及偏好 |
-| P2 | 损坏与变化 | 未知类型保留 unknown 事件；坏 JSON 行保留 unparsed；未完成尾行保留在 L0，完成后能重新投影；mtime 变化不制造新事实 |
-| P2 | 规模 | 按 20、100、全部原生会话请求，报告实际读入的主／子／review 会话、事件、耗时与进程内存峰值 |
-| P3 | 重复稳定性 | 相同输入重复五次（可设 5–10 次），比较事实摘要、推荐摘要与关系校验 |
-
-受控重试写入独立构造 root，且事件明确标记 `fixture_source`；它验证分析计数，不代表真实执行结果或 Skill 收益。关系校验对构造事件明确豁免原生来源回查，其余真实证据仍必须存在 canonical `record_event` 映射。不会把文件数、会话数、任务数混成一个单调漏斗。
-
-全量与增量比较只排除两项预先声明的过程字段：`sessions[].coverage.source_scans.scans[].scanned_at` 与 `indexed_files`。前者是最近扫描的时间，后者是最近一批文件数；原值在差异报告中保留。其他覆盖状态、数量、证据与事实均参与比较。可用原命令加 `--reuse-imports` 对已重建的两个数据库重新分析；会核对原选择范围及全部源文件哈希，不重新导入。
-
-canonical 输入是生产方已按范围重建的快照。改变它的时间、模型、effort 或项目范围时，应重新调用 `CanonicalStore.analysis_bundle(new_scope)`，不能只过滤旧事件、继续使用旧的 L3 元数据。相同身份的重复行只计一次；冲突行不会被任意挑选。任务接口保留“验证 → 产物版本 → 所属产物”的版本关系，不沿共享产物拉入其他任务。
-
-Codex 完全一致的文件副本按已索引的完整解码哈希及原生会话身份识别，支持普通与 zstd 文件。副本的 L1 记录引用代表文件已有事件，坏行和未完成尾行保留原有处理状态；不按文本或部分前缀猜测重复。代表依次由原生活动文件索引、带原生会话 ID 的文件名、已发布代表和路径排序选出。没有更强原生证据时保留已发布代表，避免添加更早排序的副本更换既有事件身份。发生分歧的文件退出副本集合，继续走原生历史分支规则。原代表缺失时只延续此前已证明且仍完整一致的镜像关系，复用留存事件；原来源依然报告 missing，完整性为 partial，不能因存在副本伪装为完全可用。
-
-## 人工与环境限制
-
-规则扰动、构造标签和程序自身的输出不能充当独立人工真值。真实语义精度仍需独立人员标注 20–50 个主会话，先固定任务边界、纠正目标、偏好作用域和瓶颈证据，再评估准确率与覆盖率。标注缺失时明确记录待完成，不把其他自动检查通过说成算法精度通过。
-
-完整仓库验收继续执行 [测试指南](testing.md) 中的 `pnpm check`。本地 HTTP 测试需要绑定临时回环端口；Swift XCTest 依赖完整测试环境。这些条件不应通过静默跳过测试来隐藏。推荐的未来效用需要任务开始前 checkpoint 与配对执行，详见后续推荐 Benchmark。
+构造案例验证工程行为，真实任务边界与语义精度仍需要独立人工标注。未来收益需要任务开始前 checkpoint 和配对执行，参见 [Benchmark](../../evals/benchmark/README.md)。按[测试指南](testing.md)决定本次是否需要这些检查，不作为每个文档 PR 的固定门槛。

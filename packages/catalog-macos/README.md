@@ -1,8 +1,10 @@
 # OrbitCatalogClient
 
-供 macOS 13+ App 使用的 Swift Package。Python `orbit_catalog` 拥有数据库、网络连接器与本地模型；本包通过 loopback HTTP 提供异步调用，不在 UI 线程执行采集、推理或 SQLite 写入。
+Swift 5.9+ 的异步 Catalog HTTP 客户端，Package 自身支持 macOS 13+；完整 Orbit App 的目标仍是 macOS 14+。Python Catalog 持有数据库、网络适配器与本地模型，客户端不在 UI 线程做采集或 SQLite 写入。
 
-在 App 的 Package Dependencies 中加入本目录，导入 `OrbitCatalogClient`。宿主 App 负责启动或连接本地 Python worker，并将固定版本的模型目录传给 worker；本包不会自动安装 Python、下载模型或创建 launchd 任务。
+## 接入
+
+在宿主的 Package Dependencies 中加入本目录并导入 `OrbitCatalogClient`。宿主负责启动后端、设置 loopback endpoint 和适用鉴权；默认客户端地址不应当作动态 App gateway 的实际端口。
 
 ```swift
 import OrbitCatalogClient
@@ -10,17 +12,17 @@ import OrbitCatalogClient
 let catalog = try CatalogClient()
 let job = try await catalog.sync(sourceIDs: ["anthropic-skills"])
 let completion = try await catalog.waitForJob(job.jobID)
-// completion.status / result 包括失败、取消和分页预算耗尽；不能只看请求已受理。
 
 var query = MatchRequest(text: "定位重复失败的根因")
 query.types = ["skill", "workflow"]
 query.agents = ["codex"]
-query.features = [Feature("domain", "debugging")]
 let result = try await catalog.search(query)
-// A8 使用 result.items；显示 scoreParts / matchedFeatures / passage 和 vector 覆盖状态。
-// A7 还须设置 purpose="recommendation"，并传入 problem、scene、language 与两组证据 ID。
 ```
 
-`sync()` 可以由 App 的启动、唤醒或定期刷新调用，后端会检查各来源的下一次更新时间。`indexPendingChunks()` 分批补齐向量；中止或重启后可继续。`cancel(jobID:)` 在当前读取页/推理批次结束后暂停任务；取消等待的 Swift Task 本身不会修改 worker。
+示例假定默认 endpoint 上已有可访问服务。任务受理不等于完成，检查 completion 的状态、取消、错误与覆盖；仅取消 Swift 等待任务不会自动取消后端工作，使用相应 cancel API。
 
-完整架构、命令和接口见 [`docs/modules/catalog/architecture.md`](../../docs/modules/catalog/architecture.md)。测试：`swift test --package-path packages/catalog-macos`。
+## 展示合同
+
+结果同时显示分项分数、命中特征、来源片段和 vector 状态。资源检索与推荐模式不同：推荐还需要问题、场景、交付语言和证据。客户端不自动安装 Python、下载模型或创建系统服务。
+
+验证：`python3 scripts/heavy.py swift test --package-path packages/catalog-macos`。接口与数据库职责见[目录架构](../../docs/modules/catalog/architecture.md)。

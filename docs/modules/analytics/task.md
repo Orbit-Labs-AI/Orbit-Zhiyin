@@ -1,54 +1,25 @@
-# Task：任务内容与证据边界
+# 任务、文本与关系
 
-这组特征回答“用户在做什么，一个任务从哪里开始，哪些消息属于同一目标”。实现位于 `packages/backend/src/orbit_backend/analytics/task/`，通过 `/v1/analytics/tasks` 与 `orbit analytics` 接入；会话详情新增 `task_ids`、`preference_ids` 供前端关联。
+Task 描述用户当前请求的任务内容与边界。会话和轮次是原生日志粒度，分析任务是另一种关系；只有明确证据才能把工具、交付、验证与反馈归到同一个任务。
 
-已完成模板要求的领域、类型、标题、目标、产物、边界和关联会话，以及额外的目标版本记录。提取是可回看的规则候选，不是经过人工确认的语义真值。原有 TF-IDF／SVD／DBSCAN／PCA 实现移入 `task/representation.py`，旧 `analytics.text` 导入仍兼容；聚类坐标和 novelty 继续表示文本关系，不代表任务类别或创新程度。
+## 三种结果
 
-## 已完成的特征
-
-| 字段 | 方法／粒度 | 未知与排除规则 |
+| 结果 | 来源 | 解释 |
 | --- | --- | --- |
-| `domain` | 每任务多标签；task-taxonomy-v1 包含 software、mathematics、data_analysis、writing、design、education。 | 无命中为 null，不补“通用任务”；标签附消息证据。 |
-| `task_type` | 每任务多标签；调研、创建、修改、排错、验证、解释、翻译、总结、批改、发布。 | 禁止执行的动作不算要求；“测试字段”不算执行测试。 |
-| `task_title` | 当前明确目标的前 60 个字符。 | 是可追溯的短摘录，不是模型摘要；含糊目标为 null。 |
-| `task_goal` | 初次明确动作请求，显式“目标改为”等表达才替换当前目标。 | 普通跟进和偏好表达不直接替换目标。 |
-| `task_goal_history` | 初始目标与修改版本，记录证据和可见时间。 | 不用最后的目标改写过去；没有明确目标时为空列表。 |
-| `expected_artifacts` | 产出动词后明确出现的文件名／报告／文档等对象。 | 读取 README.md 不等于要求生成 README；没有明确产物为 null；不表示已生成。 |
-| `task_boundaries` | 每会话的开始、结束、包含关系、原因、证据和候选／明确状态。 | 最后消息／助手说完成不算结束；未观察结束为 null。 |
-| `related_session_ids` | 同任务关联的会话及关联证据。 | 仅可信 task_id_source=native／human_confirmed 能建立跨会话身份；同路径、相似文本、legacy_inferred 不能。 |
+| 任务分段 | 原生 ID、显式边界及规则候选 | 原生确认与推断边界分开 |
+| 领域标签 | 当前真人请求中的可解释规则 | 多标签候选，不表示能力或兴趣强度 |
+| 文本表示 | 本地 TF-IDF/SVD、聚类与坐标 | 用于相近文本探索，不确定真实任务身份 |
 
-上述字段只使用确认的 main 会话、actor=human/user、origin=human 的直接消息。重放、附件、引用和平台指令不作为请求证据。
+`segment_tasks`、`extract_task_features`、`summarize_task_distribution` 从[任务模块](../../../packages/backend/src/orbit_backend/analytics/task/)导出。领域细分见[分类规则](task-taxonomy.md)。
 
-## 分析函数
+## Work Graph
 
-| 函数 | 输入 → 输出 | 已测内容 |
-| --- | --- | --- |
-| `segment_tasks(events, sessions)` | 契约事件与会话 → records、task_by_event、coverage | 多任务、阶段切换、显式目标变更、未结束、用户关闭、跨会话身份与去重。 |
-| `extract_task_features(task_events)` | 经过 semantic_messages 确认和清理的单任务消息 → 语义字段、证据、缺失原因 | 多标签、领域未知、产物与读取区分、否定、引用、稳定结果。 |
-| `summarize_task_distribution(tasks, scope=None)` | 任务集合 → 数量、领域／类型分布、有效与未知数量 | 按 task_id 去重；多标签计数；零分母返回 null。 |
+共享任务图连接 Task、Turn、ToolCall、ModelCall、SubagentRun、产物及版本、交付、验证、反馈与指令。每条关系保留证据、来源、覆盖和可见时间。文件编辑次数不能自行生成产物版本；候选任务不证明验收、重试或长期偏好。
 
-先按 session_uid 和原生 seq 确定边界；同一任务跨会话提取目标时按可用时钟归并，同时保留各会话的 seq 顺序，缺时钟用 goal_order_quality 标明 partial；首条可用请求建立候选任务；明确“新任务”或可信 task_id 切换形成边界；“现在／接下来”等阶段词加上新动作类型时建立候选阶段。普通跟进留在当前任务，明确“目标改为”只增加目标版本。新任务的开始同时构成旧任务的不包含式结束；用户明确结束是包含式结束。没有绝对时间的边界仍保留 seq。
+`/v1/analytics/work-graph` 与 `/v1/analytics/tasks/{task_uid}/trajectory` 沿用同范围读取，范围外任务返回未找到。详见 [Work Graph](../../../packages/backend/src/orbit_backend/analytics/work_graph/README.md)。
 
-跨会话使用 native task_id 时还保留 source_id 和规范 project_id 的命名空间。这个可选来源标记是分析适配约定，当前旧导入器不会自动提供可信跨会话身份；它明确写入 legacy_inferred 以避免误用旧推断。
+## 时间新颖度
 
-领域／类型分布以有标签的不同 task_id 为分母，另列 unknown_n；一个任务可有多个标签，比例之和可大于 100%。`semantic_status=candidate` 提醒前端这是规则判断，unknown 表示连明确目标也没有。
+聚类坐标可在当前语料上拟合；时间新颖度只能比较严格更早记录。当前实现使用无拟合状态的字符哈希向量计算前缀相似度，避免未来语料改变过去表示。未知时间或没有更早对象时返回未知，详见[任务实现](../../../packages/backend/src/orbit_backend/analytics/task/README.md)。
 
-## 验收样例
-
-合成例子：先“调研后端接口”，再“现在实现后端接口”，随后“目标改为编写脚本”。结果是两个任务／阶段，第二个有两版目标，第一段在第二段请求处结束，第二段尚未观察到结束。
-
-两个会话具有相同的可信原生任务 ID 时汇总为一个任务；仅同项目目录或相同旧 task_id 不合并。用户只说“帮我处理一下”时，领域、类型、目标、产物都保持未知。
-
-## 验证与真实数据效果
-
-[五类测试记录](validation.md)提供复现命令。真实快照重新导入后得到 5 个候选任务边界，其中 2 个有词表标签、3 个未知；类型命中包括批改、修改、发布。它们只来自 9 条可确认真人来源的消息；不能把该分布当作完整历史的任务构成，更不能把 education 在两个有效样本中占比 100% 解读成用户所有工作都是教育。
-
-真实全流程与 API／CLI 对照通过，所有标签证据都能回到本次允许使用的真人事件。完整原文与 ID 只保存在 `.local/`，共享文档使用汇总数字和合成案例。
-
-## 待完成与待测试
-
-- 未表达“新任务”的隐含换题、远距离延续、代词、一个长请求内的多个独立任务尚未充分解决。
-- 词表只覆盖有限中英表达，可能漏判或误判；标签与边界没有真实人工金标准，不报告泛化准确率。
-- 跨会话关联的真实正例缺失，目前是构造样例验证；同目录不能替代关联依据。
-- 任务目标目前是首个可识别动作分句，复合目标不能保证完整；标题是摘录，不做生成式摘要。
-- 下一步先建立真实任务边界／标签标注集，并补可靠 task_id 来源，再考虑语义模型；复杂度、创新程度和开放度评分继续暂缓。
+验证应包含引用、否定、新主题、短跟进、跨任务目标、混合任务模型调用和历史截止；真实边界准确率仍需要独立标注。

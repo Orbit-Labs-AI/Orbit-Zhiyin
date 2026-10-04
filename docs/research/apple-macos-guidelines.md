@@ -1,5 +1,8 @@
 # Apple macOS 指南对照：Orbit 原生壳与 UI
 
+> 文档状态：研究快照。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../README.md)。
+
+
 > 状态：调研 · 日期：2026-10-03 · 核对版本：`fix/app-deep-debug`（`d4f2edd7`，Orbit 0.0.2 / macOS 14+）
 >
 > 目的：对照 Apple 官方资料，审查 Orbit 原生宿主（`apps/desktop/Orbit.swift`）与页面中原生相关部分（`prototypes/advance/src/js` 的 22 / 25 / 30 / 57 / 60 / 61 / 62 / 85 / 95 / 97 系列）的 Mac 习惯符合度，给出「指南要点 → Orbit 现状 → 建议」。
