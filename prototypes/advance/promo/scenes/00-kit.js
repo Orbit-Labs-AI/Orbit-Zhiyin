@@ -7,9 +7,12 @@
 'use strict';
 const K = {};
 css(`
-/* v18.3 eyebrow: CJK at .06em (no more 「0 3 · 会 话 轨 迹」), Latin / digit / · runs at .3em inside .ebl (K.eb) */
-.eb{font-size:26px;letter-spacing:.06em}
-.eb .ebl{letter-spacing:.3em;margin-right:-.24em}   /* the run's trailing tracking trimmed back to .06em */
+/* v18.3 eyebrow: CJK at .06em (no more 「0 3 · 会 话 轨 迹」), Latin / digit / · runs inside .ebl (K.eb).
+   v18.7: the runs at .12em (at .3em「03」still read as「0 3」), the · set off by thin spaces instead, white .7 */
+.eb{font-size:26px;letter-spacing:.06em;color:rgba(255,255,255,.7)}
+.pe-it .eb.eb{color:rgba(255,255,255,.7)}
+.eb .ebl{letter-spacing:.12em;margin-right:-.06em}   /* the run's trailing tracking trimmed back to .06em */
+.eb .ebs{font-family:-apple-system,'SF Pro Text',sans-serif;letter-spacing:0}   /* SF Mono has no thin space: its fallback is a full .6em cell */
 .gi{font-size:230px;font-weight:700;letter-spacing:-.02em;line-height:1}
 .k .w{display:inline-block;white-space:pre;will-change:transform,opacity,filter}
 .k .ch{display:inline-block;white-space:pre;will-change:transform,opacity,filter}
@@ -71,7 +74,8 @@ K.exit = (o = {}) => (el, tl, life) => drift(el, exitQ(tl, life, o.out ?? .6), o
 // v18.3 eyebrow markup: wraps each Latin / digit / · run in <span class="ebl"> (.3em)
 // and leaves CJK at the .eb tracking (.06em). Tags and entities are left alone; idempotent.
 const EB_RUN = /[A-Za-z0-9·]+/g;
-K.eb = (html) => (/class="ebl"/.test(html) ? html : String(html).split(/(<[^>]*>|&#?\w+;)/).map((s, i) => (i % 2 ? s : s.replace(EB_RUN, '<span class="ebl">$&</span>'))).join(''));
+// v18.7: the spaces around every · become U+2009 thin spaces (mono word spaces left a hole), as do the spaces between digits and CJK (「16 种」), so the separator, not the tracking, splits the groups
+K.eb = (html) => (/class="ebl"/.test(html) ? html : String(html).split(/(<[^>]*>|&#?\w+;)/).map((s, i) => (i % 2 ? s : s.replace(/[ \u2009]*·[ \u2009]*/g, '\u2009·\u2009').replace(/(?<=[0-9A-Za-z]) (?=[\u4e00-\u9fff])|(?<=[\u4e00-\u9fff]) (?=[0-9A-Za-z])/g, '\u2009').replace(EB_RUN, '<span class="ebl">$&</span>').replace(/\u2009/g, '<span class="ebs">\u2009</span>'))).join(''));
 // every eyebrow switches to it: txt() lines whose class has `eb` get K.eb before they are built, and any other .eb that
 // a scene writes as raw html (e.g. the persona column) is wrapped the moment it is added to the stage
 {
