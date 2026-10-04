@@ -43,7 +43,7 @@ scene('40-recs', () => {
 .ln.r4-a{font-size:64px;font-weight:600;letter-spacing:.02em;color:var(--a1)}
 `);
   const IDS = ['retry-breaker', 'remove-figma', 'acceptance', 'pr-wrapup', 'headless', 'think-medium'];
-  const WORD = ['Hook', 'MCP', 'Prompt', 'Skill', 'Workflow', 'Thinking'];
+  const WORD = ['Hook', 'MCP', 'Prompt', 'Skill', '工作流', '思考'];   // v18.8: = the cards' own tags
   const PREF = ['t', 'k', 't', 'k', 't', 'k'];                   // which counter each entry would add to (time / token alternating)
   const PIT = 2.6, ARR = IDS.map((_, n) => 46.0 + PIT * n);      // beat entry n reaches the centre line (v18.3: 46.0 … 59.0)
   const S4 = 44.5, MV = 1.1, OUT4 = 63.1;                        // intro → eyebrow slot move (b44.5–45.6); scene clear
@@ -51,7 +51,10 @@ scene('40-recs', () => {
   // 「提高效率」wipes in on their left and the caption settles under them — one large centred % statement (shares only, never
   // hours). v18.2: held .8 beat longer (whole statement readable b62.35–63.4, exit b63.4–64.0, film b86.3–86.9, before
   // 50-tools' trajectory card fades in at film b87.05); the dot merge and the hand-off move with it (+.8)
-  const PO = 59.6, POD = .65, POX = .45, POUT = 63.85, PE = (b) => E.inOut(lp(b, PO, POD));
+  // v18.8: the statement leaves b62.95–63.5 (film b85.85–86.4): it shrinks to .94 and is drawn ≈30 % of the way into the
+  // closing orb at (330, 540) as it fades, cc blinks as it 'receives' it, and 50-tools grows its card out of the orb from
+  // film b86.55 — no half-faded numerals left over the growing card (was gone only at film b86.75)
+  const PO = 59.6, POD = .65, POX = .55, POUT = 63.5, PE = (b) => E.inOut(lp(b, PO, POD));
   // v18.1: the column is framed ≈1.35× closer than v17.7 (card body 12 app px → ≈30 px on screen, footer 11 → ≈27 px): the
   // cards are 1000 px wide at x 520 (v18.4: 1040, right edge 1560; the counters sit right of it at 1740), the entry pitch follows the
   // tallest entry (set at b40.0, ≥ 490), so the 3-beat cadence is unchanged and only the scroll speed in px grows
@@ -326,7 +329,8 @@ scene('40-recs', () => {
         el.style.transform = 'translate(0,-100%)';
         // v18.1 QA: at the 1.34× framing the 128 px word reaches the top edge while its card is still sharp (≈1 beat cut
         // in half at b70.5 / 73.5 / 76.5 / 82.5): it fades out as its top nears the frame edge (gone at −10 px) instead
-        el.style.opacity = (F.a * clamp((p[1] - 24 - WH + 10) / 100)).toFixed(3);
+        // v18.8: 60 px earlier (gone at +50 px), so no word is clipped by the frame edge while it fades
+        el.style.opacity = (F.a * clamp((p[1] - 24 - WH - 50) / 100)).toFixed(3);
         el.style.filter = F.bl > .05 ? 'blur(' + F.bl.toFixed(2) + 'px)' : 'none';
         const m = w >= 1 ? 'none' : 'linear-gradient(90deg,#000 ' + (115 * w - 15).toFixed(1) + '%,transparent ' + (115 * w).toFixed(1) + '%)';
         el.style.maskImage = m; el.style.webkitMaskImage = m;
@@ -344,7 +348,9 @@ scene('40-recs', () => {
   // The rise leads the slide left by .25 beat (both .85 beats), so the lines pass above the dot column's top row instead
   // of over it, and the orange line is far above the first type word, which wipes in at b45.0 from y ≈480
   // v18.3: every payoff piece leaves drifting toward the merge point (330, 540), where the dots close next
-  const PX = K.exit({ out: POX, dir: { dx: -36, dy: 6 } });
+  const PXT = (x, y) => K.exit({ out: POX, push: .94, dir: { dx: .3 * (330 - x), dy: .3 * (540 - y) } });
+  const PX = PXT(960, 347);
+  AGD.blink(0, POUT - .2, { k: 1.08, dur: .45, v: .7 });
   [['eb', '02 · 优化建议', 370, 100, 1, .4],
    ['sv r4-h', '每条建议，都来自你自己的会话', 466, 146, 26 / 88, .6],
    ['r4-a', '提高效率', 584, 182, 26 / 64, .45]].forEach(([cls, html, y0, y1, k1, wd], r) => {
@@ -380,11 +386,12 @@ scene('40-recs', () => {
     });
   });
   const pct = (v) => v <= 0 ? '0.0%' : v < 10 ? v.toFixed(1) + '%' : Math.round(v) + '%';   // = fmtPct above .1 %; no「<0.1%」mid-roll
+  const pctP = (v) => v.toFixed(1) + '%';
   const val = (f, b) => STEP.reduce((v, s) => v + (s.f === f ? s.d * E.out(lp(b, RL[s.n], 1.2)) : 0), 0);   // 1.2-beat roll from the ✓ (v18.5)
   // v17.7: each roll enters the way its links flow (left → right): the figure slides in from 4 px left out of a 2 px blur
   const num = (f) => (el, tl, life, t) => {
     const nd = el.querySelector('.r4-v'); if (!nd) return;
-    const b = t / BEAT; nd.textContent = pct(val(f, b));
+    const b = t / BEAT; nd.textContent = (b >= PO ? pctP : pct)(val(f, b));   // v18.8: the payoff reads「10.0%」, not「10%」
     let g = 0; STEP.forEach((s) => { if (s.f === f && s.d > 0) { const u = lp(b, RL[s.n], .7); if (u > 0 && u < 1) g = Math.max(g, 1 - E.out(u)); } });
     nd.style.display = 'inline-block';
     nd.style.transform = g > .002 ? 'translateX(' + (-4 * g).toFixed(2) + 'px)' : '';
@@ -399,14 +406,14 @@ scene('40-recs', () => {
   // v18.3: one centred stack under the orange line (y 360): numerals y 500 (x 700 / 1220), labels y 615, caption y 705
   // v18.4: numerals 1.65× (158 px, caps ≈110 px), +24 px between orange line / numerals / labels; stack centred on y 540
   const POS = { tl: [1740, 535, .8, 680, 663, 1], tv: [1740, 450, 1, 680, 519, 1.65], kl: [1740, 785, .8, 1240, 663, 1],
-    kv: [1740, 700, 1, 1240, 519, 1.65], cap: [1750, 880, .76, 960, 753, 1] };
+    kv: [1740, 700, 1, 1240, 519, 1.65], cap: [1750, 880, 22 / 28, 960, 753, 1] };   // v18.8: column caption 22 px, white .7 (as the payoff's)
   // the Token half lags .12 beat behind the time half, so the two numerals never pass over each other on the way in
-  const place = (key, lag = 0) => { const m = mask(.18, 1, POX), [x0, y0, k0, x1, y1, k1] = POS[key]; return (el, tl, life, t) => {
+  const place = (key, lag = 0) => { const m = mask(.18, 1, POX), [x0, y0, k0, x1, y1, k1] = POS[key], PXk = PXT(x1, y1); return (el, tl, life, t) => {
     m(el, tl, life);
     const b = t / BEAT, pe = E.inOut(lp(b, PO + lag, POD)), dy = -40 * lp(b, 44.85, 18.25) * (1 - pe);
     el.style.left = lerp(x0, x1, pe).toFixed(1) + 'px'; el.style.top = (lerp(y0, y1, pe) + dy).toFixed(1) + 'px';
     el.style.transform = 'translate(-50%,-50%) scale(' + lerp(k0, k1, pe).toFixed(4) + ')';
-    PX(el, tl, life);
+    PXk(el, tl, life);
   }; };
   const KS = STEP.find((st) => st.f === 'k'), KB = KS ? RL[KS.n] : 45.1;   // first token roll
   txt(45.05, POUT, [['r4-l', '累计可节省的协作时间']], { x: 1740, y: 535, align: 'c' }, { anim: place('tl') });
