@@ -1,56 +1,42 @@
-# 参与 Orbit
+# 为 Orbit 贡献
 
-状态：现行协作规范；维护者：`yhyfhgs`。适用于本仓库的代码、设计、文档与构造样本；项目规则以 [AGENTS.md](AGENTS.md) 为准。
+欢迎通过问题反馈、使用体验、文档、构造样本和代码帮助 Orbit。先从 [README](README.md)了解产品，再选择一个边界明确、能复现或验证的改进。
 
-Orbit 当前是 ActionMesh-AI 的私有比赛项目。请先确认问题和负责模块；新增功能及 MVP 范围须由 `yhyfhgs`、`MistyHuang03`、`genius-FXC` 共同确认，功能建议不代表已承诺实现。讨论和评审遵循[行为准则](CODE_OF_CONDUCT.md)，安全问题按[安全政策](SECURITY.md)私下报告。
+## 提交问题或建议
 
-## 提交问题
+使用 [Issue 模板](https://github.com/ActionMesh-AI/Hackathon/issues/new/choose)，说明环境、操作步骤、预期与实际结果。功能建议先描述使用场景和最小输入输出；排期与范围由维护者讨论确认。安全问题按 [SECURITY.md](SECURITY.md)私下报告。
 
-在现有 Issues 中确认是否已有相同问题，再使用 [Bug 或功能建议模板](https://github.com/ActionMesh-AI/Hackathon/issues/new/choose)。Bug 应包含提交版本、运行环境、最小复现步骤、预期与实际结果；功能建议先说明真实场景、现有做法的不足与最小验收条件。
+只提交构造或充分脱敏的材料。不要上传真实会话库、原始日志、密钥、`.env`、个人路径或含隐私的截图。机器生成的建议也需要贡献者检查其事实、许可和行为。
 
-只提交构造或充分脱敏的样本。不要上传真实 Agent 会话、个人路径、数据库、密钥、`.env`、原始归档或带隐私信息的截图。
+## 配置环境
 
-## 准备开发环境
-
-需要 Python 3.13、uv、Node ≥24.7、pnpm 11.25.0；完整检查还需要 macOS 上的 Swift 5.9+。在仓库根运行：
+从[开发环境](docs/development/setup.md)开始。Python 和 Node 依赖分别使用根目录的 `uv.lock`、`pnpm-lock.yaml`；不新增包内锁文件。运行时包括 Python 3.13、uv、Node ≥24.7、pnpm 11.25.0；原生构建另需 macOS 和 Xcode Command Line Tools。
 
 ```sh
+git clone https://github.com/ActionMesh-AI/Hackathon.git
+cd Hackathon
 bash scripts/bootstrap.sh
 uv run orbit demo
-pnpm dev --home .local/demo/data
 ```
 
-Demo 使用虚构数据；真实来源只有用户明确启用后才能导入。详细用法见[使用指南](docs/development/usage.md)，模块边界见[模块接入表](docs/architecture/module-map.md)。
+外部贡献者可 fork 后提交 PR。已有写权限的贡献者也通过分支和 PR 更新 `main`，不直接提交或推送主分支。
 
-## 分支与提交
+## 开始改动
 
-从最新 `main` 创建 `<type>/<简述>` 分支，例如 `docs/contributing-guide`、`fix/session-import`。不得直接提交或推送到 `main`。
+从最新 `main` 建立 `feat/简述`、`fix/简述`、`docs/简述`、`refactor/简述` 或 `chore/简述` 分支。多个本机任务使用独立 worktree，避免切换或清理其他任务正在使用的工作区。
 
-提交信息和 PR 标题沿用 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) 的结构：
+产品名用 **Orbit**，带字标的全名为 **Orbit·知音**，代码标识用 `orbit`。原生日志解析归数据包，业务编排归后端，界面源文件归 `prototypes/advance/src/`；先看[模块接入表](docs/architecture/module-map.md)选择修改位置。生成产物从源文件构建，不另维护一份手改结果。
 
-```text
-type(scope): 描述改动及原因
-```
-
-常用类型为 `feat`、`fix`、`docs`、`refactor`、`chore`、`test`、`perf`；分支类型遵循 [AGENTS.md](AGENTS.md) 中的约定。每个提交只做一件可独立说明的事，完成并通过相应检查后提交、推送。已推送的提交用新提交修正，不 amend 或强推。
-
-文档、界面和代码标识统一使用 Orbit / `orbit`，不再新增 tandem 命名；改名前开出的分支合并 main 前先运行 `python3 scripts/orbit-rename.py`。依赖锁文件仅在仓库根维护；第三方源码引用保留原项目的许可与归属。
+提交保持单一目的，信息和 PR 标题使用 `type(scope): 描述`，例如 `docs(guides): 补充首次导入的排障步骤`。已推送的提交以新提交修正，不 amend 或强推。
 
 ## 验证与 PR
 
-提交 PR 前，从仓库根执行：
+按[测试指南](docs/development/testing.md)选择与改动相关的检查。纯文档运行 `pnpm check:docs`；跨包接口、DDL、依赖或构建脚本改动才需要全量检查。不要为让检查通过而跳过未知数据、补造结果或放宽断言。
 
-```sh
-bash scripts/bootstrap.sh
-pnpm check
-```
+PR 说明解决的问题、最终行为、实际验证和关联 Issue（没有则注明）。新接口同步契约，新入口登记导航；与最新 `main` 的合并结果也应通过所需检查。本地工作完成并检查通过后创建 ready PR，不用 draft 占位。
 
-修改 UI 原型还须执行 `pnpm check:ui`。检查分类、浏览器安装和显式启用的真实数据评测见[测试指南](docs/development/testing.md)；不要为通过检查而跳过未知记录、伪造缺失值或放宽测试。
+`yhyfhgs` 是 PR 审批负责人，合并保留 merge commit，不 squash 或 rebase。AI 与维护者执行合并时遵循当前任务授权和 [AGENTS.md](AGENTS.md)；Codex 自动 review 不是本仓库的强制门槛。
 
-使用仓库的 PR 模板说明问题、结果、实际验证及关联 Issue（没有则注明）。新功能更新模块接入表；新增文档登记在[文档导航](docs/README.md)。本地检查通过后创建正常 PR，不使用 draft 占位。
+## 贡献许可与交流
 
-`yhyfhgs` 是唯一 PR 审批人，由其明确决定合并与关闭；合并保留 merge commit，不 squash 或 rebase。Codex 自动 review 不作为本仓库的必需流程或合并条件。
-
-## 贡献许可
-
-项目采用 [Apache License 2.0](LICENSE)。提交贡献前，请确认有权提供这些内容；除另有明确说明或单独协议外，向本项目提交的贡献按该许可证第 5 条处理。引入第三方材料时保留其原始许可、版权与必要的归属声明。
+原创代码与文档按 [Apache License 2.0](LICENSE)贡献；引入第三方材料时保留其许可、版权与归属。不要把未经许可的私人资料提交到公开仓库。所有讨论遵守[行为准则](CODE_OF_CONDUCT.md)。

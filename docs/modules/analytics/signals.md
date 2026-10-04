@@ -1,91 +1,36 @@
-# Signal 层、指标引擎与下钻
+# Signal、问题与指标
 
-`analytics/signals/` 是八族之上的横向派生层，不是第九个族。它只读取 `AnalysisContext` 与 `analyze_context` 的结果，把八族事实转成 `signal`，再派生 `problem`（AN-06）、关键时刻（AN-09）、会话结果（AN-19）和会话事实补字段（AN-02）。设计依据见 [分析模块设计](../../plans/analysis-module.md) §2.3、§2.4、§3.2、§4，缺口与任务包见 [分析模块审计](../../audits/analysis-audit.md) §1、§2.2、§5。
+`analytics/signals` 是八族之上的派生层，复用同范围事实生成信号、问题、关键时刻与会话结果。它不是第九个特征族，也不重新解析原始日志。
 
-版本：`rules_version = signals-v1.2`（[dictionary.py](../../../packages/backend/src/orbit_backend/analytics/signals/dictionary.py)）。词表、阈值或映射变化时必须同步提升版本号。v1.1：升级闸改为 Wilson 下界 > 0、`would_prompt` 改用调用级 approval；v1.2：纠偏判定统一到 `interaction.rules.correction_verdict`（结果反馈不再算纠偏）、删除无生产者的 `dimension` 分支。全部数值阈值及出处见 `dictionary.THRESHOLDS`（`calibrated = false` 即产品默认、未校准）。
+## 字典与规则版本
 
-## 模块
+权威枚举和阈值在 [signals/dictionary.py](../../../packages/backend/src/orbit_backend/analytics/signals/dictionary.py)，当前为 `signals-v1.2`。闭集包含 correction、frustration、retry_loop、missing_verification、would_prompt、permission_denied、risky_command 和 interruption。
 
-| 文件 | AN | 职责 |
+| 信号 | 需要的证据 | 解释限制 |
 | --- | --- | --- |
-| [stats.py](../../../packages/backend/src/orbit_backend/analytics/stats.py) | AN-10 | Wilson（z = 1.96）、`INSUFFICIENT_N = 5`、`{value, n, k, lo, hi, basis, status}` 指标对象 |
-| [signals/detectors.py](../../../packages/backend/src/orbit_backend/analytics/signals/detectors.py) | AN-05 | 按根会话树构建视图，运行八个检测器 |
-| [signals/problems.py](../../../packages/backend/src/orbit_backend/analytics/signals/problems.py) | AN-06 | 按 `(type, key, scope, scope_id)` 聚合并判断是否升级 |
-| [signals/moments.py](../../../packages/backend/src/orbit_backend/analytics/signals/moments.py) | AN-09 | 规则关键时刻：编号、去重、每会话最多 8 个 |
-| [signals/outcome.py](../../../packages/backend/src/orbit_backend/analytics/signals/outcome.py) | AN-19 | 会话结果合成器 |
-| [signals/facts.py](../../../packages/backend/src/orbit_backend/analytics/signals/facts.py) | AN-02 | `outcome / verify_* / autonomy_steps / signals_summary` |
-| [signals/inventory.py](../../../packages/backend/src/orbit_backend/analytics/signals/inventory.py) | AN-11 | `first_request_tokens`（`metrics.resident_tokens_median` 的输入） |
-| [metrics.py](../../../packages/backend/src/orbit_backend/analytics/metrics.py) | AN-01 | `metrics(context, metric[], bucket, group_by)` |
-| [drilldown.py](../../../packages/backend/src/orbit_backend/analytics/drilldown.py) | AN-01.2 | 按工具取最近 N 条调用 |
-| [api/insights.py](../../../packages/backend/src/orbit_backend/api/insights.py) | — | `build_router(get_result)` 提供的独立 `APIRouter` |
+| correction / frustration | 真人直接文本与前后过程 | 词面代理信号，不等同确认的心理或质量结论 |
+| retry_loop | 失败、任务/工具/状态范围及重试关系 | 相邻或同名工具不够 |
+| missing_verification | 编辑与后续可确认检查 | 验证信息不可用时保留未知 |
+| would_prompt / permission_denied | 调用级 approval / approval_wait_ms 或明确拒绝 | 等待必须有证据；只读命令还需参数和重定向检查 |
+| risky_command | 可解释命令模式与目标 | 静态风险提示，不是实际损害证明 |
+| interruption | 明确轮次/生命周期状态 | 不自动判定任务最终失败 |
 
-所有函数都是纯函数，不修改 `service.py`、`routes.py`、`context.py` 及八族文件。
+`None` 表示这类证据不可用，`[]` 表示可用且未观察到；两者不能一起当作零。每条信号保留锚点和 occurrences，计数与位置分开。
 
-## 空值约定
+## 信号升级为问题
 
-- 检测器返回 `None`：证据不可用（数据集缺失、旧账本 `legacy-json-ledger` 无法确认、缺少身份字段），不计为 0，也不进入分母。
-- 检测器返回 `[]`：证据可用且未出现。
-- `signals_summary[kind]` 沿用同一约定；`metrics` 中的 `unknown_n` 单列这类会话。
+按问题类型、key、scope 聚合支持会话，分母只包括同范围有机会发生且证据可用的会话。当前默认要求达到类型的最少会话数，并使 Wilson 下界严格大于 0；旧文档的 0.05 门槛已不适用。类型可以声明独立背景阈值，不能把手写阈值描述为经过校准。
 
-## signal.kind（v1.0 已实现）
+未升级项保留候选及原因；用户标签不删除事实。问题 ID 按稳定语义生成，重算仍能追踪同一问题。
 
-每会话每个 `(kind, key)` 只产一行；`value` 保留次数，`occurrences` 保留每次出现的位置。`signal_id = stable_id(session_uid, kind, event_uid | call_uid)`，锚点取第一次出现的位置。
+## 关键时刻与结果
 
-| kind | 规则 | unit | friction_type | problem_type | 机会分母 | basis | null 条件 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `correction` | 助手回复之后、2–200 字的直接真人消息，`interaction.rules.correction_kind = correction`（只有「还是不行/依然失败/still failing」等结果反馈不算） | message | misunderstood_request | misunderstood_request | 有真人消息 | proxy | 事件不可用 |
-| `frustration`（v1） | 挫败词表，或连续 2 条 ≤ 40 字纠偏 | session | misunderstood_request | misunderstood_request | 有真人消息 | proxy | 事件不可用 |
-| `retry_loop` | 适配 `respond.retry_links`：同轮次（或同任务）、同 `status_scope`、`same_arguments = true` 的链接 ≥ 2 条且失败 ≥ 3 次；预期失败测试排除 | turn | tool_env_failure | tool_env_failure | 有工具调用 | measured | 调用不可用；存在无法确认身份的候选重试且无确认链 |
-| `missing_verification` | 最后一次 `file.edit / file.write / file.change` 之后没有已执行验证 | session | buggy_output | missing_verification | 有编辑 | measured | 调用或验证不可用；旧账本；编辑后只有未确认的验证候选 |
-| `would_prompt` | `kind = shell`、非包装、只读命令头，调用级 `approval / approval_wait_ms`（reducer 从 permission.request/decision 复制）表明实际等待了审批，且未被已装 allow 规则覆盖 | session | permission_friction | permission_friction | 有 shell 调用 | measured | 调用不可用；有只读命令但会话内没有任何审批数据 |
-| `permission_denied` | `permission.decision.decision = deny` 或 `tool_call.approval = declined` | session | permission_friction | permission_friction | 有真人消息 | measured | 不支持 `permission.*` 事件且调用无 `approval` 字段 |
-| `risky_command` | DT-13 破坏性命令词表（`rm -rf`、`git push --force`、`git reset --hard`、`git clean -f`、`DROP TABLE`、`mkfs / dd`、`chmod -R 777`） | session | other | unsafe_operation | 有真人消息 | proxy | 调用不可用 |
-| `interruption` | `turn.status = interrupted` 或旧账本 `turn.interrupted` | turn | process_overhead | 不升级（进 AN-19） | 有真人消息 | measured | 轮次与事件都不可用 |
+关键时刻围绕目标、纠偏、失败链、验证、压缩和结束组织，限制展示数量但保留总数。会话结果结合明确反馈、验证、可选 facet 与结构证据，保留 basis 和未知原因；不能用助手结束发言替代完整验收。
 
-未实现（按设计文档阶段）：`runaway_loop`、`edit_churn`、`mid_task_compaction`、`duplicate_prompt`、`workflow_pattern`、`quota_hit`、`parallel_conflict`（v1），`context_pressure`（v2），以及依赖旧链路的 `explanation_revision / long_response / unexplained_terms / requirement`。`risky_command` 的根目录外写入与权限模式判定属于 v1。
+指标通过 [metrics.py](../../../packages/backend/src/orbit_backend/analytics/metrics.py)计算，明细通过 [drilldown.py](../../../packages/backend/src/orbit_backend/analytics/drilldown.py)读取。不同组汇总保持分母一致，小样本和未知分列。与 App 推荐问题构建的衔接见[推荐引擎](../recommendation/engine.md)。
 
-## signal → problem 映射（AN-06）
+## 当前信号生产边界
 
-`key` 语法 `<signal.kind>:<子键>`，与推荐侧按全称比对。
+纠偏复用 `interaction.rules.correction_verdict`，仅报告“仍然失败”的结果反馈不自动算纠偏。无生产者的 dimension 分支已移除，repeated_instruction 目前不由该信号层产生。
 
-| problem.type | 来源 kind | key | min_sessions |
-| --- | --- | --- | --- |
-| `repeated_instruction` | 当前无信号产生（原 `dimension` 字段无生产者，v1.2 删除） | — | 2 |
-| `misunderstood_request` | `correction`、`frustration` | `correction:session`、`frustration:session` | 3 |
-| `tool_env_failure` | `retry_loop` | `retry_loop:<command_head>` | 3 |
-| `missing_verification` | `missing_verification` | `missing_verification:<扩展名众数 ∣ project>` | 3 |
-| `permission_friction` | `would_prompt`、`permission_denied` | `would_prompt:readonly_shell`、`permission_denied:<命令族>` | 3 |
-| `unsafe_operation` | `risky_command` | `risky_command:<命令族>` | 1 |
-
-其余问题类型（`communication_gap / repeated_workflow / context_loss / parallel_conflict / quota_interrupt / process_overhead`）的门槛已登记在字典中，来源信号随 v1 接入。
-
-升级条件：`sessions ≥ min_sessions` 且 `wilson_lo(sessions, denom) > wilson_lo_min`（默认 `WILSON_LO_MIN = 0`，即 95% Wilson 区间不含 0；某类型可在 `PROBLEM_TYPES` 中设实测背景率，目前均未校准）。原 0.05 无出处，使 1/20、3/60、5/100 这类稀有但重要的问题永远停在候选。`denom` 只统计同一范围内「有机会发生」且该 kind 证据可用的会话。范围为 `all / project / source`；`problem_id = stable_id(type, key, scope, scope_id)`，跨重算稳定。输出带显式的 `session_uids`；未升级的项放入 `candidates`，并给出 `reason ∈ below_min_sessions / below_wilson_lo / no_denominator`。`label(target_kind = problem, label ∈ resolved / dismissed)` 只读入 `status`，从不写回，也不会从结果中删除问题。`weekly_count` 取参考时刻前 4 周的出现次数均值。
-
-## AN-19 会话结果
-
-`outcome ∈ completed / partial / failed / abandoned / unknown`，`basis ∈ explicit_feedback / verify_pass / verify_fail / facet / structural / unknown`，并附 `evidence`（event_uid / call_uid / validation_uid）。
-
-1. 显式反馈：最后一次交付之后的最后一条反馈。`accepted` 或确认完成 → completed；`rejected`、返工或否认完成 → partial；`mixed` 交给下一层。
-2. 验证：最后一次编辑之后存在 `passed`，其后既无 `failed` 也无纠偏 → completed；最后一次验证为 `failed` → failed。
-3. facet（可选输入 `facets`）：`fully / mostly_achieved` → completed；`partially_achieved` → partial；`not_achieved` 按有无交付和结构证据分流；`unclear` 不覆盖。
-4. 结构：最后一个轮次被打断，或最后一条真人消息是纠偏且之后没有交付 → abandoned。其余情况为 unknown；事件不可用时为 unknown，`reason = events_unavailable`。
-
-## AN-09 关键时刻
-
-规则时刻共 6 类：`goal`（首条真人目标）、`correction`、`failure_streak`（retry_loop 首次成立）、`verify_pass`（最后一次编辑之后首个通过的验证）、`compaction`、`end`（会话最后一个事件，标注结果）。`moment_id = stable_id(session_uid, kind, event_uid | call_uid)`；按 `(kind, 锚点)` 去重，每会话最多 8 个，始终保留首尾，`total_n` 给出去重后的总数。说明文字固定，不引用用户原文。
-
-## AN-01 指标
-
-单位为根会话（子代理并入根）。比例按 `Σk / Σn` 合并，不对会话比例求平均；n < 5 时 `status = insufficient`、`value = null`；5–30 时 `show_n = true`。`group_by ∈ agent / source / project / model / effort / day / week`：缺失键归入 `unknown`，因此分组计数之和等于总体。model / effort 取该会话树 `model_call` 的众数；day / week 按 `started_at` 与 `display_timezone` 划分。`bucket ∈ day / week` 给出按日或按周的时间序列。
-
-已登记指标：`sessions`、`human_messages`、`tool_calls`、`tool_failure_rate`、`correction_rate`、`completed_rate`、`verify_pass_rate`、`autonomy_steps_median`、`resident_tokens_median`、`unknown_outcome_sessions`、`<kind>_session_rate`（每个 signal.kind 一个），以及 `edit_without_verify_rate`（= `missing_verification_session_rate`）。
-
-## AN-01.2 下钻与 AN-11
-
-- `tool_calls(context, name, limit ≤ 50, command_head?)`：按 `name_raw / name` 匹配，按 `started_at`、`seq` 倒序返回。参数摘要由命令头和参数文本拼成，经过 `privacy.redact` 脱敏，并截断到 160 字。
-- `resident_tokens_median`（`metrics` 指标）：每个主会话首个模型请求输入侧 token 的中位数，输入侧 = 未缓存 `input_tokens` + `cache_read_tokens` + `cache_write_tokens`（按 `input_tokens_semantics` 归一；任一桶未知则该会话为 unknown，不按 0 计），不含输出，`basis = estimated`。只用未缓存输入会把 Claude Code 这类首请求几乎全是 cache_creation 的会话低估几个数量级。
-- 原 `installed_unused` 事实与 `analyze_signals` 没有生产入口（只有测试调用），v1.2 删除；`installed_unused` 问题由 `recommend.problems` 产出。
-
-## 接入
-
-`api/insights.py` 提供 `build_router(get_result, get_labels=None, scope_dependency=None)`，端点为 `/v1/analytics/metrics`、`/signals`、`/problems`、`/sessions/{id}/facts`、`/tools/{name}/calls`。`routes.py` 归任务包 (b)，挂载只需在其中补一行 `include_router`。
+resident_tokens_median 使用各主会话首请求的未缓存输入加缓存读写，任一桶未知则该样本未知，不含输出。它是估计口径；installed_unused 问题由 recommend.problems 产生。数值门槛及未校准状态集中在 dictionary.THRESHOLDS。

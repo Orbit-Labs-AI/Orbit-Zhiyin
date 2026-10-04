@@ -1,7 +1,10 @@
 # 本地数据模块（DT）审计：完成度、导入性能与优化任务包
 
+> 文档状态：审计快照。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../README.md)。
+
+
 > 审计基线：分支 `feat/yhyfhgs-dev`（`747b0da`，含最新 main `0459c8f`）。范围为 `packages/data`（`orbit_data`）、`packages/connectors`（TS 连接器与 staging 库），以及 `packages/catalog` 中与本地清单有关的部分。
-> 功能口径以 `docs/plans/feature-map.md` §6.1（DT 29 项）、§5 / `feature-map.csv`（UI→后端链）和 §6.10（缺口对照）为准。
+> 功能口径以 `docs/archive/plans/feature-map.md` §6.1（DT 29 项）、§5 / `feature-map.csv`（UI→后端链）和 §6.10（缺口对照）为准。
 > 性能数字全部来自构造数据（脚本见附录），没有读取或导入本机真实会话。数字是本机一次测量，**不构成性能承诺**。测量机器：Apple Silicon 14 核、48 GB 内存、Python 3.13.15、SQLite（Python 自带）。
 
 ## 0. 结论摘要

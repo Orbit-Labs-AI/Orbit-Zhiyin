@@ -1,6 +1,6 @@
 """Closed vocabulary of the signal layer: kinds, problem mapping and rule versions.
 
-The mapping mirrors ``docs/plans/analysis-module.md`` §2.4 and is the only place the
+The mapping mirrors ``docs/archive/plans/analysis-module.md`` §2.4 and is the only place the
 backend encodes ``signal.kind → problem.type``. Thresholds change ``RULES_VERSION``.
 """
 

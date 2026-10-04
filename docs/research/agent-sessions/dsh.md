@@ -1,5 +1,8 @@
 # DeepSeek Harness（deepseek-ai/deepseek-harness）会话与轨迹数据分析
 
+> 文档状态：研究快照。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../../README.md)。
+
+
 ## 0. 元信息
 
 | 项 | 值 |

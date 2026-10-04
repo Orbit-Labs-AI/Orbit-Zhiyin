@@ -1,7 +1,6 @@
-# 有边界的共享语义观察
+# Semantic Cascade：共享语义观察
 
-确定性来源筛选 → 小批语义解析 → 固定结构与引用校验 → Instruction / Interaction / Preference / 主观 Outcome。
-普通分析不调用模型；真人标注保留为评价与校准材料，不再是推断观察有输出的必要条件。
+此模块是显式运行的语义观察流程：先选择可用真人文本，再按预算解析，最后校验固定结构与引用，供 Instruction、Interaction、Preference 和主观 Outcome 复用。普通分析不会自动运行此流程；人工标注用于独立评价与校准，模型观察始终保留推断身份。
 
 ## 输入与边界
 
@@ -21,14 +20,16 @@
 
 所有模型结果标为 `inferred` / `candidate`，校准概率为空。Instruction 的模型观察只供分析，不授予执行权限；Preference 复用同一 constraint_uid，形成任务范围的低优先级证据，与显式偏好和词面历史支持分别汇总；不提升为 global。Interaction 单列推断纠偏及目标未知数。主观反馈支持部分接受与返工，但不会把模型判断变成用户确认完成或客观成功。
 
-## 根目录运行
+## 显式运行与授权
 
-已有本地 canonical 数据时，可先只筛选候选；不依赖 uv：
+先完成根 workspace 环境，并明确选择已有 canonical 数据。只筛选候选时运行：
 
 ```bash
-.venv/bin/python -m evals.analytics.semantic_cascade --home .local/backend-nine-hour/p0-data --output .local/semantic-selection --from-ts 1790340011431 --until-ts 1790944811431 --dry-run
+uv run python -m evals.analytics.semantic_cascade --home /absolute/orbit-home --output .local/semantic-selection --dry-run
 ```
 
 明确授权外发真实文本后，去掉 `--dry-run` 调用指定模型；输出必须位于忽略的 `.local/` 下。已有缓存可通过 `--cache .local/.../cache.json` 做纯本地分析，旧范围缓存会拒用。失败批次和未解析消息保留原因，不能变成零意图或零偏好。
 
 构造的 [契约回归](../../../../tests/analytics/test_semantic_cascade.py) 验证引用、边界、降级、共享身份和权限不提升。这些回归不证明真实语义准确率；独立人工标签和模型服务可达性仍是外部实测条件。
+
+本模块与 App AI service 的入口和授权流程分别维护，参见[AI 模块](../../../../../../docs/modules/ai/README.md)。新增版本同时更新缓存身份、引用反例和历史可见时间检查。
