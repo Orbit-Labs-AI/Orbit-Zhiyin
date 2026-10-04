@@ -4,7 +4,7 @@
 >
 > 回答三个问题：每个 agent 完成一次 chat 之后，落盘的 session 长什么样；它的内部结构怎样决定了这份 trajectory 的数据形态；六者有哪些异同。
 >
-> 本目录是 [数据获取与标准化方案](../../plans/data-acquisition.md)（模块 1）的源码级依据。方案中的结论多来自本机实测，这里从源码出发逐条给出出处（GitHub permalink），并补上本机没有安装的 Hermes 与 OpenCode。
+> 本目录是 [数据获取与标准化方案](../../archive/plans/data-acquisition.md)（模块 1）的源码级依据。方案中的结论多来自本机实测，这里从源码出发逐条给出出处（GitHub permalink），并补上本机没有安装的 Hermes 与 OpenCode。
 
 ## 0. 结论先行
 
@@ -224,7 +224,7 @@ flowchart LR
 
 ### 6.2 对数据方案的补充与修正
 
-[data-acquisition.md](../../plans/data-acquisition.md) 当前版本（`45aba99`）已吸收这批报告此前提出的修正：pi 的落盘时机、条目类型与子代理；OpenCode 的 V2 表名、ID 回绕、revert 删行与 fork 用量；Claude Code 的 `--resume` 与历史副本、`turn_duration` 只见于 CLI、子代理的占位用量；Codex 的工具成败与 Code Mode 嵌套条目；Hermes 的两种日志模式与 90 天自动清理。方案 4.4 节也已引用下面 §6.3 的 Hermes、OpenCode 映射。逐条比对后还剩三处：
+[data-acquisition.md](../../archive/plans/data-acquisition.md) 当前版本（`45aba99`）已吸收这批报告此前提出的修正：pi 的落盘时机、条目类型与子代理；OpenCode 的 V2 表名、ID 回绕、revert 删行与 fork 用量；Claude Code 的 `--resume` 与历史副本、`turn_duration` 只见于 CLI、子代理的占位用量；Codex 的工具成败与 Code Mode 嵌套条目；Hermes 的两种日志模式与 90 天自动清理。方案 4.4 节也已引用下面 §6.3 的 Hermes、OpenCode 映射。逐条比对后还剩三处：
 
 1. **pi**：方案的 `message.role` 只列了 `user / assistant / toolResult / system`，缺 `bashExecution`（用户 `!` 命令的执行结果）；内容块缺 `image`（[pi.md](pi.md) §3.4、§3.5）。
 2. **Hermes**：方案写「rewind、编辑、重新生成把分歧后的行软删除」，但 gateway 对普通回合的 `/retry` 和 ACP 的整体替换会先 DELETE 活跃行再重插，增量同步要核对已镜像的行是否仍在；另外 `role=user` 不等于真人输入：`steer` 是回合中途的真人输入，续写提示、压缩交接等合成行没有 `display_kind`，只能按正文标记识别（[hermes-agent.md](hermes-agent.md) §4.7、§9.3）。
@@ -232,7 +232,7 @@ flowchart LR
 
 ### 6.3 补充 Hermes 与 OpenCode 的标准事件映射
 
-[方案](../../plans/data-acquisition.md) 4.4 节的标准事件表目前有 Claude Code、Codex、DSH、pi 四列，下面补上另外两家：
+[方案](../../archive/plans/data-acquisition.md) 4.4 节的标准事件表目前有 Claude Code、Codex、DSH、pi 四列，下面补上另外两家：
 
 | kind | Hermes | OpenCode |
 | --- | --- | --- |
