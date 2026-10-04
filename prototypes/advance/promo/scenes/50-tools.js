@@ -132,10 +132,12 @@ scene('50-tools', () => {
   const line = (b0, cls, a, b, y, swapAt, so) => txt(b0, 74.7, [[cls + ' t5s', sw(a, b)]], { x: 960, y, align: 'c' },
     { anim: K.all(mask(0, 1.2, .5), seq(swapAt - b0, so), K.exit({ out: .5, dir: { dx: 0, dy: Math.round((540 - y) * .14) }, push: .9 })),
       tick: (el, tl) => { el.style.transform = 'translate(-50%,-50%) scale(' + (1 + .003 * (tl / BEAT + b0 - 56.4)).toFixed(4) + ')'; } });
-  line(56.4, 'eb t5e', '03 · 会话轨迹', '04 · 生成工坊', 110, 66.9, { ins: .2, ind: .45 });   // v18.5: 04 is in by b67.55
+  // v18.8: the chapter is named while the card is still growing — the eyebrow from b55.3 (film 87.0, over the growth's last
+  // third), the headline .3 beat later (b55.6), the accent .4 after it (b56.0): the card never lands untitled (was b56.4–57.0)
+  line(55.3, 'eb t5e', '03 · 会话轨迹', '04 · 生成工坊', 110, 66.9, { ins: .2, ind: .45 });   // v18.5: 04 is in by b67.55
   // v18.4: the old headline rolls out b67.3–67.58 and the new one is in from b67.55 (film 99.25): a title on every frame
-  line(56.6, 'hv sv t5h', '回放每一次协作', '把你的做法，写成 Skill', 190, 67.3, { dy: 24, bl: 0, od: .28, ins: .25, ind: .3 });
-  line(57.0, 'lt acc t5o', '卡在哪一步，一眼看清', '本地 Agent 起草，按你的会话改写', 270, 67.25, { ins: .55, ind: .5 });
+  line(55.6, 'hv sv t5h', '回放每一次协作', '把你的做法，写成 Skill', 190, 67.3, { dy: 24, bl: 0, od: .28, ins: .25, ind: .3 });
+  line(56.0, 'lt acc t5o', '卡在哪一步，一眼看清', '本地 Agent 起草，按你的会话改写', 270, 67.25, { ins: .55, ind: .5 });
 
   /* ---------- 5.2–5.3 trajectory (deck 0, b55.09–68.2) ----------
      v18.1: only the timeline itself is shown (svg.vz-t-timeline on its own white panel, promo-card), framed ≈ 1300 px wide (QA: 1440 cut the panel at the right edge)
@@ -166,14 +168,15 @@ scene('50-tools', () => {
   // .12 (b55.09–55.2, still at o 0) and scales .12 → 1 on E.out over .8 beat (b55.2–56.0), blur 4 → 0 (no grey slab)
   const trajIn = (k, bl) => () => { const c = trajCam(); delete c.o; c.s *= k; c.bl = bl; return c; };
   // v18.4 4→5: from b54.8 (film 86.5), over the payoff's last .15-beat drift into the orb — no frame of the orb alone
-  tween(0, 54.75, 0, trajIn(.12, 4));
-  tween(0, 54.8, .8, trajIn(1, 0), E.out);
+  // v18.8: from b54.85 (film 86.55), as 40-recs' counter has gathered into the cc badge (gone by film 86.5)
+  tween(0, 54.8, 0, trajIn(.12, 4));
+  tween(0, 54.85, .8, trajIn(1, 0), E.out);
   // its opacity on a slower in-out (.1 at b55.4, whole by b56.1) so it does not stack on 40-recs' fading % payoff
   // QA: starts at b55.35 (film 86.25), once 40-recs' % payoff has cleared — earlier the half-faded panel sat under it
   // hand-off QA v18.2: 40-recs now clears its payoff at film b86.9 (scene 55.2); the old 55.35 start left ~.5 beat of
   // only the dot stack, then a 3-frame grey slab — start as the payoff clears and ramp in .6 beat (film b86.9–87.5)
   // v18.3: α 0 → 1 in the first .3 beat of the growth (b55.2–55.5), so the small card is already solid while it grows
-  tween(0, 54.8, .3, { o: 1 }, E.out);
+  tween(0, 54.85, .3, { o: 1 }, E.out);
   // then the slow drift with the playhead (2 · PAN left) and a 3 % push about the orb's point
   tween(0, 56.6, 11.0, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.03 }), E.sine);
   // the merged dot owns this session: a thin wire to the panel's left edge, drawn .5 beat and taken back by b57.3 as the dot
@@ -378,13 +381,21 @@ scene('50-tools', () => {
   // edge): clip it with a rounded mask at screen y 1000 (the card's own corner radius), re-applied every frame after the
   // run's re-render above, so it reads as a whole card that ends inside the frame
   const SKY = 1000;
-  const skClip = () => {
+  // v18.8: from the moment line 10 is written, the card's bottom eases up (.25 beat, done before line 13 appears) to 12 px
+  // (screen, ≈ 8 frame px at 1.9× incl. the row's own leading) under line 11 — line 12 is blank, so the card ends below the last step with no
+  // half-cut「## 不要做」row on its bottom edge (b72.2–75.2; the rows below stay written, just outside the card's clip)
+  let T12 = null;
+  const skClip = (b) => {
     const el = skillCard(decks[1].D); if (!el) return;
-    const a = stageXY(1, 0, 0)[1], c = stageXY(1, 0, 1000)[1], fy = (SKY - a) / (c - a) * 1000, r = el.getBoundingClientRect();
+    const a = stageXY(1, 0, 0)[1], c = stageXY(1, 0, 1000)[1], r = el.getBoundingClientRect();
+    let fy = (SKY - a) / (c - a) * 1000;
+    const row = el.querySelectorAll('.code > div')[9];
+    if (b < 69 || !row) T12 = null; else if (T12 == null) T12 = b;
+    if (row) { const q = row.getBoundingClientRect(); fy = lerp(fy, Math.min(fy, q.bottom + q.height + 8), io(b, T12, .25)); }
     const cut = Math.max(0, r.bottom - fy), rad = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 12;
     el.style.clipPath = cut > .5 ? 'inset(0 0 ' + cut.toFixed(1) + 'px 0 round ' + rad + 'px)' : '';
   };
-  drive(1, 68.9, 75.2, () => skClip());
+  drive(1, 68.9, 75.2, (p, b) => skClip(b));
   at(75.2, () => { const el = skillCard(decks[1].D); if (el) el.style.clipPath = ''; });
   // the merged dot is the generator: once it has backed off to 56 px left of the run card (b69.0–69.6), its wire grows from it
   // and carries pulses into the card while SKILL.md is written (no separate guide line: the dot itself was on the button)
