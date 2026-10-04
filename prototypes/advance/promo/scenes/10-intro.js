@@ -284,14 +284,16 @@ scene('10-intro', () => {
   // colour; .2 beat before the send it rounds back into its badge, which blinks as the bubble pops (c.send's light trail)
   const caretAt = (i, b0, K, S) => {
     AGD.morph(b0, i, 'caret', { hpx: (b) => 38 * (1 + .06 * AGD.beatPulse(b, K, .2)), dur: .4 });
-    AGD.morph(S - .2, i, 'dot', { dur: .2 });
+    AGD.morph(S - .2, i, 'dot', { dur: .25 });            // QA: rounds while it lifts off the box (no bar flying to its slot)
   };
   caretAt(0, BX + .12, K1, S1);
   caretAt(1, S1 + .1, K2, S2);
   // v18.7 D4: and it IS the box's caret while it types — AGD.caretRide sets it on the box caret (its bar on the caret line,
   // dx 2) from the line's first key until .2 before the send, then it glides back to its slot as it rounds into its badge
-  AGD.caretRide(0, K1[0], S1 - .2, c, { dx: 2 });
-  AGD.caretRide(1, K2[0], S2 - .2, c, { dx: 2 });
+  // QA: the ride's .25 blend-out ends at S + .05 (it used to end at S − .2, so the bar left .25 early, the last keys typed
+  // with no caret and it flew home as a bar, rounding only at its slot) — it now lifts after the last key, rounding in flight
+  AGD.caretRide(0, K1[0], S1 + .05, c, { dx: 2 });
+  AGD.caretRide(1, K2[0], S2 + .05, c, { dx: 2 });
 
   /* ---------- 1b.3 – 1c: the App icons ---------- */
   // 12 rounded tiles (88 px, dark glass, white line glyphs drawn here — no third-party marks), in ring order θ = 30k.
