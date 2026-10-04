@@ -252,20 +252,23 @@ scene('15-redesign', () => {
   // caret by K[0]) — caretRide alone only starts blending at K[0], so the first one or two characters were typed with
   // no caret and the dot still mid-air (film b19.9–20.1); the same target keeps it on the box until it lifts (the box
   // clears at send, its .car gone: the text start stands in, no snap)
-  const boxAt = (i0) => (j) => {
+  // v18.8 regress: on the caret it trails the last character (as in 10-intro: text end + r + 4, dx 21 as a badge, dx 8 as
+  // the 14 px bar, following the caret morphs) — centred on the caret (+2) the round badge covered 「请 / x / 看」 (b19.9–24.4)
+  const boxAt = (i0, w) => (j, b) => {
     if (j !== i0 || !c.el) return null;
     const car = c.el.querySelector('.car'), tx = c.el.querySelector('.tx'), st = stage.getBoundingClientRect(), z = st.width / 1920;
     const q = (car || tx)?.getBoundingClientRect(); if (!q) return null;
-    return { x: ((car ? q.left + q.width / 2 : q.left) - st.left) / z + 2, y: (q.top + q.height / 2 - st.top) / z, r: 20 };
+    const m = E.inOut(clamp((b - w.t0) / .25)) * (1 - E.inOut(clamp((b - (w.t1 - .25)) / .25)));
+    return { x: ((car ? q.left + q.width / 2 : q.left) - st.left) / z + (car ? lerp(21, 8, m) : 2), y: (q.top + q.height / 2 - st.top) / z, r: 20 };
   };
   for (const w of WIN) {
-    AGD.follow(w.w.K[0] - .45, w.t1 + .25, boxAt(w.i), { blend: .45 });
     AGD.morph(w.t0, w.i, 'caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)), dur: .25 });
     // v18.8 QA: rounds back in the box (done by t1, as it lifts), not in flight — at t1 it flew up as a capsule (film b22.1 / b23.6)
     AGD.morph(w.t1 - .25, w.i, 'dot', { ...REST(w.i), dur: .25 });                            // the caret rounds back
     // v18.7 D4 QA: as in 10-intro, the caret IS the box's caret (it used to stand as a logo-less bar in its arc slot
     // beside the box's own caret); it lifts after the last key (t1 + .25) and rounds back into its badge in flight
-    AGD.caretRide(w.i, w.w.K[0], w.t1 + .25, c, { dx: 2 });                    // = RIDE
+    AGD.caretRide(w.i, w.w.K[0], w.t1 + .25, c, { dx: 21 });                   // = RIDE
+    AGD.follow(w.w.K[0] - .45, w.t1 + .25, boxAt(w.i, w), { blend: .45 });     // after the ride: its trailing offset wins
   }
   // 「重新定义」 lands (b15.9): the arc's low ends (cc / cp) blink (was a press of their height)
   AGD.blink([0, 4], 15.9, { k: 1.08 });
