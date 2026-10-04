@@ -589,7 +589,7 @@ for k in range(7):                                                          # �
     b_ = 26.25 + 0.242 * k
     put(bell(lq(LETTERS[k], b_), 1.6), b_, 0.05 - 0.003 * k, -0.45 + 0.15 * k, to='verbsend')
     put(lead(lq(LETTERS[k], b_), (0.242 if k < 6 else 1.5) * BEAT), b_, 0.035, 0.0, to='lead')
-    put(settle(), b_, 0.04, -0.45 + 0.15 * k)                               # each letter's own small attack (v18.1)
+    put(settle(), b_, 0.05, -0.45 + 0.15 * k)                               # each letter's own small attack (v18.1; v18.6 .04 → .05, every letter a clear onset)
 put(bell(tone(26.7, 0, 60), 2.4), 26.7, 0.05, 0.0, to='verbsend')           # 「你的 AI 协作复盘助手」 floats in (b26.7)
 shimmer(26.7, 0.8, 6, 0.02)
 for k in range(7):                                                          # the letters retract, last first (b29.5, ×1.5)
@@ -654,7 +654,7 @@ put(whoosh(1.1 * BEAT), 45.0, 0.1, 0.3)                                     # th
 
 # ================= 40-recs: peel into the column, intro card, six recommendations + two counters (b38.5–63.1) — peak on the last
 section('40-recs')
-chords((39.1, 'F'), (43.1, 'G'), (45.1, 'Am'), (49.1, 'F'), (53.1, 'C'), (57.1, 'G'), (59.6, 'Am+'), (63.4, 'G'))   # film 62 … 82.5: V → deceptive Am9 on the payoff (v18.4 PO = 59.6)
+chords((39.1, 'F'), (43.1, 'G'), (45.1, 'Am'), (49.1, 'F'), (53.1, 'C'), (57.1, 'G'), (59.6, 'Am+'), (63.1, 'G'))   # film 62 … 82.5: V → deceptive Am9 on the payoff (v18.4 PO = 59.6)
 padlvl(38.5, 0.17, 2000)
 padlvl(40.0, 0.16, 1900)
 padlvl(45.1, 0.17, 2200)
@@ -712,12 +712,12 @@ put(stab(tuple(tone(63.4, j, 55) for j in range(4)), 1.4), 63.4, 0.1, 0.0, to='v
 put(settle(0.9), 59.7, 0.07, 0.15)                                          # 提高效率 wipes in orange (PO + .1)
 put(puff(0.8), 63.2, 0.045, -0.5, to='verbsend')                            # and closes into a stack (b63.2)
 put(tick(1.2), 63.175, 0.12, -0.5)                                         # v18.4 sync: the stack closes as the orb morph starts (scene 63.15–63.2, film b86.05–86.1)
-put(tick(1.3), 63.35, 0.08, 0.0)                                            # v18.4 sync: the five-badge orb face forms (film b86.25)
+put(tick(1.3), 63.6, 0.08, 0.0)                                             # v18.6 the column has closed into one circle (film b86.5)
 put(tick(1.0), 63.8, 0.04, -0.5)                                            # the stack hands on to the merge (b63.8)
 
 # ================= 50-tools: merge, session trajectory, studio (b55.0–75.2)
 section('50-tools')
-chords((55.1, 'Am'), (59.1, 'F'), (62.1, 'G'), (65.0, 'C'), (68.6, 'F'), (71.1, 'G'), (73.6, 'C'))   # 验证 ✓ and done land on I
+chords((55.3, 'Am'), (59.3, 'F'), (62.3, 'G'), (64.8, 'C'), (68.8, 'F'), (71.3, 'G'), (73.3, 'C'))   # 验证 ✓ and done land on I; v18.6 on the film's half-beat grid (SHIFT 31.7: film 87 / 91 / 94 / 96.5 / 100.5 / 103 / 105)
 padlvl(55.0, 0.16, 1700)
 padlvl(62.3, 0.17, 1900)
 padlvl(65.0, 0.17, 2100)
@@ -726,7 +726,7 @@ padlvl(68.8, 0.17, 2000)
 put(whoosh(1.4 * BEAT, down=True), 55.0, 0.24, 0.0)                         # five dots merge into one
 put(whoosh(0.8 * BEAT), 54.6, 0.08, -0.2)                                   # v18.4 the trajectory track grows out (film b86.5)
 put(tick(1.0), 54.8, 0.045, -0.2)
-groove(55.0, 68.8, style='half', lvl=0.82, arp16=True, bed=0.2)             # v17.7 half time under the trajectory …
+groove(55.0, 68.8, style='half', lvl=0.86, arp16=True, bed=0.2)             # v17.7 half time under the trajectory (v18.6 .82 → .86: never under v17.7) …
 groove(68.8, 73.75, lvl=0.9, arp16=True)                                    # … four on the floor from the press …
 groove(73.75, 75.2, style='half', lvl=0.86, arp16=True, bed=0.2)            # … easing after done ✓
 peak(73.75, 'C', 0.8, 0.5)                                                  # the second core feature's peak: done ✓ (film b105.45)
@@ -748,7 +748,7 @@ put(swell(1.2 * BEAT), 62.65, 0.08)                                         # �
 for j, g in enumerate((0.08, 0.05)):                                        # 验证 ✓ (b65.0): C-chord bell
     put(bell(tone(65.0, 2 * j + 1, 72), 1.8), 65.0, g, 0.3, to='verbsend')
 put(puff(), 65.0, 0.03, 0.3, to='verbsend')
-put(tick(1.0), 66.6, 0.05, 0.2)                                           # v18.5 the orb leaves the playhead (b66.6)
+put(tick(1.5), 66.6, 0.09, 0.2)                                           # v18.5 the orb leaves the playhead (b66.6)
 put(whoosh(0.55 * BEAT), 66.6, 0.04, 0.2)
 put(whoosh(1.4 * BEAT), 67.0, 0.1, -0.3)                                    # trajectory out, studio in (b67.1 / 67.3)
 put(tick(1.0), 67.25, 0.05, -0.3)                                           # v18.3: the old accent leaves (b67.25)
@@ -773,13 +773,15 @@ for k in range(1, 26):                                                      # SK
 for j, g in enumerate((0.1, 0.07, 0.045)):                                  # ✓ done (b73.75): C-chord bell
     put(bell(tone(73.75, 2 * j, 72), 2.0), 73.75, g, 0.1, to='verbsend')
 put(whoosh(1.1 * BEAT), 73.9, 0.06, 0.2)                                    # the cards shrink into the dot (b73.9)
+put(tick(0.9), 74.2, 0.05, -0.2)                                            # v18.6 the 04 title leaves (b74.2)
+put(tick(1.2), 67.58, 0.06, 0.1)                                            # v18.6 the card lands in the circle (blink 67.55), 04 headline 67.57, button 67.6
 put(hp(swell(0.45 * BEAT), 1500), 73.9, 0.2, 0.0)                           # v18.5 SKILL.md is sucked into the orb (film b105.6–106.05): a short bright rise …
 put(lp(kick(0.3, 0.7), 500), 74.35, 0.2, to='kick')                          # … and lands hard (film b106.0)
 put(press(), 74.35, 0.12, 0.0)
 
 # ================= 60-close: ring → compass → ring → the curve is drawn → 45° icon → wordmark → tagline → fade (b69.2–94.8)
 section('60-close')
-chords((69.1, 'F'), (71.1, 'Am'), (75.6, 'F'), (78.6, 'G'), (TURN0 + 0.1, 'C+'), (TURN0 + 3.8, 'F/C'), (TURN0 + 5.4, 'G'), (TURN0 + 6.04, 'C+'))   # v18.3 V → I lands on agent ✓4   # IV → V → I onto the wordmark
+chords((68.8, 'F'), (70.8, 'Am'), (75.3, 'F'), (78.3, 'G'), (TURN0 - 0.1, 'C+'), (TURN0 + 3.9, 'F/C'), (TURN0 + 5.4, 'G'), (TURN0 + 6.04, 'C+'))   # v18.6 on the film's half-beat grid (SHIFT 37.7: film 106.5 / 108.5 / 113 / 116 / 118 / 122 / 123.5), the last on agent ✓4   # v18.3 V → I lands on agent ✓4   # IV → V → I onto the wordmark
 padlvl(69.2, 0.17, 1700)
 padlvl(71.04, 0.18, 2000)
 padlvl(75.6, 0.15, 1500)
@@ -806,7 +808,7 @@ motif(75.6, 0.06, notes=Q_N, times=Q_T, held=1.0)                            # v
 put(lead(lq(88, 80.2), 1.6 * BEAT), 80.2, 0.06, 0.0, to='lead')             # E6 as the icon stands, handed to the boom
 put(swell(1.2 * BEAT), 74.2, 0.18)                                          # it folds back into the ring
 put(whoosh(1.0 * BEAT), 75.3, 0.06, 0.3)                                    # the dots fly onto the pen head
-groove(75.4, 80.2, kick_on=False, clap_on=False, lvl=0.74, bed=0.18)        # the pulse stays, the floor drops out
+groove(75.4, 80.2, kick_on=False, clap_on=False, lvl=0.84, bed=0.2)         # the pulse stays, the floor drops out (v18.6 .74 → .84, bed .2: never under v17.7)
 put(sweep_pad(tuple(m + 12 for m in CH['F'][0]), 3.0 * BEAT, 0.4 * BEAT), 75.6, 0.12, to='verbsend')   # the curve is drawn
 arp(75.6, 78.6, 0.5, 0.055, base=67, span=6, accel=0.25)                    # (b75.6–78.6): a rising swell following the stroke
 put(riser(3.0 * BEAT, 300, 5000), 75.6, 0.14, to='verbsend')
@@ -821,11 +823,11 @@ LAST = TAG0 + 1.4 + 0.64                                                    # ag
 TD = 0.0                                                                     # K.words hard-cuts each tagline word at TAG0 + .2 k (2 frames); the agent row morphs at TAG_AG + .16 k
 put(boom(2.4, 48, 28), 80.2, 0.2, to='verbsend')                            # the icon stands (b80.2)
 put(stab(tuple(tone(80.2, j, 62) for j in range(4)), 1.6), 80.2, 0.1, to='verbsend')
-groove(80.2, TURN0 + 0.1, style='half', clap_on=False, lvl=0.7, bed=0.18)  # it breathes in the centre
+groove(80.2, TURN0 + 0.1, style='half', clap_on=False, lvl=0.76, bed=0.18)  # it breathes in the centre (v18.6 .7 → .76)
 put(swell(0.5 * BEAT), TURN0 - 0.4, 0.3)
 peak(TURN0 + 0.1, 'C+', 0.85, 0.8)                                          # the kit reveal turn (film b118.2) — under the two feature peaks
 put(lead(lq(84, TURN0 + 0.1), 2.3 * BEAT), TURN0 + 0.1, 0.05, 0.0, to='lead')   # v18.3 C held from the turn into the letters (LET0)
-groove(TURN0 + 0.1, LAST, lvl=0.78, arp16=True, bed=0.18)                  # the groove runs under the end card to agent ✓4 (v17.7 .74, +.04 so it never sits under v17.7)
+groove(TURN0 + 0.1, LAST, lvl=0.82, arp16=True, bed=0.18)                  # the groove runs under the end card to agent ✓4 (v17.7 .74, +.04 so it never sits under v17.7)
 breath(LAST, CLOSE_END)
 put(kick(0.6, 1.0), LAST, 0.7, to='kick')                                   # the final button
 put(crash(3.0), LAST, 0.12, 0.15)
@@ -874,6 +876,17 @@ def m_low(m, d):
     return (np.sin(2 * np.pi * f * t) + 0.3 * np.sin(2 * np.pi * 2 * f * t)) * env
 
 
+def m_blink(m, d=0.32):
+    """v18.6 R2 「圆形 + 闪烁」: a dot blinks (soft glow flash + ≤ 1.12 pulse) — a short airy chord-tone ping, v17.6 style:
+    a sine + soft octave with an 6 ms rise and a quick decay, under a 60 ms breath of air. No tail, no whoosh."""
+    t = tt(d)
+    f = midi(m)
+    env = np.clip(t / 0.006, 0, 1) * np.exp(-t * 16)
+    tone_ = (np.sin(2 * np.pi * f * t) + 0.25 * np.sin(2 * np.pi * 2 * f * t)) * env
+    air = bp(noise(d), 4000, 10000) * np.sin(np.pi * np.clip(t / 0.06, 0, 1)) ** 2 * 0.35
+    return tone_ + air
+
+
 def mcue(b, kind, i=0):
     pan = (-0.5, 0.3, -0.2, 0.5, 0.0)[i % 5]
     if kind == 'bell':                                       # a single morph: a light high bell on a chord tone
@@ -888,6 +901,8 @@ def mcue(b, kind, i=0):
         for k in range(5):
             bk = b + 0.12 * k
             put(blip(tone(bk, k % 4, 88), 0.15), bk, 0.011 * (1 - 0.12 * k), -0.4 + 0.2 * k, to='morph')
+    elif kind in ('blink', 'blink+'):                        # v18.6 a dot (or all five) blinks: one soft chord-tone ping
+        put(m_blink(tone(b, (i + 2) % 4, 84)), b, 0.034 if kind == 'blink' else 0.06, pan, to='morph')   # blink+: the one circle (50-tools), over the half-time bed
     elif kind == 'low':                                      # orb split / merge
         put(m_low(tone(b, 0, 36), 1.4 * BEAT), b - 0.3 if b + SH >= 0.3 else b, 0.05, 0.0, to='morph')
 
@@ -902,12 +917,18 @@ def mcues(spec):
 
 
 section('10-intro')
-mcues([(0.2, 'low'), (0.35, 'air'), (1.46, 'pluck'), (1.91, 'pluck'), (2.45, 'click'), (6.75, 'bell'), (7.12, 'air'), (7.35, 'pluck'),
-       (8.0, 'air'), (8.3, 'air'), (8.55, 'air'), (8.65, 'air'), (9.18, 'air'), (9.48, 'air'), (9.95, 'air'),
-       (10.3, 'air'), (10.56, 'air'), (11.15, 'spark'), (11.65, 'bell'), (13.0, 'air')])
+mcues([(0.2, 'low'), (0.62, 'blink'), (1.5, 'blink'), (1.95, 'blink'), (2.45, 'blink'), (6.95, 'blink'), (7.0, 'blink'),
+       (7.32, 'pluck'), (7.85, 'blink'), (8.1, 'blink'), (8.8, 'blink'), (S1 + 0.15, 'blink'), (S1 + 0.1, 'pluck'),
+       (10.1, 'blink'), (10.45, 'blink'), (S2 + 0.15, 'blink'), (11.35, 'blink'), (11.7, 'blink'), (13.0, 'air')])
+# v18.6 R1/R2: the opening ONE circle swells low (0.2); every dot event is a blink (round + flash, no tails): the landing
+# (0.62), cp on 「成为」「每个人的」, all on 「日常」, cx on 「从」, the box growing (7.0), each bubble pop (T(6.05) / T(6.3) /
+# 7.85 / 8.8 / sends + .15 / 10.1 / 10.45), the icon burst (11.35) and the box sinking (T(9.3) = 11.7); the caret takes
+# a dot on BX + .12 and S1 + .1 (a dry pluck)
 section('15-redesign')
-mcues([(11.8, 'air'), (12.2, 'bell'), (13.72, 'pluck'), (14.4, 'air'), (15.9, 'click'), (19.85, 'bell'), (20.4, 'pluck'),
-       (21.0, 'air'), (22.5, 'air'), (22.9, 'air'), (23.3, 'air'), (23.6, 'spark')])   # v18.2: circle from the beads b21.0, bead steps on CUT, glow CUT[2] + .3
+mcues([(11.8, 'air'), (12.04, 'pluck'), (12.36, 'blink'), (12.75, 'pluck'), (13.95, 'blink'), (14.1, 'blink'), (14.35, 'pluck'),
+       (14.55, 'blink'), (15.08, 'blink'), (15.41, 'blink'), (15.6, 'pluck'), (15.9, 'blink'), (16.25, 'blink'), (16.5, 'blink'),
+       (16.73, 'blink'), (16.93, 'blink'), (17.12, 'blink'), (20.42, 'blink'),
+       (21.0, 'air'), (22.5, 'air'), (22.9, 'air'), (23.3, 'air'), (23.6, 'spark')])   # v18.6 R2: caret falls (11.8) → round dots (12.04) → blinks on every pop / send / landing; the 1e beads (21.0–23.6) unchanged   # v18.2: circle from the beads b21.0, bead steps on CUT, glow CUT[2] + .3
 section('20-orbit')
 mcues([(21.6, 'air'), (23.3, 'bell'), (25.25, 'pluck'), (26.25, 'air'), (26.7, 'air'), (30.45, 'pluck'),
        (32.1, 'bell'), (33.0, 'spark')])
@@ -921,19 +942,19 @@ section('40-recs')
 mcues([(39.5, 'pluck'), (39.64, 'pluck'), (39.78, 'pluck'), (40.52, 'air'), (40.66, 'air'),
        (41.6, 'air'), (42.7, 'air'), (43.8, 'air')]
       + [x for e in EV for x in ((e - 0.4, 'pluck'), (e + 0.4, 'air'))]   # pill out, ✓ tick (v18.5 on the 2.6-beat EV grid)
-      + [(62.8, 'air')])                                                     # v18.2: bullets → round badges (b62.8)
+      + [(62.8, 'air'), (63.6, 'low')])                                     # v18.6 R1: the column closes into ONE circle (b63.6)                                                     # v18.2: bullets → round badges (b62.8)
 section('50-tools')
-mcues([(55.3, 'low'), (56.2, 'air'), (56.9, 'low'), (57.1, 'pluck'), (57.65, 'click'), (59.85, 'click'), (62.15, 'click'),
-       (64.85, 'click'), (67.6, 'bell'), (68.8, 'click'), (68.95, 'spark'), (73.75, 'low')])
+mcues([(55.3, 'low'), (56.35, 'blink+'), (57.45, 'blink+'), (59.65, 'blink+'), (61.95, 'blink+'), (64.65, 'blink+'),
+       (67.58, 'blink+'), (68.8, 'click'), (74.3, 'blink+')])   # v18.6 R1: one circle — wire out, the four pins (KN − .35), card in, press, SKILL.md in
 section('60-close')
-mcues([(69.2, 'low')] + [(69.5 + 0.06 * k, 'air') for k in (0, 2, 4)]
+mcues([(69.2, 'low')] + [(69.5 + 0.06 * k, 'blink') for k in range(5)]   # v18.6 the five open out of the circle and blink in turn
       + [(71.95, 'bell')] + [(72.64 + 0.12 * k, 'air') for k in range(5)]
       + [(75.55, 'pluck'), (78.6, 'bell'), (79.1, 'air')]
       + [(TURN0 + 2.475 + 0.2 * k, 'air') for k in range(5)]
       + [(TURN0 + 5.4 + 0.16 * k, 'air') for k in range(5)]
       )
-put(m_low(tone(FADE0, 0, 36), 1.4 * BEAT), FADE0 - 0.3, 0.022, 0.0, to='morph')   # the final merge, softer: the groove has stopped
-MCUES.append((SCENE, [FADE0 + SH]))
+put(m_low(tone(FADE0, 0, 36), 1.4 * BEAT), FADE0 + 0.45, 0.022, 0.0, to='morph')   # the final merge into ONE circle (b92.9), softer: the groove has stopped
+MCUES.append((SCENE, [FADE0 + 0.7 + SH]))
 
 
 # ---------------- render the grid layers: groove, pads ----------------
