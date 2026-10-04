@@ -260,9 +260,11 @@ scene('60-close', () => {
   });
   // v17.7 H17：不再原地缩小——五点在约 1 拍内向行中心合成 orb（r 30，与开场 b0.2 的 orb 同大），再与字标、标语一起淡到全黑
   // v18.7 D2：合成的是 17 系列的合并徽章（cc logo 徽章 + 五色弧）——AGD.seal：各点飞向行中心时变回自己的弧、贴到 cc 徽章边上
-  AGD.key(FADE0, 'merge', { x: 960, y: 752, r: (b) => lerp(16, 30, E.inOut(lp(b, FADE0 + .45, .55))), a: (b) => 1 - E.inOut(lp(b, FADE0 + .3, 1.5)), dur: .85, stag: .04, spin: 6 });
-  AGD.seal(FADE0 + .25, .6);
-  AGD.morph(FADE0 + .84, 0, 'orb', { dur: .01 });
+  // QA：原 .6 拍 inOut seal + .85 拍 inOut 合拢叠在一起，四枚徽章在约 1 帧内（b92.6–92.7）同时消失 = 跳变；改为 merge 先快后缓（E.out）、
+  // seal 1 拍正弦，徽章与弧在约 .6 拍内可见地收拢；淡出改为 b93.1 起 .9 拍（仍止于 b94.0），合并徽章完整可见约 .2 拍
+  AGD.key(FADE0, 'merge', { x: 960, y: 752, r: (b) => lerp(16, 30, E.inOut(lp(b, FADE0 + .5, .8))), a: (b) => 1 - E.inOut(lp(b, FADE0 + .9, .9)), dur: 1.0, stag: .04, ease: E.out, spin: 6 });
+  AGD.seal(FADE0 + .25, 1.0, { ease: E.sine });
+  AGD.morph(FADE0 + 1.24, 0, 'orb', { dur: .01 });
 
   /* ---------- 标志：画曲线 → 45° 图标 → 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
   // 白线 = App 图标黑夜版（#fff）；字标 = 深色底的香槟黄 #d6c7a1（brand.md），转身 v 0 → 1 时由白过渡到香槟黄
