@@ -523,7 +523,8 @@ put(swell(0.6 * BEAT), 10.75, 0.32)                                         # b1
 arp(11.35, 11.75, 0.0333, 0.07, base=72, span=6)                            # one quick upward chord run as they spray
 put(pad(CH['C'][0], 1.6 * BEAT, 2800, 0.1, 0.8), 11.35, 0.07, to='verbsend')
 shimmer(11.6, 1.0, 8, 0.025)                                                # the halo draws in (b11.6–12.6)
-put(whoosh(0.9 * BEAT), 12.95, 0.13, 0.3)                                    # v18.4 the dot slides left into the caret (b13.05–13.65), one long whoosh
+put(whoosh(0.9 * BEAT), 12.95, 0.13, 0.3)
+put(tick(1.1), 12.95, 0.035, 0.3)                                           # v18.8 the slide's start reads (whoosh alone onsets late)                                    # v18.4 the dot slides left into the caret (b13.05–13.65), one long whoosh
 groove(13.2, 18.7, lvl=0.82)
 for k, b_ in enumerate((13.65, 14.3, 14.8, 15.3)):                          # We (v18.5 b13.65) / Are / Redesigning / Everything
     put(stab(tuple(tone(b_, j, 60) for j in range(3)) + (tone(b_, k, 67),), 0.7 if k < 3 else 1.4), b_, 0.17 + 0.02 * k, -0.15 + 0.1 * k, to='verbsend')
@@ -556,7 +557,7 @@ put(puff(0.8), 12.5, 0.04, 0.0, to='verbsend')                              # th
 put(tick(1.0), 12.5, 0.06, -0.1)
 put(blip(tone(12.5, 0, 72), 0.4), 12.5, 0.07, -0.1, to='verbsend')
 put(swell(0.5 * BEAT), 12.35, 0.14)                                         # v18.5 「但，」 blurs in from film b19.25: a soft attack, no hit …
-put(bell(tone(12.35, 0, 69), 1.6), 12.31, 0.055, 0.0, to='verbsend')      # v18.7 .035 → .055: 「但，」 rises out of the dots (film b19.25)
+put(bell(tone(12.35, 0, 69), 1.6), 12.37, 0.055, 0.0, to='verbsend')      # v18.7 .035 → .055; v18.8 12.31 → 12.37: 「但，」 now rises from b12.4 (film 19.3)
 put(pluck(tone(12.85, 0, 72), 0.5), 12.85, 0.07, 0.0, to='verbsend')      # v18.7 「但，」 whole: a clear pitched onset
 put(kick(0.35, 0.6), 12.85, 0.15, to='kick')                                 # … and settles alone, the dots flinch (softer)
 put(stab(tuple(tone(12.8, j, 57) for j in range(3)), 0.9), 12.85, 0.08, 0.0, to='verbsend')
@@ -569,6 +570,7 @@ keys(type_on(12.95, '请你修改', 41) + type_on(14.55, 'fix', 42)             
 for b_ in (13.95, 15.26, 16.78):                                            # sends: a fuller press
     send_key(b_)
 FIX = [14.1, 14.55, 15.08, 15.41, 15.96, 16.25, 16.5, 16.73, 16.93, 17.12]
+put(tick(1.4), 15.41, 0.16, 0.2)                                            # v18.8 gm's blink sits .15 after the send: a click so it reads
 for k, b_ in enumerate(FIX):                                                # corrections pile up: denser, a touch brighter
     put(puff(1.0 + 0.04 * k), b_, 0.055 + 0.004 * k, -0.6 + 0.12 * (k % 11), to='verbsend')
 words((15.1,), 0.08)                                                        # 「也需要被」
@@ -661,11 +663,12 @@ put(tick(0.9), 27.92, 0.04, 0.3)                                          # v18.
 put(settle(0.8), 28.4, 0.05, 0.0)                                           # v18.2: the dial settles (b28.4)
 roll(28.6, 5, 0.06, 0.25, 64, 1.2)                                          # the bud slows and lands (b29.6)
 words((28.97,), 0.08)                                                       # 「读懂你的 Agent 协作人格」 masks in (b29.0)
-put(tick(1.0), 29.0, 0.05, -0.1)
+put(tick(1.0), 29.0, 0.09, -0.1)
 for k in range(15):                                                         # 从每个会话里，认出你的协作方式 decodes (15 chars, .04 apart)
     put(key_click(), 29.1 + 0.04 * k, 0.025, 0.2)
 put(whoosh(1.4 * BEAT), 32.8, 0.1, -0.3)                                    # the compass slides left (b32.8–34.2)
 put(whoosh(0.5 * BEAT), 33.8, 0.04, 0.4)                                    # a link draws to the column
+put(settle(0.9), 34.2, 0.05, -0.3)                                          # v18.8 the title docks top-left (b32.8–34.2, film b51.1)
 shimmer(34.3, 0.96, 10, 0.02)                                               # the sectors flash in turn
 for k, tk in enumerate((35.88, 37.09, 38.30, 39.52)):                       # each letter tile locks: a tick + a chord tone
     for j in range(5):
@@ -713,6 +716,7 @@ for r, b_ in enumerate((39.85, 39.99, 40.13)):                              # ea
     put(pluck(tone(b_, 2 + r, 67), 0.8), b_, 0.07, -0.2 + 0.2 * r, to='verbsend')
 put(bell(tone(40.0, 4, 72), 2.4), 40.0, 0.05, 0.0, to='verbsend')
 shimmer(40.1, 0.8, 6, 0.018)
+put(tick(1.2), 40.2, 0.045, -0.2)                                           # v18.8 the flower lands on cc (match cut MC1 = 40.2)
 for w in (41.6, 42.7, 43.8):                                                # the column breathes in three soft waves
     roll(w, 5, 0.02, 0.12, 72, 1.2, soft=True)
 put(whoosh(1.1 * BEAT), 44.5, 0.06, -0.3)                                   # the card moves into the eyebrow slot
@@ -761,7 +765,10 @@ padlvl(67.3, 0.16, 1800)
 padlvl(68.8, 0.17, 2000)
 put(whoosh(1.4 * BEAT, down=True), 55.0, 0.24, 0.0)                         # five dots merge into one
 put(whoosh(0.8 * BEAT), 54.6, 0.08, -0.2)                                   # v18.4 the trajectory track grows out (film b86.5)
-put(tick(1.0), 54.8, 0.045, -0.2)
+put(tick(1.0), 54.85, 0.045, -0.2)                                          # v18.8 the card grows from b54.85 (film 86.55)
+put(settle(), 55.6, 0.05, -0.2)                                             # v18.8 「回放每一次协作」 while the card still grows (b55.6)
+put(tick(1.2), 55.6, 0.05, -0.2)
+put(tick(1.1), 56.0, 0.04, -0.2)                                            # v18.8 the accent line (b56.0)
 groove(55.0, 68.8, style='half', lvl=0.86, arp16=True, bed=0.26)            # v17.7 half time under the trajectory (v18.6 .82 → .86: never under v17.7) …
 groove(68.8, 73.75, lvl=1.0, arp16=True)                                    # … four on the floor from the press …
 groove(73.75, 75.2, lvl=1.2, arp16=True, bed=0.24)                          # … v18.7 the floor stays four through done ✓ (the peak no longer eases into half time)
@@ -788,10 +795,11 @@ put(swell(1.2 * BEAT), 62.65, 0.08)                                         # �
 for j, g in enumerate((0.08, 0.05)):                                        # 验证 ✓ (b65.0): C-chord bell
     put(bell(tone(65.0, 2 * j + 1, 72), 1.8), 65.0, g, 0.3, to='verbsend')
 put(puff(), 65.0, 0.03, 0.3, to='verbsend')
-put(tick(1.5), 66.6, 0.09, 0.2)                                           # v18.5 the orb leaves the playhead (b66.6)
+put(tick(1.5), 66.6, 0.14, 0.2)
+put(tick(1.2), 57.45, 0.05, 0.1)                                            # v18.8 pin 1 (KN − .35): the blink alone sat under the groove                                           # v18.5 the orb leaves the playhead (b66.6)
 put(whoosh(0.55 * BEAT), 66.6, 0.04, 0.2)
 put(whoosh(1.4 * BEAT), 67.0, 0.1, -0.3)                                    # trajectory out, studio in (b67.1 / 67.3)
-put(tick(1.0), 67.25, 0.05, -0.3)                                           # v18.3: the old accent leaves (b67.25)
+put(tick(1.0), 67.25, 0.08, -0.3)                                           # v18.3: the old accent leaves (b67.25)
 put(settle(1.0), 67.61, 0.14, 0.1)                                          # v18.4 one landing for 「04 · 生成工坊」 (b67.57), 开始生成 growing (67.6) and the card in the orb (67.65)
 put(puff(0.9), 67.75, 0.065, 0.3, to='verbsend')                             # the new accent comes in (b67.75)
 put(tick(1.3), 67.76, 0.2, 0.3)                                           # v18.5 one click between the accent (67.75) and the button's full fill (67.8)
@@ -825,6 +833,7 @@ put(tick(1.2), 67.58, 0.06, 0.1)                                            # v1
 put(hp(swell(0.45 * BEAT), 1500), 73.9, 0.2, 0.0)                           # v18.5 SKILL.md is sucked into the orb (film b105.6–106.05): a short bright rise …
 put(lp(kick(0.3, 0.7), 500), 74.35, 0.2, to='kick')                          # … and lands hard (film b106.0)
 put(press(), 74.35, 0.12, 0.0)
+put(tick(1.2), 74.35, 0.06, 0.0)                                            # v18.8 a clear top on the SKILL.md intake (film b106.05)
 
 # ================= 60-close: ring → compass → ring → the curve is drawn → 45° icon → wordmark → tagline → fade (b69.2–94.8)
 section('60-close')
@@ -989,9 +998,10 @@ mcues([(0.2, 'low'), (0.82, 'blink'), (1.5, 'blink'), (1.95, 'blink'), (2.45, 'b
 # v18.7 D1/D2: the merged 17-series badge opens from 0.35 (the 0.2 swell carries it), the four land-blink at 0.82 (was .62);
 # the caret ride-ins (cc on K1[0] = 7.2, cx on K2[0] ≈ 9.55) take the dry pluck; lift + round (S + .05) sits in the send blink
 section('15-redesign')
-mcues([(11.8, 'air'), (12.04, 'pluck'), (12.36, 'blink!'), (12.75, 'pluck'), (13.95, 'blink!'), (14.1, 'blink!'), (14.35, 'pluck'),
-       (14.55, 'blink!'), (15.08, 'blink!'), (15.41, 'blink!'), (15.6, 'pluck'), (15.9, 'blink!'), (16.25, 'blink!'), (16.5, 'blink!'),
-       (16.73, 'blink!'), (16.93, 'blink!'), (17.12, 'blink!'), (20.42, 'blink'),
+mcues([(11.8, 'air'), (12.04, 'pluck'), (12.36, 'blink!'), (12.95, 'pluck'), (13.95, 'blink!'), (14.1, 'blink!'), (14.55, 'pluck'),
+       (14.55, 'blink!'), (15.08, 'blink!'), (15.41, 'blink!'), (15.8, 'pluck'), (15.9, 'blink!'), (16.25, 'blink!'), (16.5, 'blink!'),
+       (16.73, 'blink!'), (16.93, 'blink!'), (17.12, 'blink!'), (17.15, 'pluck'), (20.42, 'blink'),   # v18.8 the typing badge lands in the box on its first key K[0] (flies in from K[0] − .45)
+      
        (21.0, 'air'), (22.5, 'air'), (22.9, 'air'), (23.3, 'air'), (23.6, 'spark')])   # v18.6 R2: caret falls (11.8) → round dots (12.04) → blinks on every pop / send / landing; the 1e beads (21.0–23.6) unchanged   # v18.2: circle from the beads b21.0, bead steps on CUT, glow CUT[2] + .3
 section('20-orbit')
 mcues([(21.6, 'air'), (23.3, 'bell'), (25.25, 'pluck'), (26.25, 'air'), (26.7, 'air'), (30.45, 'pluck'),
@@ -1006,7 +1016,7 @@ section('40-recs')
 mcues([(39.5, 'blink'), (39.64, 'blink'), (39.78, 'blink'),
        (41.6, 'blink'), (42.7, 'blink'), (43.8, 'blink')]                # v18.7 D1: intro rows and the three waves blink (no bullets)
       + [x for e in EV for x in ((e - 0.4, 'blink'), (e + 0.4, 'air'))]  # the linked badge blinks, ✓ tick beside it (2.6-beat EV grid)
-      + [(63.5, 'low')])                                                   # v18.7 D2: cc grows the five arcs (b63.2–63.65): the swell starts on 63.2                                     # v18.6 R1: the column closes into ONE circle (b63.6)                                                     # v18.2: bullets → round badges (b62.8)
+      + [(63.3, 'blink'), (63.5, 'low')])   # v18.8 cc blinks as the payoff gathers into it (POUT − .2)                                                   # v18.7 D2: cc grows the five arcs (b63.2–63.65): the swell starts on 63.2                                     # v18.6 R1: the column closes into ONE circle (b63.6)                                                     # v18.2: bullets → round badges (b62.8)
 section('50-tools')
 mcues([(55.3, 'low'), (56.35, 'blink+'), (57.45, 'blink+'), (59.65, 'blink+'), (61.95, 'blink+'), (64.65, 'blink+'),
        (67.58, 'blink+'), (69.9, 'blink+'), (74.3, 'blink+')]   # v18.7: the press is press() + kick (no pointer knock); the wire leaves at 69.9 (was 69.35)
