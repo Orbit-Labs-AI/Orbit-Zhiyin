@@ -150,13 +150,15 @@ scene('60-close', () => {
      · 花开到位（b71.95）五点一起朝花心收成 petal（hold .3，同 3 的合拢），类型码全亮 b72.64 起 glow 顺时针扫过（cc cx ds cp gm）
      · 收回圆环（b74.3–74.9）dot → bead，rot 取圆环切线（同 1e 穿在 R 300 圆环上的样子） */
   const DEG = 180 / Math.PI, CW = [0, 1, 3, 4, 2];
+  AGD.noStretch(HB, HB + 2.2);                                // v18.6：螺旋途中不做速度拉伸，点始终是圆徽章
   AGD.morph(HB, 0, 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01 });  // v18.2：cc 第一帧就在自己的小徽章处、同大小；orb 的外壳交给下面的 AGD.back 张开淡掉   // QA：不走 'dot'（会混入 orb，b106.3 缩小的 orb 里 5 枚小徽章与点 1–4 叠成重影），cc logo 随 orb 缩到 .3R 淡入，不再留一颗无 logo 的空圆盖住点 1–4
   // 点 1–4 拆开时就是普通圆徽章（'bead' 参数写成与 dot 完全相同）：'dot' 在 merged > 0 时会混入 orb，各点自带 5 枚小徽章与色弧、
   // 叠在 orb 上成一团重影；用不触发 orb 混合的同形写法，它们从 orb 里的小徽章原样长出
   AGD.morph(HB, [1, 2, 3, 4], 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01, stag: 0 });
   for (let i = 0; i < 5; i++) {
     // v18.1：彗星头保持圆徽章的大小（h 2、圆头 rad 1、logo ls 1 在圆头中心），只在身后多出尾巴
-    AGD.morph(HB + .3 + .06 * i, i, 'head', { dur: .4, glow: .35, w: 3.9, h: 2, rad: 1, ls: 1, lx: .95 });
+    // v18.6：不再变 head 拖尾（b107.4 三颗药丸叠成一团）——保持圆徽章，冒出后依次闪一下（圆形 + 闪烁），身后的圆弧就是轨迹
+    AGD.blink(i, HB + .3 + .06 * i, { dur: .3, k: 1.08 });
     AGD.morph(HB + 1.15 + .06 * i, i, 'dot', { dur: .45 });
   }
   AGD.morph(71.95, 'all', 'petal', { dur: .45, stag: 0, aim: PC, ls: .95, hold: .3, back: .55 });
@@ -249,6 +251,8 @@ scene('60-close', () => {
     AGD.glow(i, TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .5);
   });
   // v17.7 H17：不再原地缩小——五点在约 1 拍内向行中心合成 orb（r 30，与开场 b0.2 的 orb 同大），再与字标、标语一起淡到全黑
+  // v18.6 R1：五点叠到一起时各自的 logo 先淡掉（.35 拍），合成的是一个干净的圆（深色圆盘 + 五色弧环），不再透出 cc 的 logo
+  AGD.morph(FADE0 + .35, 'all', 'dot', { la: 0, dur: .35, stag: 0 });
   AGD.key(FADE0, 'merge', { x: 960, y: 752, r: (b) => lerp(16, 30, E.inOut(lp(b, FADE0 + .45, .55))), a: (b) => 1 - E.inOut(lp(b, FADE0, 1.8)), dur: .85, stag: .04, spin: 6 });
 
   /* ---------- 标志：画曲线 → 45° 图标 → 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
