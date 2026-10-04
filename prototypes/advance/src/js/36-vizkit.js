@@ -1135,9 +1135,10 @@ VZ.delta2 = function (d) {
   return { text: (flat ? '± 0' : (diff > 0 ? '▲ ' : '▼ ') + mag) + (d.prevText === false ? '' : ' · 上期 ' + prev), cls: good == null ? '' : good ? 'vz-good' : 'vz-bad', diff };
 };
 // KPI tile：{ label, value, unit, delta（见 VZ.delta2）, trend: [n], trendLabel（迷你线周期，如「近 12 周」）, sub, act, attrs, tip, tf, cls }
+// trendLabel 只说明迷你线：没有可画的趋势（trend 为空 / 全为 null）时不显示，免得「36 近 12 周」读成 12 周的总数
 VZ.kpi = function (o) {
-  const d = VZ.delta2(o.delta);
-  return '<' + (o.act ? 'button type="button"' : 'div') + ' class="card tile vz-kpi' + (o.cls ? ' ' + o.cls : '') + '"' + (o.act ? ' data-act="' + esc(o.act) + '"' + (o.attrs || '') : '') + (o.tip ? ' data-tip="' + esc(o.tip) + '"' : '') + (o.tf ? ' data-tf="' + esc(o.tf) + '"' : '') + '><span class="row vz-kpi-h"><span class="vz-kpi-l">' + esc(o.label) + '</span>' + (o.trend ? VZ.spark(o.trend, Object.assign({ w: 80, h: 24, label: o.trendLabel ? o.label + '：' + o.trendLabel : null }, o.sparkOpt || {})) : '') + '</span><span class="row vz-kpi-v"><span class="v">' + esc(o.value) + '</span>' + (o.unit ? '<span class="vz-kpi-u">' + esc(o.unit) + '</span>' : '') + (o.trendLabel ? '<span class="vz-kpi-p">' + esc(o.trendLabel) + '</span>' : '') + '</span><span class="vz-kpi-d ' + (d ? d.cls : '') + '">' + (d && d.text ? esc(d.text) : (o.sub ? esc(o.sub) : '&nbsp;')) + '</span></' + (o.act ? 'button' : 'div') + '>';
+  const d = VZ.delta2(o.delta); const tl = o.trendLabel && (o.trend || []).some((v) => VZ.num(v) != null) ? o.trendLabel : null;
+  return '<' + (o.act ? 'button type="button"' : 'div') + ' class="card tile vz-kpi' + (o.cls ? ' ' + o.cls : '') + '"' + (o.act ? ' data-act="' + esc(o.act) + '"' + (o.attrs || '') : '') + (o.tip ? ' data-tip="' + esc(o.tip) + '"' : '') + (o.tf ? ' data-tf="' + esc(o.tf) + '"' : '') + '><span class="row vz-kpi-h"><span class="vz-kpi-l">' + esc(o.label) + '</span>' + (o.trend ? VZ.spark(o.trend, Object.assign({ w: 80, h: 24, label: o.trendLabel ? o.label + '：' + o.trendLabel : null }, o.sparkOpt || {})) : '') + '</span><span class="row vz-kpi-v"><span class="v">' + esc(o.value) + '</span>' + (o.unit ? '<span class="vz-kpi-u">' + esc(o.unit) + '</span>' : '') + (tl ? '<span class="vz-kpi-p">' + esc(tl) + '</span>' : '') + '</span><span class="vz-kpi-d ' + (d ? d.cls : '') + '">' + (d && d.text ? esc(d.text) : (o.sub ? esc(o.sub) : '&nbsp;')) + '</span></' + (o.act ? 'button' : 'div') + '>';
 };
 /* ---------- multiples：小倍数 ---------- */
 VZ.types.multiples = {

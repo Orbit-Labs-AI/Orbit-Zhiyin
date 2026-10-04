@@ -232,7 +232,8 @@ function sidePinsRight() {
 }
 function sidePins() {
   const man = pinsManual(), ids = man.length ? man : pinsAuto();
-  if (!ids.length) return '<div class="sb-note">' + (dataBusy() ? '分析完成后显示' : rangeLabel() + '内没有项目会话') + '</div>';
+  const busy = dataBusy();
+  if (!ids.length) return '<div class="sb-note">' + (busy ? (busy.err ? busyThen(busy) : '分析完成后显示') : rangeLabel() + '内没有项目会话') + '</div>';
   return ids.map((id) => { const pin = isPinned(id); return '<div class="pjp" data-p="' + esc(id) + '"><button type="button" data-act="pinProject" data-p="' + esc(id) + '"' + (S.project === id ? ' aria-current="page"' : '') + '>' + ic('projects') + '<span class="lb">' + esc(PJI[id].name) + '</span><span class="ct">' + sel({ noExtra: true, project: id }).length + '</span></button>' +
     (id === '_none' ? '' : '<button type="button" class="pin-b' + (pin ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(id) + '" aria-pressed="' + pin + '" aria-label="' + (pin ? '取消置顶 ' : '置顶 ') + esc(PJI[id].name) + '" data-tip="' + (pin ? '取消置顶' : '置顶到侧栏') + '">' + ic('pin', 13) + '</button>') + '</div>'; }).join('');
 }
@@ -306,11 +307,13 @@ function rangeWidenNote() {
   return '<div class="card pad range-note" data-range-note><span>' + rangeLabel() + '内没有会话 · 全部历史共 ' + fmt(sel({ range: 0, noExtra: true }).length) + ' 个</span>' + b + '</div>';
 }
 // 画像不可用时的短词：1 个会话就能出画像（F04），所以 0 个会话写「还没有会话」而不是「样本不足」
-function persNone(p) { return dataBusy() ? '计算中' : p && p.pending ? '计算中' : p && p.error ? '暂时取不到' : '还没有会话'; }
+function persNone(p) { const b = dataBusy(); return b ? busyShort(b) : p && p.pending ? '计算中' : p && p.error ? '暂时取不到' : '还没有会话'; }
 /* F08: live mode with nothing on screen yet because the data is still on its way — connecting, importing, being organised
    (projection_pending) or analysed (202). That is not 「没有会话」: titles and empty cards say what is happening instead, with
    the imported count from /v1/status when the gateway reports one. null in demo, once any session is shown, and once the
-   spine has answered for real (ready / empty / error). */
+   spine has answered for real (ready / empty). A spine that failed before showing anything (a library imported by an older
+   version: 409 rebuild_required / 422 schema obsolete; any other failed read or analysis) is not 「没有会话」 either: err is
+   set and the slots say 暂时取不到 / 重建完成后… instead of 计算中 (busyShort / busyThen). */
 function dataBusy() {
   let lv = null; try { lv = LV; } catch (e) { return null; }
   if (!lv || !lv.live || ALL.length) return null;
@@ -320,8 +323,16 @@ function dataBusy() {
   if (importing) return { k: 'importing', t: '正在导入会话…', n };
   if (lv.pending) return { k: 'pending', t: '正在整理数据…', n };
   if (lv.state === 'computing') return { k: 'computing', t: '正在分析会话…', n };
+  if (lv.state === 'error') {
+    const e = lv.error || {}; const pi = (TL.status && TL.status.projection_info) || {};
+    const rebuild = e.code === 'rebuild_required' || /obsolete|rebuild/i.test(e.message || '') || pi.state === 'invalid';
+    return rebuild ? { k: 'rebuild', t: '数据需要按新版本重建', n, err: true } : { k: 'error', t: '数据暂时读不出来', n, err: true };
+  }
   return null;
 }
+// the short slot word and the 「shows by itself when …」 clause of a busy state that is a failure (err), not progress
+const busyShort = (b) => (b && b.err ? '暂时取不到' : '计算中');
+const busyThen = (b) => (b && b.k === 'rebuild' ? '重建完成后自动显示' : '恢复读取后自动显示');
 // one line for titles / empty cards: 「正在分析会话… · 已导入 26 个会话 · 已用 12 / 60 秒」
 function busyNote(b) {
   b = b || dataBusy(); if (!b) return '';
@@ -331,5 +342,5 @@ function busyNote(b) {
 }
 // the title meta while busy: the calm status instead of 「0 个会话 · 还没有接入 Agent」
 function busyMeta(b) { b = b || dataBusy(); return b ? (b.n ? '已导入 ' + fmt(b.n) + ' 个会话 · ' : '') + (b.k === 'computing' ? '分析中' : b.k === 'importing' ? '导入中' : b.k === 'pending' ? '整理中' : b.t) : ''; }
-function busyCard(b) { b = b || dataBusy(); return '<div class="card pad" data-lv="busy" role="status" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + esc(busyNote(b)) + '<div class="cap" style="margin-top:6px">完成后自动显示，不用刷新</div></div>'; }
+function busyCard(b) { b = b || dataBusy(); return '<div class="card pad" data-lv="busy" role="status" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + esc(busyNote(b)) + '<div class="cap" style="margin-top:6px">' + (b && b.err ? busyThen(b) : '完成后自动显示') + '，不用刷新</div></div>'; }
 function empty(msg) { return dataBusy() ? busyCard() : '<div class="card pad" style="text-align:center;color:var(--ink-3);padding:40px 16px">' + msg + (S.ed === 'lite' ? rangeWidenBtns() : '') + '</div>'; }
