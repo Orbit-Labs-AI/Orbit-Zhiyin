@@ -169,7 +169,7 @@ scene('15-redesign', () => {
   // v18.7 D4 QA: each typing dot rides the box caret (AGD.caretRide, below) from its first key to .05 after its send; its
   // bubbles stay where they hang on the arc meanwhile: HOME is the dot's arc slot (its position just before / after the
   // ride, interpolated), off() the shift that holds a bubble there while the dot is in the box
-  const RIDE = TY.map((w) => ({ i: w.i, b0: w.K[0], b1: (w.send != null ? w.send - .2 : 19.85) + .25 }));
+  const RIDE = TY.map((w) => ({ i: w.i, b0: w.K[0] - .45, b1: (w.send != null ? w.send - .2 : 19.85) + .25 }));
   const HOME = (i, b) => {
     const z = RIDE.find((r) => r.i === i && b >= r.b0 - .01 && b < r.b1 + .01); if (!z) return AGD.pos(i, b);
     const p = AGD.pos(i, z.b0 - .02), q = AGD.pos(i, z.b1 + .02), u = clamp((b - z.b0) / (z.b1 - z.b0));
@@ -248,9 +248,21 @@ scene('15-redesign', () => {
   // v18.8: the caret shape starts only once the dot has reached the box (caretRide blends in over .25 from K[0]): before,
   // it turned into a caret .2 beat early in its arc slot and flew down as a vertical capsule (b12.75–13.2, film b19.7)
   const WIN = TY.map((w) => ({ i: w.i, t0: w.K[0] + .22, t1: w.send != null ? w.send - .2 : 19.85, w }));
+  // v18.8 QA: the dot sets off for the box .45 beat before its first key (round badge, landing on the box's text start /
+  // caret by K[0]) — caretRide alone only starts blending at K[0], so the first one or two characters were typed with
+  // no caret and the dot still mid-air (film b19.9–20.1); the same target keeps it on the box until it lifts (the box
+  // clears at send, its .car gone: the text start stands in, no snap)
+  const boxAt = (i0) => (j) => {
+    if (j !== i0 || !c.el) return null;
+    const car = c.el.querySelector('.car'), tx = c.el.querySelector('.tx'), st = stage.getBoundingClientRect(), z = st.width / 1920;
+    const q = (car || tx)?.getBoundingClientRect(); if (!q) return null;
+    return { x: ((car ? q.left + q.width / 2 : q.left) - st.left) / z + 2, y: (q.top + q.height / 2 - st.top) / z, r: 20 };
+  };
   for (const w of WIN) {
+    AGD.follow(w.w.K[0] - .45, w.t1 + .25, boxAt(w.i), { blend: .45 });
     AGD.morph(w.t0, w.i, 'caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)), dur: .25 });
-    AGD.morph(w.t1, w.i, 'dot', { ...REST(w.i), dur: .3 });                                   // the caret rounds back
+    // v18.8 QA: rounds back in the box (done by t1, as it lifts), not in flight — at t1 it flew up as a capsule (film b22.1 / b23.6)
+    AGD.morph(w.t1 - .25, w.i, 'dot', { ...REST(w.i), dur: .25 });                            // the caret rounds back
     // v18.7 D4 QA: as in 10-intro, the caret IS the box's caret (it used to stand as a logo-less bar in its arc slot
     // beside the box's own caret); it lifts after the last key (t1 + .25) and rounds back into its badge in flight
     AGD.caretRide(w.i, w.w.K[0], w.t1 + .25, c, { dx: 2 });                    // = RIDE
