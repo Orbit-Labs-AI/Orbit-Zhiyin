@@ -119,3 +119,14 @@ def test_tool_calls_endpoint(seeded, client):
     multi = client.get("/v1/analytics/tool_calls?agent=codex&agent=claude_code&project_id=p2"
                        "&include_excluded=true").json()["items"]
     assert [i["call_uid"] for i in multi] == ["a5", "a4"]
+
+
+def test_tool_calls_hide_disabled_sources(seeded, client, gateway):
+    """SET-07: the A4 drilldown lists the calls the tools page counts (disabled sources hidden)."""
+    for agent, enabled in (("claude_code", True), ("codex", False)):
+        gateway.state.state["sources"][f"src-{agent}"] = {
+            "id": f"src-{agent}", "agent": agent, "root": f"/agents/{agent}", "enabled": enabled}
+    kept = client.get("/v1/analytics/tool_calls").json()["items"]
+    assert {i["session_uid"] for i in kept} == {"s1"}
+    gateway.state.state["sources"]["src-claude_code"]["enabled"] = False
+    assert client.get("/v1/analytics/tool_calls").json()["items"] == []  # every source off

@@ -431,7 +431,9 @@ def _tok_pct(tok: int, cand: dict, inputs: dict) -> float | None:
     if not tok or total <= 0:
         return 0. if tok == 0 and total > 0 else None
     requests = _requests(ledger, (cand.get("target") or {}).get("agents"))
-    return round(100 * tok * requests / total, 4) if requests else None
+    # A share of all tokens (at most all of them, as ``_op_cost`` caps resident × requests);
+    # requests without recorded tokens still count, so the product can exceed the total.
+    return round(max(-100., min(100., 100 * tok * requests / total)), 4) if requests else None
 
 
 def _primary(cand: dict, raw: dict) -> tuple[str, int]:

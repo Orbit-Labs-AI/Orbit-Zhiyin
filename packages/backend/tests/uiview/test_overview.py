@@ -84,6 +84,11 @@ def test_extra_filters_and_brush():
                     until_ts=int((start + timedelta(days=7)).timestamp() * 1000))
     assert brushed["meta"]["brushed"] and brushed["header"]["n"] == len(expected(7))
     assert all(t["delta"] is None and t["sub"] == "刷选范围" for t in brushed["tiles"])
+    # from_ts=0 is the epoch (everything before until_ts), not "now".
+    end = int((start + timedelta(days=7)).timestamp() * 1000)
+    since_epoch = build(range=30, from_ts=0, until_ts=end)
+    assert since_epoch["meta"]["window"][0] == "1970-01-01"
+    assert since_epoch["header"]["n"] == len(expected(0))
 
 
 def test_metrics_tools_insight_and_lite():

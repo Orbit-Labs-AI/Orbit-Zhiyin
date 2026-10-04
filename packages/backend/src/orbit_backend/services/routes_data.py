@@ -220,7 +220,8 @@ def router(gw: Gateway) -> APIRouter:
             phase = "importing" if active else "onboarding"
         else:
             phase = "importing" if any(j["kind"] == "import" for j in active) else "ready"
-        importing = any(j["kind"] == "import" for j in active)
+        # A running rebuild publishes the projection too: never offer 重新导入 beside it.
+        importing = any(j["kind"] in ("import", "rebuild") for j in active)
         return {
             "state": phase, "version": __version__, "data_rev": revisions["data_rev"],
             "inventory_rev": revisions["inventory_rev"], "projection": revisions["projection"],

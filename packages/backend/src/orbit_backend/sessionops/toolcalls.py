@@ -93,6 +93,9 @@ def _where(filters: dict, cursor: str | None, excluded: list[str]) -> tuple[str,
     if filters.get("agent"):
         clauses.append("src.agent IN (SELECT value FROM json_each(?))")
         params.append(json.dumps(list(filters["agent"])))
+    if filters.get("source_ids") is not None:  # [] = every source disabled: nothing shown
+        clauses.append("s.source_id IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(list(filters["source_ids"])))
     if filters.get("from_ts") is not None:
         clauses.append("tc.started_at >= ?")
         params.append(filters["from_ts"])

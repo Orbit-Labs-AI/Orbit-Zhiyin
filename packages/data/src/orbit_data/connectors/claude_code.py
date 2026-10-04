@@ -515,18 +515,29 @@ class ClaudeMapper(BaseMapper):
                 )
             )
         elif typ == "summary":
+            # Older harness versions wrote a generated conversation summary (keyed by leafUuid)
+            # for the resume picker: a title hint, not a compaction — compaction is
+            # compact_boundary / isCompactSummary. The Agent SDK reads it as a title fallback.
+            summary = data.get("summary")
             events.append(
                 self.make(
-                    record, "context.compaction", "summary", text=data.get("summary"), ext=data
+                    record,
+                    "session.title",
+                    "title",
+                    text=summary if isinstance(summary, str) else None,
+                    attrs={"title_source": "ai"},
+                    ext=unused(data, ("type", "summary")),
                 )
             )
+        elif typ in (
+            "last-prompt",
+            "atis-latch",
+            "bridge-session",
+            "frame-link",
+            "launched",
+        ) or str(typ).startswith("artifact-"):
+            # The first record also carries session.meta; only known UI types are ignored.
+            return Mapping(events, "ignored", "non-trajectory UI record")
         else:
-            return (
-                Mapping(events, "ignored", "non-trajectory UI record")
-                if events
-                else Mapping(disposition="ignored", reason="non-trajectory UI record")
-                if typ in ("last-prompt", "atis-latch", "bridge-session", "frame-link", "launched")
-                or str(typ).startswith("artifact-")
-                else Mapping(events + self.unknown(record).events)
-            )
+            return Mapping(events + self.unknown(record).events)
         return Mapping(events, references=usage_references)

@@ -275,7 +275,10 @@ class InstallService:
                 self.link_inventory()
         if self.jobs is not None:
             try:
-                refresh = self.jobs.submit("inventory", origin="install")
+                # An inventory job scans the sources it is given: every enabled one.
+                sources = [key for key, source in self.jobs.state.snapshot()["sources"].items()
+                           if source.get("enabled")]
+                refresh = self.jobs.submit("inventory", sources, origin="install")
                 if isinstance(refresh, dict) and refresh.get("status") in ("failed", "interrupted", "cancelled"):
                     warnings.append("inventory_refresh_failed")
             except Exception:  # noqa: BLE001 - a refresh is best effort

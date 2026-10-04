@@ -264,14 +264,39 @@ def test_install_warns_when_inventory_dispatch_returns_failed_job(setup):
     svc, _, _ = setup
     calls = []
 
-    def unavailable(kind, **kwargs):
-        calls.append((kind, kwargs))
+    def unavailable(kind, sources, **kwargs):
+        calls.append((kind, sources, kwargs))
         return {"id": "failed-refresh", "status": "failed",
                 "error": {"code": "service_unavailable"}}
 
-    svc.jobs = SimpleNamespace(submit=unavailable)
+    sources = {"s1": {"id": "s1", "enabled": True}, "s2": {"id": "s2", "enabled": False}}
+    state = SimpleNamespace(snapshot=lambda: {"sources": sources})
+    svc.jobs = SimpleNamespace(submit=unavailable, state=state)
     result = run(svc, {"type": "catalog", "id": "docs-mcp"})
     assert result["state"] == "installed"
     assert "inventory_refresh_failed" in result["warnings"]
-    assert calls == [("inventory", {"origin": "install"})]
+    assert calls == [("inventory", ["s1"], {"origin": "install"})]
     assert (svc.env.home / ".claude.json").is_file()
+
+
+def test_install_refreshes_the_inventory_of_enabled_sources(setup, tmp_path):
+    """The gateway's JobService needs the sources of an inventory job; without them the
+    post-install refresh was refused every time (always ``inventory_refresh_failed``)."""
+    from types import SimpleNamespace
+
+    from orbit_backend.services.jobs import AppState, JobService
+
+    svc, _, _ = setup
+    state = AppState(tmp_path / "app-state.json")
+    roots = [tmp_path / "agents" / name for name in ("claude", "codex")]
+    for root in roots:
+        root.mkdir(parents=True)
+    on = state.configure("claude_code", str(roots[0]), True, tmp_path / "orbit")
+    state.configure("codex", str(roots[1]), False, tmp_path / "orbit")
+    started = []
+    runner = SimpleNamespace(start=lambda job, sources: started.append(
+        (job["kind"], [s["id"] for s in sources])), cancel=lambda job_id: None)
+    svc.jobs = JobService(state, runner, lambda *a: 0)
+    result = run(svc, {"type": "catalog", "id": "docs-mcp"})
+    assert result["state"] == "installed" and result["warnings"] == []
+    assert started == [("inventory", [on["id"]])]

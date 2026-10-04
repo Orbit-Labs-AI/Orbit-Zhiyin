@@ -202,6 +202,10 @@ def resolve_period(period: str, today: date, first: int):
         return derive.win(0, first), "全部", None, None
     if period.isdigit() and int(period) > 0:
         days = int(period)
+        try:  # The window is shown as dates: a start before date.min is not a period (422).
+            today - timedelta(days=days - 1)
+        except OverflowError:
+            raise ValueError(f"Unknown period {period}") from None
         return (-(days - 1), 0), f"近 {days} 天", (-(2 * days - 1), -days), f"前 {days} 天"
     if period in MONTHS:
         month = MONTHS[period]

@@ -58,10 +58,17 @@ def excluded(gw) -> list[str]:
 
 
 def main_where(gw, alias: str = "s") -> tuple[str, list]:
-    """Analysed main sessions: kind main, not excluded, not started by Orbit itself."""
+    """Analysed main sessions: kind main, from enabled sources (SET-07), not excluded, not
+    started by Orbit itself."""
+    import json
+
     from ..ai.pack import placeholders, session_filter
 
     sql, args = f"{alias}.kind='main'", []
+    sources = enabled_source_ids(gw)
+    if sources is not None:  # [] = every source disabled: nothing is shown
+        sql += f" AND {alias}.source_id IN (SELECT value FROM json_each(?))"
+        args.append(json.dumps(sources))
     skip = excluded(gw)
     if skip:
         sql += f" AND {alias}.session_uid NOT IN ({placeholders(skip)})"

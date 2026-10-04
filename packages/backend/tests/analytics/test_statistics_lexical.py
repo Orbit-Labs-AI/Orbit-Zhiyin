@@ -212,6 +212,29 @@ def test_out_of_dictionary_chinese_words_are_kept():
     assert "鉴权" in tokens and "竞态" in tokens
 
 
+def test_tokenizer_ignores_and_never_writes_the_shared_temp_cache(tmp_path, monkeypatch):
+    """jieba's own ``initialize()`` trusts any ``jieba.cache`` in the system temp dir for the
+    default dictionary (another program's dictionary would replace the fixed one) and writes
+    a 9 MB cache there. The private tokenizer builds from the bundled dictionary only."""
+    import marshal
+    import tempfile
+
+    from orbit_backend.analytics.products import lexical
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    foreign = {"修": 1, "一": 1, "下": 1, "一下": 0, "登录接口": 50000}
+    (tmp_path / "jieba.cache").write_bytes(marshal.dumps((foreign, 50003)))
+    lexical.tokenizer.cache_clear()
+    try:
+        assert list(lexical.tokenizer().cut("修一下登录接口", HMM=False)) == ["修", "一下", "登录", "接口"]
+        (tmp_path / "jieba.cache").unlink()
+        lexical.tokenizer.cache_clear()
+        lexical.tokenizer()
+        assert not list(tmp_path.iterdir())
+    finally:
+        lexical.tokenizer.cache_clear()
+
+
 def test_unsupported_scripts_are_counted_and_lower_coverage():
     bundle = corpus()
     bundle.events[1]["text"] = "สวัสดีครับ"  # Thai only: no tokens, counted as ignored

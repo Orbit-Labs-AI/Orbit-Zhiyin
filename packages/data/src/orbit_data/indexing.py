@@ -9,7 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from orbit_data.contract import RawRecord, canonical, now_ms, uid
+from orbit_data.contract import RawRecord, canonical, native_json, now_ms, uid
 from orbit_data.source_reader import SourceUnavailable, native_lines, source_path, source_stat
 from orbit_data.store import SQL_TABLES
 
@@ -378,7 +378,7 @@ def iter_lines_with_rows(path, info, rows, captured=None):
                 ordinal,
                 row[1],
                 row[2],
-                json.loads(line),
+                native_json(line),
                 info["captured_at"],
             )
     if digest.hexdigest() != info["sha256"]:

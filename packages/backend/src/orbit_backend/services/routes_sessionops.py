@@ -121,10 +121,13 @@ def router(gw: Gateway) -> APIRouter:
         include_excluded: bool = False, limit: int = Query(50, ge=1, le=200),
         cursor: str | None = None,
     ):
+        from ..appdata.sources_scope import default_source_ids
+
+        # Disabled sources stay hidden here too (SET-07), as on the tools page these calls detail.
         filters = {"name": name, "command_head": command_head, "mcp_server": mcp_server,
                    "skill": skill, "kind": kind, "status": status, "error_class": error_class,
                    "session_uid": session_uid, "project_id": project_id, "agent": agent,
-                   "from_ts": from_ts, "until_ts": until_ts}
+                   "source_ids": default_source_ids(), "from_ts": from_ts, "until_ts": until_ts}
         try:  # Validate before reading: ReadPool.read() turns ValueError into a 409.
             if cursor:
                 toolcalls.decode_cursor(cursor)

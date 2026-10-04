@@ -51,10 +51,17 @@ PIECE = re.compile(
 
 @lru_cache(maxsize=1)
 def tokenizer() -> jieba.Tokenizer:
-    """Use a private, fixed dictionary without learning words from user messages."""
+    """Use a private, fixed dictionary without learning words from user messages.
+
+    The prefix dictionary is built in memory from the bundled dictionary (≈0.25 s, no slower
+    than jieba's marshal cache). ``initialize()`` would write a 9 MB ``jieba.cache`` into the
+    shared system temp dir and, for the default dictionary, load any file of that name it
+    finds there unchecked, so another program's dictionary could replace this one."""
     jieba.setLogLevel(30)
     instance = jieba.Tokenizer()
-    instance.initialize()
+    with instance.get_dict_file() as handle:
+        instance.FREQ, instance.total = instance.gen_pfdict(handle)
+    instance.initialized = True
     return instance
 
 

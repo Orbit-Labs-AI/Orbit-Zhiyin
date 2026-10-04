@@ -110,6 +110,23 @@ test('vendor token formats are redacted while counters, token types and look-ali
     words:'hf_hub_download npm_config_cache sk_test glpat- eyJhbGci AIzaShort self_hf_'+fill(34,'h')};
   assert.deepEqual(sanitize(keep),keep);
 });
+test('cut private key blocks and URL passwords containing @ are redacted',()=>{
+  // Key bodies are assembled at runtime so no literal resembles a live key.
+  const body='b3BlbnNzaC1rZXktdjE'+'Q'.repeat(45);
+  const cut=['$ head -3 id',`-----BEGIN OPENSSH PRIVATE KEY-----`,body,body.slice(0,20)].join('\n');
+  const escaped=`{"output": "-----BEGIN RSA PRIVATE KEY-----\\nProc-Type: 4,ENCRYPTED\\n${body}\\n${body.slice(0,12)}`;
+  const pgp=`-----BEGIN PGP PRIVATE KEY BLOCK-----\n\n${body}\n=abcd\n-----END PGP PRIVATE KEY BLOCK-----\n`;
+  for (const text of [cut,escaped,pgp]) {
+    const clean=String(sanitize(text));
+    assert.ok(clean.includes('<redacted:private_key>'),text);
+    assert.ok(!clean.includes(body.slice(0,9))&&!clean.includes('Proc-Type'),clean);
+  }
+  const code='if pem.startswith("-----BEGIN PRIVATE KEY-----"):\n    load(pem)';
+  assert.equal(sanitize(code),code);
+  const url=String(sanitize('DATABASE_URL=postgres://admin:P@ssw0rd!@db.example.invalid:5432/app'));
+  assert.ok(!url.includes('ssw0rd')&&url.includes('@db.example.invalid:5432/app'),url);
+  assert.equal(sanitize('https://example.invalid/path?mail=a@b.invalid'),'https://example.invalid/path?mail=a@b.invalid');
+});
 test('truncation cuts on a UTF-8 character boundary',()=>{
   for (const budget of [8190,8191,8192]) {
     const value=String(sanitize('中'.repeat(5000),'output',32*1024*1024,budget));

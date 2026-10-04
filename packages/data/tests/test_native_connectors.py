@@ -179,6 +179,23 @@ def test_claude_denial_interruption_split_usage_and_sidechain(tmp_path):
         assert_sound(store)
 
 
+def test_claude_unknown_first_record_still_has_an_unknown_event(tmp_path):
+    # The first record also carries session.meta; a new type there must not pass as UI noise.
+    common = {"sessionId": "s", "timestamp": ISO, "cwd": "/fixture"}
+    records = [
+        {**common, "type": "future-header", "new_field": 1},
+        {**common, "type": "user", "uuid": "u", "message": {"content": "hi"}},
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records)
+        store.rebuild()
+        kinds = [r["kind"] for r in rows(store, "event")]
+        assert kinds.count("unknown") == 1 and "session.meta" in kinds
+        notes = [r["note"] for r in rows(store, "raw_record")]
+        assert '{"reason":"non-trajectory UI record"}' not in notes
+        assert_sound(store)
+
+
 def test_claude_result_without_error_flag_is_completed(tmp_path):
     # Synthetic: Claude Code omits is_error on success; only explicit errors are failures.
     common = {"sessionId": "s", "timestamp": ISO, "cwd": "/fixture", "promptId": "p"}
@@ -1975,6 +1992,24 @@ def test_session_title_precedence_ranks_agent_name_between_custom_and_native(
         assert (session["title"], session["title_source"]) == expected
     (analysed,) = read_analysis(store.home, AnalysisScope("UTC"))["sessions"]
     assert (analysed["title"], analysed["title_source"]) == expected
+
+
+def test_claude_summary_record_is_a_title_not_a_compaction(tmp_path):
+    """Legacy `summary` lines (resume-picker summaries keyed by leafUuid) title the session;
+    counting them as context compactions invented a compaction in every older session."""
+    common = {"sessionId": "s1", "cwd": "/fixture", "version": "1.0.30", "entrypoint": "cli"}
+    records = [
+        {"type": "summary", "summary": "Fix login redirect", "leafUuid": "a"},
+        {**common, "type": "user", "uuid": "u", "timestamp": ISO, "message": {"content": "hi"}},
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records, path="projects/-fixture/s1.jsonl")
+        store.rebuild()
+        (session,) = rows(store, "session")
+        assert (session["title"], session["title_source"]) == ("Fix login redirect", "ai")
+        kinds = [event["kind"] for event in rows(store, "event")]
+        assert "context.compaction" not in kinds and "unknown" not in kinds
+        assert_sound(store)
 
 
 def test_import_reprojects_files_mapped_by_an_older_mapper(tmp_path):
