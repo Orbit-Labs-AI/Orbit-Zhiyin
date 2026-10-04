@@ -149,3 +149,16 @@ def test_args_summary_is_redacted_before_it_is_cut(env):
     summary = dict(zip(calls[0], calls[1], strict=True))["args_summary"]
     assert "ghp_" not in summary and "a1a1" not in summary
     assert summary == "[密钥已隐藏] [密钥已隐藏] tail"
+
+
+def test_csv_hides_disabled_sources(env):
+    """SET-07: a disabled source's sessions stay out of the export, as on every page."""
+    from orbit_backend.appdata import sources_scope
+
+    client, _, world = env
+    world.session("a", started_at=T0)
+    world.session("b", source="src-x", started_at=T0 + 10)
+    sources_scope.set_provider(lambda: [{"id": "src-c", "enabled": True},
+                                        {"id": "src-x", "enabled": False}])
+    rows = rows_of(client.get("/v1/export/csv", params={"table": "sessions"}))
+    assert [r[0] for r in rows[1:]] == ["a"]
