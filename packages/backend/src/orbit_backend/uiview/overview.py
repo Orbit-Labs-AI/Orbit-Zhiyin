@@ -26,7 +26,7 @@ def today_in(tz_name: str | None, now_ms: int | None = None) -> date:
         tz = ZoneInfo(tz_name or "UTC")
     except Exception:  # noqa: BLE001
         tz = UTC
-    now = datetime.fromtimestamp(now_ms / 1000, tz) if now_ms else datetime.now(tz)
+    now = datetime.fromtimestamp(now_ms / 1000, tz) if now_ms is not None else datetime.now(tz)
     return now.date()
 
 

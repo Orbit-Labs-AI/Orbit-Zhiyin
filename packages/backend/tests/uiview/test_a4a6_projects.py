@@ -174,6 +174,31 @@ def test_compare_newcombe_and_small_n(conn):
         assert m["flat"] is None and m["delta"] is None and m["note"] == "无可比"
 
 
+def test_daily_sessions_counts_local_days(tmp_path):
+    """日均会话 groups sessions by the request's local day, not the UTC day: 07:00 and 09:00
+    in Shanghai are one active day (23:00Z and 01:00Z would be two)."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    t = Orbit(tmp_path)
+    t.project("pz")
+    for uid, hour in (("z1", 7), ("z2", 9)):
+        start = int(datetime(2025, 10, 9, hour, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp() * 1000)
+        t.session(uid, project="pz", start=start, minutes=10)
+        t.human(uid, "继续", ts=start)
+    t.close()
+    client, appdb = make_client(tmp_path, t.path)
+    try:
+        def daily(tz):
+            body = client.get("/v1/uiview/projects/pz", params={"tz": tz}).json()
+            return {m["key"]: m for m in body["vs"]["metrics"]}["daily_sessions"]
+
+        assert daily("Asia/Shanghai")["a"] == 2.0 and daily("Asia/Shanghai")["n"] == [1, 1]
+        assert daily("UTC")["a"] == 1.0
+    finally:
+        appdb.close()
+
+
 def test_workflows_need_three_sessions(conn):
     flows = P.build_project(conn, {}, "p1", {})["workflows"]
     assert flows, "the 3-step chain in s3/s4/s5 must surface"

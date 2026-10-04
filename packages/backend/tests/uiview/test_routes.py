@@ -105,6 +105,8 @@ def test_overview_and_persona_payloads(gw):
     ("/v1/uiview/overview", {"hour": 24}),
     ("/v1/uiview/overview", {"from_ts": 10, "until_ts": 5}),
     ("/v1/uiview/persona", {"period": "fortnight"}),
+    ("/v1/uiview/persona", {"period": "1000000"}),  # window start before date.min
+    ("/v1/uiview/persona/reveal", {"period": "99999999999"}),
     ("/v1/uiview/persona", {"period": "90", "today": "not-a-day"}),
 ])
 def test_invalid_parameters_are_422(gw, path, params):
