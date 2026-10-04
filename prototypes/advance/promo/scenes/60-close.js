@@ -58,8 +58,12 @@ scene('60-close', () => {
   // 方位用极坐标：从小徽章方位 β_i 随 e_i 滑到螺旋方位（差值取近的一边；随 e 走，圆还小时相邻点不挤在 cc 43° / cx 62° 这种近方位上），
   // 途中分道：gm 要越过 ds / cp，走外道（+72 px），ds / cp 让到内道（−26）；cc 紧跟 cx，cc 走内道 −30、cx 外道 +34，彗星尾不压 logo
   const SP_POP = .5, SP_R0 = 70, SP_LANE = [-30, 34, 72, -26, -26];
-  const spOrb = () => { const s = s0(0), R = s.r * 1.15; return { x: s.x, y: s.y, m: .5 * R, r: .3 * R }; };
-  const spBeta = (i) => 6 * (HB + (SHIFT['60-close'] || 0)) + 72 * i;          // 小徽章方位（罗盘角，顺时针，0 = 上）
+  // v18.6 R1：合并态是一个圆（02-agents orb：深色圆盘 + 贴边五色 72° 弧，无小徽章）——点 i 从圆的边缘、自己那段颜色弧的正中
+  // 冒出（起点在边内 .85R、半径 .2R 的小圆徽章），随即照原 SP_POP 弹到 SP_R0 一圈；不再读 micro 小徽章的位置
+  const spSpin = () => { const fb = HB + (SHIFT['60-close'] || 0), mK = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= fb).pop(); return mK ? agV(mK.o, 'spin', 6, fb, 0, mK.sh) * (fb - mK.b) : 6 * fb; };
+  let SPO = null;
+  const spOrb = () => SPO || (SPO = ((s) => { const R = s.r * 1.15; return { x: s.x, y: s.y, R, m: .85 * R, r: .2 * R, sp: spSpin() }; })(s0(0)));
+  const spBeta = (i) => spOrb().sp + 72 * i + 36;                                // 颜色弧 i 的正中方位（罗盘角，顺时针，0 = 上）
 
   /* ---------- deck 2：收拢罗盘 = 圆环 → 罗盘 → 圆环（H13–H15） ---------- */
   // b69.2 直接设定：罗盘中心 (400, 400) → 舞台 (960, 540)，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）；s 从 .001
@@ -98,14 +102,11 @@ scene('60-close', () => {
   // v18.2 orb 外壳：分裂那一刻 5 枚小徽章原样成为 5 个点，orb 的深色圆盘与五色细弧画在点的下层（AGD.back），随点一起
   // 张开到约 SP_R0 + 10 并在 .45 拍内淡掉——五色弧张到点落圈的半径，交给随后画出的圆环；不再在点上面盖一个缩小的 orb
   AGD.back(HB, HB + .45, (b) => {
-    const O = spOrb(), t = E.out(lp(b, HB, .45)), R = lerp(O.m / .5, SP_R0 + 10, t), a = 1 - t;
+    // v18.6：外壳就是 02-agents 的一个圆（深色圆盘、无描边、贴边 3 px 五色弧，弧方位冻结在交接拍）
+    const O = spOrb(), t = E.out(lp(b, HB, .45)), R = lerp(O.R, SP_R0 + 10, t), a = 1 - t, sp = O.sp;
     if (a <= .002) return '';
-    const fb = b + (SHIFT['60-close'] || 0), mK = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= fb).pop();
-    const sp = mK ? agV(mK.o, 'spin', 6, fb, 0, mK.sh) * (fb - mK.b) : 6 * fb;
-    // v18.4：orb 自己的 cc 橙色外缘（02-agents orb 形态的徽章描边）也留在外壳上随之张开淡掉，b106.91 不再一帧消失
-    let s = '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="#0e0f12" opacity="' + (.9 * a * a).toFixed(3) + '"/>' +
-      '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="none" stroke="' + AGC[0] + '" stroke-width="2" opacity="' + a.toFixed(3) + '"/>';
-    for (let m = 0; m < 5; m++) s += '<path d="' + agArc(O.x, O.y, R + 7, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="1.5" opacity="' + a.toFixed(3) + '"/>';
+    let s = '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="#0e0f12" opacity="' + (.9 * a * a).toFixed(3) + '"/>';
+    for (let m = 0; m < 5; m++) s += '<path d="' + agArc(O.x, O.y, R + 1.5, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="3" stroke-linecap="round" opacity="' + a.toFixed(3) + '"/>';
     return s;
   });
   // 点 i 在 b 的极坐标：中心 (cx, cy)、方位 th（度，罗盘角）、半径 rad；R 是圆环当帧半径（舞台 px），ring = [d0, G]
