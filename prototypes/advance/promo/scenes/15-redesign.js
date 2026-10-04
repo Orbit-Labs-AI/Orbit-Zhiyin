@@ -78,7 +78,13 @@ scene('15-redesign', () => {
   // cut (CUT[0], v18.2: b22.5) to b25.7 (E.sine), then hold at 1.04 into 20-orbit's b26.0 key; the beads ride the scaled radius so they
   // stay matched with the dashed circle and the type
   const PUSH = (b) => 1 + .04 * E.sine(clamp((b - CUT[0]) / (25.7 - CUT[0])));
-  AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: (b) => 420 * PUSH(b), ph: (b) => 207 + JUMP(b), spin: 9 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
+  // v18.8: while the So line is up the ring makes room for it: one rotation cannot (its ends sit where the ring is
+  // ±64° off the top, and cx / ds are 144° apart), so the beads part at the top — cx 12° back, ds 9° on (both ≥ 40 px
+  // clear of the line's box, b21.6–25.1) — and the other three space out evenly below (gaps 65 / 82.5 / 82.5 / 65 / 65);
+  // set as the beads land (b21.0–21.6) and given back over b26.0–26.4 inside 20-orbit's live blend (still 228° there)
+  const PHO_I = [-5, -12, -1.5, 9, 2];
+  const PHO = (b, i) => PHO_I[i] * E.inOut(clamp((b - 21.0) / .6)) * (1 - E.inOut(clamp((b - 26.0) / .4)));
+  AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: (b) => 420 * PUSH(b), ph: (b, i) => 207 + JUMP(b) + PHO(b, i), spin: 9 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
 
   /* ---------- 1d 文字（三行底边 ≤ 420，b20.1–20.7 一起向上淡出、模糊） ---------- */
   // pacing: the reveals run slower, and while they are up all three lines drift up together at 6 px/beat (no dead
@@ -114,7 +120,9 @@ scene('15-redesign', () => {
   const cjRise = (el, tl) => el.querySelectorAll('.w').forEach((w) => {
     // v18.5 QA: hold at the dot row while the blur clears (≈ .1 beat), then rise — a .5-beat E.out from tl 0 had moved
     // half way up before the word was visible, so it read as appearing at the top, not leaving the dots
-    const p = E.out(clamp((tl - BB(.08)) / BB(.42)));
+    // v18.8: the rise starts at b12.4 (film 19.3) and takes .6 beat (E.out) — the .42-beat one rose ≈ 200 px in its
+    // first .2 beat, too fast to follow from the dots
+    const p = E.out(clamp((tl - BB(.05)) / BB(.6)));
     w.style.transform = p < .999 ? 'translateY(' + ((1 - p) * RISE).toFixed(1) + 'px)' : '';
   });
   txt(12.35, 20.7, [['sv rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
@@ -237,7 +245,9 @@ scene('15-redesign', () => {
   const wb = (i) => (b) => BUB.filter((u) => u.i === i).reduce((v, u) => Math.max(v, bump(b, POP(u) - .05, .5)), 0);
   const REST = (i) => ({ warm: (b) => wb(i)(b), ring: (b) => 1 + .5 * wb(i)(b), vs: 0 });
   for (const u of BUB) AGD.blink(u.i, POP(u), { v: .7 });
-  const WIN = TY.map((w) => ({ i: w.i, t0: w.K[0] - .2, t1: w.send != null ? w.send - .2 : 19.85, w }));
+  // v18.8: the caret shape starts only once the dot has reached the box (caretRide blends in over .25 from K[0]): before,
+  // it turned into a caret .2 beat early in its arc slot and flew down as a vertical capsule (b12.75–13.2, film b19.7)
+  const WIN = TY.map((w) => ({ i: w.i, t0: w.K[0] + .22, t1: w.send != null ? w.send - .2 : 19.85, w }));
   for (const w of WIN) {
     AGD.morph(w.t0, w.i, 'caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)), dur: .25 });
     AGD.morph(w.t1, w.i, 'dot', { ...REST(w.i), dur: .3 });                                   // the caret rounds back
@@ -283,11 +293,16 @@ scene('15-redesign', () => {
     const s = 36.4 * E.out(clamp((b - 21.0) / .7));
     if (a <= .002 || s < .2) return '';
     let d = '';
+    // v18.8: the beads are no longer evenly spaced (PHO), so each arc reaches s/72 of its own gap to the neighbour
+    // (≈ half, the same .4° overlap as before); a gap outside 40–104° (beads still landing) counts as 72
+    const Q = [0, 1, 2, 3, 4].map((i) => { const q = AGD.pos(i, b); return { R: Math.hypot(q.x - 960, q.y - 540), g: Math.atan2(q.x - 960, -(q.y - 540)) * 180 / Math.PI }; });
+    const gap = (a, c) => { const v = (((Q[c].g - Q[a].g) % 360) + 360) % 360; return v >= 40 && v <= 104 ? v : 72; };
     for (let i = 0; i < 5; i++) {
-      const q = AGD.pos(i, b), R = Math.hypot(q.x - 960, q.y - 540), g = Math.atan2(q.x - 960, -(q.y - 540)) * 180 / Math.PI;
+      const { R, g } = Q[i];
       if (R < 1) continue;
+      const sf = s * gap(i, (i + 1) % 5) / 72, sb = s * gap((i + 4) % 5, i) / 72;
       const P = (h) => (960 + R * Math.sin(h * Math.PI / 180)).toFixed(1) + ' ' + (540 - R * Math.cos(h * Math.PI / 180)).toFixed(1);
-      d += 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 1 ' + P(g + s) + 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 0 ' + P(g - s);
+      d += 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 1 ' + P(g + sf) + 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 0 ' + P(g - sb);
     }
     return '<path d="' + d + '" fill="none" stroke="#fff" stroke-opacity="' + a.toFixed(3) +
       '" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 6"/>';
@@ -332,7 +347,7 @@ scene('15-redesign', () => {
   const fromBead = (b, y) => {
     let best = null;
     for (let i = 0; i < 5; i++) {
-      const g = (207 + JUMP(b + .2) + 72 * i + 9 / 5.7 * (b - 20.3)) * Math.PI / 180, x = 960 + 420 * Math.sin(g), yy = 540 - 420 * Math.cos(g);
+      const g = (207 + JUMP(b + .2) + PHO(b, i) + 72 * i + 9 / 5.7 * (b - 20.3)) * Math.PI / 180, x = 960 + 420 * Math.sin(g), yy = 540 - 420 * Math.cos(g);
       const d = Math.hypot(x - 960, yy - y); if (!best || d < best.d) best = { d, ux: (x - 960) / d, uy: (yy - y) / d };
     }
     return best;
