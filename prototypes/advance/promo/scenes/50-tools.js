@@ -390,7 +390,10 @@ scene('50-tools', () => {
   // and carries pulses into the card while SKILL.md is written (no separate guide line: the dot itself was on the button)
   const skillEdge = () => elXY(1, (D) => skillCard(D)?.querySelector('.code') || skillCard(D), 0, .5);
   // v18.4: taken back as the generator leaves its post for line 9 (b71.7–72.0)
-  AGD.link(69.35, PIN + .3, 0, skillEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .45, out: .3 });
+  // v18.7 QA D3: drawn from b69.9, once the badge has reached its post (genXY, b69.0–69.9) — from b69.35 the .code edge it
+  // aims at was still below the card's clip while the card flew in, so the wire hung off the badge as a white tail
+  // (film b101.05–101.5); now it is a short horizontal lead from the badge into the card
+  AGD.link(69.9, PIN + .3, 0, skillEdge, { color: '#fff', width: 2.5, pulse: 3, draw: .45, out: .3 });
   // v18.4: b71.7–72.7 (film 103.4–104.4) the other SKILL.md lines settle to .55 so line 9 (the purple「ai」line the Agent
   // rewrote from your sessions) stands out with the pin beside it; applied after the run's re-render each frame
   const rowsDim = (b) => { const rows = skillCard(decks[1].D)?.querySelectorAll('.code > div'); if (rows) rows.forEach((r, i) => { r.style.opacity = i === 8 ? '' : (1 - .45 * io(b, PIN, 1.0)).toFixed(3); }); };
