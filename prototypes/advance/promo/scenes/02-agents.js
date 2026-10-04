@@ -48,6 +48,13 @@
                              pops on the same dot, this one shrinks back into the dot over .2 beats from that beat; pass
                              replace: false to keep stacking (pushing) instead.
    AGD.glow(i, b0, b1, v)    soft Agent-coloured glow behind dot i (v 0..1, .3-beat ramps)
+   AGD.blink(sel, b, o)      v18.6「圆形 + 闪烁」(R2): sel i | [i, …] | 'all'; at b a soft Agent-coloured glow flash (sine,
+                             o.v .8, o.glowDur dur + .1) + an r pulse ×o.k (1.1, keep ≤ 1.12) over o.dur (.3) beats, sine, no
+                             overshoot; o.stag (0) beats per position in sel. Composes with AGD.pulse / AGD.glow (r multiplies).
+   AGD.noStretch(b0, b1, sel) v18.6: no velocity stretch for dot(s) sel ('all') in [b0, b1), whatever shapes they morph
+                             through — the clean way to keep a beat range tail-free (10-intro / 15-redesign: noStretch(0, end)).
+                             Per dot from b on: AGD.morph(b, sel, 'dot', { vs: 0, dur: .01 }) also works, but a later morph back
+                             to plain 'dot' restores vs 1. AGD.STRETCH = false turns it off film-wide.
    AGD.chat(b0, b1, { x, y, w, from, to }) → c   app-style input box (88 px high, centre x, y), rises 40 px + fades in
                              .4 beats from b0, sinks out over the last .4 beats. from: (b) => { x, y } (e.g. AGD.centroid):
                              instead grows out of that point (scale .15 → 1, E.out .6 beats, a 1 by .25 beats); to: (b) =>
@@ -76,12 +83,14 @@
      stroke → #f3a35c) · ls la (logo scale / opacity; the logo is always upright) · lx ly (logo offset, turns with rot) ·
      k (overall scale) · hpx (px: sets h = hpx / r, caret height) · rays (5 Agent-coloured rays, .7 r, 20°/beat) + rayDir
      (screen deg) / rayGain (the ray nearest rayDir × (1 + rayGain)) · micro (5 mini Agent badges r .3 on a .5 circle round the logo point,
-     6°/beat) · arcs (5 Agent-coloured 72° arcs at r + 7, = merge) · glow (Agent glow) · tick (0..1 drawn ✓ right of the
+     6°/beat; legacy) · arcs (5 Agent-coloured 72° arcs at R + arcR px (7), arcW px wide (1.5)) · core (0..1 faint white inner
+     light) · halo (0..1 soft blurred five-colour glow along the arcs) · glow (Agent glow) · tick (0..1 drawn ✓ right of the
      dot, 1.3 r) + tickW (2 px) · stem (px: a thin line on from the tip) · vs (velocity-stretch weight).
    shapes: dot · caret (w .42 h 3 rad .21 fill 1, no logo) · pill (w 2.9, logo in the tail-end cap; aim it) · tail (w 2.2,
      tail .7 up — tailDir 90 for down) · bead (w 2.5 h 1.8, rot 'tan') · petal (long axis local x, tip toward rot 'in',
      fill .3) · bullet (rad .62 ring 1.4; add tick: 1) · pin (h 2.9, tip up, + stem) · pointer (pin, rot −28) · spark
-     (rays 1 glow .6) · head (w 3.4 h 1.6, tail-end tip, rot 'vel', glow .5) · orb (k 1.15, micro 1, arcs 1, no cc logo).
+     (rays 1 glow .6) · head (w 3.4 h 1.6, tail-end tip, rot 'vel', glow .5) · orb — v18.6 R1 ONE circle: k 1.15, dark disc, no
+     outline (ring 0), no logo (la 0), no micro badges, core 1, five-colour rim ring (arcs 1, arcR 1.5, arcW 3) + halo 1.
    Automatic (only once any morph is registered): dot-like shapes (vs) stretch along their travel by 1 + min(.18, v/4000)
      (area kept, logo not stretched; 0 below 300 px/beat, full by 600); a 'dot' inside a merge becomes the orb as the merge
      closes (dots 1–4 hide under dot 0, which draws the arcs); with a tail showing, AGD.bubble (no o.dy) anchors at the
@@ -123,7 +132,7 @@ css(`
   if (!$('#agd')) mk('agd', fxEl);
   if (!$('#agdb')) { const d = document.createElement('div'); d.id = 'agdb'; stage.insertBefore(d, fxEl); }
 })();
-const AGD_KEYS = [], AGD_FOL = [], AGD_PUL = [], AGD_LINKS = [], AGD_BUB = [], AGD_GLOW = [], AGD_CHATS = [], AGD_BACK = [];
+const AGD_KEYS = [], AGD_FOL = [], AGD_PUL = [], AGD_LINKS = [], AGD_BUB = [], AGD_GLOW = [], AGD_CHATS = [], AGD_BACK = [], AGD_BLINK = [], AGD_NOST = [];
 let AGD_SORTED = false;
 const agWrap = (d) => ((d % 360) + 540) % 360 - 180;       // to (−180, 180]
 const agDeg = Math.PI / 180;
@@ -135,6 +144,13 @@ AGD.pulse = (i, b, k, dur = .4) => AGD_PUL.push({ i, b: b + SH, k, dur });
 AGD.link = (b0, b1, i, to, o = {}) => AGD_LINKS.push({ b0: b0 + SH, b1: b1 + SH, sh: SH, i, to, o, id: AGD_LINKS.length });
 AGD.bubble = (i, b0, b1, text, o = {}) => AGD_BUB.push({ i, b0: b0 + SH, b1: b1 + SH, sh: SH, text, o, el: null });
 AGD.glow = (i, b0, b1, v = 1) => AGD_GLOW.push({ i, b0: b0 + SH, b1: b1 + SH, v });
+// v18.6 R2「圆形 + 闪烁」: a short soft Agent-coloured glow flash + a slight sine r pulse (no overshoot) on dot(s) sel at b
+AGD.blink = (sel, b, o = {}) => {
+  const L = sel === 'all' ? [0, 1, 2, 3, 4] : Array.isArray(sel) ? sel : [sel], dur = o.dur ?? .3;
+  L.forEach((i, n) => { const bb = b + (o.stag ?? 0) * n; AGD.pulse(i, bb, o.k ?? 1.1, dur); AGD_BLINK.push({ i, b: bb + SH, dur: o.glowDur ?? dur + .1, v: o.v ?? .8 }); });
+};
+// v18.6: no velocity stretch for dot(s) sel in [b0, b1) (scene beats), whatever shapes they morph through
+AGD.noStretch = (b0, b1, sel = 'all') => AGD_NOST.push({ b0: b0 + SH, b1: b1 + SH, L: sel === 'all' ? [0, 1, 2, 3, 4] : Array.isArray(sel) ? sel : [sel] });
 // a scene's own drawing under the mark and the dots: fn(b) → SVG string, drawn into #agdBack in [b0, b1)
 AGD.back = (b0, b1, fn) => AGD_BACK.push({ b0: b0 + SH, b1: b1 + SH, sh: SH, fn });
 
@@ -243,7 +259,7 @@ AGD.P.scatterC = AGD.pts('ring', AGD.P.cluster);
 
 /* ---------- v17.7 morph (header「v17.7 morph」) ---------- */
 const AG_DOT = { w: 2, h: 2, rad: 1, tip: 0, tipDir: 0, tail: 0, tailDir: -90, rot: 0, fill: 0, ring: 1, warm: 0, ls: 1, la: 1, lx: 0, ly: 0,
-  k: 1, rays: 0, rayDir: 0, rayGain: 0, micro: 0, arcs: 0, glow: 0, tick: 0, tickW: 2, stem: 0, vs: 1 };
+  k: 1, rays: 0, rayDir: 0, rayGain: 0, micro: 0, arcs: 0, arcR: 7, arcW: 1.5, core: 0, halo: 0, glow: 0, tick: 0, tickW: 2, stem: 0, vs: 1 };
 const AG_SHAPES = {
   dot: {},
   caret: { w: .42, h: 3, rad: .21, fill: 1, ls: 0, la: 0, vs: 0 },
@@ -256,7 +272,8 @@ const AG_SHAPES = {
   pointer: { h: 2.5, tip: .9, tipDir: -90, rot: -28, ly: .4, vs: 0 },
   spark: { rays: 1, glow: .6, ls: .9, vs: 0 },
   head: { w: 3.4, h: 1.6, rad: .8, tip: .9, tipDir: 180, rot: 'vel', glow: .5, ls: .7, lx: .5, vs: 0 },
-  orb: { k: 1.15, micro: 1, arcs: 1, la: 0, vs: 0 }
+  // v18.6 R1: merged = ONE circle — calm dark disc, faint inner light, five-colour 72° rim ring + its soft edge glow
+  orb: { k: 1.15, micro: 0, arcs: 1, arcR: 1.5, arcW: 3, core: 1, halo: 1, ring: 0, la: 0, vs: 0 }
 };
 AGD.SHAPES = AG_SHAPES;
 AGD.STRETCH = true;
@@ -370,7 +387,7 @@ function agShapeF(i, b, p, F) {
     return u >= 1 ? T : agMixS(at(n - 1), T, M.ease(u));
   };
   const S = at(n); S.sx = 1; S.sdir = 0;
-  if (agOn() && AGD.STRETCH && S.vs > .001 && p.r > .3) {
+  if (agOn() && AGD.STRETCH && S.vs > .001 && p.r > .3 && !AGD_NOST.some((z) => b >= z.b0 && b < z.b1 && z.L.includes(i))) {
     const v = agFV(c); S.sx = 1 + Math.min(.18, v.sp / 4000) * E.sine(clamp((v.sp - 300) / 300)) * Math.min(1, S.vs); S.sdir = v.ang;
   }
   return S;
@@ -394,7 +411,7 @@ function agRho(S, phi) {
   if (S.tail > 1e-3) r += S.tail * Math.pow(Math.max(0, Math.cos(phi - S.tailDir * agDeg)), 24);
   return r;
 }
-const AGN_SKIP = new Set(['rot', 'tipDir', 'tailDir', 'rayDir', 'tickW', 'vs']);
+const AGN_SKIP = new Set(['rot', 'tipDir', 'tailDir', 'rayDir', 'tickW', 'arcR', 'arcW', 'vs']);
 function agNear(S) { for (const k in AG_DOT) if (!AGN_SKIP.has(k) && Math.abs(S[k] - AG_DOT[k]) > 1e-3) return false; return S.sx < 1.0005; }
 // local (units r, before rot) → stage px: rot, then the velocity stretch (screen frame), then scale and translate
 function agXf(S, x, y, R) {
@@ -437,9 +454,11 @@ function agShape(i, x, y, r, S, b, sp) {
     const p0 = Q[(j + N - 1) % N], p1 = Q[j], p2 = Q[(j + 1) % N], p3 = Q[(j + 2) % N];
     d += 'C' + f1(p1[0] + (p2[0] - p0[0]) / 6) + ' ' + f1(p1[1] + (p2[1] - p0[1]) / 6) + ' ' + f1(p2[0] - (p3[0] - p1[0]) / 6) + ' ' + f1(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + f1(p2[0]) + ' ' + f1(p2[1]);
   }
+  if (S.halo > .002 && S.arcs > .002) for (let m = 0; m < 5; m++) s += '<path d="' + agArc(x, y, R + S.arcR, sp + m * 72 + 8, sp + m * 72 + 64) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + f1(R * .55) + '" stroke-linecap="round" filter="url(#agbl)" opacity="' + (.3 * Math.min(1, S.halo) * Math.min(1, S.arcs)).toFixed(3) + '"/>';
   const fill = S.fill > .002 ? 'color-mix(in oklab, ' + AGC[i] + ' ' + (100 * Math.min(1, S.fill)).toFixed(1) + '%, #0e0f12)' : '#0e0f12';
   const stroke = S.warm > .002 ? 'color-mix(in oklab, ' + AGC[i] + ' ' + (100 * (1 - Math.min(1, S.warm))).toFixed(1) + '%, #f3a35c)' : AGC[i];
-  s += '<path d="' + d + 'Z" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (1.1 * S.ring).toFixed(2) + '" stroke-linejoin="round"/>';
+  s += '<path d="' + d + 'Z" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (1.1 * S.ring).toFixed(2) + '" stroke-opacity="' + Math.min(1, S.ring).toFixed(3) + '" stroke-linejoin="round"/>';
+  if (S.core > .002) s += '<circle cx="' + f1(x) + '" cy="' + f1(y) + '" r="' + f1(R) + '" fill="url(#agcore)" opacity="' + (.3 * Math.min(1, S.core)).toFixed(3) + '"/>';
   const ro = S.rot * agDeg, gx = x + (S.lx * Math.cos(ro) - S.ly * Math.sin(ro)) * R, gy = y + (S.lx * Math.sin(ro) + S.ly * Math.cos(ro)) * R;
   if (S.la * S.ls > .01) {
     const lf = clamp((S.fill - .35) / .4), col = lf > .002 ? 'color-mix(in oklab, ' + AGC[i] + ' ' + (100 * (1 - lf)).toFixed(1) + '%, #0e0f12)' : AGC[i];
@@ -450,7 +469,7 @@ function agShape(i, x, y, r, S, b, sp) {
     for (let m = 0; m < 5; m++) { const a2 = (6 * b + 72 * m - 90) * agDeg; m2 += agBadge(m, gx + .5 * R * Math.cos(a2), gy + .5 * R * Math.sin(a2), .3 * R); }
     s += '<g opacity="' + Math.min(1, S.micro).toFixed(3) + '">' + m2 + '</g>';
   }
-  if (S.arcs > .002) for (let m = 0; m < 5; m++) s += '<path d="' + agArc(x, y, R + 7, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="1.5" opacity="' + Math.min(1, S.arcs).toFixed(3) + '"/>';
+  if (S.arcs > .002) for (let m = 0; m < 5; m++) s += '<path d="' + agArc(x, y, R + S.arcR, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + S.arcW.toFixed(2) + '" stroke-linecap="round" opacity="' + Math.min(1, S.arcs).toFixed(3) + '"/>';
   if (S.tick > .002) {
     const tx = x + 1.3 * R, w = S.tickW;
     s += '<path d="M' + f1(tx) + ' ' + f1(y + .02 * R) + 'L' + f1(tx + .32 * R) + ' ' + f1(y + .34 * R) + 'L' + f1(tx + .95 * R) + ' ' + f1(y - .4 * R) + '" pathLength="1" fill="none" stroke="' + AGC[i] + '" stroke-width="' + w.toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="' + Math.min(1, S.tick).toFixed(4) + ' 2"/>';
@@ -502,6 +521,11 @@ function applyAgents(t) {
     const v = g.v * Math.min(E.inOut(clamp((b - g.b0 + .3) / .3)), E.inOut(clamp((g.b1 + .3 - b) / .3))), p = P[g.i];
     if (v > .002 && p.a > .002) front += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (p.r * 2.6).toFixed(1) + '" fill="url(#agg' + g.i + ')" opacity="' + (v * p.a).toFixed(3) + '"/>';
   }
+  for (const g of AGD_BLINK) {
+    const u = (b - g.b) / g.dur; if (u < 0 || u >= 1) continue;
+    const p = P[g.i], v = g.v * Math.sin(Math.PI * u) * p.a;
+    if (v > .002) front += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (p.r * 2.4).toFixed(1) + '" fill="url(#agg' + g.i + ')" opacity="' + Math.min(1, v).toFixed(3) + '"/>';
+  }
   // bubble stems (o.stem): tail → dot centre, under the badges
   for (const u of AGD_BUB) {
     if (!u.o.stem) continue;
@@ -525,7 +549,9 @@ function applyAgents(t) {
     for (let i = 0; i < 5; i++) { const a0 = sp + i * 72 + 3, a1 = sp + i * 72 + 69, q0 = [p.x + rr * Math.sin(a0 * agDeg), p.y - rr * Math.cos(a0 * agDeg)], q1 = [p.x + rr * Math.sin(a1 * agDeg), p.y - rr * Math.cos(a1 * agDeg)];
       front += '<path d="M' + q0[0].toFixed(1) + ' ' + q0[1].toFixed(1) + 'A' + rr.toFixed(1) + ' ' + rr.toFixed(1) + ' 0 0 1 ' + q1[0].toFixed(1) + ' ' + q1[1].toFixed(1) + '" fill="none" stroke="' + AGC[i] + '" stroke-width="1.5" opacity="' + (m * Math.min(1, p.a)).toFixed(3) + '"/>'; }
   }
-  const gd = AGC.map((c, i) => '<radialGradient id="agg' + i + '"><stop offset="0" style="stop-color:' + c + ';stop-opacity:.55"/><stop offset="1" style="stop-color:' + c + ';stop-opacity:0"/></radialGradient>').join('');
+  const gd = AGC.map((c, i) => '<radialGradient id="agg' + i + '"><stop offset="0" style="stop-color:' + c + ';stop-opacity:.55"/><stop offset="1" style="stop-color:' + c + ';stop-opacity:0"/></radialGradient>').join('') +
+    '<radialGradient id="agcore"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".55" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
+    '<filter id="agbl" filterUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080"><feGaussianBlur stdDeviation="5"/></filter>';
   $('#agdBack').innerHTML = back;
   $('#agd').innerHTML = '<defs>' + gd + defs + '</defs>' + front;
   agBubbles(b, P); agChats(b, t);
