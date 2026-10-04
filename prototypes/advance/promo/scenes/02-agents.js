@@ -54,7 +54,7 @@
    AGD.noStretch(b0, b1, sel) v18.6: no velocity stretch for dot(s) sel ('all') in [b0, b1), whatever shapes they morph
                              through — the clean way to keep a beat range tail-free (10-intro / 15-redesign: noStretch(0, end)).
                              Per dot from b on: AGD.morph(b, sel, 'dot', { vs: 0, dur: .01 }) also works, but a later morph back
-                             to plain 'dot' restores vs 1. AGD.STRETCH = false turns it off film-wide.
+                             to plain 'dot' restores vs 1. v18.7 D3: AGD.STRETCH is false film-wide, so this is a no-op now.
    AGD.chat(b0, b1, { x, y, w, from, to }) → c   app-style input box (88 px high, centre x, y), rises 40 px + fades in
                              .4 beats from b0, sinks out over the last .4 beats. from: (b) => { x, y } (e.g. AGD.centroid):
                              instead grows out of that point (scale .15 → 1, E.out .6 beats, a 1 by .25 beats); to: (b) =>
@@ -68,16 +68,17 @@
                              position (badge left edge on it: o.dx = r), round, radius o.r (20), no stretch, blending in /
                              out over o.blend (.25) beats; the box caret is hidden meanwhile. Keep the window inside a typed
                              line (no caret in a cleared box → the dot stays on its formation).
-   AGD.open(b, dur = .45, o) / AGD.seal(b, dur = .45, o)  v18.7 R1: the ONE circle opens into five dots / closes from them
-                             by its own rim. open: the five 72° rim arcs part, each slides from its midpoint out to its own
-                             dot's live position while its arc length goes to 0 (o.ease, E.inOut); disc, core and halo fade
-                             over the first 40 %; a dot's alpha stays 0 until its centre has left the rim (and is whole by
-                             the end). seal: the exact reverse (arcs grow out of the dots as they reach the rim, disc fades in
-                             over the last 40 %). Centre / size: the orb (dot 0) just before b (open) / just after b + dur
-                             (seal). Inside the window no dot is drawn as the orb; the scene's morph keys decide what dot 0
-                             is outside it (open: off 'orb' by b + dur; seal: 'orb' or a merge from b + dur).
-   Render rule (v18.7 R1): while any dot shows as the orb, every other dot whose centre comes within (orb radius + its own
-                             radius) fades by distance, gone at the rim — no merge shows dots inside the one circle.
+   AGD.open(b, dur = .45, o) / AGD.seal(b, dur = .45, o)  v18.7 D2: the merged badge opens into five dots / closes from
+                             them by its own arcs. open: cc's badge stays the centre badge (k eases from the merged ~1.1 to 1,
+                             logo always visible) and its own (orange) arc shortens + fades on its rim; each other Agent's
+                             72° arc slides along cc's rim toward its dot, leaves the rim straight out and shortens to a
+                             point while that Agent's round logo badge grows out of it (r ×.3 → 1, alpha 0 until it has left
+                             the rim) — never five badges inside a ring. seal: the exact reverse (badges fly in and turn into
+                             their arcs around cc's badge). The arcs follow cc's LIVE position. Inside the window no dot draws
+                             its own arcs; the scene's morph keys decide dot 0 outside it (open: off 'orb' by b + dur; seal:
+                             'orb' or a merge from b + dur).
+   Render rule: while any dot shows the merge arcs, every higher-index dot whose centre comes within (arc radius + its own
+                             radius) fades by distance, gone at the rim — no merge shows five badges inside the ring.
    AGD.beatPulse(b, K, len)  0..1 sine bump of len beats (.16) after each beat in K (e.g. typeOn's character beats).
 
    v17.7 morph — the dots' SHAPES (STORYBOARD「v17.7 Agent 点形态与动画」F1 / F2). Position stays with key / follow / pulse;
@@ -105,10 +106,14 @@
    shapes: dot · caret (w .42 h 3 rad .21 fill 1, no logo) · pill (w 2.9, logo in the tail-end cap; aim it) · tail (w 2.2,
      tail .7 up — tailDir 90 for down) · bead (w 2.5 h 1.8, rot 'tan') · petal (long axis local x, tip toward rot 'in',
      fill .3) · bullet (rad .62 ring 1.4; add tick: 1) · pin (h 2.9, tip up, + stem) · pointer (pin, rot −28) · spark
-     (rays 1 glow .6) · head (w 3.4 h 1.6, tail-end tip, rot 'vel', glow .5) · orb — v18.6 R1 ONE circle: k 1.15, dark disc, no
-     outline (ring 0), no logo (la 0), no micro badges, core 1, five-colour rim ring (arcs 1, arcR 1.5, arcW 3) + halo 1.
-   Automatic (only once any morph is registered): dot-like shapes (vs) stretch along their travel by 1 + min(.18, v/4000)
-     (area kept, logo not stretched; 0 below 300 px/beat, full by 600); a 'dot' inside a merge becomes the orb as the merge
+     (rays 1 glow .6) · head (w 3.4 h 1.6, tail-end tip, rot 'vel', glow .5) · orb — v18.7 D2 the v17.6 merge: dot 0's own
+     agBadge (cc logo fully visible) × k 1.1 (≤ 1.18; k may be live for a breath) + five Agent-coloured 72° arcs at R + 7,
+     1.5 px; micro / core / halo / la / ring / arcR / arcW / fill are LOCKED for 'orb' (older v18.6 disc params are ignored).
+     Any round shape (only k / arcs / glow differ from 'dot') is drawn with the real agBadge.
+   D3 (v18.7): tail · pill · pin · pointer · head · spark · petal · bullet are tail-like — still drawn, but AGD.morph to any
+     of them logs console.warn('AGD.morph D3: …') at registration (visible in render.mjs's log). Legal: dot · caret · bead · orb.
+   Automatic (only once any morph is registered): velocity stretch is OFF (AGD.STRETCH = false, D3; when true, dot-like
+     shapes (vs) stretch along their travel by 1 + min(.18, v/4000)); a 'dot' inside a merge becomes the orb as the merge
      closes (dots 1–4 hide under dot 0, which draws the arcs); with a tail showing, AGD.bubble (no o.dy) anchors at the
      tail tip and a chat send's light trail ends there.
    Layers: #agdBack (under #orbit: far orbit half; scenes may draw their own guides there via AGD.back()), #agd (over
@@ -293,11 +298,16 @@ const AG_SHAPES = {
   pointer: { h: 2.5, tip: .9, tipDir: -90, rot: -28, ly: .4, vs: 0 },
   spark: { rays: 1, glow: .6, ls: .9, vs: 0 },
   head: { w: 3.4, h: 1.6, rad: .8, tip: .9, tipDir: 180, rot: 'vel', glow: .5, ls: .7, lx: .5, vs: 0 },
-  // v18.6 R1: merged = ONE circle — calm dark disc, faint inner light, five-colour 72° rim ring + its soft edge glow
-  orb: { k: 1.15, micro: 0, arcs: 1, arcR: 1.5, arcW: 3, core: 1, halo: 1, ring: 0, la: 0, vs: 0 }
+  // v18.7 D2: merged = ONE 17-series badge — dot 0's own logo badge (agLogo, cc fully visible) ringed by the five
+  // Agent-coloured 72° arcs at r + 7, 1.5 px (the v17.6 merge); no blank disc, no core / halo, no micro badges
+  orb: { k: 1.1, micro: 0, arcs: 1, arcR: 7, arcW: 1.5, core: 0, halo: 0, ring: 1, la: 1, vs: 0 }
 };
+// D2: these are fixed for 'orb' whatever a scene passes (older scenes still send the v18.6 disc params)
+const AG_ORB_LOCK = { micro: 0, arcR: 7, arcW: 1.5, core: 0, halo: 0, ring: 1, la: 1, ls: 1, fill: 0, warm: 0, rays: 0 };
+// D3: shapes with a tail-like outline — still drawn (so a leftover call is visible), but every call warns in the render log
+const AG_BANNED = new Set(['tail', 'pill', 'pin', 'pointer', 'head', 'spark', 'petal', 'bullet']);
 AGD.SHAPES = AG_SHAPES;
-AGD.STRETCH = true;
+AGD.STRETCH = false;                                         // D3: no velocity stretch anywhere (set true only to compare)
 const AGD_MORPH = [], AGM_KEYS = new Set([...Object.keys(AG_DOT), 'aim', 'hpx']), AGM_DIR = new Set(['rot', 'tipDir', 'tailDir', 'aim']);
 let AGM_BY = null;
 const agOn = () => AGD_MORPH.length > 0;
@@ -305,6 +315,7 @@ AGD.morph = (b, sel, shape, o = {}) => {
   const L = sel === 'all' ? [0, 1, 2, 3, 4] : Array.isArray(sel) ? sel : [sel];
   const name = typeof shape === 'string' ? shape : 'dot', over = {};
   if (!AG_SHAPES[name]) console.warn('AGD.morph: unknown shape ' + name);
+  if (AG_BANNED.has(name)) console.warn('AGD.morph D3: tail-like shape \'' + name + '\' at scene beat ' + (+b.toFixed(2)) + ' (dot ' + JSON.stringify(sel) + ') — use dot / caret / bead / orb + AGD.blink');
   if (typeof shape === 'object') for (const k in shape) if (AGM_KEYS.has(k)) over[k] = shape[k];
   for (const k in o) if (AGM_KEYS.has(k)) over[k] = o[k];
   const dur = o.dur ?? .5, st = o.stag ?? .04, ease = o.ease || E.inOut;
@@ -381,6 +392,7 @@ function agResolve(name, over, sh, c) {
   for (const k of ['tipDir', 'tailDir']) if (typeof S[k] !== 'number') S[k] = agDir(S[k], c, sh) - S.rot;
   if (S.hpx > 0) S.h = S.hpx / Math.max(1, c.r);
   delete S.aim; delete S.hpx;
+  if (name === 'orb') { Object.assign(S, AG_ORB_LOCK); S.k = Math.min(S.k, 1.18); }
   return name === 'dot' && c.merged > .001 ? agMixS(S, agResolve('orb', {}, sh, c), c.merged) : S;
 }
 const agIso = (s) => Math.abs(s.w - s.h) < .02 && s.tip < .01 && s.tail < .01 && Math.abs(s.lx) < .01 && Math.abs(s.ly) < .01;
@@ -433,6 +445,8 @@ function agRho(S, phi) {
   return r;
 }
 const AGN_SKIP = new Set(['rot', 'tipDir', 'tailDir', 'rayDir', 'tickW', 'arcR', 'arcW', 'vs']);
+const AGR_FREE = new Set([...AGN_SKIP, 'k', 'arcs', 'glow', 'core', 'halo', 'micro']);
+function agRound(S) { for (const k in AG_DOT) if (!AGR_FREE.has(k) && Math.abs(S[k] - AG_DOT[k]) > 1e-3) return false; return S.sx < 1.0005 && S.core < .002 && S.halo < .002 && S.micro < .002; }
 function agNear(S) { for (const k in AG_DOT) if (!AGN_SKIP.has(k) && Math.abs(S[k] - AG_DOT[k]) > 1e-3) return false; return S.sx < 1.0005; }
 // local (units r, before rot) → stage px: rot, then the velocity stretch (screen frame), then scale and translate
 function agXf(S, x, y, R) {
@@ -454,6 +468,14 @@ const agArc = (x, y, rr, a0, a1) => 'M' + f1(x + rr * Math.sin(a0 * agDeg)) + ' 
 // dot i drawn as shape S at (x, y), badge radius r; b absolute beats, sp merge-arc spin (deg). 'dot' → agBadge, unchanged
 function agShape(i, x, y, r, S, b, sp) {
   if (agNear(S)) return agBadge(i, x, y, r);
+  // D1 / D2: a round badge (only size, arcs, glow differ from 'dot') is drawn as the real agBadge — the merge is v17.6's
+  if (agRound(S)) {
+    const R = r * S.k;
+    let s = S.glow > .002 ? '<circle cx="' + f1(x) + '" cy="' + f1(y) + '" r="' + f1(R * 2.6) + '" fill="url(#agg' + i + ')" opacity="' + Math.min(1, S.glow).toFixed(3) + '"/>' : '';
+    s += agBadge(i, x, y, R);
+    if (S.arcs > .002) for (let m = 0; m < 5; m++) s += '<path d="' + agArc(x, y, R + S.arcR, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + S.arcW.toFixed(2) + '" stroke-linecap="round" opacity="' + Math.min(1, S.arcs).toFixed(3) + '"/>';
+    return s;
+  }
   AGGLYPH = AGGLYPH || decks[0].W.eval('agGlyph');
   const R = r * S.k, T = agXf(S, x, y, R);
   let s = '';
@@ -481,8 +503,7 @@ function agShape(i, x, y, r, S, b, sp) {
   s += '<path d="' + d + 'Z" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (1.1 * S.ring).toFixed(2) + '" stroke-opacity="' + Math.min(1, S.ring).toFixed(3) + '" stroke-linejoin="round"/>';
   if (S.core > .002) s += '<circle cx="' + f1(x) + '" cy="' + f1(y) + '" r="' + f1(R) + '" fill="url(#agcore)" opacity="' + (.3 * Math.min(1, S.core)).toFixed(3) + '"/>';
   const ro = S.rot * agDeg, gx = x + (S.lx * Math.cos(ro) - S.ly * Math.sin(ro)) * R, gy = y + (S.lx * Math.sin(ro) + S.ly * Math.cos(ro)) * R;
-  // v18.7 R1: no Agent logo inside the one circle — the logo is gone once the rim ring is half drawn
-  const la = S.la * (S.arcs > .002 ? clamp(1 - 2 * S.arcs) : 1);
+  const la = S.la;                                          // D2: the logo always shows (the merge is cc's badge)
   if (la * S.ls > .01) {
     const lf = clamp((S.fill - .35) / .4), col = lf > .002 ? 'color-mix(in oklab, ' + AGC[i] + ' ' + (100 * (1 - lf)).toFixed(1) + '%, #0e0f12)' : AGC[i];
     s += '<g opacity="' + Math.min(1, la).toFixed(3) + '">' + AGGLYPH(AGID[i], +gx.toFixed(1), +gy.toFixed(1), 1.3 * R * S.ls, col) + '</g>';
@@ -516,11 +537,12 @@ function applyAgents(t) {
   const F = { vel: [], P };
   if (agOn()) for (let i = 0; i < 5; i++) P[i].S = agShapeF(i, b, P[i], F);
   // v18.7 R1 open / seal: while the rim opens or closes, no dot is drawn as the orb (the shell below draws it)
-  const SHL = AGD_SHELL.filter((z) => b >= z.b0 && b < z.b1).map((z) => agShellAt(z, b, msp));
+  const SHL = AGD_SHELL.filter((z) => b >= z.b0 && b < z.b1).map((z) => agShellAt(z, b, msp, P));
   if (SHL.length) for (let i = 0; i < 5; i++) {
     const p = P[i]; if (!p.S) continue;
     if (p.merged) { p.S = agShapeF(i, b, Object.assign({}, p, { merged: 0 }), F); p.merged = 0; }
-    const S = p.S; if (S.arcs > .002) Object.assign(S, { arcs: 0, halo: 0, core: 0, k: 1, ring: Math.max(1, S.ring), la: Math.max(1, S.la) });
+    // D2: the shell draws the five arcs; cc stays the centre badge (its size easing from the merged k to 1)
+    const S = p.S; if (S.arcs > .002 || !i) Object.assign(S, { arcs: 0, halo: 0, core: 0, micro: 0, k: i ? 1 : SHL[0].k0, ring: Math.max(1, S.ring), la: Math.max(1, S.la) });
   }
   let back = '', front = '', defs = '', top = '';
   for (const g of AGD_BACK) if (b >= g.b0 && b < g.b1) { try { back += agCall(g.sh, g.fn, b) || ''; } catch (e) { console.error('AGD.back', e); g.b1 = -1; } }
@@ -574,7 +596,7 @@ function applyAgents(t) {
   const gate = (i) => {
     const p = P[i], ri = Math.max(1, p.r * (p.S ? p.S.k : 1)); let g = 1;
     for (const o of ORBS) if (o.j < i) g *= 1 - o.v * (1 - clamp((Math.hypot(p.x - o.x, p.y - o.y) - o.R) / ri));
-    for (const z of SHL) g *= z.tg * clamp((Math.hypot(p.x - z.cx, p.y - z.cy) - z.Rr + ri) / ri);
+    if (i) for (const z of SHL) g *= z.tg * clamp((Math.hypot(p.x - z.cx, p.y - z.cy) - z.Rr + ri) / ri);
     return g;
   };
   // badges: cc last (on top, for 'merge'); far orbit half into #agdBack
@@ -582,7 +604,7 @@ function applyAgents(t) {
     const p = P[i]; if (p.a <= .002 || p.r <= .3) continue;
     // v17.7: inside a closed merge only dot 0 draws (as the orb, or whatever it was morphed into)
     const a = (p.S && i && p.merged ? p.a * (1 - E.inOut(clamp((p.merged - .6) / .4))) : p.a) * gate(i); if (a <= .002) continue;
-    const pr = p.r * SHL.reduce((m, z) => m * z.gs, 1);
+    const pr = i ? p.r * SHL.reduce((m, z) => m * z.gs, 1) : p.r;
     const s = '<g opacity="' + Math.min(1, a).toFixed(3) + '">' + (p.S ? agShape(i, p.x, p.y, pr, p.S, b, msp) : agBadge(i, p.x, p.y, pr)) + '</g>';
     if (AGD_RIDES.some((z) => z.i === i && b >= z.b0 && b < z.b1)) top += s; else if (p.back) back += s; else front += s;
   }
@@ -600,38 +622,37 @@ function applyAgents(t) {
   $('#agdTop').innerHTML = top;
   agBubbles(b, P);
 }
-// v18.7 R1 shell state at absolute beat b: e = 1 − closed (0 = the full orb, 1 = five dots); centre / rim from the orb's
-// own state just before an open (cached) or just after a seal; tg = time gate for the dots (0 until they leave the rim)
-function agShellAt(z, b, sp) {
+// v18.7 shell state at absolute beat b (D2): e = 1 − closed (0 = the merged badge, 1 = five dots). The centre is cc's live
+// badge (dot 0 stays the centre badge); k0 its size (merged k → 1); tg / gs gate and grow dots 1–4 out of their arcs
+function agShellAt(z, b, sp, P) {
   if (!z.at) {
     const ob = z.open ? z.b0 - 1e-3 : z.b1 + 1e-3, p = agPosF(0, ob), S = agOn() ? agShapeF(0, ob, p, { vel: [] }) : Object.assign({}, AG_DOT, AG_SHAPES.orb);
-    const k = S.arcs > .002 ? S.k : AG_SHAPES.orb.k, arcR = S.arcs > .002 ? S.arcR : AG_SHAPES.orb.arcR, arcW = S.arcs > .002 ? S.arcW : AG_SHAPES.orb.arcW;
-    z.at = { cx: p.x, cy: p.y, r: p.r, k, arcR, arcW, a: Math.min(1, p.a), far: [0, 1, 2, 3, 4].map((i) => agPosF(i, z.open ? z.b1 : z.b0)) };
+    z.at = { k: S.arcs > .002 ? S.k : AG_SHAPES.orb.k, a: Math.min(1, p.a), far: [0, 1, 2, 3, 4].map((i) => agPosF(i, z.open ? z.b1 : z.b0)) };
   }
   const A = z.at, u = clamp((b - z.b0) / (z.b1 - z.b0)), w = z.open ? u : 1 - u, e = z.ease(w);
-  const R = A.r * A.k;
-  return { z, A, u, w, e, sp, cx: A.cx, cy: A.cy, R, Rr: R + A.arcR, shell: 1 - E.inOut(clamp(w / .4)), tg: E.inOut(clamp((e - .4) / .5)), gs: lerp(.3, 1, E.out(clamp((e - .4) / .6))) };   // QA r7: dots grow out of the shrinking arcs (no dashed-ring-only gap, no full-size pop)
+  const k0 = lerp(A.k, 1, E.inOut(clamp(e / .7))), R = P[0].r * k0;
+  return { z, A, u, w, e, sp, k0, cx: P[0].x, cy: P[0].y, R, Rr: R + AG_SHAPES.orb.arcR, tg: E.inOut(clamp((e - .4) / .5)), gs: lerp(.3, 1, E.out(clamp((e - .4) / .6))) };   // QA r7: dots grow out of the shrinking arcs (no ring-only gap, no full-size pop)
 }
 function agShellSVG(H, P) {
-  const { A, e, sp, cx, cy, R, Rr, shell } = H;
+  const { A, e, sp, cx, cy, Rr } = H, W = AG_SHAPES.orb.arcW;
   let s = '';
-  const sa = shell * A.a;
-  if (sa > .002) {
-    s += '<circle cx="' + f1(cx) + '" cy="' + f1(cy) + '" r="' + f1(R) + '" fill="#0e0f12" opacity="' + sa.toFixed(3) + '"/>';
-    s += '<circle cx="' + f1(cx) + '" cy="' + f1(cy) + '" r="' + f1(R) + '" fill="url(#agcore)" opacity="' + (.3 * sa).toFixed(3) + '"/>';
-  }
   for (let m = 0; m < 5; m++) {
-    // each arc first slides along the rim toward its own dot's direction while the gaps open (no crossing paths), then
-    // leaves the rim straight out to the dot (its far position, handing over to the live one at the end)
-    const far = A.far[m], t0 = sp + m * 72 + 36, tf = Math.hypot(far.x - cx, far.y - cy) > 1 ? Math.atan2(far.x - cx, -(far.y - cy)) / agDeg : t0;
+    const t0 = sp + m * 72 + 36;
+    if (!m) {
+      // cc's own arc stays on cc's rim: it shortens to its midpoint and fades into the centre badge
+      const h = 33 * (1 - E.inOut(clamp(e / .7))), aa = (1 - E.inOut(clamp((e - .1) / .6))) * A.a;
+      if (h > .3 && aa > .002) s += '<path d="' + agArc(cx, cy, Rr, t0 - h, t0 + h) + '" fill="none" stroke="' + AGC[0] + '" stroke-width="' + W.toFixed(2) + '" stroke-linecap="round" opacity="' + aa.toFixed(3) + '"/>';
+      continue;
+    }
+    // each other arc first slides along cc's rim toward its own dot's direction while the gaps open (no crossing paths),
+    // then leaves the rim straight out to its dot, shortening to a point as that Agent's round badge grows out of it
+    const far = A.far[m], tf = Math.hypot(far.x - cx, far.y - cy) > 1 ? Math.atan2(far.x - cx, -(far.y - cy)) / agDeg : t0;
     const th = t0 + agWrap(tf - t0) * E.inOut(clamp(e / .45)), h = 33 * (1 - e), tr = th * agDeg, go = E.inOut(clamp((e - .2) / .8)), hl = E.inOut(clamp((e - .6) / .4));
     const M0 = [cx + Rr * Math.sin(tr), cy - Rr * Math.cos(tr)], T = [lerp(far.x, P[m].x, hl), lerp(far.y, P[m].y, hl)];
     const Q = [lerp(M0[0], T[0], go), lerp(M0[1], T[1], go)], O = [Q[0] - Rr * Math.sin(tr), Q[1] + Rr * Math.cos(tr)];
-    const aa = (1 - E.inOut(clamp((e - .7) / .3))) * A.a; if (aa <= .002) continue;
+    const aa = (1 - E.inOut(clamp((e - .6) / .3))) * A.a; if (aa <= .002) continue;
     const d = h > .3 ? agArc(O[0], O[1], Rr, th - h, th + h) : 'M' + f1(Q[0] - .1) + ' ' + f1(Q[1]) + 'L' + f1(Q[0] + .1) + ' ' + f1(Q[1]);
-    const W = lerp(A.arcW, A.arcW * 1.6, e);
-    if (sa > .002) s += '<path d="' + d + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + f1(R * .55) + '" stroke-linecap="round" filter="url(#agbl)" opacity="' + (.3 * sa).toFixed(3) + '"/>';
-    s += '<path d="' + d + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + W.toFixed(2) + '" stroke-linecap="round" opacity="' + aa.toFixed(3) + '"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + lerp(W, W * 1.6, e).toFixed(2) + '" stroke-linecap="round" opacity="' + aa.toFixed(3) + '"/>';
   }
   return s;
 }
