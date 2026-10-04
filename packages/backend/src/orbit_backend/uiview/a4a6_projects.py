@@ -11,6 +11,7 @@ import os
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from orbit_data.inventory.adapters import SUPPORTED as INVENTORY_SUPPORTED
 
@@ -106,10 +107,18 @@ def _ext(path: str) -> str | None:
     return name.rsplit(".", 1)[-1].lower() if "." in name else None
 
 
-def _day(ts) -> str | None:
+def _zone(name: str | None):
+    """The request's IANA zone for local days; missing or unknown stays UTC."""
+    try:
+        return ZoneInfo(name) if name else timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        return timezone.utc
+
+
+def _day(ts, zone=timezone.utc) -> str | None:
     if ts is None:
         return None
-    return datetime.fromtimestamp(ts / 1000, timezone.utc).date().isoformat()
+    return datetime.fromtimestamp(ts / 1000, zone).date().isoformat()
 
 
 def load(conn, scope) -> dict:
@@ -309,8 +318,9 @@ def build_projects(conn, scope, params, *, inventory_items=None, persona_lookup=
 
 # ------------------------------------------------------------------ detail
 
-def _metric_values(rows):
-    days = Counter(_day(s["started_at"]) for s in rows if s["started_at"] is not None)
+def _metric_values(rows, zone=timezone.utc):
+    # Active days are the user's local calendar days (A1 / A3 bucket the same way).
+    days = Counter(_day(s["started_at"], zone) for s in rows if s["started_at"] is not None)
     return {
         "avg_session_minutes": [s["active_ms"] / 60_000 for s in rows
                                 if s.get("active_ms") is not None],
@@ -322,8 +332,8 @@ def _metric_values(rows):
     }
 
 
-def compare(a_rows, b_rows, against) -> dict:
-    va, vb = _metric_values(a_rows), _metric_values(b_rows)
+def compare(a_rows, b_rows, against, zone=timezone.utc) -> dict:
+    va, vb = _metric_values(a_rows, zone), _metric_values(b_rows, zone)
     enough = len(a_rows) >= COMPARE_MIN_N and len(b_rows) >= COMPARE_MIN_N
     metrics = []
     for key, label, kind in METRICS:
@@ -513,7 +523,7 @@ def build_project(conn, scope, project_id, params, *, inventory_items=None, appd
                    "tags": row["tags"], "rule_files": files, "rule_files_rejected": rejected,
                    "sessions": row["sessions"], "hours": row["hours"], "friction": row["friction"],
                    "persona": row["persona"]},
-        "vs": compare(rows, other, against),
+        "vs": compare(rows, other, against, _zone(params.get("tz"))),
         "agents": row["agents"],
         "workflows": workflows(rows),
         "coverage": coverage(inventory_items, project_id, agents),
@@ -591,7 +601,7 @@ def register(api, gw) -> None:
         scope = {**scope_of(None, agent, since, until), **ranges}
         items = _linked_items([project_id])
         with gw.reads.read(empty=True) as conn:  # nothing imported yet: 404, not 503
-            body = build_project(conn, scope, project_id, {"compare": compare},
+            body = build_project(conn, scope, project_id, {"compare": compare, "tz": tz},
                                  inventory_items=items, appdb=gw.appdb,
                                  persona_lookup=lookup(agent, since, until, tz))
         if body is None:
