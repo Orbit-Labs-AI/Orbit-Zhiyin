@@ -148,7 +148,6 @@ class MatchRequest(Contract):
     per_route: int = Field(default=100, ge=10, le=500)
     model_id: str | None = None
     prefix: bool = False  # Treat the last >=3-char query token as a prefix (type-ahead).
-    audit: bool = False  # Optional filter trace; does not alter eligibility or ranking.
 
 
 class LocalItem(BaseModel):

@@ -77,38 +77,6 @@ def test_slate_shape_and_ui_keys():
     assert low["problem_type"] == "permission_friction"
 
 
-def test_funnel_preserves_discarded_evidence_without_changing_selection():
-    from copy import deepcopy
-
-    from orbit_backend.recommend.funnel import Funnel
-
-    inputs = INPUTS | {"agents": {"pi": 12}}
-    candidates = [
-        raw("kb:hook", kind="hook", dim="hook", title="Repeat guard", unit_minutes=1.5),
-        raw("kb:rule", kind="rule", dim="rule", title="Environment procedure", unit_minutes=1.2),
-        raw("kb:skill", kind="skill", dim="skill", title="Investigation procedure", unit_minutes=.8),
-        raw("kb:dupe", kind="rule", dim="rule", title="Environment procedure", unit_minutes=.6),
-        raw("kb:mcp", kind="mcp", dim="mcp", title="External tool"),
-        raw("kb:weak", title="Weak evidence", prob=problem(status="insufficient", sessions=1, denominator=2)),
-    ]
-    expected = engine.rank_candidates(deepcopy(candidates), inputs, MEMORY)
-    audit = Funnel(inputs, [problem()], {})
-    actual = engine.rank_candidates(deepcopy(candidates), inputs, MEMORY, audit=audit)
-    assert actual == expected
-    data = audit.export()
-    stages = {stage["stage"]: stage for stage in data["stages"]}
-    assert stages["raw_candidates"]["input_count"] == 6
-    assert stages["compatibility_filtering"]["rejected_count"] == 1
-    assert stages["threshold_filtering"]["rejected_count"] == 1
-    assert stages["deduplication"]["rejected_count"] == 1
-    final = stages["final_recommendation"]
-    assert final["kept_count"] == 2 and final["rejected_count"] == 1
-    assert any(d["reasons"] == ["cap:problem"] for d in final["decisions"])
-    assert data["candidates"]["kb:weak"]["evidence"]["session_uids"] == ["s1", "s2"]
-    assert all(d["score"] is not None for d in stages["scoring"]["decisions"])
-    assert data["runtime"]["actual_usage"] == {"status": "not_observed", "count": None}
-
-
 def test_reason_falls_back_when_template_cannot_fill():
     r = raw("kb:x", explain_hints={"reason_template": "共 {missing} 次", "mechanism": "m"})
     cand = engine.build_slate(INPUTS, MEMORY, recall=fake_recall([r]))["candidates"][0]

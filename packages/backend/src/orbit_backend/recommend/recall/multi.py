@@ -100,18 +100,13 @@ def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_pat
     routes: dict[str, list] = {}
     payloads: dict[str, dict[str, dict]] = {}
     meta: dict = {}
-    route_audit: dict = {}
 
     def run(name, call):
         try:
             rows, payload = call()
         except Exception as exc:  # isolate each route: partial recall beats no recall
             diagnostics.append({"source": name, "status": "failed", "reason": f"{type(exc).__name__}: {exc}"[:300]})
-            route_audit[name] = {"status": "failed", "count": None, "reason": type(exc).__name__}
             return
-        route_audit[name] = {"status": "ok", "count": len(rows), "candidates": [
-            {"rec_key": key, "raw_score": score, "kind": (payload.get(key) or {}).get("kind"),
-             "evidence": (payload.get(key) or {}).get("evidence")} for key, score in rows]}
         if rows:
             routes[name], payloads[name] = rows, payload
 
@@ -153,8 +148,4 @@ def recall_all(inputs: dict, memory: dict | None = None, *, catalog=None, kb_pat
     return {"problems": problems, "candidates": candidates,
             "routes": {route: len(rows) for route, rows in sorted(routes.items())},
             "diagnostics": diagnostics, "kb_version": kb_version, "catalog_generation": meta.get("generation"),
-            "profile": inputs.get("profile"),
-            "audit": {"routes": route_audit, "unique_fused": len(fused),
-                      "fusion_limit": MAX_CANDIDATES,
-                      "dropped_by_fusion_limit": [i.item_id for i in fused[MAX_CANDIDATES:]],
-                      "feature": meta.get("feature_audit"), "catalog": meta.get("catalog_audit")}}
+            "profile": inputs.get("profile")}
