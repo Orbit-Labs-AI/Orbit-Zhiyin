@@ -4,7 +4,9 @@
    光体不读取任何场景对象（不调用 AGD / MARK / elXY / 相机），场景改动不会牵动光。只在 b0–4.5 淡入、END−3.6–END 淡出；
    「衍生」= 原位、原宽度上 2 拍交叉溶解换图。拍号是成片拍（v18.1 起固定，不再按 END 拉伸）。
    v17.7（用户：标志时刻落在纯黑上）：20-orbit 字标段（场景拍 b24.0–31.2）前后各 3–4 拍长淡，光体压到每团 ≤ .15；
-   60-close 曲线画起前（场景拍 b70.4–75.4）长淡到 0，此后保持全黑到片尾。时间只按 SHIFT 表换算，不读场景对象。 */
+   60-close 曲线画起前（场景拍 b70.4–75.4）长淡到 0，此后保持全黑到片尾。时间只按 SHIFT 表换算，不读场景对象。
+   v18.8：字标段压到 ≤ .03（A 另加 capw 到 0，b35–44 无灰环影）；intro B 为右上主光；recs B 抬到 y 300 不照计数器；payoff 合成
+   一个暖光池（B 居中 y 930，A 退到 .10）；tools 段 C 做产品底光、A 从卡下露出，XD −32 px 随 tools 平移；close 只留 C 一个冷光池。 */
 scene('05-light', () => {
   css(`
 .light{position:absolute;inset:0;pointer-events:none;overflow:hidden;-webkit-mask-image:radial-gradient(ellipse 70% 75% at 50% 52%,#000 55%,rgba(0,0,0,.35) 100%);mask-image:radial-gradient(ellipse 70% 75% at 50% 52%,#000 55%,rgba(0,0,0,.35) 100%);transform-origin:50% 50%}
@@ -19,6 +21,7 @@ scene('05-light', () => {
   const MASK = { ring: 'radial-gradient(circle closest-side at 50% 50%, transparent 0 44%, rgba(0,0,0,.6) 52%, #000 58%, #000 74%, transparent 100%)' };
   // v18.4: the ring layer turns 55° ahead, so the bright lobe of the blob sits away from the 1e top-left (off-centre glow)
   const ROT = { ring: 55 };
+  const OS = SHIFT['20-orbit'] || 0, CS = SHIFT['60-close'] || 0;
   const GAIN = 1.35, CAP = .7, FADE_IN = [0, 4.5], FADE_TAIL = 3.6;
   // k: [film beat, x, y (centre, stage px), width px, strength]; img: [first image, [beat, next image], …] (3-beat dissolve)
   // spin: own constant turn (deg / beat) on top of the breathing wobble; rot0: starting angle; d: drift phase
@@ -26,30 +29,30 @@ scene('05-light', () => {
   const B = [
     // A: ring from b27 haloes the R420 dot ring of the 1e peak (centre 960,540, dark disc ≥ ring), then sits concentric with
     // the persona dial (600,560) and swells at the DIMV reveal; back to circle before recs so no ring under the column / cards
-    { name: 'A', img: ['circle', [25.5, 'ring'], [62.9, 'circle']], spin: .167, rot0: -6, d: 1, capw: [[61.5, 62.3, 63.0, 66.0, .08]],
+    { name: 'A', img: ['circle', [25.5, 'ring'], [62.9, 'circle']], spin: .167, rot0: -6, d: 1, capw: [[61.5, 62.3, 63.0, 66.0, .08], [OS + 20.2, OS + 22.9, OS + 31.2, OS + 35.2, 0]],
       k: [[0, 1560, 1240, 1200, 0], [6.0, 1380, 900, 1250, .20], [18.0, 1150, 700, 1300, .18], [25.0, 990, 595, 1430, .14], [28.4, 960, 540, 1500, .42], [30.2, 960, 540, 1500, .44], [35.9, 960, 540, 1580, .46],
-        [41.9, 900, 548, 1200, .36], [49.4, 720, 560, 1000, .30], [61.4, 600, 560, 1000, .38], [83.8, 360, 600, 820, .26], [88.0, 420, 1010, 1100, .32], [93.0, 1000, 1050, 1150, .34], [97.5, 1560, 1030, 1100, .32], [99.4, 960, 820, 700, .26],
+        [41.9, 900, 548, 1200, .36], [49.4, 720, 560, 1000, .30], [61.4, 600, 560, 1000, .38], [83.8, 200, 600, 820, .10], [88.0, 420, 1010, 1100, .32], [93.0, 1000, 860, 1150, .34], [97.5, 1560, 860, 1100, .32], [99.4, 960, 820, 700, .26],
         [106.0, 960, 560, 860, .10], [108.6, 960, 540, 900, .12], [117.5, 960, 470, 1300, .3], [120.5, 960, 330, 1250, .3], [131.7, 960, 300, 1300, 0]] },
     // B: warm accent near the 1b headline; late swell behind the right side of the centred recs payoff
     { name: 'B', img: ['prism', [81.5, 'warm']], spin: -.12, rot0: 8, d: 2,
-      k: [[0, 180, -260, 1100, 0], [7.5, 1380, 60, 1150, .22], [19.5, 860, -140, 1150, .16], [31.4, 1440, 190, 1100, .12], [46.4, 1560, 480, 1100, .16], [51.5, 1780, 940, 1000, .14],
-        [56.9, 1800, 960, 1000, .14], [68.8, 1660, 520, 1000, .24], [80.8, 1880, 560, 1000, .40], [84.8, 1180, 1000, 1150, .36], [86.9, 1260, 860, 950, .20], [93.6, 1420, 720, 1050, .12],
-        [99.8, 1520, 660, 1000, .18], [104.1, 1560, 820, 1000, .14], [122.0, 1500, 900, 1000, .26], [131.7, 1450, 950, 1000, 0]] },
+      k: [[0, 180, -260, 1100, 0], [7.5, 1560, -120, 1150, .18], [19.5, 1500, -260, 1150, .14], [31.4, 1440, 190, 1100, .12], [46.4, 1560, 480, 1100, .16], [51.5, 1780, 940, 1000, .14],
+        [56.9, 1800, 960, 1000, .14], [68.8, 1660, 520, 1000, .24], [80.8, 1880, 300, 1000, .32], [82.7, 1760, 960, 1000, .24], [84.8, 960, 1080, 1150, .34], [86.9, 1260, 860, 950, .20], [93.6, 1420, 720, 1050, .12],
+        [99.8, 1520, 660, 1000, .18], [104.1, 1560, 820, 1000, .06], [122.0, 1500, 900, 1000, .04], [131.7, 1450, 950, 1000, 0]] },
     // C: floor glow under the intro bar (y 1120), then the wave / ribbon low band
     { name: 'C', img: ['wave', [111.5, 'ribbon']], spin: .08, rot0: -5, d: 3,
       k: [[0, -200, 1000, 1700, 0], [9.0, 640, 1120, 1800, .3], [21.0, 1060, 1200, 1800, .30], [32.9, 1400, 1030, 1800, .10], [44.9, 1780, 1150, 1700, .12],
-        [59.9, 1100, 1080, 1800, .2], [74.8, 860, 1000, 1900, .26], [90.6, 900, 1080, 1800, .14], [105.6, 820, 980, 1700, .10], [116.0, 950, 770, 1500, .36],
+        [59.9, 1100, 1080, 1800, .2], [74.8, 860, 1000, 1900, .26], [90.6, 960, 1010, 2000, .26], [105.6, 900, 1000, 1800, .20], [116.0, 950, 770, 1500, .36],
         [126.5, 965, 740, 1550, .38], [131.7, 975, 728, 1600, 0]] }
   ];
   // v18.1 parallax: scripted [film beat, dur, dx, dy, ease], ≈ 1/3 of each foreground move in the same direction
   // (A, B × 1, C × .6; b99.0 dy −40: the trajectory card leaves upward and SKILL.md rises in); the eased sum is an offset that stays (see the waypoint note below). Still no reads of scene objects.
-  const PAR = [[6.6, 1.2, 0, -30, 'inOut'], [13.6, 2.0, 70, 0, 'inOut'], [49.7, 1.4, -120, 0, 'inOut'], [86.7, 1.4, 40, 0, 'out'], [99.0, 1.2, -60, -40, 'inOut'], [106.9, 1.0, 0, -40, 'inOut'], [68.9, 14.0, 0, -50, 'sine'], [88.3, 11.0, -20, 0, 'sine']];
+  const PAR = [[6.6, 1.2, 0, -30, 'inOut'], [13.6, 2.0, 70, 0, 'inOut'], [49.7, 1.4, -120, 0, 'inOut'], [86.7, 1.4, 40, 0, 'out'], [99.0, 1.2, -60, -40, 'inOut'], [106.9, 1.0, 0, -40, 'inOut'], [68.9, 14.0, 0, -50, 'sine'], [88.3, 11.0, -20, 0, 'sine'], [45.3, 1.1, 0, 20, 'inOut']];
   // v18.4 scale parallax: [film beat, dur, +scale, ease] on the whole light box (origin centre) — the push-ins (1e ring, recs, payoff)
   // get a slow depth swell behind the foreground; summed and kept like PAR
-  const DS = [[0.5, 12.7, .03, 'sine'], [30.2, 4.0, .035, 'sine'], [68.9, 15.5, .010, 'sine'], [88.3, 10.7, .010, 'sine']];
+  const DS = [[0.5, 12.7, .03, 'sine'], [30.2, 4.0, .035, 'sine'], [68.9, 15.5, .010, 'sine'], [88.3, 10.7, .010, 'sine'], [109.9, 2.0, .012, 'sine'], [111.9, 1.2, -.012, 'inOut']];
   // v18.5 recs drift: [film beat, dur, dx, ease] NOT taken out of the splines (a PAR step would be absorbed by B's b68.8 / b80.8
   // waypoints) — the light slides left (with A / C's own travel) while the list scrolls and comes back during the payoff push-in
-  const XD = [[68.0, 12.0, -70, 'sine'], [80.4, 3.4, 70, 'inOut']];
+  const XD = [[68.0, 12.0, -70, 'sine'], [80.4, 3.4, 70, 'inOut'], [88.3, 11.0, -32, 'sine']];
   const xd = (b) => XD.reduce((a, [pb, du, x, ez]) => a + x * E[ez](clamp((b - pb) / du)), 0);
   // v18.5 capw: [in0, in1, out0, out1, cap] per blob — an opacity ceiling (A: the 3→4 cut leaves no empty-dial ring outline)
   const capw = (o, b, op) => (o.capw || []).reduce((v, [a0, a1, z0, z1, c]) => {
@@ -118,8 +121,7 @@ scene('05-light', () => {
   // v17.7: logo moments on pure black (film beats, from the SHIFT table only — no scene objects).
   // DIM: behind the Orbit·知音 wordmark of 20-orbit every blob is scaled to ≤ .15 (DIM_K · CAP), long sine fades either side;
   // DARK: before the close's curve starts drawing, a long fade to 0 that holds to the last frame.
-  const OS = SHIFT['20-orbit'] || 0, CS = SHIFT['60-close'] || 0;
-  const DIM = [OS + 20.2, OS + 22.9, OS + 31.2, OS + 35.2], DIM_K = .15 / CAP, DARK = [CS + 70.4, CS + 75.4];
+  const DIM = [OS + 20.2, OS + 22.9, OS + 31.2, OS + 35.2], DIM_K = .03 / CAP, DARK = [CS + 70.4, CS + 75.4];
   const look = (bf) => {
     const dim = E.sine(clamp((bf - DIM[0]) / (DIM[1] - DIM[0]))) * (1 - E.sine(clamp((bf - DIM[2]) / (DIM[3] - DIM[2]))));
     return lerp(1, DIM_K, dim) * (1 - E.sine(clamp((bf - DARK[0]) / (DARK[1] - DARK[0]))));
