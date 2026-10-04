@@ -60,8 +60,24 @@
                              instead grows out of that point (scale .15 → 1, E.out .6 beats, a 1 by .25 beats); to: (b) =>
                              { x, y }: shrinks back into that point over the last .4 beats (E.in). c.type(b, text, dur): types it evenly over dur beats.
                              c.send(b, i, o): button press at b, box clears, the text pops from dot i as
-                             AGD.bubble(i, b + .15, o.until ?? b + 2, text, o), with a .3-beat light trail box → dot.
-                             c.type(b, text, dur, { i }) tints the box's caret with Agent i's colour while that line shows.
+                             AGD.bubble(i, b + .15, o.until ?? b + 2, text, o); v18.7 R2: no light trail — dot i blinks
+                             at b + .15 (k 1.08, .35 beat) unless o.blink === false or the scene blinks it within .25 beat.
+                             c.type(b, text, dur, { i, caret }) tints the box's caret with Agent i's colour while that line
+                             shows; caret: false hides the box caret for that line.
+   AGD.caretRide(i, b0, b1, c, o)  v18.7: dot i is c's typing caret in [b0, b1): each frame it sits on the box caret's
+                             position (badge left edge on it: o.dx = r), round, radius o.r (20), no stretch, blending in /
+                             out over o.blend (.25) beats; the box caret is hidden meanwhile. Keep the window inside a typed
+                             line (no caret in a cleared box → the dot stays on its formation).
+   AGD.open(b, dur = .45, o) / AGD.seal(b, dur = .45, o)  v18.7 R1: the ONE circle opens into five dots / closes from them
+                             by its own rim. open: the five 72° rim arcs part, each slides from its midpoint out to its own
+                             dot's live position while its arc length goes to 0 (o.ease, E.inOut); disc, core and halo fade
+                             over the first 40 %; a dot's alpha stays 0 until its centre has left the rim (and is whole by
+                             the end). seal: the exact reverse (arcs grow out of the dots as they reach the rim, disc fades in
+                             over the last 40 %). Centre / size: the orb (dot 0) just before b (open) / just after b + dur
+                             (seal). Inside the window no dot is drawn as the orb; the scene's morph keys decide what dot 0
+                             is outside it (open: off 'orb' by b + dur; seal: 'orb' or a merge from b + dur).
+   Render rule (v18.7 R1): while any dot shows as the orb, every other dot whose centre comes within (orb radius + its own
+                             radius) fades by distance, gone at the rim — no merge shows dots inside the one circle.
    AGD.beatPulse(b, K, len)  0..1 sine bump of len beats (.16) after each beat in K (e.g. typeOn's character beats).
 
    v17.7 morph — the dots' SHAPES (STORYBOARD「v17.7 Agent 点形态与动画」F1 / F2). Position stays with key / follow / pulse;
@@ -106,7 +122,7 @@ AGD.P = {
   arcD: { cx: 960, cy: 560, gap: 108, sag: 24, r: 34 }                  // 1d, 'arc'
 };
 css(`
-#agdBack,#agd{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;overflow:visible}
+#agdBack,#agd,#agdTop{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;overflow:visible}
 #agdb{position:absolute;inset:0;pointer-events:none}
 .agb{position:absolute;left:0;top:0;display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:22px;white-space:nowrap;
   font:500 28px var(--sans);color:#fff;background:rgba(22,24,29,.82);border:1px solid rgba(255,255,255,.16);
@@ -131,6 +147,7 @@ css(`
   if (!$('#agdBack')) mk('agdBack', orbEl);
   if (!$('#agd')) mk('agd', fxEl);
   if (!$('#agdb')) { const d = document.createElement('div'); d.id = 'agdb'; stage.insertBefore(d, fxEl); }
+  if (!$('#agdTop')) mk('agdTop', fxEl);                    // v18.7: over the input boxes — a dot riding a box caret
 })();
 const AGD_KEYS = [], AGD_FOL = [], AGD_PUL = [], AGD_LINKS = [], AGD_BUB = [], AGD_GLOW = [], AGD_CHATS = [], AGD_BACK = [], AGD_BLINK = [], AGD_NOST = [];
 let AGD_SORTED = false;
@@ -153,6 +170,10 @@ AGD.blink = (sel, b, o = {}) => {
 AGD.noStretch = (b0, b1, sel = 'all') => AGD_NOST.push({ b0: b0 + SH, b1: b1 + SH, L: sel === 'all' ? [0, 1, 2, 3, 4] : Array.isArray(sel) ? sel : [sel] });
 // a scene's own drawing under the mark and the dots: fn(b) → SVG string, drawn into #agdBack in [b0, b1)
 AGD.back = (b0, b1, fn) => AGD_BACK.push({ b0: b0 + SH, b1: b1 + SH, sh: SH, fn });
+// v18.7 R1: the one circle opens / closes by its own rim (header「v18.7 open / seal」); o.ease (E.inOut)
+const AGD_SHELL = [], AGD_RIDES = [];
+AGD.open = (b, dur = .45, o = {}) => AGD_SHELL.push({ b0: b + SH, b1: b + dur + SH, open: true, ease: o.ease || E.inOut, sh: SH });
+AGD.seal = (b, dur = .45, o = {}) => AGD_SHELL.push({ b0: b + SH, b1: b + dur + SH, open: false, ease: o.ease || E.inOut, sh: SH });
 
 // one formation, evaluated live at beat b → { x, y, r, a, back, el } (el: ellipse descriptor for polar blends, orbit only)
 // a formation parameter, live: o[k] may be a number or (b, i) => number
@@ -460,9 +481,11 @@ function agShape(i, x, y, r, S, b, sp) {
   s += '<path d="' + d + 'Z" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (1.1 * S.ring).toFixed(2) + '" stroke-opacity="' + Math.min(1, S.ring).toFixed(3) + '" stroke-linejoin="round"/>';
   if (S.core > .002) s += '<circle cx="' + f1(x) + '" cy="' + f1(y) + '" r="' + f1(R) + '" fill="url(#agcore)" opacity="' + (.3 * Math.min(1, S.core)).toFixed(3) + '"/>';
   const ro = S.rot * agDeg, gx = x + (S.lx * Math.cos(ro) - S.ly * Math.sin(ro)) * R, gy = y + (S.lx * Math.sin(ro) + S.ly * Math.cos(ro)) * R;
-  if (S.la * S.ls > .01) {
+  // v18.7 R1: no Agent logo inside the one circle — the logo is gone once the rim ring is half drawn
+  const la = S.la * (S.arcs > .002 ? clamp(1 - 2 * S.arcs) : 1);
+  if (la * S.ls > .01) {
     const lf = clamp((S.fill - .35) / .4), col = lf > .002 ? 'color-mix(in oklab, ' + AGC[i] + ' ' + (100 * (1 - lf)).toFixed(1) + '%, #0e0f12)' : AGC[i];
-    s += '<g opacity="' + Math.min(1, S.la).toFixed(3) + '">' + AGGLYPH(AGID[i], +gx.toFixed(1), +gy.toFixed(1), 1.3 * R * S.ls, col) + '</g>';
+    s += '<g opacity="' + Math.min(1, la).toFixed(3) + '">' + AGGLYPH(AGID[i], +gx.toFixed(1), +gy.toFixed(1), 1.3 * R * S.ls, col) + '</g>';
   }
   if (S.micro > .002) {
     let m2 = '';
@@ -483,12 +506,23 @@ function agAt(c, u) { const v = 1 - u; return [0, 1].map((k) => v * v * v * c[0]
 const agMix = (i) => 'color-mix(in oklab, ' + AGC[i] + ' 50%, #fff)';
 let agFrame = -1, agCache = [];
 function applyAgents(t) {
-  const b = t / BEAT; agSort();
+  const b = t / BEAT; agSort(); agSendBlinks();
+  // v18.7: input boxes first, so AGD.caretRide reads this frame's caret
+  agChats(b, t);
   const P = [0, 1, 2, 3, 4].map((i) => agPosF(i, b)); agCache = P; agFrame = b;
   // v17.7: each dot's shape this frame (P[i].S); merge-arc spin as in the old merge drawing
-  const mK = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= b).pop(), msp = mK ? agV(mK.o, 'spin', 6, b, 0, mK.sh) * (b - mK.b) : 6 * b;
-  if (agOn()) { const F = { vel: [], P }; for (let i = 0; i < 5; i++) P[i].S = agShapeF(i, b, P[i], F); }
-  let back = '', front = '', defs = '';
+  const mspAt = (bb) => { const K = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= bb).pop(); return K ? agV(K.o, 'spin', 6, bb, 0, K.sh) * (bb - K.b) : 6 * bb; };
+  const msp = mspAt(b);
+  const F = { vel: [], P };
+  if (agOn()) for (let i = 0; i < 5; i++) P[i].S = agShapeF(i, b, P[i], F);
+  // v18.7 R1 open / seal: while the rim opens or closes, no dot is drawn as the orb (the shell below draws it)
+  const SHL = AGD_SHELL.filter((z) => b >= z.b0 && b < z.b1).map((z) => agShellAt(z, b, msp));
+  if (SHL.length) for (let i = 0; i < 5; i++) {
+    const p = P[i]; if (!p.S) continue;
+    if (p.merged) { p.S = agShapeF(i, b, Object.assign({}, p, { merged: 0 }), F); p.merged = 0; }
+    const S = p.S; if (S.arcs > .002) Object.assign(S, { arcs: 0, halo: 0, core: 0, k: 1, ring: Math.max(1, S.ring), la: Math.max(1, S.la) });
+  }
+  let back = '', front = '', defs = '', top = '';
   for (const g of AGD_BACK) if (b >= g.b0 && b < g.b1) { try { back += agCall(g.sh, g.fn, b) || ''; } catch (e) { console.error('AGD.back', e); g.b1 = -1; } }
   // links
   for (const L of AGD_LINKS) {
@@ -508,13 +542,7 @@ function applyAgents(t) {
       front += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="9" fill="' + col + '" opacity="' + (.35 * fa).toFixed(3) + '"/><circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.2" fill="#fff" opacity="' + (.95 * fa).toFixed(3) + '"/>';
     }
   }
-  // send trails (chat → dot)
-  for (const c of AGD_CHATS) for (const s of c.sends) {
-    const u = (b - s.b) / .3; if (u < 0 || u >= 1) continue;
-    const tt = agTailTip(P[s.i]), p = tt ? { x: lerp(P[s.i].x, tt.x, tt.w), y: lerp(P[s.i].y, tt.y, tt.w) } : P[s.i], A = [c.o.x + c.o.w / 2 - 45, c.o.y], h = E.inOut(u), tl = E.inOut(Math.max(0, u - .35) / .65);
-    const x0 = lerp(A[0], p.x, tl), y0 = lerp(A[1], p.y, tl), x1 = lerp(A[0], p.x, h), y1 = lerp(A[1], p.y, h);
-    front += '<line x1="' + x0.toFixed(1) + '" y1="' + y0.toFixed(1) + '" x2="' + x1.toFixed(1) + '" y2="' + y1.toFixed(1) + '" stroke="#fff" stroke-opacity=".4" stroke-width="2.5" stroke-linecap="round"/><circle cx="' + x1.toFixed(1) + '" cy="' + y1.toFixed(1) + '" r="4" fill="#fff" opacity=".55"/>';
-  }
+  // v18.7 R2: no send trail any more — c.send blinks the receiving dot instead (agSendBlinks)
   // glows
   for (const g of AGD_GLOW) {
     if (b < g.b0 - .3 || b >= g.b1 + .3) continue;
@@ -535,13 +563,27 @@ function applyAgents(t) {
     const ex = lerp(p.x, q.ax, Math.max(0, q.sc)), ey = lerp(p.y, q.ay, Math.max(0, q.sc));
     front += '<line x1="' + p.x.toFixed(1) + '" y1="' + p.y.toFixed(1) + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '" stroke="#fff" stroke-opacity="' + (.3 * Math.min(1, v)).toFixed(3) + '" stroke-width="1.5" stroke-linecap="round"/>';
   }
+  // v18.7 R1: the opening / closing shell (dark disc, core, halo fade in its first / last 40 %; five rim arcs travel to
+  // their dots, shrinking to a point), drawn under the badges
+  for (const z of SHL) front += agShellSVG(z, P);
+  // v18.7 R1 render rule: while an orb shows, any other dot whose centre comes within (orb radius + its own radius)
+  // fades by distance (gone at the rim), so no merge ever shows five dots inside the one circle; a shell gates all five.
+  // Only a lower-index orb gates a dot (inside a merge every dot resolves to the orb; dot 0 is the one that shows)
+  const ORBS = [];
+  for (let j = 0; j < 5; j++) { const p = P[j], S = p.S; if (S && S.arcs > .002 && p.a > .002) ORBS.push({ j, x: p.x, y: p.y, R: p.r * S.k + S.arcR, v: Math.min(1, S.arcs) * Math.min(1, p.a) }); }
+  const gate = (i) => {
+    const p = P[i], ri = Math.max(1, p.r * (p.S ? p.S.k : 1)); let g = 1;
+    for (const o of ORBS) if (o.j < i) g *= 1 - o.v * (1 - clamp((Math.hypot(p.x - o.x, p.y - o.y) - o.R) / ri));
+    for (const z of SHL) g *= z.tg * clamp((Math.hypot(p.x - z.cx, p.y - z.cy) - z.Rr + ri) / ri);
+    return g;
+  };
   // badges: cc last (on top, for 'merge'); far orbit half into #agdBack
   for (const i of [4, 3, 2, 1, 0]) {
     const p = P[i]; if (p.a <= .002 || p.r <= .3) continue;
     // v17.7: inside a closed merge only dot 0 draws (as the orb, or whatever it was morphed into)
-    const a = p.S && i && p.merged ? p.a * (1 - E.inOut(clamp((p.merged - .6) / .4))) : p.a; if (a <= .002) continue;
+    const a = (p.S && i && p.merged ? p.a * (1 - E.inOut(clamp((p.merged - .6) / .4))) : p.a) * gate(i); if (a <= .002) continue;
     const s = '<g opacity="' + Math.min(1, a).toFixed(3) + '">' + (p.S ? agShape(i, p.x, p.y, p.r, p.S, b, msp) : agBadge(i, p.x, p.y, p.r)) + '</g>';
-    if (p.back) back += s; else front += s;
+    if (AGD_RIDES.some((z) => z.i === i && b >= z.b0 && b < z.b1)) top += s; else if (p.back) back += s; else front += s;
   }
   const m = P[0].merged || 0;
   if (m > .01 && !agOn()) {
@@ -554,7 +596,54 @@ function applyAgents(t) {
     '<filter id="agbl" filterUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080"><feGaussianBlur stdDeviation="5"/></filter>';
   $('#agdBack').innerHTML = back;
   $('#agd').innerHTML = '<defs>' + gd + defs + '</defs>' + front;
-  agBubbles(b, P); agChats(b, t);
+  $('#agdTop').innerHTML = top;
+  agBubbles(b, P);
+}
+// v18.7 R1 shell state at absolute beat b: e = 1 − closed (0 = the full orb, 1 = five dots); centre / rim from the orb's
+// own state just before an open (cached) or just after a seal; tg = time gate for the dots (0 until they leave the rim)
+function agShellAt(z, b, sp) {
+  if (!z.at) {
+    const ob = z.open ? z.b0 - 1e-3 : z.b1 + 1e-3, p = agPosF(0, ob), S = agOn() ? agShapeF(0, ob, p, { vel: [] }) : Object.assign({}, AG_DOT, AG_SHAPES.orb);
+    const k = S.arcs > .002 ? S.k : AG_SHAPES.orb.k, arcR = S.arcs > .002 ? S.arcR : AG_SHAPES.orb.arcR, arcW = S.arcs > .002 ? S.arcW : AG_SHAPES.orb.arcW;
+    z.at = { cx: p.x, cy: p.y, r: p.r, k, arcR, arcW, a: Math.min(1, p.a), far: [0, 1, 2, 3, 4].map((i) => agPosF(i, z.open ? z.b1 : z.b0)) };
+  }
+  const A = z.at, u = clamp((b - z.b0) / (z.b1 - z.b0)), w = z.open ? u : 1 - u, e = z.ease(w);
+  const R = A.r * A.k;
+  return { z, A, u, w, e, sp, cx: A.cx, cy: A.cy, R, Rr: R + A.arcR, shell: 1 - E.inOut(clamp(w / .4)), tg: E.inOut(clamp((z.ease(w) - .6) / .4)) };
+}
+function agShellSVG(H, P) {
+  const { A, e, sp, cx, cy, R, Rr, shell } = H;
+  let s = '';
+  const sa = shell * A.a;
+  if (sa > .002) {
+    s += '<circle cx="' + f1(cx) + '" cy="' + f1(cy) + '" r="' + f1(R) + '" fill="#0e0f12" opacity="' + sa.toFixed(3) + '"/>';
+    s += '<circle cx="' + f1(cx) + '" cy="' + f1(cy) + '" r="' + f1(R) + '" fill="url(#agcore)" opacity="' + (.3 * sa).toFixed(3) + '"/>';
+  }
+  for (let m = 0; m < 5; m++) {
+    // each arc first slides along the rim toward its own dot's direction while the gaps open (no crossing paths), then
+    // leaves the rim straight out to the dot (its far position, handing over to the live one at the end)
+    const far = A.far[m], t0 = sp + m * 72 + 36, tf = Math.hypot(far.x - cx, far.y - cy) > 1 ? Math.atan2(far.x - cx, -(far.y - cy)) / agDeg : t0;
+    const th = t0 + agWrap(tf - t0) * E.inOut(clamp(e / .45)), h = 33 * (1 - e), tr = th * agDeg, go = E.inOut(clamp((e - .2) / .8)), hl = E.inOut(clamp((e - .6) / .4));
+    const M0 = [cx + Rr * Math.sin(tr), cy - Rr * Math.cos(tr)], T = [lerp(far.x, P[m].x, hl), lerp(far.y, P[m].y, hl)];
+    const Q = [lerp(M0[0], T[0], go), lerp(M0[1], T[1], go)], O = [Q[0] - Rr * Math.sin(tr), Q[1] + Rr * Math.cos(tr)];
+    const aa = (1 - E.inOut(clamp((e - .7) / .3))) * A.a; if (aa <= .002) continue;
+    const d = h > .3 ? agArc(O[0], O[1], Rr, th - h, th + h) : 'M' + f1(Q[0] - .1) + ' ' + f1(Q[1]) + 'L' + f1(Q[0] + .1) + ' ' + f1(Q[1]);
+    const W = lerp(A.arcW, A.arcW * 1.6, e);
+    if (sa > .002) s += '<path d="' + d + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + f1(R * .55) + '" stroke-linecap="round" filter="url(#agbl)" opacity="' + (.3 * sa).toFixed(3) + '"/>';
+    s += '<path d="' + d + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + W.toFixed(2) + '" stroke-linecap="round" opacity="' + aa.toFixed(3) + '"/>';
+  }
+  return s;
+}
+// v18.7 R2: every c.send blinks the receiving dot as its bubble pops (send + .15), unless the scene already blinks that
+// dot within .25 beat of it (no doubled pulse)
+const AGD_SBL = [];
+let AGD_SBL_DONE = false;
+function agSendBlinks() {
+  if (AGD_SBL_DONE) return; AGD_SBL_DONE = true;
+  for (const s of AGD_SBL) {
+    if (AGD_BLINK.some((g) => g.i === s.i && Math.abs(g.b - s.b) < .25)) continue;
+    AGD_PUL.push({ i: s.i, b: s.b, k: 1.08, dur: .35 }); AGD_BLINK.push({ i: s.i, b: s.b, dur: .45, v: .8 });
+  }
 }
 // a bubble's end: its b1, or .2 beats after a newer bubble pops on the same dot (o.replace, default true on both)
 function agBubEnd(u) {
@@ -595,9 +684,29 @@ function agBubbles(b, P) {
 const AG_SEND = '<svg viewBox="0 0 24 24"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 AGD.chat = (b0, b1, o) => {
   const c = { b0: b0 + SH, b1: b1 + SH, sh: SH, o, types: [], sends: [], el: null };
-  c.type = (b, text, dur, to = {}) => { c.types.push({ b: b + SH, text, dur, ci: to.i }); return c; };
-  c.send = (b, i, so = {}) => { const ty = c.types.filter((x) => x.b <= b + SH).pop(); c.sends.push({ b: b + SH, i }); if (ty) AGD.bubble(i, b + .15, so.until ?? b + 2, ty.text, so); return c; };
+  c.type = (b, text, dur, to = {}) => { c.types.push({ b: b + SH, text, dur, ci: to.i, caret: to.caret !== false }); return c; };
+  c.send = (b, i, so = {}) => {
+    const ty = c.types.filter((x) => x.b <= b + SH).pop(); c.sends.push({ b: b + SH, i });
+    if (ty) AGD.bubble(i, b + .15, so.until ?? b + 2, ty.text, so);
+    if (so.blink !== false) AGD_SBL.push({ i, b: b + .15 + SH });          // v18.7 R2: blink, no light trail
+    return c;
+  };
+  c.rides = [];
   AGD_CHATS.push(c); return c;
+};
+// v18.7: dot i IS the box's typing caret in [b0, b1) — every frame it sits on c's caret (its left edge on the caret line,
+// o.dx = r), a round badge of radius o.r (20), no stretch; the box's own caret is hidden meanwhile. Blends in / out over
+// o.blend (.25) beats; outside a typed line (no caret in the box) the dot keeps its formation position
+AGD.caretRide = (i, b0, b1, c, o = {}) => {
+  const r = o.r ?? 20, dx = o.dx ?? r;
+  c.rides.push({ b0: b0 + SH, b1: b1 + SH, i }); AGD_RIDES.push({ b0: b0 + SH, b1: b1 + SH, i });
+  AGD.follow(b0, b1, (j) => {
+    if (j !== i || !c.el) return null;
+    const car = c.el.querySelector('.car'); if (!car) return null;
+    const q = car.getBoundingClientRect(), st = stage.getBoundingClientRect(), z = st.width / 1920;
+    return { x: (q.left + q.width / 2 - st.left) / z + dx, y: (q.top + q.height / 2 - st.top) / z, r };
+  }, { blend: o.blend ?? .25 });
+  AGD.noStretch(b0, b1, i);
 };
 function agChats(b, t) {
   for (const c of AGD_CHATS) {
@@ -625,12 +734,13 @@ function agChats(b, t) {
     const tx = c.el.querySelector('.tx'), cleared = !ty || !!(sd && sd.b >= ty.b);
     const n = cleared ? 0 : Math.floor([...ty.text].length * clamp((b - ty.b) / Math.max(.01, ty.dur)) + 1e-6);
     const s = cleared ? '' : [...ty.text].slice(0, n).join(''), blink = Math.floor(t * 2.4) % 2 === 0;
-    const key = (cleared ? 'P' : 'T' + s) + (blink ? 1 : 0);
+    const ride = c.rides.some((z) => b >= z.b0 && b < z.b1), hide = ride || (ty && !ty.caret);
+    const key = (cleared ? 'P' : 'T' + s) + (blink ? 1 : 0) + (hide ? 'h' : '');
     if (tx._k !== key) {
       tx._k = key; tx.classList.toggle('ph', cleared);
       tx.innerHTML = '';
       if (cleared) tx.textContent = '给 Agent 发消息…';
-      else { tx.appendChild(document.createTextNode(s)); const car = document.createElement('span'); car.className = 'car'; if (ty.ci != null) car.style.background = AGC[ty.ci]; car.style.opacity = (n < [...ty.text].length || blink) ? '1' : '0'; tx.appendChild(car); }
+      else { tx.appendChild(document.createTextNode(s)); const car = document.createElement('span'); car.className = 'car'; if (ty.ci != null) car.style.background = AGC[ty.ci]; car.style.opacity = !hide && (n < [...ty.text].length || blink) ? '1' : '0'; tx.appendChild(car); }
     }
     const ps = sd ? clamp((b - sd.b) / .15) : 1, snd = c.el.querySelector('.snd');
     snd.style.transform = 'scale(' + (ps < 1 ? lerp(.9, 1, E.out(ps)) : 1).toFixed(3) + ')';
