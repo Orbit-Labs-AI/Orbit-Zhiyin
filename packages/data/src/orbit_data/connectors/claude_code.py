@@ -515,9 +515,18 @@ class ClaudeMapper(BaseMapper):
                 )
             )
         elif typ == "summary":
+            # Older harness versions wrote a generated conversation summary (keyed by leafUuid)
+            # for the resume picker: a title hint, not a compaction — compaction is
+            # compact_boundary / isCompactSummary. The Agent SDK reads it as a title fallback.
+            summary = data.get("summary")
             events.append(
                 self.make(
-                    record, "context.compaction", "summary", text=data.get("summary"), ext=data
+                    record,
+                    "session.title",
+                    "title",
+                    text=summary if isinstance(summary, str) else None,
+                    attrs={"title_source": "ai"},
+                    ext=unused(data, ("type", "summary")),
                 )
             )
         else:

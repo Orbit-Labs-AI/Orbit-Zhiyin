@@ -1977,6 +1977,24 @@ def test_session_title_precedence_ranks_agent_name_between_custom_and_native(
     assert (analysed["title"], analysed["title_source"]) == expected
 
 
+def test_claude_summary_record_is_a_title_not_a_compaction(tmp_path):
+    """Legacy `summary` lines (resume-picker summaries keyed by leafUuid) title the session;
+    counting them as context compactions invented a compaction in every older session."""
+    common = {"sessionId": "s1", "cwd": "/fixture", "version": "1.0.30", "entrypoint": "cli"}
+    records = [
+        {"type": "summary", "summary": "Fix login redirect", "leafUuid": "a"},
+        {**common, "type": "user", "uuid": "u", "timestamp": ISO, "message": {"content": "hi"}},
+    ]
+    with Store(tmp_path / "data") as store:
+        capture(store, tmp_path, "claude_code", records, path="projects/-fixture/s1.jsonl")
+        store.rebuild()
+        (session,) = rows(store, "session")
+        assert (session["title"], session["title_source"]) == ("Fix login redirect", "ai")
+        kinds = [event["kind"] for event in rows(store, "event")]
+        assert "context.compaction" not in kinds and "unknown" not in kinds
+        assert_sound(store)
+
+
 def test_import_reprojects_files_mapped_by_an_older_mapper(tmp_path):
     """A MAPPER_VERSION bump must re-map unchanged files, not keep stale L2/L3 rows."""
     from orbit_data import MAPPER_VERSION
