@@ -25,6 +25,9 @@ from .health import health
 
 SECRET_KEY = re.compile(r"token|key|secret|authorization|password", re.I)
 PATH = re.compile(r"(?:~/|(?<![\w.~])/(?!v1/))(?:[^\s\"'/,;]+/)+[^\s\"',;]*")
+# The import log's ``path`` field is relative to the source root, which PATH does not match;
+# Claude Code's relative paths still spell the project folder (projects/-Users-<name>-<project>/).
+PATH_FIELD = re.compile(r'("path"\s*:\s*")((?:[^"\\]|\\.)+)(")')
 KEEP_EXPORTS = 5
 LOG_BYTES = 1024 * 1024
 README = """Orbit diagnostics bundle
@@ -67,6 +70,7 @@ def redact_obj(obj, prefixes: list[str] | None = None):
 
 def scrub_paths(text: str) -> str:
     """Free-text log lines may name projects in paths: keep only a short hash."""
+    text = PATH_FIELD.sub(lambda m: f"{m.group(1)}<path#{_short(m.group(2))}>{m.group(3)}", text)
     return PATH.sub(lambda m: f"<path#{_short(m.group(0))}>", text)
 
 
