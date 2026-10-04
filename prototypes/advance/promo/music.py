@@ -187,7 +187,14 @@ def kick(d=0.5, punch=1.0):
     body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 6.5)
     click = hp(noise(d), 3000) * np.exp(-t * 400) * 0.25
     click += bp(noise(d), 2500, 5000) * np.exp(-t / 0.006) * 0.25 * 10 ** (-18 / 20) * 4   # v18.7 a 6 ms 2.5–5 kHz beater click (heard on laptop speakers)
-    return np.tanh((body + click) * 1.5)
+    return np.tanh(hp(body + click, 35) * 1.5)                             # v18.8 35 Hz HPF on the kick only, before the drive (no phase overshoot)
+
+
+def tom(m, d=0.32):
+    t = tt(d)
+    f = midi(m) * (1 + 0.5 * np.exp(-t * 30))
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 11)
+    return np.tanh(1.4 * (body + 0.25 * bp(noise(d), 1500, 4500) * np.exp(-t * 60)))
 
 
 def clap():
@@ -197,17 +204,19 @@ def clap():
     for k, o in enumerate((0, 0.011, 0.022)):
         env += (t >= o) * np.exp(-(t - o).clip(0) * (90 if k < 2 else 16))
     n = noise(d)
-    return (bp(n, 900, 2600) + 0.35 * bp(n, 2600, 5000)) * env * 0.8   # v18.7 a little 2.6–5 kHz snap
+    return (bp(n, 900, 2600) + 0.6 * bp(n, 2600, 5000)) * env * 0.8    # v18.7 a little 2.6–5 kHz snap (v18.8 .35 → .6)
 
 
 def hat(open_=False):
     d = 0.3 if open_ else 0.06
     t = tt(d)
     n = noise(d)
-    return (hp(n, 7500, 4) + 0.3 * bp(n, 3000, 6000)) * np.exp(-t * (12 if open_ else 70)) * (0.42 if open_ else 0.34)   # v18.7 + a touch of 3–6 kHz
+    return (hp(n, 7500, 4) + 0.3 * bp(n, 3000, 6000)) * np.exp(-t * (12 if open_ else 70)) * (0.42 if open_ else 0.34) * 10 ** (2 / 20)   # v18.7 + a touch of 3–6 kHz; v18.8 +2 dB
 
 
-def shaker():
+def shaker(mid=False):
+    if mid:                                                                 # v18.8 the 16th shaker sits lower (2.5–7 kHz): laptop-speaker pulse
+        return bp(noise(0.06), 2500, 7000) * np.exp(-tt(0.06) * 70)
     return bp(noise(0.08), 5000, 11000) * np.exp(-tt(0.08) * 50)
 
 
@@ -221,7 +230,7 @@ def blip(m, d=0.5):
 def pluck(m, d=0.4):
     t = tt(d)
     s = saw(midi(m), t, (-6, 6))
-    return (lp(s, 2200) + 0.18 * bp(s, 2500, 5000)) * np.exp(-t * 10) * np.minimum(1, t * 300)   # v18.7 a little presence
+    return (lp(s, 2200) + 0.4 * bp(s, 2500, 5000)) * np.exp(-t * 10) * np.minimum(1, t * 300)   # v18.7 a little presence (v18.8 .18 → .4)
 
 
 def bass_note(m, d):
@@ -231,6 +240,7 @@ def bass_note(m, d):
     x = lp(s, 480, 4)
     x = np.tanh(2.5 * x) / np.tanh(2.5)                                   # v18.7 soft harmonic saturation, so the line is heard on small speakers …
     x = x + 10 ** (-12 / 20) * lp(saw(2 * midi(m), t, (-4, 4)), 900)      # … plus its octave at −12 dB (120–400 Hz)
+    x = x + 10 ** (-14 / 20) * bp(np.tanh(3 * s), 700, 2500)              # v18.8 a parallel 0.7–2.5 kHz drive layer at −14 dB: the bass rhythm on laptop speakers
     return x * env * 0.9                                                    # low band kept at the v17.7 level
 
 
@@ -252,7 +262,7 @@ def boom(d=3.0, f0=58, f1=28):
     f = f1 + (f0 - f1) * np.exp(-t * 3)
     body = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 1.3)
     hit = lp(noise(d), 700) * np.exp(-t * 9) * 0.6
-    return np.tanh((body + hit) * 1.3)
+    return np.tanh(hp(body + hit, 35) * 1.3)                              # v18.8 35 Hz HPF, before the drive
 
 
 def crash(d=2.5):
@@ -665,10 +675,11 @@ for k, tk in enumerate((35.88, 37.09, 38.30, 39.52)):                       # ea
 for s, L in ((35.58, 2.1), (37.68, 2.0), (39.68, 2.0)):                     # SIFT → DIFT → DIMT → DIMV, petal by petal:
     roll(s + 0.14 * L + 0.08, 5, 0.05, 0.11 * L, 60, 2.0, soft=True)        # each change a gentle rolled chord
 put(swell(0.6 * BEAT), 40.98, 0.3)
-peak(41.60, 'C', 0.95, 1.0, boom_gain=0.45, kick_gain=0.75)                                                 # v18.7 reveal: DIMV readable (b41.60 = film 58.5) — the first core-feature peak
+peak(41.60, 'C', 1.1, 1.0, boom_gain=0.45 * 0.95 / 1.1, kick_gain=0.75 * 0.95 / 1.1)   # v18.8 .95 → 1.1 (boom / kick kept at their v18.7 level, out of the normaliser)                                                 # v18.7 reveal: DIMV readable (b41.60 = film 58.5) — the first core-feature peak
 for b_, g in ((40.85, 0.14), (41.1, 0.2), (41.35, 0.26), (41.6, 0.34)):     # a 1-beat clap pickup into it, landing with the peak
     put(clap(), b_, g, 0.0, to='verbsend')
 put(hat(True), 41.6, 0.3, 0.25)
+put(crash(2.5) * np.clip(tt(2.5) / 0.15, 0, 1) ** 2, 41.6, 0.5, -0.15)      # v18.8 the reveal opens wider than the payoffs before it (150 ms bloom: body, not a normaliser-setting transient)
 put(sweep_pad(tuple(m + 12 for m in CH['C'][0]), 2.4 * BEAT, 1.0 * BEAT), 41.6, 0.1, to='verbsend')   # v18.7 a held bright C under the reveal (body, not transient)
 groove(41.6, 45.4, lvl=1.12, arp16=True, bed=0.24)                         # v18.7 the reveal adds a shaker layer on top of the full groove
 put(swell(0.6 * BEAT), 32.2, 0.12)                                          # v18.7 the title FLIPs (film b49.7): a light swell, no hit
@@ -742,7 +753,7 @@ put(tick(1.0), 63.8, 0.04, -0.5)                                            # th
 
 # ================= 50-tools: merge, session trajectory, studio (b55.0–75.2)
 section('50-tools')
-chords((55.3, 'Am'), (59.3, 'F'), (62.3, 'G'), (64.8, 'C'), (68.8, 'F'), (71.3, 'G'), (73.3, 'C'))   # 验证 ✓ and done land on I; v18.6 on the film's half-beat grid (SHIFT 31.7: film 87 / 91 / 94 / 96.5 / 100.5 / 103 / 105)
+chords((55.3, 'Am'), (59.3, 'F'), (62.3, 'G'), (64.8, 'C'), (67.55, 'F'), (71.3, 'G'), (73.3, 'C'))   # 验证 ✓ and done land on I; v18.6 on the film's half-beat grid (SHIFT 31.7: film 87 / 91 / 94 / 96.5 / 100.5 / 103 / 105)
 padlvl(55.0, 0.19, 1700)                                                    # v18.7 .16 → .19: the 03 entry is not a trough
 padlvl(62.3, 0.19, 1900)
 padlvl(65.0, 0.19, 2100)
@@ -753,8 +764,8 @@ put(whoosh(0.8 * BEAT), 54.6, 0.08, -0.2)                                   # v1
 put(tick(1.0), 54.8, 0.045, -0.2)
 groove(55.0, 68.8, style='half', lvl=0.86, arp16=True, bed=0.26)            # v17.7 half time under the trajectory (v18.6 .82 → .86: never under v17.7) …
 groove(68.8, 73.75, lvl=1.0, arp16=True)                                    # … four on the floor from the press …
-groove(73.75, 75.2, lvl=1.12, arp16=True, bed=0.24)                         # … v18.7 the floor stays four through done ✓ (the peak no longer eases into half time)
-peak(73.75, 'C', 1.0, 0.8, boom_gain=0.45, kick_gain=0.7)                                                  # the second core feature's peak: done ✓ (film b105.45), v18.7 up to a full peak
+groove(73.75, 75.2, lvl=1.2, arp16=True, bed=0.24)                          # … v18.7 the floor stays four through done ✓ (the peak no longer eases into half time)
+peak(73.75, 'C', 1.2, 0.8, boom_gain=0.45 / 1.2, kick_gain=0.7 / 1.2)   # v18.8 1.0 → 1.2: the loudest moment of the film (boom / kick unchanged)                                                  # the second core feature's peak: done ✓ (film b105.45), v18.7 up to a full peak
 put(riser(3.4 * BEAT, 300, 6000), 70.3, 0.16, to='verbsend')                # v18.7 prepared by a riser …
 for k, b_ in enumerate((72.85, 73.1, 73.35, 73.6)):                         # … and a clap pickup into it
     put(clap(), b_, 0.12 + 0.06 * k, 0.0, to='verbsend')
@@ -781,12 +792,17 @@ put(tick(1.5), 66.6, 0.09, 0.2)                                           # v18.
 put(whoosh(0.55 * BEAT), 66.6, 0.04, 0.2)
 put(whoosh(1.4 * BEAT), 67.0, 0.1, -0.3)                                    # trajectory out, studio in (b67.1 / 67.3)
 put(tick(1.0), 67.25, 0.05, -0.3)                                           # v18.3: the old accent leaves (b67.25)
-put(settle(1.0), 67.61, 0.08, 0.1)                                          # v18.4 one landing for 「04 · 生成工坊」 (b67.57), 开始生成 growing (67.6) and the card in the orb (67.65)
+put(settle(1.0), 67.61, 0.14, 0.1)                                          # v18.4 one landing for 「04 · 生成工坊」 (b67.57), 开始生成 growing (67.6) and the card in the orb (67.65)
 put(puff(0.9), 67.75, 0.065, 0.3, to='verbsend')                             # the new accent comes in (b67.75)
-put(tick(1.3), 67.76, 0.15, 0.3)                                           # v18.5 one click between the accent (67.75) and the button's full fill (67.8)
+put(tick(1.3), 67.76, 0.2, 0.3)                                           # v18.5 one click between the accent (67.75) and the button's full fill (67.8)
 put(whoosh(0.7 * BEAT), 68.2, 0.05, 0.1)                                   # the camera pushes in on 开始生成 (b68.2)
 arp(68.5, 68.8, 0.1, 0.05, base=72, span=3)                                 # the .3-beat hover: a rising up-beat into the press
 put(press(), 68.8, 0.22, 0.2)
+for k, (b_, g) in enumerate(((66.8, 0.08), (67.05, 0.11), (67.3, 0.14))):  # v18.8 03 → 04: a 16th clap + tom fill (film 98.5 / 98.75 / 99.0) …
+    put(clap(), b_, g, 0.0, to='verbsend')
+    put(tom((45, 48, 52)[k]), b_, g * 3.4, -0.3 + 0.3 * k, to='verbsend')
+put(kick(0.5, 0.8), 67.55, 0.45, to='kick')                                 # … an anticipated push on film 99.25 (「04 · 生成工坊」), with the F root a quarter early
+put(bass_note(CH['F'][1], BEAT * 0.45), 67.55, 0.62 * 0.86, to='duck')
 put(lp(kick(0.3, 0.6), 500), 68.8, 0.22, to='kick')                        # v18.3 the press is felt                                               # the dot presses 开始生成
 for m, b_, d_ in ((81, 68.8, 1.1), (79, 69.95, 2.65), (76, 72.6, 1.15), (84, 73.75, 1.5)):   # the studio's answer: A (press) G E C (done ✓, on I)
     put(lead(lq(m, b_), d_ * BEAT), b_, 0.06, 0.0, to='lead')
@@ -803,6 +819,8 @@ for j, g in enumerate((0.1, 0.07, 0.045)):                                  # �
     put(bell(tone(73.75, 2 * j, 72), 2.0), 73.75, g, 0.1, to='verbsend')
 put(whoosh(1.1 * BEAT), 73.9, 0.06, 0.2)                                    # the cards shrink into the dot (b73.9)
 put(tick(0.9), 74.2, 0.05, -0.2)                                            # v18.6 the 04 title leaves (b74.2)
+for b_ in (74.25, 74.75):                                                   # v18.8 open hats ride the done ✓ lift
+    put(hat(True), b_, 0.12, 0.25)
 put(tick(1.2), 67.58, 0.06, 0.1)                                            # v18.6 the card lands in the circle (blink 67.55), 04 headline 67.57, button 67.6
 put(hp(swell(0.45 * BEAT), 1500), 73.9, 0.2, 0.0)                           # v18.5 SKILL.md is sucked into the orb (film b105.6–106.05): a short bright rise …
 put(lp(kick(0.3, 0.7), 500), 74.35, 0.2, to='kick')                          # … and lands hard (film b106.0)
@@ -827,7 +845,7 @@ put(lp(kick(0.3, 0.5), 450), 69.25, 0.2, to='kick')
 put(lead(lq(79, 69.25), 1.75 * BEAT), 69.25, 0.05, 0.0, to='lead')          # v18.3 G carries the burst into the compass E
 put(lead(lq(76, 74.2), 1.4 * BEAT), 74.2, 0.05, 0.0, to='lead')             # E as it folds back, into the stroke
 shimmer(69.4, 1.6, 12, 0.03)                                                # the ring draws on behind the dots
-groove(69.2, 75.4, style='half', clap_on=False, lvl=0.72, bed=0.2)
+groove(69.2, 75.4, style='half', clap_on=False, lvl=0.8, bed=0.2) 
 roll(71.04, 5, 0.08, 0.1, 60)                                               # the ring opens into the compass
 put(lp(kick(0.3, 0.5), 400), 71.04, 0.18, to='kick')
 roll(71.44, 4, 0.04, 0.08, 69)                                              # your type's flower
@@ -837,7 +855,7 @@ motif(75.6, 0.06, notes=Q_N, times=Q_T, held=1.0)                            # v
 put(lead(lq(88, 80.2), 1.6 * BEAT), 80.2, 0.06, 0.0, to='lead')             # E6 as the icon stands, handed to the boom
 put(swell(1.2 * BEAT), 74.2, 0.18)                                          # it folds back into the ring
 put(whoosh(1.0 * BEAT), 75.3, 0.06, 0.3)                                    # the dots fly onto the pen head
-groove(75.4, 80.2, kick_on=False, clap_on=False, lvl=0.84, bed=0.2)         # the pulse stays, the floor drops out (v18.6 .74 → .84, bed .2: never under v17.7)
+groove(75.4, 80.2, style='half', clap_on=False, lvl=0.84, bed=0.2)  # v18.8 half time keeps kick on 1 and 3 under the stroke (no 2.2 s drop-out) …         # the pulse stays, the floor drops out (v18.6 .74 → .84, bed .2: never under v17.7)
 put(sweep_pad(tuple(m + 12 for m in CH['F'][0]), 3.0 * BEAT, 0.4 * BEAT), 75.6, 0.12, to='verbsend')   # the curve is drawn
 arp(75.6, 78.6, 0.5, 0.055, base=67, span=6, accel=0.25)                    # (b75.6–78.6): a rising swell following the stroke
 put(riser(3.0 * BEAT, 300, 5000), 75.6, 0.14, to='verbsend')
@@ -847,6 +865,8 @@ put(hat(False), 75.6, 0.12, 0.2)
 put(sweep_pad(tuple(m + 12 for m in CH['G'][0]), 3.0 * BEAT, 0.6 * BEAT), 78.6, 0.07, to='verbsend')   # the slow push (film b116.3–119.3) …
 put(riser(3.0 * BEAT, 200, 2500), 78.6, 0.06, to='verbsend')                # … a slow rising swell into the turn
 put(whoosh(1.6 * BEAT), 78.6, 0.1, -0.2)                                    # it turns and tilts into the 45° icon
+for k in range(5):                                                          # v18.8 stroke → turn: a 16th clap roll (film 116.75–117.75) into the icon at 117.9
+    put(clap(), 79.05 + 0.25 * k, 0.05 + 0.0225 * k, 0.0, to='verbsend')
 TAG0 = TURN0 + 4.0
 LAST = TAG0 + 1.4 + 0.64                                                    # agent ✓4: the last strong beat (film b124.74)
 TD = 0.0                                                                     # K.words hard-cuts each tagline word at TAG0 + .2 k (2 frames); the agent row morphs at TAG_AG + .16 k
@@ -1042,6 +1062,7 @@ def render_groove():
             tones = [m for m in range(72, 90) if m % 12 in PCS[ch]][:3]
             k = int(round(bi * 4)) % 4
             putf(pluck((tones[0], tones[1], tones[2], tones[1])[k], BEAT * 0.4), bi, 0.07 * lvl, 0.6 if k % 2 else -0.6, to='verbsend')   # v18.7 wider
+            putf(shaker(True), bi, 0.03 * lvl, -0.45 if k % 2 else 0.45)    # v18.8 a 16th shaker inside the arp16 spans (2–6 kHz pulse)
         if p['bed'] and abs(frac - .5) < 1e-6:
             putf(shaker(), bi, p['bed'] * 0.7, 0.5)
     # sustained sub under the half-time spans: one note per run of owned steps, split at chord changes
@@ -1115,7 +1136,7 @@ for b0, b1, b2, b3, fc in LPF:                      # low-pass automation: zero-
     sos = signal.butter(2, fc, 'low', fs=SR, output='sos')
     mix = mix * (1 - 0.8 * w) + signal.sosfiltfilt(sos, mix) * 0.8 * w
 mix = hp(mix, 25)                                      # v18.6 the v17.7 master: no shelves, bells or gain arc
-norm = 1 / (np.max(np.abs(mix)) + 1e-9)
+norm = 1.12 / (np.max(np.abs(mix)) + 1e-9)          # v18.8 the top 12 % of the few hit transients go into the soft clip (out peak .87), not the whole mix down
 _a = np.max(np.abs(mix), 0)
 print('pre-norm peak %.3f; loudest beats:' % _a.max(), ', '.join('b%d %.2f' % (b, _a[at(b):at(b + 1)].max() / _a.max()) for b in sorted(range(int(END)), key=lambda b: -_a[at(b):at(b + 1)].max())[:6]))   # v18.7: which hits set the normalisation
 mix *= norm
