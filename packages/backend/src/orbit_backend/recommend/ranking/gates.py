@@ -128,8 +128,14 @@ def _not_installed(raw, inputs, memory):
     inventory = inputs.get("inventory")
     if inventory is None:
         return NA, "未扣除已装项"
-    item_id = (raw.get("source") or {}).get("item_id")
-    if item_id and any(i.get("catalog_item_id") == item_id for i in inventory):
+    source = raw.get("source") or {}
+    item_id = source.get("item_id")
+    ids = {item_id} if item_id else set()
+    if item_id and source.get("origin") == "kb":
+        # The catalog (orbit-kb) and the install ledger name a KB remedy ``kb:<id>``; a KB card
+        # for a third-party resource installs its ``catalog_ref`` item (install.plan).
+        ids |= {f"kb:{item_id}", *([source["catalog_ref"]] if source.get("catalog_ref") else [])}
+    if ids and any(i.get("catalog_item_id") in ids for i in inventory):
         return False, "已装同一条目"
     return True, ""
 
