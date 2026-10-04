@@ -259,7 +259,10 @@ scene('15-redesign', () => {
     const car = c.el.querySelector('.car'), tx = c.el.querySelector('.tx'), st = stage.getBoundingClientRect(), z = st.width / 1920;
     const q = (car || tx)?.getBoundingClientRect(); if (!q) return null;
     const m = E.inOut(clamp((b - w.t0) / .25)) * (1 - E.inOut(clamp((b - (w.t1 - .25)) / .25)));
-    return { x: ((car ? q.left + q.width / 2 : q.left) - st.left) / z + (car ? lerp(21, 8, m) : 2), y: (q.top + q.height / 2 - st.top) / z, r: 20 };
+    // v18.9: cx's first drop (film b19.4–19.85) ran straight through cc's badge on its way down-left; its flight bows
+    // out to the lower right (≈ +40 / +40 px at mid-flight after follow's .45 blend weight) so the two never overlap
+    const u = (b - (w.w.K[0] - .45)) / .45, bow = w === WIN[0] && u > 0 && u < 1 ? 80 * Math.sin(Math.PI * u) : 0;
+    return { x: ((car ? q.left + q.width / 2 : q.left) - st.left) / z + (car ? lerp(21, 8, m) : 2) + bow, y: (q.top + q.height / 2 - st.top) / z + bow, r: 20 };
   };
   for (const w of WIN) {
     AGD.morph(w.t0, w.i, 'caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)), dur: .25 });
@@ -346,7 +349,7 @@ scene('15-redesign', () => {
   // v18.5: 52 px / 600 with a 60 px 「Assistant」, 10 px lower (y 352 → 362) so its ends clear the ring's inner edge
   const SO_Y = 362;
   const soRise = (el, tl) => {
-    const w = el.querySelector('.w'), u = tl / BEAT, p = E.out(clamp(u / .3)), m = E.inOut(clamp((u - .3) / .6));
+    const w = el.querySelector('.w'), u = tl / BEAT, p = E.out(clamp(u / .3)), m = E.inOut(clamp(u / 1.0));
     const dx = el.offsetWidth / 2 - (w.offsetLeft + w.offsetWidth / 2), dy = 540 - SO_Y;
     w.style.transform = 'translate(' + (dx * (1 - m)).toFixed(1) + 'px,' + (dy * (1 - m)).toFixed(1) + 'px) scale(' + (lerp(1.9, 1, p) * lerp(2.2, 1, m)).toFixed(4) + ')';
     w.style.transformOrigin = '50% 60%';
@@ -354,8 +357,11 @@ scene('15-redesign', () => {
     w.style.opacity = Math.min(1, p * 2).toFixed(3);
   };
   // v18.2 QA: 「Assistant」 lands from 1.04× (was 1.1×: at 48 px its centre-origin scale ate the space after 「一个」 for ≈ .1 beat)
-  txt(20.6, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个</span><span class="w rd-w">Assistant</span>']],
-    { x: 960, y: SO_Y, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .24, 1.07], [1.02, .22, 1.04]], { dy: 18 })), tick: zoom(SO_Y, true) });
+  // v18.9: 「So，」 blurs in at b20.5 (film 27.4), cross-dissolving with the outgoing 1d lines (fade b20.1–20.7) instead of
+  // after them, and its rise to the line slot is one 1.0-beat E.inOut from that same moment (b20.5–21.5: starts .4 beat
+  // earlier, lands as before), so the centre is never empty between the two titles; the rest of the line keeps its beats
+  txt(20.5, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个</span><span class="w rd-w">Assistant</span>']],
+    { x: 960, y: SO_Y, align: 'c' }, { anim: K.all(soRise, step([null, [.95, .24, 1.07], [1.12, .22, 1.04]], { dy: 18 })), tick: zoom(SO_Y, true) });
   // v17.5: each big line still cuts in hard (K.words), then settles from 1.06× (.32 beat) before the next one
   // v17.7: and it comes in 12 px from the side of the bead nearest it (the ring's bearings at its cut, landed), as if
   // that bead set it down inside the ring

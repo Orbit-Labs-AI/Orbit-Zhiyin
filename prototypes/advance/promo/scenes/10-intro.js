@@ -239,8 +239,11 @@ scene('10-intro', () => {
   // line's blurred exit (b6.6–7.2), so no frame is without a title; 「到交付」 b7.25; b7.35–8.1 it rises with the dots
   // (E.inOut, 290 px) to y 250 while the box grows out of the pills below
   const TY = (b) => 250 + 290 * (1 - rise01(b));
-  txt(6.9, T(9.4), [['hv sv in-t1', '<span class="w">从想法</span><span class="w">到交付</span>']], { x: 960, y: 250, align: 'c' }, {
-    anim: wipe({ at: [.05, .35], push: .04, up: 40, out: .6, fixed: true }),
+  // v18.9: it stays to T(9.4) + 1.35 (b13.15, was b11.8): its .6 exit now runs while the dots slide left (b12.55–13.15
+  // under 12.65–13.45), so 「We」 (b13.4) takes over .25 beat later instead of a 1.6-beat gap with no headline; it no
+  // longer lifts 40 px as it goes (up 0) — that carried its tops into the two icons standing either side of 12 o'clock
+  txt(6.9, T(9.4) + 1.35, [['hv sv in-t1', '<span class="w">从想法</span><span class="w">到交付</span>']], { x: 960, y: 250, align: 'c' }, {
+    anim: wipe({ at: [.05, .35], push: .04, up: 0, out: .6, fixed: true }),
     tick: (el, tl) => { el.style.transform += ' translateY(' + (TY(6.9 + tl / BEAT) - 250).toFixed(1) + 'px)'; }
   });
   // T2: every dot has one bubble slot, in two layers so nothing overlaps: lower (dy −r − 18, y ≈ 508–572) cc tail x 560 /
@@ -261,7 +264,7 @@ scene('10-intro', () => {
   const K1 = typeOn(c, 7.2, '做一个记账 App', 31, 0), S1 = K1[K1.length - 1] + .22;
   c.send(S1, 0, slot(0, S1 + .15, { until: 12.0 }));
   const K2 = typeOn(c, S1 + .17, '写份路演稿', 32, 1), S2 = K2[K2.length - 1] + .22;
-  c.send(S2, 1, slot(1, S2 + .15, { until: 13.0 }));      // v18.4: 13.25 → 13.1; v18.5: 13.0, shrunk as the (slower) slide left starts (12.95)
+  c.send(S2, 1, slot(1, S2 + .15, { until: 12.8 }));      // v18.4: 13.25 → 13.1; v18.5: 13.0; v18.9: 12.8, shrinks into cx (b12.6–12.8) as the slide left starts (12.65)
   // the dots' own prompts (kind 'ask'); everything still up retracts in turn b12.0–13.4 after the icons burst (the
   // last, on ds, as the caret fold starts)
   // v18.9: 7.9 → 7.8 and gone by S1 + .05 (was T(7.6) = b10.0): cx lifts off at S1 to take 「写份路演稿」 and dragged this
@@ -272,8 +275,8 @@ scene('10-intro', () => {
   // v18.4: gone (shrunk into ds over .2) by b9.95, .15 before 「生成产品官网」 pops — no two layers of text on ds
   AGD.bubble(3, T(6.3), 9.95, '做个数据看板', slot(3, T(6.3)));
   AGD.bubble(4, 8.8, T(9.75), '整理会议纪要', slot(4, 8.8));                    // new grid
-  AGD.bubble(3, 10.1, 13.0, '生成产品官网', slot(3, 10.1));                     // new grid; v18.4: gone by b13.1, as the dots set off left (13.05)
-  AGD.bubble(2, 10.45, T(10.0), '做个小游戏', slot(2, 10.45));                  // new grid
+  AGD.bubble(3, 10.1, 12.8, '生成产品官网', slot(3, 10.1));                     // new grid; v18.4: gone by b13.1; v18.9: by b12.8, under the dots setting off left (12.65)
+  AGD.bubble(2, 10.45, 12.8, '做个小游戏', slot(2, 10.45));                  // new grid; v18.9: T(10.0) → 12.8, with the other two under the slide
   // each dot blinks (v18.6 R2「圆形 + 闪烁」) as a bubble leaves it (new grid)
   for (const [i, b] of [[1, 7.8], [2, T(6.05)], [3, T(6.3)], [4, 8.8], [0, S1 + .15], [3, 10.1], [2, 10.45], [1, S2 + .15]])
     AGD.blink(i, b, { k: 1.08, dur: .35 });
@@ -350,7 +353,7 @@ scene('10-intro', () => {
   // 1c.3: as each word lands, the 3 nearest icons are drawn 40 px toward it and spring back. Word centres follow the
   // line as K.words refits it (We alone → We Are → the full line, 1150 px; Everything on the second line).
   const WORDS = [[10.8, 960, 470], [11.3, 1067, 470], [11.8, 1182, 470], [12.3, 960, 615]].map(([w0, x, y], j) => {
-    const w = j ? T(w0) : 13.65,     /* v18.5: 「We」 b13.65 */ d = SRC.map((_, k) => { const q = halo(th(k, w)); return [Math.hypot(q[0] - x, q[1] - y), k]; }).sort((a, b) => a[0] - b[0]);
+    const w = j ? T(w0) - .25 : 13.4,    /* v18.5: 「We」 b13.65; v18.9: all four −.25 (We b13.4) */ d = SRC.map((_, k) => { const q = halo(th(k, w)); return [Math.hypot(q[0] - x, q[1] - y), k]; }).sort((a, b) => a[0] - b[0]);
     return { w, x, y, near: d.slice(0, 3).map((e) => e[1]) };
   });
   const pullF = (u) => (u <= 0 || u >= 1 ? 0 : u < .28 ? E.out(u / .28) : 1 - ease.back((u - .28) / .72));
@@ -416,7 +419,9 @@ scene('10-intro', () => {
   // Redesigning」 b12.25–14.8 (2.55 beats), 「Everything」 b12.8–14.8 (2.0)
   const W1 = ['xl sv in-w1', '<span class="w">We</span><span class="w"> Are</span><span class="w"> Redesigning</span>'];
   // v18.5: 「We」 wipes in at b13.65 (was 13.8), as the caret takes shape; Are / Redesigning stay on b14.3 / 14.8
-  const CB0 = 13.65, CB1 = T(15.6), CAT = [0, .65, 1.15];
+  // v18.9: 13.65 → 13.4 (Are / Redesigning / Everything −.25 with it) — 1b's title leaves b12.4, so the gap with no
+  // headline shrinks from 1.25 to 1.0 beat; the slide left (CK) starts .3 earlier to keep the caret at the wipe front
+  const CB0 = 13.4, CB1 = T(15.6), CAT = [0, .65, 1.15], EV = -.25;   // EV: 「Everything」 and the caret's L, on T(…) + EV
   // 1c → 1d: as 15-redesign's caret lies down (b14.8) its arc path runs through the 30 px gap between this line's
   // descenders (y ≈ 530) and 「Everything」's ascenders (≈ 560) while both are still ≥ 50 % opaque, so this line lifts 48 px
   // out of the dots' way with their own front-loaded ease (PEN_E = 15-redesign's H3E, b14.8–15.4; 「Everything」 stays,
@@ -441,21 +446,21 @@ scene('10-intro', () => {
     const shown = W.reduce((s, v, k) => s + v * E.out(clamp((b - CB0 - CAT[k]) / WD)), 0);
     return 960 + (shown - tot / 2) * Math.min(1, 1150 / tot) * (1 + .04 * clamp((b - CB0) / (CB1 - CB0))) + 52;
   };
-  const caretX = (b) => glide(b, w1F(b), [[T(12.1), T(12.5), 1400]]);
-  const caretY = (b) => glide(b, 470, [[T(11.95), T(12.3), 615]]);
+  const caretX = (b) => glide(b, w1F(b), [[T(12.1) + EV, T(12.5) + EV, 1400]]);
+  const caretY = (b) => glide(b, 470, [[T(11.95) + EV, T(12.3) + EV, 615]]);
   // v17.7 F3 1c: the five dots fold (stag .03, as the key) into ONE five-colour segmented caret — segments 24 px tall,
   // 26 apart (128 px ≈ the 132 px type), cc on top: the logos fade, the colours top to bottom are the five Agents
   // v18.4: the slide left starts b13.05 and runs .6 beat E.inOut (was .55 from b13.2, stag .03 ≈ .3 beat of travel each)
   // v18.5: slowed to .8 beat (b12.95–13.75) so the five can be followed as they slide; the caret forms on b13.75 at the
   // front of 「We」's wipe (from b13.65) and rides it
-  const CK = 12.95, CD = .8;
+  const CK = 12.65, CD = .8;                                     // v18.9: 12.95 → 12.65 (caret forms b13.45)
   AGD.key(CK, 'column', { x: caretX, y0: (b) => caretY(b) - 52, gap: 26, r: 16, dur: CD, stag: .015, ease: E.inOut, arc: 20 });
   // as each word lands the segments ripple top to bottom (h × 1.08); the caret leans 4° into each step to the right
   // (−4° on the step back left to 1400) and stands up again; at rest (from b15.4) it breathes — its fill dims to .7
   // and back on a 1-beat sine, never a hard blink — until 15-redesign lays it down (b18.7)
-  const RIP = [CB0 + .1, ...[11.5, 12.0, 12.5].map(T)];          // v18.5: the first on 「We」's landing (b13.75)
-  const STEPS = [...CAT.map((a) => [CB0 + a, CB0 + a + WD + .1, 1]), [T(12.1), T(12.5), -1]];
-  const REST = T(12.5);
+  const RIP = [CB0 + .1, ...[11.5, 12.0, 12.5].map((w) => T(w) + EV)];          // v18.5: the first on 「We」's landing (b13.75)
+  const STEPS = [...CAT.map((a) => [CB0 + a, CB0 + a + WD + .1, 1]), [T(12.1) + EV, T(12.5) + EV, -1]];
+  const REST = T(12.5) + EV;
   // v18.4: round badges (logo ≥ 20 px) for the travel, pressed into the segments over its last .15 beat at the wipe front
   AGD.morph(CK + CD - .15, 'all', 'caret', {
     hpx: (b, i) => 24 * (1 + .08 * AGD.beatPulse(b, RIP.map((w) => w + .05 * i), .45)),
@@ -465,7 +470,7 @@ scene('10-intro', () => {
   });
   // it leaves over b14.8–15.4 (.6, not .8): the lower dots rise across its 「ng」 on their way left (b15.0–15.3), so it is
   // under half opacity by b15.1 instead of .77
-  txt(T(12.3), T(15.4), [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
+  txt(T(12.3) + EV, T(15.4), [['xl in-ev', '<span class="w">Everything</span>']], { x: 960, y: 615, align: 'c' },
     // v18.3: and it drifts up 32 px as it blurs (K.exit dir), with the line above and the gloss — up, out of the arc's way
     { anim: K.all(wipe({ at: [0], dur: .26, push: .03, out: .6, spread: true }), K.exit({ out: .6, dir: { dx: 0, dy: -32 } })) });
   // the gloss (v17.2): 「人们正在用 Agent 重新设计一切」 fades in with 「Everything」 (v17.4: from b12.3, not 12.5; .3 beat, rising
@@ -473,7 +478,7 @@ scene('10-intro', () => {
   // gone before 15-redesign's box passes y 728) so it reads 3.65 beats; 15-redesign's first type (b15.8) is not under it
   // v18.1: it no longer outlives the type — it leaves with the headline's exit (E.inOut from b18.7) .1 beat behind,
   // blurring to 6 px, gone by b19.3 together with 「Everything」
-  txt(T(12.3), T(15.4), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 768, align: 'c' }, {   // v18.3: 30 px lower, 500, .9; v18.8: 40 px, y 768 (≥ 32 px under Everything's descenders), no accent
+  txt(T(12.3) + EV, T(15.4), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 768, align: 'c' }, {   // v18.3: 30 px lower, 500, .9; v18.8: 40 px, y 768 (≥ 32 px under Everything's descenders), no accent
     anim: (el, tl, life) => {
       const p = E.out(clamp((tl - BB(.1)) / BB(.2))), q = E.inOut(clamp((tl - (life - BB(.5))) / BB(.5)));   // v17.5: .1 after Everything, whole by +.3 as before
       // v17.7: wiped right → left out of the caret's foot (it stands just right of the line's end), not risen
