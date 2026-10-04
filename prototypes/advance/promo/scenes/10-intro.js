@@ -34,8 +34,8 @@
    The icons are drawn in #agdBack (AGD.back, under the Agent dots), so they burst from behind the dots and the box.
    v17.7 typing (length unchanged): every prompt typed into a box (1b here, 1d in 15-redesign) goes in one character at a
    time at a human pace (typeOn below); 1b types two prompts (记账 App, 路演稿) and 「生成产品官网」 is ds's own bubble.
-   v18.6 shapes (R1/R2: round + blink, no tails / pills / sparks / beads, no velocity smear): ONE-circle orb b0.2 →
-   split .35–.8 (dots 1–4 blink .62) · round pen dots b0.8 (cp blinks 1.5 / 1.95, all blink on the stamp 2.45) · cx
+   v18.7 shapes (D1–D3: round logo badges + blink, no tails / pills / sparks, no velocity smear): the 17-series merged
+   badge (cc + five arcs) b0.2 → AGD.open .35–.85 (dots 1–4 blink .82) · round pen dots b0.8 (cp blinks 1.5 / 1.95, all blink on the stamp 2.45) · cx
    blinks 6.95 (「从」) · four blink 7.0 as the box grows · caret on the receiving dot while typing (bobs on typeOn's
    key beats) → badge .2 before each send, blink on every bubble pop · all blink 11.35 (burst) and 11.7 (box sinks) ·
    five-colour segmented caret 13.75 (ripples on word landings, 4° lean on each step, fill breathes
@@ -153,7 +153,7 @@ scene('10-intro', () => {
   // v17.7 F3 1a: the film opens on ONE — an orb (dot 0, r 30: the five mini badges ≈ 21 px) pops at b0.2 with dots 1–4
   // stacked under it (a .001, so the split blends them out of it instead of popping them), and splits into the R 60
   // cluster b0.35–.8 while the orb melts back into cc's badge: 一 → 五 from the first beat (the close ends on the orb again)
-  // v18.6 R1: the orb is ONE clean circle (dark disc, five-colour rim ring + soft glow, no mini badges): r 26 × k 1.15 ≈ 30
+  // v18.7 D2: the orb is the 17-series merged badge — cc's logo badge (k ≈ 1.1) with the five 72° arcs at r + 7
   AGD.key(0.2, 'pts', { pts: [[960, 560], [960, 560], [960, 560], [960, 560], [960, 560]], drift: 0, r: 26, a: (b, i) => (i ? .001 : 1), dur: .3 });
   AGD.morph(0, 0, 'orb', { dur: .01 });
   // v18.1 (b): the split lays the five out as a point-down pentagon whose left → right order is the pen's (dot i →
@@ -161,10 +161,14 @@ scene('10-intro', () => {
   // falls straight to the middle slot, the side ones (cc / cp) to the ends. ph(b, i) puts dot i at RING_A[i] degrees
   const RING_A = [252, 324, 180, 36, 108];
   AGD.key(0.35, 'ring', { ...AGD.P.cluster, ph: (b, i) => RING_A[i] - 72 * i, dur: .4, stag: .02 });
-  AGD.morph(0.42, 0, 'dot', { dur: .2 });            // QA: logo only once the split is under way (no cc inside the one circle); melted by b0.62, before dots 1–4 are half out (no orb + badges double image)
+  // v18.7 D2: the one circle is the 17-series merged badge (cc's logo badge + five Agent-coloured 72° arcs); it opens by
+  // its own arcs (AGD.open b0.35–0.85, with the ring key): cc stays the centre badge, each other arc slides off cc's rim
+  // and shrinks to a point as that Agent's round logo badge grows out of it; dot 0 is off 'orb' when the open ends
+  AGD.open(0.35, .5);
+  AGD.morph(0.84, 0, 'dot', { dur: .01 });
   // v18.6 R2: no velocity smear anywhere in 1a–1c; the four new dots blink as they land on the cluster
   AGD.noStretch(0, 20);
-  AGD.blink([1, 2, 3, 4], .62, { stag: .03 });
+  AGD.blink([1, 2, 3, 4], .82, { stag: .03 });
   // 1a.2: 「用 AI Agent，」 (the subject, small) floats up out of the cluster from b0.4 — characters blur in while the line
   // rises 18 px onto y 430 (the cluster's top edge is y 466); the headline 「正在成为每个人的日常」 wipes in a word on
   // b1.1 / 1.52 / 1.94 (.45 beat each, ≤ 1600; 「正在」 waits until the pen has left the type band, so the small line reads
@@ -284,6 +288,10 @@ scene('10-intro', () => {
   };
   caretAt(0, BX + .12, K1, S1);
   caretAt(1, S1 + .1, K2, S2);
+  // v18.7 D4: and it IS the box's caret while it types — AGD.caretRide sets it on the box caret (its bar on the caret line,
+  // dx 2) from the line's first key until .2 before the send, then it glides back to its slot as it rounds into its badge
+  AGD.caretRide(0, K1[0], S1 - .2, c, { dx: 2 });
+  AGD.caretRide(1, K2[0], S2 - .2, c, { dx: 2 });
 
   /* ---------- 1b.3 – 1c: the App icons ---------- */
   // 12 rounded tiles (88 px, dark glass, white line glyphs drawn here — no third-party marks), in ring order θ = 30k.
