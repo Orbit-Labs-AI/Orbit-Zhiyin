@@ -51,6 +51,18 @@ def test_ok_then_cached(ai_svc):
     assert any(f.data.get("stage") == "draft" for f in frames)
 
 
+def test_cache_is_keyed_by_model(ai_svc):
+    """Choosing another model for the slot must call it, not replay the previous model's output."""
+    wait_done(ai_svc, ai_svc.submit("test.echo", {"slots": {"goal": "tidy rules"}})["job_id"])
+    ai_svc.set_consent({"settings": {"slots": {"fake": {"cheap": "fake-bigger"}}}})
+    again = ai_svc.submit("test.echo", {"slots": {"goal": "tidy rules"}})
+    job = wait_done(ai_svc, again["job_id"])
+    assert not again["cached"] and not job["cached"]
+    assert [r.model for r in ai_svc.fake.requests] == ["fake-cheap", "fake-bigger"]
+    third = ai_svc.submit("test.echo", {"slots": {"goal": "tidy rules"}})
+    assert third["cached"] and len(ai_svc.fake.requests) == 2
+
+
 def test_invalid_output_retries_once_then_falls_back(ai_svc):
     ai_svc.fake.responses["test.echo"] = {"wrong": 1}
     job = wait_done(ai_svc, ai_svc.submit("test.echo", {"slots": {"goal": "x"}})["job_id"])

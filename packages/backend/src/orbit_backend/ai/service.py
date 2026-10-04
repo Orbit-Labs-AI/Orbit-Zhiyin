@@ -307,15 +307,16 @@ class AIService:
                "goal": pack.get("goal"), "goal_source": pack.get("goal_source"),
                "preview_digest": pack.get("preview_digest"), "fresh": bool(req.get("fresh"))}
         inline = (task["run"] is None and task["cache_ttl_s"] != 0 and not job["fresh"]
-                  and self._cached(task, pack))
+                  and self._cached(task, pack, engine_id, slot))
         self.runner.enqueue(job, inline=inline)
         row = self._job_row(job_id)
         return {"job_id": job_id, "status": row["status"], "cached": bool(row["cached"]),
                 "estimate": self._estimate(task, pack, engine_id)}
 
-    def _cached(self, task: dict, pack: dict) -> bool:
+    def _cached(self, task: dict, pack: dict, engine_id: str, slot: str) -> bool:
         key = cache_key(task["task_id"], task["prompt_version"], task["schema_version"],
-                        task["system"], task["build_prompt"](pack))
+                        task["system"], task["build_prompt"](pack), engine_id,
+                        self.model_for(engine_id, slot))
         with self.appdb.read() as db:
             return db.execute("SELECT 1 FROM ai_cache WHERE input_digest = ? AND (expires_at "
                               "IS NULL OR expires_at > ?)", (key, now_ms())).fetchone() is not None

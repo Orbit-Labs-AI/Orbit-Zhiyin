@@ -41,8 +41,9 @@ def canonical_json(value) -> str:
 
 
 def cache_key(task_id: str, prompt_version: str, schema_version: str, system: str,
-              prompt: str) -> str:
-    raw = canonical_json([task_id, prompt_version, schema_version, system, prompt])
+              prompt: str, engine: str, model: str | None) -> str:
+    """The engine and model answer the request too: another model is a new call, not a hit."""
+    raw = canonical_json([task_id, prompt_version, schema_version, system, prompt, engine, model])
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -92,7 +93,9 @@ class RunContext:
         validate = validate or task["validate"]
         slot = slot or self.slot
         ttl = task["cache_ttl_s"]
-        key = cache_key(task_id, task["prompt_version"], task["schema_version"], system, prompt)
+        model = self.runner.svc.model_for(self.engine, slot)
+        key = cache_key(task_id, task["prompt_version"], task["schema_version"], system, prompt,
+                        self.engine, model)
         if ttl != 0 and not self.fresh:
             cached = self.runner.cache_get(key)
             if cached is not None:
@@ -111,8 +114,7 @@ class RunContext:
             if self.cancelled():
                 raise Cancelled()
             request = EngineRequest(
-                system=system, prompt=attempt_prompt, schema=schema,
-                model=self.runner.svc.model_for(self.engine, slot),
+                system=system, prompt=attempt_prompt, schema=schema, model=model,
                 max_budget_usd=task["max_budget_usd"], timeout_s=task["timeout_s"],
                 cancel=self.cancel_event, task_id=task_id, job_id=self.job_id, slot=slot,
                 max_tokens=task["out_budget"])
