@@ -422,7 +422,8 @@ function agShapeF(i, b, p, F) {
   const S = at(n); S.sx = 1; S.sdir = 0;
   // v18.8 D3: a squashed badge ('bead', or any blend toward it) stays ≤ 1.3 : 1 — ry ≥ .77 r, rx ≤ 1.3 r and w / h ≤ 1.3,
   // whatever w / h a scene passes (20-orbit's w 2.85 / perspective h 1.17 read as a sideways pill). Upright shapes (caret) are untouched.
-  if (S.w > S.h + 1e-3 && S.h < 2) { S.h = Math.max(S.h, 1.54); S.w = Math.min(S.w, 2.6, 1.3 * S.h); }
+  // QA r8: no h < 2 gate (it let w jump back above 1.3·h once a perspective h crossed 2.0 mid-blend); max / min stay continuous at w = h
+  if (S.w > S.h + 1e-3) { S.h = Math.max(S.h, 1.54); S.w = Math.min(S.w, 1.3 * S.h); }
   if (agOn() && AGD.STRETCH && S.vs > .001 && p.r > .3 && !AGD_NOST.some((z) => b >= z.b0 && b < z.b1 && z.L.includes(i))) {
     const v = agFV(c); S.sx = 1 + Math.min(.18, v.sp / 4000) * E.sine(clamp((v.sp - 300) / 300)) * Math.min(1, S.vs); S.sdir = v.ang;
   }
