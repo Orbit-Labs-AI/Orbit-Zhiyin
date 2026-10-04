@@ -68,12 +68,8 @@ scene('50-tools', () => {
   // there for almost a beat; held, it lands on (960, 540) exactly at the b75.2 hand-off (E.inOut, zero speed both ends)
   let G0 = null;
   const backXY = (b) => { if (!G0) G0 = pinXY(); return mix(G0, HOME, io(b, BACK, 1.3)); };
-  // v17.7: on 开始生成 the dot is a pointer (rot −28, tip up): its TIP, not its centre, lands on the button centre. The
-  // pointer's tip sits 1.25·(1 + .6·.9)·1.15 = 2.21 r from the centre toward −118° (r 26 → (−27, −50.9) px), so the centre is
-  // carried that far down-right of the button while the pointer forms (b67.4–68.65) and eased back out as it becomes the
-  // generator (b69.0–69.6): continuous, the hand-off positions are unchanged
-  // v18.4: the pointer forms as the button grows out of the orb (b67.6–68.1)
-  const PTR = [27, 50.9], ptrE = (b) => io(b, SHR + .45, .5) - io(b, 69.0, .6);
+  // v18.7 D2/D3: the merged dot is a ROUND badge on the button (no pointer): its centre lands on the press point itself (70 %
+  // across, right of the label), so the old tip offset (PTR, ptrE) is gone — positions before / after are unchanged
   // b69.0–69.6 button → generator: a straight line would cut across the run card's step list, so x leads (the dot runs
   // left along the header, lifted over the card's top edge) and y follows once it is past the card's left edge
   // v18.1: only SKILL.md is shown, so the generator sits 56 px left of its code block; button → there in one eased glide
@@ -102,10 +98,9 @@ scene('50-tools', () => {
       : b < PIN ? toGen(b)
       : b < IN6 ? mix(genXY(), pinXY(), io(b, PIN, .6))
       : backXY(b);
-    const e = b >= SHR + .45 && b < 69.6 ? ptrE(b) : 0;
-    // v18.2 hover: the pointer sinks 3 px onto the button over the .3 beat before the press, and lets go after it
+    // v18.2 hover: the badge sinks 3 px onto the button over the .3 beat before the press, and lets go after it
     const sk = 3 * (io(b, HOV, .3) - io(b, PRESS + .05, .2));
-    return MP = e || sk ? [q[0] + PTR[0] * e, q[1] + PTR[1] * e + sk] : q;
+    return MP = sk ? [q[0], q[1] + sk] : q;
   };
   const mergeR = (b) => b < 69.0 ? lerp(44, 26, io(b, 56.8, .6)) : b < BACK ? lerp(26, 36, io(b, 69.0, .6)) : lerp(36, 54, io(b, BACK, 1.3));   // v18.5: 1 → 1.5 on its way to the centre
   // v17.7 hand-off: the column closes in 1.0 beat (stag .03) and dots 1–4 fade as they slip under cc (b55.3–55.75), so
@@ -336,7 +331,7 @@ scene('50-tools', () => {
   // 5.5 the merged dot is the pointer: it has slid onto 开始生成 (mergeXY, b67.4–68.65) and presses it — no pointer; v18.2:
   // no bloom either (it sat on the label), the button itself hovers, dips and rings (drive above), and the dot dips (.88); the app's own timers are cleared, the run is driven below
   clickAt(1, 68.8, startBtn, (a, el) => { a.click(el); a.W.eval('clearTimeout(RUNT)'); remark1(); }, { cursor: false });
-  AGD.pulse(0, 68.8, .88, .3);
+  AGD.pulse(0, 68.8, .9, .3);                               // v18.7: the round badge squashes .9 → 1 with the button's ring
   // 5.6 the app's run (v1: pack · analyse · draft · self-check · replay + judge · review), on the film's beats: ≥ .45 beat per
   // step, SKILL.md typed character by character at an even rate over b70.05–72.65 (2.6 beats; the finished file then reads
   // 1.45 beats before the exit), new log lines fade/rise in
@@ -427,7 +422,8 @@ scene('50-tools', () => {
      whole scene — no mini Agent badges, no pill / pin / pointer / spark rays. Every moment that a shape used to mark is now
      a blink / breath of that one circle (sine, ≤ 1.12): the wire leaving it, each phase the playhead pins, the press, every
      SKILL.md line written. Positions (mergeXY) and every hand-off are unchanged. ---------- */
-  const ORB = { k: 1.15, micro: 0, la: 0, ring: 0, arcs: 1, arcR: 1.5, arcW: 3, core: 1, halo: 1, vs: 0 };
+  // v18.7 D2: 'orb' is now dot 0's cc logo badge + five Agent arcs (02-agents locks the look; k ≤ 1.18), so only k is passed
+  const ORB = { k: 1.1 };
   // (g) v18.1: the circle takes over while dots 1–4 slip under cc (b55.3–55.75): the five dots go into one
   AGD.morph(55.3, 0, 'orb', { dur: .45 });
   // b56.35 the trajectory card's wire is drawn out of it (b56.4–56.9): a soft blink as it lets the wire go
@@ -444,7 +440,7 @@ scene('50-tools', () => {
   const lineB = () => { const W = genW(), T = W[W.length - 1]; return W.slice(0, -1).map((w) => L0 + (L1 - L0) * (w + 1) / T); };
   let LB = null;
   const breath = (b) => { if (b < L0 - .1 || b > L1 + .5) return 0; LB = LB || lineB(); return AGD.beatPulse(b, LB, .35); };
-  AGD.morph(68.95, 0, 'orb', { ...ORB, k: (b) => 1.15 * (1 + .06 * breath(b)), dur: .3 });
+  AGD.morph(68.95, 0, 'orb', { ...ORB, k: (b) => 1.1 * (1 + .07 * breath(b)), dur: .3 });
   // b71.7–72.3 it leaves the wire for line 9 (mergeXY) and sits beside it; b73.9 SKILL.md is drawn into it (a blink as it lands)
   AGD.blink(0, IN6 + .4, { k: 1.1, dur: .35 });
   // 5.7 out (v18.4): from b73.8 SKILL.md is drawn INTO the orb parked beside line 9 — the camera is re-anchored on the orb
