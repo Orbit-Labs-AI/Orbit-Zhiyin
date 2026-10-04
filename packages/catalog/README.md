@@ -26,7 +26,7 @@ uv run --extra embeddings orbit-catalog --home .local/catalog --model-dir /absol
 uv run --extra embeddings orbit-catalog --home .local/catalog --model-dir /absolute/e5-model search '排查自动化测试失败'
 ```
 
-模型目录须含 `onnx/model.onnx` 与 `onnx/tokenizer.json`。模型由使用者单独准备并固定 revision；工具不自动下载权重。App gateway 可通过绝对路径 `ORBIT_CATALOG_MODEL_DIR` 配置，显式参数优先，变更后重启服务。
+已有模型目录须满足当前编码器文件布局；显式 `--model-dir` 或 `ORBIT_CATALOG_MODEL_DIR` 优先，其余情况自动发现完整模型目录。可以运行 `uv run orbit-catalog --home .local/catalog model-download --allow`，明确授权下载固定 revision 的 E5 权重并校验文件摘要；用户授权后的后台服务可继续相应下载/编码，未授权时不获取模型。
 
 模型不可用、编码失败或尚未索引时返回具体向量状态，保留可用的词法/特征路径。测试中的 ToyHashEncoder 只检查流程，不代表语义质量。
 
@@ -46,3 +46,5 @@ uv build --package orbit-catalog
 ## 大规模公共语料
 
 固定快照流式导入、index_only、可恢复向量物化与查询预算见[大规模索引](../../docs/modules/catalog/large-corpus.md)。离线种子、联网同步池和模型向量是不同资产；某个来源默认可同步，不代表已经包含在当前随包种子。
+
+`embed --scope overview` 只补概览；`--scope all` 处理已选可编码块，完整正文还需显式 `--all-passages`。资源发布与向量批次采用独立 generation，断点与完成状态见大规模索引指南。

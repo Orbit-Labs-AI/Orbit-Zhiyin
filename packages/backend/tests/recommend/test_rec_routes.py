@@ -587,3 +587,35 @@ def test_recommendation_level_change_invalidates_cached_run(env, monkeypatch):
     gw.rec_settings = {"level": 3}
     changed = runs.run(gw, {})
     assert not changed["reused"] and changed["run_id"] != first["run_id"]
+
+
+def test_funnel_survives_card_retention_and_reports_legacy_unknown(env, monkeypatch):
+    from orbit_backend.recommend.funnel import Funnel
+
+    client, gw, _ = env
+    old = runs.run(gw, {})
+    legacy = client.get(f"/v1/recommendations/runs/{old['run_id']}/funnel").json()
+    assert legacy["status"] == "not_recorded" and legacy["funnel"] is None
+
+    def build(inputs, memory, **kw):
+        slate = _engine_slate(inputs, memory, **kw)
+        audit = Funnel(inputs, [], {})
+        for cand in slate["candidates"]:
+            cand["evidence"] = {"session_uids": ["evidence-session"]}
+        audit.record("raw_candidates", ((c, True, []) for c in slate["candidates"]))
+        slate["funnel"] = audit.export()
+        return slate
+
+    monkeypatch.setattr(runs, "_engine", lambda: (build, "funnel-test"))
+    monkeypatch.setattr(runs, "KEEP_PASSED", 1)
+    new = runs.run(gw, {}, force=True)
+    response = client.get(f"/v1/recommendations/runs/{new['run_id']}/funnel")
+    assert response.status_code == 200
+    audit = response.json()["funnel"]
+    assert len(audit["candidates"]) == 5
+    assert audit["candidates"]["legacy:res1"]["evidence"]["session_uids"] == ["evidence-session"]
+    serial = audit["stages"][-1]
+    assert serial["stage"] == "serialization" and serial["kept_count"] == 1
+    assert serial["rejected_count"] == 4
+    assert all(d["reasons"] == ["persistence_cap"] for d in serial["decisions"] if not d["kept"])
+    assert client.get("/v1/recommendations/runs/missing/funnel").status_code == 404

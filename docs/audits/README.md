@@ -22,3 +22,17 @@
 - [Orbit 后端深度排查修复](backend-debug-fixes-2026-10-04.md)
 
 - [Catalog 向量扩容审计：2026-10-03](catalog-vector-scale-2026-10-03.md)
+
+- [非 Skill 资源扩容与正文暂停记录：2026-10-04](catalog-resource-expansion-2026-10-04.md)
+
+- [INJECTION_REPORT — 历史到实际使用](history-skill-learning/INJECTION_REPORT.md)
+
+- [NEGATIVE_REPORT — 未实现全面优势的原因](history-skill-learning/NEGATIVE_REPORT.md)
+
+- [POSITIVE_REPORT — 已证实的局部改善](history-skill-learning/POSITIVE_REPORT.md)
+
+- [RESULT_REPORT — 冻结后的四题比较](history-skill-learning/RESULT_REPORT.md)
+
+- [TOKEN_REPORT — history 处理、online 与研发成本](history-skill-learning/TOKEN_REPORT.md)
+
+- [12 条历史为何只留下 1 rule、1 hook、0 skill](history-skill-root-cause.md)

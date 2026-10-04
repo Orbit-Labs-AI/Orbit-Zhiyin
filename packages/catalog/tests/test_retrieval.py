@@ -54,6 +54,31 @@ def test_chinese_fts_and_source_filters_survive_query_operators(store):
     assert search(store, MatchRequest(text="重复失败", source_ids=["missing"]))["items"] == []
 
 
+def test_optional_filter_audit_explains_nonportable_pi_pool_without_changing_results(store):
+    publish(store, [record("a", agents=["codex"], type="subagent"),
+                    record("b", agents=["claude_code"], type="subagent")])
+    request = MatchRequest(text="重复失败", agents=["pi"])
+    baseline = search(store, request)
+    audited = search(store, request.model_copy(update={"audit": True}))
+    assert audited["items"] == baseline["items"] == []
+    assert "filter_audit" not in baseline
+    agent = next(s for s in audited["filter_audit"] if s["stage"] == "agents_listed")
+    assert agent["input_count"] == 2 and agent["kept_count"] == 0
+    assert set(agent["rejected_ids"]) == {"a", "b"} and agent["score"] is None
+    assert agent["omitted_ids"] == 0
+
+
+def test_filter_audit_preserves_mainline_portable_skill_support(store):
+    publish(store, [record("portable", agents=["codex"])])
+    request = MatchRequest(text="重复失败", agents=["pi"])
+    baseline = search(store, request)
+    audited = search(store, request.model_copy(update={"audit": True}))
+    assert audited["items"] == baseline["items"]
+    assert [item["item_id"] for item in audited["items"]] == ["portable"]
+    stage = next(s for s in audited["filter_audit"] if s["stage"] == "agents_listed")
+    assert stage["input_count"] == stage["kept_count"] == 1
+
+
 def test_recommendation_requires_evidence_scene_dimension_and_curated_friction(store):
     features = [Feature(feature=k, value=v, origin="curated") for k, v in
                 [("friction", "tool_retry"), ("scene", "coding"), ("dimension", "verify")]]

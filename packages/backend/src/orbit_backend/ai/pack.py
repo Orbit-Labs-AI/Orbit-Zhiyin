@@ -1028,6 +1028,15 @@ _ORDER = ["goal", "evidence"]  # loaders others depend on run first
 
 def _item(key: str):
     """Pack item spec; v1 task items live in ``pack_v1`` (imported lazily: it imports this module)."""
+    if key in ("procedure_draft", "validation_feedback"):
+        from .learning_feedback import ITEMS as learning_items
+
+        return learning_items[key]
+    if key == "trajectories":
+        from .pack_trajectories import load
+
+        return ("操作轨迹", "范围内至多八个会话的脱敏目标、工具参数、结果和公开答复；保留裁剪计数",
+                "snippets", load)
     if key not in ITEMS:
         from .pack_v1 import ITEMS_V1
 
@@ -1124,7 +1133,7 @@ def build(task: dict, *, reads, appdb, home, scope=None, selection=None, goal=No
             label, desc, data_class, loader = _item(key)
             enabled = bool(selection.get(key, defaults[key])) and data_class != "raw"
             unavailable = False
-            if key in slots:
+            if key in slots and key not in ("trajectories", "procedure_draft", "validation_feedback"):
                 value = slots[key]
             else:
                 try:

@@ -9,3 +9,5 @@
 - [Agent 会话格式研究](agent-sessions/README.md)
 
 每次新研究应记录问题、官方来源或源码版本、观察与推断的区别，以及对 Orbit 的适用边界。既有研究不通过改写时间来假装重新核验。实现入口见[连接器](../modules/data/agent-connectors.md)。返回[文档首页](../README.md)。
+
+- [历史技能学习研究](history-skill-learning.md)：带版本的参考机制与隔离验证边界。

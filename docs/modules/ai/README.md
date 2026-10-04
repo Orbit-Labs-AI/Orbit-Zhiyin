@@ -23,3 +23,5 @@ App AI service 处理用户可见任务。analytics 的 [semantic_cascade](../..
 生成工坊产出可审阅的规则、Skill、Hook 等草稿，经过格式/内容检查后才交给[安装流程](../install/README.md)。自检通过不等于安全审计或实际有效，自动生成也不自动授权写用户配置。
 
 本地 Agent 仍可能调用其配置的远端模型。用户说明见[使用 AI](../../guides/ai.md)，验证记录见[AI 可靠性审计](../../audits/analysis-ai-reliability-2026-10-03.md)。
+
+显式技能学习与反例修订同样遵守 Scope、授权和材料边界，不能用调用方 slots 替换已选择轨迹或用 test 数据修订。入口与效果限制见[推荐模块](../recommendation/engine.md#历史技能学习)。

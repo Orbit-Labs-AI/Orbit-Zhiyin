@@ -4,7 +4,7 @@
 
 ## 字典与规则版本
 
-权威枚举和阈值在 [signals/dictionary.py](../../../packages/backend/src/orbit_backend/analytics/signals/dictionary.py)，当前为 `signals-v1.2`。闭集包含 correction、frustration、retry_loop、missing_verification、would_prompt、permission_denied、risky_command 和 interruption。
+权威枚举和阈值在 [signals/dictionary.py](../../../packages/backend/src/orbit_backend/analytics/signals/dictionary.py)，当前为 `signals-v1.3`。闭集包含 correction、frustration、retry_loop、missing_verification、would_prompt、permission_denied、risky_command 和 interruption。
 
 | 信号 | 需要的证据 | 解释限制 |
 | --- | --- | --- |
@@ -34,3 +34,5 @@
 纠偏复用 `interaction.rules.correction_verdict`，仅报告“仍然失败”的结果反馈不自动算纠偏。无生产者的 dimension 分支已移除，repeated_instruction 目前不由该信号层产生。
 
 resident_tokens_median 使用各主会话首请求的未缓存输入加缓存读写，任一桶未知则该样本未知，不含输出。它是估计口径；installed_unused 问题由 recommend.problems 产生。数值门槛及未校准状态集中在 dictionary.THRESHOLDS。
+
+v1.3 的编辑机会还包含 file_ops 明确写文件的调用，不能只看工具类别遗漏 shell/复合工具的文件操作。
