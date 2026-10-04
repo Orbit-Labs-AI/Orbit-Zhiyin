@@ -106,6 +106,9 @@ scene('60-close', () => {
     const O = spOrb(), t = E.out(lp(b, HB, .45)), R = lerp(O.R, SP_R0 + 10, t), a = 1 - t, sp = O.sp;
     if (a <= .002) return '';
     let s = '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="#0e0f12" opacity="' + (.9 * a * a).toFixed(3) + '"/>';
+    // QA v18.6：外壳带上 orb 的 halo（模糊色弧）与 core（渐变圆面），交接帧不再一帧丢掉光晕与灰圆面
+    for (let m = 0; m < 5; m++) s += '<path d="' + agArc(O.x, O.y, R + 1.5, sp + m * 72 + 8, sp + m * 72 + 64) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="' + (R * .55).toFixed(1) + '" stroke-linecap="round" filter="url(#agbl)" opacity="' + (.3 * a).toFixed(3) + '"/>';
+    s += '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="url(#agcore)" opacity="' + (.3 * a * a).toFixed(3) + '"/>';
     for (let m = 0; m < 5; m++) s += '<path d="' + agArc(O.x, O.y, R + 1.5, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="3" stroke-linecap="round" opacity="' + a.toFixed(3) + '"/>';
     return s;
   });
@@ -122,7 +125,7 @@ scene('60-close', () => {
     if (b <= HB) return null;                                  // b69.2 这一帧仍是完整的 orb（50-tools 交来的 r 40）
     const P = spPolar(i, b), th = P.th * Math.PI / 180;
     // 第一帧 r = 小徽章的 .3R（≈ 14），.35 拍内长到 16（logo ≈ 27 px），之后再随 e 长到罗盘徽章的 19
-    return { x: P.cx + P.rad * Math.sin(th), y: P.cy - P.rad * Math.cos(th), r: Math.max(lerp(P.O.r, P.c.r / decks[2].C.s, P.e), lerp(P.O.r, 16, E.out(lp(b, HB, .35)))) };
+    return { x: P.cx + P.rad * Math.sin(th), y: P.cy - P.rad * Math.cos(th), r: Math.max(lerp(P.O.r, P.c.r / decks[2].C.s, P.e), lerp(P.O.r, 16, E.out(lp(b, HB, .35)))) * lerp(.25, 1, E.out(lp(b, HB, .22))) };   // QA：从弧上一颗小点长出，不在交接帧一下冒出 5 枚满 logo 徽章
   }, { blend: .2 });
   /* v18.4 圆弧头接到点上：点在螺旋途中走分道（SP_LANE）、方位还带着小徽章起点的偏差，罗盘画的圆弧却在圆环半径上——b107.5–107.7
      弧头离点头几十 px。现在罗盘的第 i 段只画到弧头前 SP_HS 度，最后这一截由这里在点的下层画：从圆环上平滑弯到点心
