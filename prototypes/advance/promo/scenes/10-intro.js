@@ -264,7 +264,10 @@ scene('10-intro', () => {
   c.send(S2, 1, slot(1, S2 + .15, { until: 13.0 }));      // v18.4: 13.25 → 13.1; v18.5: 13.0, shrunk as the (slower) slide left starts (12.95)
   // the dots' own prompts (kind 'ask'); everything still up retracts in turn b12.0–13.4 after the icons burst (the
   // last, on ds, as the caret fold starts)
-  AGD.bubble(1, 7.9, T(7.6), '写个爬虫', slot(1, 7.9));            // v18.5: 7.55 → 7.9, once the rising title has cleared its slot
+  // v18.9: 7.9 → 7.8 and gone by S1 + .05 (was T(7.6) = b10.0): cx lifts off at S1 to take 「写份路演稿」 and dragged this
+  // bubble down across cc's 「做一个记账 App」 (pops S1 + .15 = b9.53) — it now shrinks into cx (b9.23–9.43) .1 beat before
+  // that pop, as cx leaves for the box (whole b8.05–9.23)
+  AGD.bubble(1, 7.8, S1 + .05, '写个爬虫', slot(1, 7.8));
   AGD.bubble(2, T(6.05), T(8.0), '画一套图标', slot(2, T(6.05)));
   // v18.4: gone (shrunk into ds over .2) by b9.95, .15 before 「生成产品官网」 pops — no two layers of text on ds
   AGD.bubble(3, T(6.3), 9.95, '做个数据看板', slot(3, T(6.3)));
@@ -272,7 +275,7 @@ scene('10-intro', () => {
   AGD.bubble(3, 10.1, 13.0, '生成产品官网', slot(3, 10.1));                     // new grid; v18.4: gone by b13.1, as the dots set off left (13.05)
   AGD.bubble(2, 10.45, T(10.0), '做个小游戏', slot(2, 10.45));                  // new grid
   // each dot blinks (v18.6 R2「圆形 + 闪烁」) as a bubble leaves it (new grid)
-  for (const [i, b] of [[1, 7.9], [2, T(6.05)], [3, T(6.3)], [4, 8.8], [0, S1 + .15], [3, 10.1], [2, 10.45], [1, S2 + .15]])
+  for (const [i, b] of [[1, 7.8], [2, T(6.05)], [3, T(6.3)], [4, 8.8], [0, S1 + .15], [3, 10.1], [2, 10.45], [1, S2 + .15]])
     AGD.blink(i, b, { k: 1.08, dur: .35 });
 
   /* v17.7 F3 1b — the dots lead every element of the shot (v18.6 R2: round badges that blink, no pills / tails) */
