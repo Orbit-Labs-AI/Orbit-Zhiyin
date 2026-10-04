@@ -52,7 +52,7 @@ function renderPop() {
   const T = popDay(); const today = available.filter((s) => s.d === T && (!simIdle() || !s.live));
   const liveMin = (Date.now() - S.live.t0) / 60000;
   const head = (title, meta, badge) => '<div class="row" style="padding:12px 14px 10px"><div style="flex:1;min-width:0"><div class="row" style="gap:6px"><b style="font-size:13px">' + title + '</b>' + (badge || '') + '</div><div class="mono cap" style="font-size:11px">' + meta + '</div></div><button type="button" class="ib" data-act="openSettings" data-tab="notify" aria-label="通知设置">' + ic('settings', 15) + '</button></div>';
-  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="tcode" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : dataBusy() ? '计算中' : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Orbit <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
+  const foot = '<div class="sec row" style="background:var(--sunken)">' + (p.ok ? glyphSVG(p, 30) : '') + '<div style="flex:1;min-width:0"><b class="tcode" style="letter-spacing:.04em">' + (p.ok ? p.code : '—') + '</b> <span style="font-size:13px">' + (p.ok ? p.zh : dataBusy() ? busyShort(dataBusy()) : '样本不足') + '</span></div><button type="button" class="btn sm p" data-act="popOpen">打开 Orbit <span class="mono" style="opacity:.7;font-size:11px">' + kb('⌥0') + '</span></button></div>';
   // last 7 days: one column per day, count on top, today in ink (the orange stays reserved for Claude), weekday underneath
   const days = []; for (let d = T - 6; d <= T; d++) days.push([d, available.filter((s) => s.d === d && !(s.live && simIdle())).length]);
   const mx = Math.max(1, ...days.map((x) => x[1]));
@@ -72,8 +72,9 @@ function renderPop() {
       (attn.has('ctx') ? '<div class="sec col" style="gap:6px"><div class="row">' + ic('gauge', 15, 'color:var(--warn)') + '<b style="font-size:13px">上下文即将压缩</b><span style="flex:1"></span><b class="mono" style="color:var(--warn)">78%</b></div><div class="cap" style="font-size:12px">Claude Code · latentskill · 审阅第 3 节</div>' + ctxBar(78) + '<div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm p" data-act="hudTip">复制「先总结进度」提示语</button><button type="button" class="btn sm gh" data-act="popIgnore" data-k="ctx">忽略</button></div></div>' : '') +
       popLiveCard() + foot;
   } else if (dataBusy()) {
-    // nothing published yet (F08): no 昨天 / 近 7 天 zeros and no 「还没有会话」, only what is happening
-    html = head('今天', popDate() + ' · ' + busyMeta(), doneBadge) + '<div class="sec col" style="gap:4px" data-lv="busy" role="status"><b style="font-size:13px">' + esc(busyNote()) + '</b><span class="cap" style="font-size:11px">分析完成后显示昨天的对比和近 7 天</span></div>' + foot;
+    // nothing published yet (F08): no 昨天 / 近 7 天 zeros and no 「还没有会话」, only what is happening (or that it failed)
+    const busy = dataBusy();
+    html = head('今天', popDate() + ' · ' + busyMeta(busy), doneBadge) + '<div class="sec col" style="gap:4px" data-lv="busy" role="status"><b style="font-size:13px">' + esc(busyNote(busy)) + '</b><span class="cap" style="font-size:11px">' + (busy.err ? busyThen(busy) : '分析完成后显示') + '昨天的对比和近 7 天</span></div>' + foot;
   } else if (simIdle()) {
     const y = available.filter((s) => s.d === T - 1); const ys = stats(y);
     const base = stats(sel({ range: 30, noExtra: true }));

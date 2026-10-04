@@ -37,13 +37,13 @@ ACT.lvRecompute = (el) => {
 };
 ACT.lvRetry = (el) => { if (el) el.disabled = true; TL.retry(); LV.loadSpine(); render(); };
 // The published data stays behind with no import running (one was stopped half way, /v1/status projection_info.stuck):
-// say so, keep showing the last published data, and 重新导入 posts the retry the gateway offers (all enabled sources).
+// say so, keep showing the last published data (only claimed when there is some), and 重新导入 posts the retry the gateway offers (all enabled sources).
 function lvStuck() {
   const info = TL.status && TL.status.projection_info;
   if (!info || !info.stuck) return '';
   const files = info.pending_files ? '（' + fmt(info.pending_files) + ' 个文件）' : '';
   const what = info.state === 'invalid' ? '数据需要按新版本重建' : '最近的会话变化还没有发布' + files;
-  return '<div class="tl-banner" role="alert" data-tl="projection-stuck">' + esc(what) + ' · 显示上次发布的数据' +
+  return '<div class="tl-banner" role="alert" data-tl="projection-stuck">' + esc(what) + (ALL.length ? ' · 显示上次发布的数据' : '') +
     '<button type="button" class="btn sm" data-act="lvReimport" data-tl="reimport" style="margin-left:auto">重新导入</button></div>';
 }
 ACT.lvReimport = (el) => {
