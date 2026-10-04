@@ -54,6 +54,30 @@ def test_pending_capture_serves_the_published_snapshot(client_factory, tmp_path)
     assert info["retry"] == {"method": "POST", "path": "/v1/app/jobs", "body": {"kind": "import"}}
 
 
+@pytest.mark.serial
+def test_library_published_by_an_older_version_is_rebuilt_on_start(client_factory, tmp_path):
+    root = tmp_path / "agents" / "codex"
+    write_codex_tree(root, 4)
+    home = tmp_path / "home"
+    with Store(home) as store:
+        ImportService(store, maintenance="off").import_source(ImportRequest("codex", root))
+        # As the previous App version left it: published by an older mapper.
+        store.db.execute("UPDATE projection_run SET mapper_version='0.0.0'")
+        store.db.execute(
+            "UPDATE source_file SET watermark=json_set(watermark,'$.mapper_version','0.0.0')")
+    client, _ = client_factory(home)
+    # v0.0.4: sync is off by default, so every page kept answering 409 rebuild_required (and
+    # the recommendations 422) until the user found 重新导入.
+    rebuild = next(j for j in client.get("/v1/app/jobs").json() if j["kind"] == "rebuild")
+    assert rebuild["origin"] == "upgrade"
+    assert client.get("/v1/status").json()["projection_info"]["stuck"] is False
+    assert wait_job(client, rebuild["id"])["status"] == "completed"
+    wait_for(lambda: client.get("/v1/status").json()["projection"] == "ready", 10,
+             message="freshness re-read after the rebuild")
+    page = client.get("/v1/sessions", params={"limit": 50})
+    assert page.status_code == 200 and page.headers["x-total-count"] == "4", page.text
+
+
 def test_sync_wait_never_runs_sync_imports_back_to_back():
     bounds, now = (2.0, 30.0), 1_790_000_000_000
     took_150 = {"status": "completed", "started_at": now - 150_000, "finished_at": now,

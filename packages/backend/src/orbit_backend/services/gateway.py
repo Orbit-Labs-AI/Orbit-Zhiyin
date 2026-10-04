@@ -274,10 +274,32 @@ class Gateway:
         self.supervisor.start()
         if self.revisions.snapshot()["data_rev"] is not None:
             self.schedule_prewarm(heavy=False)  # Cold caches after a restart or an upgrade.
+        self._rebuild_after_upgrade()
         self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True,
                                             name="orbit-sync")
         self.sync_thread.start()
         self.platform.start()
+
+    def _rebuild_after_upgrade(self) -> None:
+        """A library published by an older schema, mapper, reducer or redaction is ``invalid``:
+        every page read fails until it is re-projected. Sync is off by default, so after an
+        App update nothing started that job and the pages stayed empty until 重新导入; the
+        rebuild re-projects what was already captured, without reading the sources."""
+        if self.revisions.snapshot()["projection"] != "invalid":
+            return
+        from orbit_data import SCHEMA_VERSION
+        from orbit_data.store import readonly_connection
+
+        try:
+            with readonly_connection(self.home / "orbit.db") as db:
+                if db.execute("PRAGMA user_version").fetchone()[0] > SCHEMA_VERSION:
+                    return  # Written by a newer Orbit: this version cannot rebuild it.
+        except (sqlite3.Error, OSError):
+            return
+        try:
+            self.jobs.submit("rebuild", origin="upgrade")
+        except (JobConflict, ValueError) as error:
+            logs.log_event("upgrade_rebuild_skipped", logging.WARNING, error=str(error)[:200])
 
     def begin_shutdown(self) -> None:
         """Called on the exit signal, before uvicorn drains connections: every long-lived
