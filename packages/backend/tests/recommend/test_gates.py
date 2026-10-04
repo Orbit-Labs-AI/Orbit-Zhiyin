@@ -96,6 +96,13 @@ def test_not_installed():
     assert run(r, inputs={"inventory": [{"catalog_item_id": "c9"}]})["checks"]["not_installed"] is False
     state = {"kb:ro-allow": {"status": "installed"}}
     assert run(memory={"state": state})["checks"]["not_installed"] is False
+    # A KB remedy installed outside its card (A8 library) is linked to its catalog item kb:<id>;
+    # a KB card for a third-party resource installs its catalog_ref item instead.
+    kb_card = raw(source={"origin": "kb", "item_id": "ro-allow", "catalog_ref": "third-party-skill"})
+    for linked in ("kb:ro-allow", "third-party-skill"):
+        g = run(kb_card, inputs={"inventory": [{"catalog_item_id": linked}]})
+        assert g["checks"]["not_installed"] is False and "已装同一条目" in g["reasons"]
+    assert run(kb_card, inputs={"inventory": [{"catalog_item_id": "kb:other"}]})["checks"]["not_installed"] is True
 
 
 def test_not_dismissed_snooze_expiry_and_resurfacing():

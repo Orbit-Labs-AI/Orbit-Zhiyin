@@ -216,6 +216,10 @@ def test_added_context_is_priced_as_a_share():
     big = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "tokens": 10 ** 9}}}
     tiny = ui_of(raw("kb:ro-allow", cost={"setup_minutes": 1, "context_tokens": 2, "reversible": True}), big)
     assert tiny["tok_pct"] == .0003  # 2 × 1 500 / 1e9: a real cost, never rounded to「不占常驻」
+    # Requests without recorded tokens still count: 200 × 1 500 > 100 000 tokens is at most all of them.
+    small = {**LEDGER_INPUTS, "facts": {"trajectory": {**LEDGER, "tokens": 100_000}}}
+    assert ui_of(raw("kb:ro-allow", cost={"setup_minutes": 1, "context_tokens": 200, "reversible": True}),
+                 small)["tok_pct"] == 100.
 
 
 def test_catalog_entries_share_the_problem_not_invented_numbers():
