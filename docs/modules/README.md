@@ -1,34 +1,15 @@
-# 模块说明
+# 模块参考
 
-各能力的算法、验证与限制，按模块分目录。算法说明中的实验结果属于原文注明的版本和样本，目录迁移没有重新证明历史结论。模块方案（尚未实现的部分）见 [docs/plans](../README.md#5-方案不等同当前能力)。
+本区描述当前实现的输入、算法、输出与边界。字段由机器字典和接口定义，模块文档解释如何消费；特定版本的通过率和耗时放在[审计](../audits/README.md)。
 
-## 数据 `data/`
+| 模块 | 内容 |
+| --- | --- |
+| [数据](data/README.md) | 连接器、索引、导入、库存、查询与维护 |
+| [分析](analytics/README.md) | 八族、信号、任务关系、人格、统计和页面指标 |
+| [Catalog](catalog/README.md) | 来源、版本、词法/特征/向量检索 |
+| [推荐](recommendation/README.md) | App 主栈、分析侧匹配、资格与收益 |
+| [AI](ai/README.md) | 上下文、授权、任务、证据校验与生成 |
+| [安装](install/README.md) | 解析、计划、预览、应用和撤销 |
+| [评价](evaluation/README.md) | 读者理解与独立质量评价 |
 
-- [Agent 连接器](data/agent-connectors.md)：七类 Agent 的原生来源与解析。
-- [本地数据服务](data/data-services.md)：检索、resume、能力、占用与清除、脱敏规则、insights。
-- [来源索引与轨迹读取](data/indexed-trajectories.md)：来源索引、完整正文与 App 轨迹读取。
-- [本机安装清单](data/local-inventory.md)、[测试与验收](data/inventory-testing.md)、[完整性复核](data/inventory-audit.md)。
-
-## 分析 `analytics/`
-
-- [后端怎么工作](../architecture/backend.md)：当前默认入口与历史算法语义。
-- [统计分析与完整分析记录](analytics/statistics-history.md)：词频、分布、对比与持久化历史。
-- [画像推导](analytics/profiling.md)、[特征分析](analytics/feature-analytics.md)、[瓶颈特征](analytics/bottleneck-features.md)。
-- [Signal 层](analytics/signals.md)：八族之上的横向派生层、指标引擎与下钻。
-- [前端指标](analytics/presentation-metrics.md)、[UI 分析与端到端验收](analytics/analysis-products.md)、[原始 UI 对应](analytics/original-ui-mapping.md)。
-- [这些数字说明什么](analytics/modeling.md)。
-- [Preference](analytics/preference.md)、[Task](analytics/task.md)、[任务领域分类](analytics/task-taxonomy.md)、[Instruction 验收](analytics/instruction-validation.md)及[验证范围](analytics/validation.md)。
-
-## 资源目录 `catalog/`
-
-- [Catalog 架构](catalog/architecture.md)：资源数据与混合检索。
-- [实测记录](catalog/validation.md)。
-
-## 推荐 `recommendation/`
-
-- [推荐引擎](recommendation/engine.md)：七类资源合同、召回、排序、解释与当前限制。
-- [偏好与收益测试报告](recommendation/validation.md)。
-
-## 评测 `evaluation/`
-
-- [读者评价](evaluation/reader-review.md)：怎样验「说人话」。
+先看[架构](../architecture/README.md)了解所有权，再看[契约](../contracts/README.md)接入数据。返回[文档首页](../README.md)。

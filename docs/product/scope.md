@@ -1,11 +1,30 @@
-# Orbit：产品与交付边界
+# 当前能力与产品边界
 
-状态：当前实现边界；核对基线：main `c008688`。产品取舍由 `yhyfhgs` 负责，MVP 范围由三位成员共同确认。
+本页描述 `main` 的实现，不替代下载版本的 Release 说明。Orbit 是早期迭代中的本地 macOS App；仓库包含可运行的原生宿主、统一界面、数据层、后端和开发入口。
 
-Orbit 的目标是本地 macOS App。已实现的数据链路是：显式启用来源、不可变归档、统一事件和派生数据、画像与特征分析、报告和证据回看。CLI 与本机 API 是当前可运行入口。
+## 已有的使用链路
 
-Lite 与 Advance 分别采用 `genius-FXC`、`yhyfhgs` 的设计，自 2026-10-02 起是同一个 App 的两种版本（侧栏顶部切换）。原型默认使用示例数据，共享适配层 `OrbitLive`（[prototypes/shared](../../prototypes/shared/README.md)）负责接入本机 API；不能把原型中出现的按钮当成已交付功能。
+| 能力 | 当前入口 | 使用时需要知道 |
+| --- | --- | --- |
+| 多 Agent 会话导入 | App 数据源、`orbit ingest` | 显式启用来源，完整度受原生日志限制 |
+| 会话与工具证据 | 会话轨迹、工具调用、API | 保留未知状态与不可用原文，不补造记录 |
+| 统计与协作分析 | 概览、人格、项目、情绪语义 | 人格与语义是行为描述，需结合样本和证据 |
+| 资源目录与建议 | 资源库、优化建议 | 排序和估算不等于已验证收益 |
+| 安装与撤销 | 支持的资源类型及目标 Agent | 先预览并确认；冲突和不支持情况需单独处理 |
+| 可选 AI | 引擎授权、问答、专业分析、生成工坊 | 默认关闭；本地 Agent 可能连接远端模型 |
+| 原生桌面能力 | `apps/desktop` | Apple Silicon / macOS 14+，菜单栏、HUD、通知等 |
+| CLI 与 HTTP | `orbit`、报告 API、App gateway | 两种服务入口的路由和鉴权不同 |
 
-正式桌面 target、系统集成、服务生命周期管理、安装包及 UI 到后端接线仍待实现。结构整理与改名没有新增功能承诺。
+Lite 与 Advance 共用一个 App、数据和组件。独立 HTML 默认使用示例；经 App gateway 托管时使用 live 适配层。界面里的示例数值不能当成测试或用户收益证据。
 
-参见[模块接入表](../architecture/module-map.md)、[设计资料](../design/README.md)与[品牌](../design/brand.md)。
+## 尚不能承诺
+
+所有 Agent 版本和所有日志字段完整覆盖、心理学意义上的人格测量、推荐造成的因果收益、跨平台桌面安装包以及自动更新服务，均不属于当前可保证的能力。测试通过只说明相应测试的行为成立。
+
+桌面版本由 `apps/desktop/build.py` 定义，Python 包独立版本在各自 `pyproject.toml`；历史 backend `v0.13.x` 记录不是桌面 App 的发布编号。源码与公开 Release 可处于不同阶段。
+
+## 如何参与方向讨论
+
+带着真实场景、最小输入输出与可验证的结果提交 Issue。产品取舍由 `yhyfhgs` 负责，MVP 范围由 `yhyfhgs`、`MistyHuang03`、`genius-FXC` 共同确认；文档和旧方案不自动形成排期承诺。
+
+参见[后续方向](../plans/README.md)、[模块接入表](../architecture/module-map.md)和[贡献指南](../../CONTRIBUTING.md)。

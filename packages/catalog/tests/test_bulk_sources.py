@@ -144,3 +144,25 @@ def test_unsafe_canonical_link_falls_back_to_source_path(tmp_path, url):
 def test_collected_metadata_has_explicit_bounds(tmp_path, field, value, error):
     with pytest.raises(ValueError, match=error):
         BulkConnector(source(tmp_path, [{**row(), field: value}])).fetch_page({}, {})
+
+
+@pytest.mark.parametrize("license_id", ["Apache-2.0", "MIT"])
+def test_licensed_bulk_prompt_detail_respects_explicit_non_installable(tmp_path, license_id):
+    from orbit_catalog.contracts import SourceSpec
+    from orbit_catalog.query import get_item
+    from orbit_catalog.store import CatalogStore
+
+    spec = source(tmp_path, [row()], resource_type="command", content_license=license_id,
+                  license_url="https://example.test/pinned/LICENSE", agents=[])
+    page = BulkConnector(spec).fetch_page({}, {})
+    store = CatalogStore(tmp_path / "catalog.db")
+    store.register([SourceSpec(source_id=spec.source_id, kind="bulk", url=spec.url, config=spec.config)])
+    run = store.begin_run(spec.source_id)
+    store.stage(run["run_id"], page)
+    store.publish(run["run_id"])
+    detail = get_item(store, page.records[0].resource.item_id)
+    assert detail["readme"] and detail["readme_policy"] == "inline"
+    assert detail["install"]["license_ok"] is True
+    assert detail["install"]["installable"] is False
+    assert detail["install"]["reason"] == "source_declared_not_installable"
+    assert detail["install"]["targets"] == [] and detail["install"]["hints"] == {}

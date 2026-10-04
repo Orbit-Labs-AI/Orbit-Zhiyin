@@ -1,5 +1,7 @@
 # 参考片动效总结
 
+> 版本化创作记录：画面、人格、节省比例及前后对比均为示例叙事，不是实际效果证据。现行使用与版本差异见 [README](README.md)。
+
 yhyfhgs 推荐的四支发布片，2026-10-03 逐帧拆解（4 fps 总览 + 每个转场按原生帧率逐帧看）。完整逐镜表、帧图和每条手法的帧数都在本地 `.work/promo/study/`（不进仓库）：`apple-mac-studio.md`、`wastory-membrain.md`、`wastory-alpha.md`、`wastory-gwi.md`，以及上一版的复盘 `v6-critique.md`。
 
 | 片子 | 时长 | 镜头 | 一句话特征 |

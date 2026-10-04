@@ -1,5 +1,8 @@
 # Claude Code 会话与轨迹数据分析
 
+> 文档状态：研究快照。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../../README.md)。
+
+
 > 面向 Orbit（本地跨 Agent 会话分析 Mac App）的数据接入调研。本机数据已脱敏：用户名写作 `~`，项目名写作 `<project>`，报告中不含任何对话正文、提示词、命令或工具输出，只含字段名、类型、计数、版本号与工具名。
 
 **一句话结论**：Claude Code 每个会话落盘为 `~/.claude/projects/<编码后的 cwd>/<sessionId>.jsonl`，追加写入，一行一个 entry。消息类 entry 的 `message` 字段原样保存 Anthropic Messages API 结构，但一次 API 响应会按 content block 拆成多行（同一 `message.id`，`usage` 重复）。entry 之间用 `uuid`/`parentUuid` 连成树：并行工具调用、rewind、compaction 都会产生分叉或新根。子代理写在 `<sessionId>/subagents/` 下的独立文件。大工具输出另存到 `<sessionId>/tool-results/`，文件快照存到 `~/.claude/file-history/`。另有十余种不进对话链的“元数据行”（标题、模式、成本快照、队列操作等），会被反复追加。

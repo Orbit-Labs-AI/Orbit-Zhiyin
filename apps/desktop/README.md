@@ -1,17 +1,24 @@
-# Orbit Mac 宿主
+# Orbit 桌面宿主
 
-`Orbit.swift` 是原生宿主：主窗口、菜单栏弹出框（`/app?surface=panel`）、浮动 HUD 与桌面小组件、菜单命令、系统通知、系统面板与随包 `orbit-helper` 的生命周期；全部数据逻辑在 helper（`orbit_backend.services` gateway）中。`server_entry.py` 是冻结 helper 的入口，`build.py` 打包，App 图标与菜单栏图标原样复制标志素材包里的 `kit/dock/Orbit.icns` 与 `kit/nav/orbit-nav-template-16*.png`；UI 只用 macOS 系统字体，`orbit.html` 不含网页字体。
+原生 macOS 宿主由 `Orbit.swift` 提供 AppKit/WKWebView 窗口、菜单栏、HUD、小组件、通知和系统面板，并管理随包 `orbit-helper`。业务数据与分析运行在 Python gateway，UI 使用 `prototypes/advance` 的统一 Lite / Advance 界面。
+
+## 构建与运行
 
 ```sh
-bash scripts/bootstrap.sh                      # 首次：uv sync + pnpm install（含字体包）
-uv run python apps/desktop/build.py            # -> .local/macos-build/Orbit.app、.zip、.dmg
-python3 scripts/check-macos-app.py             # helper 冒烟检查（临时数据目录）
+bash scripts/bootstrap.sh
+python3 scripts/heavy.py uv run python apps/desktop/build.py
 open .local/macos-build/Orbit.app
 ```
 
-- 关闭主窗口只隐藏，Orbit 留在菜单栏，⌘Q 退出；窗口 › 显示 HUD（⌥⌘P）、桌面小组件（⌥⌘D）；菜单快捷键不得重复，由 `tests/regression/test_desktop_menu.py` 检查。
-- 版本 0.0.4，bundle id `ai.actionmesh.orbit`，Apple Silicon，macOS 14+。
-- 数据目录：`~/Library/Application Support/Orbit`；设置环境变量 `ORBIT_HOME` 可改用其他目录（演示、验收一律用独立目录）。改名前的旧数据目录在首次启动时移到这里并在旧路径留符号链接。
-- 本地构建为 ad-hoc 签名，未公证：首次打开需在 Finder 中右键 › 打开，或执行 `xattr -dr com.apple.quarantine /Applications/Orbit.app`。配置 `ORBIT_SIGN_IDENTITY`（Developer ID）与 `ORBIT_NOTARY_PROFILE` 可签名并公证。签名由内向外逐个进行（不用 `--deep`）：helper 内的 Mach-O → `orbit-helper`（`helper.entitlements`：allow-unsigned-executable-memory、disable-library-validation）→ App（`Orbit.entitlements`）；Developer ID 带 Hardened Runtime。`build.py --runtime` 在 ad-hoc 下也启用 Hardened Runtime，用于本地确认 helper 能启动。
+目标是 Apple Silicon / macOS 14+。版本号、最低系统与产物位置以 [build.py](build.py)为准；`server_entry.py` 是冻结 helper 入口。构建不会自动发布 Release。
 
-详见 [Mac App 开发说明](../../docs/development/mac-app.md)。
+## 宿主职责
+
+- 启动 loopback gateway，完成端口/token 握手并给 WebView 注入能力。
+- 提供可信的文件、窗口、通知和系统偏好桥接。
+- 关闭主窗口后保留菜单栏运行，`⌘Q` 退出并停止 helper。
+- 使用同一 home 的单实例锁，并处理 helper 异常与重启。
+
+默认数据目录为 `~/Library/Application Support/Orbit`，`ORBIT_HOME` 可指定独立目录。测试不能连接用户正在使用的真实 home。
+
+图标直接复制 `docs/design/logo/kit` 的既有产物，界面使用系统字体。默认本地构建为 ad-hoc 签名；Developer ID、公证、原生消息协议与验收见[Mac App 手册](../../docs/development/mac-app.md)。安装发布版见[用户安装指南](../../docs/getting-started/installation.md)。

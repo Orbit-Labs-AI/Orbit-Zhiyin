@@ -1,10 +1,10 @@
-# Orbit 展示图
+# 产品展示图
 
-状态：现行 · 维护者 `yhyfhgs` · 适用：Lite / Advance
+展示图复用品牌、人格素材、真实原型组件与动画帧，服务 README、路演和介绍。它们是指定版本的示例界面，不是个人数据、性能或推荐收益的测量结果。
 
-路演与介绍用的展示图：主视觉（协作人格罗盘 + Orbit·知音 字标）与 10 张核心功能、组件和交互示意。罗盘、16 型花与字标取自[人格素材](../persona/README.md)和[标志素材](../logo/kit/manifest.json)的原样文件，界面截图与动画帧取自现行原型 `prototypes/advance/orbit-demo.html`（示例数据），不重画。
+![Orbit 主视觉](png/orbit-hero-light.png)
 
-![主视觉](png/orbit-hero-light.png)
+## 文件索引
 
 | 文件 | 内容 |
 | --- | --- |
@@ -20,16 +20,17 @@
 | [`orbit-09-share-cards.png`](png/orbit-09-share-cards.png) | 周卡 / 月卡 / 季卡 / 全时卡 |
 | [`orbit-10-lite-advance.png`](png/orbit-10-lite-advance.png) | Lite 与 Advance：同一个 App |
 
-16:9 为 3840 × 2160，方形为 3200 × 3200。所有数值与人格结果均为 Demo 示例，引用时标注“示例界面 / 示例数据”。
+主版为 3840×2160，方形为 3200×3200；以 manifest 和实际文件尺寸为准。插入时保持比例与示例说明。
 
-## 重新生成
+## 更新
 
-原型或素材改动后重新导出（复用 `prototypes/advance` 的 Playwright，macOS 上自动注册系统的 SF Pro Rounded）：
+完成原型构建与浏览器依赖准备后，在根目录运行：
 
 ```sh
-node docs/design/showcase/capture.mjs   # 界面截图与动画帧 → output/playwright/orbit-showcase/ui/
-node docs/design/showcase/export.mjs    # 按 boards.html 排版逐张导出 → output/playwright/orbit-showcase/
-cp output/playwright/orbit-showcase/orbit-*.png output/playwright/orbit-showcase/manifest.json docs/design/showcase/png/
+python3 scripts/heavy.py node docs/design/showcase/capture.mjs
+python3 scripts/heavy.py node docs/design/showcase/export.mjs
 ```
 
-版式在 [`boards.html`](boards.html)，可加 `--only 01-dial-anatomy` 只导出一张。截图保留元素自身的阴影并在 `shots.json` 记录外边距，版面里写的宽高指内容本身；07 页的标注坐标是会话页窗口内的像素，会话页布局改动后需要同步调整。
+输出在 `output/playwright/orbit-showcase/`；检查结果后再更新本目录 `png/` 中的受控发布素材和 manifest。版式在 [boards.html](boards.html)，`--only` 可选择单张。布局改动后重新核对标注位置、阴影边界和示例文案，避免把旧截图当作最新 UI。
+
+品牌与人格几何原样取自各自源资产，见[设计导航](../README.md)。

@@ -319,7 +319,7 @@ def get_item(store, item_id: str) -> dict | None:
                 (item_id,))],
             "support": matrix,
             "install": _install(item_id, row, result["agents"], hints, license_ok,
-                                install_targets(row["type"], row["name"], matrix)),
+                                install_targets(row["type"], row["name"], matrix), metadata=resource.metadata),
             "resident_tokens_est": math.ceil(row["body_len"] / 4) if row["type"] in RESIDENT_TYPES else None,
             "scan": scan(resource, result["risk"], row["risk_level"]),
             "first_seen": row["first_seen"], "last_seen": row["last_seen"]})
@@ -327,10 +327,15 @@ def get_item(store, item_id: str) -> dict | None:
         return result
 
 
-def _install(item_id: str, row, targets: list, hints: dict, license_ok: bool, paths: list | None = None) -> dict:
+def _install(item_id: str, row, targets: list, hints: dict, license_ok: bool, paths: list | None = None,
+             *, metadata: dict | None = None) -> dict:
     """``paths``: per-agent target files for skills/rules (compat.install_targets); [] for other types."""
     reason = None
-    if row["status"] != "active":
+    if (metadata or {}).get("installable") is False:
+        # A license grants content rights, not an installation contract. Reference
+        # datasets can explicitly remain non-installable even with licensed bodies.
+        reason = "source_declared_not_installable"
+    elif row["status"] != "active":
         reason = "inactive"
     elif row["type"] == "hook" and not (isinstance(hints, dict) and hints.get("hook")):
         reason = "hook_without_install_declaration"

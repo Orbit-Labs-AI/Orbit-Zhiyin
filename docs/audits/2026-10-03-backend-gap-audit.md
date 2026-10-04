@@ -35,7 +35,7 @@
 - **状态输出**：`/v1/catalog/status` 增加 `vector` 块，新增 `GET /v1/catalog/embeddings/status`；状态值 `not_configured`、`downloading`、`download_failed`、`unavailable`、`not_loaded`、`indexing`、`not_indexed`、`partial`、`ready`，含模型信息、下载进度与授权、覆盖率（embedded / eligible / pending）。
 - **索引代次**：`index_embeddings` 每次调用只推进一次 catalog generation（取消或崩溃时在 `finally` 里推进），且只处理活跃条目的分块，避免后台嵌入时每 64 块重建整个检索索引。
 - **规模实测**（本机一次测量，不构成承诺）：7.5 万分块 × 384 维 fp16 精确余弦中位 3.1 ms（P95 5.0 ms）；矩阵加载 471 ms，常驻 57.6 MB，加载峰值 182 MB；因此保留 fp16 全量精确检索，不上近似索引。种子库 1,312 条、2,875 分块嵌入 245 s，覆盖率 2,875/2,875；int8 与 fp32 逐块余弦均值 0.9985、最小 0.9928。
-- **余弦阈值实测**（6 个查询，种子库）：相关条目余弦中位 0.833（n=128），无关 0.801（n=7,744），AUC 0.857；当前有效阈值约 0.76，无关条目保留 97.4%，等于没有过滤。按查询归一化为 z 分数后 AUC 0.891（z≥1.5 保留 69.5% 相关、10.6% 无关）。代码改动属 `search.py`，列入遗留。数据与 6 个查询的 Top 5 对比见 [资源索引验证](../modules/catalog/validation.md)。
+- **余弦阈值实测**（6 个查询，种子库）：相关条目余弦中位 0.833（n=128），无关 0.801（n=7,744），AUC 0.857；当前有效阈值约 0.76，无关条目保留 97.4%，等于没有过滤。按查询归一化为 z 分数后 AUC 0.891（z≥1.5 保留 69.5% 相关、10.6% 无关）。代码改动属 `search.py`，列入遗留。数据与 6 个查询的 Top 5 对比见 [资源索引验证](catalog-validation.md)。
 - **测试**：`test_vector_lifecycle.py`（10 项，384 维手写单位向量夹具）覆盖校验失败、Range 续传、服务端忽略 Range、发现顺序、无模型回落词法、下载失败退避、模型不可加载、分片嵌入与覆盖率、取消保留已提交批次、语义排序与手算余弦（1、0.707、0 被排除）；`test_catalog_bootstrap.py` 增 3 项；`test_real_embeddings.py` 与 App 用同一发现逻辑，缺模型时带原因跳过。
 
 ### 2.2 catalog：来源、兼容与准入

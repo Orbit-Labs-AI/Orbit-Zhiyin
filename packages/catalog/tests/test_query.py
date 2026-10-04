@@ -136,3 +136,20 @@ def test_empty_catalog_reads(tmp_path):
     assert search(store, MatchRequest(text="调试 debug", prefix=True))["items"] == []
     assert query.models(store)["items"] == [] and query.benchmarks(store)["items"] == []
     assert query.get_item(store, "x") is None and store.verify()["ok"]
+
+
+@pytest.mark.parametrize("kind,hints", [("skill", {}), ("command", {}),
+                                       ("hook", {"hook": {"event": "Stop", "command": "echo done"}}),
+                                       ("mcp_server", {"mcp": {"command": "example"}}),
+                                       ("plugin", {"name": "example", "marketplace": "example"})])
+@pytest.mark.parametrize("metadata", [{}, {"installable": True}])
+def test_install_display_keeps_existing_eligible_resources(kind, hints, metadata):
+    result = query._install("x", {"status": "active", "type": kind}, ["codex"], hints, True, metadata=metadata)
+    assert result["installable"] is True and result["reason"] is None
+    assert result["targets"] == ["codex"] and result["hints"] == hints
+
+
+def test_explicit_non_installable_takes_precedence_over_valid_install_hints():
+    result = query._install("x", {"status": "active", "type": "mcp_server"}, ["codex"],
+                            {"mcp": {"command": "example"}}, True, metadata={"installable": False})
+    assert result["installable"] is False and result["reason"] == "source_declared_not_installable"

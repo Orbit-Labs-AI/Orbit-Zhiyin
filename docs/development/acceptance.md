@@ -1,28 +1,27 @@
-# 先验这条链路
+# 来源到建议的链路验收
 
-后端已能把本地 Codex 记录整理成可回看的证据，独立生成用户画像与瓶颈案卷，再推荐同时匹配两者的资源。CLI 直接展示完整链路，无需接入前端。
+链路验收检查同一输入是否经过导入、证据、分析、推荐和输出保持一致。构造数据用于可重复回归；真实数据只在明确授权后用于额外核对。
 
-在仓库根目录运行：
+## 构造入口
 
 ```sh
-.venv/bin/orbit demo --output .local/demo
-.venv/bin/orbit demo --output .local/demo --view profile
-.venv/bin/orbit demo --output .local/demo --view bottlenecks
-.venv/bin/orbit demo --output .local/demo --view process
-.venv/bin/orbit evaluate --output .local/evaluation.json
+uv run orbit demo --output .local/demo
+uv run orbit demo --output .local/demo --view profile
+uv run orbit demo --output .local/demo --view bottlenecks
+uv run orbit demo --output .local/demo --view process
+uv run orbit evaluate --output .local/evaluation.json
 ```
 
-先看终端的画像与瓶颈，再看推荐。`profile / bottlenecks / process` 的 JSON 与 Markdown 保存中间副产品，`report.md` 解释最后的建议。可运行 `orbit --db .local/demo/demo.sqlite evidence <证据ID>` 回看原记录。demo 使用虚构数据；自己的记录按 [README](../../README.md) 导入。真实数据与派生报告都留在 `.local/`。
+查看同目录中的画像、瓶颈、过程和报告。以实际报告中的事件 ID，经相同 home 的 `orbit evidence` 回查；不要继续套用旧教程的 demo.sqlite 路径。
 
-验收时看四件事：
+## 核对结果
 
-1. 画像能否独立说明任务场景、明确要求与协作过程，统计能否回到原记录。计数不应变成没有依据的人格或效率分数。
-2. 瓶颈是否还原同一任务的要求、交付与后续反馈，是否说明缺什么材料。
-3. 建议是否同时有画像、卡点和适用资源。输入没有 skill 名称时仍能推导；代码协作、数学讲解、文档写作可通过 `--scene` 分别查看，证据不够时暂不推荐。
-4. 读者能否复述重点、依据与下一步，事实和必要条件是否保留。用 [读者对照](../modules/evaluation/reader-review.md) 记录这部分评价。
+1. 范围、来源与覆盖一致，计数能回到标准事实和原始贡献。
+2. 要求、交付、工具过程与反馈具有明确任务/时间关系，缺失材料可见。
+3. 建议保留问题与资源依据；证据不足或不适用时允许为空。
+4. CLI、API、报告与 UI 使用同范围结果，未知和陈旧状态一致。
+5. 评价与生成不会被导入成个人历史事实；安装需要独立预览与确认。
 
-当前技术验收包括 351 项测试、8 个文字对照、34 个开发场景和 12 个措辞回归场景，均已通过。CI 使用 Python 3.11，本机使用 3.12。独立安装验收需使用最终版本重新跑 CLI，不能用旧版本结果代替。
+App live 路径另按[开发入口](setup.md)和[原生验证](mac-app.md)检查。读者是否理解、语义准确率和实际收益分别见[评价](../modules/evaluation/reader-review.md)与 [Benchmark](../../evals/benchmark/README.md)。
 
-这些自动案例已经用于修规则，属于回归检查。它们不能证明中文足够自然、用户满意，或推荐的 skill 已有收益。读者评分保持待填写，资源效果保持未测。
-
-想理解推导，先看 [画像说明](../modules/analytics/profiling.md)；继续开发时看 [版本报告](../releases/backend/v0.13.6.md)，再按需要查 [架构](../architecture/backend.md) 与 [数字的含义](../modules/analytics/modeling.md)。
+本页不固定测试总数或宣称某次运行已通过；每个 PR 按[测试指南](testing.md)记录自己的 SHA、命令、环境和结果。

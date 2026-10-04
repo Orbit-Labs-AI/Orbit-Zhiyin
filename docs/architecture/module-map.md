@@ -1,4 +1,6 @@
-# 模块接入与依赖
+# 模块职责与接入
+
+从用户入口沿数据所有权定位实现。下表描述源码主线中的接线与边界；“有接口”“UI 已接入”“安装包已发布”和“效果已验证”分别判断。开始运行见[开发环境](../development/setup.md)，用户能力见[产品边界](../product/scope.md)。
 
 状态：现行实现；核对基线：2026-10-03，main `05049926` 与本轮可靠性修复。仓库集成负责人：`yhyfhgs`。算法维护归属不因本文整理而变化。
 
@@ -64,4 +66,4 @@ flowchart TD
 
 数据库权威 DDL 位于 `packages/data/src/orbit_data/migrations/`；JSON Schema 在同包内。每项接入必须有真实公开入口、范围与缺失语义、关键失败路径回归及如实标注的 UI 状态。主链验证见[测试指南](../development/testing.md)。
 
-本轮证据与未完成边界见[导入审计](../audits/ingestion-reliability-2026-10-03.md)、[分析与 AI 审计](../audits/analysis-ai-reliability-2026-10-03.md)、[推荐与目录审计](../audits/recommendation-reliability-2026-10-03.md)与[集成审计](../audits/integration-reliability-2026-10-03.md)。这些文档说明实际核查范围，不承诺所有模块已无缺陷。
+特定版本的证据与限制见[导入审计](../audits/ingestion-reliability-2026-10-03.md)、[分析与 AI 审计](../audits/analysis-ai-reliability-2026-10-03.md)、[推荐与目录审计](../audits/recommendation-reliability-2026-10-03.md)与[集成审计](../audits/integration-reliability-2026-10-03.md)。它们保留当时的核查范围，不代替当前提交的验证；模块手册从[模块导航](../modules/README.md)进入。
