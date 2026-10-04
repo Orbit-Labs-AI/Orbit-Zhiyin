@@ -596,7 +596,7 @@ function agChats(b, t) {
       c.el.style.opacity = (pin * (1 - pout)).toFixed(3);
     }
     const ty = c.types.filter((x) => x.b <= b).pop(), sd = c.sends.filter((x) => x.b <= b).pop();
-    const tx = c.el.querySelector('.tx'), cleared = !ty || (sd && sd.b >= ty.b);
+    const tx = c.el.querySelector('.tx'), cleared = !ty || !!(sd && sd.b >= ty.b);
     const n = cleared ? 0 : Math.floor([...ty.text].length * clamp((b - ty.b) / Math.max(.01, ty.dur)) + 1e-6);
     const s = cleared ? '' : [...ty.text].slice(0, n).join(''), blink = Math.floor(t * 2.4) % 2 === 0;
     const key = (cleared ? 'P' : 'T' + s) + (blink ? 1 : 0);

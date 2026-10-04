@@ -1,10 +1,12 @@
 /* 30-persona 3（b26.4–45.4；v17.3 / v17.4 读字共加长 5.0 拍，见下方 XL） — STORYBOARD.md v17「3」与「转场关键帧」H9–H11.
    罗盘在翻平的标志下成形（刻度 → 描边光从标志尾端出发 → 轨道层随扫描展开 → 花苞边转边减速落在你的类型并绽开）
-   → 标题「引入协作人格分析」→ 罗盘左移 → 右侧竖向滚动列（R1–R7），条目经过中心线 y 540 时罗盘做对应反应
+   → 标题「读懂你的 Agent 协作人格」→ 罗盘左移 → 右侧竖向滚动列（R1–R7），条目经过中心线 y 540 时罗盘做对应反应
    → 揭晓块减速到中心线后慢漂（不停住）→ 徽章按行依次从公转的外圈剥离、滑成左侧竖列，表盘同时朝点列收缩淡出、揭晓块上漂淡出。
    本场景拥有 deck 2（b26.4 直接设定相机，drawCompass 每帧调用，pl: 0）与 b26.4 的 AGD compass key；标志归 20-orbit
    （到 b28.2），CO − .9 起的剥离（column key）归 40-recs（点从 cpBadge 的实时位置出发，所以 drawCompass
-   一直调到 b41.5 + XL，deck 2 自 CO + .8 起已透明）。 */
+   一直调到 b41.5 + XL，deck 2 自 CO + .8 起已透明）。
+   v18.1：五枚徽章（cc / cx / gm / ds / cp）在罗盘段全程都在外圈上（gm / cp 借用 App 的 km / oc 会话，见 D0 下方），
+   pa 恒为 1，不再淡出淡入；揭晓块到中心线时前面的问题行与字母牌淡到 0。 */
 scene('30-persona', () => {
   css(`
 .k .ln.pe-or>span{color:var(--a1)}
@@ -33,6 +35,19 @@ scene('30-persona', () => {
 .pe-r7 .m{font-family:var(--mono);font-size:22px;letter-spacing:.24em;color:rgba(255,255,255,.5)}
 `);
   const D0 = compassData(), ME = D0.me, AX = D0.AXES, W0 = decks[0].W;
+  // v18.1 五点贯穿：App 的 Agent 表已改为 cc / cx / km / ds / oc，promo 的 AGID 仍是 cc / cx / gm / ds / cp，罗盘的基础数据里
+  // gm / cp 没有会话 → 粉、绿徽章 pa 0，在罗盘段淡出又淡回。promo 侧补上：gm / cp 依次借用 App 里不在 AGID 中的 Agent（km / oc）
+  // 的会话方位与曲线（只改 promo 的数据副本，App 源码不动）。这正是下方注释里的 0.0.4 方位 gm 288 / cp 221°（避让已在 App 的
+  // fpOrbit 里按五枚一起算过，不相碰）；40-recs 的竖列顺序与 60-close 的螺旋都读同一份 compassData，跟着一致
+  {
+    const bs = D0.sets.base, spare = bs.orb.layers.filter((y) => y.n && !AGID.includes(y.a.id)).map((y) => y.a.id);
+    AGID.forEach((id, i) => {
+      if (bs.pl[i] != null || !spare.length) return;
+      const src = spare.shift(), pl = bs.orb.planets.find((y) => y.a.id === src), ly = bs.orb.layers.find((y) => y.a.id === src);
+      if (pl) bs.pl[i] = pl.deg;
+      if (ly && bs.ly[i] == null) bs.ly[i] = ly.outer;
+    });
+  }
   const ME_IDX = CODES.indexOf(ME.code);
   const typeDeg = (code) => (CODES.indexOf(code) + .5) * 22.5;
   const PC = [960, 540];
@@ -71,7 +86,10 @@ scene('30-persona', () => {
   // 相机几何在 HB 先就位（仍透明），compass key 从 HB 起读 cpBadge 就是最终的舞台坐标；b26.4 才显示 deck 2
   tween(2, HB, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0 });
   tween(2, 26.4, 0, { x: 400, y: 400, s: .86, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
-  tween(2, 29.5, MV - 29.5, { s: .88 }, E.sine);
+  // v18.2：价值行移到标题下（y 222），描边光收完（b28.4）后表盘用 1.1 拍长缓动下沉 60px、略收（s .86 → .84），
+  // 外圈刻度上沿 ≈ y 262，与价值行（≈ y 200–244）不重叠；之后照旧慢推
+  tween(2, 28.4, 1.1, { ay: 600, s: .84 }, E.inOut);
+  tween(2, 29.5, MV - 29.5, { s: .86 }, E.sine);
   tween(2, MV, MVD, { ax: 600, ay: 560, s: .78 }, E.inOut);
   tween(2, MV + MVD, CO - MV - MVD, { s: .81 }, E.sine);
   // T10（r176b）：40-recs 在 CO − .9 让第一枚徽章离开外圈；表盘同拍起用 2.0 拍长缓动朝点列（x 330）收缩（s .81 → .5，
@@ -148,6 +166,31 @@ scene('30-persona', () => {
   const xw = (b) => { const t = b - XS; return t <= 0 ? 0 : t >= XT ? 1 : t < XR ? XV * t * t / (2 * XR) : t > XT - XR ? 1 - XV * (XT - t) * (XT - t) / (2 * XR) : XV * (t - XR / 2); };
   const revAt = (b) => { const w = xw(b) * CH.length; return SPD.map((v, i) => baseRev(i, b) + EXT[i] * w); };
 
+  /* ---------- v17.7 Agent 点形态（STORYBOARD「v17.7」F3 (3)） ---------- */
+  // 花瓣形态一律 aim 表盘中心（cpStage(400, 400) 实时读相机，左移 / 收缩时仍指向花心；编队几何中心因方位不均会偏）
+  const HEART = () => cpStage(400, 400);
+  const bearing = (i, b) => { const d = D0.sets.base.pl[i]; return d == null ? null : ((d + revAt(b)[i]) % 360 + 360) % 360; };
+  // ① 花苞边转边落定（b28.4–29.6 长大）：五点同时朝花心收成花瓣（像五片外瓣合拢），花绽开时回圆徽章
+  AGD.morph(28.6, 'all', 'petal', { dur: .5, stag: 0, aim: HEART, hold: .2, back: .6 });
+  // ② 三次逐瓣换花：旧花的瓣从 12 点起顺时针在 u = .55·φ/360 收起、新瓣在 u ≈ .14 + .55·φ/360 打开（drawCompass relay）。
+  // 每个点在扫动到达它当时的方位（公转中，取不动点）前 .1 拍变花瓣，新瓣打开时回圆——与花瓣同向同速顺时针传过去
+  // review：公转方位跨过 12 点时原来的不动点迭代在 0° / 360° 间来回跳，换花开头就让 12 点前（≈ 290–330°）的点变花瓣，
+  // 扫动其实约 1 拍后才到——改为在展开的角度上二分求「扫动角 = 点的角」；扫动追不上（点在扫动收尾前已回到 12 点）时取最接近的扫动收尾
+  CH.forEach((c) => {
+    const SW = c.L * .55;
+    for (let i = 0; i < 5; i++) {
+      const d = D0.sets.base.pl[i];
+      if (d == null) continue;
+      const off = d + revAt(c.s)[i] - bearing(i, c.s), f = (t) => 360 * (t - c.s) / SW - (d + revAt(t)[i] - off);
+      let t = c.s + SW;
+      if (f(c.s + SW) >= 0) { let lo = c.s, hi = c.s + SW; for (let n = 0; n < 30; n++) { const m = (lo + hi) / 2; if (f(m) < 0) lo = m; else hi = m; } t = hi; }
+      AGD.morph(t - .1, i, 'petal', { dur: .3, aim: HEART, hold: .25, back: .45 });
+    }
+  });
+  // ③ 揭晓（类型码 T6 − .8 显影）：描边加粗 + 柔光从内圈到外圈（按曲线平均半径）扫过一次，然后一直是圆徽章进入剥离
+  const INOUT = [0, 1, 2, 3, 4].filter((i) => lyM[i] >= 0).sort((p, q) => lyM[p] - lyM[q]);
+  INOUT.forEach((i, n) => AGD.morph(T6 - .8 + .1 * n, i, 'dot', { ring: 1.5, glow: .35, dur: .3, hold: .2, back: .5 }));
+
   /* ---------- v17.1 T9：引导线把视线从罗盘带到右列 ---------- */
   // 从罗盘上 x 最大的徽章（相机只平移缩放、rz 0，所以按方位 sin 最大取下标，左移全程不变）连到右列中心线左端
   // (1100, 540)：白 30%（连线自带 stroke-opacity .7，.43 × .7），1.5px，长出 .5 拍，pulse 1，收回 .4 拍。
@@ -179,6 +222,37 @@ scene('30-persona', () => {
     });
   };
 
+  /* ---------- v18.5：徽章轨道移到表圈外、类型码不被盖 ---------- */
+  // 徽章原在 CP.PR 344（罗盘单位），正压在类型码环（外沿 r 381）上：b47.5 的 SIFT、b55 的 SIFV / SPMT / SPMV / DIMT 被盖。
+  // 轨道外扩到 BR 420（≈ 标签环外沿再外 33 px，徽章内沿 402 在表圈 392 之外），只改 CPS.pl（cpBadge → AGD 'compass'
+  // 编队与 40-recs 剥离起点都读它；pl: 0 时罗盘自带的徽章不画），b26.4 起 1.5 拍长缓动外扩（交入编队的 key 到 b27.94 才落定，
+  // 目标在混合中外移，点不跳）。三角（r 396–416）标着正被落定的类型：徽章公转经过三角方位时径向外跳 30（±14° cos²），
+  // 从三角外侧绕过，不盖高亮类型和三角
+  const BR = 420, BJ = 30, BW = 14;
+  const badgeOut = (b) => {
+    if (!CPS || !CPS.pl) return;
+    const k = E.inOut(lp(b, 26.4, 1.5)), tri = triAt(b), nd = E.out(lp(b, 27.8, .5));
+    CPS.pl = CPS.pl.map((q) => {
+      if (!q) return q;
+      const dx = q[0] - 400, dy = q[1] - 400, r0 = Math.hypot(dx, dy) || 1, d = Math.atan2(dx, -dy) * 180 / Math.PI, dt = Math.abs(cpDelta(tri, d));
+      const r = r0 + (BR - CP.PR) * k + (dt < BW ? BJ * nd * Math.cos(dt / BW * Math.PI / 2) ** 2 : 0);
+      return [400 + dx / r0 * r, 400 + dy / r0 * r, q[2]];
+    });
+  };
+  // 类型码层：离任一 Agent 点（AGD.pos 实时位置，含交入与 40-recs 剥离途中）28 px 以内的码淡到 .25（距离按点心到码的
+  // 外接框算，16 px 起到底）；三角下正被落定的高亮类型（em > 0 的扇区）不淡。drawCompass 每帧重写码的 opacity，所以不用还原
+  const LB = D0.lbl.map((x) => ({ x: x.p[0] * CP.K, y: x.p[1] * CP.K, w: x.w * CP.K, h: x.h * CP.K }));
+  const codeClear = (b) => {
+    const k = decks[2], C = k.C, tri = triAt(b), P = [0, 1, 2, 3, 4].map((i) => AGD.pos(i, b)).filter((p) => p && p.a > .05);
+    k.codes.forEach((el, t) => {
+      if (Math.abs(cpDelta(tri, typeDeg(CODES[t]))) < 17.5) return;
+      const L = LB[t], [sx, sy] = cpStage(L.x, L.y), hw = L.w * C.s, hh = L.h * C.s;
+      let m = 1;
+      P.forEach((p) => { const d = Math.hypot(Math.max(0, Math.abs(p.x - sx) - hw), Math.max(0, Math.abs(p.y - sy) - hh)); m = Math.min(m, lerp(.25, 1, clamp((d - 16) / 12))); });
+      if (m < 1) el.style.opacity = (+el.style.opacity * m).toFixed(3);
+    });
+  };
+
   /* ---------- 罗盘：每帧一次（b26.4–41.5 + XL；deck 2 自 CO + .8 透明，之前一直为 40-recs 剥离中的点提供出发位置） ---------- */
   drive(2, 26.4, 41.5 + XL, (p, b) => {
     const out = 1 - E.inOut(lp(b, CO - .6, 1.3)), keep = keepAt(b);   // 表盘、花随剥离慢慢退暗（与 deck 2 的淡出相乘）
@@ -194,6 +268,8 @@ scene('30-persona', () => {
       dial, core: E.out(lp(b, 27.0, .8)) * out, needle: E.out(lp(b, 27.8, .5)),
       codes: E.out(lp(b, 27.7, .5))   // H9：外框类型码等右侧的点穿过、翻平的标志淡到一半（b27.7）再淡入，b28.2 与标志淡完同时到齐
     });
+    badgeOut(b);
+    codeClear(b);
     hlDraw(b, keep, dial);
   });
 
@@ -209,8 +285,9 @@ scene('30-persona', () => {
   // 标题与强调行：在场时各自慢慢离开罗盘（标题连同眉题上漂 12px、强调行下漂 10px，配合罗盘慢推），左移开始 .4 拍后
   // （MV + .4 = b33.2，罗盘才移出 10%）退场：标题 b29.45–33.2 完整可读 3.75 拍，强调行 b29.1 起解码（步长 .04），b29.85–33.2 约 3.35 拍
   const drift = (px) => (el, tl, life) => { el.style.transform = 'translate(-50%,calc(-50% + ' + (px * clamp(tl / life)).toFixed(1) + 'px))'; };
-  txt(29.0, MV + 1.0, [['hv sv pe72', '引入协作人格分析']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
-  txt(29.1, MV + 1.0, [['lt pe44 pe-or', '精准识别你的交互特征']], { x: 960, y: 975, align: 'c' }, { anim: K.all(K.decode({ step: .04, dur: .5, out: .6, spread: true }), drift(10)) });
+  txt(29.0, MV + 1.0, [['hv sv pe72', '读懂你的 Agent 协作人格']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
+  // v18.2：v18.3 文案改为「读懂…」+「从每个会话里…」；价值行紧贴标题（y 222，原 y 975 画面底），与标题同漂 −12px，读成一组标题块
+  txt(29.1, MV + 1.0, [['lt pe44 pe-or', '从每个会话里，认出你的协作方式']], { x: 960, y: 222, align: 'c' }, { anim: K.all(K.decode({ step: .04, dur: .5, out: .6, spread: true }), drift(-12)) });
 
   /* ---------- 3.5–3.7 右侧竖向滚动列 ---------- */
   // Y(b)：已滚动的 px。R1 以 VR 慢漂、b32.7 过中心线，之后 RU 拍按余弦加速到 V；SLOW–T6 速度按余弦平滑降到 VR，
@@ -273,7 +350,11 @@ scene('30-persona', () => {
         // 带外才变糊变暗。匀速 V 130 时每条完整可读约 3.7 拍，中心那条仍最亮
         const dd = s > 0 ? Math.max(0, s - 170) : Math.max(0, -s - 310), bl = 6 * dd / 300;
         let a = clamp(1 - .3 * Math.min(Math.abs(s), 200) / 200 - .45 * dd / 300);
-        if (it.fy == null) a *= 1 - .6 * E.inOut(lp(b, T6, 1.0));           // 揭晓时前面的条目退暗，让出视线（R5 的字母牌先读满 2 拍）
+        // 揭晓时前面的条目退暗，让出视线（R5 的字母牌先读满 2 拍）；v18.1：揭晓块到中心线（T6 + .3）时问题行与字母牌
+        // （多线、求证—信任、M / V 残影）淡到 0，画面只留你的协作人格 / DIMV / 名字 / 一句话 / 优势·盲点
+        if (it.fy == null) a *= 1 - E.inOut(lp(b, T6 - .3, 1.0));
+        // v18.2：顶边到 y 190 起淡、越过 y 120 前 α 归 0，不被画面上沿切出半行残影
+        a *= E.inOut(clamp((y - (node._h ??= node.offsetHeight) / 2 - 120) / 70));
         if (it.r7 != null) { const q = E.out(lp(b, T6 + .05 + .2 * it.r7, .5)); a *= q; y += (1 - q) * 18; }
         node.style.transform = 'translateY(' + (y - 1).toFixed(1) + 'px) translateY(-50%)';
         node.style.opacity = a.toFixed(3);
@@ -284,6 +365,11 @@ scene('30-persona', () => {
           node.querySelector('.pR').style.color = 'rgba(255,255,255,' + lerp(.72, on === 'R' ? 1 : .3, q).toFixed(3) + ')';
           const tgt = FLAP.indexOf(ME.code[k]), u = clamp((tk - b) / 1.5), pos = (((tgt - 8 * u * u) % 8) + 8) % 8;
           node.querySelector('.pe-fs').style.transform = 'translateY(' + (-pos * 112).toFixed(1) + 'px)';
+          // v17.7：字母牌从左侧（罗盘方向）擦出——在它开始翻滚前（tk − 1.95，条目还在中心线下方的糊带里）.5 拍从左向右显出、左移 14px 归位，
+          // 「左边点 / 花在动、右边落字」读成因果；之前原地一直在
+          const fc = node.querySelector('.pe-fc'), w = E.inOut(lp(b, tk - 1.95, .5));
+          fc.style.clipPath = w >= 1 ? '' : 'inset(-2px ' + (100 * (1 - w)).toFixed(1) + '% -2px -2px round 14px)';
+          fc.style.transform = w >= 1 ? '' : 'translateX(' + (-14 * (1 - w)).toFixed(1) + 'px)';
         }
         if (it.code) codeIn(node.firstChild, (b - (T6 - .8)) * BEAT, 99, t);
         if (it.name) { const q = E.out(lp(b, T6 - .55, .65)), f = node.firstChild; f.style.display = 'inline-block'; f.style.opacity = Math.min(1, q * 1.4).toFixed(3); f.style.transform = 'translateY(' + ((1 - q) * 26).toFixed(1) + 'px)'; }

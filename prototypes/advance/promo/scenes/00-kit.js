@@ -7,7 +7,9 @@
 'use strict';
 const K = {};
 css(`
-.eb{font-size:24px;letter-spacing:.3em}
+/* v18.3 eyebrow: CJK at .06em (no more 「0 3 · 会 话 轨 迹」), Latin / digit / · runs at .3em inside .ebl (K.eb) */
+.eb{font-size:26px;letter-spacing:.06em}
+.eb .ebl{letter-spacing:.3em;margin-right:-.24em}   /* the run's trailing tracking trimmed back to .06em */
 .gi{font-size:230px;font-weight:700;letter-spacing:-.02em;line-height:1}
 .k .w{display:inline-block;white-space:pre;will-change:transform,opacity,filter}
 .k .ch{display:inline-block;white-space:pre;will-change:transform,opacity,filter}
@@ -47,11 +49,40 @@ function chars(el, root) {
   if (!root) el._ch = out;
   return out;
 }
-// the exit most forms share: blur + fade, optionally the letters drift apart
-function leave(el, q, spread) {
+// the exit most forms share: blur + fade, optionally the letters drift apart.
+// v18.3 (opt-in, default unchanged): o.dir = {dx, dy} px the block drifts during the blur (24–40 px toward where the
+// dots go next; same long E.inOut as the fade, no overshoot); o.push = end scale of a push-through (true = 1.06,
+// or a number 1.04–1.10). Both use the CSS `translate` / `scale` properties, so they compose with any transform a form
+// or tick sets.
+function drift(el, q, o) {
+  const d = o && o.dir, pu = o && o.push, on = q < .999;
+  if (d) el.style.translate = on ? ((d.dx || 0) * (1 - q)).toFixed(1) + 'px ' + ((d.dy || 0) * (1 - q)).toFixed(1) + 'px' : '';
+  if (pu) el.style.scale = on ? lerp(1, pu === true ? 1.06 : pu, 1 - q).toFixed(4) : '';
+}
+function leave(el, q, spread, o) {
   el.style.opacity = q.toFixed(3);
   el.style.filter = q < .999 ? 'blur(' + ((1 - q) * 8).toFixed(1) + 'px)' : 'none';
   if (spread) el.style.letterSpacing = q < .999 ? ((1 - q) * .45).toFixed(3) + 'em' : '';
+  drift(el, q, o);
+}
+// the drift / push alone, for blocks whose fade is done elsewhere (e.g. the engine's mask):
+//   txt(…, { anim: K.all(mask(.18, 1, .6), K.exit({ out: .6, dir: { dx: -32, dy: 0 }, push: 1.06 })) })
+K.exit = (o = {}) => (el, tl, life) => drift(el, exitQ(tl, life, o.out ?? .6), o);
+// v18.3 eyebrow markup: wraps each Latin / digit / · run in <span class="ebl"> (.3em)
+// and leaves CJK at the .eb tracking (.06em). Tags and entities are left alone; idempotent.
+const EB_RUN = /[A-Za-z0-9·]+/g;
+K.eb = (html) => (/class="ebl"/.test(html) ? html : String(html).split(/(<[^>]*>|&#?\w+;)/).map((s, i) => (i % 2 ? s : s.replace(EB_RUN, '<span class="ebl">$&</span>'))).join(''));
+// every eyebrow switches to it: txt() lines whose class has `eb` get K.eb before they are built, and any other .eb that
+// a scene writes as raw html (e.g. the persona column) is wrapped the moment it is added to the stage
+{
+  const txt0 = txt;
+  txt = (b0, b1, lines, pos, o) => txt0(b0, b1, lines.map((l) => (/(^|\s)eb(\s|$)/.test(l[0]) && typeof l[1] === 'string' ? [l[0], K.eb(l[1])].concat(l.slice(2)) : l)), pos, o);
+  const fixEb = (root) => (root.querySelectorAll ? root.querySelectorAll('.eb') : []).forEach((e) => {
+    if (e._eb || e.querySelector('.ebl,.ch')) return; e._eb = 1;
+    const tn = []; const w = document.createTreeWalker(e, NodeFilter.SHOW_TEXT); while (w.nextNode()) tn.push(w.currentNode);
+    tn.forEach((n) => { if (!EB_RUN.test(n.textContent)) return; EB_RUN.lastIndex = 0; const sp = document.createElement('span'); sp.innerHTML = K.eb(n.textContent.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])); n.replaceWith(...sp.childNodes); });
+  });
+  new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) { fixEb(n); if (n.classList.contains('eb')) fixEb(n.parentNode); } }))).observe(stage, { childList: true, subtree: true });
 }
 K.all = (...fs) => (el, tl, life, t) => fs.forEach((f) => f(el, tl, life, t));
 // the engine's masked rise, line after line (st = beats between lines)
@@ -70,25 +101,25 @@ K.words = (o = {}) => (el, tl, life) => {
   if (el._base == null) el._base = el.style.transform;
   el.style.transform = el._base + ' translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(' + sc.toFixed(4) + ')';
   el.style.transformOrigin = o.origin || '50% 50%';
-  leave(el, exitQ(tl, life, o.out ?? .5), o.spread);
+  leave(el, exitQ(tl, life, o.out ?? .5), o.spread, o);
 };
 // Membrain: every character arrives on its own (random order), from blur to sharp. spread = beats over which they start.
 K.blurIn = (o = {}) => (el, tl, life) => {
   const cs = chars(el), spread = o.spread ?? .55, dur = o.dur ?? .3, start = o.start || 0;
   cs.forEach((c, i) => { const d = start + hash01(i, o.seed || 3) * spread; const p = E.out(clamp((tl - BB(d)) / BB(dur))); c.style.opacity = p.toFixed(3); c.style.filter = p < .999 ? 'blur(' + ((1 - p) * 9).toFixed(1) + 'px)' : 'none'; });
-  leave(el, exitQ(tl, life, o.out ?? .5), o.spread2);
+  leave(el, exitQ(tl, life, o.out ?? .5), o.spread2, o);
 };
 // Membrain hero word: characters reveal from the middle outwards (step = beats between neighbours)
 K.centerOut = (o = {}) => (el, tl, life) => {
   const cs = chars(el), c0 = (cs.length - 1) / 2, step = o.step ?? .1, dur = o.dur ?? .35, start = o.start || 0;
   cs.forEach((c, i) => { const p = E.out(clamp((tl - BB(start + Math.abs(i - c0) * step)) / BB(dur))); c.style.opacity = p.toFixed(3); c.style.filter = p < .999 ? 'blur(' + ((1 - p) * 10).toFixed(1) + 'px)' : 'none'; c.style.transform = 'scale(' + lerp(1.18, 1, p).toFixed(3) + ')'; });
-  leave(el, exitQ(tl, life, o.out ?? .5), o.spread);
+  leave(el, exitQ(tl, life, o.out ?? .5), o.spread, o);
 };
 // GWI: a reply decodes — letters start wide apart and faint, then close up one after another
 K.decode = (o = {}) => (el, tl, life) => {
   const cs = chars(el), step = o.step ?? .06, dur = o.dur ?? .4, start = o.start || 0;
   cs.forEach((c, i) => { const p = E.out(clamp((tl - BB(start + i * step)) / BB(dur))); c.style.opacity = lerp(0, 1, Math.min(1, p * 1.6)).toFixed(3); c.style.marginRight = ((1 - p) * (o.from ?? .6)).toFixed(3) + 'em'; });
-  leave(el, exitQ(tl, life, o.out ?? .5), o.spread);
+  leave(el, exitQ(tl, life, o.out ?? .5), o.spread, o);
 };
 // Membrain / Apple: glyphs scramble, then lock left to right (per = beats between locks). pool: glyphs to cycle through.
 const POOL_CJK = '协作会话代理规划验证委托即兴多线求证节奏轨迹人格推荐安装分析时间小时数据本地记录';
@@ -102,7 +133,7 @@ K.scramble = (o = {}) => (el, tl, life, t) => {
     c.textContent = lock || /\s/.test(c._f) ? c._f : pool[Math.floor(hash01(i + frame * 7, 9) * pool.length)];
     c.style.opacity = show ? (lock ? '1' : '.55') : '0';
   });
-  leave(el, exitQ(tl, life, o.out ?? .5), o.spread);
+  leave(el, exitQ(tl, life, o.out ?? .5), o.spread, o);
 };
 // GWI: typing at cps characters per second (slower for the first three), with a solid caret
 K.type = (o = {}) => (el, tl, life) => {
@@ -111,7 +142,7 @@ K.type = (o = {}) => (el, tl, life) => {
   cs.forEach((c, i) => { c.style.display = i < n ? '' : 'none'; });
   let car = el.querySelector('.caret'); if (o.caret !== false && !car) { car = document.createElement('span'); car.className = 'caret'; (cs[cs.length - 1] || el).parentNode.appendChild(car); }
   if (car) { const last = cs[Math.max(0, n - 1)]; if (last && last.nextSibling !== car) last.after(car); car.style.opacity = n >= cs.length && Math.floor(tl * 2.2) % 2 ? '0' : '1'; }
-  leave(el, exitQ(tl, life, o.out ?? .5), o.spread);
+  leave(el, exitQ(tl, life, o.out ?? .5), o.spread, o);
 };
 // GWI: a fixed sentence whose last word is swapped. markup: <span class="sw"><span>a</span><span>b</span>…</span>;
 // o.at = beats at which word i (i ≥ 1) replaces the previous one; mode 'v' = vertical cross (old up, new from below),
@@ -135,7 +166,7 @@ K.swap = (o = {}) => (el, tl, life, t) => {
     });
     const wa = ws[Math.max(0, cur - 1)].offsetWidth, wb = ws[cur].offsetWidth; sw.style.width = lerp(cur ? wa : wb, wb, p).toFixed(1) + 'px'; sw.style.height = ws[cur].offsetHeight + 'px';
   });
-  leave(el, exitQ(tl, life, o.out ?? .5), o.spread);
+  leave(el, exitQ(tl, life, o.out ?? .5), o.spread, o);
 };
 // Alpha: the first word lands huge and blurred and shrinks into the line; the other words fly in from lower right
 K.big = (o = {}) => (el, tl, life) => {
@@ -145,7 +176,7 @@ K.big = (o = {}) => (el, tl, life) => {
     const p = E.out(clamp((tl - BB(start + dur * .7 + (i - 1) * fly)) / BB(.35)));
     w.style.transform = 'translate(' + ((1 - p) * 60).toFixed(1) + 'px,' + ((1 - p) * 40).toFixed(1) + 'px)'; w.style.opacity = p.toFixed(3); w.style.filter = p < .999 ? 'blur(' + ((1 - p) * 6).toFixed(1) + 'px)' : 'none';
   });
-  leave(el, exitQ(tl, life, o.out ?? .5), o.spread);
+  leave(el, exitQ(tl, life, o.out ?? .5), o.spread, o);
 };
 // a highlighter swept under .mk words (at = beat, dur = beats)
 K.mark = (at = .8, dur = .4) => (el, tl) => el.querySelectorAll('.mk').forEach((m) => { m.style.backgroundSize = (E.inOut(clamp((tl - BB(at)) / BB(dur))) * 100).toFixed(1) + '% .26em'; });
