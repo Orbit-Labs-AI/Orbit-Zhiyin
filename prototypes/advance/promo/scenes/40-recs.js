@@ -27,7 +27,8 @@
    v18.2: +.8 beat at the end (payoff held to b63.4, exit b63.4–64.0; round badges b62.8, close b63.2, merge b63.8).
    v18.3: cards every 2.6 beats (b46.0 … 59.0); the freed 2 beats go to the payoff (in from b59.6, readable ≈b60.25–63.4),
    recomposed as one centred stack (orange 提高效率 on its own line / silver numerals / 36 px 可节省 labels / 28 px caption)
-   that drifts toward the merge point (330, 540) as it leaves; the column closes into one orb (gap 0) by b63.6. */
+   that drifts toward the merge point (330, 540) as it leaves; the column closes into one orb (gap 0) by b63.6.
+   v18.6 R1: that orb is ONE plain circle (five-colour rim ring + glow), never five mini badges inside. */
 scene('40-recs', () => {
   css(`
 .ln.xl.r4-w{font-size:76px;line-height:1}
@@ -203,10 +204,9 @@ scene('40-recs', () => {
   AGD.morph(62.8, ROWDOT, 'dot', { dur: .5, stag: .04 });
   // v18.3: the five close into ONE point (gap 0) by b63.6, so the hand-off reads as a single orb, not a 22 px stack
   AGD.key(63.2, 'column', { x: 330, y0: 540, gap: 0, r: 30, a: 1, order: ORD, dur: .4, stag: 0 });
-  // v18.4: as they close (b63.5 = film 86.4) the top dot becomes the orb — five mini Agent badges, the same face 50-tools
-  // keeps through b106 — instead of showing only the cc logo until 50-tools' own orb morph
-  // QA r4: a .4-beat morph swapped faces in ~3 frames mid-close; .7 beats from b63.15 grows the orb face while the column
-  // closes, and dots 1–4 stop velocity-stretching into a smeared oval stack under it
+  // v18.6 R1: as they close (b63.15–63.85) the top dot becomes the merged look — ONE clean circle (dark core, five-colour
+  // 72° rim ring + soft glow, no cc logo, no mini badges), the same circle 50-tools carries on from b55.0 (its scene beats)
+  // .7 beats so the logo fades while the column closes; dots 1–4 stop velocity-stretching and hide under dot 0
   AGD.morph(63.15, 0, 'orb', { dur: .7 });
   AGD.morph(63.2, [1, 2, 3, 4], 'dot', { vs: 0, dur: .2, stag: 0 });
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
