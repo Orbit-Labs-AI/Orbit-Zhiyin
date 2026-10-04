@@ -176,3 +176,86 @@ def test_same_native_ids_and_filenames_across_sources_remain_separate_and_idempo
             tuple(row)
             for row in store.db.execute("SELECT event_uid,text FROM event ORDER BY event_uid")
         ]
+
+
+def _lone_surrogate_session():
+    # Node's JSON.stringify writes a UTF-16 surrogate that a cut string left unpaired as
+    # a \uXXXX escape (a tool output truncated mid-emoji); Python decodes it to a lone
+    # surrogate that UTF-8, SQLite and hashing reject.
+    common = {"sessionId": "s", "cwd": "/w", "version": "2.1.0"}
+    rows = [
+        {**common, "type": "user", "uuid": "u1", "message": {"content": "prompt LONE_LOW"}},
+        {
+            **common,
+            "type": "assistant",
+            "uuid": "a1",
+            "message": {
+                "id": "m1",
+                "content": [
+                    {"type": "tool_use", "id": "c1", "name": "Bash", "input": {"cmd": "LONE_HIGH"}}
+                ],
+            },
+        },
+        {
+            **common,
+            "type": "user",
+            "uuid": "o1",
+            "message": {
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "c1", "content": "cut LONE_HIGH"}
+                ]
+            },
+        },
+        {**common, "type": "user", "uuid": "u2", "message": {"content": "healthy neighbour"}},
+    ]
+    text = "".join(json.dumps(row) + "\n" for row in rows)
+    return text.replace("LONE_HIGH", "\\ud83d").replace("LONE_LOW", "\\udc00").encode()
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_lone_surrogate_escapes_do_not_abort_the_import(tmp_path, workers):
+    root = tmp_path / "claude"
+    path = root / "projects/p/s.jsonl"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(_lone_surrogate_session())
+    with Store(tmp_path / "data") as store:
+        service = ImportService(store, workers=workers, maintenance="off")
+        result = service.import_source(ImportRequest("claude_code", root))
+        service.close()
+        assert result["current_unparsed"] == 0
+        texts = dict(
+            store.db.execute(
+                "SELECT text, kind FROM event WHERE kind IN ('message.user','tool.result')"
+            )
+        )
+        assert texts == {
+            "prompt \ufffd": "message.user",
+            "cut \ufffd": "tool.result",
+            "healthy neighbour": "message.user",
+        }
+        assert store.db.execute("SELECT COUNT(*) FROM tool_call").fetchone()[0] == 1
+
+
+def test_lone_surrogate_escapes_in_captured_streams_are_replaced(tmp_path):
+    from orbit_data.contract import canonical
+
+    # OpenCode keeps message JSON in a SQLite column: json.dumps escapes the surrogate
+    # there and the connector decodes that column a second time.
+    blocks = json.dumps({"content": [{"type": "text", "text": "answer " + chr(0xD83D)}]})
+    rows = [
+        {"table": "session", "row": {"id": "s"}},
+        {
+            "table": "session_message",
+            "row": {"id": "m", "session_id": "s", "type": "assistant", "data": blocks},
+        },
+    ]
+    stream = [(canonical(r) + "\n").encode() for r in rows]
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("claude_code", tmp_path / "claude")
+        store.capture_stream(source, "projects/p/s.jsonl", [_lone_surrogate_session()])
+        source = store.add_source("opencode", tmp_path / "opencode")
+        store.capture_stream(source, "opencode.db", stream)
+        store.rebuild()
+        texts = {row[0] for row in store.db.execute("SELECT text FROM event")}
+        assert {"prompt \ufffd", "cut \ufffd", "answer \ufffd"} <= texts
+        assert store.verify()["unparsed"] == 0

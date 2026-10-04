@@ -8,7 +8,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from orbit_data.contract import EventDraft, RawRecord, normalize_usage, time_fields, uid, unused
+from orbit_data.contract import (
+    EventDraft,
+    RawRecord,
+    native_json,
+    normalize_usage,
+    time_fields,
+    uid,
+    unused,
+)
 
 # Exact native-key match through the compact tail index (migration 009). The tail term is
 # implied by the full comparison, so results equal ``native_key=?1``.
@@ -47,7 +55,7 @@ def text_content(content) -> str:
 def decode_json(value, fallback=None):
     if isinstance(value, str):
         try:
-            return json.loads(value)
+            return native_json(value)
         except ValueError:
             return fallback if fallback is not None else value
     return value if value is not None else fallback
