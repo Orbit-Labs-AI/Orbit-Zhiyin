@@ -120,11 +120,17 @@ scene('50-tools', () => {
   // in-duration and blur. The headline swaps vertically like a card-internal roll (−24 out in .22 beat, then +24 in over .3, no blur; never both
   // at once: two centred lines of different width read as one smeared word);
   // the old orange accent is out first (gone by b67.55 = film 99.25), so the new headline never sits over the old accent
+  // v18.9: dyi = the new line's rise (default dy); wat = K.words-style left→right cut of the new line's .w words (beats
+  // after at + ins, 2-frame cut each, no blur, no rise) instead of the slot rise
   const seq = (at, o = {}) => (el, tl) => el.querySelectorAll('.sw').forEach((s) => {
-    const dy = o.dy ?? 20, bl = o.bl ?? 8, od = o.od ?? .3, ins = o.ins ?? .25, ind = o.ind ?? .55;
+    const dy = o.dy ?? 20, dyi = o.dyi ?? dy, bl = o.bl ?? 8, od = o.od ?? .3, ins = o.ins ?? .25, ind = o.ind ?? .55;
     const [a, n] = s.children, po = E.in(clamp((tl - BB(at)) / BB(od))), pi = E.out(clamp((tl - BB(at + ins)) / BB(ind)));
     const set = (w, q, y) => { w.style.opacity = q.toFixed(3); w.style.transform = 'translate(-50%,' + y.toFixed(1) + 'px)'; w.style.filter = q < .999 && bl ? 'blur(' + ((1 - q) * bl).toFixed(1) + 'px)' : 'none'; };
-    set(a, 1 - po, -dy * po); set(n, pi, dy * (1 - pi));
+    set(a, 1 - po, -dy * po);
+    if (o.wat) {
+      n.style.opacity = '1'; n.style.transform = 'translate(-50%,0px)'; n.style.filter = 'none';
+      n.querySelectorAll('.w').forEach((w, i) => { w.style.opacity = clamp((tl - BB(at + ins + (o.wat[i] ?? 0))) / (2 / 60)).toFixed(3); });
+    } else set(n, pi, dyi * (1 - pi));
     s.style.width = Math.max(a.offsetWidth, n.offsetWidth) + 'px'; s.style.height = a.offsetHeight + 'px';
   });
   // v18.4 5→6: the block leaves b74.2–74.7 (film 105.9–106.4) toward the screen centre (down, shrinking to .9) as SKILL.md
@@ -134,10 +140,14 @@ scene('50-tools', () => {
       tick: (el, tl) => { el.style.transform = 'translate(-50%,-50%) scale(' + (1 + .003 * (tl / BEAT + b0 - 56.4)).toFixed(4) + ')'; } });
   // v18.8: the chapter is named while the card is still growing — the eyebrow from b55.3 (film 87.0, over the growth's last
   // third), the headline .3 beat later (b55.6), the accent .4 after it (b56.0): the card never lands untitled (was b56.4–57.0)
-  line(55.3, 'eb t5e', '03 · 会话轨迹', '04 · 生成工坊', 110, 66.9, { ins: .2, ind: .45 });   // v18.5: 04 is in by b67.55
-  // v18.4: the old headline rolls out b67.3–67.58 and the new one is in from b67.55 (film 99.25): a title on every frame
-  line(55.6, 'hv sv t5h', '回放每一次协作', '把你的做法，写成 Skill', 190, 67.3, { dy: 24, bl: 0, od: .28, ins: .25, ind: .3 });
-  line(56.0, 'lt acc t5o', '卡在哪一步，一眼看清', '本地 Agent 起草，按你的会话改写', 270, 67.25, { ins: .55, ind: .5 });
+  // v18.9 03→04 without overprint: eyebrow, headline and accent of 03 all rise out together b67.17–67.45 (−24 px, E.in, .28
+  // beat; gone by film 99.2); 04's eyebrow and headline rise in from b67.6 (film 99.3, +16 px, E.out, .4 beat) — the
+  // eyebrow never names 04 while 03's headline is still up; 04's accent is cut in word by word left→right b67.6–67.72
+  // (K.words timing, no blur), sharp by b67.8 (film 99.5)
+  line(55.3, 'eb t5e', '03 · 会话轨迹', '04 · 生成工坊', 110, 67.17, { dy: 24, dyi: 16, bl: 0, od: .28, ins: .43, ind: .4 });
+  line(55.6, 'hv sv t5h', '回放每一次协作', '把你的做法，写成 Skill', 190, 67.17, { dy: 24, dyi: 16, bl: 0, od: .28, ins: .43, ind: .4 });
+  const W5 = (ws) => ws.map((w) => '<span class="w" style="white-space:pre">' + w + '</span>').join('');
+  line(56.0, 'lt acc t5o', '卡在哪一步，一眼看清', W5(['本地 ', 'Agent ', '起草，', '按你的', '会话改写']), 270, 67.17, { dy: 24, bl: 0, od: .28, ins: .43, wat: [0, .03, .06, .09, .12] });
 
   /* ---------- 5.2–5.3 trajectory (deck 0, b55.09–68.2) ----------
      v18.1: only the timeline itself is shown (svg.vz-t-timeline on its own white panel, promo-card), framed ≈ 1300 px wide (QA: 1440 cut the panel at the right edge)
@@ -147,8 +157,9 @@ scene('50-tools', () => {
   const TL = '.tl-card svg.vz-t-timeline', PH = (D) => D.querySelector(TL + ' .vz-playhead');
   const panel = () => { const el = find(0, TL); if (el) el.classList.add('promo-solo', 'promo-card'); };
   // v18.4: 40-recs is done with deck 0 at b54.28 (its OUT4 − .02); the card is set up unseen at b54.7 and grows from b54.8
-  tween(0, 54.7, 0, { o: 0 });
-  at(54.7, () => {
+  // v18.9: set up at b54.45 (film 86.15; 40-recs left deck 0 at b54.28) so the growth can start at b54.6
+  tween(0, 54.45, 0, { o: 0 });
+  at(54.45, () => {
     advLight(0); const a = app(0); a.go('sessions');
     if (a.S.sess.playing) a.W.eval('stopPlay()');
     // QA v18.3: already in the playing state (future events hidden) — with tlFrame(false) the growing card showed the
@@ -169,14 +180,15 @@ scene('50-tools', () => {
   const trajIn = (k, bl) => () => { const c = trajCam(); delete c.o; c.s *= k; c.bl = bl; return c; };
   // v18.4 4→5: from b54.8 (film 86.5), over the payoff's last .15-beat drift into the orb — no frame of the orb alone
   // v18.8: from b54.85 (film 86.55), as 40-recs' counter has gathered into the cc badge (gone by film 86.5)
-  tween(0, 54.8, 0, trajIn(.12, 4));
-  tween(0, 54.85, .8, trajIn(1, 0), E.out);
+  // v18.9: from b54.6 (film 86.3), overlapping 40-recs' % numbers as they converge into the cc badge — no seam
+  tween(0, 54.5, 0, trajIn(.12, 4));
+  tween(0, 54.6, .85, trajIn(1, 0), E.out);
   // its opacity on a slower in-out (.1 at b55.4, whole by b56.1) so it does not stack on 40-recs' fading % payoff
   // QA: starts at b55.35 (film 86.25), once 40-recs' % payoff has cleared — earlier the half-faded panel sat under it
   // hand-off QA v18.2: 40-recs now clears its payoff at film b86.9 (scene 55.2); the old 55.35 start left ~.5 beat of
   // only the dot stack, then a 3-frame grey slab — start as the payoff clears and ramp in .6 beat (film b86.9–87.5)
   // v18.3: α 0 → 1 in the first .3 beat of the growth (b55.2–55.5), so the small card is already solid while it grows
-  tween(0, 54.85, .3, { o: 1 }, E.out);
+  tween(0, 54.6, .35, { o: 1 }, E.out);
   // then the slow drift with the playhead (2 · PAN left) and a 3 % push about the orb's point
   tween(0, 56.6, 11.0, () => ({ x: decks[0].C.x + 2 * PAN, s: decks[0].C.s * 1.03 }), E.sine);
   // the merged dot owns this session: a thin wire to the panel's left edge, drawn .5 beat and taken back by b57.3 as the dot
