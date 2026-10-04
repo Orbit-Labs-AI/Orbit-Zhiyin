@@ -557,10 +557,7 @@ def search(store, request: MatchRequest, encoder=None) -> dict:
     with store.reader() as conn:
         index = store.index(conn)
         response["generation"] = index.generation
-        audit = [] if request.audit else None
-        mask = index.mask(request, conn, audit=audit)
-        if audit is not None:
-            response["filter_audit"] = audit
+        mask = index.mask(request, conn)
         routes, passages = {}, {}
         routes["feature"], wanted = _features(index, mask, query_features, request.per_route)
         routes["lexical"], passages = _lexical(store, conn, index, mask, text, request.per_route, request.prefix)

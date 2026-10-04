@@ -21,4 +21,3 @@
 
 [Artificial benchmark](artificial_benchmark/README.md)提供冻结任务、运行配置与对照协议；轨迹、计量和结果按协议保留在本地，不能用结构回放代替实际配对执行。
 
-[历史技能学习评测](skill_learning/README.md)隔离 history、validation 和 held-out test，冻结实现与干预后记录三组配对结果。实际模型调用需要授权，成本、失败和未知计量完整保留；不代替普通构造回归。

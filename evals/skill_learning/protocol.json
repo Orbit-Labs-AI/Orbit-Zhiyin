@@ -12,17 +12,8 @@
     "dbscan-parameter-tuning": {"history": [1, 2], "validation": [3], "test": [4, 5]},
     "temperature-simulation": {"history": [1, 2], "validation": [3], "test": [4, 5]},
     "stock-data-visualization": {"history": [1, 2], "validation": [3], "test": [4, 5]},
-    "dependency-vulnerability-check": {"history": [1, 2], "validation": [3], "test": [4, 5]},
-    "schedule-planning": {"history": [1, 2], "validation": [3], "test": [4, 5]},
-    "travel-planning": {"history": [1, 2], "validation": [3], "test": [4, 5]}
+    "dependency-vulnerability-check": {"history": [1, 2], "validation": [3], "test": [4, 5]}
   },
-  "development_amendments": [
-    {
-      "added_families": ["schedule-planning", "travel-planning"],
-      "before_content_access": true,
-      "reason": "The initial pool includes a contradictory geospatial validation prompt and a simulator without a reference solution; add two offline planning candidates, subject to the same reliability and headroom gates."
-    }
-  ],
   "family_selection": {
     "data": "validation_only",
     "verifier_required": "reference solution passes and an empty solution fails; inspect validation assertions for prompt consistency",

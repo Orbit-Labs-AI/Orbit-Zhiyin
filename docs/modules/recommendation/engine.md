@@ -43,9 +43,3 @@ analytics service 接收七类资源：`rules_prompts`、`skills`、`plugins`、
 App engine 与 analytics service 互不调用，同一分析在两者得到不同候选属于预期；不要拿一栈的结果验证另一栈。App 新能力默认进入 engine，分析侧资源接收和报告进入 service。service 的收益估计需调用方给出 benefit_scenarios，否则返回 insufficient_inputs。
 
 审批摩擦只用实际记录的等待，运行时长不当作审批时间；没有测得等待时不估算。返工优先使用问题证据关联轮次成本，其次同会话再到总体均值，并说明回退。替代方案及操作池上限按实际有计价依据的范围合计，未测得不能改成 0%。
-
-## 历史技能学习
-
-`recommend.learn` / `recommend.refine` 是显式授权的 AI 任务，沿用上下文预览、二次脱敏、snippets consent 与预算。产物先作为工作流草稿保存；检索通过 `/v1/recommendations/learned/retrieve`，验证通过对应 learned validation 接口登记，默认不把未验证草稿当作可执行建议。
-
-推荐 run 的 `/funnel` 保留各级候选、过滤和选择依据；旧 run 没有记录时返回 not_recorded。资产被注入、被读取、实际使用和改善效果分别取证。完整协议及该次效果限制见[学习记录](../../plans/history-skill-learning.md)与[评测报告](../../audits/history-skill-learning/RESULT_REPORT.md)。

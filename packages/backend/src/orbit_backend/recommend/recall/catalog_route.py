@@ -278,7 +278,7 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
                 problem_id=str(problem.get("problem_id") or problem["key"]), problem_type=friction,
                 scene=problem.get("scene") or DEFAULT_SCENE, language=problem.get("language") or ANY_LANGUAGE,
                 evidence_ids=evidence_ids, profile_evidence_ids=sessions, features=features, agents=top_agent,
-                limit=10, per_route=100, audit=True)))
+                limit=10, per_route=100)))
     profile = inputs.get("profile") or {}
     strong = {tag for tag, n in (profile.get("evidence_sessions") or {}).items() if n >= MIN_PROFILE_EVIDENCE}
     profile_terms = [t for t in (*sorted(profile.get("tags") or {}, key=lambda t: -(profile["tags"][t])),
@@ -286,7 +286,7 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
                                  *(profile.get("tools") or ())) if t in strong][:12]
     if profile_terms:
         queries.append((None, MatchRequest(purpose="library", text=" ".join(profile_terms), agents=top_agent,
-                                           limit=10, per_route=100, audit=True)))
+                                           limit=10, per_route=100)))
     rows: dict[str, float] = {}
     profile_rows: dict[str, float] = {}
     profile_payload: dict[str, dict] = {}
@@ -313,35 +313,23 @@ def recall(problems: list[dict], inputs: dict, catalog=None, *,
             if "generation" in response:
                 meta["generation"] = response["generation"]
             meta.setdefault("vector", response.get("vector") or {"status": "unknown"})
-            audit = {"query": label, "agents": request.agents,
-                     "filters": response.get("filter_audit"), "retrieval_routes": response.get("routes"),
-                     "returned_count": len(response.get("items") or []), "decisions": []}
-            meta.setdefault("catalog_audit", []).append(audit)
             for row in response.get("items") or ():
                 item = _normalise_catalog(row)
                 if item is None:
-                    audit["decisions"].append({"item_id": row.get("item_id"), "kept": False,
-                                                "reason": "unsupported_catalog_type", "score": row.get("score")})
                     continue
-                reason = None
                 if problem is not None:
                     tier = (row.get("admission") or {}).get("tier")
                     if tier is not None:  # the admission layer's verdict travels with the row
                         if tier not in ADMITTED:
-                            reason = "catalog_admission:" + str(tier)
-                        else:
-                            item["admission"] = tier
+                            continue
+                        item["admission"] = tier
                     else:  # a catalog without admission info: same evidence bar on the row itself
                         friction = any(f.get("feature") == "friction" and f.get("value") == request.problem_type
                                        for f in row.get("matched_features") or ())
                         remedy = "remedy" in ((row.get("score_parts") or {}).get("routes") or {})
                         if not (friction or remedy):
-                            reason = "missing_problem_overlap"
-                audit["decisions"].append({"item_id": item["item_id"], "kind": item["kind"],
-                    "score": row.get("score"), "kept": reason is None, "reason": reason,
-                    "support": row.get("matched_features"), "admission": row.get("admission")})
-                if reason is None:
-                    kept.append((problem, item, float(row.get("score") or 0.) + 1e-6))
+                            continue
+                kept.append((problem, item, float(row.get("score") or 0.) + 1e-6))
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
     enrich(catalog, [item for _, item, _ in kept], diagnostics)

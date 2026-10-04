@@ -124,33 +124,13 @@ class CatalogIndex:
             result[idx[curated]] = True
         return result
 
-    def mask(self, request: MatchRequest, conn=None, *, audit: list | None = None) -> np.ndarray:
-        previous = np.ones(len(self), dtype=bool) if audit is not None else None
-
-        def observe(stage):
-            nonlocal previous
-            if audit is None:
-                return
-            removed = np.flatnonzero(previous & ~mask)
-            audit.append({"stage": stage, "input_count": int(previous.sum()),
-                          "kept_count": int(mask.sum()), "rejected_count": len(removed),
-                          "kept_types": {k: int((mask & (self.kind == code)).sum())
-                                         for k, code in KIND_CODE.items() if (mask & (self.kind == code)).any()},
-                          "rejected_types": {k: int((self.kind[removed] == code).sum())
-                                             for k, code in KIND_CODE.items() if (self.kind[removed] == code).any()},
-                          "rejected_ids": [self.ids[i] for i in removed[:1000]],
-                          "omitted_ids": max(0, len(removed) - 1000), "score": None})
-            previous = mask.copy()
-
+    def mask(self, request: MatchRequest, conn=None) -> np.ndarray:
         mask = self.canonical & (self.difficulty <= request.max_difficulty)
-        observe("canonical_and_difficulty")
         if request.types:
             mask &= np.isin(self.kind, [KIND_CODE[t] for t in request.types])
-        observe("requested_types")
         for item_id in request.excluded_ids:
             if item_id in self.pos:
                 mask[self.pos[item_id]] = False
-        observe("excluded_ids")
         if request.agents:
             bits = 0
             for agent in request.agents:
@@ -160,11 +140,9 @@ class CatalogIndex:
             if request.purpose == "library":
                 compatible |= self.agent_mask == 0
             mask &= compatible
-        observe("agents_listed")
         if request.language:
             codes = [self.lang_codes[v] for v in request.language.split("_or_") if v in self.lang_codes]
             mask &= self.lang_any | np.isin(self.language, codes)
-        observe("language")
         if request.source_ids:
             allowed = np.zeros(len(self.ids), dtype=bool)
             for (item_id,) in conn.execute(
@@ -174,7 +152,6 @@ class CatalogIndex:
                 if item_id in self.pos:
                     allowed[self.pos[item_id]] = True
             mask &= allowed
-        observe("source")
         if request.purpose == "recommendation":
             curated = self.curated(("friction", request.problem_type)) & self.curated(("scene", request.scene))
             dimensions = np.zeros(len(self.ids), dtype=bool)
@@ -183,7 +160,6 @@ class CatalogIndex:
                     dimensions |= self.curated(("dimension", feature.value))
             # Rule-admitted items have no curated scene/dimension; the tier travels with the row.
             mask &= self.verified & ((curated & dimensions) | self.rule_admitted(request.problem_type))
-        observe("recommendation_evidence")
         return mask
 
     def rule_admitted(self, friction: str | None) -> np.ndarray:
