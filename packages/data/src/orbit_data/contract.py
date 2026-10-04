@@ -83,7 +83,7 @@ _ENCODED_SURROGATE = re.compile(rb"\xed[\xa0-\xbf]")
 
 def _replace_surrogates(value: Any) -> Any:
     if isinstance(value, str):
-        return _SURROGATE.sub("�", value)
+        return _SURROGATE.sub("\ufffd", value)
     if isinstance(value, dict):
         return {_replace_surrogates(key): _replace_surrogates(item) for key, item in value.items()}
     if isinstance(value, list):
@@ -91,24 +91,34 @@ def _replace_surrogates(value: Any) -> Any:
     return value
 
 
-def native_json(line: bytes | str) -> Any:
-    """``json.loads`` of native JSON, with unpaired UTF-16 surrogates as U+FFFD.
+def _null_constant(_name: str) -> None:
+    return None
 
+
+def native_json(line: bytes | str) -> Any:
+    """``json.loads`` of native JSON: NaN/Infinity as null, lone UTF-16 surrogates as U+FFFD.
+
+    Python writers emit ``NaN``/``Infinity`` (JavaScript writes null for the same values);
     JavaScript writers escape a surrogate that a cut string left unpaired (a tool output
-    truncated mid-emoji becomes ``"\\ud83d"``). Python keeps it as a lone surrogate,
-    which UTF-8, SQLite and hashing reject, so one such record would abort the whole
-    projection. The exact bytes stay in the source; only mapped values are replaced.
+    truncated mid-emoji becomes ``"\\ud83d"``). Neither survives ``canonical``, UTF-8,
+    SQLite or hashing, so one such record would abort the whole projection. The exact
+    bytes stay in the source; only mapped values change.
     """
-    data = json.loads(line)
-    if isinstance(line, str):
-        suspect = "\\ud" in line or "\\uD" in line
+    raw = isinstance(line, bytes)
+    nan, infinity, low, high = (
+        (b"NaN", b"Infinity", b"\\ud", b"\\uD") if raw else ("NaN", "Infinity", "\\ud", "\\uD")
+    )
+    if nan in line or infinity in line:
+        data = json.loads(line, parse_constant=_null_constant)
     else:
-        suspect = (
-            b"\\ud" in line
-            or b"\\uD" in line
-            or (b"\xed" in line and _ENCODED_SURROGATE.search(line) is not None)
-        )
-    return _replace_surrogates(data) if suspect else data
+        data = json.loads(line)
+    if (
+        low in line
+        or high in line
+        or (raw and b"\xed" in line and _ENCODED_SURROGATE.search(line) is not None)
+    ):
+        data = _replace_surrogates(data)
+    return data
 
 
 def time_fields(

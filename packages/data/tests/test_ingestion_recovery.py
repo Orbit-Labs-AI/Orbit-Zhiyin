@@ -1,6 +1,7 @@
 """Discovery boundaries and bounded recovery, using synthetic sources only."""
 
 import json
+import math
 import sqlite3
 
 import pytest
@@ -258,4 +259,52 @@ def test_lone_surrogate_escapes_in_captured_streams_are_replaced(tmp_path):
         store.rebuild()
         texts = {row[0] for row in store.db.execute("SELECT text FROM event")}
         assert {"prompt \ufffd", "cut \ufffd", "answer \ufffd"} <= texts
+        assert store.verify()["unparsed"] == 0
+
+
+def test_python_nan_literals_in_hermes_json_columns_do_not_abort_the_projection(tmp_path):
+    from orbit_data.contract import canonical
+
+    # hermes-agent stores tool calls and results with json.dumps, which writes NaN/Infinity.
+    calls = [{"id": "t0", "function": {"name": "calc", "arguments": json.dumps({"x": math.nan})}}]
+    result = json.dumps({"mean": math.nan, "max": math.inf, "success": True})
+    rows = [
+        ("sessions", {"id": "a", "model": "A", "started_at": 1790900000}),
+        (
+            "messages",
+            {
+                "id": 1,
+                "session_id": "a",
+                "message_uid": "m",
+                "role": "assistant",
+                "content": "run",
+                "active": 1,
+                "tool_calls": json.dumps(calls),
+                "timestamp": 1790900001,
+            },
+        ),
+        (
+            "messages",
+            {
+                "id": 2,
+                "session_id": "a",
+                "message_uid": "r",
+                "role": "tool",
+                "content": result,
+                "tool_call_id": "t0",
+                "active": 1,
+                "timestamp": 1790900002,
+            },
+        ),
+    ]
+    stream = [
+        (canonical({"table": table, "key": {"id": row["id"]}, "row": row}) + "\n").encode()
+        for table, row in rows
+    ]
+    with Store(tmp_path / "data") as store:
+        source = store.add_source("hermes", tmp_path / "hermes")
+        store.capture_stream(source, "state.db", stream, format_name="sqlite_rows")
+        store.rebuild()
+        call = store.db.execute("SELECT status FROM tool_call").fetchone()
+        assert call is not None and call[0] == "completed"
         assert store.verify()["unparsed"] == 0
