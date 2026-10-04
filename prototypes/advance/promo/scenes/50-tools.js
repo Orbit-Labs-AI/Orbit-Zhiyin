@@ -353,7 +353,7 @@ scene('50-tools', () => {
     run._k = k;
     // QA v18.2: studioStep re-renders #main AFTER this frame's button / SKILL.md drives ran — at b68.95 the frame showed the
     // button gone and SKILL.md fully opaque at the frame's edge (one-frame pop); re-apply both on the new nodes
-    if (k !== k0) { if (b < BOFF) btnFx(b); if (b < 69.6) skFx(b); }
+    if (k !== k0) { if (b < BOFF) btnFx(b); if (b < 69.6) skFx(b); if (b >= 68.9 && b < 75.2) skClip(b); }   // v18.8 QA: b72.85 step re-render dropped the clip (half row 11)
     if (run.step === 2 && !run.done) {
       genW();
       const u = GW[GW.length - 1] * clamp((b - L0) / (L1 - L0));
@@ -391,9 +391,12 @@ scene('50-tools', () => {
     let fy = (SKY - a) / (c - a) * 1000;
     const row = el.querySelectorAll('.code > div')[9];
     if (b < 69 || !row) T12 = null; else if (T12 == null) T12 = b;
-    if (row) { const q = row.getBoundingClientRect(); fy = lerp(fy, Math.min(fy, q.bottom + q.height + 8), io(b, T12, .25)); }
+    if (row) { const q = row.getBoundingClientRect(); fy = lerp(fy, Math.min(fy, q.bottom + q.height + 2), io(b, T12, .25)); }
     const cut = Math.max(0, r.bottom - fy), rad = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 12;
-    el.style.clipPath = cut > .5 ? 'inset(0 0 ' + cut.toFixed(1) + 'px 0 round ' + rad + 'px)' : '';
+    // v18.8 QA: kept as a height from the card's top — the step-3 re-render (「已写入」, b72.7) drops the skeleton bars after this
+    // drive ran, and a bottom inset then cut one row too many (row 11 hidden for ~.15 beat)
+    const h = (fy - r.top) * el.offsetHeight / Math.max(1, r.height);
+    el.style.clipPath = cut > .5 ? 'inset(0 0 calc(100% - ' + h.toFixed(1) + 'px) 0 round ' + rad + 'px)' : '';
   };
   drive(1, 68.9, 75.2, (p, b) => skClip(b));
   at(75.2, () => { const el = skillCard(decks[1].D); if (el) el.style.clipPath = ''; });
