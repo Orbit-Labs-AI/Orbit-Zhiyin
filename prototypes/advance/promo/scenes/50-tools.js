@@ -423,44 +423,30 @@ scene('50-tools', () => {
   };
   drive(1, DONE, 75.2, (p, b) => doneFx(b));
 
-  /* ---------- v17.7 the merged dot's shapes (STORYBOARD「v17.7」F3 5). Only dot 0 draws inside the merge; every shape keeps
-     the five mini Agent badges (micro 1, no cc logo) so the merged dot always reads as「all five」. Each morph goes with the
-     element it serves: wire → pill, playhead → pin, 开始生成 → pointer, SKILL.md → spark; back to 'dot' (= the orb while
-     merged, so 60-close's split starts from a plain merge) when the generator is done. ---------- */
-  const M5 = { micro: 1, la: 0, k: 1.15 };                  // the orb's size: the mini badges stay as large as in the orb
-  // b56.25 the orb stretches into a pill aimed at the card's left edge as the wire is drawn out of its tip (b56.4–56.9)…
-  // (g) v18.1: the orb takes over while dots 1–4 slip under cc (b55.3–55.75), so the logo → five-badge change reads as the
-  // five dots going into one; from b55.75 it is one steady orb that goes straight into the pill (no cross-fade at b56.0–56.2)
+  /* ---------- v18.6 R1 the merged dot is ONE circle (AGD 'orb': dark disc, five-colour 72° rim ring + soft glow) through the
+     whole scene — no mini Agent badges, no pill / pin / pointer / spark rays. Every moment that a shape used to mark is now
+     a blink / breath of that one circle (sine, ≤ 1.12): the wire leaving it, each phase the playhead pins, the press, every
+     SKILL.md line written. Positions (mergeXY) and every hand-off are unchanged. ---------- */
+  const ORB = { k: 1.15, micro: 0, la: 0, ring: 0, arcs: 1, arcR: 1.5, arcW: 3, core: 1, halo: 1, vs: 0 };
+  // (g) v18.1: the circle takes over while dots 1–4 slip under cc (b55.3–55.75): the five dots go into one
   AGD.morph(55.3, 0, 'orb', { dur: .45 });
-  AGD.morph(56.2, 0, 'pill', { ...M5, w: 2.6, aim: panelL, dur: .4 });
-  // …and rounds back as the wire is taken back (b57.0–57.3) and the dot drops to the playhead
-  AGD.morph(56.9, 0, 'dot', { dur: .35 });
-  // b57.1 under the playhead it becomes a pin, tip up, its tip just touching the card's bottom edge (the dot rides 46 px
-  // below it: 1.2 · (1 + .6 · .5) · 1.15 r = 1.79 × 26 ≈ 47 px). Before each phase pill pops (playhead knots 57.8 / 60.0 /
-  // 62.3 / 65.0) the pin's tip pushes up into the card's margin (h 2.4 → 2.8 over .2 beat, back over .3) — it「pins」the phase.
-  // While the deploy keeps failing (crit, b62.3–65.0) its outline turns warm orange (mixed, not swapped); no shake.
+  // b56.35 the trajectory card's wire is drawn out of it (b56.4–56.9): a soft blink as it lets the wire go
+  AGD.blink(0, 56.35, { k: 1.08, dur: .35 });
+  // b56.8–57.25 it drops to the playhead and rides it; before each phase pill pops (playhead knots 57.8 / 60.0 / 62.3 / 65.0)
+  // it breathes once (×1.08, .4 beat, sine) — it「pins」the phase without changing shape
   const PINS = KN.slice(1, 5).map((k) => k[0]);
-  const stab = (b) => Math.max(0, ...PINS.map((K) => io(b, K - .35, .2) - io(b, K - .15, .3)));
-  AGD.morph(57.1, 0, 'pin', { ...M5, w: 1.8, h: (b) => 2.4 + .4 * stab(b), tip: .5, ly: .3, ring: 1.2,
-    warm: (b) => io(b, 62.15, .35) - io(b, 64.8, .4), dur: .45 });
-  // b67.6 on the way to 开始生成 the pin tilts into a pointer (rot −28, en route .6 beat); mergeXY carries its tip onto the
-  // button centre. The b68.8 press is AGD.pulse(0, 68.8, .88, .3) below: the whole pointer dips and comes back
-  // v18.4: at b67.1 the pin rounds back into the orb the card is drawn into, and from b67.6 it tilts into the pointer
-  // as 开始生成 grows out of it
-  AGD.morph(NEAR0 - .05, 0, 'dot', { dur: .35 });   // v18.5: as it leaves the playhead for NEAR
-  AGD.morph(SHR + .45, 0, 'pointer', { ...M5, ring: 1.2, dur: .45 });
-  // b68.95 the pointer opens into the spark (the generator) as it backs off to the run card's left edge. Its five rays turn
-  // slowly (kept short, .62: the run card is only 56 px away and its step list must stay clear); the one facing the card
-  // (rayDir 0) lengthens each time the app starts a new SKILL.md line — the line starts
-  // come from the app's own GEN lines and the typing schedule above (L0–L1, GW weights), soft .35-beat bumps
+  PINS.forEach((K) => AGD.blink(0, K - .35, { k: 1.08, dur: .4, v: .6 }));
+  // b67.15–67.65 the trajectory card is drawn into it (a blink as it lands), 开始生成 grows out of it (b67.6–68.1)
+  AGD.blink(0, SHR + .4, { k: 1.08, dur: .35 });
+  // b68.8 the press: AGD.pulse(0, 68.8, .88, .3) above — the circle dips onto the button and comes back
+  // b70.05–72.65 the generator: the same circle breathes with each SKILL.md line it writes (×1.06, .35 beat, sine) under
+  // AGD.glow (b68.95–73.75); the line starts come from the app's own GEN lines and the typing schedule (L0–L1, GW weights)
   const lineB = () => { const W = genW(), T = W[W.length - 1]; return W.slice(0, -1).map((w) => L0 + (L1 - L0) * (w + 1) / T); };
   let LB = null;
-  const rayG = (b) => { LB = LB || lineB(); return .5 * AGD.beatPulse(b, LB, .35); };
-  AGD.morph(68.95, 0, 'spark', { ...M5, rays: (b) => .62 * (io(b, 68.95, .5) - io(b, 73.75, .45)), rayDir: 0, rayGain: rayG, dur: .5 });
-  // v18.4 b71.7 the generator becomes a pin pointing right (rot 90) and settles beside line 9 (mergeXY, b71.7–72.3)
-  AGD.morph(PIN, 0, 'pin', { ...M5, w: 1.8, h: 2.4, tip: .5, ly: .3, ring: 1.2, rot: 90, dur: .5 });
-  // b73.6 it rounds back into the orb that SKILL.md is drawn into, carried to the centre (b73.9–75.2) for 60-close
-  AGD.morph(IN6 - .2, 0, 'dot', { dur: .35 });
+  const breath = (b) => { if (b < L0 - .1 || b > L1 + .5) return 0; LB = LB || lineB(); return AGD.beatPulse(b, LB, .35); };
+  AGD.morph(68.95, 0, 'orb', { ...ORB, k: (b) => 1.15 * (1 + .06 * breath(b)), dur: .3 });
+  // b71.7–72.3 it leaves the wire for line 9 (mergeXY) and sits beside it; b73.9 SKILL.md is drawn into it (a blink as it lands)
+  AGD.blink(0, IN6 + .4, { k: 1.1, dur: .35 });
   // 5.7 out (v18.4): from b73.8 SKILL.md is drawn INTO the orb parked beside line 9 — the camera is re-anchored on the orb
   // (same picture), the card's visible centre slides onto it (E.inOut) while it shrinks to .2 on E.in (accelerating in,
   // gone at b74.3 = film 106.0, the hard landing); the anchor then travels with the orb to the centre (b73.9–75.2). The
