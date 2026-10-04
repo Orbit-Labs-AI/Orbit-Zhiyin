@@ -298,15 +298,25 @@ scene('10-intro', () => {
   AGD.caretRide(1, K2[0], S2 + .05, c, { dx: 21 });
   // the same rule while it is the 14 px caret bar (half width 7 → text end + 11, dx 8): the offset follows caretAt's
   // morphs (badge → bar over .4 from b0, bar → badge over .25 from S − .2), laid over caretRide's follow at the same blend
-  const trail = (i, b0, K, S) => AGD.follow(K[0], S + .05, (j, b) => {
+  // QA v18.8: line 2's dot (cx) used to wait for the first key (b9.55) and then swoop ~400 px in .25 beat straight across
+  // cc's badge (overlap b9.6–9.65) while 「写」 stood with no caret. Its follow now starts at the send (S1, the box shows
+  // its placeholder: target = the text's start) over .42 beat and dips 56 px below the straight line mid-flight, so it
+  // glides under cc onto the line as 「写」 lands; the out-blend keeps the same .42 (caretRide still holds it to S − .2)
+  const trail = (i, b0, K, S, f0 = K[0], bl = .25, dip = 0) => AGD.follow(f0, S + .05, (j, b, p) => {
     if (j !== i || !c.el) return null;
-    const car = c.el.querySelector('.car'); if (!car) return null;
+    const car = c.el.querySelector('.car'), tx = c.el.querySelector('.tx'); if (!car && !(dip && tx)) return null;
     const m = E.inOut(clamp((b - b0) / .4)) * (1 - E.inOut(clamp((b - (S - .2)) / .25)));
-    const q = car.getBoundingClientRect(), st = stage.getBoundingClientRect(), z = st.width / 1920;
-    return { x: (q.left + q.width / 2 - st.left) / z + lerp(21, 8, m), y: (q.top + q.height / 2 - st.top) / z };
-  }, { blend: .25 });
+    const st = stage.getBoundingClientRect(), z = st.width / 1920;
+    let x, y;
+    if (car) { const q = car.getBoundingClientRect(); x = (q.left + q.width / 2 - st.left) / z; y = (q.top + q.height / 2 - st.top) / z; }
+    else { const q = tx.getBoundingClientRect(); x = (q.left + 3 - st.left) / z; y = (q.top + q.height / 2 - st.top) / z; }
+    x += lerp(21, 8, m);
+    const w = Math.min(E.inOut(clamp((b - f0) / bl)), E.inOut(clamp((S + .05 - b) / bl)));
+    if (dip && b < f0 + bl && w > 1e-3) y += dip * Math.sin(Math.PI * w) / w;   // lerp(p, v, w) = straight path + dip·sin(πw)
+    return { x, y };
+  }, { blend: bl });
   trail(0, BX + .12, K1, S1);
-  trail(1, S1 + .1, K2, S2);
+  trail(1, S1 + .1, K2, S2, S1, .42, 56);
 
   /* ---------- 1b.3 – 1c: the App icons ---------- */
   // 12 rounded tiles (88 px, dark glass, white line glyphs drawn here — no third-party marks), in ring order θ = 30k.
