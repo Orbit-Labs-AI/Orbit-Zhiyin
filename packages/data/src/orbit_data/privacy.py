@@ -5,7 +5,7 @@ import json
 import re
 from functools import lru_cache
 
-REDACTION_VERSION = "1.4.0"
+REDACTION_VERSION = "1.4.1"
 HIDDEN_KEYS = {
     "creator_user_id",
     "creator_account_id",
@@ -98,6 +98,16 @@ _CLI_FLAG = re.compile(
 )
 
 
+# PEM and OpenPGP armored private keys. A block cut before its END line (``head key.pem``,
+# a tool output the harness truncated) still loses its header fields and base64 body: every
+# following line (real or JSON-escaped newline) that is ``Name: value`` or base64.
+_PRIVATE_KEY = re.compile(
+    r"-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----"
+    r"(?:[\s\S]*?-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----"
+    r"|(?:(?:\r?\n|(?:\\r)?\\n)[ \t]*(?:[A-Za-z][A-Za-z-]*:[^\r\n\\]*|[A-Za-z0-9+/=]+)?)+)"
+)
+
+
 def _redact_cli(text: str) -> str:
     if "-" not in text:
         return text
@@ -124,11 +134,7 @@ def redact(text: str) -> str:
         except (ValueError, TypeError):
             pass
     text = _redact_headers(text)
-    text = re.sub(
-        r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
-        "<redacted:private_key>",
-        text,
-    )
+    text = _PRIVATE_KEY.sub("<redacted:private_key>", text)
     text = _API_KEYS.sub("<redacted:api_key>", text)
     text = _JWT.sub("<redacted:token>", text)
     text = _redact_cli(text)
