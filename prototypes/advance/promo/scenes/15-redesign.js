@@ -158,6 +158,16 @@ scene('15-redesign', () => {
   // until the box retracts)]; the box caret takes that Agent's colour while its line shows
   const TY = [[1, 12.95, '请你修改', 41, 13.95], [2, 14.55, 'fix', 42, 15.26], [1, 15.8, '请你继续', 43, 16.78], [4, 17.15, '看清需求', 44, null]]
     .map(([i, k0, text, seed, send]) => { const K = typeOn(c, k0, text, seed); c.types[c.types.length - 1].ci = i; return { i, K, send }; });
+  // v18.7 D4 QA: each typing dot rides the box caret (AGD.caretRide, below) from its first key to .05 after its send; its
+  // bubbles stay where they hang on the arc meanwhile: HOME is the dot's arc slot (its position just before / after the
+  // ride, interpolated), off() the shift that holds a bubble there while the dot is in the box
+  const RIDE = TY.map((w) => ({ i: w.i, b0: w.K[0], b1: (w.send != null ? w.send - .2 : 19.85) + .25 }));
+  const HOME = (i, b) => {
+    const z = RIDE.find((r) => r.i === i && b >= r.b0 - .01 && b < r.b1 + .01); if (!z) return AGD.pos(i, b);
+    const p = AGD.pos(i, z.b0 - .02), q = AGD.pos(i, z.b1 + .02), u = clamp((b - z.b0) / (z.b1 - z.b0));
+    return { x: lerp(p.x, q.x, u), y: lerp(p.y, q.y, u) };
+  };
+  const off = (i, b) => { if (!RIDE.some((r) => r.i === i && b >= r.b0 - .01 && b < r.b1 + .01)) return { x: 0, y: 0 }; const p = AGD.pos(i, b), h = HOME(i, b); return { x: h.x - p.x, y: h.y - p.y }; };
   // every correction bubble: [dot, b0, text, send beat | null]; sent ones pop at send + .15 (AGD.chat). Ten bubbles, two
   // per dot, gaps shrinking from .55 to .19 beats (v17.4: the v17.3 stream from b14.1 slowed × 1.3 more, so every one
   // can be read). T5 layers: cx / ds (UP) hang above their dots, a newer one replacing the older (AGD's replace; while
@@ -195,13 +205,13 @@ scene('15-redesign', () => {
   for (const u of BUB) {
     let o;
     // v18.3: a box above its dot is ≈ 77 px from tail tip to top, so its top is clamped to y ≥ 460 (clear of line 3)
-    if (UP[u.i]) o = { kind: 'fix', dx: DX[u.i], dy: (b) => Math.max(-R - 18, 460 + 77 - AGD.pos(u.i, b).y), until: u.b1 };
+    if (UP[u.i]) o = { kind: 'fix', dx: (b) => DX[u.i] + off(u.i, b).x, dy: (b) => Math.max(-R - 18, 460 + 77 - HOME(u.i, b).y) + off(u.i, b).y, until: u.b1 };
     else {
       // newer ones push it down, starting .15 beats before they pop so the old box has cleared the dot by the time the
       // new one is full size
       const push = BUB.filter((v) => v.i === u.i && v.b0 > u.b0 && v.b0 < u.b1 - POUT);
-      const dy = (b) => R + 18 + 64 * push.reduce((s, v) => s + E.inOut(clamp((b - v.b0 + .15) / .45)), 0);
-      o = { kind: 'fix', dx: DX[u.i], dy, until: u.b1, replace: false };
+      const dy = (b) => R + 18 + 64 * push.reduce((s, v) => s + E.inOut(clamp((b - v.b0 + .15) / .45)), 0) + off(u.i, b).y;
+      o = { kind: 'fix', dx: (b) => DX[u.i] + off(u.i, b).x, dy, until: u.b1, replace: false };
     }
     if (u.send != null) c.send(u.send, u.i, o); else AGD.bubble(u.i, u.b0, u.b1, u.text, o);
     const r = AGD_BUB[AGD_BUB.length - 1]; slow.push([r, r.b0, r.b1]);
@@ -231,6 +241,9 @@ scene('15-redesign', () => {
   for (const w of WIN) {
     AGD.morph(w.t0, w.i, 'caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)), dur: .25 });
     AGD.morph(w.t1, w.i, 'dot', { ...REST(w.i), dur: .3 });                                   // the caret rounds back
+    // v18.7 D4 QA: as in 10-intro, the caret IS the box's caret (it used to stand as a logo-less bar in its arc slot
+    // beside the box's own caret); it lifts after the last key (t1 + .25) and rounds back into its badge in flight
+    AGD.caretRide(w.i, w.w.K[0], w.t1 + .25, c, { dx: 2 });                    // = RIDE
   }
   // 「重新定义」 lands (b15.9): the arc's low ends (cc / cp) blink (was a press of their height)
   AGD.blink([0, 4], 15.9, { k: 1.08 });
