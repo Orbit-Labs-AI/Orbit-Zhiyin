@@ -28,7 +28,9 @@
    v18.3: cards every 2.6 beats (b46.0 … 59.0); the freed 2 beats go to the payoff (in from b59.6, readable ≈b60.25–63.4),
    recomposed as one centred stack (orange 提高效率 on its own line / silver numerals / 36 px 可节省 labels / 28 px caption)
    that drifts toward the merge point (330, 540) as it leaves; the column closes into one orb (gap 0) by b63.6.
-   v18.6 R1: that orb is ONE plain circle (five-colour rim ring + glow), never five mini badges inside. */
+   v18.7 D1–D3 (replaces the v17.7 shapes above): the dots stay round logo badges the whole scene — every pill / bullet
+   moment is a blink of the linked badge (links still leave its edge), the ✓ is drawn beside the round badge, and the
+   closed column is the 17-series merge (cc's badge + five Agent-coloured 72° arcs), never a plain disc or five mini badges. */
 scene('40-recs', () => {
   css(`
 .ln.xl.r4-w{font-size:76px;line-height:1}
@@ -92,7 +94,7 @@ scene('40-recs', () => {
   const ROWIN = [0, 1, 2].map((r) => PEEL + PST * r + 1.05);    // row r's dot is ≈ 70 % home: it starts writing intro line r (links b39.55 / 39.69 / 39.83)
   // v17.7 F3 (4): in the column the dots are list bullets (rounded squares, ring 1.4, logo whole). Rows 3–4 turn into them
   // over the last .4 beat of their glide (b40.52 / 40.66); rows 0–2 get there through their intro pill (below)
-  [3, 4].forEach((r) => AGD.morph(PEEL + PST * r + PD - .4, ROWDOT[r], 'bullet', { dur: .5 }));
+  // v18.7 D1: no bullets — every row lands as its round logo badge (rows 0–2 blink as their intro links start, below)
 
   /* ---------- v18.3 3→4 match cut (b39.6–40.2): your type's flower leaves the fading dial, shrinks 1 → .1 and flies onto
      the first column bullet (row 0) just as that dot lands, while the other badges keep peeling off around it; the reveal
@@ -171,7 +173,7 @@ scene('40-recs', () => {
   // emission beat (b45.0, 47.5, 50.5, 53.5, 56.5, 59.5): the first link reaches the card, the type word wipes in, the dots
   // pulse and the entry's share starts rolling into its counter
   const EV = IDS.map((_, n) => LIVE[n][0] + .4);
-  // v18.5: the share rolls into its counter when the entry's ✓ lands on its dots (EV + .4, the bullet+tick morph below),
+  // v18.5: the share rolls into its counter when the entry's ✓ lands on its dots (EV + .4, the ✓ beside the round badge below),
   // not at the emission — the card's figure is marked, the ✓ lands, and only then does the running total move
   const RL = EV.map((e) => e + .4);
   const toCard = (id) => (b) => { const p = elXY(0, sel(id), 0, .5); return [p[0] - 4, p[1]]; };
@@ -183,8 +185,9 @@ scene('40-recs', () => {
       // v17.7: as it steps forward and its link starts, the dot stretches into a pill aimed at the card (the link leaves
       // from its tip); once the type word has wiped in it settles back into a bullet with a ✓ (solid link = full tick,
       // dashed = a thin 1.2 px one): this entry uses these Agents. The tick holds 1.4 beats, then draws back out
-      AGD.morph(b0 + k * .1, i, 'pill', { w: 2.6, aim: toCard(id), dur: .4 });
-      AGD.morph(EV[n] + .4, i, 'bullet', { tick: 1, tickW: dashed ? 1.2 : 2, dur: .45, hold: 1.4, back: .35, to: 'bullet' });
+      // v18.7 D1 / D3: the badge stays round — it blinks as its link leaves its edge, and from EV + .4 a ✓ is drawn beside it
+      AGD.blink(i, b0 + k * .1, { k: 1.06, dur: .28, v: .7 });
+      AGD.morph(EV[n] + .4, i, 'dot', { tick: 1, tickW: dashed ? 1.2 : 2, dur: .45, hold: 1.4, back: .35, to: 'dot' });
     });
   });
   // (f) glow: one window per run of consecutive entries a dot links to (EV − .2 … b1 − .3, joined when the next starts
@@ -204,12 +207,11 @@ scene('40-recs', () => {
   AGD.morph(62.8, ROWDOT, 'dot', { dur: .5, stag: .04 });
   // v18.3: the five close into ONE point (gap 0) by b63.6, so the hand-off reads as a single orb, not a 22 px stack
   AGD.key(63.2, 'column', { x: 330, y0: 540, gap: 0, r: 30, a: 1, order: ORD, dur: .4, stag: 0 });
-  // v18.6 R1: as they close (b63.15–63.85) the top dot becomes the merged look — ONE clean circle (dark core, five-colour
-  // 72° rim ring + soft glow, no cc logo, no mini badges), the same circle 50-tools carries on from b55.0 (its scene beats)
-  // .7 beats so the logo fades while the column closes; dots 1–4 stop velocity-stretching and hide under dot 0
-  // QA: the morph finishes as the column closes (b63.6) so no cc logo lingers inside the closed circle, and dots 1–4 shrink
-  // (k .55) while they close so their rims never peek out under it; they come back to k 1 only after 50-tools has faded them
-  AGD.morph(63.0, 0, 'orb', { dur: .6 });
+  // dots 1–4 shrink (k .35) while they close so their rims never peek out under cc's badge; they come back to k 1 only
+  // after 50-tools has faded them
+  // v18.7 D2: the orb is the 17-series merge — cc's own logo badge + five Agent-coloured 72° arcs; the arcs grow in while
+  // the column closes (b63.2–63.65), so cc carries them only once the five are one point
+  AGD.morph(63.2, 0, 'orb', { dur: .45 });
   AGD.morph(63.2, [1, 2, 3, 4], 'dot', { vs: 0, k: .35, dur: .3, stag: 0, hold: .7, back: .3 });
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
   // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
@@ -217,7 +219,8 @@ scene('40-recs', () => {
   // starts from the exact column (the centre row at (330, 540)). During the intro card all five sit at a .8 and pulse in
   // three soft waves down the column (r ×1.08 with a faint glow, b41.6 / 42.7 / 43.8, .12 beat per row)
   // v17.7: each wave is a small pill breath of the bullet (w 2 → 2.3 → 2 along x, logo whole) instead of the r pulse
-  [41.6, 42.7, 43.8].forEach((w) => ROWDOT.forEach((i, r) => { const b = w + .12 * r; AGD.morph(b, i, 'bullet', { w: 2.3, dur: .35, hold: .05, back: .4, to: 'bullet' }); AGD.glow(i, b + .15, b + .45, .35); }));
+  // v18.7 D1: each wave is a soft blink of the round badge (glow + r ×1.06), no shape change
+  [41.6, 42.7, 43.8].forEach((w) => ROWDOT.forEach((i, r) => AGD.blink(i, w + .12 * r, { k: 1.06, dur: .4, v: .5 })));
   // a dot linked by two consecutive entries stays forward across the hand-over (its windows touch: b1 → b1 + .05), instead
   // of stepping back to 330 / a .6 and forward again within ≈.5 beat (a visible dip at b69.9 / 72.9 / 75.9 / 78.9)
   const WIN = [0, 1, 2, 3, 4].map((i) => {
@@ -351,7 +354,8 @@ scene('40-recs', () => {
     AGD.pulse(i, wb - .05, 1.08, .5); AGD.glow(i, wb - .1, wb + .35, .35);
     // v17.7: as its link starts the gliding dot stretches into a pill aimed at the line's start (the link leaves its tip,
     // the line wipes out of the link), then lands as a bullet .5 beat after the line starts writing
-    AGD.morph(ROWIN[r] - .05, i, 'pill', { w: 2.6, aim: (b) => [530, ly(b)], dur: .3, hold: .55, back: .4, to: 'bullet' });
+    // v18.7 D1 / D3: no pill — the gliding badge blinks as its link leaves its edge
+    AGD.blink(i, ROWIN[r] - .05, { k: 1.06, dur: .28, v: .7 });
     // v18.2: only the eyebrow (row 0) settles in the top-left slot (24 px mono); the headline and the orange line rise
     // and slide with it but fade to 0 over the move (gone by S4 + .75) instead of resting there as 26 px small print.
     // Payoff: the orange line (row 2) wipes in again left → right on the left of the centred counters (x 500, level with
