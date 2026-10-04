@@ -20,7 +20,11 @@
    v18.1（片长 −.8 拍：TURN0 81.8 → 81.0、END 94.8 → 94.0，成片 END 130.9 = 59.50 s）：b69.2 orb 先就地散开（compass 键 .35、
    cc 不带 logo 缩到 .3R，b69.4 起才挪到小徽章处，去掉 b106.4 的重影）；拆开后 .3 拍内各点长到 r ≥ 15，head 保持圆徽章大小只加尾巴；
    停留 b80.2–81.0 标志整体匀速放大 1 → 1.015（只缩放）、点行一道 ±3 px 的波从左到右走过；标语改为
-   「Redesigning Agent workflow for everyone & every agent」（8 个 token，K.words 时序不变）。 */
+   「Redesigning Agent workflow for everyone & every agent」（8 个 token，K.words 时序不变）。
+   v18.7（D1–D3，片长不变，替代上面 v17.7 的 head / petal / bullet）：b69.2 AGD.open（.6 拍，sine）打开 17 系列合并徽章——cc 留在
+   中心不缩小、b69.5 起再走螺旋，其余四段弧滑出成圆 logo 徽章，b69.7–69.9 依次闪；b71.95 五点一起闪（原 petal）；b74.3 圆环上
+   bead 保留，b75.3 起骑笔全程圆徽章、gm b75.55 闪一下（笔头柔光领头，无 head）；标语下 ✓ 画在圆徽章旁并闪（无 bullet）；
+   b92.2 merge + b92.45 AGD.seal（.6 拍）合回 cc 徽章 + 五色弧（b93.04 起 'orb'），与字标一起淡出。 */
 scene('60-close', () => {
   const PC = [960, 540];
   // v17.6 片尾：画曲线（D0–D1）→ 转身倒成 45° 图标（D1–M1）→ 正中停留 → 转身向左展开成字标 → 标语 → 点一行 → 可读停留 → 淡出（场景拍）
@@ -42,6 +46,7 @@ scene('60-close', () => {
   // 圆环跟着点一起放大：deck 2 的 s 从 .001 按中间那个点（i = 2）的 e 长到 1（b70.92），5 个点的半径就取圆环当帧的半径
   // （300·s），只有转角按各自的 e_i 错开——身后的圆弧因此就在点所在的圆上、头部贴着点，而不是在 R 300 处凭空出现、点还在里面
   const SP_S0 = .001, SP_RD = 1.6 + .12, spRing = (p) => E.inOut(clamp((p * SP_RD - .12) / 1.6));
+  const spEase = (p) => Math.max(spRing(p), SP_R0 / 300 * E.out(clamp(p * SP_RD / SP_POP))), spS = (b) => lerp(SP_S0, 1, spEase(clamp((b - HB) / SP_RD)));
   const spWrap = (d) => ((d % 360) + 360) % 360;
   let SPG = null;                                             // [d_i, G_i]：徽章方位与它到上一个徽章的顺时针间隔（数据决定，算一次）
   const spG = () => SPG || (SPG = (() => {
@@ -58,15 +63,19 @@ scene('60-close', () => {
   // 方位用极坐标：从小徽章方位 β_i 随 e_i 滑到螺旋方位（差值取近的一边；随 e 走，圆还小时相邻点不挤在 cc 43° / cx 62° 这种近方位上），
   // 途中分道：gm 要越过 ds / cp，走外道（+72 px），ds / cp 让到内道（−26）；cc 紧跟 cx，cc 走内道 −30、cx 外道 +34，彗星尾不压 logo
   const SP_POP = .5, SP_R0 = 70, SP_LANE = [-30, 34, 72, -26, -26];
-  const spOrb = () => { const s = s0(0), R = s.r * 1.15; return { x: s.x, y: s.y, m: .5 * R, r: .3 * R }; };
-  const spBeta = (i) => 6 * (HB + (SHIFT['60-close'] || 0)) + 72 * i;          // 小徽章方位（罗盘角，顺时针，0 = 上）
+  // v18.6 R1：合并态是一个圆（02-agents orb：深色圆盘 + 贴边五色 72° 弧，无小徽章）——点 i 从圆的边缘、自己那段颜色弧的正中
+  // 冒出（起点在边内 .85R、半径 .2R 的小圆徽章），随即照原 SP_POP 弹到 SP_R0 一圈；不再读 micro 小徽章的位置
+  const spSpin = () => { const fb = HB + (SHIFT['60-close'] || 0), mK = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= fb).pop(); return mK ? agV(mK.o, 'spin', 6, fb, 0, mK.sh) * (fb - mK.b) : 6 * fb; };
+  let SPO = null;
+  const spOrb = () => SPO || (SPO = ((s) => { const R = s.r * 1.15; return { x: s.x, y: s.y, R, m: .85 * R, r: .2 * R, sp: spSpin() }; })(s0(0)));
+  const spBeta = (i) => spOrb().sp + 72 * i + 36;                                // 颜色弧 i 的正中方位（罗盘角，顺时针，0 = 上）
 
   /* ---------- deck 2：收拢罗盘 = 圆环 → 罗盘 → 圆环（H13–H15） ---------- */
   // b69.2 直接设定：罗盘中心 (400, 400) → 舞台 (960, 540)，不倾斜（6.3：orbitSVG 是正交投影，倾倒会对不上）；s 从 .001
   // 随点的半径长到 1（b70.92，罗盘 b71.04 展开前已是 1）；这时圆环的裁剪全是空的（5 段长度都是 0），画面上只有中心的合并点
   tween(2, HB, 0, { x: 400, y: 400, s: SP_S0, ax: 960, ay: 540, rx: 0, ry: 0, rz: 0, z: 0, o: 1, bl: 0, mx: 0, my: 0 });
   // v18.2：前 SP_POP 拍圆环至少撑到 SP_R0（点弹出的那一圈），之后照常按 spRing 长到 1
-  tween(2, HB, SP_RD, { s: 1 }, (p) => Math.max(spRing(p), SP_R0 / 300 * E.out(clamp(p * SP_RD / SP_POP))));
+  tween(2, HB, SP_RD, { s: 1 }, spEase);
   // 读类型码时慢推 1 → 1.025（b72.2–74.2，sine），收回圆环时同一段退回 1（b74.2–75.4，与 fold 同曲线），M6 起圆环仍是 R 300
   tween(2, 72.2, 2.0, { s: 1.025 }, E.sine);
   tween(2, 74.2, 1.2, { s: 1 }, E.inOut);
@@ -97,31 +106,29 @@ scene('60-close', () => {
   AGD.key(HB, 'compass', { dur: .01, stag: 0 });         // v18.2：.35 → .01——merged 必须一帧内归零：02-agents 在 merged > .6 时隐藏点 1–4，.1 拍时 b106.91 一帧只剩 cc 和空圆盘（QA）
   // v18.2 orb 外壳：分裂那一刻 5 枚小徽章原样成为 5 个点，orb 的深色圆盘与五色细弧画在点的下层（AGD.back），随点一起
   // 张开到约 SP_R0 + 10 并在 .45 拍内淡掉——五色弧张到点落圈的半径，交给随后画出的圆环；不再在点上面盖一个缩小的 orb
-  AGD.back(HB, HB + .45, (b) => {
-    const O = spOrb(), t = E.out(lp(b, HB, .45)), R = lerp(O.m / .5, SP_R0 + 10, t), a = 1 - t;
-    if (a <= .002) return '';
-    const fb = b + (SHIFT['60-close'] || 0), mK = AGD_KEYS.filter((k) => k.form === 'merge' && k.b <= fb).pop();
-    const sp = mK ? agV(mK.o, 'spin', 6, fb, 0, mK.sh) * (fb - mK.b) : 6 * fb;
-    // v18.4：orb 自己的 cc 橙色外缘（02-agents orb 形态的徽章描边）也留在外壳上随之张开淡掉，b106.91 不再一帧消失
-    let s = '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="#0e0f12" opacity="' + (.9 * a * a).toFixed(3) + '"/>' +
-      '<circle cx="' + O.x.toFixed(1) + '" cy="' + O.y.toFixed(1) + '" r="' + R.toFixed(1) + '" fill="none" stroke="' + AGC[0] + '" stroke-width="2" opacity="' + a.toFixed(3) + '"/>';
-    for (let m = 0; m < 5; m++) s += '<path d="' + agArc(O.x, O.y, R + 7, sp + m * 72 + 3, sp + m * 72 + 69) + '" fill="none" stroke="' + AGC[m] + '" stroke-width="1.5" opacity="' + a.toFixed(3) + '"/>';
-    return s;
-  });
+  // v18.7 D2：合并态是 17 系列的合并徽章（cc 的 logo 徽章 + 五色 72° 弧，50-tools 交来），由 AGD.open 用自己的弧打开：
+  // cc 留在中心，其余四段弧沿 cc 边滑出、缩成点，各 Agent 的圆形 logo 徽章从弧里长出（不再画 v18.6 的暗盘外壳）
+  const SP_OPEN = .6;
+  AGD.open(HB, SP_OPEN, { ease: E.sine });
+  // cc 在打开期间留在中心、保持合并时的大小，HB + .3 起再沿螺旋走出去（gc：0 = 中心）
+  const spCC = (b) => E.inOut(lp(b, HB + .3, .8));
   // 点 i 在 b 的极坐标：中心 (cx, cy)、方位 th（度，罗盘角）、半径 rad；R 是圆环当帧半径（舞台 px），ring = [d0, G]
   const spPolar = (i, b) => {
     // R = 徽章到中心的实际距离 = 圆环当帧半径（deck 2 的 s 已随点放大，不再乘 e_i）；徽章大小按 s 1 的 19 取
     const e = spE(i, b), [d0, G] = spG()[i], c = cpBadge(i), C = cpStage(400, 400), O = spOrb();
-    const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]);
+    // v18.7：R 按 deck 2 在 b 时的 s（解析式 spS）换算，不用相机当帧的 s——AGD.open 会在窗口开头预读 b + dur 的点位，
+    // 用当帧（s ≈ .001）的相机会把点算到 cc 里面，弧段就钻到 cc 徽章下面看不见
+    const dc = Math.atan2(c.x - C[0], -(c.y - C[1])) / (Math.PI / 180), R = Math.hypot(c.x - C[0], c.y - C[1]) * spS(b) / decks[2].C.s;
     let D = spWrap(spBeta(i) - (d0 - G)); if (D > 180) D -= 360;               // 小徽章方位 − 螺旋起点方位（近的一边）
-    const pop = E.out(lp(b, HB, SP_POP)), wA = e;
-    return { e, d0, G, c, C, O, R, th: dc - G * (1 - e) + D * (1 - wA), rad: lerp(O.m, R, pop) + SP_LANE[i] * Math.sin(Math.PI * wA), cx: lerp(O.x, C[0], pop), cy: lerp(O.y, C[1], pop) };
+    const pop = E.out(lp(b, HB, SP_POP)), wA = e, gc = i ? 1 : spCC(b);
+    return { e, d0, G, c, C, O, R, th: dc - G * (1 - e) + D * (1 - wA), rad: (lerp(O.m, R, pop) + SP_LANE[i] * Math.sin(Math.PI * wA)) * gc, cx: lerp(O.x, C[0], pop), cy: lerp(O.y, C[1], pop) };
   };
   AGD.follow(69.0, 71.4, (i, b) => {
     if (b <= HB) return null;                                  // b69.2 这一帧仍是完整的 orb（50-tools 交来的 r 40）
     const P = spPolar(i, b), th = P.th * Math.PI / 180;
+    if (!i) { const g = spCC(b), r1 = Math.max(lerp(P.O.r, P.c.r / decks[2].C.s, P.e), 16); return { x: P.cx + P.rad * Math.sin(th), y: P.cy - P.rad * Math.cos(th), r: lerp(s0(0).r, r1, g) }; }   // D2：cc 是中心徽章，打开时不缩小
     // 第一帧 r = 小徽章的 .3R（≈ 14），.35 拍内长到 16（logo ≈ 27 px），之后再随 e 长到罗盘徽章的 19
-    return { x: P.cx + P.rad * Math.sin(th), y: P.cy - P.rad * Math.cos(th), r: Math.max(lerp(P.O.r, P.c.r / decks[2].C.s, P.e), lerp(P.O.r, 16, E.out(lp(b, HB, .35)))) };
+    return { x: P.cx + P.rad * Math.sin(th), y: P.cy - P.rad * Math.cos(th), r: Math.max(lerp(P.O.r, P.c.r / decks[2].C.s, P.e), lerp(P.O.r, 16, E.out(lp(b, HB, .35)))) * lerp(.25, 1, E.out(lp(b, HB, .22))) };   // QA：从弧上一颗小点长出，不在交接帧一下冒出 5 枚满 logo 徽章
   }, { blend: .2 });
   /* v18.4 圆弧头接到点上：点在螺旋途中走分道（SP_LANE）、方位还带着小徽章起点的偏差，罗盘画的圆弧却在圆环半径上——b107.5–107.7
      弧头离点头几十 px。现在罗盘的第 i 段只画到弧头前 SP_HS 度，最后这一截由这里在点的下层画：从圆环上平滑弯到点心
@@ -149,16 +156,19 @@ scene('60-close', () => {
      · 花开到位（b71.95）五点一起朝花心收成 petal（hold .3，同 3 的合拢），类型码全亮 b72.64 起 glow 顺时针扫过（cc cx ds cp gm）
      · 收回圆环（b74.3–74.9）dot → bead，rot 取圆环切线（同 1e 穿在 R 300 圆环上的样子） */
   const DEG = 180 / Math.PI, CW = [0, 1, 3, 4, 2];
+  AGD.noStretch(HB, HB + 2.2);                                // v18.6：螺旋途中不做速度拉伸，点始终是圆徽章
   AGD.morph(HB, 0, 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01 });  // v18.2：cc 第一帧就在自己的小徽章处、同大小；orb 的外壳交给下面的 AGD.back 张开淡掉   // QA：不走 'dot'（会混入 orb，b106.3 缩小的 orb 里 5 枚小徽章与点 1–4 叠成重影），cc logo 随 orb 缩到 .3R 淡入，不再留一颗无 logo 的空圆盖住点 1–4
   // 点 1–4 拆开时就是普通圆徽章（'bead' 参数写成与 dot 完全相同）：'dot' 在 merged > 0 时会混入 orb，各点自带 5 枚小徽章与色弧、
   // 叠在 orb 上成一团重影；用不触发 orb 混合的同形写法，它们从 orb 里的小徽章原样长出
   AGD.morph(HB, [1, 2, 3, 4], 'bead', { w: 2, h: 2, rad: 1, rot: 0, ls: 1, dur: .01, stag: 0 });
   for (let i = 0; i < 5; i++) {
     // v18.1：彗星头保持圆徽章的大小（h 2、圆头 rad 1、logo ls 1 在圆头中心），只在身后多出尾巴
-    AGD.morph(HB + .3 + .06 * i, i, 'head', { dur: .4, glow: .35, w: 3.9, h: 2, rad: 1, ls: 1, lx: .95 });
+    // v18.6：不再变 head 拖尾（b107.4 三颗药丸叠成一团）——保持圆徽章，冒出后依次闪一下（圆形 + 闪烁），身后的圆弧就是轨迹
+    AGD.blink(i, HB + .5 + .05 * i, { dur: .3, k: 1.08 });   // v18.7：打开（AGD.open HB–HB + .6）收尾时依次闪
     AGD.morph(HB + 1.15 + .06 * i, i, 'dot', { dur: .45 });
   }
-  AGD.morph(71.95, 'all', 'petal', { dur: .45, stag: 0, aim: PC, ls: .95, hold: .3, back: .55 });
+  // v18.7 D1 / D3：花开到位时五个圆 logo 徽章一起闪一下（原 petal 合拢），之后 glow 顺时针扫过
+  AGD.blink('all', 71.95, { dur: .4, k: 1.08 });
   CW.forEach((i, k) => AGD.glow(i, 72.64 + .12 * k, 73.24 + .12 * k, .55));
   const tanRot = (b, i) => { const p = AGD.pos(i, b); return Math.atan2(p.y - PC[1], p.x - PC[0]) * DEG + 90; };
   AGD.morph(74.3, 'all', 'bead', { dur: .6, stag: 0, rot: tanRot });
@@ -219,10 +229,10 @@ scene('60-close', () => {
   /* v17.7 F3「6」笔串与落行（场景拍）：b75.3 起飞向笔头时 bead 改 rot 'vel'；串头 gm b75.5 变 head（glow .4、ls .7），五个 Agent
      一起「推着笔」；画完（D1）head 回 bead，b79.1 起落行时 bead → dot（r 22），停在图标下方时慢呼吸 */
   const LEAD = LTR[0];
-  AGD.morph(75.3, 'all', 'bead', { dur: .5, stag: .03, rot: 'vel', ls: 1.05 });
-  AGD.morph(75.55, LEAD, 'head', { dur: .5, glow: .4, ls: .7 });
-  AGD.morph(D1, LEAD, 'bead', { dur: .5, rot: 'vel', ls: 1.05 });
-  AGD.morph(D1 + .5, LTR, 'dot', { dur: .9, stag: .05 });
+  // v18.7 D3：骑笔的五个点全程是圆 logo 徽章（不再 bead 'vel' / gm 彗星 head），笔画自己的笔头柔光领头；
+  // 圆环上的 bead（b74.3）在飞向笔头时收回圆形，串头 gm 搭上笔头时闪一下
+  AGD.morph(75.3, 'all', 'dot', { dur: .5, stag: .03 });
+  AGD.blink(LEAD, 75.55, { dur: .4, k: 1.08 });
   LTR.forEach((i, k) => AGD.pulse(i, 80.45 + .1 * k, 1.05, 1.3));
   // v17.4：标语出现时（TAG0）点收成标语下方的一小行，b86.9 落定
   // v17.7：标语下一行 r 13 → 16（logo ≈ 21 px），间距 50 → 56；v18.4 标语加大下移后 y 736 → 752
@@ -244,11 +254,17 @@ scene('60-close', () => {
   [.4, .4, .6, .8, .8].forEach((w, k) => AGD.glow(LTR[k], TAG0 + w, TAG0 + w + .7, .2));
   // 「agent」落定（TAG_AG）时 5 个点从左到右依次变 bullet 并画出 ✓（间隔 .16 拍，各 .5 拍），读作「every agent ✓」，再回 dot
   LTR.forEach((i, k) => {
-    AGD.morph(TAG_AG + .16 * k, i, 'bullet', { tick: 1, dur: .25, hold: .25, back: .35 });
-    AGD.glow(i, TAG_AG + .16 * k, TAG_AG + .5 + .16 * k, .5);
+    // v18.7 D3：徽章保持圆形（不再 bullet），✓ 画在圆徽章右侧，同时闪一下
+    AGD.morph(TAG_AG + .16 * k, i, { tick: 1 }, { dur: .25, hold: .25, back: .35 });
+    AGD.blink(i, TAG_AG + .16 * k, { dur: .5, k: 1.06 });
   });
   // v17.7 H17：不再原地缩小——五点在约 1 拍内向行中心合成 orb（r 30，与开场 b0.2 的 orb 同大），再与字标、标语一起淡到全黑
-  AGD.key(FADE0, 'merge', { x: 960, y: 752, r: (b) => lerp(16, 30, E.inOut(lp(b, FADE0 + .45, .55))), a: (b) => 1 - E.inOut(lp(b, FADE0, 1.8)), dur: .85, stag: .04, spin: 6 });
+  // v18.7 D2：合成的是 17 系列的合并徽章（cc logo 徽章 + 五色弧）——AGD.seal：各点飞向行中心时变回自己的弧、贴到 cc 徽章边上
+  // QA：原 .6 拍 inOut seal + .85 拍 inOut 合拢叠在一起，四枚徽章在约 1 帧内（b92.6–92.7）同时消失 = 跳变；改为 merge 先快后缓（E.out）、
+  // seal 1 拍正弦，徽章与弧在约 .6 拍内可见地收拢；淡出改为 b93.1 起 .9 拍（仍止于 b94.0），合并徽章完整可见约 .2 拍
+  AGD.key(FADE0, 'merge', { x: 960, y: 752, r: (b) => lerp(16, 30, E.inOut(lp(b, FADE0 + .5, .8))), a: (b) => 1 - E.inOut(lp(b, FADE0 + .9, .9)), dur: 1.0, stag: .04, ease: E.out, spin: 6 });
+  AGD.seal(FADE0 + .25, 1.0, { ease: E.sine });
+  AGD.morph(FADE0 + 1.24, 0, 'orb', { dur: .01 });
 
   /* ---------- 标志：画曲线 → 45° 图标 → 正中停留 → 字标（logo kit reveal，scenes/03-wordmark.js） ---------- */
   // 白线 = App 图标黑夜版（#fff）；字标 = 深色底的香槟黄 #d6c7a1（brand.md），转身 v 0 → 1 时由白过渡到香槟黄

@@ -27,7 +27,10 @@
    v18.2: +.8 beat at the end (payoff held to b63.4, exit b63.4–64.0; round badges b62.8, close b63.2, merge b63.8).
    v18.3: cards every 2.6 beats (b46.0 … 59.0); the freed 2 beats go to the payoff (in from b59.6, readable ≈b60.25–63.4),
    recomposed as one centred stack (orange 提高效率 on its own line / silver numerals / 36 px 可节省 labels / 28 px caption)
-   that drifts toward the merge point (330, 540) as it leaves; the column closes into one orb (gap 0) by b63.6. */
+   that drifts toward the merge point (330, 540) as it leaves; the column closes into one orb (gap 0) by b63.6.
+   v18.7 D1–D3 (replaces the v17.7 shapes above): the dots stay round logo badges the whole scene — every pill / bullet
+   moment is a blink of the linked badge (links still leave its edge), the ✓ is drawn beside the round badge, and the
+   closed column is the 17-series merge (cc's badge + five Agent-coloured 72° arcs), never a plain disc or five mini badges. */
 scene('40-recs', () => {
   css(`
 .ln.xl.r4-w{font-size:76px;line-height:1}
@@ -40,19 +43,22 @@ scene('40-recs', () => {
 .ln.r4-a{font-size:64px;font-weight:600;letter-spacing:.02em;color:var(--a1)}
 `);
   const IDS = ['retry-breaker', 'remove-figma', 'acceptance', 'pr-wrapup', 'headless', 'think-medium'];
-  const WORD = ['Hook', 'MCP', 'Prompt', 'Skill', 'Workflow', 'Thinking'];
+  const WORD = ['Hook', 'MCP', 'Prompt', 'Skill', '工作流', '思考'];   // v18.8: = the cards' own tags
   const PREF = ['t', 'k', 't', 'k', 't', 'k'];                   // which counter each entry would add to (time / token alternating)
-  const PIT = 2.6, ARR = IDS.map((_, n) => 46.0 + PIT * n);      // beat entry n reaches the centre line (v18.3: 46.0 … 59.0)
+  const PIT = 2.6, LAST = 2.0, ARR = IDS.map((_, n) => 46.0 + PIT * Math.min(n, 4) + (n > 4 ? LAST : 0));   // beat entry n reaches the centre line (v18.3: 46.0 … 59.0; v18.9: the last 思考 slot 2.6 → 2.0, so 58.4)
   const S4 = 44.5, MV = 1.1, OUT4 = 63.1;                        // intro → eyebrow slot move (b44.5–45.6); scene clear
   // v18.1 payoff (b61.7–62.35): the last card blurs out, the two counters glide to the centre at 1.5×, the orange line
   // 「提高效率」wipes in on their left and the caption settles under them — one large centred % statement (shares only, never
   // hours). v18.2: held .8 beat longer (whole statement readable b62.35–63.4, exit b63.4–64.0, film b86.3–86.9, before
   // 50-tools' trajectory card fades in at film b87.05); the dot merge and the hand-off move with it (+.8)
-  const PO = 59.6, POD = .65, POX = .45, POUT = 63.85, PE = (b) => E.inOut(lp(b, PO, POD));
+  // v18.8: the statement leaves b62.95–63.5 (film b85.85–86.4): it shrinks to .94 and is drawn ≈30 % of the way into the
+  // closing orb at (330, 540) as it fades, cc blinks as it 'receives' it, and 50-tools grows its card out of the orb from
+  // film b86.55 — no half-faded numerals left over the growing card (was gone only at film b86.75)
+  const PO = 59.0, POD = .65, POX = .55, POUT = 63.5, PE = (b) => E.inOut(lp(b, PO, POD));
   // v18.1: the column is framed ≈1.35× closer than v17.7 (card body 12 app px → ≈30 px on screen, footer 11 → ≈27 px): the
   // cards are 1000 px wide at x 520 (v18.4: 1040, right edge 1560; the counters sit right of it at 1740), the entry pitch follows the
   // tallest entry (set at b40.0, ≥ 490), so the 3-beat cadence is unchanged and only the scroll speed in px grows
-  let GAP = 490; const CX = 520, CY = 540, CW = 1040, WH = 76;   // entry pitch (screen px), card left / centre line, card width, type word px
+  let GAP = 490; const CX = 520, CY = 540, CW = 950, WH = 76;   // v18.9: CW 1040 → 950 (right edge 1470) as the counters move 90 px left   // entry pitch (screen px), card left / centre line, card width, type word px
   // v18.4: type word 128 → 76 px (caps ≈52 px) so the card's bold title leads; cards ≈1.19× larger (WA 400 → 350 app px)
   const KG = () => GAP / 490;                                    // v17.7 pixel windows scale with the pitch
   // dot i → row = its y rank on the compass rim at b39.4 (order 'y', H11). The 0.0.4 dial puts the badges at the data's
@@ -91,7 +97,7 @@ scene('40-recs', () => {
   const ROWIN = [0, 1, 2].map((r) => PEEL + PST * r + 1.05);    // row r's dot is ≈ 70 % home: it starts writing intro line r (links b39.55 / 39.69 / 39.83)
   // v17.7 F3 (4): in the column the dots are list bullets (rounded squares, ring 1.4, logo whole). Rows 3–4 turn into them
   // over the last .4 beat of their glide (b40.52 / 40.66); rows 0–2 get there through their intro pill (below)
-  [3, 4].forEach((r) => AGD.morph(PEEL + PST * r + PD - .4, ROWDOT[r], 'bullet', { dur: .5 }));
+  // v18.7 D1: no bullets — every row lands as its round logo badge (rows 0–2 blink as their intro links start, below)
 
   /* ---------- v18.3 3→4 match cut (b39.6–40.2): your type's flower leaves the fading dial, shrinks 1 → .1 and flies onto
      the first column bullet (row 0) just as that dot lands, while the other badges keep peeling off around it; the reveal
@@ -117,7 +123,7 @@ scene('40-recs', () => {
       const { c, u } = el._c, sv = el.firstChild, e = mcE(b), d = AGD.pos(ROWDOT[0], b);
       const x = lerp(c[0], d.x, e), y = lerp(c[1], d.y, e) - 18 * 4 * e * (1 - e), s = u * lerp(1, .1, e);
       // starts at the dial flower's own (fading) opacity, so nothing pops; brightens as it condenses, gone as it lands
-      const a0 = (+f.getAttribute('opacity') || 0) * (decks[2].C.o ?? 1), a = lerp(a0, .88, E.inOut(lp(b, MC0, .35))) * (1 - E.inOut(lp(b, MC1 - .2, .25)));
+      const a0 = (+f.getAttribute('opacity') || 0) * (decks[2].C.o ?? 1), a = lerp(a0, .88, E.inOut(lp(b, MC0, .35))) * (1 - E.inOut(lp(b, MC1 - .35, .25)));   // v18.9: gone .15 beat earlier
       sv.style.transform = 'translate(' + (x - 400).toFixed(1) + 'px,' + (y - 400).toFixed(1) + 'px) scale(' + s.toFixed(4) + ') rotate(' + (40 * e).toFixed(1) + 'deg)';
       sv.style.opacity = a.toFixed(3);
     }
@@ -166,11 +172,11 @@ scene('40-recs', () => {
   // start (the last until its exit)
   // v18.1: the last entry's links retract with its card (b61.9, card fading from b61.5) instead of pointing at the empty payoff frame
   // v18.3: a window ends .05 beat before the next one starts (ARR + PIT − 1.95; = + 1.05 at the old 3-beat pitch)
-  const LIVE = IDS.map((_, n) => [ARR[n] - (n ? 1.9 : 1.4), n < 5 ? ARR[n] + PIT - 1.95 : PO + .2]);
+  const LIVE = IDS.map((_, n) => [ARR[n] - (n ? 1.9 : 1.4), n < 5 ? ARR[n + 1] - 1.95 : PO + .2]);
   // emission beat (b45.0, 47.5, 50.5, 53.5, 56.5, 59.5): the first link reaches the card, the type word wipes in, the dots
   // pulse and the entry's share starts rolling into its counter
   const EV = IDS.map((_, n) => LIVE[n][0] + .4);
-  // v18.5: the share rolls into its counter when the entry's ✓ lands on its dots (EV + .4, the bullet+tick morph below),
+  // v18.5: the share rolls into its counter when the entry's ✓ lands on its dots (EV + .4, the ✓ beside the round badge below),
   // not at the emission — the card's figure is marked, the ✓ lands, and only then does the running total move
   const RL = EV.map((e) => e + .4);
   const toCard = (id) => (b) => { const p = elXY(0, sel(id), 0, .5); return [p[0] - 4, p[1]]; };
@@ -182,8 +188,9 @@ scene('40-recs', () => {
       // v17.7: as it steps forward and its link starts, the dot stretches into a pill aimed at the card (the link leaves
       // from its tip); once the type word has wiped in it settles back into a bullet with a ✓ (solid link = full tick,
       // dashed = a thin 1.2 px one): this entry uses these Agents. The tick holds 1.4 beats, then draws back out
-      AGD.morph(b0 + k * .1, i, 'pill', { w: 2.6, aim: toCard(id), dur: .4 });
-      AGD.morph(EV[n] + .4, i, 'bullet', { tick: 1, tickW: dashed ? 1.2 : 2, dur: .45, hold: 1.4, back: .35, to: 'bullet' });
+      // v18.7 D1 / D3: the badge stays round — it blinks as its link leaves its edge, and from EV + .4 a ✓ is drawn beside it
+      AGD.blink(i, b0 + k * .1, { k: 1.06, dur: .28, v: .7 });
+      AGD.morph(EV[n] + .4, i, 'dot', { tick: 1, tickW: dashed ? 1.2 : 2, dur: .45, hold: 1.4, back: .35, to: 'dot' });
     });
   });
   // (f) glow: one window per run of consecutive entries a dot links to (EV − .2 … b1 − .3, joined when the next starts
@@ -203,19 +210,20 @@ scene('40-recs', () => {
   AGD.morph(62.8, ROWDOT, 'dot', { dur: .5, stag: .04 });
   // v18.3: the five close into ONE point (gap 0) by b63.6, so the hand-off reads as a single orb, not a 22 px stack
   AGD.key(63.2, 'column', { x: 330, y0: 540, gap: 0, r: 30, a: 1, order: ORD, dur: .4, stag: 0 });
-  // v18.4: as they close (b63.5 = film 86.4) the top dot becomes the orb — five mini Agent badges, the same face 50-tools
-  // keeps through b106 — instead of showing only the cc logo until 50-tools' own orb morph
-  // QA r4: a .4-beat morph swapped faces in ~3 frames mid-close; .7 beats from b63.15 grows the orb face while the column
-  // closes, and dots 1–4 stop velocity-stretching into a smeared oval stack under it
-  AGD.morph(63.15, 0, 'orb', { dur: .7 });
-  AGD.morph(63.2, [1, 2, 3, 4], 'dot', { vs: 0, dur: .2, stag: 0 });
+  // dots 1–4 shrink (k .35) while they close so their rims never peek out under cc's badge; they come back to k 1 only
+  // after 50-tools has faded them
+  // v18.7 D2: the orb is the 17-series merge — cc's own logo badge + five Agent-coloured 72° arcs; the arcs grow in while
+  // the column closes (b63.2–63.65), so cc carries them only once the five are one point
+  AGD.morph(63.2, 0, 'orb', { dur: .45 });
+  AGD.morph(63.2, [1, 2, 3, 4], 'dot', { vs: 0, k: .35, dur: .3, stag: 0, hold: .7, back: .3 });
   // T10′: from .3 beats before entry n reaches the centre line, the dots it links to step forward 330 → 386 (E.io .4) and
   // light up (a 1), the rest stay at 330 / a .6; they step back over the .4 beats before their links retract. The column
   // breathes (±4 / ±8 px, 7–9.5-beat periods) so no dot stands frozen; the follow blends out by b63.0, so the merge (T11)
   // starts from the exact column (the centre row at (330, 540)). During the intro card all five sit at a .8 and pulse in
   // three soft waves down the column (r ×1.08 with a faint glow, b41.6 / 42.7 / 43.8, .12 beat per row)
   // v17.7: each wave is a small pill breath of the bullet (w 2 → 2.3 → 2 along x, logo whole) instead of the r pulse
-  [41.6, 42.7, 43.8].forEach((w) => ROWDOT.forEach((i, r) => { const b = w + .12 * r; AGD.morph(b, i, 'bullet', { w: 2.3, dur: .35, hold: .05, back: .4, to: 'bullet' }); AGD.glow(i, b + .15, b + .45, .35); }));
+  // v18.7 D1: each wave is a soft blink of the round badge (glow + r ×1.06), no shape change
+  [41.6, 42.7, 43.8].forEach((w) => ROWDOT.forEach((i, r) => AGD.blink(i, w + .12 * r, { k: 1.06, dur: .4, v: .5 })));
   // a dot linked by two consecutive entries stays forward across the hand-over (its windows touch: b1 → b1 + .05), instead
   // of stepping back to 330 / a .6 and forward again within ≈.5 beat (a visible dip at b69.9 / 72.9 / 75.9 / 78.9)
   const WIN = [0, 1, 2, 3, 4].map((i) => {
@@ -244,7 +252,7 @@ scene('40-recs', () => {
   const still = (D) => D.getAnimations().forEach((a) => { const t = a.effect && a.effect.target; if (t && t.closest && t.closest('.recs')) a.cancel(); });
   const unscroll = (D) => { for (let e = D.querySelector('#content'); e; e = e.parentElement) { if (e.scrollTop) e.scrollTop = 0; if (e.scrollLeft) e.scrollLeft = 0; } };
   // the app lays the list out 820 px wide; a narrower card (WA app px) wraps into a taller, readable block at CW on screen
-  const WA = 350, S0 = CW / WA;
+  const WA = 320, S0 = CW / WA;   // v18.9: 350 → 320 app px, so the narrower card keeps the same scale (≈2.97×) and wraps instead of shrinking
   let CAM = null, X0 = 400, Y0 = 500;
   // a card's untransformed top-left (app px): its live rect minus the translate this scene put on it (survives re-renders
   // and the list's own scrolling, which solo() changes)
@@ -271,7 +279,9 @@ scene('40-recs', () => {
   // scroll position u (entries): entry n's centre is at CY + GAP·(n − u). One constant 163 px/beat (no stop-and-go, no
   // hold; the column is below the frame / transparent during the intro); from b61.9 an E.in term adds .6 entry so the
   // column eases faster up and out while it fades (gone by b63.1, H12)
-  const U = (b) => (b - ARR[0]) / PIT + .6 * E.in(lp(b, PO + .2, 1.2));
+  // v18.9: the last slot is 2.0 beats: from b55.4 a sine ramp adds the missing .23 entry by ARR[5] (b58.4), so the speed
+  // eases up instead of jumping
+  const U = (b) => (b - ARR[0]) / PIT + (1 - LAST / PIT) * E.sine(lp(b, ARR[4] - 1, ARR[5] - ARR[4] + 1)) + .6 * E.in(lp(b, PO + .2, 1.2));
   const FOC = IDS.map(() => ({ a: 0, bl: 0 }));                  // per entry: opacity and blur, shared by its card and its word
   const MK = { t: 'rc', k: 'rk' };
   drive(0, 40.25, OUT4, (p, b, D) => {
@@ -321,7 +331,8 @@ scene('40-recs', () => {
         el.style.transform = 'translate(0,-100%)';
         // v18.1 QA: at the 1.34× framing the 128 px word reaches the top edge while its card is still sharp (≈1 beat cut
         // in half at b70.5 / 73.5 / 76.5 / 82.5): it fades out as its top nears the frame edge (gone at −10 px) instead
-        el.style.opacity = (F.a * clamp((p[1] - 24 - WH + 10) / 100)).toFixed(3);
+        // v18.8: 60 px earlier (gone at +50 px), so no word is clipped by the frame edge while it fades
+        el.style.opacity = (F.a * clamp((p[1] - 24 - WH - 50) / 100)).toFixed(3);
         el.style.filter = F.bl > .05 ? 'blur(' + F.bl.toFixed(2) + 'px)' : 'none';
         const m = w >= 1 ? 'none' : 'linear-gradient(90deg,#000 ' + (115 * w - 15).toFixed(1) + '%,transparent ' + (115 * w).toFixed(1) + '%)';
         el.style.maskImage = m; el.style.webkitMaskImage = m;
@@ -339,17 +350,21 @@ scene('40-recs', () => {
   // The rise leads the slide left by .25 beat (both .85 beats), so the lines pass above the dot column's top row instead
   // of over it, and the orange line is far above the first type word, which wipes in at b45.0 from y ≈480
   // v18.3: every payoff piece leaves drifting toward the merge point (330, 540), where the dots close next
-  const PX = K.exit({ out: POX, dir: { dx: -36, dy: 6 } });
+  const PXT = (x, y) => K.exit({ out: POX, push: .94, dir: { dx: .3 * (330 - x), dy: .3 * (540 - y) } });
+  const PX = PXT(960, 347);
+  AGD.blink(0, POUT - .2, { k: 1.08, dur: .45, v: .7 });
   [['eb', '02 · 优化建议', 370, 100, 1, .4],
    ['sv r4-h', '每条建议，都来自你自己的会话', 466, 146, 26 / 88, .6],
-   ['r4-a', '提高效率', 584, 182, 26 / 64, .45]].forEach(([cls, html, y0, y1, k1, wd], r) => {
-    const m0 = mask(.18, .001, .6), wb = ROWIN[r] + .3, i = ROWDOT[r];
+   ['r4-a', '提高效率：省时间，也省 Token', 584, 182, 26 / 64, .7]].forEach(([cls, html, y0, y1, k1, wd], r) => {
+    // v18.9: each line starts writing .2 beat earlier (link start + .1), so its link lands on text, not on black
+    const m0 = mask(.18, .001, .6), wb = ROWIN[r] + .1, i = ROWDOT[r];
     const my = (b) => E.inOut(lp(b, S4, MV - .25)), ly = (b) => lerp(y0 - 12 * lp(b, 40.3, S4 - 40.3), y1, my(b));
-    AGD.link(ROWIN[r], wb + .9, i, (b) => [530, ly(b)], { bend: .45, draw: .3, out: .4, pulse: 1 });
+    AGD.link(ROWIN[r], ROWIN[r] + 1.2, i, (b) => [530, ly(b)], { bend: .45, draw: .3, out: .4, pulse: 1 });
     AGD.pulse(i, wb - .05, 1.08, .5); AGD.glow(i, wb - .1, wb + .35, .35);
     // v17.7: as its link starts the gliding dot stretches into a pill aimed at the line's start (the link leaves its tip,
     // the line wipes out of the link), then lands as a bullet .5 beat after the line starts writing
-    AGD.morph(ROWIN[r] - .05, i, 'pill', { w: 2.6, aim: (b) => [530, ly(b)], dur: .3, hold: .55, back: .4, to: 'bullet' });
+    // v18.7 D1 / D3: no pill — the gliding badge blinks as its link leaves its edge
+    AGD.blink(i, ROWIN[r] - .05, { k: 1.06, dur: .28, v: .7 });
     // v18.2: only the eyebrow (row 0) settles in the top-left slot (24 px mono); the headline and the orange line rise
     // and slide with it but fade to 0 over the move (gone by S4 + .75) instead of resting there as 26 px small print.
     // Payoff: the orange line (row 2) wipes in again left → right on the left of the centred counters (x 500, level with
@@ -359,6 +374,8 @@ scene('40-recs', () => {
       anim: (el, tl, life, t) => {
         m1(el, tl, life);
         const b = t / BEAT, mx = E.inOut(lp(b, S4 + .25, MV - .25)), pe = PE(b), pay = fin && b >= PO;
+        // v18.9: the entry line names what is saved; the payoff header (same element, invisible in between) is「提高效率」
+        if (fin) { const sp = el.querySelector('.ln>span'), want = pay ? '提高效率' : html; if (sp && sp.textContent !== want) sp.textContent = want; }
         const w = pay ? E.inOut(lp(b, PO + .1, .5)) : E.inOut(lp(b, wb, wd)), fo = r ? 1 - E.inOut(lp(b, S4, .75)) : 1;
         let k = lerp(1, k1, my(b)), x = lerp(540, 160, mx) - 28 * (1 - E.out(lp(b, wb, wd + .4))), y = ly(b);
         // v18.3: the orange line heads the centred payoff stack on its own line (64 px, centred at x 960)
@@ -373,12 +390,12 @@ scene('40-recs', () => {
       }
     });
   });
-  const pct = (v) => v <= 0 ? '0.0%' : v < 10 ? v.toFixed(1) + '%' : Math.round(v) + '%';   // = fmtPct above .1 %; no「<0.1%」mid-roll
+  const pctP = (v) => Math.max(0, v).toFixed(1) + '%';   // v18.9: one decimal throughout (no「10%」→「10.2%」jump at the payoff)
   const val = (f, b) => STEP.reduce((v, s) => v + (s.f === f ? s.d * E.out(lp(b, RL[s.n], 1.2)) : 0), 0);   // 1.2-beat roll from the ✓ (v18.5)
   // v17.7: each roll enters the way its links flow (left → right): the figure slides in from 4 px left out of a 2 px blur
   const num = (f) => (el, tl, life, t) => {
     const nd = el.querySelector('.r4-v'); if (!nd) return;
-    const b = t / BEAT; nd.textContent = pct(val(f, b));
+    const b = t / BEAT; nd.textContent = pctP(val(f, b));   // v18.9: one decimal from the first roll to the payoff (same recTotal, ends on its 10.2% / 8.2%)
     let g = 0; STEP.forEach((s) => { if (s.f === f && s.d > 0) { const u = lp(b, RL[s.n], .7); if (u > 0 && u < 1) g = Math.max(g, 1 - E.out(u)); } });
     nd.style.display = 'inline-block';
     nd.style.transform = g > .002 ? 'translateX(' + (-4 * g).toFixed(2) + 'px)' : '';
@@ -392,37 +409,39 @@ scene('40-recs', () => {
   // v18.2: each numeral gets a 36 px Chinese label under it (协作时间 / Token 用量) instead of the mono label above it
   // v18.3: one centred stack under the orange line (y 360): numerals y 500 (x 700 / 1220), labels y 615, caption y 705
   // v18.4: numerals 1.65× (158 px, caps ≈110 px), +24 px between orange line / numerals / labels; stack centred on y 540
-  const POS = { tl: [1740, 535, .8, 680, 663, 1], tv: [1740, 450, 1, 680, 519, 1.65], kl: [1740, 785, .8, 1240, 663, 1],
-    kv: [1740, 700, 1, 1240, 519, 1.65], cap: [1750, 880, .76, 960, 753, 1] };
+  // v18.9: the column sits 90 px further left (x 1650, right edge ≤ 1824); the payoff places are unchanged
+  const CL = 1650;
+  const POS = { tl: [CL, 535, .8, 680, 663, 1], tv: [CL, 450, 1, 680, 519, 1.65], kl: [CL, 785, .8, 1240, 663, 1],
+    kv: [CL, 700, 1, 1240, 519, 1.65], cap: [CL + 10, 880, 22 / 28, 960, 753, 1] };   // v18.8: column caption 22 px, white .7 (as the payoff's)
   // the Token half lags .12 beat behind the time half, so the two numerals never pass over each other on the way in
-  const place = (key, lag = 0) => { const m = mask(.18, 1, POX), [x0, y0, k0, x1, y1, k1] = POS[key]; return (el, tl, life, t) => {
+  const place = (key, lag = 0) => { const m = mask(.18, 1, POX), [x0, y0, k0, x1, y1, k1] = POS[key], PXk = PXT(x1, y1); return (el, tl, life, t) => {
     m(el, tl, life);
     const b = t / BEAT, pe = E.inOut(lp(b, PO + lag, POD)), dy = -40 * lp(b, 44.85, 18.25) * (1 - pe);
     el.style.left = lerp(x0, x1, pe).toFixed(1) + 'px'; el.style.top = (lerp(y0, y1, pe) + dy).toFixed(1) + 'px';
     el.style.transform = 'translate(-50%,-50%) scale(' + lerp(k0, k1, pe).toFixed(4) + ')';
-    PX(el, tl, life);
+    PXk(el, tl, life);
   }; };
   const KS = STEP.find((st) => st.f === 'k'), KB = KS ? RL[KS.n] : 45.1;   // first token roll
-  txt(45.05, POUT, [['r4-l', '累计可节省的协作时间']], { x: 1740, y: 535, align: 'c' }, { anim: place('tl') });
-  txt(44.9, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1740, y: 450, align: 'c' }, { anim: place('tv'), tick: num('t') });
+  txt(45.05, POUT, [['r4-l', '累计可节省的协作时间']], { x: CL, y: 535, align: 'c' }, { anim: place('tl') });
+  txt(44.9, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: CL, y: 450, align: 'c' }, { anim: place('tv'), tick: num('t') });
   // v18.5 QA: the Token pair is fully in (b45.0 / 45.15, as the time pair) before its first roll and「+x%」at KB, so the
   // chip never rises over a counter still wiping in
   const KI = Math.min(KB, 45.0);
-  txt(KI + .15, POUT, [['r4-l', '累计可节省的 Token']], { x: 1740, y: 785, align: 'c' }, { anim: place('kl', .12) });
-  txt(KI, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: 1740, y: 700, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
+  txt(KI + .15, POUT, [['r4-l', '累计可节省的 Token']], { x: CL, y: 785, align: 'c' }, { anim: place('kl', .12) });
+  txt(KI, POUT, [['r4-n', '<span class="r4-v">0.0%</span>']], { x: CL, y: 700, align: 'c' }, { anim: place('kv', .12), tick: num('k') });
   // v18.5: each roll is announced by its own share — an orange「+x%」(the card's marked figure) rises in above the counter
   // as the ✓ lands and fades as the roll settles, so card and running total read as part + sum, never as two different numbers
   STEP.forEach((st) => {
     if (!(st.d > 0)) return;
     const r0 = RL[st.n], y0 = st.f === 't' ? 450 : 700;
-    txt(r0 - .05, r0 + 1.7, [['r4-d', '+' + pct(st.d)]], { x: 1740, y: y0 - 84, align: 'c' }, {
+    txt(r0 - .05, r0 + 1.7, [['r4-d', '+' + pctP(st.d)]], { x: CL, y: y0 - 84, align: 'c' }, {
       anim: (el, tl, life, t) => {
         const b = t / BEAT, i = E.out(lp(b, r0, .35)), o = 1 - E.inOut(lp(b, r0 + 1.25, .4)), dy = -40 * lp(b, 44.85, 18.25);
-        el.style.left = '1740px'; el.style.top = (y0 - 74 - 10 * i + dy).toFixed(1) + 'px';
+        el.style.left = CL + 'px'; el.style.top = (y0 - 74 - 10 * i + dy).toFixed(1) + 'px';
         el.style.transform = 'translate(-50%,-50%)'; el.style.opacity = (i * o).toFixed(3);
         el.style.filter = i < .98 ? 'blur(' + (2 * (1 - i)).toFixed(2) + 'px)' : 'none';
       }
     });
   });
-  txt(45.35, POUT, [['lt r4-s', '预计占比 · 按你的真实轨迹估算']], { x: 1750, y: 880, align: 'c' }, { anim: place('cap', .2) });
+  txt(45.35, POUT, [['lt r4-s', '预计占比 · 按你的真实轨迹估算']], { x: CL + 10, y: 880, align: 'c' }, { anim: place('cap', .2) });
 });

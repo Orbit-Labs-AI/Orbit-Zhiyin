@@ -25,7 +25,8 @@ css(`
 scene('20-orbit', () => {
   const PC = [960, 540], MYSH = SH;
   // 字标段（场景拍）
-  const GROW0 = 22.2, GROW = 1.3, RISE0 = 23.3, RISE = 1.3;
+  // v18.9：长出提前 .5 拍、加长到 1.8 拍（终点仍 b23.5）：白描边在 1e 出场的模糊下就开始画，1e→2 不再有空环
+  const GROW0 = 21.7, GROW = 1.8, RISE0 = 23.3, RISE = 1.3;
   // 转身 TT = kit 的 ×1.5 速（2.2 拍，与收回同速）；字母照 kit 在转身 75 % 处起、110 ms 错开 / 各 420 ms；收字 OFF 在字母起后 3.25 拍
   const WS = RISE0 + RISE, TT = WORDMARK.T / 1.5, ON = WS + .75 * TT, OFF = ON + 3.25, BACK0 = OFF + .5, BACKD = 1.7, BACK1 = BACK0 + BACKD;
   const ADD = BACK1 - (WS + .6);                             // 慢推：字标段之后按「没有字标段」的时间续上
@@ -146,7 +147,10 @@ scene('20-orbit', () => {
 
   // M4 flip（b32.5–33.8）：从仍在慢推的 ICON 翻成俯视、放大到描边光半径 381 × .86 = 328，同时顺时针转半圈
   // （尾端方位 179.6° → 360°）；FLIP1（b33.8）落定 = TOP，与描边光起点交接不变
-  markAt(FLIP0, FLIP1, (p, b) => MARK.mix(icon(b), TOP, E.sine(lp(b, FLIP0, FLIP1 - FLIP0))));
-  // M5（b33.8–34.6）：描边光从尾端出发（30-persona 画），标志随之淡出
-  markAt(FLIP1, FADE1, (p, b) => Object.assign({}, TOP, { a: 1 - E.inOut(lp(b, FLIP1, .8)) }));
+  // v18.9：翻平到淡完不再定格——叠一条连续的 yaw 漂移 10°/拍（屏幕上顺时针，与翻平的转向和描边光同向），
+  // 漂移 = e·DRIFT·(b − FLIP1)：FLIP0 处 e = 0 不跳，FLIP1 处恰为 0（落定 = TOP，描边光起点交接不变），之后带进 TOP 继续转
+  const DRIFT = -10, drift = (b) => DRIFT * (b - FLIP1);
+  markAt(FLIP0, FLIP1, (p, b) => { const e = E.sine(lp(b, FLIP0, FLIP1 - FLIP0)), m = MARK.mix(icon(b), TOP, e); m.yaw += e * drift(b); return m; });
+  // M5（b33.8–34.6）：描边光从尾端出发（30-persona 画），标志随之淡出（漂移续上）
+  markAt(FLIP1, FADE1, (p, b) => Object.assign({}, TOP, { yaw: TOP.yaw + drift(b), a: 1 - E.inOut(lp(b, FLIP1, .8)) }));
 });

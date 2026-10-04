@@ -19,7 +19,10 @@
    发送前 .2 拍变 tail；每个纠正气泡的点先出尾巴（.15 拍，描边 1.6 + 底色 .15 一拍，代替旧的 .94 缩一下），气泡收回时尾巴先收、点再圆；
    b13.85 ds 变笔头沿荧光笔方向右上滑 24 / 18 px 再回；b15.9「重新定义」落定时弧两端轻压（h .92）；b19.85 五点变 pill 把输入框收回；
    b20.4 起展开成环途中逐个变 bead；虚线圆从五颗珠子处向两侧画出（b22.1–22.9）；三行硬切各让珠子沿环前跳 4°（spin 改 9/5.7，交接角仍 228°）；
-   「everyone」落定（b23.0）珠子 glow .5 一拍；三行大字从最近珠子一侧轻移 12 px 进场。 */
+   「everyone」落定（b23.0）珠子 glow .5 一拍；三行大字从最近珠子一侧轻移 12 px 进场。
+   v18.6 R2「圆形 + 闪烁」：1d 去掉 pill / head / tail 与速度拉伸（noStretch b11.8–27.4），光标倒下后各段直接圆回带 logo 的圆点；
+   b12.38 五点 blink（「但，」离开 + 输入框长出），气泡从圆点弹出时该点 blink + 暖色描边（.5 拍正弦），ds 到荧光笔处 b13.95 blink，
+   「重新定义」落定 b15.9 cc / cp blink，输入框收回 b20.42 五点 blink；打字 caret 与 1e 珠子保留。 */
 'use strict';
 css(`
 .k .ln.rd-h{font-size:100px}
@@ -75,7 +78,13 @@ scene('15-redesign', () => {
   // cut (CUT[0], v18.2: b22.5) to b25.7 (E.sine), then hold at 1.04 into 20-orbit's b26.0 key; the beads ride the scaled radius so they
   // stay matched with the dashed circle and the type
   const PUSH = (b) => 1 + .04 * E.sine(clamp((b - CUT[0]) / (25.7 - CUT[0])));
-  AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: (b) => 420 * PUSH(b), ph: (b) => 207 + JUMP(b), spin: 9 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
+  // v18.8: while the So line is up the ring makes room for it: one rotation cannot (its ends sit where the ring is
+  // ±64° off the top, and cx / ds are 144° apart), so the beads part at the top — cx 12° back, ds 9° on (both ≥ 40 px
+  // clear of the line's box, b21.6–25.1) — and the other three space out evenly below (gaps 65 / 82.5 / 82.5 / 65 / 65);
+  // set as the beads land (b21.0–21.6) and given back over b26.0–26.4 inside 20-orbit's live blend (still 228° there)
+  const PHO_I = [-5, -12, -1.5, 9, 2];
+  const PHO = (b, i) => PHO_I[i] * E.inOut(clamp((b - 21.0) / .6)) * (1 - E.inOut(clamp((b - 26.0) / .4)));
+  AGD.key(20.3, 'ring', { cx: 960, cy: 540, R: (b) => 420 * PUSH(b), ph: (b, i) => 207 + JUMP(b) + PHO(b, i), spin: 9 / 5.7, r: 40, dur: 1.6, stag: .05, polar: [960, 700], ease: H3E }); // H4
 
   /* ---------- 1d 文字（三行底边 ≤ 420，b20.1–20.7 一起向上淡出、模糊） ---------- */
   // pacing: the reveals run slower, and while they are up all three lines drift up together at 6 px/beat (no dead
@@ -111,12 +120,15 @@ scene('15-redesign', () => {
   const cjRise = (el, tl) => el.querySelectorAll('.w').forEach((w) => {
     // v18.5 QA: hold at the dot row while the blur clears (≈ .1 beat), then rise — a .5-beat E.out from tl 0 had moved
     // half way up before the word was visible, so it read as appearing at the top, not leaving the dots
-    const p = E.out(clamp((tl - BB(.08)) / BB(.42)));
+    // v18.8: the rise starts at b12.4 (film 19.3) and takes .6 beat (E.out) — the .42-beat one rose ≈ 200 px in its
+    // first .2 beat, too fast to follow from the dots
+    const p = E.out(clamp((tl - BB(.05)) / BB(.6)));
     w.style.transform = p < .999 ? 'translateY(' + ((1 - p) * RISE).toFixed(1) + 'px)' : '';
   });
   txt(12.35, 20.7, [['sv rd-cj', '<span class="w">但，</span>']], { x: 960, y: 150, align: 'c' },
     { anim: K.all(K.blurIn({ spread: .05, dur: .2, out: .6, spread2: true }), cjRise), tick: drift(true) });
-  for (let i = 0; i < 5; i++) AGD.pulse(i, 12.35, .9, .5);
+  // v18.6 R2: no flinch — the round dots blink once as 「但，」 leaves them and the input box grows out of them (b12.38)
+  AGD.blink('all', 12.38, { stag: .03 });
   const markBy = (el, b) => {
     const p = BUB.reduce((s, u) => s + E.inOut(clamp((b - u.b0 + .25) / .4)), 0) / BUB.length;
     el.querySelectorAll('.mk').forEach((m) => { m.style.backgroundSize = (p * 100).toFixed(1) + '% .26em'; });
@@ -154,6 +166,16 @@ scene('15-redesign', () => {
   // until the box retracts)]; the box caret takes that Agent's colour while its line shows
   const TY = [[1, 12.95, '请你修改', 41, 13.95], [2, 14.55, 'fix', 42, 15.26], [1, 15.8, '请你继续', 43, 16.78], [4, 17.15, '看清需求', 44, null]]
     .map(([i, k0, text, seed, send]) => { const K = typeOn(c, k0, text, seed); c.types[c.types.length - 1].ci = i; return { i, K, send }; });
+  // v18.7 D4 QA: each typing dot rides the box caret (AGD.caretRide, below) from its first key to .05 after its send; its
+  // bubbles stay where they hang on the arc meanwhile: HOME is the dot's arc slot (its position just before / after the
+  // ride, interpolated), off() the shift that holds a bubble there while the dot is in the box
+  const RIDE = TY.map((w) => ({ i: w.i, b0: w.K[0] - .45, b1: (w.send != null ? w.send - .2 : 19.85) + .25 }));
+  const HOME = (i, b) => {
+    const z = RIDE.find((r) => r.i === i && b >= r.b0 - .01 && b < r.b1 + .01); if (!z) return AGD.pos(i, b);
+    const p = AGD.pos(i, z.b0 - .02), q = AGD.pos(i, z.b1 + .02), u = clamp((b - z.b0) / (z.b1 - z.b0));
+    return { x: lerp(p.x, q.x, u), y: lerp(p.y, q.y, u) };
+  };
+  const off = (i, b) => { if (!RIDE.some((r) => r.i === i && b >= r.b0 - .01 && b < r.b1 + .01)) return { x: 0, y: 0 }; const p = AGD.pos(i, b), h = HOME(i, b); return { x: h.x - p.x, y: h.y - p.y }; };
   // every correction bubble: [dot, b0, text, send beat | null]; sent ones pop at send + .15 (AGD.chat). Ten bubbles, two
   // per dot, gaps shrinking from .55 to .19 beats (v17.4: the v17.3 stream from b14.1 slowed × 1.3 more, so every one
   // can be read). T5 layers: cx / ds (UP) hang above their dots, a newer one replacing the older (AGD's replace; while
@@ -191,13 +213,13 @@ scene('15-redesign', () => {
   for (const u of BUB) {
     let o;
     // v18.3: a box above its dot is ≈ 77 px from tail tip to top, so its top is clamped to y ≥ 460 (clear of line 3)
-    if (UP[u.i]) o = { kind: 'fix', dx: DX[u.i], dy: (b) => Math.max(-R - 18, 460 + 77 - AGD.pos(u.i, b).y), until: u.b1 };
+    if (UP[u.i]) o = { kind: 'fix', dx: (b) => DX[u.i] + off(u.i, b).x, dy: (b) => Math.max(-R - 18, 460 + 77 - HOME(u.i, b).y) + off(u.i, b).y, until: u.b1 };
     else {
       // newer ones push it down, starting .15 beats before they pop so the old box has cleared the dot by the time the
       // new one is full size
       const push = BUB.filter((v) => v.i === u.i && v.b0 > u.b0 && v.b0 < u.b1 - POUT);
-      const dy = (b) => R + 18 + 64 * push.reduce((s, v) => s + E.inOut(clamp((b - v.b0 + .15) / .45)), 0);
-      o = { kind: 'fix', dx: DX[u.i], dy, until: u.b1, replace: false };
+      const dy = (b) => R + 18 + 64 * push.reduce((s, v) => s + E.inOut(clamp((b - v.b0 + .15) / .45)), 0) + off(u.i, b).y;
+      o = { kind: 'fix', dx: (b) => DX[u.i] + off(u.i, b).x, dy, until: u.b1, replace: false };
     }
     if (u.send != null) c.send(u.send, u.i, o); else AGD.bubble(u.i, u.b0, u.b1, u.text, o);
     const r = AGD_BUB[AGD_BUB.length - 1]; slow.push([r, r.b0, r.b1]);
@@ -213,50 +235,55 @@ scene('15-redesign', () => {
   });
 
   /* ---------- v17.7 Agent 点形态（STORYBOARD「v17.7」F3 1c 末条 / 1d / 1e） ---------- */
-  // one state per dot at a time, highest priority wins: caret (typing, 3) > tail / head (bubble up, highlighter, 2) >
-  // pill (box grows / retracts, 1) > the resting bead; a morph is registered only where a dot's state changes, so every
-  // change blends from the live shape (no restarts, no pops)
+  // v18.6 R2「圆形 + 闪烁」: through 1d the dots stay round Agent badges — no pill pulls, no comet head, no bubble tails,
+  // no velocity stretch. One state per dot: the typing caret (R3, kept) > the round dot. Every bubble pops from its dot
+  // with a blink; as all of them are corrections (kind 'fix'), the blink is warm — the rim warms and thickens for
+  // ≈ .5 beat (sine), no tail, no flinch
   const bump = (b, t, len) => { const u = (b - t) / len; return u > 0 && u < 1 ? Math.sin(Math.PI * u) : 0; };
   const plate = (b, t0, t1, ramp) => Math.min(E.inOut(clamp((b - t0) / ramp)), E.inOut(clamp((t1 - b) / ramp)));
-  const BOX = [960, 880];
-  // 「重新定义」 lands (b15.9) with a light press of the arc's low ends (cc / cp, h × .92 for .2 beat)
-  const press = (i) => (b) => (i === 0 || i === 4 ? 1 - .08 * bump(b, 15.8, .2) : 1);
-  // a bubble's dot: tail toward it, the stroke pulled wider and warmer for a beat as it pops (被打断: no shrink, no shake)
-  const fx = (i) => (b) => BUB.filter((u) => u.i === i).reduce((v, u) => Math.max(v, plate(b, u.b0 - .15, u.b0 + .85, .2)), 0);
-  const ST = {
-    rest: (i) => ['bead', { w: 2.2, h: (b) => 1.85 * press(i)(b), rad: .9, ls: .9 }, .4],     // a string of beads rising with the lines
-    pill: () => ['pill', { aim: BOX, w: 2.6 }, .3],                                            // the box is pulled out of / back into them
-    head: () => ['head', { rot: 0, w: 2.6, h: 1.5 }, .2],                                      // points along the highlighter
-    caret: (i, w) => ['caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)) }, .25],
-    tail: (i) => ['tail', { rot: 0, tailDir: UP[i] ? -90 : 90, h: (b) => 2 * press(i)(b), ring: (b) => 1 + .6 * fx(i)(b), fill: (b) => .15 * fx(i)(b) }, .15]
+  const POP = (u) => (u.send != null ? u.send + .15 : u.b0);
+  const wb = (i) => (b) => BUB.filter((u) => u.i === i).reduce((v, u) => Math.max(v, bump(b, POP(u) - .05, .5)), 0);
+  const REST = (i) => ({ warm: (b) => wb(i)(b), ring: (b) => 1 + .5 * wb(i)(b), vs: 0 });
+  for (const u of BUB) AGD.blink(u.i, POP(u), { v: .7 });
+  // v18.8: the caret shape starts only once the dot has reached the box (caretRide blends in over .25 from K[0]): before,
+  // it turned into a caret .2 beat early in its arc slot and flew down as a vertical capsule (b12.75–13.2, film b19.7)
+  const WIN = TY.map((w) => ({ i: w.i, t0: w.K[0] + .22, t1: w.send != null ? w.send - .2 : 19.85, w }));
+  // v18.8 QA: the dot sets off for the box .45 beat before its first key (round badge, landing on the box's text start /
+  // caret by K[0]) — caretRide alone only starts blending at K[0], so the first one or two characters were typed with
+  // no caret and the dot still mid-air (film b19.9–20.1); the same target keeps it on the box until it lifts (the box
+  // clears at send, its .car gone: the text start stands in, no snap)
+  // v18.8 regress: on the caret it trails the last character (as in 10-intro: text end + r + 4, dx 21 as a badge, dx 8 as
+  // the 14 px bar, following the caret morphs) — centred on the caret (+2) the round badge covered 「请 / x / 看」 (b19.9–24.4)
+  const boxAt = (i0, w) => (j, b) => {
+    if (j !== i0 || !c.el) return null;
+    const car = c.el.querySelector('.car'), tx = c.el.querySelector('.tx'), st = stage.getBoundingClientRect(), z = st.width / 1920;
+    const q = (car || tx)?.getBoundingClientRect(); if (!q) return null;
+    const m = E.inOut(clamp((b - w.t0) / .25)) * (1 - E.inOut(clamp((b - (w.t1 - .25)) / .25)));
+    // v18.9: cx's first drop (film b19.4–19.85) ran straight through cc's badge on its way down-left; its flight bows
+    // out to the lower right (≈ +40 / +40 px at mid-flight after follow's .45 blend weight) so the two never overlap
+    const u = (b - (w.w.K[0] - .45)) / .45, bow = w === WIN[0] && u > 0 && u < 1 ? 80 * Math.sin(Math.PI * u) : 0;
+    return { x: ((car ? q.left + q.width / 2 : q.left) - st.left) / z + (car ? lerp(21, 8, m) : 2) + bow, y: (q.top + q.height / 2 - st.top) / z + bow, r: 20 };
   };
-  const WIN = [];                                                                              // { i, t0, t1, st, pr, w }
-  for (let i = 0; i < 5; i++) { WIN.push({ i, t0: 12.2, t1: 12.9, st: 'pill', pr: 1 }, { i, t0: 19.85, t1: 20.4, st: 'pill', pr: 1 }); }
-  for (const w of TY) WIN.push({ i: w.i, t0: w.K[0] - .2, t1: w.send != null ? w.send - .2 : 19.85, st: 'caret', pr: 3, w });
-  for (const u of BUB) WIN.push({ i: u.i, t0: u.send != null ? u.send - .2 : u.b0 - .15, t1: u.b1 - POUT, st: 'tail', pr: 2 });
-  WIN.push({ i: 3, t0: 13.65, t1: 14.4, st: 'head', pr: 2 });
-  for (let i = 0; i < 5; i++) {
-    const W = WIN.filter((w) => w.i === i), at = (b) => W.filter((w) => b >= w.t0 && b < w.t1).sort((p, q) => q.pr - p.pr || q.t0 - p.t0)[0];
-    const T = [...new Set(W.flatMap((w) => [w.t0, w.t1]))].filter((t) => t >= 12.2 && t < 20.4).sort((p, q) => p - q);
-    let prev = 'pill';                                                                         // the hand-off below owns b12.2
-    for (const t of T) {
-      const w = at(t), id = w ? (w.st === 'caret' ? 'caret' + w.t0 : w.st) : 'rest';
-      if (id === prev) continue;
-      const [name, o, dur] = ST[w ? w.st : 'rest'](i, w);
-      if (prev === 'tail' && id === 'rest') {                                                   // the tail is drawn in first, then the dot rounds
-        AGD.morph(t, i, 'tail', { ...ST.tail(i)[1], tail: 0, dur: .2 });
-        AGD.morph(t + .2, i, name, { ...o, dur: .3 });
-      } else AGD.morph(t, i, name, { ...o, dur });
-      prev = id;
-    }
+  for (const w of WIN) {
+    AGD.morph(w.t0, w.i, 'caret', { rot: 0, hpx: (b) => 38 * (1 + .04 * AGD.beatPulse(b, w.w.K)), dur: .25 });
+    // v18.8 QA: rounds back in the box (done by t1, as it lifts), not in flight — at t1 it flew up as a capsule (film b22.1 / b23.6)
+    AGD.morph(w.t1 - .25, w.i, 'dot', { ...REST(w.i), dur: .25 });                            // the caret rounds back
+    // v18.7 D4 QA: as in 10-intro, the caret IS the box's caret (it used to stand as a logo-less bar in its arc slot
+    // beside the box's own caret); it lifts after the last key (t1 + .25) and rounds back into its badge in flight
+    AGD.caretRide(w.i, w.w.K[0], w.t1 + .25, c, { dx: 21 });                   // = RIDE
+    AGD.follow(w.w.K[0] - .45, w.t1 + .25, boxAt(w.i, w), { blend: .45 });     // after the ride: its trailing offset wins
   }
-  // b18.7 hand-off (F3 1c): 1c's five-colour caret falls over — every segment turns 90° (.4 beat) as the arc opens —
-  // then rounds back out (.5 beat, the logos return) as a pill aimed at the input box about to grow out of them
-  // v18.3: the fall-over is a .24-beat ride, then straight into the pill (b12.04, .45 beat) so outside the ride the dots
-  // are never thin dim dashes (the arc key grows r 16 → 34 meanwhile); the box (b12.5) is pulled out while they round
+  // 「重新定义」 lands (b15.9): the arc's low ends (cc / cp) blink (was a press of their height)
+  AGD.blink([0, 4], 15.9, { k: 1.08 });
+  // b18.7 hand-off (F3 1c): 1c's five-colour caret falls over — every segment turns 90° (.24 beat) as the arc opens —
+  // then its segments round back into the round dots (.5 beat, E.out, the logos return; v18.6: no pill phase); the box
+  // grows out of them with a blink (b12.38, above)
   AGD.morph(11.8, 'all', 'caret', { hpx: 24, rot: 90, dur: .24, stag: .03 });
-  AGD.morph(12.04, 'all', 'pill', { aim: BOX, w: 2.6, dur: .5, stag: .03, ease: E.out }); // E.out: thick + dark within ~.12 beat, no thin pale dashes
-  // the highlighter (「交互本身」, from b13.85): ds becomes a pen head, rises from the arc onto the band under 「交互本身」
+  for (let i = 0; i < 5; i++) AGD.morph(12.04 + .03 * i, i, 'dot', { ...REST(i), dur: .5, ease: E.out });
+  // the box shrinks back into the dots (b20.1–20.5): they blink as it lands
+  AGD.blink('all', 20.42, { stag: .03 });
+  AGD.noStretch(11.8, 27.4);
+  // the highlighter (「交互本身」, from b13.85): ds (v18.6: round, no comet head; it blinks as it reaches the band) rises from the arc onto the band under 「交互本身」
   // (b13.72–14.0, as 「交互本身」 steps in), rides the tip of the stroke as it starts to draw (x 1010 + 402·progress, the line's 6 px/beat drift) and
   // drops back onto the arc by b14.5, before its own bubble (b14.55). v18.1: was a 24 / 18 px nudge ≈ 300 px below the band
   const hm = (b) => E.inOut(clamp((b - 13.72) / .28)) * (1 - E.inOut(clamp((b - 14.2) / .3)));
@@ -266,6 +293,7 @@ scene('15-redesign', () => {
     const h = hm(b), tx = tipX(b) - 10, ty = 328 - 6 * (b - 12.8);                         // just under the band, nose at the tip
     return { x: lerp(q.x, tx, h), y: lerp(q.y, ty, h) };
   }, { blend: .05 });
+  AGD.blink(3, 13.95, { v: .6 });
   // 1e: on the way out to the ring each dot becomes a bead (ls .85) threaded on the dashed circle; 「everyone」 lands
   // (b23.0) with a beat of glow
   AGD.morph(20.4, 'all', 'bead', { ls: .85, dur: .8, stag: .05, glow: (b) => .5 * plate(b, CUT[2] + .3, CUT[2] + 1.3, .3) });
@@ -283,11 +311,16 @@ scene('15-redesign', () => {
     const s = 36.4 * E.out(clamp((b - 21.0) / .7));
     if (a <= .002 || s < .2) return '';
     let d = '';
+    // v18.8: the beads are no longer evenly spaced (PHO), so each arc reaches s/72 of its own gap to the neighbour
+    // (≈ half, the same .4° overlap as before); a gap outside 40–104° (beads still landing) counts as 72
+    const Q = [0, 1, 2, 3, 4].map((i) => { const q = AGD.pos(i, b); return { R: Math.hypot(q.x - 960, q.y - 540), g: Math.atan2(q.x - 960, -(q.y - 540)) * 180 / Math.PI }; });
+    const gap = (a, c) => { const v = (((Q[c].g - Q[a].g) % 360) + 360) % 360; return v >= 40 && v <= 104 ? v : 72; };
     for (let i = 0; i < 5; i++) {
-      const q = AGD.pos(i, b), R = Math.hypot(q.x - 960, q.y - 540), g = Math.atan2(q.x - 960, -(q.y - 540)) * 180 / Math.PI;
+      const { R, g } = Q[i];
       if (R < 1) continue;
+      const sf = s * gap(i, (i + 1) % 5) / 72, sb = s * gap((i + 4) % 5, i) / 72;
       const P = (h) => (960 + R * Math.sin(h * Math.PI / 180)).toFixed(1) + ' ' + (540 - R * Math.cos(h * Math.PI / 180)).toFixed(1);
-      d += 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 1 ' + P(g + s) + 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 0 ' + P(g - s);
+      d += 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 1 ' + P(g + sf) + 'M' + P(g) + 'A' + R.toFixed(1) + ' ' + R.toFixed(1) + ' 0 0 0 ' + P(g - sb);
     }
     return '<path d="' + d + '" fill="none" stroke="#fff" stroke-opacity="' + a.toFixed(3) +
       '" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 6"/>';
@@ -316,7 +349,7 @@ scene('15-redesign', () => {
   // v18.5: 52 px / 600 with a 60 px 「Assistant」, 10 px lower (y 352 → 362) so its ends clear the ring's inner edge
   const SO_Y = 362;
   const soRise = (el, tl) => {
-    const w = el.querySelector('.w'), u = tl / BEAT, p = E.out(clamp(u / .3)), m = E.inOut(clamp((u - .3) / .6));
+    const w = el.querySelector('.w'), u = tl / BEAT, p = E.out(clamp(u / .3)), m = E.inOut(clamp(u / 1.0));
     const dx = el.offsetWidth / 2 - (w.offsetLeft + w.offsetWidth / 2), dy = 540 - SO_Y;
     w.style.transform = 'translate(' + (dx * (1 - m)).toFixed(1) + 'px,' + (dy * (1 - m)).toFixed(1) + 'px) scale(' + (lerp(1.9, 1, p) * lerp(2.2, 1, m)).toFixed(4) + ')';
     w.style.transformOrigin = '50% 60%';
@@ -324,15 +357,18 @@ scene('15-redesign', () => {
     w.style.opacity = Math.min(1, p * 2).toFixed(3);
   };
   // v18.2 QA: 「Assistant」 lands from 1.04× (was 1.1×: at 48 px its centre-origin scale ate the space after 「一个」 for ≈ .1 beat)
-  txt(20.6, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个</span><span class="w rd-w">Assistant</span>']],
-    { x: 960, y: SO_Y, align: 'c' }, { anim: K.all(soRise, step([null, [.85, .24, 1.07], [1.02, .22, 1.04]], { dy: 18 })), tick: zoom(SO_Y, true) });
+  // v18.9: 「So，」 blurs in at b20.5 (film 27.4), cross-dissolving with the outgoing 1d lines (fade b20.1–20.7) instead of
+  // after them, and its rise to the line slot is one 1.0-beat E.inOut from that same moment (b20.5–21.5: starts .4 beat
+  // earlier, lands as before), so the centre is never empty between the two titles; the rest of the line keeps its beats
+  txt(20.5, 26.4, [['sv rd-s1', '<span class="w">So，</span><span class="w">我们做了一个</span><span class="w rd-w">Assistant</span>']],
+    { x: 960, y: SO_Y, align: 'c' }, { anim: K.all(soRise, step([null, [.95, .24, 1.07], [1.12, .22, 1.04]], { dy: 18 })), tick: zoom(SO_Y, true) });
   // v17.5: each big line still cuts in hard (K.words), then settles from 1.06× (.32 beat) before the next one
   // v17.7: and it comes in 12 px from the side of the bead nearest it (the ring's bearings at its cut, landed), as if
   // that bead set it down inside the ring
   const fromBead = (b, y) => {
     let best = null;
     for (let i = 0; i < 5; i++) {
-      const g = (207 + JUMP(b + .2) + 72 * i + 9 / 5.7 * (b - 20.3)) * Math.PI / 180, x = 960 + 420 * Math.sin(g), yy = 540 - 420 * Math.cos(g);
+      const g = (207 + JUMP(b + .2) + PHO(b, i) + 72 * i + 9 / 5.7 * (b - 20.3)) * Math.PI / 180, x = 960 + 420 * Math.sin(g), yy = 540 - 420 * Math.cos(g);
       const d = Math.hypot(x - 960, yy - y); if (!best || d < best.d) best = { d, ux: (x - 960) / d, uy: (yy - y) / d };
     }
     return best;

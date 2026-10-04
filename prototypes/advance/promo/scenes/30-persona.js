@@ -167,13 +167,13 @@ scene('30-persona', () => {
   const revAt = (b) => { const w = xw(b) * CH.length; return SPD.map((v, i) => baseRev(i, b) + EXT[i] * w); };
 
   /* ---------- v17.7 Agent 点形态（STORYBOARD「v17.7」F3 (3)） ---------- */
-  // 花瓣形态一律 aim 表盘中心（cpStage(400, 400) 实时读相机，左移 / 收缩时仍指向花心；编队几何中心因方位不均会偏）
-  const HEART = () => cpStage(400, 400);
+  // v18.7：徽章始终是圆 logo 徽章，花苞 / 换花只闪烁；原花瓣形态 aim 表盘中心（cpStage(400, 400) 实时读相机，左移 / 收缩时仍指向花心；编队几何中心因方位不均会偏）
   const bearing = (i, b) => { const d = D0.sets.base.pl[i]; return d == null ? null : ((d + revAt(b)[i]) % 360 + 360) % 360; };
-  // ① 花苞边转边落定（b28.4–29.6 长大）：五点同时朝花心收成花瓣（像五片外瓣合拢），花绽开时回圆徽章
-  AGD.morph(28.6, 'all', 'petal', { dur: .5, stag: 0, aim: HEART, hold: .2, back: .6 });
+  // ① 花苞边转边落定（b28.4–29.6 长大）：v18.7 D1 / D3 不再变花瓣——五个圆徽章在花苞合拢时一起闪一次、花绽开时再轻闪一次
+  AGD.blink('all', 28.6, { dur: .4 });
+  AGD.blink('all', 29.3, { k: 1.05, v: .55, dur: .4 });
   // ② 三次逐瓣换花：旧花的瓣从 12 点起顺时针在 u = .55·φ/360 收起、新瓣在 u ≈ .14 + .55·φ/360 打开（drawCompass relay）。
-  // 每个点在扫动到达它当时的方位（公转中，取不动点）前 .1 拍变花瓣，新瓣打开时回圆——与花瓣同向同速顺时针传过去
+  // 每个点在扫动到达它当时的方位（公转中，取不动点）时闪烁一次——与花瓣同向同速顺时针传过去
   // review：公转方位跨过 12 点时原来的不动点迭代在 0° / 360° 间来回跳，换花开头就让 12 点前（≈ 290–330°）的点变花瓣，
   // 扫动其实约 1 拍后才到——改为在展开的角度上二分求「扫动角 = 点的角」；扫动追不上（点在扫动收尾前已回到 12 点）时取最接近的扫动收尾
   CH.forEach((c) => {
@@ -184,7 +184,7 @@ scene('30-persona', () => {
       const off = d + revAt(c.s)[i] - bearing(i, c.s), f = (t) => 360 * (t - c.s) / SW - (d + revAt(t)[i] - off);
       let t = c.s + SW;
       if (f(c.s + SW) >= 0) { let lo = c.s, hi = c.s + SW; for (let n = 0; n < 30; n++) { const m = (lo + hi) / 2; if (f(m) < 0) lo = m; else hi = m; } t = hi; }
-      AGD.morph(t - .1, i, 'petal', { dur: .3, aim: HEART, hold: .25, back: .45 });
+      AGD.blink(i, t, { dur: .35 }); // v18.7 D1 / D3：扫动经过时圆徽章闪烁（原为变花瓣）
     }
   });
   // ③ 揭晓（类型码 T6 − .8 显影）：描边加粗 + 柔光从内圈到外圈（按曲线平均半径）扫过一次，然后一直是圆徽章进入剥离
@@ -274,8 +274,8 @@ scene('30-persona', () => {
   });
 
   /* ---------- 3.3 / 3.4 文字 ---------- */
-  // 眉题：居中出现，MV 起随罗盘移到左上 x 160（左对齐），CO 退场
-  txt(28.8, 40.0 + XL, [['eb', '01 · 协作人格']], { x: 160, y: 100 }, {
+  // 眉题：居中出现，MV 起随罗盘移到左上 x 160（左对齐），CO 退场（v18.8 交接：与停靠标题同拍退场，原 40.0 + XL 晚 .6 拍独留）
+  txt(28.8, CO, [['eb', '01 · 协作人格']], { x: 160, y: 100 }, {
     anim: K.all(mask(.18, 1.0, .6), (el, tl, life, t) => {
       const b = t / BEAT, e = E.inOut(lp(b, MV, MVD)), dx = (960 - el.offsetWidth / 2 - 160) * (1 - e);
       // 居中时比标题（y 150，72px）上沿高出 18px，不贴字，并跟标题一起慢慢上漂 12px（漂到左移开始）；移到左上时回到 y 100
@@ -285,7 +285,16 @@ scene('30-persona', () => {
   // 标题与强调行：在场时各自慢慢离开罗盘（标题连同眉题上漂 12px、强调行下漂 10px，配合罗盘慢推），左移开始 .4 拍后
   // （MV + .4 = b33.2，罗盘才移出 10%）退场：标题 b29.45–33.2 完整可读 3.75 拍，强调行 b29.1 起解码（步长 .04），b29.85–33.2 约 3.35 拍
   const drift = (px) => (el, tl, life) => { el.style.transform = 'translate(-50%,calc(-50% + ' + (px * clamp(tl / life)).toFixed(1) + 'px))'; };
-  txt(29.0, MV + 1.0, [['hv sv pe72', '读懂你的 Agent 协作人格']], { x: 960, y: 150, align: 'c' }, { anim: K.all(mask(.18, 1.0, .6, true), drift(-12)) });
+  // v18.8：标题不再在 MV + 1.0 退场，而是 FLIP 停靠到左上（眉标 y 100 之下）陪整个分析段到 CO：MV 起 MVD 拍 E.inOut，
+  // 左沿 960 − w/2 → 160，scale 1 → .56（以左沿中线为原点，72 → ≈ 40px），y 保持 150；上漂 12px 只在 MV 前，停靠时收回
+  txt(29.0, CO, [['hv sv pe72', '读懂你的 Agent 协作人格']], { x: 960, y: 150, align: 'c' }, {
+    anim: K.all(mask(.18, 1.0, .6, true), (el, tl, life, t) => {
+      const b = t / BEAT, e = E.inOut(lp(b, MV, MVD)), dx = (160 - (960 - el.offsetWidth / 2)) * e;
+      const dy = -12 * clamp((b - 29.0) / (MV - 29.0)) * (1 - e);
+      el.style.transformOrigin = '0 50%';
+      el.style.transform = 'translate(-50%,calc(-50% + ' + dy.toFixed(1) + 'px)) translate(' + dx.toFixed(1) + 'px,0) scale(' + lerp(1, .56, e).toFixed(4) + ')';
+    })
+  });
   // v18.2：v18.3 文案改为「读懂…」+「从每个会话里…」；价值行紧贴标题（y 222，原 y 975 画面底），与标题同漂 −12px，读成一组标题块
   txt(29.1, MV + 1.0, [['lt pe44 pe-or', '从每个会话里，认出你的协作方式']], { x: 960, y: 222, align: 'c' }, { anim: K.all(K.decode({ step: .04, dur: .5, out: .6, spread: true }), drift(-12)) });
 
