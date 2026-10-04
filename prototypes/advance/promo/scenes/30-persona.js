@@ -167,13 +167,13 @@ scene('30-persona', () => {
   const revAt = (b) => { const w = xw(b) * CH.length; return SPD.map((v, i) => baseRev(i, b) + EXT[i] * w); };
 
   /* ---------- v17.7 Agent 点形态（STORYBOARD「v17.7」F3 (3)） ---------- */
-  // 花瓣形态一律 aim 表盘中心（cpStage(400, 400) 实时读相机，左移 / 收缩时仍指向花心；编队几何中心因方位不均会偏）
-  const HEART = () => cpStage(400, 400);
+  // v18.7：徽章始终是圆 logo 徽章，花苞 / 换花只闪烁；原花瓣形态 aim 表盘中心（cpStage(400, 400) 实时读相机，左移 / 收缩时仍指向花心；编队几何中心因方位不均会偏）
   const bearing = (i, b) => { const d = D0.sets.base.pl[i]; return d == null ? null : ((d + revAt(b)[i]) % 360 + 360) % 360; };
-  // ① 花苞边转边落定（b28.4–29.6 长大）：五点同时朝花心收成花瓣（像五片外瓣合拢），花绽开时回圆徽章
-  AGD.morph(28.6, 'all', 'petal', { dur: .5, stag: 0, aim: HEART, hold: .2, back: .6 });
+  // ① 花苞边转边落定（b28.4–29.6 长大）：v18.7 D1 / D3 不再变花瓣——五个圆徽章在花苞合拢时一起闪一次、花绽开时再轻闪一次
+  AGD.blink('all', 28.6, { dur: .4 });
+  AGD.blink('all', 29.3, { k: 1.05, v: .55, dur: .4 });
   // ② 三次逐瓣换花：旧花的瓣从 12 点起顺时针在 u = .55·φ/360 收起、新瓣在 u ≈ .14 + .55·φ/360 打开（drawCompass relay）。
-  // 每个点在扫动到达它当时的方位（公转中，取不动点）前 .1 拍变花瓣，新瓣打开时回圆——与花瓣同向同速顺时针传过去
+  // 每个点在扫动到达它当时的方位（公转中，取不动点）时闪烁一次——与花瓣同向同速顺时针传过去
   // review：公转方位跨过 12 点时原来的不动点迭代在 0° / 360° 间来回跳，换花开头就让 12 点前（≈ 290–330°）的点变花瓣，
   // 扫动其实约 1 拍后才到——改为在展开的角度上二分求「扫动角 = 点的角」；扫动追不上（点在扫动收尾前已回到 12 点）时取最接近的扫动收尾
   CH.forEach((c) => {
@@ -184,7 +184,7 @@ scene('30-persona', () => {
       const off = d + revAt(c.s)[i] - bearing(i, c.s), f = (t) => 360 * (t - c.s) / SW - (d + revAt(t)[i] - off);
       let t = c.s + SW;
       if (f(c.s + SW) >= 0) { let lo = c.s, hi = c.s + SW; for (let n = 0; n < 30; n++) { const m = (lo + hi) / 2; if (f(m) < 0) lo = m; else hi = m; } t = hi; }
-      AGD.morph(t - .1, i, 'petal', { dur: .3, aim: HEART, hold: .25, back: .45 });
+      AGD.blink(i, t, { dur: .35 }); // v18.7 D1 / D3：扫动经过时圆徽章闪烁（原为变花瓣）
     }
   });
   // ③ 揭晓（类型码 T6 − .8 显影）：描边加粗 + 柔光从内圈到外圈（按曲线平均半径）扫过一次，然后一直是圆徽章进入剥离
