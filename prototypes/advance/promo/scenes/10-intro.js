@@ -64,7 +64,7 @@ scene('10-intro', () => {
 .ln.lt.in-s{font-size:36px;font-weight:600;letter-spacing:.01em}
 .ln.in-big{font-size:120px;overflow:visible}
 .ln.sv .w.in-hot{background:none;color:var(--a1)}
-.ln.lt.in-gloss{font-size:44px;font-weight:500;color:rgba(255,255,255,.9)}
+.ln.lt.in-gloss{font-size:40px;font-weight:500;color:rgba(255,255,255,.9)}
 .in-t1{font-size:132px}
 .in-w1{font-size:120px}
 .in-ev{font-size:150px;color:var(--a1)}
@@ -292,8 +292,21 @@ scene('10-intro', () => {
   // dx 2) from the line's first key until .2 before the send, then it glides back to its slot as it rounds into its badge
   // QA: the ride's .25 blend-out ends at S + .05 (it used to end at S − .2, so the bar left .25 early, the last keys typed
   // with no caret and it flew home as a bar, rounding only at its slot) — it now lifts after the last key, rounding in flight
-  AGD.caretRide(0, K1[0], S1 + .05, c, { dx: 2 });
-  AGD.caretRide(1, K2[0], S2 + .05, c, { dx: 2 });
+  // v18.8: anchored at the text's end + r + 4 px (dx 21 = r + 4 − the caret's 2 px margin + 1 px half width), so the
+  // badge trails the last character instead of covering 「他 / 做」 (b7.2–7.6)
+  AGD.caretRide(0, K1[0], S1 + .05, c, { dx: 21 });
+  AGD.caretRide(1, K2[0], S2 + .05, c, { dx: 21 });
+  // the same rule while it is the 14 px caret bar (half width 7 → text end + 11, dx 8): the offset follows caretAt's
+  // morphs (badge → bar over .4 from b0, bar → badge over .25 from S − .2), laid over caretRide's follow at the same blend
+  const trail = (i, b0, K, S) => AGD.follow(K[0], S + .05, (j, b) => {
+    if (j !== i || !c.el) return null;
+    const car = c.el.querySelector('.car'); if (!car) return null;
+    const m = E.inOut(clamp((b - b0) / .4)) * (1 - E.inOut(clamp((b - (S - .2)) / .25)));
+    const q = car.getBoundingClientRect(), st = stage.getBoundingClientRect(), z = st.width / 1920;
+    return { x: (q.left + q.width / 2 - st.left) / z + lerp(21, 8, m), y: (q.top + q.height / 2 - st.top) / z };
+  }, { blend: .25 });
+  trail(0, BX + .12, K1, S1);
+  trail(1, S1 + .1, K2, S2);
 
   /* ---------- 1b.3 – 1c: the App icons ---------- */
   // 12 rounded tiles (88 px, dark glass, white line glyphs drawn here — no third-party marks), in ring order θ = 30k.
@@ -447,7 +460,7 @@ scene('10-intro', () => {
   // gone before 15-redesign's box passes y 728) so it reads 3.65 beats; 15-redesign's first type (b15.8) is not under it
   // v18.1: it no longer outlives the type — it leaves with the headline's exit (E.inOut from b18.7) .1 beat behind,
   // blurring to 6 px, gone by b19.3 together with 「Everything」
-  txt(T(12.3), T(15.4), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 758, align: 'c' }, {   // v18.3: 30 px lower (≥ 32 px under Everything's descenders), 500, .9
+  txt(T(12.3), T(15.4), [['lt in-gloss', '人们正在用 Agent 重新设计一切']], { x: 960, y: 768, align: 'c' }, {   // v18.3: 30 px lower, 500, .9; v18.8: 40 px, y 768 (≥ 32 px under Everything's descenders), no accent
     anim: (el, tl, life) => {
       const p = E.out(clamp((tl - BB(.1)) / BB(.2))), q = E.inOut(clamp((tl - (life - BB(.5))) / BB(.5)));   // v17.5: .1 after Everything, whole by +.3 as before
       // v17.7: wiped right → left out of the caret's foot (it stands just right of the line's end), not risen
