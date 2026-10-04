@@ -73,8 +73,11 @@ def lines(rows: list[list]) -> str:
 
 
 def query(table: Table, *, project_ids=(), agents=(), from_ts=None, until_ts=None,
-          excluded=(), limit: int) -> tuple[str, list]:
+          excluded=(), source_ids=None, limit: int) -> tuple[str, list]:
     clauses, params = [], []
+    if source_ids is not None:  # [] = every source disabled: nothing exported
+        clauses.append("s.source_id IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(list(source_ids)))
     if project_ids:
         clauses.append(f"s.project_id IN ({','.join('?' * len(project_ids))})")
         params.extend(project_ids)

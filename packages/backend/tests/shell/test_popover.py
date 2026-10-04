@@ -165,3 +165,16 @@ def test_realtime_today_counts_the_same_session_set(gateway_factory, tmp_path):
     assert counted == {"run", "done", "bad"}
     body = popover.build(gw, tz_offset_min=0, now=NOW)
     assert body["today"]["sessions"] == len(counted)
+
+
+def test_disabled_source_is_hidden(gateway_factory, tmp_path):
+    """SET-07: a disabled source's sessions leave the counts, the week and recent_done."""
+    gw, _ = make_gateway(gateway_factory, tmp_path)
+    for agent, enabled in (("claude_code", True), ("codex", False)):
+        gw.state.state["sources"][f"src-{agent}"] = {
+            "id": f"src-{agent}", "agent": agent, "root": f"/tmp/{agent}", "enabled": enabled}
+    body = popover.build(gw, tz_offset_min=0, now=NOW)
+    assert body["today"]["sessions"] == 2  # run, bad ("done" is the disabled Codex source)
+    assert [r["session_uid"] for r in body["recent_done"]] == ["bad"]
+    assert body["week"]["days"][-1]["by_agent"] == {"claude_code": 2, "codex": 0, "other": 0}
+    assert body["weekly"]["sessions"] == 6

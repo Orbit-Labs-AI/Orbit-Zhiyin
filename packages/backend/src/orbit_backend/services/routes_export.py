@@ -10,6 +10,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from ..appdata.sources_scope import default_source_ids
 from ..exporting import csv_export, report, sharecard, snapshots
 from ..exporting.tables import SCOPE_FILTERS, TABLES, describe, header
 from ..sessionops.exclusion import excluded_uids
@@ -67,9 +68,10 @@ def router(gw: Gateway) -> APIRouter:
         if unknown:
             raise ApiError(422, "invalid_request", f"Unknown filters: {sorted(unknown)}")
         excluded = [] if include_excluded else excluded_uids(gw.appdb)
+        # Disabled sources stay hidden in exports as on every page (SET-07).
         sql, params = csv_export.query(spec, project_ids=project_id or [], agents=agent or [],
                                        from_ts=from_ts, until_ts=until_ts, excluded=excluded,
-                                       limit=limit)
+                                       source_ids=default_source_ids(), limit=limit)
         try:
             connection = csv_export.open_snapshot(gw.reads.path)
         except csv_export.ExportError as error:

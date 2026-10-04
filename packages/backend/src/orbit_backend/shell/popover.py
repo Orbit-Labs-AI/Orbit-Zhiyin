@@ -19,6 +19,7 @@ from . import (
     day_index,
     day_start,
     default_scope,
+    enabled_source_ids,
     excluded,
     has_db,
     main_where,
@@ -110,7 +111,10 @@ def _counts(gw, now: int, tz: int) -> tuple[dict, dict, list[dict]]:
 def _metrics(gw, start: int, end: int) -> dict:
     from ..ai import queries
 
-    rows = queries.run("metrics", {"scope": {"start_ms": start, "end_ms": end}},
+    scope = {"start_ms": start, "end_ms": end}
+    if (sources := enabled_source_ids(gw)) is not None:
+        scope["source_ids"] = sources  # the same session set as ``main_where`` (SET-07)
+    rows = queries.run("metrics", {"scope": scope},
                        reads=reader(gw), appdb=gw.appdb, home=gw.home)["rows"]
     return {r["metric"]: r for r in rows}
 
@@ -138,7 +142,9 @@ def _trends(gw, now: int, tz: int) -> tuple[dict | None, dict | None]:
         return None, None
     today = day_index(now, tz)
     rev = gw.revisions.snapshot()
-    key = ("trends", rev["data_rev"], today, tz, tuple(excluded(gw)), now // 600_000)
+    sources = enabled_source_ids(gw)
+    key = ("trends", rev["data_rev"], today, tz, tuple(excluded(gw)),
+           None if sources is None else tuple(sources), now // 600_000)
     with _lock:
         if key in _cache:
             return _cache[key]["weekly"], _cache[key]["yesterday"]

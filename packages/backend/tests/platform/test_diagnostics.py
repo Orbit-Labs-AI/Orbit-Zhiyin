@@ -55,3 +55,19 @@ def test_exports_are_capped(started):
         (exports / f"diagnostics-2020010{i}T000000.zip").write_bytes(b"x")
     assert diagnostics.prune_exports(started.home) == 2
     assert len(list(exports.iterdir())) == 5
+
+
+def test_export_hides_project_names_in_relative_import_paths(started):
+    """Import logs name each file relative to its source root; Claude Code keeps sessions under
+    ``projects/<cwd with / turned into ->/``, so that relative path spells the user name and
+    the project folders."""
+    for path in ("projects/-Users-alice-work-secret-project/0b9f.jsonl",
+                 "projects/-Users-alice-work-secret-project/0b9f/subagents/agent-1.jsonl"):
+        logs.log_event("import_file", stage="capture", path=path, status="captured")
+    started.log_handler.flush()
+    body = diagnostics.collect(started)
+    with zipfile.ZipFile(diagnostics.export(started)["path"]) as bundle:
+        text = "\n".join(bundle.read(n).decode() for n in bundle.namelist())
+    assert "import_file" in text and '"path": "<path#' in text
+    for leaked in ("alice", "secret-project"):
+        assert leaked not in text and leaked not in json.dumps(body), leaked
