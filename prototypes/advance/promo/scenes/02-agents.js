@@ -582,7 +582,8 @@ function applyAgents(t) {
     const p = P[i]; if (p.a <= .002 || p.r <= .3) continue;
     // v17.7: inside a closed merge only dot 0 draws (as the orb, or whatever it was morphed into)
     const a = (p.S && i && p.merged ? p.a * (1 - E.inOut(clamp((p.merged - .6) / .4))) : p.a) * gate(i); if (a <= .002) continue;
-    const s = '<g opacity="' + Math.min(1, a).toFixed(3) + '">' + (p.S ? agShape(i, p.x, p.y, p.r, p.S, b, msp) : agBadge(i, p.x, p.y, p.r)) + '</g>';
+    const pr = p.r * SHL.reduce((m, z) => m * z.gs, 1);
+    const s = '<g opacity="' + Math.min(1, a).toFixed(3) + '">' + (p.S ? agShape(i, p.x, p.y, pr, p.S, b, msp) : agBadge(i, p.x, p.y, pr)) + '</g>';
     if (AGD_RIDES.some((z) => z.i === i && b >= z.b0 && b < z.b1)) top += s; else if (p.back) back += s; else front += s;
   }
   const m = P[0].merged || 0;
@@ -609,7 +610,7 @@ function agShellAt(z, b, sp) {
   }
   const A = z.at, u = clamp((b - z.b0) / (z.b1 - z.b0)), w = z.open ? u : 1 - u, e = z.ease(w);
   const R = A.r * A.k;
-  return { z, A, u, w, e, sp, cx: A.cx, cy: A.cy, R, Rr: R + A.arcR, shell: 1 - E.inOut(clamp(w / .4)), tg: E.inOut(clamp((z.ease(w) - .6) / .4)) };
+  return { z, A, u, w, e, sp, cx: A.cx, cy: A.cy, R, Rr: R + A.arcR, shell: 1 - E.inOut(clamp(w / .4)), tg: E.inOut(clamp((e - .4) / .5)), gs: lerp(.3, 1, E.out(clamp((e - .4) / .6))) };   // QA r7: dots grow out of the shrinking arcs (no dashed-ring-only gap, no full-size pop)
 }
 function agShellSVG(H, P) {
   const { A, e, sp, cx, cy, R, Rr, shell } = H;
