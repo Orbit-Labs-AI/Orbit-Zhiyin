@@ -936,11 +936,20 @@ def mcue(b, kind, i=0):
         put(m_blink(tone(b, (i + 2) % 4, 84)), b, 0.054, pan, to='morph')
     elif kind in ('blink', 'blink+'):                        # v18.6 a dot (or all five) blinks: one soft chord-tone ping
         put(m_blink(tone(b, (i + 2) % 4, 84)), b, 0.034 if kind == 'blink' else 0.06, pan, to='morph')   # blink+: the one circle (50-tools), over the half-time bed
+    elif kind == 'gen':                                      # v18.7 a generation breath: a very soft high ping per SKILL.md line
+        put(m_blink(tone(b, (i + 2) % 4, 84), 0.22), b, 0.016, pan, to='morph')
     elif kind == 'low':                                      # orb split / merge
         put(m_low(tone(b, 0, 36), 1.4 * BEAT), b - 0.3 if b + SH >= 0.3 else b, 0.05, 0.0, to='morph')
 
 
 MCUES = []   # (scene, [film beats]) for the level report
+_GL = ['---', 'name: pr-wrapup', 'description: 合并前收尾。触发 review，只修 P0/P1，', '  最多两轮，之后合并并删除分支', '---', '# PR 收尾',
+       '1. 确认 CI 通过、review 为 Completed', '2. 只处理 P0 / P1；其余回复理由', '3. 第二轮后仍有意见：停止并汇报', '4. 合并方式沿用仓库约定（merge commit）',
+       '5. 合并后删除远端与本地分支', '', '## 不要做', '- 不要为 P2 意见开启新一轮 review']   # = GEN.Skill.lines (src/js/48-a9-studio.js)
+_GW = [0]
+for _l in _GL:
+    _GW.append(_GW[-1] + 2 + len(_l))
+GEN_LB = [70.05 + (72.65 - 70.05) * (w + 1) / _GW[-1] for w in _GW[:-1]]   # = 50-tools lineB(): each line's breath
 
 
 def mcues(spec):
@@ -950,13 +959,15 @@ def mcues(spec):
 
 
 section('10-intro')
-mcues([(0.2, 'low'), (0.62, 'blink'), (1.5, 'blink'), (1.95, 'blink'), (2.45, 'blink'), (6.95, 'blink'), (7.0, 'blink'),
-       (7.32, 'pluck'), (7.85, 'blink'), (8.1, 'blink'), (8.8, 'blink'), (S1 + 0.15, 'blink'), (S1 + 0.1, 'pluck'),
+mcues([(0.2, 'low'), (0.82, 'blink'), (1.5, 'blink'), (1.95, 'blink'), (2.45, 'blink'), (6.95, 'blink'), (7.0, 'blink'),
+       (K1[0], 'pluck'), (7.85, 'blink'), (8.1, 'blink'), (8.8, 'blink'), (S1 + 0.15, 'blink'), (K2[0], 'pluck'),
        (10.1, 'blink'), (10.45, 'blink'), (S2 + 0.15, 'blink'), (11.35, 'blink'), (11.7, 'blink'), (13.0, 'air')])
 # v18.6 R1/R2: the opening ONE circle swells low (0.2); every dot event is a blink (round + flash, no tails): the landing
 # (0.62), cp on 「成为」「每个人的」, all on 「日常」, cx on 「从」, the box growing (7.0), each bubble pop (T(6.05) / T(6.3) /
 # 7.85 / 8.8 / sends + .15 / 10.1 / 10.45), the icon burst (11.35) and the box sinking (T(9.3) = 11.7); the caret takes
 # a dot on BX + .12 and S1 + .1 (a dry pluck)
+# v18.7 D1/D2: the merged 17-series badge opens from 0.35 (the 0.2 swell carries it), the four land-blink at 0.82 (was .62);
+# the caret ride-ins (cc on K1[0] = 7.2, cx on K2[0] ≈ 9.55) take the dry pluck; lift + round (S + .05) sits in the send blink
 section('15-redesign')
 mcues([(11.8, 'air'), (12.04, 'pluck'), (12.36, 'blink!'), (12.75, 'pluck'), (13.95, 'blink!'), (14.1, 'blink!'), (14.35, 'pluck'),
        (14.55, 'blink!'), (15.08, 'blink!'), (15.41, 'blink!'), (15.6, 'pluck'), (15.9, 'blink!'), (16.25, 'blink!'), (16.5, 'blink!'),
@@ -966,31 +977,33 @@ section('20-orbit')
 mcues([(21.6, 'air'), (23.3, 'bell'), (25.25, 'pluck'), (26.25, 'air'), (26.7, 'air'), (30.45, 'pluck'),
        (32.1, 'bell'), (33.0, 'spark')])
 section('30-persona')
-mcues([(29.1, 'air'), (29.5, 'bell')]
-      + [(35.6 + 0.25 * k, 'air') for k in range(5)]                 # each petal sweep: one breath per dot as it turns
-      + [(37.7 + 0.25 * k, 'air') for k in range(5)]
-      + [(39.6, 'air'), (40.65, 'air'), (40.78, 'air')]
-      + [(41.42 + 0.1 * k, 'air') for k in range(5)])                # the reveal ring, inner to outer
+mcues([(28.6, 'blink+'), (29.3, 'blink'), (29.5, 'bell')]           # v18.7 D1: the bud blinks (all), the bloom blinks soft
+      + [(b_, 'blink') for b_ in (35.77, 35.88, 36.18, 36.65, 36.74)]        # v18.7 D3: each sweep blinks the round badges it passes (no petals)
+      + [(b_, 'blink') for b_ in (37.75, 37.92, 38.31, 38.40, 38.64)]
+      + [(b_, 'blink') for b_ in (39.71, 40.07, 40.34, 40.78)]
+      + [(41.42, 'blink+')])                                         # the reveal: the ring glows, one ping
 section('40-recs')
-mcues([(39.5, 'pluck'), (39.64, 'pluck'), (39.78, 'pluck'), (40.52, 'air'), (40.66, 'air'),
-       (41.6, 'air'), (42.7, 'air'), (43.8, 'air')]
-      + [x for e in EV for x in ((e - 0.4, 'pluck'), (e + 0.4, 'air'))]   # pill out, ✓ tick (v18.5 on the 2.6-beat EV grid)
-      + [(62.8, 'air'), (63.6, 'low')])                                     # v18.6 R1: the column closes into ONE circle (b63.6)                                                     # v18.2: bullets → round badges (b62.8)
+mcues([(39.5, 'blink'), (39.64, 'blink'), (39.78, 'blink'),
+       (41.6, 'blink'), (42.7, 'blink'), (43.8, 'blink')]                # v18.7 D1: intro rows and the three waves blink (no bullets)
+      + [x for e in EV for x in ((e - 0.4, 'blink'), (e + 0.4, 'air'))]  # the linked badge blinks, ✓ tick beside it (2.6-beat EV grid)
+      + [(63.5, 'low')])                                                   # v18.7 D2: cc grows the five arcs (b63.2–63.65): the swell starts on 63.2                                     # v18.6 R1: the column closes into ONE circle (b63.6)                                                     # v18.2: bullets → round badges (b62.8)
 section('50-tools')
 mcues([(55.3, 'low'), (56.35, 'blink+'), (57.45, 'blink+'), (59.65, 'blink+'), (61.95, 'blink+'), (64.65, 'blink+'),
-       (67.58, 'blink+'), (68.8, 'click'), (74.3, 'blink+')])   # v18.6 R1: one circle — wire out, the four pins (KN − .35), card in, press, SKILL.md in
+       (67.58, 'blink+'), (69.9, 'blink+'), (74.3, 'blink+')]   # v18.7: the press is press() + kick (no pointer knock); the wire leaves at 69.9 (was 69.35)
+      + [(b_, 'gen') for b_ in GEN_LB])                          # v18.7 D2: the badge breathes with each SKILL.md line it writes   # v18.6 R1: one circle — wire out, the four pins (KN − .35), card in, press, SKILL.md in
 section('60-close')
-mcues([(69.2, 'low')] + [(69.5 + 0.06 * k, 'blink') for k in range(5)]   # v18.6 the five open out of the circle and blink in turn
-      + [(71.95, 'bell')] + [(72.64 + 0.12 * k, 'air') for k in range(5)]
-      + [(75.55, 'pluck'), (78.6, 'bell'), (79.1, 'air')]
+mcues([(69.2, 'low')] + [(69.7 + 0.05 * k, 'blink') for k in range(4)]   # v18.7 AGD.open: four badges grow out of the arcs and blink in turn
+      + [(71.95, 'blink+'), (71.95, 'bell')] + [(72.64 + 0.12 * k, 'air') for k in range(5)]   # all five blink (was the petal close); glow sweep
+      + [(75.55, 'blink'), (78.6, 'bell'), (79.1, 'air')]            # gm blinks on the pen (no comet head)
       + [(TURN0 + 2.475 + 0.2 * k, 'air') for k in range(5)]
       + [(TURN0 + 5.4 + 0.16 * k, 'air') for k in range(5)]
       )
-put(m_low(tone(FADE0, 0, 36), 1.4 * BEAT), FADE0 + 0.45, 0.022, 0.0, to='morph')   # the final merge into ONE circle (b92.9), softer: the groove has stopped
-MCUES.append((SCENE, [FADE0 + 0.7 + SH]))
+put(m_low(tone(FADE0, 0, 36), 1.4 * BEAT), FADE0 + 0.25, 0.017, 0.0, to='morph')   # v18.7 merge (92.2) + AGD.seal (92.45–93.45): the low swell under the gather
+MCUES.append((SCENE, [FADE0 + 0.7 + SH]))   # (no ping when the merged badge stands at b93.44: the mix has faded, any ping sat < 10 dB under it)
 
 
 # ---------------- render the grid layers: groove, pads ----------------
+rng = np.random.default_rng(7)   # v18.7 the groove's noise (hats, claps, crashes) no longer depends on how many cues came before it
 def render_groove():
     spans = [list(g) for g in GROOVE]                   # definition order: a later span wins an overlap
     by_start = sorted(spans, key=lambda s: s[0])
