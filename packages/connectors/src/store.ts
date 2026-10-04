@@ -8,7 +8,7 @@ import { sanitize } from './privacy.ts';
 
 /** Bump when redact()/sanitize() change (re-cleans cached L1) or when L2/L3 derivation changes (rebuilds). */
 export const SCHEMA_VERSION=3;
-export const REDACTION_VERSION='codex-redact/0.2.4', DERIVATION_VERSION='codex-derive/0.2.5';
+export const REDACTION_VERSION='codex-redact/0.2.5', DERIVATION_VERSION='codex-derive/0.2.5';
 export class ConnectorStore {
   readonly db: DatabaseSync;
   readonly directory: string;
