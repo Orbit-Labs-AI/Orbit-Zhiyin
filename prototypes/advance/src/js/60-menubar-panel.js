@@ -22,12 +22,12 @@ function ctxBar(pct, opt) {
 function popDay() { return typeof LV !== 'undefined' && LV.live ? LASTDAY : LASTDAY + 1; }
 function popDate() { return '10 月 1 日 周四'; }
 function popYest() { return '9 月 30 日'; }
-function popOpening() { return '<div class="sec row" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)"><b style="color:var(--ink-1)">开始之前</b>：今天 Hackathon 的任务较大。先写好完成条件，你过去这样做时纠偏少了约 30%。</span></div>'; }
+function popOpening() { return '<div class="sec row" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)"><b style="color:var(--ink-1)">开始之前</b>：今天 Orbit 的任务较大。先写好完成条件，你过去这样做时纠偏少了约 30%。</span></div>'; }
 function sessProjName(s) { return s.pname != null ? s.pname : PJI[s.p].name; }
 function liveSession() { const s = BYID[LIVE_ID]; return s && !simIdle() && sourceEnabled(s) && !S.excluded.has(s.id) ? s : null; }
 function popLiveCard() {
   const s = liveSession(); if (!s) return '';
-  return '<div class="sec col" style="gap:6px"><div class="row"><span class="dot live" style="background:var(--a1)"></span><b style="font-size:13px">Claude Code</b><span class="cap">· Hackathon</span><span style="flex:1"></span><span class="mono" style="font-size:12px" data-live>' + liveElapsed() + '</span></div><div style="font-size:13px;font-weight:600">' + esc(s.title) + '</div><div class="row cap" style="font-size:12px;min-width:0"><span class="aib">进行中</span><span class="mono" data-hudtool style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span><span style="flex:1"></span><span class="mono" style="font-size:11px">工具 <b data-livetools>' + S.live.tools + '</b></span></div>' +
+  return '<div class="sec col" style="gap:6px"><div class="row"><span class="dot live" style="background:var(--a1)"></span><b style="font-size:13px">Claude Code</b><span class="cap">· Orbit</span><span style="flex:1"></span><span class="mono" style="font-size:12px" data-live>' + liveElapsed() + '</span></div><div style="font-size:13px;font-weight:600">' + esc(s.title) + '</div><div class="row cap" style="font-size:12px;min-width:0"><span class="aib">进行中</span><span class="mono" data-hudtool style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span><span style="flex:1"></span><span class="mono" style="font-size:11px">工具 <b data-livetools>' + S.live.tools + '</b></span></div>' +
     ctxBar(S.live.ctx) +
     '<div class="row" style="margin-top:4px"><button type="button" class="btn sm" data-act="popTraj">查看轨迹</button><button type="button" class="btn sm gh" data-act="hudMute">' + (S.hud.mute ? '恢复提醒' : '暂停提醒') + '</button></div></div>';
 }

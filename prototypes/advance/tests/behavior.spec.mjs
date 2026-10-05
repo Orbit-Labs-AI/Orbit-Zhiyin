@@ -12,7 +12,7 @@ test('disabled sources hide live sessions across entry points', async ({ page })
   await closeAll(page);
   await expect(live).toHaveCount(0);
   await expect(page.locator('#hud')).toBeHidden();
-  await expect(page.locator('#widgets [data-r="sessions"]')).not.toContainText('Hackathon');
+  await expect(page.locator('#widgets [data-r="sessions"]')).not.toContainText('Orbit');
   await page.evaluate(() => renderPop());
   await expect(page.locator('#pop')).not.toContainText('设计 Orbit Mac App 视觉案例');
   expect(await page.evaluate(() => palItems('设计 Orbit Mac App 视觉案例').filter((x) => x.g === '会话' && x.sub.startsWith('Claude Code ·')))).toEqual([]);
@@ -22,7 +22,7 @@ test('disabled sources hide live sessions across entry points', async ({ page })
   await closeAll(page);
   await expect(live).toBeVisible();
   await expect(page.locator('#hud')).toBeVisible();
-  await expect(page.locator('#widgets [data-r="sessions"]')).toContainText('Hackathon');
+  await expect(page.locator('#widgets [data-r="sessions"]')).toContainText('Orbit');
   expect(errors).toEqual([]);
 });
 

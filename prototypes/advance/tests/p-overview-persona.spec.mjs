@@ -200,7 +200,7 @@ test('low-sample state lists relax estimates; all sources off points to settings
   ONLY();
   const errors = await openDemo(page);
   // bug 4: a thin scope (a handful of sessions) still gets a full four-letter code, with a gentle hint instead of 「?」
-  const thin = await page.evaluate(() => { S.agents = new Set(['oc']); S.project = 'hackathon'; const per = PERIODS[S.persona.period]; return personaScope([per[0], per[1]]).length; });
+  const thin = await page.evaluate(() => { S.agents = new Set(['oc']); S.project = 'orbit'; const per = PERIODS[S.persona.period]; return personaScope([per[0], per[1]]).length; });
   if (thin > 0) {
     await page.evaluate(() => go('persona'));
     const code = await page.locator('.persona-hero .letters .L').allTextContents();

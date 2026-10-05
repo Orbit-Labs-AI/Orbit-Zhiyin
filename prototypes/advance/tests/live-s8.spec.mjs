@@ -12,7 +12,8 @@ import { stubGateway, openLive, collectErrors, fx } from './live-helpers.mjs';
 const NOW = Date.parse('2026-10-03T12:00:00+08:00');
 const NATIVE = { v: 1, app: '0.0.1', platform: 'macos', features: ['chooseFolder', 'save', 'openExternal', 'reveal', 'window'] };
 const ONLY = () => test.skip(test.info().project.name !== 'mac-14', 'runs once, at the default size');
-const MOCK_TEXT = /team-hub|Hackathon|latentskill|Surge|confluo|Gemini|Copilot|10 月 1 日/;
+// Orbit is also the app brand; detect the demo session title rather than the brand.
+const MOCK_TEXT = /team-hub|设计 Orbit Mac App 视觉案例|latentskill|Surge|confluo|Gemini|Copilot|10 月 1 日/;
 // realtime fixtures carry absolute timestamps: move them so generated_at is the pinned clock
 function rtAt(name) {
   const o = fx('s8/' + name); const dt = NOW - o.generated_at; const mv = (x) => (typeof x === 'number' ? x + dt : x);

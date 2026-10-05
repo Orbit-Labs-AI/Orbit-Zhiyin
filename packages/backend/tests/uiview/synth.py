@@ -16,7 +16,7 @@ from pathlib import Path
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC).timestamp()
 PROJECTS = ["/synthetic/confluo", "/synthetic/latentskill", "/synthetic/team-hub",
-            "/synthetic/hackathon", "/synthetic/quant"]
+            "/synthetic/orbit", "/synthetic/quant"]
 OK_MSG = ["继续", "好的，下一步", "先看看现在的进度", "可以，请运行测试并验证结果"]
 BAD_MSG = ["不要用 Vercel，用 Cloudflare", "别重复试了，先检查认证", "不对，这不是我要的，重新来",
            "错了，你改多了，只改这一处"]
