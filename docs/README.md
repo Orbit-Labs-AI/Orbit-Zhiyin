@@ -1,6 +1,6 @@
 # Orbit 文档
 
-从你要完成的事情进入文档。这里的现行手册跟随 `main`；本轮重写已整合后续主线实现；具体接口和默认值以当前代码及各模块文档为准。下载版本的安装要求、功能与限制，以 [GitHub Release](https://github.com/Orbit-Labs-AI/Orbit/releases) 为准。
+从你要完成的事情进入文档。这里的现行手册跟随 `main`；本轮重写已整合后续主线实现；具体接口和默认值以当前代码及各模块文档为准。下载版本的安装要求、功能与限制，以 [GitHub Release](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases) 为准。
 
 ## 使用 Orbit
 

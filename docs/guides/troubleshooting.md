@@ -26,6 +26,6 @@ uv run orbit --home /absolute/orbit-home analytics --no-text --output .local/dia
 
 `--no-text` 跳过昂贵的文本表示，不是跳过全部分析。需要限制规模时可以缩小时间/项目范围，或在子命令前指定 `--max-events`；超预算应明确失败，不返回看似完整的部分结果。
 
-原生宿主日志位于所选 home 的 `desktop.log`。不要直接上传整份日志或数据库。先截取最小错误片段并脱敏，再通过 [Bug 模板](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/new/choose)提供复现步骤、预期和实际结果。
+原生宿主日志位于所选 home 的 `desktop.log`。不要直接上传整份日志或数据库。先截取最小错误片段并脱敏，再通过 [Bug 模板](https://github.com/Orbit-Labs-AI/Orbit/issues/new/choose)提供复现步骤、预期和实际结果。
 
 开发者可继续查看[导入流程](../development/import-pipeline.md)、[App 服务](../architecture/app-services.md)及[测试指南](../development/testing.md)。返回[使用指南](README.md)。

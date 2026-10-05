@@ -3,7 +3,7 @@
 > 文档状态：审计快照。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../README.md)。
 
 
-2026-10-02。核对基线：main `9eb18b4`，并计入本文所在分支的 [PR #35](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/35) 索引式数据与原文轨迹实现（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），安装清单已随 PR #31 进入 main；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/orbit-benchmark-demo.html`、`docs/archive/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
+2026-10-02。核对基线：main `9eb18b4`，并计入本文所在分支的 [PR #35](https://github.com/Orbit-Labs-AI/Orbit/pull/35) 索引式数据与原文轨迹实现（含 PR #28 后端结构迁移、PR #29 独立资源目录包、PR #30 分析补全建议），安装清单已随 PR #31 进入 main；UI 依据 Advance 原型（`prototypes/advance/src/js/` 与 `docs/design/visual-cases-v1/` 画板）和 Lite 原型（`prototypes/lite/orbit-benchmark-demo.html`、`docs/archive/design/lite-review.md`）。下文源码路径按 main 的目录布局书写。
 
 本文回答一个问题：**要让两版 UI 的每个页面和按钮接上真实数据与真实动作，数据模块和分析模块还差什么，另外还需要哪些后端程序。** 八个分析族各自的功能缺口已写在 [analysis-review.md](../archive/plans/analysis-review.md)，本文不重复逐族展开，只在页面与横切能力里引用；数据获取的目标方案见 [data-acquisition.md](../archive/plans/data-acquisition.md)，统计口径见 [analysis-inputs.md](../contracts/analysis-inputs.md)。
 
