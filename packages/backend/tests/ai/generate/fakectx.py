@@ -61,9 +61,6 @@ class FakeCtx:
     def reads(self):
         raise RuntimeError("no orbit.db in generate tests")
 
-    def read_app(self):
-        raise RuntimeError("no app.db in generate tests")
-
 
 def hook_pack(**overrides) -> dict:
     """A small pack with the hook items (C4 shapes)."""

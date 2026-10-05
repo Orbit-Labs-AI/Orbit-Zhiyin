@@ -153,21 +153,6 @@ def test_lexical_finds_filtered_item_behind_many_stronger_hits(store):
     assert [i["item_id"] for i in result["items"]] == ["only-codex"]
 
 
-def test_match_many_equals_individual_matches(tmp_path):
-    from orbit_catalog.service import CatalogService
-    service = CatalogService(tmp_path / "catalog.db", encoder=ToyEncoder())
-    try:
-        service.store.register([SourceSpec(source_id="primary", kind="bundle", url="bundled:test", priority=99)])
-        publish(service.store, [record("a"), record("b", summary="fault isolation runbook"), record("c", summary="writing")])
-        index_embeddings(service.store, service.encoder())
-        requests = [MatchRequest(text=t) for t in ("故障排查", "debug", "writing", "debug")]
-        batch = service.match_many(requests)
-        assert [r["items"] for r in batch] == [service.match(r)["items"] for r in requests]
-        assert batch[0]["vector"]["status"] == "ready"
-    finally:
-        service.close()
-
-
 def test_fp16_scores_preserve_fp32_top10():
     from orbit_catalog.vectors import blocked_scores
     rng = np.random.default_rng(7)

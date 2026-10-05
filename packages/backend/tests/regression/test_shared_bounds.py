@@ -3,8 +3,8 @@
 import pytest
 from test_supplemental_requirements import run
 
-from orbit_backend.feedback import signals
 from orbit_backend.models import Event
+from orbit_backend.profiling.feedback import signals
 
 
 @pytest.mark.parametrize('request_text', [

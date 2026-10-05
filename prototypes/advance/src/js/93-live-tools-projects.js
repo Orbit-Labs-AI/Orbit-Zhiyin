@@ -27,7 +27,6 @@ function lvtpScopeNote() {
   return x.length ? '<div class="cap" data-lv="scope-note" style="margin:-4px 0 10px">' + ic('alert', 12, 'vertical-align:-2px;color:var(--ink-3)') + ' 本页按时间与 Agent 统计，' + x.join(' / ') + '筛选暂不计入</div>' : '';
 }
 const lvtpMs = (ms) => ms == null ? '—' : ms < 10000 ? f1(ms / 1000) + ' s' : ms < 600000 ? Math.round(ms / 1000) + ' s' : f1(ms / 60000) + ' m';
-const lvtpPct = (v) => v == null ? '—' : f1(v * 100) + '%';
 // round 3: a success / failure rate is null when explicit outcomes cover < 50% of calls (rate_reason, status_coverage);
 // it renders "—" with the reason, never 0% or NaN. Server fields win; counts are the fallback for merged rows.
 const LVTP_MIN_COV = 0.5;

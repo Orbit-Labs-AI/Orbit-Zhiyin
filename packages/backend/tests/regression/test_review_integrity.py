@@ -8,14 +8,18 @@ import pytest
 from test_leading_prompts import message, write_home
 from test_supplemental_requirements import run
 
-from orbit_backend.analysis import analyze
-from orbit_backend.analysis_reports import bottlenecks_markdown, process_markdown, profile_markdown
-from orbit_backend.bottlenecks import unexplained_terms
 from orbit_backend.cli import demo_home, main
 from orbit_backend.legacy import codex
-from orbit_backend.narrative import explain, markdown
 from orbit_backend.privacy import direct_user_text
+from orbit_backend.profiling.analysis import analyze
+from orbit_backend.profiling.bottlenecks import unexplained_terms
 from orbit_backend.recommend import recommend
+from orbit_backend.reporting.analysis_reports import (
+    bottlenecks_markdown,
+    process_markdown,
+    profile_markdown,
+)
+from orbit_backend.reporting.narrative import explain, markdown
 from orbit_backend.store import Store, import_codex
 
 

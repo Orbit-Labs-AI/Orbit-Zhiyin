@@ -55,7 +55,7 @@ function stats(L) {
 // 1 个会话即可出结论（0 个才是空态）；每个维度以 50 为界取一极，恰好 50 归高值一极，始终给完整 4 字母。
 const PERSONA_SOFT_N = 30;
 const personaHint = (n) => (n > 0 && n < PERSONA_SOFT_N ? '基于 ' + n + ' 个会话，数据越多越准' : null);
-const PSTEP = 5, PZ = 1.96;
+const PZ = 1.96;
 // [key, axis, weight, kind, unit, anchors, label]
 const PSIG = [
   ['steps', 'D', 0.50, 'ratio', 'turn', [[0, 5], [1, 95]], '单轮自主步数（≥ 5 步的轮次占比）'],
@@ -231,8 +231,6 @@ const pctKnown = (v, n) => (n ? Math.round(v) + '%' : '—');
 // 摩擦率 / 自主比的分母是你发出的消息：msgs = 0 时是未知「—」，不是 0（live 行可能没有用户消息）
 const fricTxt = (st) => (st.msgs ? f1(st.fric) + '%' : '—');
 const autoTxt = (st) => (st.msgs ? f1(st.auto) : '—');
-// 「AI」only for text a model wrote: live insights carry basis (l0_template = rule template); the same test as 92-live-sessions
-const insIsAI = (ins) => !LV.live || !!(ins && /\b(ai|llm|model)\b/i.test(String(ins.basis || '').replace(/_/g, ' ')));
 // the head badge of an insight block: purple AI, or a neutral「规则」tag for template text
 const insBadge = (ai, label) => ai ? '<span class="aib">' + ic('spark', 11) + label + '</span>' : '<span class="row" style="gap:6px;flex:none;white-space:nowrap"><span class="eb">' + label.replace(/^AI ?/, '') + '</span><span class="tag" data-tip="由规则模板生成，不是 AI">规则</span></span>';
 function buckets(range) {
@@ -257,13 +255,6 @@ function moodSeries(L, range) {
   return buckets(range).map((bk) => { const xs = L.filter((s) => s.d >= bk.a && s.d <= bk.b); const m = sum(xs, (s) => s.msgs); return Object.assign({}, bk, { n: xs.length, mood: m ? sum(xs, (s) => s.mood * s.msgs) / m : null, corr: sum(xs, (s) => s.corr), xs }); });
 }
 function countBy(L, key) { const m = {}; L.forEach((s) => { const k = s[key]; if (k != null) m[k] = (m[k] || 0) + 1; }); return m; }
-function regress(pts) {
-  const n = pts.length; if (n < 3) return null;
-  const mx = sum(pts, (p) => p.x) / n, my = sum(pts, (p) => p.y) / n;
-  const sxx = sum(pts, (p) => (p.x - mx) ** 2), syy = sum(pts, (p) => (p.y - my) ** 2), sxy = sum(pts, (p) => (p.x - mx) * (p.y - my));
-  if (!sxx || !syy) return null;
-  const b = sxy / sxx; return { b, a: my - b * mx, r: sxy / Math.sqrt(sxx * syy), n };
-}
 // one pass over L groups the rows by project (and counts them per agent) instead of filtering L once per project / agent
 function projRows(L) {
   const by = new Map(), ai = {}; AG.forEach((a, j) => { ai[a.id] = j; });

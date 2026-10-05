@@ -2,9 +2,9 @@
 
 import pytest
 
-from orbit_backend.analysis import analyze
-from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.evaluation.pipeline import _write_case
 from orbit_backend.privacy import PLATFORM_TAGS, direct_user_text
+from orbit_backend.profiling.analysis import analyze
 from orbit_backend.store import Store, import_codex
 
 

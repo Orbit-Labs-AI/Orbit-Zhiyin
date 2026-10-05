@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from orbit_backend.analytics.features import correction_terms, ratio, tool_summary, usage, workflow
 from orbit_backend.analytics.inputs import AnalysisInputBundle, Scope, legacy_bundle, select
 from orbit_backend.analytics.service import analyze_bundle, analyze_store
-from orbit_backend.analytics.text import representation, temporal_novelty
+from orbit_backend.analytics.task.representation import representation, temporal_novelty
 from orbit_backend.api import create_app
 from orbit_backend.cli import main
 from orbit_backend.models import Event, ParsedSession, Session
@@ -229,7 +229,7 @@ def test_mixed_model_turn_does_not_attribute_all_tools_to_either_model():
 
 
 def test_legacy_import_does_not_upgrade_user_role_or_override_explicit_nonhuman(tmp_path):
-    from orbit_backend.importers.codex import parse_rollout
+    from orbit_backend.legacy.codex import parse_rollout
     path = tmp_path / "native.jsonl"
     rows = [
         {"type": "session_meta", "payload": {"id": "s", "source": "vscode", "thread_source": "user"}},

@@ -97,13 +97,6 @@ def test_concurrent_gets_of_one_url_share_one_request(tmp_path):
     assert results == [b"shared"] * 6 and len(opener.calls) == 1
 
 
-def test_get_many_keeps_order_and_isolates_errors(tmp_path):
-    http, _ = client(tmp_path, (b"ok", {}))
-    urls = [URL, "http://models.dev/insecure", "https://models.dev/b"]
-    out = http.get_many(urls, workers=3)
-    assert out[0] == b"ok" and isinstance(out[1], FetchError) and out[2] == b"ok"
-
-
 def test_status_errors_and_oversize_bodies(tmp_path):
     waits = []
     http, opener = client(tmp_path, 429, sleep=waits.append)

@@ -179,11 +179,6 @@ def counts(conn: sqlite3.Connection, run_id: str, now: int) -> dict[str, int]:
     return out
 
 
-def dim_counts(conn: sqlite3.Connection, run_id: str) -> dict[str, int]:
-    return dict(conn.execute("SELECT dim, count(*) FROM rec_candidate WHERE run_id=? AND "
-                             "passed=1 GROUP BY dim", (run_id,)).fetchall())
-
-
 def candidate(conn: sqlite3.Connection, cid: str) -> dict | None:
     row = conn.execute("SELECT candidate_id, run_id, card FROM rec_candidate WHERE "
                        "candidate_id=?", (cid,)).fetchone()

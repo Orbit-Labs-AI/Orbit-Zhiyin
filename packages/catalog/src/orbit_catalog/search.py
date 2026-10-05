@@ -143,7 +143,7 @@ def eligibility(request: MatchRequest) -> tuple[str, list]:
 
 
 def encode_query(encoder, text: str) -> np.ndarray:
-    """Query vectors are LRU-cached per (model, text); match_many pre-warms this in one batch."""
+    """Query vectors are LRU-cached per (model, text)."""
     key = (encoder.model_id, text)
     with _QUERY_LOCK:
         if key in _QUERY_CACHE:
@@ -207,27 +207,13 @@ def query_concepts(text: str, prefix: bool = False) -> list[list[list[Term]]]:
     return capped
 
 
-def query_terms(text: str, prefix: bool = False) -> list[Term]:
-    """Distinct (token, is_prefix) pairs of all concepts, in query order."""
-    return list(dict.fromkeys(t for concept in query_concepts(text, prefix) for alt in concept for t in alt))
-
-
 def _fts_term(token: str, is_prefix: bool) -> str:
     return '"' + token.replace('"', '""') + '"' + ("*" if is_prefix else "")
-
-
-def match_expression(text: str, prefix: bool = False) -> str | None:
-    terms = query_terms(text, prefix)
-    return " OR ".join(_fts_term(t, p) for t, p in terms) if terms else None
 
 
 def idf(n_docs: int, df: int) -> float:
     """BM25 idf with the +1 inside the log (Lucene form), never negative for common terms."""
     return math.log(1 + (n_docs - df + 0.5) / (df + 0.5))
-
-
-def _tf(tokens: list[str], term: str, is_prefix: bool) -> int:
-    return sum(1 for t in tokens if t.startswith(term)) if is_prefix else tokens.count(term)
 
 
 def _concept_score(concepts, weights, tf) -> float:

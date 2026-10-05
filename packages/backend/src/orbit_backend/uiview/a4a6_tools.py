@@ -77,11 +77,6 @@ WHERE {{where}}
 """.format(rowid=common.CALL_EVENT_ROWID_SQL.format(col="tc.call_event_uid"))
 
 
-def norm_status(raw) -> str:
-    """``metrics.tool_state``: the same classes as A1 / A3 (interrupted = known, not failed)."""
-    return metrics.tool_state(raw)
-
-
 def node_of(kind: str | None) -> str:
     return NODE_OF.get(kind or "", "other")
 

@@ -7,7 +7,6 @@ import sqlite3
 import threading
 import time
 import zlib
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -109,18 +108,6 @@ class HttpClient:
             with self._mutex:
                 self._inflight.pop(key, None)
             event.set()
-
-    def get_many(self, urls: list[str], workers: int = 12, immutable: bool = False) -> list:
-        """Bounded concurrent gets; each slot is bytes or the FetchError for that URL, in input order."""
-        def one(url):
-            try:
-                return self.get(url, immutable)
-            except FetchError as exc:
-                return exc
-        if not urls:
-            return []
-        with ThreadPoolExecutor(max_workers=max(1, min(workers, len(urls)))) as pool:
-            return list(pool.map(one, urls))
 
     def json(self, url: str, immutable: bool = False):
         try:

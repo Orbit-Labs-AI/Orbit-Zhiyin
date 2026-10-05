@@ -12,7 +12,6 @@
    - Writes: view / open / preview / copy exposure; 不适用 / 稍后 / 不再推荐同类 are labels with an 8-second undo
      (DELETE /v1/labels/{id}); 重新计算 is POST /v1/recommendations/recompute. Each write invalidates the rec resources. */
 const LVR = { applied: null, top: {}, rel: {}, labels: new Map(), poll: 0, detail: {} };
-const LVR_SURFACES = ['A1', 'lite', 'menubar'];
 const LVR_ROUTES = { recs: 'A7', 'l-recs': 'lite', overview: 'A1', 'l-home': 'lite' };
 const LVR_DEGRADE = (e) => !e || !e.status || e.status === 404 || e.status === 501 || e.status === 503;
 const lvRecLive = (id) => !!(RECI[id] && RECI[id].live);

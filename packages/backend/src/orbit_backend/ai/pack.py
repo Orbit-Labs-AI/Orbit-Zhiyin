@@ -22,7 +22,6 @@ from orbit_data import legacy
 
 from orbit_backend import privacy
 
-from ..analytics.interaction.rules import CORRECTION_CHARS
 from ..analytics.interaction.rules import is_correction as _is_correction
 from .redact import compact, est_tokens, redact_value
 
@@ -32,7 +31,6 @@ DAY_MS = 86_400_000
 MARKER = "[orbit-analysis"
 # Corrections: the single definition is ``analytics.interaction.rules.is_correction`` (length
 # gate, client-retry exclusion, zh/en pushback rules, result feedback kept apart).
-CORRECTION_MAX_CHARS = CORRECTION_CHARS[1]
 # Cues that the agent misread the request (vs. a wrong approach / buggy output), used by the
 # rule fallback of classify.feedback to pick friction_type.
 MISUNDERSTOOD = re.compile(r"我说的是|不是我要|不是让你|理解错|没听懂|not what i (?:asked|meant|wanted|said)"

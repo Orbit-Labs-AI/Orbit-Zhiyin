@@ -2,9 +2,14 @@
 
 import json
 
-from orbit_backend.analysis import analyze
 from orbit_backend.cli import demo_home, main
-from orbit_backend.pipeline_eval import _metrics, _write_case, evidence_checks, pipeline_benchmark
+from orbit_backend.evaluation.pipeline import (
+    _metrics,
+    _write_case,
+    evidence_checks,
+    pipeline_benchmark,
+)
+from orbit_backend.profiling.analysis import analyze
 from orbit_backend.recommend import recommend
 from orbit_backend.store import Store, import_codex
 

@@ -70,7 +70,7 @@ def test_github_body_hash_and_component_license_precedence():
         def get(self, url, immutable=False):
             return next(value.encode() for path, value in contents.items() if url.endswith(path))
     adapter = GitHubConnector(SourceSpec(source_id="git", kind="github", url="https://github.com/a/b", config={"repo": "a/b"}), HTTP())
-    row = adapter._document(("skills/check/SKILL.md", "skill"), {"sha": "a" * 40, "repo_id": "42", "license": "MIT"}, blobs)
+    row = adapter._documents(("skills/check/SKILL.md", "skill"), {"sha": "a" * 40, "repo_id": "42", "license": "MIT"}, blobs)[0]
     assert row.resource.item_id == "skill:github.com:42:skills/check/SKILL.md"
     assert row.resource.body == "" and row.resource.license == "Custom"
     assert row.resource.metadata["source_blob_sha"]
@@ -98,8 +98,8 @@ def test_mcp_watermark_does_not_skip_updates_during_long_scan():
 
 def test_oversize_github_entry_remains_indexed_with_explicit_coverage():
     adapter = GitHubConnector(SourceSpec(source_id="git", kind="github", url="https://github.com/a/b", config={"repo": "a/b"}), None)
-    row = adapter._document(("skills/large/SKILL.md", "skill"), {"sha": "a" * 40, "repo_id": "42"},
-                            {"skills/large/SKILL.md": {"size": 300000, "sha": "b" * 40}})
+    row = adapter._documents(("skills/large/SKILL.md", "skill"), {"sha": "a" * 40, "repo_id": "42"},
+                             {"skills/large/SKILL.md": {"size": 300000, "sha": "b" * 40}})[0]
     assert row.resource.metadata["content_status"] == "oversize_metadata_only"
     assert row.resource.metadata["verification"] == "tree_metadata_only"
 

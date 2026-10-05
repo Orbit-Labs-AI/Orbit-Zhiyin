@@ -161,21 +161,6 @@ def snippet(text: str, terms: list[str], width: int = 96) -> tuple[str, list[lis
     return out, sorted(marks)
 
 
-def strip_marks(raw: str) -> tuple[str, list[list[int]]]:
-    """Turn FTS ``snippet()`` markers \\x01 / \\x02 into plain text plus marks."""
-    out, marks, start = [], [], None
-    for ch in raw or "":
-        if ch == "\x01":
-            start = len(out)
-        elif ch == "\x02":
-            if start is not None:
-                marks.append([start, len(out)])
-            start = None
-        else:
-            out.append(ch)
-    return "".join(out), marks
-
-
 def _line(text: str, terms: list[str]) -> str:
     folded = [t.casefold() for t in terms]
     for line in (text or "").split("\n"):
@@ -602,10 +587,3 @@ def _run_sources(tasks: dict, pool, budget_s: float, hard_deadline: float):
         reasons.update(result.pop(PARTIAL, {}))
         lists.update(result)
     return lists, reasons
-
-
-def scope_from_query(project_ids=None, agent_ids=None, from_ts=None, until_ts=None) -> dict:
-    split = lambda v: [x for x in (v or "").split(",") if x]  # noqa: E731
-    return {"project_ids": split(project_ids), "agent_ids": split(agent_ids),
-            "from_ts": from_ts, "until_ts": until_ts}
-

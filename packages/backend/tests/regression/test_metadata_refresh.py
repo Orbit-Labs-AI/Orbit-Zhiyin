@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from orbit_backend.api import create_app
 from orbit_backend.cli import demo_home
-from orbit_backend.importers.codex import metadata_index
+from orbit_backend.legacy.codex import metadata_index
 from orbit_backend.store import Store, import_codex
 
 

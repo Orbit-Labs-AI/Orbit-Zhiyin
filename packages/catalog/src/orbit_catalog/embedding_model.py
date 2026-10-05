@@ -42,7 +42,6 @@ FILES = (
     ("onnx/model_qint8_avx512_vnni.onnx", 118_346_824, "dd476dd0c2514e9b9be83aeb3853fac0763e0bdf4a71645407587d77c48a2d88"),
     ("onnx/tokenizer.json", 17_082_730, "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39"),
 )
-MODEL_FILE, TOKENIZER_FILE = FILES[0][0], FILES[1][0]
 PRECISION = "int8-dynamic"
 DOWNLOAD_BYTES = sum(size for _, size, _ in FILES)
 ENV_ALLOW = "ORBIT_CATALOG_MODEL_DOWNLOAD"

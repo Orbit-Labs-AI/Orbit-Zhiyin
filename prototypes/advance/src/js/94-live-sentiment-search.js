@@ -13,7 +13,6 @@
 const LVS = { sent: null, search: LV.lru(30), timer: null, want: null };
 const LVS_DAY = 86400000;
 const lvsDayIdx = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - DAY0) / LVS_DAY) : null; };
-const lvsMood = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + f1(v));
 
 /* ---- A6 ---- */
 function lvSentApply(d) {

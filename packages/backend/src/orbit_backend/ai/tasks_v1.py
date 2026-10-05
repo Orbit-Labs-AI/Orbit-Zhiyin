@@ -480,7 +480,7 @@ def _reports_markdown(src: dict) -> dict:
     analysis = src.get("analysis")
     if not isinstance(analysis, dict):
         return {}
-    from orbit_backend import analysis_reports
+    from orbit_backend.reporting import analysis_reports
 
     out = {}
     for name in ("profile", "bottlenecks", "process"):

@@ -48,7 +48,6 @@ L3_TABLES = (
     "session_feature",
     "link",
 )
-INVENTORY_COLUMNS = ("agent", "type", "name", "locator", "content_hash")
 
 
 def _encode(value) -> bytes:

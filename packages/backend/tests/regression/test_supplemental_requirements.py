@@ -2,10 +2,10 @@
 
 import json
 
-from orbit_backend.analysis import analyze
-from orbit_backend.narrative import explain
-from orbit_backend.pipeline_eval import evidence_checks
+from orbit_backend.evaluation.pipeline import evidence_checks
+from orbit_backend.profiling.analysis import analyze
 from orbit_backend.recommend import recommend
+from orbit_backend.reporting.narrative import explain
 from orbit_backend.store import Store, import_codex
 
 

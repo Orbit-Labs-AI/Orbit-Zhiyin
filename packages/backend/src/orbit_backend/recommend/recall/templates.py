@@ -29,12 +29,6 @@ def _mixed_roots(inputs: dict) -> tuple[list[str], int]:
     return [day["session_uid"] for day in days if _task_count(day) >= MIXED_TASKS], n
 
 
-def _mixed_share(inputs: dict) -> float:
-    """Share of sessions touching >= 3 distinct task kinds; 0 when the data is unavailable."""
-    roots, n = _mixed_roots(inputs)
-    return len(roots) / n if n else 0.
-
-
 def _mixed_recurs(inputs: dict) -> bool:
     roots, n = _mixed_roots(inputs)
     k = len(roots)

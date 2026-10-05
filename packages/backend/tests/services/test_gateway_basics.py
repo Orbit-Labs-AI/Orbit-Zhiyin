@@ -15,7 +15,6 @@ from conftest import ALL_TIME, AUTH, BASE, PORT, TOKEN, wait_for
 from fastapi.testclient import TestClient
 
 from orbit_backend.services.auth import validate_token
-from orbit_backend.services.gateway import create_gateway
 
 # Wall-clock heartbeats, timeouts and a fixed port: run outside the parallel (xdist) pass, see scripts/check.sh.
 pytestmark = pytest.mark.serial
@@ -53,8 +52,6 @@ def test_token_host_and_origin_guard(client_factory):
 def test_short_token_is_rejected(tmp_path):
     with pytest.raises(ValueError):
         validate_token("short")
-    with pytest.raises(ValueError):
-        create_gateway(tmp_path, "x" * 31)
     result = subprocess.run(
         [sys.executable, "-m", "orbit_backend.services", "gateway", "--home", str(tmp_path)],
         env={**os.environ, "ORBIT_API_TOKEN": "too-short"}, capture_output=True, timeout=60)

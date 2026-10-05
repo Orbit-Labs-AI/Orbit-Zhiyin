@@ -73,7 +73,6 @@ function fpCodeLbls(sm) {
   });
 }
 const fpTypeIdx = (code) => FP_TYPES.indexOf(code);
-const fpTypeDeg = (code) => (Math.max(0, fpTypeIdx(code)) + 0.5) * 22.5;
 // 单个会话的四个维度（与 persona() 同一多信号口径，只看这一个会话和它所在的那一天）：
 //   示例数据：用会话自带的 lean（四维倾向，只供表盘归类）；其它会话：D / I / V 由该会话自己的信号算，M 由当天的会话数、
 //   Agent 数与是否多线算（psAxis，与 persona() 同一份锚点与权重）；某维度没有任何信号时取 50

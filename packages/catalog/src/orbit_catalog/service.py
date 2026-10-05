@@ -21,12 +21,12 @@ from .contracts import (
     canonical_json,
 )
 from .network import HttpClient
-from .search import query_text, remember_queries, search
+from .search import search
 from .snapshot import OFFLINE_KINDS, bundled_seed, import_snapshot, retire_seeds, snapshot_changed
 from .sources import default_sources
 from .store import CatalogBusy, CatalogStore
 from .sync import CatalogSync
-from .vectors import LocalE5Encoder, embedding_coverage, index_embeddings, normalize_vectors
+from .vectors import LocalE5Encoder, embedding_coverage, index_embeddings
 
 # Chunks per background embedding job. One slice of the int8 E5 on an M-series CPU takes about
 # 10-20 s (validation.md), short enough that a due source sync waits at most one slice.
@@ -112,30 +112,6 @@ class CatalogService:
             result["vector"] = {"status": "unavailable", "reason": reason}
             result.setdefault("degraded", []).append("semantic:" + reason)
             return result
-
-    def match_many(self, requests: list[MatchRequest]) -> list[dict]:
-        """Batch-encode query texts; vector failure preserves every non-vector route."""
-        if not requests:
-            return []
-        try:
-            encoder = self.encoder()
-            if encoder is not None:
-                texts = list(dict.fromkeys(query_text(r) for r in requests
-                                           if query_text(r) and r.model_id in (None, encoder.model_id)))
-                if texts:
-                    vectors = normalize_vectors(encoder.encode(texts, query=True), len(texts), encoder.dimensions)
-                    remember_queries(encoder, texts, vectors)
-        except Exception as exc:
-            reason = vector_failure(exc)
-            results = [search(self.store, request) for request in requests]
-            for result in results:
-                result["vector"] = {"status": "unavailable", "reason": reason}
-                result.setdefault("degraded", []).append("semantic:" + reason)
-            return results
-        if len(requests) == 1:
-            return [self.match(requests[0])]
-        with ThreadPoolExecutor(max_workers=min(4, len(requests)), thread_name_prefix="orbit-match") as pool:
-            return list(pool.map(self.match, requests))
 
     def search_cards(self, q: str, kinds=(), agents=(), limit: int = 20, prefix: bool = True) -> dict:
         """Library search box: hybrid retrieval returned as list cards plus snippet and score."""

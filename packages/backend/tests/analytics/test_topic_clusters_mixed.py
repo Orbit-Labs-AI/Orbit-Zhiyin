@@ -3,7 +3,7 @@
 import random
 import re
 
-from orbit_backend.analytics.text import representation
+from orbit_backend.analytics.task.representation import representation
 
 BOILERPLATE = ("You are working in the orbit repository. Follow AGENTS.md, keep commits small "
                "and run the checks before you finish.\n请用中文回复，并在结束前总结改动。")

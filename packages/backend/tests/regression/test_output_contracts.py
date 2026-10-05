@@ -1,11 +1,11 @@
 import json
 from pathlib import Path
 
-from orbit_backend.analysis import analyze
-from orbit_backend.content import length_contract, measure_length, visible_text
-from orbit_backend.feedback import signals
+from orbit_backend.evaluation.pipeline import pipeline_benchmark
 from orbit_backend.models import Event, ParsedSession, Session
-from orbit_backend.pipeline_eval import pipeline_benchmark
+from orbit_backend.profiling.analysis import analyze
+from orbit_backend.profiling.content import length_contract, measure_length, visible_text
+from orbit_backend.profiling.feedback import signals
 from orbit_backend.recommend import recommend
 from orbit_backend.store import Store
 

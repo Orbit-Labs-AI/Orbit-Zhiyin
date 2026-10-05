@@ -275,8 +275,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     lazy var bridge = BridgeProxy(self)
     var titlebar: [String: Double] = [:]
 
-    var mainWebView: WKWebView { hosts[.main]!.webView }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSWindow.allowsAutomaticWindowTabbing = false  // One main window: no 显示标签页栏 / 合并所有窗口 items.
