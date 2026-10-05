@@ -114,7 +114,7 @@ def write_plist(contents: Path) -> None:
             "LSMinimumSystemVersion": MIN_MACOS,
             "LSApplicationCategoryType": "public.app-category.developer-tools",
             "NSHighResolutionCapable": True,
-            "NSHumanReadableCopyright": "ActionMesh AI",
+            "NSHumanReadableCopyright": "Orbit Labs",
             "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
         }, handle)
 
