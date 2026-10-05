@@ -1,4 +1,4 @@
-# Hackathon
+# Orbit
 
 ActionMesh-AI 组织的公开 Orbit 仓库，默认分支 `main`。产品名 **Orbit**（原暂定名 Tandem / 同频），目标为本地 macOS App；当前采用 Python workspace、TypeScript 连接器与 UI 原型。
 

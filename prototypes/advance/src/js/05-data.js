@@ -20,7 +20,7 @@ const PJ = [
   { id: 'teamhub', name: 'team-hub', path: '~/Projects/ActionMesh AI/team-hub', git: 'ActionMesh-AI/team-hub', q: 24, h: 12, A: 9.8, fr: 6.4, I: 44, V: 60, err: 0.05, tags: ['Obsidian', '协作规则', 'Git'], topics: { git: 1 }, fric: { '流程过重（子代理）': 3, '方向错误': 2, '并行会话冲突': 2 },
     flow: [['同步 collab', 'git pull'], ['审核新增', 'git diff main'], ['整理日报', 'Edit ×4'], ['开 PR', 'gh pr create'], ['回流检查', 'gh run watch']], cover: [['AGENTS.md', '4.8 KB', '9/30 更新', 1], ['Hooks', '1', '阻止新建 CLAUDE.md', 1], ['Skills', '0', '可封装每日审核', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '把「每日审核 collab」固定成 Skill，减少每天重复说明', rec: 'pr-wrapup',
     titles: ['同步 team-hub collab 并审核日报', '合并 PR 并清理分支', '统一 AGENTS.md 并删除旧规则文件', '处理 Codex review 意见', '整理项目索引', '清理过期会话与权限'] },
-  { id: 'hackathon', name: 'Hackathon', path: '~/Projects/ActionMesh AI/Hackathon', git: 'ActionMesh-AI/Hackathon', q: 22, h: 14, A: 13.5, fr: 9.1, I: 78, V: 64, err: 0.06, tags: ['比赛', '设计', 'Git'], topics: { git: 0.55, design: 0.45 }, fric: { '方向错误': 3, '流程过重（子代理）': 2, '并行会话冲突': 2 },
+  { id: 'orbit', name: 'Orbit', path: '~/Projects/ActionMesh AI/Orbit', git: 'ActionMesh-AI/Orbit-Source', q: 22, h: 14, A: 13.5, fr: 9.1, I: 78, V: 64, err: 0.06, tags: ['比赛', '设计', 'Git'], topics: { git: 0.55, design: 0.45 }, fric: { '方向错误': 3, '流程过重（子代理）': 2, '并行会话冲突': 2 },
     flow: [['讨论需求', '3 轮对话'], ['写规则', 'Edit AGENTS.md'], ['开 PR', 'gh pr create'], ['处理 review', '@codex review'], ['合并', 'gh pr merge']], cover: [['AGENTS.md', '2.5 KB', '10/1 更新', 1], ['Hooks', '0', '可加 review 收敛规则', 0], ['Skills', '0', '可加 PR 收尾', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '安装 PR 收尾 Skill：最多两轮 review，只修 P0 / P1', rec: 'pr-wrapup',
     titles: ['设计 Orbit Mac App 视觉案例', '合并 PR 并清理分支', '精简 AGENTS.md 规则表述', '初始化仓库结构', '讨论 MVP 范围', '把视觉案例做成交互 Demo'] },
   { id: 'quant', name: 'Auto Finance & Quant', path: '~/Projects/Auto Finance & Quant', git: 'yhyfhgs/Auto-Finance-Quant', q: 18, h: 16, A: 8.2, fr: 7.4, I: 66, V: 70, err: 0.05, tags: ['Python', 'uv', '回测'], topics: { quant: 1 }, fric: { '误解需求': 4, '工具 / 环境失败': 2 },
@@ -43,11 +43,11 @@ const PJI = {}; PJ.forEach((p) => { PJI[p.id] = p; });
 // sidebar user row (25-nav sideFoot): the demo persona; live mode (90-live-core) swaps in a neutral local-user label
 const ME = { name: 'yhyfhgs', av: 'yh' };
 const AFF = {
-  cc: { confluo: 5, latentskill: 4, teamhub: 2, hackathon: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
-  cx: { confluo: 1, latentskill: 2, teamhub: 4, hackathon: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
-  km: { confluo: 0.4, latentskill: 5, teamhub: 0.5, hackathon: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
-  ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, hackathon: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
-  oc: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
+  cc: { confluo: 5, latentskill: 4, teamhub: 2, orbit: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
+  cx: { confluo: 1, latentskill: 2, teamhub: 4, orbit: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
+  km: { confluo: 0.4, latentskill: 5, teamhub: 0.5, orbit: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
+  ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, orbit: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
+  oc: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, orbit: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
 };
 let DAY0 = Date.UTC(2026, 5, 3);   // live mode (90-live-core) moves DAY0 / LASTDAY to the real calendar
 let LASTDAY = 119;
@@ -115,7 +115,7 @@ function genSessions() {
     const base = [[2.6, 1], [2.7, 1.1], [5.6, 2.2]][mo][weekend ? 1 : 0];
     const n = Math.max(0, Math.round(base + (r() - 0.5) * 2));
     const amix = [{ cc: 0.55, cx: 0.35, km: 0.1 }, { cc: 0.55, cx: 0.3, km: 0.1, ds: 0.05 }, { cc: 0.6, cx: 0.22, km: 0.08, ds: 0.06, oc: 0.04 }][mo];
-    const pw = [{ latentskill: 5, quant: 4, tweet: 3, other: 2, fhgs: 3, confluo: 2 }, { latentskill: 4, quant: 3, confluo: 4, fhgs: 3, surge: 2, other: 2 }, { confluo: 5, hackathon: 1, latentskill: 3, teamhub: 3, surge: 3, quant: 2, fhgs: 2, other: 2 }][mo];
+    const pw = [{ latentskill: 5, quant: 4, tweet: 3, other: 2, fhgs: 3, confluo: 2 }, { latentskill: 4, quant: 3, confluo: 4, fhgs: 3, surge: 2, other: 2 }, { confluo: 5, orbit: 1, latentskill: 3, teamhub: 3, surge: 3, quant: 2, fhgs: 2, other: 2 }][mo];
     for (let i = 0; i < n; i++) {
       const a = pickW(r, amix);
       const w = {}; for (const p in pw) w[p] = pw[p] * (AFF[a][p] || 0.5);
@@ -168,7 +168,7 @@ function genSessions() {
     s.title = P.titles[n % P.titles.length] + ['', '（续）', ' · 收尾', ' · 返工', ' · 复盘'][Math.floor(n / P.titles.length) % 5];
   });
   all.push(FEAT);
-  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'hackathon', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Orbit Mac App 视觉案例' });
+  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'orbit', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Orbit Mac App 视觉案例' });
   all.push({ id: 'sess-1001-0903', d: 120, a: 'cx', p: 'teamhub', h: 9, mi: 3, dur: 12, msgs: 3, tools: 34, errors: 0, corr: 0, out: 'ok', verify: true, mood: 0.35, topic: 'git', title: '同步 team-hub collab 并审核日报' });
   all.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi));
   all.forEach((s, i) => {
@@ -266,7 +266,7 @@ const RECS = [
     file: [['{', ' '], ['  "hooks": {', '+'], ['    "PostToolUse": [', '+'], ['      {', '+'], ['        "matcher": "Bash",', '+'], ['        "hooks": [', '+'], ['          { "type": "command",', '+'], ['            "command": "~/.orbit/hooks/retry-breaker.sh" }', 'ai'], ['        ]', '+'], ['      }', '+'], ['    ]', '+'], ['  }', '+'], ['}', ' ']],
     steps: ['预览将写入的 Hook 与脚本', '确认安装（脚本放在 ~/.orbit/hooks，可随时删除）', '下次出现连续失败时，Agent 会先停下来检查认证与环境'], track: [['重复失败序列', 23, 7, '段'], ['失败后浪费时长', 58, 17, '分钟'], ['工具类摩擦', 12, 5, '次']] },
   { id: 'worktree', dim: 'flow', type: '工作流', icon: 'branch', lvl: 3, aud: 1, title: '并行会话改用 git worktree 隔离', gain: '并行冲突 −5 次 / 月', why: '多个会话同时改同一仓库，产生了 5 次冲突与 2 次覆盖。', ev: '9 个会话', evq: { fric: '并行会话冲突' }, compat: 'Claude Code · Codex', c2: 'var(--a2)', primary: '查看教程', target: '教程（不写入文件）',
-    file: [['# 为每个并行会话建立独立 worktree', ' '], ['git worktree add ../Hackathon-a feat/a', '+'], ['git worktree add ../Hackathon-b feat/b', '+'], ['# 在各自目录里启动 Agent，结束后：', ' '], ['git worktree remove ../Hackathon-a', '+']],
+    file: [['# 为每个并行会话建立独立 worktree', ' '], ['git worktree add ../Orbit-a feat/a', '+'], ['git worktree add ../Orbit-b feat/b', '+'], ['# 在各自目录里启动 Agent，结束后：', ' '], ['git worktree remove ../Orbit-a', '+']],
     steps: ['为每个要并行的任务建一个 worktree', '在各自目录启动 Agent', '完成后在主目录合并并清理 worktree', '也可以交给生成工坊做成一个 Skill'], track: [['并行冲突', 5, 0, '次'], ['覆盖他人改动', 2, 0, '次'], ['并行会话数', 41, 44, '次']] },
   { id: 'citation-checker', dim: 'agent', type: '子代理', icon: 'bot', lvl: 2, aud: 1, title: '引用核查子代理（citation-checker）', gain: '引用返工 −3 次 / 月', why: '论文会话里 9 次纠偏与引用格式和 BibTeX 有关。', ev: '9 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code · Kimi CLI', c2: 'var(--a3)', primary: '预览并安装', target: '~/.claude/agents/citation-checker.md',
     file: [['---', ' '], ['name: citation-checker', '+'], ['description: 核对 \\cite 与 BibTeX 的一致性，输出问题表', '+'], ['tools: Read, Grep', '+'], ['---', ' '], ['只读。逐条检查正文引用是否都在 .bib 中、键名是否一致、', '+'], ['年份与作者是否与原文相符；结果用表格列出，不要改文件。', 'ai']],

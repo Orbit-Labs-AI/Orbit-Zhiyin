@@ -5,7 +5,7 @@
  * Agent 分工：会话 / 时长 / 完成率三行条；规则与配置覆盖：Agent × 配置类型方块矩阵（评审 §3.5）。 */
 // pin toggle on a project row (F26, pinToggle in 25-nav): shown on row hover, always shown once the project is pinned
 const pjPinBtn = (p) => { if (p.id === '_none') return ''; const on = isPinned(p.id); return '<button type="button" class="pj-pin' + (on ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(p.id) + '" aria-pressed="' + on + '" aria-label="' + (on ? '取消置顶 ' : '置顶 ') + esc(p.name) + '" data-tip="' + (on ? '已置顶到侧栏 · 点击取消' : '置顶到侧栏') + '">' + ic('pin', 12) + '</button>'; };
-const FOLDERS = { confluo: ['Confluo', 'Confluo/docs/plan/v2/demo'], latentskill: ['~/Research/ppb', '~/Research/latentskill（软链接）'], teamhub: ['team-hub'], hackathon: ['Hackathon'], quant: ['Auto Finance & Quant', 'Auto Finance & Quant/packages/datahub'], fhgs: ['FHGS Website/apps/web', 'FHGS Website/apps/stats'], surge: ['~/.config/surge'], tweet: ['Tweet Card'], other: ['~/Research/General', '~/Downloads', '~/Projects/Coffee'] };
+const FOLDERS = { confluo: ['Confluo', 'Confluo/docs/plan/v2/demo'], latentskill: ['~/Research/ppb', '~/Research/latentskill（软链接）'], teamhub: ['team-hub'], orbit: ['Orbit'], quant: ['Auto Finance & Quant', 'Auto Finance & Quant/packages/datahub'], fhgs: ['FHGS Website/apps/web', 'FHGS Website/apps/stats'], surge: ['~/.config/surge'], tweet: ['Tweet Card'], other: ['~/Research/General', '~/Downloads', '~/Projects/Coffee'] };
 // 各类配置哪些 Agent 读取（示例口径）：AGENTS.md 全部；Hooks / 子代理只有 Claude Code；Skills 为 Claude Code 与 Codex；MCP 除 DeepSeek 外都支持
 const COV_SUP = { 'AGENTS.md': ['cc', 'cx', 'km', 'ds', 'oc'], Hooks: ['cc'], Skills: ['cc', 'cx'], MCP: ['cc', 'cx', 'km', 'oc'], '子代理': ['cc'] };
 // 散点派生类型：在 VZ.scatter 之上加残差竖线与 A / B 标记；其余（标签避让、拟合带、尺寸图例、表格视图）沿用

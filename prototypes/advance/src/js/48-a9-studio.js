@@ -2,14 +2,14 @@
 // Built-in deterministic workflow: pack context (token stack + per-item preview with redaction) → analyse → draft (streamed)
 // → self-check (spec / safety) → replay dry-run + judge → review → install (diff). A template (TPLS) only picks the step
 // order; step ids are fixed, so logs, durations and check rows are looked up by id and a skipped step reads「已跳过」.
-const CTX = [['sum', '相关会话摘要 · 46 个', '只含结构化统计与 AI 摘要，不含原文', 6100], ['fric', '摩擦与纠偏统计', '方向错误 17 · review 循环 11 轮 …', 1200], ['rules', '现有规则文件 · 3 份', 'AGENTS.md（全局、Hackathon、team-hub）', 3400], ['raw', '原始对话片段', '默认关闭；开启后逐条确认', 18600], ['redact', '脱敏：用户名、邮箱、密钥模式', '命中处替换为占位符', 0]];
+const CTX = [['sum', '相关会话摘要 · 46 个', '只含结构化统计与 AI 摘要，不含原文', 6100], ['fric', '摩擦与纠偏统计', '方向错误 17 · review 循环 11 轮 …', 1200], ['rules', '现有规则文件 · 3 份', 'AGENTS.md（全局、Orbit、team-hub）', 3400], ['raw', '原始对话片段', '默认关闭；开启后逐条确认', 18600], ['redact', '脱敏：用户名、邮箱、密钥模式', '命中处替换为占位符', 0]];
 const CTX_LIMIT = 24000;   // one generation's input budget; the stack bar turns critical above it
 const CTX_HITS = { sum: 14, fric: 0, rules: 9, raw: 8 };   // redaction hits per item
 // Sample lines shown in the per-item preview. {{u}} user name · {{m}} e-mail · {{k}} key · {{ip}} host — replaced by placeholders when redaction is on.
 const CTX_SAMPLE = {
   sum: ['sess-0921-1412 · Confluo · 「部署到 Cloudflare Pages」 · 42 min · 纠偏 3', '  fric: 方向错误 → 「我说的是 Pages，不是 Workers」', 'sess-0918-2203 · latentskill · 「论文第 4 节重写」 · 1 h 08 · 纠偏 2', '  cwd: /Users/{{u}}/Projects/latentskill', '… 共 46 条，只含统计与摘要'],
   fric: ['方向错误 17 · 改动过度 9 · review 循环 11 轮（最长 4 轮）', '「直接合并」出现 6 次，其中 5 次 Agent 仍发起了新一轮 review', 'P2 意见占 review 评论的 71%'],
-  rules: ['~/.agents/AGENTS.md · 38 行 · 维护者 {{u}}', 'Hackathon/AGENTS.md · 「合并前须通过 Codex review」', 'team-hub/AGENTS.md · 审核联系 {{m}}', 'settings.local.json · token = {{k}}'],
+  rules: ['~/.agents/AGENTS.md · 38 行 · 维护者 {{u}}', 'Orbit/AGENTS.md · 「合并前须通过 Codex review」', 'team-hub/AGENTS.md · 审核联系 {{m}}', 'settings.local.json · token = {{k}}'],
   raw: ['[you] 直接合并，别再开 review 了', '[agent] 好的，我先运行 @codex review 确认一下…', '[you] 我说了直接合并！！', '[agent] Bash: gh pr merge --merge（host {{ip}}）', '… 共 23 段，发送前逐条确认']
 };
 const CTX_RAW = { u: 'alex', m: 'alex@example.com', k: 'sk-demo-0000aaaa1111', ip: '192.168.1.20' };
@@ -145,7 +145,7 @@ function ctxPreviewHTML() {
 }
 function ctxBundle() {
   const c = S.studio.ctx;
-  return { goal: S.studio.goal, type: S.studio.type, runner: agent(S.studio.agent).cli, template: TPLS[S.studio.tpl].name, persona: personaNow().code, sessions_summary: c.sum ? '46 个会话的结构化摘要（不含原文）' : undefined, friction: c.fric ? { '方向错误': 17, 'review 最长轮次': 11 } : undefined, rules: c.rules ? ['~/.agents/AGENTS.md', 'Hackathon/AGENTS.md', 'team-hub/AGENTS.md'] : undefined, raw_snippets: c.raw ? '（逐条确认后附上）' : undefined, redaction: c.redact ? ctxHits() + ' 处已替换为占位符' : '未脱敏', tokens: ctxTokens() };
+  return { goal: S.studio.goal, type: S.studio.type, runner: agent(S.studio.agent).cli, template: TPLS[S.studio.tpl].name, persona: personaNow().code, sessions_summary: c.sum ? '46 个会话的结构化摘要（不含原文）' : undefined, friction: c.fric ? { '方向错误': 17, 'review 最长轮次': 11 } : undefined, rules: c.rules ? ['~/.agents/AGENTS.md', 'Orbit/AGENTS.md', 'team-hub/AGENTS.md'] : undefined, raw_snippets: c.raw ? '（逐条确认后附上）' : undefined, redaction: c.redact ? ctxHits() + ' 处已替换为占位符' : '未脱敏', tokens: ctxTokens() };
 }
 function refreshCtx() {
   const bar = $('#stTok'); if (bar) bar.outerHTML = tokBar();

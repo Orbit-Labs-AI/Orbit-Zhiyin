@@ -4,7 +4,7 @@ Orbit 桌面 App 面向 **Apple Silicon、macOS 14 及以上**。安装包自带
 
 ## 安装
 
-1. 打开 [GitHub Releases](https://github.com/ActionMesh-AI/Hackathon/releases/latest)，阅读该版本说明与已知问题。
+1. 打开 [GitHub Releases](https://github.com/ActionMesh-AI/Orbit/releases/latest)，阅读该版本说明与已知问题。
 2. 下载 `arm64.dmg`，打开后将 Orbit 拖入「应用程序」；也可解压 `arm64.zip` 后移动 `Orbit.app`。
 3. 打开 Orbit，按首次引导选择允许读取的 Agent 来源。只想先看界面时，可先[体验示例](demo.md)。
 

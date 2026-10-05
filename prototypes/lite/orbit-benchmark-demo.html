@@ -312,7 +312,7 @@ const PJ = [
   { id: 'teamhub', name: 'team-hub', path: '~/Projects/ActionMesh AI/team-hub', git: 'ActionMesh-AI/team-hub', q: 24, h: 12, A: 9.8, fr: 6.4, I: 44, V: 60, err: 0.05, tags: ['Obsidian', '协作规则', 'Git'], topics: { git: 1 }, fric: { '流程过重（子代理）': 3, '方向错误': 2, '并行会话冲突': 2 },
     flow: [['同步 collab', 'git pull'], ['审核新增', 'git diff main'], ['整理日报', 'Edit ×4'], ['开 PR', 'gh pr create'], ['回流检查', 'gh run watch']], cover: [['AGENTS.md', '4.8 KB', '9/30 更新', 1], ['Hooks', '1', '阻止新建 CLAUDE.md', 1], ['Skills', '0', '可封装每日审核', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '把「每日审核 collab」固定成 Skill，减少每天重复说明', rec: 'pr-wrapup',
     titles: ['同步 team-hub collab 并审核日报', '合并 PR 并清理分支', '统一 AGENTS.md 并删除旧规则文件', '处理 Codex review 意见', '整理项目索引', '清理过期会话与权限'] },
-  { id: 'hackathon', name: 'Hackathon', path: '~/Projects/ActionMesh AI/Hackathon', git: 'ActionMesh-AI/Hackathon', q: 22, h: 14, A: 13.5, fr: 9.1, I: 78, V: 64, err: 0.06, tags: ['比赛', '设计', 'Git'], topics: { git: 0.55, design: 0.45 }, fric: { '方向错误': 3, '流程过重（子代理）': 2, '并行会话冲突': 2 },
+  { id: 'orbit', name: 'Orbit', path: '~/Projects/ActionMesh AI/Orbit', git: 'ActionMesh-AI/Orbit-Source', q: 22, h: 14, A: 13.5, fr: 9.1, I: 78, V: 64, err: 0.06, tags: ['比赛', '设计', 'Git'], topics: { git: 0.55, design: 0.45 }, fric: { '方向错误': 3, '流程过重（子代理）': 2, '并行会话冲突': 2 },
     flow: [['讨论需求', '3 轮对话'], ['写规则', 'Edit AGENTS.md'], ['开 PR', 'gh pr create'], ['处理 review', '@codex review'], ['合并', 'gh pr merge']], cover: [['AGENTS.md', '2.5 KB', '10/1 更新', 1], ['Hooks', '0', '可加 review 收敛规则', 0], ['Skills', '0', '可加 PR 收尾', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '安装 PR 收尾 Skill：最多两轮 review，只修 P0 / P1', rec: 'pr-wrapup',
     titles: ['设计 Orbit Mac App 视觉案例', '合并 PR 并清理分支', '精简 AGENTS.md 规则表述', '初始化仓库结构', '讨论 MVP 范围', '把视觉案例做成交互 Demo'] },
   { id: 'quant', name: 'Auto Finance & Quant', path: '~/Projects/Auto Finance & Quant', git: 'yhyfhgs/Auto-Finance-Quant', q: 18, h: 16, A: 8.2, fr: 7.4, I: 66, V: 70, err: 0.05, tags: ['Python', 'uv', '回测'], topics: { quant: 1 }, fric: { '误解需求': 4, '工具 / 环境失败': 2 },
@@ -333,11 +333,11 @@ const PJ = [
 ];
 const PJI = {}; PJ.forEach((p) => { PJI[p.id] = p; });
 const AFF = {
-  cc: { confluo: 5, latentskill: 4, teamhub: 2, hackathon: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
-  cx: { confluo: 1, latentskill: 2, teamhub: 4, hackathon: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
-  gm: { confluo: 0.4, latentskill: 5, teamhub: 0.5, hackathon: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
-  ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, hackathon: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
-  cp: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
+  cc: { confluo: 5, latentskill: 4, teamhub: 2, orbit: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
+  cx: { confluo: 1, latentskill: 2, teamhub: 4, orbit: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
+  gm: { confluo: 0.4, latentskill: 5, teamhub: 0.5, orbit: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
+  ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, orbit: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
+  cp: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, orbit: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
 };
 const DAY0 = Date.UTC(2026, 5, 3);
 const LASTDAY = 119;
@@ -404,7 +404,7 @@ function genSessions() {
     const base = [[2.6, 1], [2.7, 1.1], [5.6, 2.2]][mo][weekend ? 1 : 0];
     const n = Math.max(0, Math.round(base + (r() - 0.5) * 2));
     const amix = [{ cc: 0.55, cx: 0.35, gm: 0.1 }, { cc: 0.55, cx: 0.3, gm: 0.1, ds: 0.05 }, { cc: 0.6, cx: 0.22, gm: 0.08, ds: 0.06, cp: 0.04 }][mo];
-    const pw = [{ latentskill: 5, quant: 4, tweet: 3, other: 2, fhgs: 3, confluo: 2 }, { latentskill: 4, quant: 3, confluo: 4, fhgs: 3, surge: 2, other: 2 }, { confluo: 5, hackathon: 1, latentskill: 3, teamhub: 3, surge: 3, quant: 2, fhgs: 2, other: 2 }][mo];
+    const pw = [{ latentskill: 5, quant: 4, tweet: 3, other: 2, fhgs: 3, confluo: 2 }, { latentskill: 4, quant: 3, confluo: 4, fhgs: 3, surge: 2, other: 2 }, { confluo: 5, orbit: 1, latentskill: 3, teamhub: 3, surge: 3, quant: 2, fhgs: 2, other: 2 }][mo];
     for (let i = 0; i < n; i++) {
       const a = pickW(r, amix);
       const w = {}; for (const p in pw) w[p] = pw[p] * (AFF[a][p] || 0.5);
@@ -457,7 +457,7 @@ function genSessions() {
     s.title = P.titles[n % P.titles.length] + ['', '（续）', ' · 收尾', ' · 返工', ' · 复盘'][Math.floor(n / P.titles.length) % 5];
   });
   all.push(FEAT);
-  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'hackathon', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Orbit Mac App 视觉案例' });
+  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'orbit', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Orbit Mac App 视觉案例' });
   all.push({ id: 'sess-1001-0903', d: 120, a: 'cx', p: 'teamhub', h: 9, mi: 3, dur: 12, msgs: 3, tools: 34, errors: 0, corr: 0, out: 'ok', verify: true, mood: 0.35, topic: 'git', title: '同步 team-hub collab 并审核日报' });
   all.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi));
   all.forEach((s, i) => {
@@ -537,7 +537,7 @@ const DIMS = [['all','全部'],['prompt','Prompt'],['skill','Skill'],['hook','Ho
 const S = {route:'overview',range:30,agent:'all',project:'all',session:null,q:'',zoom:1,selectedProject:null,rank:'tools',toolSort:'n',toolDir:-1,dimension:'all',rec:null,recTab:'about',target:'cc',libTab:'for',libQ:'',drawer:false,syncing:false,synced:null,theme:store.get('theme','light'),installed:store.get('installed',{}),custom:{}};
 if (!['light','dark'].includes(S.theme)) S.theme='light';
 if (!S.installed || typeof S.installed!=='object' || Array.isArray(S.installed)) S.installed={};
-const LANGUAGES = {confluo:['TypeScript','CSS','HTML'],latentskill:['Python','LaTeX'],teamhub:['Markdown','Shell'],hackathon:['TypeScript','Python','HTML'],quant:['Python','SQL'],fhgs:['TypeScript','Rust','CSS'],surge:['Python','Shell'],tweet:['TypeScript','SQL'],other:['Python','Markdown']};
+const LANGUAGES = {confluo:['TypeScript','CSS','HTML'],latentskill:['Python','LaTeX'],teamhub:['Markdown','Shell'],orbit:['TypeScript','Python','HTML'],quant:['Python','SQL'],fhgs:['TypeScript','Rust','CSS'],surge:['Python','Shell'],tweet:['TypeScript','SQL'],other:['Python','Markdown']};
 const PHRASES = ['先确认需求','不是这个意思','不要改其他文件','先检查环境','简洁一点','请验证结果','用中文','继续'];
 const RECOMMENDATIONS = [
   {id:'acceptance',dim:'prompt',type:'Prompt',icon:'rule',title:'先写完成条件，再开始任务',desc:'把目标、边界和验证方式写在第一条消息里，减少执行中途的方向纠偏。',gain:'纠偏次数 ↓ 约 30%',agents:['cc','cx','gm','ds','cp'],score:96,reason:'friction',file:'acceptance-prompt.md',code:'目标：用一句话描述这次要完成的事。\n完成条件：列出可检查的结果。\n修改范围：指定文件、页面或模块。\n验证方式：运行检查，说明结果与未解决项。\n存在歧义时先澄清；超出范围的改动先与我对齐。',steps:['填入当前任务的目标、边界与完成条件。','把模板作为新会话的第一条消息。','完成后按照同一份条件检查交付结果。']},

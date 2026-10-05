@@ -2255,7 +2255,7 @@ const PJ = [
   { id: 'teamhub', name: 'team-hub', path: '~/Projects/ActionMesh AI/team-hub', git: 'ActionMesh-AI/team-hub', q: 24, h: 12, A: 9.8, fr: 6.4, I: 44, V: 60, err: 0.05, tags: ['Obsidian', '协作规则', 'Git'], topics: { git: 1 }, fric: { '流程过重（子代理）': 3, '方向错误': 2, '并行会话冲突': 2 },
     flow: [['同步 collab', 'git pull'], ['审核新增', 'git diff main'], ['整理日报', 'Edit ×4'], ['开 PR', 'gh pr create'], ['回流检查', 'gh run watch']], cover: [['AGENTS.md', '4.8 KB', '9/30 更新', 1], ['Hooks', '1', '阻止新建 CLAUDE.md', 1], ['Skills', '0', '可封装每日审核', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '把「每日审核 collab」固定成 Skill，减少每天重复说明', rec: 'pr-wrapup',
     titles: ['同步 team-hub collab 并审核日报', '合并 PR 并清理分支', '统一 AGENTS.md 并删除旧规则文件', '处理 Codex review 意见', '整理项目索引', '清理过期会话与权限'] },
-  { id: 'hackathon', name: 'Hackathon', path: '~/Projects/ActionMesh AI/Hackathon', git: 'ActionMesh-AI/Hackathon', q: 22, h: 14, A: 13.5, fr: 9.1, I: 78, V: 64, err: 0.06, tags: ['比赛', '设计', 'Git'], topics: { git: 0.55, design: 0.45 }, fric: { '方向错误': 3, '流程过重（子代理）': 2, '并行会话冲突': 2 },
+  { id: 'orbit', name: 'Orbit', path: '~/Projects/ActionMesh AI/Orbit', git: 'ActionMesh-AI/Orbit-Source', q: 22, h: 14, A: 13.5, fr: 9.1, I: 78, V: 64, err: 0.06, tags: ['比赛', '设计', 'Git'], topics: { git: 0.55, design: 0.45 }, fric: { '方向错误': 3, '流程过重（子代理）': 2, '并行会话冲突': 2 },
     flow: [['讨论需求', '3 轮对话'], ['写规则', 'Edit AGENTS.md'], ['开 PR', 'gh pr create'], ['处理 review', '@codex review'], ['合并', 'gh pr merge']], cover: [['AGENTS.md', '2.5 KB', '10/1 更新', 1], ['Hooks', '0', '可加 review 收敛规则', 0], ['Skills', '0', '可加 PR 收尾', 0], ['MCP', '0', '无需', 0], ['子代理', '0', '无需', 0]], tip: '安装 PR 收尾 Skill：最多两轮 review，只修 P0 / P1', rec: 'pr-wrapup',
     titles: ['设计 Orbit Mac App 视觉案例', '合并 PR 并清理分支', '精简 AGENTS.md 规则表述', '初始化仓库结构', '讨论 MVP 范围', '把视觉案例做成交互 Demo'] },
   { id: 'quant', name: 'Auto Finance & Quant', path: '~/Projects/Auto Finance & Quant', git: 'yhyfhgs/Auto-Finance-Quant', q: 18, h: 16, A: 8.2, fr: 7.4, I: 66, V: 70, err: 0.05, tags: ['Python', 'uv', '回测'], topics: { quant: 1 }, fric: { '误解需求': 4, '工具 / 环境失败': 2 },
@@ -2278,11 +2278,11 @@ const PJI = {}; PJ.forEach((p) => { PJI[p.id] = p; });
 // sidebar user row (25-nav sideFoot): the demo persona; live mode (90-live-core) swaps in a neutral local-user label
 const ME = { name: 'yhyfhgs', av: 'yh' };
 const AFF = {
-  cc: { confluo: 5, latentskill: 4, teamhub: 2, hackathon: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
-  cx: { confluo: 1, latentskill: 2, teamhub: 4, hackathon: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
-  km: { confluo: 0.4, latentskill: 5, teamhub: 0.5, hackathon: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
-  ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, hackathon: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
-  oc: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, hackathon: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
+  cc: { confluo: 5, latentskill: 4, teamhub: 2, orbit: 4, quant: 2, fhgs: 3, surge: 1, tweet: 1, other: 2 },
+  cx: { confluo: 1, latentskill: 2, teamhub: 4, orbit: 2, quant: 3, fhgs: 2, surge: 4, tweet: 2, other: 1 },
+  km: { confluo: 0.4, latentskill: 5, teamhub: 0.5, orbit: 0.5, quant: 1, fhgs: 0.5, surge: 0.3, tweet: 0.5, other: 3 },
+  ds: { confluo: 0.3, latentskill: 5, teamhub: 0.3, orbit: 0.3, quant: 1, fhgs: 0.3, surge: 0.5, tweet: 0.3, other: 2 },
+  oc: { confluo: 0.5, latentskill: 0.5, teamhub: 0.5, orbit: 0.5, quant: 4, fhgs: 3, surge: 0.5, tweet: 4, other: 1 }
 };
 let DAY0 = Date.UTC(2026, 5, 3);   // live mode (90-live-core) moves DAY0 / LASTDAY to the real calendar
 let LASTDAY = 119;
@@ -2350,7 +2350,7 @@ function genSessions() {
     const base = [[2.6, 1], [2.7, 1.1], [5.6, 2.2]][mo][weekend ? 1 : 0];
     const n = Math.max(0, Math.round(base + (r() - 0.5) * 2));
     const amix = [{ cc: 0.55, cx: 0.35, km: 0.1 }, { cc: 0.55, cx: 0.3, km: 0.1, ds: 0.05 }, { cc: 0.6, cx: 0.22, km: 0.08, ds: 0.06, oc: 0.04 }][mo];
-    const pw = [{ latentskill: 5, quant: 4, tweet: 3, other: 2, fhgs: 3, confluo: 2 }, { latentskill: 4, quant: 3, confluo: 4, fhgs: 3, surge: 2, other: 2 }, { confluo: 5, hackathon: 1, latentskill: 3, teamhub: 3, surge: 3, quant: 2, fhgs: 2, other: 2 }][mo];
+    const pw = [{ latentskill: 5, quant: 4, tweet: 3, other: 2, fhgs: 3, confluo: 2 }, { latentskill: 4, quant: 3, confluo: 4, fhgs: 3, surge: 2, other: 2 }, { confluo: 5, orbit: 1, latentskill: 3, teamhub: 3, surge: 3, quant: 2, fhgs: 2, other: 2 }][mo];
     for (let i = 0; i < n; i++) {
       const a = pickW(r, amix);
       const w = {}; for (const p in pw) w[p] = pw[p] * (AFF[a][p] || 0.5);
@@ -2403,7 +2403,7 @@ function genSessions() {
     s.title = P.titles[n % P.titles.length] + ['', '（续）', ' · 收尾', ' · 返工', ' · 复盘'][Math.floor(n / P.titles.length) % 5];
   });
   all.push(FEAT);
-  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'hackathon', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Orbit Mac App 视觉案例' });
+  all.push({ id: 'sess-1001-1512', d: 120, a: 'cc', p: 'orbit', h: 15, mi: 12, dur: 18.7, msgs: 4, tools: 61, errors: 1, corr: 0, out: 'live', live: true, verify: true, mood: 0.3, topic: 'design', title: '设计 Orbit Mac App 视觉案例' });
   all.push({ id: 'sess-1001-0903', d: 120, a: 'cx', p: 'teamhub', h: 9, mi: 3, dur: 12, msgs: 3, tools: 34, errors: 0, corr: 0, out: 'ok', verify: true, mood: 0.35, topic: 'git', title: '同步 team-hub collab 并审核日报' });
   all.sort((x, y) => (x.d - y.d) || (x.h - y.h) || (x.mi - y.mi));
   all.forEach((s, i) => {
@@ -2501,7 +2501,7 @@ const RECS = [
     file: [['{', ' '], ['  "hooks": {', '+'], ['    "PostToolUse": [', '+'], ['      {', '+'], ['        "matcher": "Bash",', '+'], ['        "hooks": [', '+'], ['          { "type": "command",', '+'], ['            "command": "~/.orbit/hooks/retry-breaker.sh" }', 'ai'], ['        ]', '+'], ['      }', '+'], ['    ]', '+'], ['  }', '+'], ['}', ' ']],
     steps: ['预览将写入的 Hook 与脚本', '确认安装（脚本放在 ~/.orbit/hooks，可随时删除）', '下次出现连续失败时，Agent 会先停下来检查认证与环境'], track: [['重复失败序列', 23, 7, '段'], ['失败后浪费时长', 58, 17, '分钟'], ['工具类摩擦', 12, 5, '次']] },
   { id: 'worktree', dim: 'flow', type: '工作流', icon: 'branch', lvl: 3, aud: 1, title: '并行会话改用 git worktree 隔离', gain: '并行冲突 −5 次 / 月', why: '多个会话同时改同一仓库，产生了 5 次冲突与 2 次覆盖。', ev: '9 个会话', evq: { fric: '并行会话冲突' }, compat: 'Claude Code · Codex', c2: 'var(--a2)', primary: '查看教程', target: '教程（不写入文件）',
-    file: [['# 为每个并行会话建立独立 worktree', ' '], ['git worktree add ../Hackathon-a feat/a', '+'], ['git worktree add ../Hackathon-b feat/b', '+'], ['# 在各自目录里启动 Agent，结束后：', ' '], ['git worktree remove ../Hackathon-a', '+']],
+    file: [['# 为每个并行会话建立独立 worktree', ' '], ['git worktree add ../Orbit-a feat/a', '+'], ['git worktree add ../Orbit-b feat/b', '+'], ['# 在各自目录里启动 Agent，结束后：', ' '], ['git worktree remove ../Orbit-a', '+']],
     steps: ['为每个要并行的任务建一个 worktree', '在各自目录启动 Agent', '完成后在主目录合并并清理 worktree', '也可以交给生成工坊做成一个 Skill'], track: [['并行冲突', 5, 0, '次'], ['覆盖他人改动', 2, 0, '次'], ['并行会话数', 41, 44, '次']] },
   { id: 'citation-checker', dim: 'agent', type: '子代理', icon: 'bot', lvl: 2, aud: 1, title: '引用核查子代理（citation-checker）', gain: '引用返工 −3 次 / 月', why: '论文会话里 9 次纠偏与引用格式和 BibTeX 有关。', ev: '9 个会话', evq: { project: 'latentskill' }, compat: 'Claude Code · Kimi CLI', c2: 'var(--a3)', primary: '预览并安装', target: '~/.claude/agents/citation-checker.md',
     file: [['---', ' '], ['name: citation-checker', '+'], ['description: 核对 \\cite 与 BibTeX 的一致性，输出问题表', '+'], ['tools: Read, Grep', '+'], ['---', ' '], ['只读。逐条检查正文引用是否都在 .bib 中、键名是否一致、', '+'], ['年份与作者是否与原文相符；结果用表格列出，不要改文件。', 'ai']],
@@ -8310,7 +8310,7 @@ Object.assign(ACT, {
  * Agent 分工：会话 / 时长 / 完成率三行条；规则与配置覆盖：Agent × 配置类型方块矩阵（评审 §3.5）。 */
 // pin toggle on a project row (F26, pinToggle in 25-nav): shown on row hover, always shown once the project is pinned
 const pjPinBtn = (p) => { if (p.id === '_none') return ''; const on = isPinned(p.id); return '<button type="button" class="pj-pin' + (on ? ' on' : '') + '" data-act="pinToggle" data-p="' + esc(p.id) + '" aria-pressed="' + on + '" aria-label="' + (on ? '取消置顶 ' : '置顶 ') + esc(p.name) + '" data-tip="' + (on ? '已置顶到侧栏 · 点击取消' : '置顶到侧栏') + '">' + ic('pin', 12) + '</button>'; };
-const FOLDERS = { confluo: ['Confluo', 'Confluo/docs/plan/v2/demo'], latentskill: ['~/Research/ppb', '~/Research/latentskill（软链接）'], teamhub: ['team-hub'], hackathon: ['Hackathon'], quant: ['Auto Finance & Quant', 'Auto Finance & Quant/packages/datahub'], fhgs: ['FHGS Website/apps/web', 'FHGS Website/apps/stats'], surge: ['~/.config/surge'], tweet: ['Tweet Card'], other: ['~/Research/General', '~/Downloads', '~/Projects/Coffee'] };
+const FOLDERS = { confluo: ['Confluo', 'Confluo/docs/plan/v2/demo'], latentskill: ['~/Research/ppb', '~/Research/latentskill（软链接）'], teamhub: ['team-hub'], orbit: ['Orbit'], quant: ['Auto Finance & Quant', 'Auto Finance & Quant/packages/datahub'], fhgs: ['FHGS Website/apps/web', 'FHGS Website/apps/stats'], surge: ['~/.config/surge'], tweet: ['Tweet Card'], other: ['~/Research/General', '~/Downloads', '~/Projects/Coffee'] };
 // 各类配置哪些 Agent 读取（示例口径）：AGENTS.md 全部；Hooks / 子代理只有 Claude Code；Skills 为 Claude Code 与 Codex；MCP 除 DeepSeek 外都支持
 const COV_SUP = { 'AGENTS.md': ['cc', 'cx', 'km', 'ds', 'oc'], Hooks: ['cc'], Skills: ['cc', 'cx'], MCP: ['cc', 'cx', 'km', 'oc'], '子代理': ['cc'] };
 // 散点派生类型：在 VZ.scatter 之上加残差竖线与 A / B 标记；其余（标签避让、拟合带、尺寸图例、表格视图）沿用
@@ -8870,14 +8870,14 @@ Object.assign(ACT, {
 // Built-in deterministic workflow: pack context (token stack + per-item preview with redaction) → analyse → draft (streamed)
 // → self-check (spec / safety) → replay dry-run + judge → review → install (diff). A template (TPLS) only picks the step
 // order; step ids are fixed, so logs, durations and check rows are looked up by id and a skipped step reads「已跳过」.
-const CTX = [['sum', '相关会话摘要 · 46 个', '只含结构化统计与 AI 摘要，不含原文', 6100], ['fric', '摩擦与纠偏统计', '方向错误 17 · review 循环 11 轮 …', 1200], ['rules', '现有规则文件 · 3 份', 'AGENTS.md（全局、Hackathon、team-hub）', 3400], ['raw', '原始对话片段', '默认关闭；开启后逐条确认', 18600], ['redact', '脱敏：用户名、邮箱、密钥模式', '命中处替换为占位符', 0]];
+const CTX = [['sum', '相关会话摘要 · 46 个', '只含结构化统计与 AI 摘要，不含原文', 6100], ['fric', '摩擦与纠偏统计', '方向错误 17 · review 循环 11 轮 …', 1200], ['rules', '现有规则文件 · 3 份', 'AGENTS.md（全局、Orbit、team-hub）', 3400], ['raw', '原始对话片段', '默认关闭；开启后逐条确认', 18600], ['redact', '脱敏：用户名、邮箱、密钥模式', '命中处替换为占位符', 0]];
 const CTX_LIMIT = 24000;   // one generation's input budget; the stack bar turns critical above it
 const CTX_HITS = { sum: 14, fric: 0, rules: 9, raw: 8 };   // redaction hits per item
 // Sample lines shown in the per-item preview. {{u}} user name · {{m}} e-mail · {{k}} key · {{ip}} host — replaced by placeholders when redaction is on.
 const CTX_SAMPLE = {
   sum: ['sess-0921-1412 · Confluo · 「部署到 Cloudflare Pages」 · 42 min · 纠偏 3', '  fric: 方向错误 → 「我说的是 Pages，不是 Workers」', 'sess-0918-2203 · latentskill · 「论文第 4 节重写」 · 1 h 08 · 纠偏 2', '  cwd: /Users/{{u}}/Projects/latentskill', '… 共 46 条，只含统计与摘要'],
   fric: ['方向错误 17 · 改动过度 9 · review 循环 11 轮（最长 4 轮）', '「直接合并」出现 6 次，其中 5 次 Agent 仍发起了新一轮 review', 'P2 意见占 review 评论的 71%'],
-  rules: ['~/.agents/AGENTS.md · 38 行 · 维护者 {{u}}', 'Hackathon/AGENTS.md · 「合并前须通过 Codex review」', 'team-hub/AGENTS.md · 审核联系 {{m}}', 'settings.local.json · token = {{k}}'],
+  rules: ['~/.agents/AGENTS.md · 38 行 · 维护者 {{u}}', 'Orbit/AGENTS.md · 「合并前须通过 Codex review」', 'team-hub/AGENTS.md · 审核联系 {{m}}', 'settings.local.json · token = {{k}}'],
   raw: ['[you] 直接合并，别再开 review 了', '[agent] 好的，我先运行 @codex review 确认一下…', '[you] 我说了直接合并！！', '[agent] Bash: gh pr merge --merge（host {{ip}}）', '… 共 23 段，发送前逐条确认']
 };
 const CTX_RAW = { u: 'alex', m: 'alex@example.com', k: 'sk-demo-0000aaaa1111', ip: '192.168.1.20' };
@@ -9013,7 +9013,7 @@ function ctxPreviewHTML() {
 }
 function ctxBundle() {
   const c = S.studio.ctx;
-  return { goal: S.studio.goal, type: S.studio.type, runner: agent(S.studio.agent).cli, template: TPLS[S.studio.tpl].name, persona: personaNow().code, sessions_summary: c.sum ? '46 个会话的结构化摘要（不含原文）' : undefined, friction: c.fric ? { '方向错误': 17, 'review 最长轮次': 11 } : undefined, rules: c.rules ? ['~/.agents/AGENTS.md', 'Hackathon/AGENTS.md', 'team-hub/AGENTS.md'] : undefined, raw_snippets: c.raw ? '（逐条确认后附上）' : undefined, redaction: c.redact ? ctxHits() + ' 处已替换为占位符' : '未脱敏', tokens: ctxTokens() };
+  return { goal: S.studio.goal, type: S.studio.type, runner: agent(S.studio.agent).cli, template: TPLS[S.studio.tpl].name, persona: personaNow().code, sessions_summary: c.sum ? '46 个会话的结构化摘要（不含原文）' : undefined, friction: c.fric ? { '方向错误': 17, 'review 最长轮次': 11 } : undefined, rules: c.rules ? ['~/.agents/AGENTS.md', 'Orbit/AGENTS.md', 'team-hub/AGENTS.md'] : undefined, raw_snippets: c.raw ? '（逐条确认后附上）' : undefined, redaction: c.redact ? ctxHits() + ' 处已替换为占位符' : '未脱敏', tokens: ctxTokens() };
 }
 function refreshCtx() {
   const bar = $('#stTok'); if (bar) bar.outerHTML = tokBar();
@@ -9486,7 +9486,7 @@ function openAboutLive() {
 }
 function openAbout() {
   if (LV.live) { openAboutLive(); return; }
-  openModal(modalHead('关于这个 Demo', 'Orbit 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI Hackathon 产品 Orbit·知音 的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
+  openModal(modalHead('关于这个 Demo', 'Orbit 交互 Demo · v1 · 2026-10-01') + '<div class="mb col" style="gap:10px;font-size:13px;line-height:1.65;color:var(--ink-2)"><p style="margin:0">这是 ActionMesh AI 的产品 Orbit·知音 的交互原型：一个本地的跨 Agent 会话分析 Mac App。</p><p style="margin:0"><b style="color:var(--ink-1)">能操作的：</b>9 个页面、菜单栏面板、悬浮组件、桌面小组件、设置、命令面板、安装与撤销、7 天效果追踪、生成工坊、首次启动、人格揭晓与分享卡。</p><p style="margin:0"><b style="color:var(--ink-1)">模拟的：</b>所有数据都是示例；写文件、运行命令、调用 Agent 与下载都不会真的发生。</p><p style="margin:0"><b style="color:var(--ink-1)">还没定的：</b>MVP 范围、人格维度的权重，需要团队三人确认。</p><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px"><button type="button" class="btn sm" data-act="copyCanvas">' + ic('copy', 13) + '复制视觉案例画布链接</button><button type="button" class="btn sm" data-act="openKeys">键盘快捷键</button></div></div><div class="mf"><button type="button" class="btn p" data-act="closeModal">完成</button></div>');
 }
 // 「你」follows the persona page: same period (S.persona.period, default 近 90 天) and the same answer (live persona when the
 // page uses it), labelled with that period. Axis names are the pole words the persona page uses (委托 / 即兴 / 多线 / 求证).
@@ -10643,12 +10643,12 @@ function ctxBar(pct, opt) {
 function popDay() { return typeof LV !== 'undefined' && LV.live ? LASTDAY : LASTDAY + 1; }
 function popDate() { return '10 月 1 日 周四'; }
 function popYest() { return '9 月 30 日'; }
-function popOpening() { return '<div class="sec row" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)"><b style="color:var(--ink-1)">开始之前</b>：今天 Hackathon 的任务较大。先写好完成条件，你过去这样做时纠偏少了约 30%。</span></div>'; }
+function popOpening() { return '<div class="sec row" style="align-items:flex-start;gap:8px;background:var(--ai-bg)"><span class="aib" style="background:var(--surface)">AI</span><span style="font-size:12px;line-height:1.5;color:var(--ink-2)"><b style="color:var(--ink-1)">开始之前</b>：今天 Orbit 的任务较大。先写好完成条件，你过去这样做时纠偏少了约 30%。</span></div>'; }
 function sessProjName(s) { return s.pname != null ? s.pname : PJI[s.p].name; }
 function liveSession() { const s = BYID[LIVE_ID]; return s && !simIdle() && sourceEnabled(s) && !S.excluded.has(s.id) ? s : null; }
 function popLiveCard() {
   const s = liveSession(); if (!s) return '';
-  return '<div class="sec col" style="gap:6px"><div class="row"><span class="dot live" style="background:var(--a1)"></span><b style="font-size:13px">Claude Code</b><span class="cap">· Hackathon</span><span style="flex:1"></span><span class="mono" style="font-size:12px" data-live>' + liveElapsed() + '</span></div><div style="font-size:13px;font-weight:600">' + esc(s.title) + '</div><div class="row cap" style="font-size:12px;min-width:0"><span class="aib">进行中</span><span class="mono" data-hudtool style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span><span style="flex:1"></span><span class="mono" style="font-size:11px">工具 <b data-livetools>' + S.live.tools + '</b></span></div>' +
+  return '<div class="sec col" style="gap:6px"><div class="row"><span class="dot live" style="background:var(--a1)"></span><b style="font-size:13px">Claude Code</b><span class="cap">· Orbit</span><span style="flex:1"></span><span class="mono" style="font-size:12px" data-live>' + liveElapsed() + '</span></div><div style="font-size:13px;font-weight:600">' + esc(s.title) + '</div><div class="row cap" style="font-size:12px;min-width:0"><span class="aib">进行中</span><span class="mono" data-hudtool style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + HUD_TOOLS[HUD_T % HUD_TOOLS.length] + '</span><span style="flex:1"></span><span class="mono" style="font-size:11px">工具 <b data-livetools>' + S.live.tools + '</b></span></div>' +
     ctxBar(S.live.ctx) +
     '<div class="row" style="margin-top:4px"><button type="button" class="btn sm" data-act="popTraj">查看轨迹</button><button type="button" class="btn sm gh" data-act="hudMute">' + (S.hud.mute ? '恢复提醒' : '暂停提醒') + '</button></div></div>';
 }
