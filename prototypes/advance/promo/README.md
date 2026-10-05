@@ -56,6 +56,8 @@
 | `scenes/10-intro.js` … `60-close.js` | 各段（见上表），各自用 `scene(name, fn)` 注册；只写自己拍段的关键帧，交接约定见 STORYBOARD.md |
 | `music.py` | 用 numpy/scipy 在同一拍网格上合成配乐（C 大调 / A 小调，vi–IV–I–V 循环；v18.6 回到 v17.7 的鼓 / 贝斯 / pad / arp16 律动与素母带；1b/1d 逐字按键声，v18.7 加连贯性修订（24e7f69a），旧形态提示音全部换成闪烁 ping；点的闪烁统一为短 ping、合并为一次低音 swell，都在独立 morph 总线上垫在律动之下），每个 cue 写在 `section('<场景>')` 里的场景拍，用同一张 `SHIFT` 表；输出 `out/soundtrack.wav` |
 | `render.mjs` | 在 Playwright 的虚拟时钟上逐帧截图，再用 ffmpeg 与配乐合成 MP4 |
+| `tools/render-snapshot.sh` | 从指定提交建临时 worktree 渲染一版成片（另出 720p 小文件），未提交的改动不会混进去 |
+| `tools/duration.mjs` | 不渲染、只读出成片实际时长（秒与拍数），超过 60 秒时提示 |
 
 ## 用法
 
@@ -65,6 +67,13 @@ node build.mjs && node promo/render.mjs            # -> promo/out/orbit-promo.mp
 ```
 
 `render.mjs` 的参数：`--out <file.mp4>`、`--fps 60`、`--scale 2`（按 2× 渲染后缩放到 1080p）、`--from/--to <秒>`、`--frames <目录>`（输出 JPG 序列而不是 MP4）、`--only 16,20.5`（只截取这几个**成片拍**的画面，用于快速出联系表）、`--debug`。环境变量 `PROMO_PAGE=<文件名>` 可以渲染同目录下的另一个页面。
+
+定版渲染与测时长（在仓库根运行）：
+
+```bash
+bash prototypes/advance/promo/tools/render-snapshot.sh v18.9 <commit> [输出目录]   # 默认输出到 .work/promo/
+node prototypes/advance/promo/tools/duration.mjs [另一个 checkout]            # -> 59.864 s = 131.70 beats
+```
 
 预览：在仓库根启动任意静态服务器，打开 `prototypes/advance/promo/promo.html`，点击「播放」即可带配乐实时播放（`?t=<秒>` 从中间开始，`?debug` 显示当前拍号）。实时预览的效果取决于机器性能，最终成片以 `render.mjs` 的输出为准。
 
