@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        提交前请搜索已有 Issues。安全问题请按 [安全政策](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/main/SECURITY.md) 私下报告。
+        提交前请搜索已有 Issues。安全问题请按 [安全政策](https://github.com/Orbit-Labs-AI/Orbit/blob/main/SECURITY.md) 私下报告。
         只上传构造或脱敏样本；不要上传真实会话、数据库、密钥、个人路径或隐私截图。
   - type: input
     id: environment
