@@ -7,10 +7,10 @@
 
 Orbit 是一个开源的本地 macOS App。它把散落在 Claude Code、Codex 等 Agent 中的会话整理到一起，让你回看工作过程、理解协作习惯，并从有证据的改进建议中选择下一步。
 
-[下载 macOS App](https://github.com/ActionMesh-AI/Orbit/releases/latest) · [开始使用](docs/getting-started/README.md) · [文档](docs/README.md) · [参与贡献](CONTRIBUTING.md) · [反馈问题](https://github.com/ActionMesh-AI/Orbit-Source/issues/new/choose)
+[下载 macOS App](https://github.com/Orbit-Labs-AI/Orbit/releases/latest) · [开始使用](docs/getting-started/README.md) · [文档](docs/README.md) · [参与贡献](CONTRIBUTING.md) · [反馈问题](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/new/choose)
 
-[![App integration](https://github.com/ActionMesh-AI/Orbit-Source/actions/workflows/backend.yml/badge.svg?branch=main)](https://github.com/ActionMesh-AI/Orbit-Source/actions/workflows/backend.yml)
-[![Connector checks](https://github.com/ActionMesh-AI/Orbit-Source/actions/workflows/connectors.yml/badge.svg?branch=main)](https://github.com/ActionMesh-AI/Orbit-Source/actions/workflows/connectors.yml)
+[![App integration](https://github.com/Orbit-Labs-AI/Orbit-Source/actions/workflows/backend.yml/badge.svg?branch=main)](https://github.com/Orbit-Labs-AI/Orbit-Source/actions/workflows/backend.yml)
+[![Connector checks](https://github.com/Orbit-Labs-AI/Orbit-Source/actions/workflows/connectors.yml/badge.svg?branch=main)](https://github.com/Orbit-Labs-AI/Orbit-Source/actions/workflows/connectors.yml)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](docs/getting-started/installation.md)
 
@@ -32,7 +32,7 @@ Lite 与 Advance 是同一个 App 的两种界面，可在侧栏顶部切换。L
 
 ### 在 Mac 上安装
 
-从 [GitHub Releases](https://github.com/ActionMesh-AI/Orbit/releases/latest) 下载适合 Apple Silicon 的 DMG 或 ZIP，将 Orbit 放入「应用程序」后打开。用户机器无需安装 Python 或 Node。当前构建的签名与公证状态、首次打开和升级步骤见[安装指南](docs/getting-started/installation.md)。
+从 [GitHub Releases](https://github.com/Orbit-Labs-AI/Orbit/releases/latest) 下载适合 Apple Silicon 的 DMG 或 ZIP，将 Orbit 放入「应用程序」后打开。用户机器无需安装 Python 或 Node。当前构建的签名与公证状态、首次打开和升级步骤见[安装指南](docs/getting-started/installation.md)。
 
 第一次使用时选择允许 Orbit 读取的 Agent 来源，再等待导入发布数据。先从概览或会话轨迹进入，确认样本范围后再看分析和建议。
 
@@ -43,7 +43,7 @@ Lite 与 Advance 是同一个 App 的两种界面，可在侧栏顶部切换。L
 若要运行后端示例，准备 Python 3.13、uv、Node ≥24.7 和 pnpm 11.25.0：
 
 ```sh
-git clone https://github.com/ActionMesh-AI/Orbit-Source.git Orbit
+git clone https://github.com/Orbit-Labs-AI/Orbit-Source.git Orbit
 cd Orbit
 bash scripts/bootstrap.sh
 uv run orbit demo
@@ -69,7 +69,7 @@ Orbit 已有 Claude Code、Codex、DeepSeek Harness、pi、Hermes、OpenCode 和
 | 资源检索与推荐 | [Catalog](packages/catalog/README.md)、[推荐引擎](docs/modules/recommendation/engine.md) |
 | 全局结构与验证 | [架构](docs/architecture/README.md)、[测试指南](docs/development/testing.md)、[文档维护](docs/development/documentation.md) |
 
-Orbit 由 [ActionMesh-AI](https://github.com/ActionMesh-AI) 发起。维护成员为 [`yhyfhgs`](https://github.com/yhyfhgs)、[`MistyHuang03`](https://github.com/MistyHuang03) 与 [`genius-FXC`](https://github.com/genius-FXC)。参与讨论请遵守[行为准则](CODE_OF_CONDUCT.md)；安全问题请按[安全政策](SECURITY.md)报告。
+Orbit 由 [Orbit-Labs-AI](https://github.com/Orbit-Labs-AI) 发起。维护成员为 [`yhyfhgs`](https://github.com/yhyfhgs)、[`MistyHuang03`](https://github.com/MistyHuang03) 与 [`genius-FXC`](https://github.com/genius-FXC)。参与讨论请遵守[行为准则](CODE_OF_CONDUCT.md)；安全问题请按[安全政策](SECURITY.md)报告。
 
 ## 许可证
 
