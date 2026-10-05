@@ -17,8 +17,6 @@ MAX_SOURCE_FILE = 64 * 1024 * 1024
 FILE_KINDS = {"models_dev", "litellm", "swe_bench", "gemini"}
 SKILL_AGENTS = ["claude_code", "codex", "gemini", "opencode"]  # Agent Skills (SKILL.md) open standard
 MCP_AGENTS = ["claude_code", "codex", "copilot", "gemini", "opencode"]
-MCP_PUBLISH_EVERY = 10
-MCP_MAX_PAGES = 120
 CLAWHUB_MAX_ITEMS = 500
 
 

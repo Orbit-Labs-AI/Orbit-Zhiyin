@@ -42,7 +42,6 @@ STAGES = {
     "published": ("已发布", "files", "一次原子提交：新的数据版本（data_rev）对页面可见"),
     "progressive_batch": ("分批发布", "batches", "首次导入按批发布（CLI 渐进导入）"),
 }
-UNITS = {"files": "个文件", "sessions": "个会话", "batches": "批"}
 # Share of one batch's work each stage roughly ends at (an estimate for one progress bar).
 WEIGHTS = {
     "capture": 0.2,

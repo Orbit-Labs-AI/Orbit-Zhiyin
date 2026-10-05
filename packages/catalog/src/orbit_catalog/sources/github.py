@@ -350,10 +350,6 @@ class GitHubConnector:
             update["components"] = self._components(path, checkpoint, blobs)  # Sibling files may have changed.
         return Record(native_id=path, resource=resource.model_copy(update=update), raw=raw or {})
 
-    def _document(self, entry, checkpoint, blobs, known=None) -> Record:
-        """First record of `_documents` (single-item files)."""
-        return self._documents(entry, checkpoint, blobs, known)[0]
-
     def _documents(self, entry, checkpoint, blobs, known=None) -> list[Record]:
         import json
         path, kind = entry

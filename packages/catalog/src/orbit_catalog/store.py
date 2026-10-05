@@ -283,10 +283,6 @@ class CatalogStore:
                      "VALUES(?,?,0,?,?)", (LOCAL_SOURCE, spec.model_dump_json(), spec.priority,
                                            _now() + spec.refresh_seconds * 1000))
 
-    def ensure_local_source(self) -> None:
-        with self.writer(), self.connect() as conn:
-            self._ensure_local(conn)
-
     def sources(self) -> list[dict]:
         with self.connect(True) as conn:
             rows = conn.execute("SELECT * FROM catalog_source ORDER BY priority DESC,source_id").fetchall()
@@ -771,10 +767,6 @@ class CatalogStore:
             "DELETE FROM blob WHERE sha NOT IN (SELECT res_sha FROM item_source UNION SELECT body_sha FROM item_source "
             "WHERE body_sha IS NOT NULL UNION SELECT raw_sha FROM item_source UNION SELECT doc_sha FROM item_version "
             "UNION SELECT body_sha FROM item_version WHERE body_sha IS NOT NULL)").rowcount
-
-    def vacuum_blobs(self) -> int:
-        with self.writer(), self.connect() as conn:
-            return self._vacuum_blobs(conn)
 
     def ensure_projections(self) -> bool:
         """Re-extract an existing cache once when the feature/chunk contract changes."""

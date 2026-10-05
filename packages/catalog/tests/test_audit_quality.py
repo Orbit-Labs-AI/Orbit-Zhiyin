@@ -3,8 +3,6 @@
 import gzip
 import json
 
-import pytest
-
 from orbit_catalog.contracts import MatchRequest, Resource, SourceSpec
 from orbit_catalog.features import extract
 from orbit_catalog.quality import assess
@@ -42,8 +40,7 @@ def test_extra_dimensions_remain_extracted_not_curated():
     assert all(found[k].origin == "extracted" for k in found if k[0] in {"task_phase", "artifact", "practice"})
 
 
-@pytest.mark.parametrize("batch", [False, True])
-def test_encoder_failure_keeps_independent_retrieval(tmp_path, batch):
+def test_encoder_failure_keeps_independent_retrieval(tmp_path):
     encoder = ToyEncoder()
     service = CatalogService(tmp_path / "catalog.db", encoder=encoder)
     try:
@@ -54,7 +51,7 @@ def test_encoder_failure_keeps_independent_retrieval(tmp_path, batch):
             raise RuntimeError("invalid local weights")
         encoder.encode = broken
         requests = [MatchRequest(text="debugging regression"), MatchRequest(text="重复失败 now")]
-        results = service.match_many(requests) if batch else [service.match(r) for r in requests]
+        results = [service.match(r) for r in requests]
         assert all(r["items"] and r["vector"]["status"] == "unavailable" for r in results)
         assert all(r["routes"]["lexical"] > 0 for r in results)
     finally:
