@@ -20,7 +20,6 @@ from pathlib import Path
 
 from ..platform import record
 
-MESSAGE_CHARS = 2000
 BATCH = 5000
 MAX_LINES = 400
 VERSION = "2"

@@ -10,12 +10,6 @@ from typing import Any
 Record = dict[str, Any]
 
 
-def call_order_key(call):
-    seq = call.get("seq")
-    known = isinstance(seq, int) and not isinstance(seq, bool)
-    return call["session_uid"], not known, seq if known else 0, call["call_uid"]
-
-
 def ordered_calls(calls: list[Record]) -> tuple[list[list[Record]], int]:
     """Split tied orders; exclude sessions whose missing seq prevents adjacency claims."""
     sessions = defaultdict(list)

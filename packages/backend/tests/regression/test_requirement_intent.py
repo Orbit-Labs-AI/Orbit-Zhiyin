@@ -1,6 +1,6 @@
-from orbit_backend.bottlenecks import diagnose
-from orbit_backend.feedback import scene_of, signals
 from orbit_backend.models import Event
+from orbit_backend.profiling.bottlenecks import diagnose
+from orbit_backend.profiling.feedback import scene_of, signals
 
 
 def dimensions(text):

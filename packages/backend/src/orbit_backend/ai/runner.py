@@ -189,9 +189,6 @@ class RunContext:
     def reads(self) -> AbstractContextManager:
         return self.runner.svc.gw.reads.read()
 
-    def read_app(self) -> AbstractContextManager:
-        return self.runner.svc.appdb.read()
-
 
 def default_run(ctx: RunContext, pack: dict) -> dict | None:
     task = ctx.task

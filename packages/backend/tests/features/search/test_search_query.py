@@ -5,7 +5,7 @@ import pytest
 from conftest import DAY, NOW
 
 from orbit_backend import appdb as appdb_schema
-from orbit_backend.features.search import parse, search, snippet, strip_marks
+from orbit_backend.features.search import parse, search, snippet
 from orbit_backend.features.search_index import SearchIndex
 
 
@@ -167,7 +167,6 @@ def test_empty_index_builds_inline(world):
 def test_snippet_helpers():
     text, marks = snippet("x" * 200 + "needle" + "y" * 200, ["needle"])
     assert text.startswith("…") and text[marks[0][0]:marks[0][1]] == "needle"
-    assert strip_marks("a\x01bc\x02d") == ("abcd", [[1, 3]])
 
 
 def test_concurrent_clients_do_not_starve_each_other(seeded):

@@ -2,12 +2,12 @@
 
 from fastapi.testclient import TestClient
 
-from orbit_backend.analysis import analyze
 from orbit_backend.api import create_app
-from orbit_backend.feedback import reader_context, signals, task_contexts
 from orbit_backend.models import Event, ParsedSession, Session
-from orbit_backend.narrative import explain, markdown
+from orbit_backend.profiling.analysis import analyze
+from orbit_backend.profiling.feedback import reader_context, signals, task_contexts
 from orbit_backend.recommend import recommend
+from orbit_backend.reporting.narrative import explain, markdown
 from orbit_backend.store import Store
 
 

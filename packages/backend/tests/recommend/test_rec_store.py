@@ -55,7 +55,6 @@ def test_insert_find_candidates_and_compact_gated(db):
         assert [c["rec_key"] for c in store.candidates(conn, "r1", dim="skill")] == ["kb:b"]
         gated = store.candidates(conn, "r1", passed=False)
         assert gated[0]["rec_key"] == "kb:c" and "ui" not in gated[0]
-        assert store.dim_counts(conn, "r1") == {"hook": 1, "skill": 1}
         row = conn.execute("SELECT card FROM rec_candidate WHERE rec_key='kb:a'").fetchone()
         assert ", " not in row[0]  # compact JSON
 

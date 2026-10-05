@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from orbit_backend.analysis import analyze
+from orbit_backend.profiling.analysis import analyze
 from orbit_backend.store import Store, import_codex
 
 

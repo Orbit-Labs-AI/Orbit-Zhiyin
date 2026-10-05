@@ -63,7 +63,3 @@ def input_scope(data, options):
         raise ValueError("已保存输入的排除名单不能移除；请重新调用 read_analysis")
     return scope
 
-
-def read_canonical(home, scope, *, max_events=2_000_000):
-    from ..data_access.store import CanonicalStore
-    return CanonicalStore(home, max_events=max_events).read_bundle(scope, include_native=False)

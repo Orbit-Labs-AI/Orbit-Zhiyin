@@ -13,7 +13,7 @@ NOW = 1_790_000_000_000  # fixed "now" (ms) so windows are deterministic
 class FakeCtx:
     """`responses`: list consumed in order, each a dict, an Exception, or callable(call_kwargs) -> dict."""
 
-    def __init__(self, task, pack, responses=(), *, reads=None, read_app=None, params=None, cancel_after=None,
+    def __init__(self, task, pack, responses=(), *, reads=None, params=None, cancel_after=None,
                  grants=("summary", "snippets")):
         self.job_id, self.task, self.pack = "job-test", task, pack
         self.grants = set(grants)
@@ -23,7 +23,7 @@ class FakeCtx:
         self.stages: list[tuple] = []
         self.logs: list[str] = []
         self.progresses: list[tuple] = []
-        self._reads, self._read_app = reads, read_app
+        self._reads = reads
         self.cancel_after = cancel_after
 
     def _next(self, kwargs):
@@ -68,9 +68,6 @@ class FakeCtx:
 
     def reads(self):
         return self._reads()
-
-    def read_app(self):
-        return self._read_app()
 
 
 def run_task(task, ctx):

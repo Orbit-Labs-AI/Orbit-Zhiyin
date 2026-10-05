@@ -8,7 +8,7 @@ import time
 import pytest
 from synthetic import write_codex_tree
 
-from orbit_backend.services.gateway import default_scope, next_sync_interval
+from orbit_backend.services.gateway import default_scope
 from orbit_backend.services.ingest_plan import plan_batches
 from orbit_backend.services.jobs import AppState
 from orbit_backend.services.worker_ingest import IngestWorker
@@ -44,12 +44,7 @@ def test_defaults_include_new_keys(client):
 
 
 def test_hour_mode_uses_fixed_interval(gateway):
-    bounds = gateway.sync_interval_s
     assert gateway.hourly_sync_s == 3600.0
-    assert next_sync_interval("hour", 2.0, True, bounds) == 3600.0
-    assert next_sync_interval("hour", 30.0, False, bounds) == 3600.0
-    assert next_sync_interval("live", 2.0, True, bounds) == bounds[0]
-    assert next_sync_interval("live", 20.0, False, bounds) == bounds[1]
 
 
 def test_zero_range_is_all_time():

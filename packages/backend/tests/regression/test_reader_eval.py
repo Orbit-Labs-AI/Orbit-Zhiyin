@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from orbit_backend.cli import main
-from orbit_backend.reader_eval import DIMENSIONS, make_pack, reader_results
+from orbit_backend.evaluation.reader import DIMENSIONS, make_pack, reader_results
 
 
 def read(path):

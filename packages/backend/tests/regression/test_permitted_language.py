@@ -1,8 +1,8 @@
 import pytest
 from test_supplemental_requirements import run
 
-from orbit_backend.feedback import language_constraints, signals, task_contexts
 from orbit_backend.models import Event
+from orbit_backend.profiling.feedback import language_constraints, signals, task_contexts
 from orbit_backend.recommend import recommend
 
 

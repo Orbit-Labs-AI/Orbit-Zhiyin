@@ -2,9 +2,9 @@
 
 import pytest
 
-from orbit_backend.analysis import analyze
-from orbit_backend.content import visible_text
 from orbit_backend.privacy import direct_user_text
+from orbit_backend.profiling.analysis import analyze
+from orbit_backend.profiling.content import visible_text
 from orbit_backend.store import Store, import_codex
 
 

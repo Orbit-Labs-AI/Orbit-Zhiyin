@@ -66,15 +66,10 @@ _LANGUAGES = {
 LANG = {ext: language for language, extensions in _LANGUAGES.items() for ext in extensions}
 # A file mention in prose: a path-like token ending in a known extension (longest first so
 # ``.tsx`` wins over ``.ts``). Shared by session ``language_signals``; the instruction
-# family's ``FILE`` should be generated from the same table (see ``file_reference``).
+# family's ``FILE`` should be generated from the same table (``FILE_REFERENCE``).
 FILE_REFERENCE = re.compile(
     r"(?<![\w.])(?:[\w@~-]+/)*[\w.-]+\.(" + "|".join(sorted(LANG, key=len, reverse=True))
     + r")\b", re.I)
-
-
-def file_reference():
-    """The file-mention pattern built from ``LANG``, for other families to reuse."""
-    return FILE_REFERENCE
 
 
 def text_lengths(events):

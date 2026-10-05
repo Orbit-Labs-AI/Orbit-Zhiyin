@@ -1,9 +1,9 @@
 import pytest
 from test_supplemental_requirements import run
 
-from orbit_backend.feedback import reader_context
-from orbit_backend.pipeline_eval import evidence_checks
+from orbit_backend.evaluation.pipeline import evidence_checks
 from orbit_backend.privacy import redact
+from orbit_backend.profiling.feedback import reader_context
 from orbit_backend.recommend import recommend
 
 

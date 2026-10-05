@@ -1,11 +1,11 @@
 """Changing the reading order must preserve facts and evidence contracts."""
 
-from orbit_backend.analysis import analyze
 from orbit_backend.cli import demo_home
-from orbit_backend.content import visible_text
-from orbit_backend.narrative import explain, markdown
-from orbit_backend.pipeline_eval import _write_case
+from orbit_backend.evaluation.pipeline import _write_case
+from orbit_backend.profiling.analysis import analyze
+from orbit_backend.profiling.content import visible_text
 from orbit_backend.recommend import recommend
+from orbit_backend.reporting.narrative import explain, markdown
 from orbit_backend.store import Store, import_codex
 
 

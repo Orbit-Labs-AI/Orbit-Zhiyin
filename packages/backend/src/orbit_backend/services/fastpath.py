@@ -23,7 +23,6 @@ from datetime import UTC, datetime, timedelta
 from .sections import rules_digest
 from .snapshots import SnapshotKey, scope_hash
 
-FAST_DAYS = 7
 FULL_PASS = "uiview_facts"  # one complete analysis per window (see uiview.section)
 # Light analytics sections a full pass caches (served right after it as cache reads).
 FIRST_SCREEN = ("overview", "sessions", "tools", "projects", "instruction")

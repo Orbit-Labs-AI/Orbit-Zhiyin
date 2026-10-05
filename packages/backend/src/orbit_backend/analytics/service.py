@@ -112,17 +112,6 @@ def text_variant_meta(meta: Record, content_digest, with_text: bool) -> Record:
     return {**meta, "analysis_digest": stable_id(content_digest, rule_versions(), with_text)}
 
 
-# Row fields that depend on other sessions or on the whole selection; never cached per row.
-CROSS_SESSION_FIELDS = (
-    "coverage",
-    "cluster_id",
-    "novelty",
-    "embedding_x",
-    "embedding_y",
-    "task_ids",
-    "preference_ids",
-    "preference_evidence_ids",
-)
 ENTITY = "_text_entity"  # private: the session's prompt text for the text representation
 BOTTLENECK_COVERAGE = ("events", "tool_calls", "model_calls", "turns", "lineage")
 

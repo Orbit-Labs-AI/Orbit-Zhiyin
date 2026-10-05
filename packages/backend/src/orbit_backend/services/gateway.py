@@ -187,15 +187,6 @@ def default_scope(days: int | None, now: datetime | None = None) -> dict:
     return asdict(Scope(from_ts=int(start.timestamp() * 1000)))
 
 
-def next_sync_interval(mode: str | None, interval: float, changed: bool,
-                       bounds: tuple[float, float], hourly: float = 3600.0) -> float:
-    """``hour``: a fixed hourly import; ``live``: adaptive 2 s → 30 s backoff."""
-    low, high = bounds
-    if mode == "hour":
-        return hourly
-    return low if changed else min(high, interval * 2)
-
-
 SYNC_FAILED = frozenset({"failed", "interrupted", "cancelled"})
 
 
@@ -583,10 +574,6 @@ class Gateway:
         app.add_middleware(PlatformMiddleware, platform=self.platform)  # Inside the guard.
         app.add_middleware(GuardMiddleware, token=token, port=port, **guard_kwargs)
         return app
-
-
-def create_gateway(home: Path, token: str, *, port: int | None = None, **options) -> FastAPI:
-    return Gateway(home, **options).app(token=validate_token(token), port=port)
 
 
 def parent_alive(parent: int) -> bool:

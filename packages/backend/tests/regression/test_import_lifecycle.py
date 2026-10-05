@@ -2,11 +2,11 @@
 
 import json
 
-from orbit_backend.analysis import analyze
 from orbit_backend.cli import demo_home, main
-from orbit_backend.importers.codex import _status, parse_rollout
-from orbit_backend.narrative import explain, markdown
+from orbit_backend.legacy.codex import _status, parse_rollout
+from orbit_backend.profiling.analysis import analyze
 from orbit_backend.recommend import recommend
+from orbit_backend.reporting.narrative import explain, markdown
 from orbit_backend.store import Store, import_codex
 
 

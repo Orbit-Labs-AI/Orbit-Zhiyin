@@ -4,11 +4,11 @@ import json
 
 import pytest
 
-from orbit_backend.analysis import analyze
-from orbit_backend.feedback import signals
-from orbit_backend.importers.codex import parse_rollout
+from orbit_backend.legacy.codex import parse_rollout
 from orbit_backend.models import Event
 from orbit_backend.privacy import direct_user_text
+from orbit_backend.profiling.analysis import analyze
+from orbit_backend.profiling.feedback import signals
 from orbit_backend.store import Store, import_codex
 
 
