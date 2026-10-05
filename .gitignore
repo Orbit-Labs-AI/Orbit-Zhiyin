@@ -1,5 +1,6 @@
 .venv/
 .local/
+.work/
 .research/
 __pycache__/
 *.py[cod]
