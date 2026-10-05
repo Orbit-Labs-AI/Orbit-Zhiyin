@@ -776,7 +776,6 @@ body.native .win.nosb .tbar{padding-left:20px}
 .legend .sq{width:10px;height:10px;border-radius:2px}
 .chart{width:100%;height:auto;overflow:visible}
 .chart text{fill:var(--ink-3);font:10.5px var(--font-num)}
-.hov:hover{opacity:.85}
 .tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 .tbl th{text-align:left;font-weight:500;font-size:11px;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .tbl td{padding:6px 8px;border-bottom:1px solid var(--hair);vertical-align:middle}
@@ -813,7 +812,6 @@ body.native .win.nosb .tbar{padding-left:20px}
 .stats7 button:first-child{border-left:0}
 .stats7 button.on{background:var(--bg)}
 .lanes{position:relative;overflow-x:auto;overflow-y:hidden}
-.lane-lbl{position:absolute;left:0;width:84px;display:flex;align-items:center;font-size:11.5px;color:var(--ink-2);white-space:nowrap;background:var(--surface);z-index:2}
 .proj{display:grid;grid-template-columns:470px minmax(0,1fr);gap:12px;align-items:start}
 .recs{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:12px;align-items:start}
 .rcard{padding:12px 14px;display:flex;flex-direction:column;gap:4px;text-align:left;width:100%}
@@ -3655,7 +3653,7 @@ function stats(L) {
 // 1 个会话即可出结论（0 个才是空态）；每个维度以 50 为界取一极，恰好 50 归高值一极，始终给完整 4 字母。
 const PERSONA_SOFT_N = 30;
 const personaHint = (n) => (n > 0 && n < PERSONA_SOFT_N ? '基于 ' + n + ' 个会话，数据越多越准' : null);
-const PSTEP = 5, PZ = 1.96;
+const PZ = 1.96;
 // [key, axis, weight, kind, unit, anchors, label]
 const PSIG = [
   ['steps', 'D', 0.50, 'ratio', 'turn', [[0, 5], [1, 95]], '单轮自主步数（≥ 5 步的轮次占比）'],
@@ -3831,8 +3829,6 @@ const pctKnown = (v, n) => (n ? Math.round(v) + '%' : '—');
 // 摩擦率 / 自主比的分母是你发出的消息：msgs = 0 时是未知「—」，不是 0（live 行可能没有用户消息）
 const fricTxt = (st) => (st.msgs ? f1(st.fric) + '%' : '—');
 const autoTxt = (st) => (st.msgs ? f1(st.auto) : '—');
-// 「AI」only for text a model wrote: live insights carry basis (l0_template = rule template); the same test as 92-live-sessions
-const insIsAI = (ins) => !LV.live || !!(ins && /\b(ai|llm|model)\b/i.test(String(ins.basis || '').replace(/_/g, ' ')));
 // the head badge of an insight block: purple AI, or a neutral「规则」tag for template text
 const insBadge = (ai, label) => ai ? '<span class="aib">' + ic('spark', 11) + label + '</span>' : '<span class="row" style="gap:6px;flex:none;white-space:nowrap"><span class="eb">' + label.replace(/^AI ?/, '') + '</span><span class="tag" data-tip="由规则模板生成，不是 AI">规则</span></span>';
 function buckets(range) {
@@ -3857,13 +3853,6 @@ function moodSeries(L, range) {
   return buckets(range).map((bk) => { const xs = L.filter((s) => s.d >= bk.a && s.d <= bk.b); const m = sum(xs, (s) => s.msgs); return Object.assign({}, bk, { n: xs.length, mood: m ? sum(xs, (s) => s.mood * s.msgs) / m : null, corr: sum(xs, (s) => s.corr), xs }); });
 }
 function countBy(L, key) { const m = {}; L.forEach((s) => { const k = s[key]; if (k != null) m[k] = (m[k] || 0) + 1; }); return m; }
-function regress(pts) {
-  const n = pts.length; if (n < 3) return null;
-  const mx = sum(pts, (p) => p.x) / n, my = sum(pts, (p) => p.y) / n;
-  const sxx = sum(pts, (p) => (p.x - mx) ** 2), syy = sum(pts, (p) => (p.y - my) ** 2), sxy = sum(pts, (p) => (p.x - mx) * (p.y - my));
-  if (!sxx || !syy) return null;
-  const b = sxy / sxx; return { b, a: my - b * mx, r: sxy / Math.sqrt(sxx * syy), n };
-}
 // one pass over L groups the rows by project (and counts them per agent) instead of filtering L once per project / agent
 function projRows(L) {
   const by = new Map(), ai = {}; AG.forEach((a, j) => { ai[a.id] = j; });
@@ -4814,7 +4803,6 @@ Object.assign(ACT, {
   winClose: () => { if (nativeWin('close')) return; S.winGone = true; render(); toast('主窗口已关闭 · 从菜单栏面板或 ' + kb('⌥0') + ' 重新打开', { act: '重新打开', onAct: () => showMain() }); },
   winMin: () => { if (nativeWin('minimize')) return; S.winGone = true; render(); toast('已最小化 · 点「恢复」或按 ' + kb('⌥0'), { act: '恢复', onAct: () => showMain() }); },
   winZoom: (el, e) => { if (nativeShell() && nativeWin(e && e.altKey ? 'zoom' : 'fullscreen')) return; if (e && e.altKey) winZoomToggle(); else winFullToggle(); },
-  winFull: () => winFullToggle(),
   pop: () => { S.pop = !S.pop; render(); }
 });
 /* menus: menu-bar titles → MENUS[id]() items {t, k, on, dis, sep, h, sub, v}. Shortcut labels match 85-keyboard.js:
@@ -7335,7 +7323,6 @@ function fpCodeLbls(sm) {
   });
 }
 const fpTypeIdx = (code) => FP_TYPES.indexOf(code);
-const fpTypeDeg = (code) => (Math.max(0, fpTypeIdx(code)) + 0.5) * 22.5;
 // 单个会话的四个维度（与 persona() 同一多信号口径，只看这一个会话和它所在的那一天）：
 //   示例数据：用会话自带的 lean（四维倾向，只供表盘归类）；其它会话：D / I / V 由该会话自己的信号算，M 由当天的会话数、
 //   Agent 数与是否多线算（psAxis，与 persona() 同一份锚点与权重）；某维度没有任何信号时取 50
@@ -9674,7 +9661,6 @@ function shareOps(m, dark, noNum) {
   return { ops, F };
 }
 const SHARE_HW = 1.6;   // 分享卡花心环的线宽（80 视框单位）
-const shareFam = { type: 'type', serif: 'serif', mono: 'mono', sans: 'sans' };
 function shareSVG(m, dark, noNum) {
   const { ops, F } = shareOps(m, dark, noNum); const a = (v) => esc(String(v));
   const body = ops.map((o) => {
@@ -9832,7 +9818,6 @@ function genFacts(L) {
     ['人格', '四个维度', st.verKnown ? Math.round(st.verify) + '% 的会话要求验证结果' : '会话里还没有验证信号']
   ];
 }
-function obFacts() { return genFacts(obSel()); }
 function openOnboarding(step) {
   closeModal(); closeDD(); closeOverlay();
   OB = { step: step || 0, src: new Set(AG.map((a) => a.id).filter((id) => !S.srcOff.has(id))), recent: true, prog: -1, timers: [] };
@@ -12283,7 +12268,6 @@ function lvtpScopeNote() {
   return x.length ? '<div class="cap" data-lv="scope-note" style="margin:-4px 0 10px">' + ic('alert', 12, 'vertical-align:-2px;color:var(--ink-3)') + ' 本页按时间与 Agent 统计，' + x.join(' / ') + '筛选暂不计入</div>' : '';
 }
 const lvtpMs = (ms) => ms == null ? '—' : ms < 10000 ? f1(ms / 1000) + ' s' : ms < 600000 ? Math.round(ms / 1000) + ' s' : f1(ms / 60000) + ' m';
-const lvtpPct = (v) => v == null ? '—' : f1(v * 100) + '%';
 // round 3: a success / failure rate is null when explicit outcomes cover < 50% of calls (rate_reason, status_coverage);
 // it renders "—" with the reason, never 0% or NaN. Server fields win; counts are the fallback for merged rows.
 const LVTP_MIN_COV = 0.5;
@@ -12640,7 +12624,6 @@ function lvProjectsPage() {
 const LVS = { sent: null, search: LV.lru(30), timer: null, want: null };
 const LVS_DAY = 86400000;
 const lvsDayIdx = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - DAY0) / LVS_DAY) : null; };
-const lvsMood = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + f1(v));
 
 /* ---- A6 ---- */
 function lvSentApply(d) {
@@ -13437,10 +13420,6 @@ function lvScope() {
   return { range: S.range, agents: on.length === AG.length ? null : on, projects: null, tz: TL_TZ };
 }
 function lvView(page) { const v = TL.view(page, lvScope()); TL_VIEWS[page] = v; return v; }
-function lvTable(cols, rows, rowAttr) {
-  return '<table class="tl-table"><thead><tr>' + cols.map((c) => '<th' + (c.n ? ' class="n"' : '') + '>' + c.t + '</th>').join('') + '</tr></thead><tbody>' +
-    rows.map((r) => '<tr' + (rowAttr ? rowAttr(r) : '') + '>' + cols.map((c) => '<td' + (c.n ? ' class="n"' : '') + '>' + c.v(r) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
-}
 const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
 ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 
@@ -13982,7 +13961,6 @@ if (TL.mode === 'live') {
    - Writes: view / open / preview / copy exposure; 不适用 / 稍后 / 不再推荐同类 are labels with an 8-second undo
      (DELETE /v1/labels/{id}); 重新计算 is POST /v1/recommendations/recompute. Each write invalidates the rec resources. */
 const LVR = { applied: null, top: {}, rel: {}, labels: new Map(), poll: 0, detail: {} };
-const LVR_SURFACES = ['A1', 'lite', 'menubar'];
 const LVR_ROUTES = { recs: 'A7', 'l-recs': 'lite', overview: 'A1', 'l-home': 'lite' };
 const LVR_DEGRADE = (e) => !e || !e.status || e.status === 404 || e.status === 501 || e.status === 503;
 const lvRecLive = (id) => !!(RECI[id] && RECI[id].live);

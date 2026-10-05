@@ -41,7 +41,6 @@ function genFacts(L) {
     ['人格', '四个维度', st.verKnown ? Math.round(st.verify) + '% 的会话要求验证结果' : '会话里还没有验证信号']
   ];
 }
-function obFacts() { return genFacts(obSel()); }
 function openOnboarding(step) {
   closeModal(); closeDD(); closeOverlay();
   OB = { step: step || 0, src: new Set(AG.map((a) => a.id).filter((id) => !S.srcOff.has(id))), recent: true, prog: -1, timers: [] };

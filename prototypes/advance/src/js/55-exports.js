@@ -134,7 +134,6 @@ function shareOps(m, dark, noNum) {
   return { ops, F };
 }
 const SHARE_HW = 1.6;   // 分享卡花心环的线宽（80 视框单位）
-const shareFam = { type: 'type', serif: 'serif', mono: 'mono', sans: 'sans' };
 function shareSVG(m, dark, noNum) {
   const { ops, F } = shareOps(m, dark, noNum); const a = (v) => esc(String(v));
   const body = ops.map((o) => {

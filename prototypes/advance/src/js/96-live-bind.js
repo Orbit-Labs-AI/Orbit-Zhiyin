@@ -11,10 +11,6 @@ function lvScope() {
   return { range: S.range, agents: on.length === AG.length ? null : on, projects: null, tz: TL_TZ };
 }
 function lvView(page) { const v = TL.view(page, lvScope()); TL_VIEWS[page] = v; return v; }
-function lvTable(cols, rows, rowAttr) {
-  return '<table class="tl-table"><thead><tr>' + cols.map((c) => '<th' + (c.n ? ' class="n"' : '') + '>' + c.t + '</th>').join('') + '</tr></thead><tbody>' +
-    rows.map((r) => '<tr' + (rowAttr ? rowAttr(r) : '') + '>' + cols.map((c) => '<td' + (c.n ? ' class="n"' : '') + '>' + c.v(r) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
-}
 const lvKey = (route) => (TO_ADV[route] && TL_PAGES[TO_ADV[route]] ? TO_ADV[route] : route);
 ACT.lvSess = (el) => { S.lvSess = el.dataset.id; render(); };
 
