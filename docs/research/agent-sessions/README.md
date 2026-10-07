@@ -1,5 +1,7 @@
 # Agent 会话与轨迹数据形态对比
 
+补充阅读：[十类 Agent 本地轨迹调研（2026-10-01）](survey-2026-10-01.md)。该文从团队 Vault 迁入，保留更广的资料调研范围；没有逐个安装实测，不与下文的源码／本机核验范围混用。
+
 > 研究对象：pi、Hermes Agent、DeepSeek Harness（下称 DSH）、OpenCode、Codex、Claude Code。
 >
 > 回答三个问题：每个 agent 完成一次 chat 之后，落盘的 session 长什么样；它的内部结构怎样决定了这份 trajectory 的数据形态；六者有哪些异同。

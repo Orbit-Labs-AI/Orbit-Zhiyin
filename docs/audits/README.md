@@ -18,5 +18,6 @@
 - [Preference / Task 开发与五类验收](preference-task-validation.md)
 - [推荐与资源库可靠性审计（2026-10-03）](recommendation-reliability-2026-10-03.md)
 - [Recommend 偏好与收益测试报告](recommendation-validation.md)
+- [四族实现与验收记录（2026-10-02）](feature-families-2026-10-02/README.md)：从团队 Vault 迁入的 Interaction、Respond、Cost-Time 与客观 Outcome 完整阶段记录；未因迁移重新验证。
 
 返回[文档首页](../README.md)。
