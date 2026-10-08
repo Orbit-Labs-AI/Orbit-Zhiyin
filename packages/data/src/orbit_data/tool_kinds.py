@@ -5,9 +5,10 @@ real gap (reported as ``ingest_issue(unmapped_tool_name)``) instead of silently 
 ``other``. Names that exist but have no analytic category (browser, memory, TTS ...) are
 mapped to ``other`` explicitly and are *not* reported.
 
-Sources (pinned submodules under ``third_party/``; see docs/research/agent-sessions/):
+Sources (pinned submodules under ``third_party/``; the per-agent format notes are in TeamHub
+under 项目/Orbit/02-研究/Agent会话格式/):
 
-- claude_code: Claude Code tool list (docs/research/agent-sessions/claude-code.md; the
+- claude_code: Claude Code tool list (TeamHub note ``Claude Code.md``; the
   ``mcp__<server>__<tool>`` form is from the same note) plus names observed in local
   transcripts (``NotebookEdit``, ``BashOutput``, ``KillShell``/``KillBash``).
 - codex: third_party/codex codex-rs/core/src/tools (``shell``, ``shell_command``,
@@ -15,7 +16,7 @@ Sources (pinned submodules under ``third_party/``; see docs/research/agent-sessi
   ``request_user_input`` and the ``_async`` variant seen in local rollouts), the
   ``local_shell_call`` response item and the app-server thread item types
   (``CommandExecution``, ``FileChange``, ``WebSearch``, ``ImageView``) the connector emits.
-- dsh: docs/research/agent-sessions/dsh.md (local name census: bash, read, grep,
+- dsh: TeamHub note ``DeepSeek Harness.md`` (local name census: bash, read, grep,
   todo_write, edit, glob, subagent, report, list_agents) and deepseek-harness tools.
 - pi: third_party/pi packages/coding-agent/src/core/tools/*.ts (``name: "..."``).
 - opencode: third_party/opencode packages/opencode/src/tool/*.ts (``Tool.define(id)``;

@@ -14,7 +14,7 @@
 | `opencode` | SQLite message/part | 已适配代际、原地更新、WAL 与删除 |
 | `kimi` | wire/session | 内容分片、控制事件、usage 去重与代际差异 |
 
-上述格式均有构造回归。真实安装版本覆盖不均，原生未报告的状态和计量始终未知；特定基线上的验证见[导入审计](../../audits/ingestion-reliability-2026-10-03.md)，上游格式研究见[研究索引](../../research/agent-sessions/README.md)。
+上述格式均有构造回归。真实安装版本覆盖不均，原生未报告的状态和计量始终未知；特定基线上的验证见[导入审计](../../audits/ingestion-reliability-2026-10-03.md)，上游格式研究见 TeamHub 的[Agent 会话格式对比](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F%E5%AF%B9%E6%AF%94.md)。
 
 ## 使用与扩展
 

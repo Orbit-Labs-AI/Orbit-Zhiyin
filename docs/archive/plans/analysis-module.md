@@ -640,7 +640,7 @@ ID 沿用契约 §2.3；AN-19 为本文新增；AN-05 拆为 05.1 / 05.2，AN-08
 | V12 | `session.meta.attrs.permission_mode` 是否进 L2（Claude Code mapper）；Codex 侧没有 `permission.request` 时 `would_prompt` 只能按词表估计 | 读两个 Schema 与 mapper | AN-05.2 |
 | V-A2 | 阶段规则在 50 个真实会话上与人工边界一致率 ≥ 70%（v1） | EV-02 标注抽样 | AN-03 |
 | V-A7 | `extract_validation_runs()` 在 canonical 数据上的识别率：Codex `exec` 包装下 `status_scope` 与 `command_head` 能否识别内层命令；否则 `verify_ran` 只能标 partial | 对 `packages/connectors` / `packages/data` 真实样本抽查 | AN-19、DT-13 |
-| V-A9 | 上下文观测可得性：Claude Code 累计 `usage` 能否换算窗口占用；pi `usage`、Codex `rate_limits` 是否含窗口大小 | 读 `docs/research/agent-sessions/*.md` 并抽样 | AN-02、AN-05.2、AN-13 |
+| V-A9 | 上下文观测可得性：Claude Code 累计 `usage` 能否换算窗口占用；pi `usage`、Codex `rate_limits` 是否含窗口大小 | 读 [Agent 会话格式研究](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F%E5%AF%B9%E6%AF%94.md) 并抽样 | AN-02、AN-05.2、AN-13 |
 | V-A10 | 显式反馈 + 验证通过 + facet + 结构四层下 `outcome ≠ unknown` 的会话占比；若 < 30%，完成率类指标在 MVP 只在会话详情显示，不进概览 | 真实快照统计 | AN-19 |
 | V-A11 | `duplicate_prompt` 用 `message_digest` 精确匹配的召回是否足够；3-gram 近似是否需要（v1） | 本机真人消息抽样 | AN-05.2 |
 | V-A12 | `cache_rebill` 的 TTL（5 分钟 / 1 小时）按 `service_tier` 在各 Agent 的 `model_call` 上可判定（v1） | `packages/data` `model_call` 样本 | AN-11 |

@@ -27,10 +27,9 @@
 | 目录 | 内容与使用方式 |
 | --- | --- |
 | [audits](audits/README.md) | 某个版本上的检查、实测与验证记录；数字仅对原文基线成立 |
-| [research](research/README.md) | 外部产品、源码与日志格式的研究快照；引用时核对版本 |
 | [releases](releases/README.md) | 桌面 Release 入口与独立的后端历史记录 |
 | [archive](archive/README.md) | 已被替代的设计、计划、事故复盘和目录迁移资料 |
 
-`getting-started` 与 `guides` 是用户手册；`architecture`、`contracts`、`development`、`modules` 和 `design` 是当前实现参考。`plans` 只记录待确认方向，旧的长篇方案已放入 `archive/plans`。各目录的 README 维护本区完整索引，避免首页变成数百项文件清单。
+`getting-started` 与 `guides` 是用户手册；`architecture`、`contracts`、`development`、`modules` 和 `design` 是当前实现参考。`plans` 只记录待确认方向，旧的长篇方案已放入 `archive/plans`。竞品、Agent 会话格式和轨迹建模等研究在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md#%E7%A0%94%E7%A9%B6) 维护。各目录的 README 维护本区完整索引，避免首页变成数百项文件清单。
 
 命令从仓库根执行，另有说明除外。文档组织、状态标签与搬迁规则见[文档维护](development/documentation.md)；安全与协作规则见[安全政策](../SECURITY.md)、[行为准则](../CODE_OF_CONDUCT.md)和[项目指令](../AGENTS.md)。

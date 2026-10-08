@@ -7,7 +7,7 @@
 
 > 定位：回答「分析（AN）与推荐（RC）两个模块分别如何接入 AI」。AI 是可关闭的横切层：不接一个 agent 自由问答，而是把模型嵌进确定性的 workflow 节点里，每个节点有固定输入、闭集输出、缓存键、预算与降级。不开 AI 时，所有页面照常出数（main `orbit_backend` 已是这样）。
 >
-> 依据（2026-10-02，按评审统一结论修订）：模块契约 [`contract.md`](module-contract.md) 第 2 版 + 本轮评审结论（并入契约第 3 版的条目见 §14）；main `f4a2cde`（`src/orbit_backend/` 0.13.6 + PR #16 `analytics/instruction/`：`narrative.py`、`reader_eval.py`、`evaluation.py`、`analytics/{features,text,service}.py`、`feedback.py`、`bottlenecks.py`、`recommend.py`、`pipeline_eval.py`、`privacy.py`、`store.py`）；已合入 main 的 PR #11（`packages/connectors`，35 项回归）、PR #12 Lite Demo（`prototypes/advance/benchmark-review.md`）、PR #15（版本名统一为 Lite / Advance）；未合入：PR #9 / #14 `origin/feat/agent-connectors`（`packages/data`：`analysis_input.read_analysis()`、`ImportService`、`user_version = 4`）、PR #13 / #17（`MistyHuang03` 语义特征族）、PR #19 `origin/refactor/genius-FXC-bottleneck`（`analytics/{respond,interaction,cost_time,outcome}`）；调研 `docs/research/landscape.md`（§2.4 headless 实测、§3.3 AI 原则）与 [research.md](../../research/landscape.md) 所汇总的调研笔记；Demo 盘点 [`feature-map.md`](feature-map.md) §5；用户覆盖要求 本机工作文件。
+> 依据（2026-10-02，按评审统一结论修订）：模块契约 [`contract.md`](module-contract.md) 第 2 版 + 本轮评审结论（并入契约第 3 版的条目见 §14）；main `f4a2cde`（`src/orbit_backend/` 0.13.6 + PR #16 `analytics/instruction/`：`narrative.py`、`reader_eval.py`、`evaluation.py`、`analytics/{features,text,service}.py`、`feedback.py`、`bottlenecks.py`、`recommend.py`、`pipeline_eval.py`、`privacy.py`、`store.py`）；已合入 main 的 PR #11（`packages/connectors`，35 项回归）、PR #12 Lite Demo（`prototypes/advance/benchmark-review.md`）、PR #15（版本名统一为 Lite / Advance）；未合入：PR #9 / #14 `origin/feat/agent-connectors`（`packages/data`：`analysis_input.read_analysis()`、`ImportService`、`user_version = 4`）、PR #13 / #17（`MistyHuang03` 语义特征族）、PR #19 `origin/refactor/genius-FXC-bottleneck`（`analytics/{respond,interaction,cost_time,outcome}`）；调研 [调研总结](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/%E8%B0%83%E7%A0%94%E6%80%BB%E7%BB%93.md)（§2.4 headless 实测、§3.3 AI 原则）及其汇总的调研笔记；Demo 盘点 [`feature-map.md`](feature-map.md) §5；用户覆盖要求 本机工作文件。
 >
 > 写法：每个 AI 任务写「触发 → 输入（只发哪些字段、预算）→ 档位 → 输出 schema → 缓存键与失效 → 失败降级 → 评测」。标「待验证」的是需要真实数据或实测才能定的假设。成员一律用 GitHub 账号指代。配套文档：`docs/archive/plans/analysis-module.md`（AN）、`docs/archive/plans/recommendation-module.md`（RC）、`docs/archive/plans/evaluation-module.md`（EV）、`docs/archive/plans/feature-map.md`（三张端到端功能卡与合并后的前端升级表；本文只写各卡的第 4 段「AI 介入点」，见 §9）。
 
@@ -15,7 +15,7 @@
 
 1. **两种接入形态，没有第三种。** 分析侧 AI 只做「代码定位好的短片段 → 闭集标签」（逐会话 facet；反馈分类与簇命名 v1）和「汇总统计 → 先给结论的叙述」；推荐侧 AI 只做「模板填槽生成」（规则、hook、SKILL.md、与专家 skill 的粘合规则）、「单次 workflow 诊断」和「候选适配解释（v1）」。所有「找问题」「算数」「排序」「安全判定」「证据选择」留在 L0 代码。
 2. **逐会话 facet 是分析侧唯一的大头调用，一次抽取、多处复用。** MVP schema 只有七项：`goal、task_type、outcome、friction_types、candidates[]、repeated_instructions、summary`；AN-05 信号、AN-06 问题、AI-05 叙述、AI-06 生成的证据、A6 页面全部读它的缓存，不再各自调模型。`scene`（main `feedback.scene_of()`）与 `interaction_pattern`（AN-08 规则）由 L0 算好作输入；满意度 / 情绪、AI 推断时刻、违反规则随 AN-07 / AN-09 / RC-06 #2 在 v1 加入。
-3. **通道用用户自己的本机 Agent headless，最小开销配方已实测**（`docs/research/landscape.md` §2.4）：Claude Code `--safe-mode --tools "" --system-prompt-file … --no-session-persistence --json-schema` 固定开销约 0.55–0.73K token（结构化输出两轮合计 1.3–1.5K；默认配置 2.7–3.7 万）；Codex `exec --ephemeral … --output-schema` 约 0.92–1.46 万。因此 **5–10 个会话打包成一次调用**，Codex 通道只给 L3 任务。MVP 引擎只有 Claude Code、Codex 与测试用 `FakeEngine`；API Key（Anthropic Messages API）v1，Ollama v2。
+3. **通道用用户自己的本机 Agent headless，最小开销配方已实测**（[调研总结](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/%E8%B0%83%E7%A0%94%E6%80%BB%E7%BB%93.md) §2.4）：Claude Code `--safe-mode --tools "" --system-prompt-file … --no-session-persistence --json-schema` 固定开销约 0.55–0.73K token（结构化输出两轮合计 1.3–1.5K；默认配置 2.7–3.7 万）；Codex `exec --ephemeral … --output-schema` 约 0.92–1.46 万。因此 **5–10 个会话打包成一次调用**，Codex 通道只给 L3 任务。MVP 引擎只有 Claude Code、Codex 与测试用 `FakeEngine`；API Key（Anthropic Messages API）v1，Ollama v2。
 4. **MVP 的执行方式是用户触发、串行**：facet 由用户在设置 / 首次启动点一次「开始语义分析（预计 N 次 · X token）」，首次回填只覆盖分析窗口（默认 90 天）内最近的 ≤ 200 个合格会话（≈ 25 次调用、≈ 0.8M 输入 token、≈ $1.1 cheap，§5.4），之后只处理新会话；叙述与生成按需、单次 ≤ 12K。省 token 靠四项机制：精确缓存键、只处理新会话、L0 候选定位、每次 `--max-budget-usd` 封顶。后台空闲 / 电量 / 额度判定、租约、退避、并发全部 v1。
 5. **生成物只允许模型填有类型的槽位**：规则句、hook 的 matcher / 阈值 / 提示语 / 命令头、SKILL.md 的 description / steps、子代理的 system prompt 段落（v1）、slash command 正文（v1）；脚本体、文件骨架、权限前缀、落点全部来自仓库模板（内容哈希固定）。MVP 三道自检（lint → 静态安全扫描 → 历史回放 dry-run）任一失败即退回模板默认或不展示，然后才进 IN-02 预览；judge 复核 v1。
 6. **与现有代码的关系**：AI 叙述沿用 `narrative.explain()` 的 JSON 形状并以它为降级；所有 AI 文案进界面前过 `evaluation.evaluate_text()`（EV-09），`error` 级问题即退回模板；模板版与 AI 版的优劣用 `reader_eval.make_pack()` 做盲评（EV-10）；簇命名（v1）建立在 `analytics/text.representation()`（AN-18）之上；facet 候选的输入是 `features.correction_terms` / `subjective_outcome_candidates` / `feedback.signals` / `bottlenecks.diagnose`；自身会话过滤的现有机制是 `store.import_codex --exclude-session` + `sample_policies`。
@@ -36,7 +36,7 @@
 
 每个 LLM 节点先用 main 档建评测基线，再换 cheap 档，评测分不降才采用；注册表记录模板版本、当前档位与上次降级评测结果（契约 §5.1）。
 
-### 1.2 硬规则（对应 `docs/research/landscape.md` §3.3 I1–I10）
+### 1.2 硬规则（对应调研总结 §3.3 I1–I10）
 
 | # | 规则 | 实现位置 |
 | --- | --- | --- |
@@ -63,7 +63,7 @@
 
 ### 2.1 通道矩阵（AI-01）
 
-| 引擎 | 最小开销配方（来源：`docs/research/landscape.md` §2.4，本机实测 2026-10-02） | 不落盘 / 隔离 | 固定开销（输入 token） | 结构化输出 | 阶段 |
+| 引擎 | 最小开销配方（来源：[调研总结](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/%E8%B0%83%E7%A0%94%E6%80%BB%E7%BB%93.md) §2.4，本机实测 2026-10-02） | 不落盘 / 隔离 | 固定开销（输入 token） | 结构化输出 | 阶段 |
 | --- | --- | --- | --- | --- | --- |
 | Claude Code | 在 Orbit 专用空目录、净环境运行：`claude -p --safe-mode --tools "" --system-prompt-file <任务静态提示> --no-session-persistence --output-format json --json-schema <schema> --max-turns 3 --effort low --settings '{"alwaysThinkingEnabled":false}' --max-budget-usd <上限> --model <槽位> < /dev/null`（[headless](https://code.claude.com/docs/en/headless)、[cli-reference](https://code.claude.com/docs/en/cli-reference)） | `--no-session-persistence`（仍会建空的 `projects/<cwd>/memory/`，连接器忽略）；`--safe-mode` 关 CLAUDE.md / skills / 插件 / hooks / MCP；订阅登录照常可用；`--bare` 只接受 API Key，不用 | 约 0.55–0.73K；加 `--json-schema` 至少两轮，合计 1.3–1.5K；默认配置 2.7 万（净环境）/ 3.7 万（继承桌面环境） | `--json-schema`（两轮） | MVP：L2 + L3 |
 | Codex | `codex exec --ephemeral --json --skip-git-repo-check -s read-only --ignore-user-config --ignore-rules --disable apps --disable plugins --disable memories -c agents.enabled=false --output-schema schema.json -o out.json < /dev/null`（[Non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode.md)） | `--ephemeral` 不写 rollout、不写 threads、不触发 memories | 默认 2.09 万；去用户配置 1.46 万；换基础指令并关工具 0.92 万；`--output-schema` 原生单轮，多约 20 token | `--output-schema`（单轮） | MVP：只给 L3 任务（固定开销太大，不做 facet 打包） |
@@ -319,7 +319,7 @@ RC-04 的 `priority` 是确定性的，AI 不改分数；它只回答两个人�
 
 | 产物 | template_id | 模型填的槽位（类型、上限） | 代码填的部分 | 落点（IN-01，与 `recommendation.md` §8.2 一致） | lint 要点 | 阶段 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 规则片段 AI-06.1 | `rules/paragraph@2` | `rules[] ≤ 5`，每条 ≤ 60 字的祈使句，必须「可验证」（含动作 + 条件或对象）；`title ≤ 12 字` | 标记块 `<!-- orbit:rule id=… evidence=… -->`、证据回链、`dimension` | Claude Code `~/.claude/CLAUDE.md`（用户层）或项目 `AGENTS.md` 块（并确保 `CLAUDE.md` 含 `@AGENTS.md`）；子目录 `.claude/rules/<id>.md`（`paths`）；Codex `~/.codex/AGENTS.md` | 与已有规则相似度 ≥ 0.8 判重复；与 `permissions.deny` / 已有「不要…」冲突判冲突；Claude 单文件 < 200 行、Codex 拼接 ≤ 32 KiB（`docs/research/landscape.md` RS-21）；不含路径用户名、密钥占位符 | MVP |
+| 规则片段 AI-06.1 | `rules/paragraph@2` | `rules[] ≤ 5`，每条 ≤ 60 字的祈使句，必须「可验证」（含动作 + 条件或对象）；`title ≤ 12 字` | 标记块 `<!-- orbit:rule id=… evidence=… -->`、证据回链、`dimension` | Claude Code `~/.claude/CLAUDE.md`（用户层）或项目 `AGENTS.md` 块（并确保 `CLAUDE.md` 含 `@AGENTS.md`）；子目录 `.claude/rules/<id>.md`（`paths`）；Codex `~/.codex/AGENTS.md` | 与已有规则相似度 ≥ 0.8 判重复；与 `permissions.deny` / 已有「不要…」冲突判冲突；Claude 单文件 < 200 行、Codex 拼接 ≤ 32 KiB（[调研总结](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/%E8%B0%83%E7%A0%94%E6%80%BB%E7%BB%93.md) RS-21）；不含路径用户名、密钥占位符 | MVP |
 | 粘合规则 AI-06.7（`generate.rule` 的 `glue` 变体） | `rules/paragraph@2`（`variant = glue`） | 同上，但每条规则必须出现 `uses_catalog_items[]` 里的一个条目名（「遇到 X 时使用 `<skill>`」） | `uses_catalog_items[] = 输入给的条目 ID`（gate 校验相等） | 同上 | 同上 + `uses_catalog_items` 越界即丢弃 | MVP |
 | Hook AI-06.3 | `hooks/retry-breaker@2`（← `tool_env_failure`）、`hooks/verify-before-commit@2`（← `missing_verification`，PreToolUse `git commit`）、`hooks/post-edit-check@2`（← `missing_verification` 格式 / 编译类、RC-06 #3；PostToolUse，matcher `Edit\|Write`）、`hooks/stop-verify@2`（← `missing_verification`，验证阶梯第二级；Stop 时自上次成功验证后有编辑就运行或提示验证命令）、`hooks/compaction-reminder@2`（← `context_loss`）、`hooks/scope-guard@2`（← `unsafe_operation`，见 `recommendation.md` 高风险操作一项） | `matcher`（闭集：`Bash\|Edit\|Write\|Task\|*`）、`threshold`（整数区间，如重复失败 2–5）、`message ≤ 120 字`、`command_heads[] ≤ 10`（只能从证据里出现过的 `command_head` 中选）；`post-edit-check` 的 `file_glob` 只能从证据扩展名中选，`command` 只能从该项目历史成功过的验证族 / formatter `command_head` 中选 | hook 事件名、`settings.json` 结构、脚本体（仓库自带，内容哈希固定）、退出码语义 | Claude Code `settings.json /hooks/<Event>` `merge_json` + 脚本 `~/Library/Application Support/Orbit/hooks/<template_id>@<version>.sh`；Codex `~/.codex/hooks.json` + 同一脚本（按哈希信任，标「已安装、未信任」）；pi 需 TS extension（v2） | JSON 合法；脚本哈希与模板一致（文件名带版本便于校验）；`message` 不含 shell 元字符；[hooks 文档](https://code.claude.com/docs/en/hooks) | MVP |
 | SKILL.md AI-06.4 | `skills/procedure@1` | `name`（kebab，≤ 64）、`description ≤ 1024 字符`（含触发短语，取自用户原话）、`steps[] ≤ 8` 每条 ≤ 80 字、`dont[] ≤ 5`、`verify ≤ 80 字`、`allowed_tools[]`（闭集） | frontmatter、目录结构、`license`、来源与证据注释 | `~/.claude/skills/<name>/SKILL.md`；Codex `~/.agents/skills/<name>/`（Agent Skills 规范，[specification](https://agentskills.io/specification)） | 规范字段长度；`name` 不与已装清单冲突（A9-15）；只过自检 ①②，description 触发评测 v1（EV-06）；RC 侧仍「检索优先」（`recommendation.md` §5），只在无匹配种子条目时露出 | MVP（用户在 Lite「Agent 定制草稿」或 A9 选定目标与证据会话后触发） |
@@ -328,7 +328,7 @@ RC-04 的 `priority` 是确定性的，AI 不改分数；它只回答两个人�
 | 工作流教程 AI-06.6' | `workflow/tutorial@1` | `steps[] ≤ 6` 每条 `{title ≤ 20 字, text ≤ 120 字, command?}`，`command` 只能从模板给的命令清单里选 | 不写文件（A7-14 教程 Tab） | 无 | 命令必须在白名单 | v1 |
 | 修改已有 AI-06.8（`generate.revise`） | `revise/edit-ops@1` | 只允许编辑操作 `ops[] ≤ 12`，每项 `{op: "keep\|replace\|move\|delete", anchor_hash, new_text ≤ 60 字, target?: ".claude/rules/<topic>.md"}` | 由 L0 渲染器按 `anchor_hash` 应用并生成 diff；拆分目标按主题落 `.claude/rules/<topic>.md` 并带 `paths` | IN 动作 `replace_block / move_block`（写前备份、可撤销；`recommendation.md` §2.1 / §8.2 新增） | `anchor_hash` 必须在输入里；`delete` 项必须附「重复 / 已由 hook 强制 / 长期未触发」证据之一；去重后行数 ≤ 目标；用户手写段落只允许 `move`，不允许 `replace` | v1（MVP：RC-12 对 > 200 行的规则文件按二级标题做确定性拆分，不调模型） |
 
-**生成提示的结构**（四段，参照 Hermes 复盘提示：触发信号 → 动作优先级 → 教训写法 → 禁止项，`docs/research/landscape.md` §2.5）：① 用户在 N 个会话里反复出现的模式（≤ 5 条脱敏片段 + 计数，来源见 §2.5「入口 → 证据包」）；② 已有规则的相关段落（避免重复、避免冲突）；③ 槽位说明与示例；④ 禁止项（不写数字收益、不写路径、不写脚本、不改变模板结构）。静态部分（①以外）在前，证据在后。
+**生成提示的结构**（四段，参照 Hermes 复盘提示：触发信号 → 动作优先级 → 教训写法 → 禁止项，[调研总结](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/%E8%B0%83%E7%A0%94%E6%80%BB%E7%BB%93.md) §2.5）：① 用户在 N 个会话里反复出现的模式（≤ 5 条脱敏片段 + 计数，来源见 §2.5「入口 → 证据包」）；② 已有规则的相关段落（避免重复、避免冲突）；③ 槽位说明与示例；④ 禁止项（不写数字收益、不写路径、不写脚本、不改变模板结构）。静态部分（①以外）在前，证据在后。
 
 **与专家 skills / plugins 组合（AI-06.7）**：RC-02 ② / RC-09 匹配到种子条目时，候选分两部分——条目本身走 IN-08（下载、校验哈希与许可，不生成），生成器只产粘合规则（v1 再加粘合 hook）。lethal trifecta 检查（R6）：条目若同时具备读私有数据、读不可信内容、对外通信三项能力，预览顶部明确警告（IN-05）。
 
@@ -430,7 +430,7 @@ flowchart LR
 | 精确缓存键 | 内容哈希 + `prompt_version` + `schema_version`（§2.3）；`model_id` 只记录；不做语义缓存 | 同左 | 命中可复现；换模型不作废旧结果 |
 | 失效范围 | 换模型 / 引擎：旧结果有效，只对新会话用新模型，全量重抽需确认并先看估算；改脱敏规则：只重抽脱敏命中集合有变化的会话；`prompt_version` 升版：只重算窗口内 | 同左 | 避免整库重抽（§5.4 有数） |
 | 多会话打包 | facet 5–10 会话 / 次（默认 8，按 token 上限 50K 动态缩减）；每项带 `ref_id`，响应按 `ref_id` 对齐 | 分类 20 条 / 次；适配 ≤ 10 条 / 次 | Claude headless 固定开销 0.7–1.5K / 次，打包把它摊到 < 5% |
-| 长会话压缩 | L0 压缩：保首 3 条与末 3 条真人消息全文（≤ 500 字）、所有候选片段、中段每条真人消息只留首 80 字、工具序列同类合并；单会话硬上限 6K，超出记 `chunked: true` | `facet.chunk_summary`（> 30,000 字符按 25,000 字符分块，首尾块原文 + 中段 6 项摘要） | 先零成本压缩，再花钱摘要（Hermes 压缩顺序，`docs/research/landscape.md` §3.3 I4） |
+| 长会话压缩 | L0 压缩：保首 3 条与末 3 条真人消息全文（≤ 500 字）、所有候选片段、中段每条真人消息只留首 80 字、工具序列同类合并；单会话硬上限 6K，超出记 `chunked: true` | `facet.chunk_summary`（> 30,000 字符按 25,000 字符分块，首尾块原文 + 中段 6 项摘要） | 先零成本压缩，再花钱摘要（Hermes 压缩顺序，[调研总结](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/%E8%B0%83%E7%A0%94%E6%80%BB%E7%BB%93.md) §3.3 I4） |
 | map-reduce | 叙述：map 由代码完成（按问题挑摘要），只有 reduce 调模型 | 周报三节各一次 + At a Glance 一次 | `/insights` 的分层结构，但 map 不花 token |
 | 稳定前缀 | 每个任务一个静态提示文件（角色、枚举表、schema、2 个示例）放最前；会话数据在后；同批同模型同引擎 | API Key 通道在静态前缀末尾放 `cache_control`；Haiku 4.5 最小可缓存前缀 4,096 token，facet 静态前缀约 2.5K 不够，按需补示例到 ≥ 4.1K 或接受不缓存（前缀只占一次调用的 8%）；headless 内部缓存断点能否命中待验证 AV3 | [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)；R3 |
 | 结构化输出 | Claude `--json-schema`、Codex `--output-schema`；所有 schema 的标签字段 `enum + other`，开放文本带 `maxLength` | API `output_config.format`、pi `--mode json` | R5 |
@@ -454,7 +454,7 @@ flowchart LR
 
 ### 5.4 token 预算估算表
 
-假设：中文 1 字 ≈ 1 token（待验证 AV4）；facet 每会话输入平均 3.5K（2–6K）、输出 0.25K；8 会话打包，静态前缀 2.5K，Claude headless 固定开销 1.5K（含 `--json-schema` 第二轮）；**合格会话占原始会话约 45%**（`≥ 2` 真人消息且 `≥ 60 s`，`/insights` 本机数据 53 / 119，[research.md](../../research/landscape.md) 所汇总的调研笔记 §3.1），即 1,000 个合格会话 ≈ 2,200 个原始会话。价目取 [pricing](https://platform.claude.com/docs/en/about-claude/pricing)（2026-09 快照）：Haiku 4.5 $1 / $5，Sonnet 5.5 $2 / $10，Opus 5.5 $4 / $20 每 MTok；订阅通道没有美元成本，token 计入 5 小时 / 周额度。
+假设：中文 1 字 ≈ 1 token（待验证 AV4）；facet 每会话输入平均 3.5K（2–6K）、输出 0.25K；8 会话打包，静态前缀 2.5K，Claude headless 固定开销 1.5K（含 `--json-schema` 第二轮）；**合格会话占原始会话约 45%**（`≥ 2` 真人消息且 `≥ 60 s`，`/insights` 本机数据 53 / 119，[调研总结](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/%E8%B0%83%E7%A0%94%E6%80%BB%E7%BB%93.md) 所汇总的调研笔记 §3.1），即 1,000 个合格会话 ≈ 2,200 个原始会话。价目取 [pricing](https://platform.claude.com/docs/en/about-claude/pricing)（2026-09 快照）：Haiku 4.5 $1 / $5，Sonnet 5.5 $2 / $10，Opus 5.5 $4 / $20 每 MTok；订阅通道没有美元成本，token 计入 5 小时 / 周额度。
 
 **首次回填（用户触发，不受任何日总额限制）**
 
@@ -467,7 +467,7 @@ flowchart LR
 | v1 加 `facet.chunk_summary`（约 3–5% 长会话 × 2 块 × 25K） | +12–20（200 会话） | +0.3–0.5M | +0.02M | +$0.3–0.5 | +$0.6–1 | AV8 验证后再定是否默认开 |
 | v1 加 classify.feedback（约 200 条歧义候选）、cluster.*names、rerank.fit | ≈ 13 | ≈ 0.15M | ≈ 0.015M | ≈ $0.2 | ≈ $0.35 | — |
 
-与 `docs/research/landscape.md` RS-19 的估算（每会话 $0.006–0.016）同量级；Codex 通道做 facet 每次固定开销 0.9–1.5 万，200 会话仅固定开销就 ≥ 0.23M，所以 Codex 只做 L3。
+与[调研总结](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/%E8%B0%83%E7%A0%94%E6%80%BB%E7%BB%93.md) RS-19 的估算（每会话 $0.006–0.016）同量级；Codex 通道做 facet 每次固定开销 0.9–1.5 万，200 会话仅固定开销就 ≥ 0.23M，所以 Codex 只做 L3。
 
 **特殊情形**
 
