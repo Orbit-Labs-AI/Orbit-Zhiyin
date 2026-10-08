@@ -4,7 +4,7 @@ added: 2026-10-03
 
 # 并行Session执行说明
 
-> 历史来源：本页为2026-10-01 至 10-03 的历史方案，2026-10-07 从团队 Vault 迁入。原位置：`项目/Orbit/benchmark/并行Session执行说明.md`。正文与原有日期、结论保留，仅整理导航和空白；私人会话定位不公开。本文中的“当前”、TODO、测试数量和执行命令仅对原文基线成立，本次没有重新验证，也不自动形成任务或授权。现行入口：[源码文档](<../../../../evals/README.md>)。
+> 本页是 2026-10-01 至 10-03 的历史方案，文中的“当前”、TODO、测试数量和命令只对当时成立。现行入口：[评测](<../../../../evals/README.md>)。
 
 [总入口](<paired-proposal.md>) · [共同协议](<paired-protocol.md>)
 
@@ -24,7 +24,7 @@ S1/S2 的任务量不同，因为约束组需要更多人工反馈。需要均�
 
 ## 直接复制给新 session
 
-代码工作目录：`Action Mesh/Hackathon`。规划位于 `../team-hub/Hackathon/benchmark/`。这里是未来任务包，本次不自动启动 session。
+代码工作目录：`Action Mesh/Hackathon`。规划位于 `../team-hub/Hackathon/benchmark/`。
 
 ### S0
 

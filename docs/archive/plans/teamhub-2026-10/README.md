@@ -1,6 +1,6 @@
 # 团队早期技术方案（2026-10）
 
-2026-10-07 从团队 Vault 迁入的完整历史正文。保留原有日期、提案、讨论及验收边界，不用当前实现改写当时结论；仅更新导航、空白和不可公开访问的对话定位。原始字节及旧名保留在团队 Archive。
+团队在 2026-10-01 至 10-03 写的技术方案原文，保留原有日期、提案、讨论及验收边界，不按当前实现改写当时结论。原始版本见 TeamHub 的 [Orbit 原稿索引](https://github.com/Orbit-Labs-AI/team-hub/blob/main/Archive/%E9%A1%B9%E7%9B%AE/Orbit/README.md)。
 
 这些页面不是当前任务清单。旧名称、目录、函数和命令仅用于理解当时方案，不能直接照做。现行参考见 [架构](../../../architecture/README.md)、[数据契约](../../../contracts/data.md)、[分析](../../../modules/analytics/README.md)和[推荐引擎](../../../modules/recommendation/engine.md)。
 
@@ -29,6 +29,6 @@
 
 ## 两个原始占位项
 
-团队原 `数据/数据获取.md` 只有一个指引：参考 Agent 的基本组件和流程构建一般 trajectory 表述；该原意保留在此，不将其包装成已完成采集方案。原 `数据/数据存储.md` 是空文件，没有可迁入的设计内容。二者原文件均由团队 Archive 保留。
+团队原 `数据/数据获取.md` 只有一个指引：参考 Agent 的基本组件和流程构建一般 trajectory 表述，它不是已完成的采集方案。原 `数据/数据存储.md` 是空文件。二者原文件见 [Orbit 原稿索引](https://github.com/Orbit-Labs-AI/team-hub/blob/main/Archive/%E9%A1%B9%E7%9B%AE/Orbit/README.md)。
 
 返回[历史方案](../README.md)。

@@ -5,9 +5,9 @@ added: 2026-10-02
 
 # Interaction 交互行为-实现与验收
 
-> 历史来源：本页为2026-10-02 的实现与验收记录，2026-10-07 从团队 Vault 迁入。原位置：`项目/Orbit/分析模块/Interaction 交互行为-实现与验收.md`。正文与原有日期、结论保留，仅整理导航和空白；私人会话定位不公开。本文中的“当前”、TODO、测试数量和执行命令仅对原文基线成立，本次没有重新验证，也不自动形成任务或授权。现行入口：[源码文档](<../../modules/analytics/README.md>)。
+> 本页是 2026-10-02 的实现与验收记录，内容待团队确认；文中的“当前”、TODO、测试数量和命令只对当时成立。现行入口：[分析模块](<../../modules/analytics/README.md>)。
 
-来源：[interaction/README.md](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/README.md)；对应提交 `3cdebe6`，[PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19)。本页是代码 README 按团队模板同步的技术记录，原始草案见 [Interaction 交互行为](<../../archive/plans/teamhub-2026-10/analytics/interaction.md>)。
+本页内容与代码说明 [interaction/README.md](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/README.md) 同步，对应提交 `3cdebe6`、[PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19)；原始草案见 [Interaction 交互行为](<../../archive/plans/teamhub-2026-10/analytics/interaction.md>)。
 
 [返回分析模块分类](<../../archive/plans/teamhub-2026-10/analytics/classification.md>) · [对照现有 Feature](<../../archive/plans/teamhub-2026-10/feature-inventory-2026-10-02.md>)
 
@@ -22,7 +22,7 @@ added: 2026-10-02
 - [ ] **重复强调 `repeated_requirement_count`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
 - [ ] **摩擦类型 `friction_types`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
 
-认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4)。实现与合成样例的技术检查已完成；勾选需按团队模板完成最终口径确认和验收，本页不代替成员确认。未来补充项见末尾。
+认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4)。实现与合成样例的技术检查已完成；各项需按团队模板完成最终口径确认和验收后再勾选。未来补充项见末尾。
 
 [四模块总览](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/docs/backend/bottleneck-features.md) · [合成测试](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_interaction.py) · [共享虚构数据集](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/fixtures/bottleneck-features-v1.json)
 
@@ -75,7 +75,6 @@ added: 2026-10-02
 - 摩擦支持 understanding/scope/execution/verification 多标签，保留证据和未知数。
 - `analyze_interaction` 提供统一入口、数据覆盖及来源未知计数；不修改输入。
 
-
 ## 输入与使用
 
 ```python
@@ -98,7 +97,6 @@ result = analyze_interaction(events, main_ids={"s"}, until_ts=None)
 - 未提供 requirements/friction_types 为未知；显式空列表表示已检查且没有。
 - 顶层分析范围由 service 统一筛选；直接调用者须传入同一范围内事件。原始文本不会出现在本模块输出。
 
-
 ## 验收样例
 
 | 输入／场景 | 预期结果 |
@@ -115,7 +113,7 @@ python -m pytest -q tests/bottleneck/test_interaction.py tests/bottleneck/test_i
 ruff check src tests
 ```
 
-2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的全部已合入特征族、保留并行共存回归并修复四项 P1 后，在隔离提交副本中 775 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
+2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的全部已合入特征族、保留并行共存回归并修复四项 P1 后，在隔离提交副本中 775 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致。
 
 ## 补充特征与函数
 
@@ -129,6 +127,6 @@ ruff check src tests
 
 ## 结论与下一步
 
-当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按用户约定仅 P0/P1 阻塞，低优先级问题可后续处理。
+当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按约定仅 P0/P1 阻塞，低优先级问题可后续处理。
 
 补充验证（main `4bccf1f` 基线）：Python 3.13 隔离副本中 789 项后端测试、91 项数据层测试通过；35 项连接器构造测试、Ruff、格式检查和全包构建通过；synthetic demo 与 evaluate 通过。没有读取个人 Agent 历史。

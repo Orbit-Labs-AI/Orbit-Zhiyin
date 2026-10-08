@@ -5,9 +5,9 @@ added: 2026-10-02
 
 # Instruction 指令／控制方式
 
-> 历史来源：本页为2026-10-01 至 10-03 的历史方案，2026-10-07 从团队 Vault 迁入。原位置：`项目/Orbit/分析模块/Instruction 指令／控制方式.md`。正文与原有日期、结论保留，仅整理导航和空白；私人会话定位不公开。本文中的“当前”、TODO、测试数量和执行命令仅对原文基线成立，本次没有重新验证，也不自动形成任务或授权。现行入口：[源码文档](<../../../../modules/analytics/README.md>)。
+> 本页是 2026-10-01 至 10-03 的历史方案，文中的“当前”、TODO、测试数量和命令只对当时成立。现行入口：[分析模块](<../../../../modules/analytics/README.md>)。
 
-## 本轮实现与验收（2026-10-02）
+## 实现与验收（2026-10-02）
 
 **代码重构、函数接入和五类测试已完成。现在能识别一批明确的指令，但还需要真实正例来检验识别效果。**
 
@@ -15,7 +15,7 @@ added: 2026-10-02
 
 这部分看的是：用户这次让 agent 怎么做。例如，“先给方案”是在规定顺序，“只改这个文件”是在限制范围，“不要推送”是在禁止某个操作。每条结果都保留对应的原话，方便回看为什么这样判断。
 
-需求与回看账号：`MistyHuang03`；实现和技术验证：Codex。用户已在本次对话确认，三位成员对本次 MVP 范围的确认、`yhyfhgs` 对 PR #16 的合并授权均已满足。真实样本的独立人工质量评估还没做。
+需求与回看账号：`MistyHuang03`；实现和技术验证：Codex。据用户确认，三位成员已确认本次 MVP 范围，`yhyfhgs` 已授权合并 PR #16。真实样本的独立人工质量评估还没做。
 
 [PR #16](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/16) · [关联 Issue #4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4) · [代码与接口说明](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/f9f643523ff1ea33be398a7cda3e8b11e36f02d0/src/tandem_backend/analytics/instruction/README.md) · [完整五类验收报告](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/f9f643523ff1ea33be398a7cda3e8b11e36f02d0/docs/backend/instruction-validation.md)
 
@@ -60,7 +60,7 @@ Instruction 记录用户**这一次**对工作方式的要求。只分析能确�
 | `acceptance_criteria` | 用户明确提出的完成标准及证据 ID。 | “验收标准：全部测试通过”；以后可与 [Outcome 客观结果](<objective-outcome.md>)关联，本轮尚未自动匹配。 |
 | `format_requirements / tool_requirements` | 明确的输出格式和工具要求。 | “请用 JSON 输出”“使用 pytest”；仅提到工具名不一定是在要求使用。 |
 
-每个字段返回“带原文的条目列表”或未知值 `null`。未知可能是信息不足，也可能是当前规则没识别出来，不能写成“用户没有这个要求”。
+每个字段返回“带原文的条目列表”或未知值 `null`。未知可能是信息不足，也可能是当前规则没识别出来，不等于“用户没有这个要求”。
 
 ## 分析函数
 
@@ -90,7 +90,7 @@ Instruction 记录用户**这一次**对工作方式的要求。只分析能确�
 | “验收标准：全部测试通过” | 记录验收项，暂不判断是否已通过。 |
 | 先说“不要修改 src/a.py”，后说“允许修改 src/a.py”，但没有明确替换关系 | 两条原话都保留，提示冲突，不默认最后一句自动覆盖前面。 |
 
-## 本轮技术完成清单
+## 技术完成清单（2026-10-02）
 
 - [x] 拆出 Instruction 目录，保留原有结构统计和旧接口。
 - [x] 实现八类明确指令字段，保存原文、来源和消息位置。
@@ -146,6 +146,6 @@ Instruction 记录用户**这一次**对工作方式的要求。只分析能确�
 
 本轮交付是 Instruction 独立目录、八类明确指令字段、三个主要分析函数和五类测试记录。技术验证已完成，真实识别质量仍需补样本确认。
 
-已按用户确认的 `yhyfhgs` 授权，将经过评审的 `f9f6435` 以 merge commit 合并。后续优先补真实正例和已记录的五项 P2，再继续扩展句式、范围和条件处理；进度见 [PR #16](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/16) 与 [Issue #4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4)。
+经过评审的 `f9f6435` 已按 `yhyfhgs` 的授权以 merge commit 合并。后续优先补真实正例和已记录的五项 P2，再继续扩展句式、范围和条件处理；进度见 [PR #16](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/16) 与 [Issue #4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4)。
 
-最后两项 P2 在 `f9f6435` 的最终复审中新增，已追加到本页和 PR 原评论。仓库内验收报告保留此前测试和评审记录，后续复审进展以本页与 PR 为准。
+最后两项 P2 来自对 `f9f6435` 的最终复审，也已记录在 PR 原评论中。仓库内的验收报告记录的是此前的测试和评审，后续复审进展以本页与 PR 为准。

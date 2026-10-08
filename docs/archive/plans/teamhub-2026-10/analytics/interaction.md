@@ -5,7 +5,7 @@ added: 2026-10-02
 
 # Interaction 交互行为
 
-> 历史来源：本页为2026-10-01 至 10-03 的历史方案，2026-10-07 从团队 Vault 迁入。原位置：`项目/Orbit/分析模块/Interaction 交互行为.md`。正文与原有日期、结论保留，仅整理导航和空白；私人会话定位不公开。本文中的“当前”、TODO、测试数量和执行命令仅对原文基线成立，本次没有重新验证，也不自动形成任务或授权。现行入口：[源码文档](<../../../../modules/analytics/README.md>)。
+> 本页是 2026-10-01 至 10-03 的历史方案，内容待团队确认；文中的“当前”、TODO、测试数量和命令只对当时成立。现行入口：[分析模块](<../../../../modules/analytics/README.md>)。
 
 ## Feature TODO
 
@@ -22,7 +22,7 @@ added: 2026-10-02
 
 [返回分析模块分类](<classification.md>) · [对照现有 Feature](<../feature-inventory-2026-10-02.md>)
 
-> 本页初始特征口径、新增字段名和函数接口为 AI 整理草案，待团队确认；函数表列出建议接口，实际实现以关联代码和验收记录为准。
+本页初始的特征口径、新增字段名和函数接口是草案，待团队确认；函数表列的是建议接口，实际实现以关联代码和验收记录为准。
 
 ## 范围
 
@@ -88,7 +88,6 @@ added: 2026-10-02
 
 确认后在这里记录结论、确认人（GitHub 账号）、依据和适用范围；实现与验收进度更新开头 TODO，并链接对应 Issue。
 
-
 ## 实现与验收记录
 
-2026-10-02，`genius-FXC` 的四模块实现已提交 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19)。本模块的目录分工、实际接口、已完成工作、合成样例与待补内容见 [Interaction 交互行为-实现与验收](<../../../../audits/feature-families-2026-10-02/interaction.md>)。代码技术验证与团队口径确认分别记录；原始草案及待确认事项继续保留。
+2026-10-02，`genius-FXC` 的四模块实现已提交 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19)。本模块的目录分工、实际接口、已完成工作、合成样例与待补内容见 [Interaction 交互行为-实现与验收](<../../../../audits/feature-families-2026-10-02/interaction.md>)。
