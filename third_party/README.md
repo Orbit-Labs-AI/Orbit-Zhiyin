@@ -13,4 +13,4 @@
 
 需要研究特定项目时只初始化对应子模块：`git submodule update --init --depth 1 third_party/<目录>`。固定提交以当前 Git 树为准，不等同上游最新发布。
 
-升级引用须有明确研究或兼容需求，核对格式差异、许可证和引用位置，再提交新的 gitlink，并在 TeamHub 更新研究记录；不要为运行 App 自动更新全部上游。研究结论保留采样版本和日期，见 TeamHub 的[Agent 会话格式对比](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F%E5%AF%B9%E6%AF%94.md)。
+升级引用须有明确研究或兼容需求，核对格式差异、许可证和引用位置，再提交新的 gitlink 与研究记录；不要为运行 App 自动更新全部上游。研究结论保留采样版本和日期，见[Agent 格式研究](../docs/research/agent-sessions/README.md)。

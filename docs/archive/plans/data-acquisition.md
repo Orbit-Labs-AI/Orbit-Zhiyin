@@ -22,7 +22,7 @@
 
 | 需求 | 在本文哪里 |
 | --- | --- |
-| 模块 1：获取各 Agent 的本地 session，参考额度统计与反代类开源项目的对接方式 | 3.1 本机实测、3.2 各 Agent 接入要点、3.4 补充通道（反代、额度）、3.6 参考的开源项目；源码级细节见 [Agent 会话格式研究](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F%E5%AF%B9%E6%AF%94.md) |
+| 模块 1：获取各 Agent 的本地 session，参考额度统计与反代类开源项目的对接方式 | 3.1 本机实测、3.2 各 Agent 接入要点、3.4 补充通道（反代、额度）、3.6 参考的开源项目；源码级细节见 [docs/research/agent-sessions](../../research/agent-sessions) |
 | 模块 2：标准化，按项目、按模型分类（不按 Agent 分类） | 4.5「分类维度」「项目归属」「模型与思考档位」 |
 | 模块 5.1 规则和 Prompts | 5.1「规则、子代理、工作流、指南」，6.1 `rule`、`command` |
 | 模块 5.2 Skills | 5.1 Skills，5.2「Skill 目录」 |
@@ -103,7 +103,7 @@ Demo 各页需要的数据与来源：
 
 ### 3.2 各 Agent 接入要点
 
-本节只列连接器需要的结论。pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 六个 Agent 的源码级分析（存储布局、记录 schema、写入时机、压缩与分支的数据表现，附源码 permalink）见 [Agent 会话格式研究](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F%E5%AF%B9%E6%AF%94.md)。
+本节只列连接器需要的结论。pi、Hermes Agent、DeepSeek Harness、OpenCode、Codex、Claude Code 六个 Agent 的源码级分析（存储布局、记录 schema、写入时机、压缩与分支的数据表现，附源码 permalink）见 [docs/research/agent-sessions](../../research/agent-sessions)。
 
 #### Claude Code（P0）
 
@@ -404,7 +404,7 @@ OpenCode V2 用原生 `seq`；V1 缺少完整写入顺序时，按消息 `(time_
 | `ui.state` | 只与界面有关的状态（归档，不参与统计） | `atis-latch`、`bridge-session`、`frame-link`、`artifact-*`、`last-prompt` | — | — | — |
 | `unknown` | 未识别记录（保留并计入漂移告警） | — | — | — | — |
 
-OpenCode 与 Hermes 的映射要点（逐类映射表见 [调研总览](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/02-%E7%A0%94%E7%A9%B6/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F/Agent%E4%BC%9A%E8%AF%9D%E6%A0%BC%E5%BC%8F%E5%AF%B9%E6%AF%94.md) 第 6.3 节）：
+OpenCode 与 Hermes 的映射要点（逐类映射表见 [调研总览](../../research/agent-sessions) 第 6.3 节）：
 
 - **OpenCode**：`part.type` 决定事件——`text`（`synthetic: true` 为注入，进 `context.inject` 或 `origin=injected`）、`reasoning`（签名或加密内容在 `metadata`）、`tool`（`state.status` 为 `pending / running / completed / error`，映射 `tool.call / tool.result`）、`step-start / step-finish`（`model.usage`）、`patch`（`file.change`）、`compaction` 与 `summary: true` 的 assistant（`context.compaction`）、`agent / subtask`（`subagent.spawn`）、`file`（附件，内联的 base64 移到附件区）；`session.revert` 与 fork 映射为 `branch`。
 - **Hermes Agent**：`messages` 按 `id` 顺序映射为 `message.* / tool.* / reasoning`；`active=0, compacted=1` 的旧行加摘要行 → `context.compaction`；`active=0, compacted=0` 且同会话里没有同 `message_uid` 活跃副本的行 → `branch`（rewind / edit），有活跃副本的是压缩时携带的原行或被取代的副本，标 `duplicate`；`/branch` 子会话 → `branch(fork)`；`delegate_task` 子会话 → `subagent.*`；`session_model_usage` → `model.usage(usage_scope=session_model_snapshot, measurement=cumulative)`（`task` 字段给出用途，不生成虚构的逐次模型请求）。

@@ -16,10 +16,11 @@ Orbit 文档按读者任务与证据状态组织。根 README 帮新读者理解
 | `design/` | 当前视觉规范、源素材与展示资产 |
 | `plans/` | 尚待确认的方向和决策问题 |
 | `audits/` | 绑定版本、数据与环境的检查结果 |
+| `research/` | 代码直接依据的外部源码、日志格式与平台规范的有日期快照，如连接器所依据的 Agent 会话格式 |
 | `releases/` | 版本交付记录的导航 |
 | `archive/` | 已替代的方案、设计演变、迁移与事故记录 |
 
-每个分区的 README 维护该区入口，`docs/README.md` 只维护读者路线。研究（竞品与选型、外部源码和日志格式、轨迹建模与文献）不放在本仓库，在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md#%E7%A0%94%E7%A9%B6) 维护，这里只链接；同一篇正文只在一边维护。不要恢复 `docs/plan`、`docs/backend` 或 `docs/design/demo`，不要在文档目录建立新的运行入口。
+每个分区的 README 维护该区入口，`docs/README.md` 只维护读者路线。产品开发过程中的需求、提案、竞品与方法研究和团队模块设计在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md) 维护；模块设计进入实现后，正式计划、实现说明和代码直接依据的开发调研写在本仓库。两边互相链接，同一篇正文只在一边维护。不要恢复 `docs/plan`、`docs/backend` 或 `docs/design/demo`，不要在文档目录建立新的运行入口。
 
 ## 写当前手册
 
@@ -33,7 +34,7 @@ Orbit 文档按读者任务与证据状态组织。根 README 帮新读者理解
 
 计划和审计不能随新实现改写成“当时已完成”。旧正文需要保留时移入 archive/audits，注明状态、原基线和现行入口。历史版本号、实测数字与引用只对原文上下文成立；没有重新执行，就不更新“已验证”时间。
 
-本轮重组将旧 `plans/*.md` 与功能映射 CSV 归入 `archive/plans/`，将模块内测试报告归入 `audits/`，将迁移、设计演变与导入事故归档。版本记录保留证据，不作为当前能力清单。
+本轮重组将旧 `plans/*.md` 与功能映射 CSV 归入 `archive/plans/`，将模块内测试报告归入 `audits/`，将迁移、设计演变与导入事故归档。原始研究和版本记录保留证据，不作为当前能力清单。
 
 ## 搬迁与验证
 
