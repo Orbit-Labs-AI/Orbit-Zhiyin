@@ -6,6 +6,7 @@ Orbit·知音于 2026-10-14 停止开发，下面两篇是当时仍在讨论的�
 
 - [后续方向与决策](directions.md)
 - [历史轨迹技能学习的设计与实现记录](history-skill-learning.md)：替代 PR #99 关闭，未合并
+- [路线图草案](roadmap.md)：截至 2026-10-09 的阶段记录与里程碑草案
 
 - [Orbit AI 接入设计：分析侧与推荐侧如何用模型](ai-module.md)
 - [分析模块设计：跨 Agent、跨项目、跨模型的会话分析体系](analysis-module.md)
@@ -21,7 +22,7 @@ Orbit·知音于 2026-10-14 停止开发，下面两篇是当时仍在讨论的�
 - [UI ↔ 后端对齐报告（第 4 轮）](ui-backend-parity.md)
 
 - [功能映射原始 CSV](feature-map.csv)
-- [团队早期技术方案（2026-10）](teamhub-2026-10/README.md)：从团队 Vault 迁入的完整数据、前后端、推荐和八族分析原稿。
+- [团队早期模块设计（2026-10）](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md#模块设计)：数据、前后端流程、推荐和八族分析的原始设计（2026-10-01 至 10-03），在 TeamHub 维护；本区的模块方案在此基础上写成。
 - [黑客松评测提案（2026-10-03）](benchmark-2026-10-03/README.md)：精简配对实验及更早的八类 60 项扩展方案；不作为当前执行指令。
 
 返回[历史资料](../README.md)。

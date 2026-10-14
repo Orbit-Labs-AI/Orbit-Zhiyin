@@ -5,11 +5,11 @@ added: 2026-10-02
 
 # Cost-Time 用量与时间-实现与验收
 
-> 历史来源：本页为2026-10-02 的实现与验收记录，2026-10-07 从团队 Vault 迁入。原位置：`项目/Orbit/分析模块/Cost-Time 用量与时间-实现与验收.md`。正文与原有日期、结论保留，仅整理导航和空白；私人会话定位不公开。本文中的“当前”、TODO、测试数量和执行命令仅对原文基线成立，本次没有重新验证，也不自动形成任务或授权。现行入口：[源码文档](<../../modules/analytics/README.md>)。
+> 本页是 2026-10-02 的实现与验收记录，内容待团队确认；文中的“当前”、TODO、测试数量和命令只对当时成立。现行入口：[分析模块](<../../modules/analytics/README.md>)。
 
-来源：[cost_time/README.md](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/README.md)；对应提交 `3cdebe6`，[PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19)。本页是代码 README 按团队模板同步的技术记录，原始草案见 [Cost-Time 用量与时间](<../../archive/plans/teamhub-2026-10/analytics/cost-time.md>)。
+本页内容与代码说明 [cost_time/README.md](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/README.md) 同步，对应提交 `3cdebe6`、[PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19)；原始草案见 [Cost-Time 用量与时间](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Cost-Time%20%E7%94%A8%E9%87%8F%E4%B8%8E%E6%97%B6%E9%97%B4.md)。
 
-[返回分析模块分类](<../../archive/plans/teamhub-2026-10/analytics/classification.md>) · [对照现有 Feature](<../../archive/plans/teamhub-2026-10/feature-inventory-2026-10-02.md>)
+[返回分析模块分类](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Home-%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97%E5%88%86%E7%B1%BB.md) · [对照现有 Feature](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90Feature%E4%B8%80%E8%A7%88.md)
 
 四目录重构已由 yhyfhgs 合并；最后两项 P1 的补充修复见 [PR #24](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/24)，本页含该补充版本的验证记录。
 
@@ -22,7 +22,7 @@ added: 2026-10-02
 - [ ] **按日活动 `activity_rhythm.*.by_day`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py)；代码与合成样例已完成，待团队验收。
 - [ ] **按小时活动 `activity_rhythm.*.by_hour`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py)；代码与合成样例已完成，待团队验收。
 
-认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4)。实现与合成样例的技术检查已完成；勾选需按团队模板完成最终口径确认和验收，本页不代替成员确认。未来补充项见末尾。
+认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4)。实现与合成样例的技术检查已完成；各项需按团队模板完成最终口径确认和验收后再勾选。未来补充项见末尾。
 
 [四模块总览](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/docs/backend/bottleneck-features.md) · [合成测试](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_cost_time.py) · [共享虚构数据集](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/fixtures/bottleneck-features-v1.json)
 
@@ -79,7 +79,6 @@ added: 2026-10-02
 - 原生端点／明确报告的执行耗时、日志间隔估算、会话跨度分别输出；可靠区间用并集去重。每条记录保留证据、来源、质量及有效／未知数。
 - 主会话开始、真人消息、工具调用、模型请求分别按日／小时分桶，使用显式显示时区；没有原生会话开始时间就保留未知。
 
-
 ## 输入与使用
 
 ```python
@@ -94,7 +93,6 @@ result = analyze_cost_time(sessions, events, calls, model_calls, {"s"},
 `duration_source=reported/native_report` 代表原生耗时报告；event_difference 或 duration_quality=estimated 单列估算。可靠端点由 Respond 处理，reported duration 不能推造 ended_at。会话只有一个有效时间时跨度为 0，同时记录有效数；没有有效时间为 null。
 
 旧 usage.cost_usd 等兼容字段仍保留既有逻辑，但本次不增加费用分析、价格表、首次验收时间或真实人工工作时长。新的 benchmark 应优先使用 Token 与可靠执行时间；不得把跨度或日志间隔当作人工成本。
-
 
 ## 验收样例
 
@@ -112,7 +110,7 @@ python -m pytest -q tests/bottleneck/test_cost_time.py tests/bottleneck/test_int
 ruff check src tests
 ```
 
-2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的全部已合入特征族、保留并行共存回归并修复四项 P1 后，在隔离提交副本中 775 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致；这是自动技术验证，不是团队人工验收。
+2026-10-02 技术复核：目录拆分后 467 项测试通过；同步 main 的全部已合入特征族、保留并行共存回归并修复四项 P1 后，在隔离提交副本中 775 项测试通过，Ruff 通过。此次文件拆分的 30 个函数逐一比对语法树，93 条全局字段定义保持一致。
 
 ## 补充特征与函数
 
@@ -126,6 +124,6 @@ ruff check src tests
 
 ## 结论与下一步
 
-当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按用户约定仅 P0/P1 阻塞，低优先级问题可后续处理。
+当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按约定仅 P0/P1 阻塞，低优先级问题可后续处理。
 
 补充验证（main `4bccf1f` 基线）：Python 3.13 隔离副本中 789 项后端测试、91 项数据层测试通过；35 项连接器构造测试、Ruff、格式检查和全包构建通过；synthetic demo 与 evaluate 通过。没有读取个人 Agent 历史。
