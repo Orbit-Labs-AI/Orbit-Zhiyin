@@ -13,8 +13,8 @@
 | Swift / Xcode Command Line Tools | Swift 5.9+；原生构建在 macOS | Swift 客户端与桌面宿主 |
 
 ```sh
-git clone https://github.com/Orbit-Labs-AI/Orbit.git Orbit
-cd Orbit
+git clone https://github.com/Orbit-Labs-AI/Orbit-Zhiyin.git Orbit-Zhiyin
+cd Orbit-Zhiyin
 bash scripts/bootstrap.sh
 ```
 

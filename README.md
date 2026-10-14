@@ -7,10 +7,10 @@
 
 Orbit 是一个开源的本地 macOS App。它把散落在 Claude Code、Codex 等 Agent 中的会话整理到一起，让你回看工作过程、理解协作习惯，并从有证据的改进建议中选择下一步。
 
-[下载 macOS App](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/latest) · [开始使用](docs/getting-started/README.md) · [文档](docs/README.md) · [参与贡献](CONTRIBUTING.md) · [反馈问题](https://github.com/Orbit-Labs-AI/Orbit/issues/new/choose)
+[下载 macOS App](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/latest) · [开始使用](docs/getting-started/README.md) · [文档](docs/README.md) · [参与贡献](CONTRIBUTING.md) · [反馈问题](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/new/choose)
 
-[![App integration](https://github.com/Orbit-Labs-AI/Orbit/actions/workflows/backend.yml/badge.svg?branch=main)](https://github.com/Orbit-Labs-AI/Orbit/actions/workflows/backend.yml)
-[![Connector checks](https://github.com/Orbit-Labs-AI/Orbit/actions/workflows/connectors.yml/badge.svg?branch=main)](https://github.com/Orbit-Labs-AI/Orbit/actions/workflows/connectors.yml)
+[![App integration](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/actions/workflows/backend.yml/badge.svg?branch=main)](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/actions/workflows/backend.yml)
+[![Connector checks](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/actions/workflows/connectors.yml/badge.svg?branch=main)](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/actions/workflows/connectors.yml)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](docs/getting-started/installation.md)
 
@@ -34,6 +34,8 @@ Lite 与 Advance 是同一个 App 的两种界面，可在侧栏顶部切换。L
 
 从 [GitHub Releases](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/latest) 下载适合 Apple Silicon 的 DMG 或 ZIP，将 Orbit 放入「应用程序」后打开。用户机器无需安装 Python 或 Node。当前构建的签名与公证状态、首次打开和升级步骤见[安装指南](docs/getting-started/installation.md)。
 
+当前版本：[Orbit 0.0.4](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/tag/v0.0.4)（Apple Silicon、macOS 14 及以上；ad-hoc 签名，未经 Apple 公证），见[版本说明](releases/0.0.4/README.md)。
+
 第一次使用时选择允许 Orbit 读取的 Agent 来源，再等待导入发布数据。先从概览或会话轨迹进入，确认样本范围后再看分析和建议。
 
 ### 用示例数据体验
@@ -43,8 +45,8 @@ Lite 与 Advance 是同一个 App 的两种界面，可在侧栏顶部切换。L
 若要运行后端示例，准备 Python 3.13、uv、Node ≥24.7 和 pnpm 11.25.0：
 
 ```sh
-git clone https://github.com/Orbit-Labs-AI/Orbit.git Orbit
-cd Orbit
+git clone https://github.com/Orbit-Labs-AI/Orbit-Zhiyin.git Orbit-Zhiyin
+cd Orbit-Zhiyin
 bash scripts/bootstrap.sh
 uv run orbit demo
 pnpm dev --home .local/demo/data
@@ -73,4 +75,4 @@ Orbit 由 [Orbit-Labs-AI](https://github.com/Orbit-Labs-AI) 发起。维护成�
 
 ## 许可证
 
-Orbit 原创代码与文档采用 [Apache License 2.0](LICENSE)。第三方源码、字体及其他独立声明许可的材料遵循各自许可证；参见 [third_party](third_party/README.md)。
+Orbit 原创代码与文档采用 [Apache License 2.0](LICENSE)。第三方源码、字体及其他独立声明许可的材料遵循各自许可证；参见 [third_party](third_party/README.md)。已发布版本的许可范围与第三方声明随版本保存，例如 [0.0.4 许可范围](releases/0.0.4/LICENSE-SCOPE.md)；发布流程见 [RELEASING.md](RELEASING.md)。

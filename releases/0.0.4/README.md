@@ -17,7 +17,7 @@ Orbit·知音的 macOS 桌面版本，Lite / Advance 共用一个 App，可在�
 - **[下载 ZIP](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/download/v0.0.4/Orbit-0.0.4-arm64.zip)**：约 72.0 MB，解压后将 `Orbit.app` 移入「应用程序」。
 - **[SHA256SUMS](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/download/v0.0.4/SHA256SUMS)**：用于确认安装包完整性。
 
-DMG 与 ZIP 二选一即可。GitHub 自动生成的 **Source code (zip / tar.gz)** 只是本发布仓库的文档归档，不是 App 安装包。
+DMG 与 ZIP 二选一即可。GitHub 自动生成的 **Source code (zip / tar.gz)** 是 `v0.0.4` 标签对应的源码，不是 App 安装包。
 
 ## 安装与首次打开
 
@@ -167,9 +167,9 @@ open "$HOME/Library/Application Support/Orbit"
 
 0.0.4 是已有版本的原样再发布，保留原有 Apache-2.0 与第三方组件许可，**不追溯适用发布仓库专有协议中的禁止逆向条款**。
 
-- [LICENSE-SCOPE.md](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/v0.0.4/releases/0.0.4/LICENSE-SCOPE.md)：本版本适用的许可范围。
-- [LICENSE-APACHE-2.0.txt](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/v0.0.4/releases/0.0.4/LICENSE-APACHE-2.0.txt)：原有 Apache-2.0 许可全文。
-- [THIRD-PARTY-NOTICES.md](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/v0.0.4/releases/0.0.4/THIRD-PARTY-NOTICES.md)：依据安装包现有内容整理的第三方许可说明。
+- [LICENSE-SCOPE.md](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/da108aaa18d79a287a3d60e313f5f10ee52ffb14/releases/0.0.4/LICENSE-SCOPE.md)：本版本适用的许可范围。
+- [LICENSE-APACHE-2.0.txt](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/da108aaa18d79a287a3d60e313f5f10ee52ffb14/releases/0.0.4/LICENSE-APACHE-2.0.txt)：原有 Apache-2.0 许可全文。
+- [THIRD-PARTY-NOTICES.md](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/da108aaa18d79a287a3d60e313f5f10ee52ffb14/releases/0.0.4/THIRD-PARTY-NOTICES.md)：依据安装包现有内容整理的第三方许可说明。
 - `BUNDLED-LICENSES.zip`：安装包内 30 个已有许可文件的原样副本，方便单独查阅；不是完整依赖审计的声明。
 
 上述许可文件也随本 Release 作为附件提供，请与安装包一并保留。它们没有被重新写入原 DMG / ZIP，因此不会改变原安装包的哈希和签名。
