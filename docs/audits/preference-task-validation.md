@@ -3,7 +3,7 @@
 > 文档状态：审计快照。正文保留原基线、日期与证据；其中的状态和数字不代表当前版本。现行入口见[文档导航](../README.md)。
 
 
-本轮从 `main` 的 `c97c818` 创建 `feat/analytics-preference-task`。代码实现基线为 `62bc623`，特征 schema 升为 `feature-analytics-v2`。交付范围是语义／画像象限中的 [Preference](../modules/analytics/preference.md) 与 [Task](../modules/analytics/task.md)，其余族维持既有代码。关联 [Issue #4](https://github.com/Orbit-Labs-AI/Orbit/issues/4)。
+本轮从 `main` 的 `c97c818` 创建 `feat/analytics-preference-task`。代码实现基线为 `62bc623`，特征 schema 升为 `feature-analytics-v2`。交付范围是语义／画像象限中的 [Preference](../modules/analytics/preference.md) 与 [Task](../modules/analytics/task.md)，其余族维持既有代码。关联 [Issue #4](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/4)。
 
 两个特征族已经接入共用分析服务、CLI 和 API，旧接口与旧导入路径仍可用。模板所列字段都有规则实现及验收例；尚未实现的语义能力和真实人工质量验收明确列为下一步，不用测试通过代替业务确认。
 

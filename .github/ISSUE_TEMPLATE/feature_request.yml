@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        先搜索已有 Issues。新功能及 MVP 范围须由三位成员共同确认；提交建议不代表已纳入实现计划。
+        先搜索已有 Issues。Orbit·知音已停止开发，不再实现新功能；建议只作记录。
         请使用虚构或脱敏示例，不粘贴真实 Agent 会话。
   - type: textarea
     id: problem

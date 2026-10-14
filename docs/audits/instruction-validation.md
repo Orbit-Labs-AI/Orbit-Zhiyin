@@ -5,7 +5,7 @@
 
 **五类测试都已执行，Instruction 的 88 项测试和全库 486 项测试通过。** 真实日志已经从导入跑到 HTTP API，但可确认的真人消息只有 9 条，而且没有命中指令正例。因此，这次能确认流程可运行，还不能确认真实指令的识别效果。
 
-2026-10-02，`MistyHuang03` 发起，Codex 实施。范围仅为 Instruction，代码从当时最新的 `main c97c818` 创建分支 `feat/analytics-instruction`。[PR #16](https://github.com/Orbit-Labs-AI/Orbit/pull/16) · [Issue #4](https://github.com/Orbit-Labs-AI/Orbit/issues/4) · [特征与接口说明](../../packages/backend/src/orbit_backend/analytics/instruction/README.md)。
+2026-10-02，`MistyHuang03` 发起，Codex 实施。范围仅为 Instruction，代码从当时最新的 `main c97c818` 创建分支 `feat/analytics-instruction`。[PR #16](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/16) · [Issue #4](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/4) · [特征与接口说明](../../packages/backend/src/orbit_backend/analytics/instruction/README.md)。
 
 用户已确认本次 MVP 的三人范围确认和 `yhyfhgs` 对 PR #16 的合并授权均已满足。下列测试由 AI 编写和执行，独立人工质量评估尚未完成。
 
@@ -81,6 +81,6 @@ uv run python -m orbit_backend evaluate --output .local/instruction-validation/e
 
 该轮评审暂缓了三项 P2，原意见保留如下；是否仍存在须按当前实现重新核对，不能从历史结论推定：
 
-- “请检查代码／请构建项目”可能漏识别为核验要求：[原意见](https://github.com/Orbit-Labs-AI/Orbit/pull/16#discussion_r4163524616)。
-- “无需确认直接执行”等连写可能漏掉执行顺序：[原意见](https://github.com/Orbit-Labs-AI/Orbit/pull/16#discussion_r4163547545)。
-- build、ruff、lint 等动作的允许与禁止可能漏报冲突：[原意见](https://github.com/Orbit-Labs-AI/Orbit/pull/16#discussion_r4163547547)。
+- “请检查代码／请构建项目”可能漏识别为核验要求：[原意见](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/16#discussion_r4163524616)。
+- “无需确认直接执行”等连写可能漏掉执行顺序：[原意见](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/16#discussion_r4163547545)。
+- build、ruff、lint 等动作的允许与禁止可能漏报冲突：[原意见](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/16#discussion_r4163547547)。
