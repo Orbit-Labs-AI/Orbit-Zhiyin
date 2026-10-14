@@ -20,7 +20,7 @@ Orbit 文档按读者任务与证据状态组织。根 README 帮新读者理解
 | `releases/` | 版本交付记录的导航 |
 | `archive/` | 已替代的方案、设计演变、迁移与事故记录 |
 
-每个分区的 README 维护该区入口，`docs/README.md` 只维护读者路线。产品开发过程中的需求、提案、竞品与方法研究和团队模块设计在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md) 维护；模块设计进入实现后，正式计划、实现说明和代码直接依据的开发调研写在本仓库。两边互相链接，同一篇正文只在一边维护。不要恢复 `docs/plan`、`docs/backend` 或 `docs/design/demo`，不要在文档目录建立新的运行入口。
+每个分区的 README 维护该区入口，`docs/README.md` 只维护读者路线。产品开发过程中的需求、提案、竞品与方法研究和团队模块设计在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md) 维护；模块设计进入实现后，正式计划、实现说明和代码直接依据的开发调研写在本仓库。两边互相链接，同一篇正文只在一边维护。不要恢复 `docs/plan`、`docs/backend` 或 `docs/design/demo`，不要在文档目录建立新的运行入口。
 
 ## 写当前手册
 

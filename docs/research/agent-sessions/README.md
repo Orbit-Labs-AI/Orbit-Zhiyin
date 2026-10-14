@@ -1,6 +1,6 @@
 # Agent 会话与轨迹数据形态对比
 
-补充阅读：TeamHub 的[十类 Agent 本地轨迹调研（2026-10-01）](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/03-%E7%A0%94%E7%A9%B6/%E4%B8%BB%E6%B5%81Agent%E6%9C%AC%E5%9C%B0%E8%BD%A8%E8%BF%B9%E6%95%B0%E6%8D%AE%E8%B0%83%E7%A0%94%E6%8A%A5%E5%91%8A.md)，资料调研的范围更广，但没有逐个安装实测，不与下文的源码／本机核验范围混用。
+补充阅读：TeamHub 的[十类 Agent 本地轨迹调研（2026-10-01）](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/Archive/%E9%A1%B9%E7%9B%AE/Orbit/03-%E7%A0%94%E7%A9%B6/%E4%B8%BB%E6%B5%81Agent%E6%9C%AC%E5%9C%B0%E8%BD%A8%E8%BF%B9%E6%95%B0%E6%8D%AE%E8%B0%83%E7%A0%94%E6%8A%A5%E5%91%8A.md)，资料调研的范围更广，但没有逐个安装实测，不与下文的源码／本机核验范围混用。
 
 > 研究对象：pi、Hermes Agent、DeepSeek Harness（下称 DSH）、OpenCode、Codex、Claude Code。
 >

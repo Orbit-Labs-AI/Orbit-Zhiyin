@@ -31,6 +31,6 @@
 | [releases](releases/README.md) | 桌面 Release 入口与独立的后端历史记录 |
 | [archive](archive/README.md) | 已被替代的设计、计划、事故复盘和目录迁移资料 |
 
-`getting-started` 与 `guides` 是用户手册；`architecture`、`contracts`、`development`、`modules` 和 `design` 是当前实现参考。`plans` 只记录待确认方向，旧的长篇方案已放入 `archive/plans`。`research` 只收代码直接依据的开发调研；产品需求、提案、竞品与方法研究和团队的模块设计在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md) 维护。各目录的 README 维护本区完整索引，避免首页变成数百项文件清单。
+`getting-started` 与 `guides` 是用户手册；`architecture`、`contracts`、`development`、`modules` 和 `design` 是当前实现参考。`plans` 只记录待确认方向，旧的长篇方案已放入 `archive/plans`。`research` 只收代码直接依据的开发调研；产品需求、提案、竞品与方法研究和团队的模块设计在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md) 维护。各目录的 README 维护本区完整索引，避免首页变成数百项文件清单。
 
 命令从仓库根执行，另有说明除外。文档组织、状态标签与搬迁规则见[文档维护](development/documentation.md)；安全与协作规则见[安全政策](../SECURITY.md)、[行为准则](../CODE_OF_CONDUCT.md)和[项目指令](../AGENTS.md)。

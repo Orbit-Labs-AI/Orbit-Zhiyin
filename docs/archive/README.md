@@ -10,4 +10,4 @@
 | [design](design/README.md) | Lite 原稿审查、设计演变和旧品牌详细参数 |
 | [MVP 首版计划](backend-mvp-plan.md) | 最早的数据到报告闭环 |
 
-当前使用说明从[文档首页](../README.md)进入。历史实测集中在[审计](../audits/README.md)，开发调研在[研究](../research/README.md)；团队的需求、提案、产品与方法研究和早期模块设计在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md)。
+当前使用说明从[文档首页](../README.md)进入。历史实测集中在[审计](../audits/README.md)，开发调研在[研究](../research/README.md)；团队的需求、提案、产品与方法研究和早期模块设计在 TeamHub 的 [Orbit 项目页](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/README.md)。

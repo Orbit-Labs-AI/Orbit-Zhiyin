@@ -7,4 +7,4 @@
 - [Cost-Time：用量与时间](cost-time.md)
 - [Outcome：客观结果](objective-outcome.md)
 
-草案和其他四族的阶段内容见 TeamHub 的[分析模块设计](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97%E5%88%86%E7%B1%BB.md)。现行入口见[执行与瓶颈特征](../../modules/analytics/bottleneck-features.md)。返回[审计](../README.md)。
+草案和其他四族的阶段内容见 TeamHub 的[分析模块设计](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Home-%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97%E5%88%86%E7%B1%BB.md)。现行入口见[执行与瓶颈特征](../../modules/analytics/bottleneck-features.md)。返回[审计](../README.md)。
