@@ -1,10 +1,10 @@
 # 为 Orbit 贡献
 
-欢迎通过问题反馈、使用体验、文档、构造样本和代码帮助 Orbit。先从 [README](README.md)了解产品，再选择一个边界明确、能复现或验证的改进。
+Orbit·知音已于 2026-10-14 停止开发，不再接受新功能或代码改进；问题报告会作为已知问题保留。下面的流程记录开发期间的做法，供阅读源码时参考。
 
 ## 提交问题或建议
 
-使用 [Issue 模板](https://github.com/Orbit-Labs-AI/Orbit/issues/new/choose)，说明环境、操作步骤、预期与实际结果。功能建议先描述使用场景和最小输入输出；排期与范围由维护者讨论确认。安全问题按 [SECURITY.md](SECURITY.md)私下报告。
+使用 [Issue 模板](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/new/choose)，说明环境、操作步骤、预期与实际结果。功能建议先描述使用场景和最小输入输出；排期与范围由维护者讨论确认。安全问题按 [SECURITY.md](SECURITY.md)私下报告。
 
 只提交构造或充分脱敏的材料。不要上传真实会话库、原始日志、密钥、`.env`、个人路径或含隐私的截图。机器生成的建议也需要贡献者检查其事实、许可和行为。
 
@@ -13,8 +13,8 @@
 从[开发环境](docs/development/setup.md)开始。Python 和 Node 依赖分别使用根目录的 `uv.lock`、`pnpm-lock.yaml`；不新增包内锁文件。运行时包括 Python 3.13、uv、Node ≥24.7、pnpm 11.25.0；原生构建另需 macOS 和 Xcode Command Line Tools。
 
 ```sh
-git clone https://github.com/Orbit-Labs-AI/Orbit.git Orbit
-cd Orbit
+git clone https://github.com/Orbit-Labs-AI/Orbit-Zhiyin.git Orbit-Zhiyin
+cd Orbit-Zhiyin
 bash scripts/bootstrap.sh
 uv run orbit demo
 ```

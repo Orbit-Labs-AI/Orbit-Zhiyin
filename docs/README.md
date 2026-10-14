@@ -9,7 +9,7 @@
 | 安装或先看示例 | [开始使用](getting-started/README.md) |
 | 导入、分析、推荐、AI 与排障 | [使用指南](guides/README.md) |
 | 了解当前能做什么 | [产品说明与边界](product/README.md) |
-| 查看尚待讨论的方向 | [后续方向](plans/README.md) |
+| 查看停止开发前的方向与历史方案 | [历史方案](archive/plans/README.md) |
 
 ## 参与开发
 

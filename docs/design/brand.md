@@ -6,7 +6,7 @@
 
 产品名 **Orbit**，带字标时全名 **Orbit·知音**。界面版本写 **Lite / Advance**。包、CLI、环境变量和目录使用 `orbit`：`orbit_*`、`@orbit/*`、`ORBIT_*`、`orbit.db`、`Application Support/Orbit`。
 
-GitHub 源码仓库统一为 [`Orbit-Labs-AI/Orbit`](https://github.com/Orbit-Labs-AI/Orbit)，本地项目根目录统一为 `Orbit/`（例如 `~/Projects/Orbit Labs/Orbit`）。安装包与更新说明继续发布在 [`Orbit-Labs-AI/Orbit-Zhiyin`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases)。克隆地址、源码链接、界面示例与工作区引用随源码仓库名统一。
+GitHub 仓库为 [`Orbit-Labs-AI/Orbit-Zhiyin`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin)，源码、安装包与更新说明都在这里；本地项目根目录为 `Orbit-Zhiyin/`（例如 `~/Projects/Orbit Labs/Orbit-Zhiyin`）。2026-10-14 起，原源码仓库 `Orbit-Labs-AI/Orbit` 与原发布仓库合并为本仓库；`Orbit-Labs-AI/Orbit` 这个名称改由另一个新仓库使用，旧链接不再指向这里。克隆地址、源码链接与工作区引用随仓库名统一；界面原型中的示例项目是演示数据。
 
 历史名称与数据迁移集中在 [orbit_data/legacy.py](../../packages/data/src/orbit_data/legacy.py)。旧分支接入时按[历史迁移说明](../archive/migrations/structure-migration.md)检查，不为新代码增加旧名别名。文档保留历史引用时应说明其时间范围。
 

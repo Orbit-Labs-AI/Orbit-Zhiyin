@@ -74,8 +74,8 @@ added: 2026-10-03
 
 以当前实现为事实来源，旧方案只用来核对覆盖范围；其中的数值门槛、MVP 归属和未来能力不自动视为已确认。
 
-- [过去到未来 Benchmark](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/evals/benchmark/README.md)：A/B/C 的冻结与评分基础。
-- [EV 评测方案](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/docs/plans/evaluation-module.md)：EV-01/01.1/01.2 → D/F；EV-02/02.1/03/04/04.1/04.2 → D；EV-05/05.1/05.2 → B/C；EV-06/06.1/13 → E；EV-07/07.1/08 → A/C；EV-09/09.1/10/10.1 → H；EV-11 → A/F/G；EV-12 → 共同协议；EV-14 → F。
-- [质量评测入口](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/evals/README.md)、[性能入口](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/benchmarks/README.md)、[测试指南](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/docs/development/testing.md)。
+- [过去到未来 Benchmark](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/evals/benchmark/README.md)：A/B/C 的冻结与评分基础。
+- [EV 评测方案](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/docs/plans/evaluation-module.md)：EV-01/01.1/01.2 → D/F；EV-02/02.1/03/04/04.1/04.2 → D；EV-05/05.1/05.2 → B/C；EV-06/06.1/13 → E；EV-07/07.1/08 → A/C；EV-09/09.1/10/10.1 → H；EV-11 → A/F/G；EV-12 → 共同协议；EV-14 → F。
+- [质量评测入口](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/evals/README.md)、[性能入口](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/benchmarks/README.md)、[测试指南](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/b9e6e0a09199093b75fd4abc7697b07c8eaf7500/docs/development/testing.md)。
 
 本目录只保存规划与无隐私的汇总入口。后续代码、数据集契约和维护文档归 Hackathon 仓库；真实日志与执行明细留在各自本机忽略目录。执行进度以 GitHub Issue 为准，这里不再维护第二份任务状态表。
