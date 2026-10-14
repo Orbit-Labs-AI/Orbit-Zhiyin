@@ -30,7 +30,7 @@
 
 ## 进行中
 
-**历史技能学习与隔离评测**（[计划](<history-skill-learning.md>) · [PR #99](https://github.com/Orbit-Labs-AI/Orbit/pull/99)，待人工审核，勿自动合并）
+**历史技能学习与隔离评测**（[计划](<history-skill-learning.md>) · [PR #99](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/99)，待人工审核，勿自动合并）
 
 - 目标：用可追溯的通用推荐改进，验证在 held-out 任务上的效果。
 - 隔离：原 run-003／run-004 的 24 个已暴露实例只用于开发诊断；新实例在看内容前先划分，只有训练集和 validation 进入迭代。
@@ -39,7 +39,7 @@
 - 阶段：打通漏斗并复现根因 → 1～2 次通用算法迭代与消融 → 冻结后只跑一次正式 test → 端到端检查并提交待审核 PR；失败、超时和中断全部保留。
 - 交付：RESULT、TOKEN、POSITIVE、NEGATIVE、INJECTION 五份报告。撤回前的旧结果已从 `main` 移除，不作为现行结论。
 
-**待处理**：[Issue #104](https://github.com/Orbit-Labs-AI/Orbit/issues/104) AI 报告的纠正计数改用与页面一致的规则；[界面试用反馈](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/01-%E9%9C%80%E6%B1%82%E4%B8%8E%E5%8F%8D%E9%A6%88/%E7%95%8C%E9%9D%A2%E8%AF%95%E7%94%A8%E5%8F%8D%E9%A6%88.md)尚未逐条分诊。分配见[任务看板](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E5%9B%A2%E9%98%9F/%E4%BB%BB%E5%8A%A1%E7%9C%8B%E6%9D%BF.md)。
+**待处理**：[Issue #104](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/104) AI 报告的纠正计数改用与页面一致的规则；[界面试用反馈](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/01-%E9%9C%80%E6%B1%82%E4%B8%8E%E5%8F%8D%E9%A6%88/%E7%95%8C%E9%9D%A2%E8%AF%95%E7%94%A8%E5%8F%8D%E9%A6%88.md)尚未逐条分诊。分配见[任务看板](https://github.com/Orbit-Labs-AI/team-hub/blob/main/%E5%9B%A2%E9%98%9F/%E4%BB%BB%E5%8A%A1%E7%9C%8B%E6%9D%BF.md)。
 
 ## 待决定的方向
 
