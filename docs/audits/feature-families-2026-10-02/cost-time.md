@@ -7,24 +7,24 @@ added: 2026-10-02
 
 > 本页是 2026-10-02 的实现与验收记录，内容待团队确认；文中的“当前”、TODO、测试数量和命令只对当时成立。现行入口：[分析模块](<../../modules/analytics/README.md>)。
 
-本页内容与代码说明 [cost_time/README.md](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/README.md) 同步，对应提交 `3cdebe6`、[PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19)；原始草案见 [Cost-Time 用量与时间](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Cost-Time%20%E7%94%A8%E9%87%8F%E4%B8%8E%E6%97%B6%E9%97%B4.md)。
+本页内容与代码说明 [cost_time/README.md](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/README.md) 同步，对应提交 `3cdebe6`、[PR #19](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/19)；原始草案见 [Cost-Time 用量与时间](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Cost-Time%20%E7%94%A8%E9%87%8F%E4%B8%8E%E6%97%B6%E9%97%B4.md)。
 
 [返回分析模块分类](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Home-%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97%E5%88%86%E7%B1%BB.md) · [对照现有 Feature](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90Feature%E4%B8%80%E8%A7%88.md)
 
-四目录重构已由 yhyfhgs 合并；最后两项 P1 的补充修复见 [PR #24](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/24)，本页含该补充版本的验证记录。
+四目录重构已由 yhyfhgs 合并；最后两项 P1 的补充修复见 [PR #24](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/24)，本页含该补充版本的验证记录。
 
 ## Feature TODO
 
-- [ ] **输入／输出 Token `usage.token_buckets`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py)；代码与合成样例已完成，待团队验收。
-- [ ] **缓存 Token `usage.token_buckets`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py)；代码与合成样例已完成，待团队验收。
-- [ ] **执行耗时 `durations.execution_durations`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/durations.py)；代码与合成样例已完成，待团队验收。
-- [ ] **会话跨度 `durations.session_spans`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/durations.py)；代码与合成样例已完成，待团队验收。
-- [ ] **按日活动 `activity_rhythm.*.by_day`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py)；代码与合成样例已完成，待团队验收。
-- [ ] **按小时活动 `activity_rhythm.*.by_hour`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py)；代码与合成样例已完成，待团队验收。
+- [ ] **输入／输出 Token `usage.token_buckets`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py)；代码与合成样例已完成，待团队验收。
+- [ ] **缓存 Token `usage.token_buckets`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py)；代码与合成样例已完成，待团队验收。
+- [ ] **执行耗时 `durations.execution_durations`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/durations.py)；代码与合成样例已完成，待团队验收。
+- [ ] **会话跨度 `durations.session_spans`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/durations.py)；代码与合成样例已完成，待团队验收。
+- [ ] **按日活动 `activity_rhythm.*.by_day`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py)；代码与合成样例已完成，待团队验收。
+- [ ] **按小时活动 `activity_rhythm.*.by_hour`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py)；代码与合成样例已完成，待团队验收。
 
-认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4)。实现与合成样例的技术检查已完成；各项需按团队模板完成最终口径确认和验收后再勾选。未来补充项见末尾。
+认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/4)。实现与合成样例的技术检查已完成；各项需按团队模板完成最终口径确认和验收后再勾选。未来补充项见末尾。
 
-[四模块总览](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/docs/backend/bottleneck-features.md) · [合成测试](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_cost_time.py) · [共享虚构数据集](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/fixtures/bottleneck-features-v1.json)
+[四模块总览](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/docs/backend/bottleneck-features.md) · [合成测试](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_cost_time.py) · [共享虚构数据集](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/fixtures/bottleneck-features-v1.json)
 
 ## 范围
 
@@ -34,13 +34,13 @@ added: 2026-10-02
 
 | 文件 | 职责 |
 | --- | --- |
-| [__init__.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/__init__.py) | 稳定的特征族公共导出 |
-| [analyzer.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/analyzer.py) | 组合入口及兼容导出，不集中实现所有分析 |
-| [tokens.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py) | Token 包含关系、分项规范化、请求身份与冲突 |
-| [features.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/features.py) | 逐请求用量、累计快照、覆盖及旧 usage 字段 |
-| [durations.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/durations.py) | 执行耗时、可靠区间并集、日志估算和会话跨度 |
-| [activity.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py) | 显式时区下按日／小时活动及缺时间覆盖 |
-| [dictionary.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/dictionary.py) | 本特征族的机器可读字段口径 |
+| [__init__.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/__init__.py) | 稳定的特征族公共导出 |
+| [analyzer.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/analyzer.py) | 组合入口及兼容导出，不集中实现所有分析 |
+| [tokens.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py) | Token 包含关系、分项规范化、请求身份与冲突 |
+| [features.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/features.py) | 逐请求用量、累计快照、覆盖及旧 usage 字段 |
+| [durations.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/durations.py) | 执行耗时、可靠区间并集、日志估算和会话跨度 |
+| [activity.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py) | 显式时区下按日／小时活动及缺时间覆盖 |
+| [dictionary.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/dictionary.py) | 本特征族的机器可读字段口径 |
 
 沿用 PR #13 的特征族目录和规则／提取／字段字典分工。`analyzer.py` 只做组合，旧 `analytics.features` 和本目录公共导出继续兼容；没有新增 Agent、模型调用或语义分类器。
 
@@ -61,12 +61,12 @@ added: 2026-10-02
 
 | 已实现函数 | 输入 → 输出 | 主要处理 |
 | --- | --- | --- |
-| [`normalize_token_buckets(row)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py) | 请求 → 规范 Token 分项 | 处理缓存包含关系，拒绝负数、布尔值和非法分项。 |
-| [`prepare_requests(model_calls)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py) | 模型调用 → 唯一可靠请求与异常 | 要求 call/delta、调用 ID 和可靠边界；冲突请求隔离。 |
-| [`usage(model_calls, events, sessions, scope, records_complete=True)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/features.py) | 请求／快照 → 用量及覆盖 | 对应草案 summarize_token_usage；累计快照不相加、不混入请求。 |
-| [`summarize_durations(calls, events, intervals=None)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/durations.py) | 调用／日志／区间 → 耗时与跨度 | 调用时长总和与区间并集分开，保留来源和未知数。 |
-| [`activity(sessions, events, calls, model_calls, main_ids, scope)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py) | 带时间记录 → 日／小时分布 | 对应草案 analyze_activity_rhythm；按事件来源分别分桶。 |
-| [`analyze_cost_time(sessions, events, calls, model_calls, main_ids, scope, …)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/analyzer.py) | 同范围记录 → 完整 Cost-Time 结果 | 组合用量、耗时和活动，不估算人工投入。 |
+| [`normalize_token_buckets(row)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py) | 请求 → 规范 Token 分项 | 处理缓存包含关系，拒绝负数、布尔值和非法分项。 |
+| [`prepare_requests(model_calls)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/tokens.py) | 模型调用 → 唯一可靠请求与异常 | 要求 call/delta、调用 ID 和可靠边界；冲突请求隔离。 |
+| [`usage(model_calls, events, sessions, scope, records_complete=True)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/features.py) | 请求／快照 → 用量及覆盖 | 对应草案 summarize_token_usage；累计快照不相加、不混入请求。 |
+| [`summarize_durations(calls, events, intervals=None)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/durations.py) | 调用／日志／区间 → 耗时与跨度 | 调用时长总和与区间并集分开，保留来源和未知数。 |
+| [`activity(sessions, events, calls, model_calls, main_ids, scope)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/activity.py) | 带时间记录 → 日／小时分布 | 对应草案 analyze_activity_rhythm；按事件来源分别分桶。 |
+| [`analyze_cost_time(sessions, events, calls, model_calls, main_ids, scope, …)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/cost_time/analyzer.py) | 同范围记录 → 完整 Cost-Time 结果 | 组合用量、耗时和活动，不估算人工投入。 |
 
 表中 `…` 省略可选参数，完整签名以对应代码为准。函数直接调用接收同一筛选范围的记录；推荐通过 `analytics.service.analyze_bundle` 统一筛选，时间窗口为 `[from_ts, until_ts)`。
 
@@ -103,7 +103,7 @@ result = analyze_cost_time(sessions, events, calls, model_calls, {"s"},
 | 相同模型请求重复出现／同 ID 内容冲突 | 重复只计一次；冲突隔离并输出 ID。 |
 | 用量或时间缺失 | 不填 0、不入时间桶；完整且已知为空的请求集合才可返回零。 |
 
-自动验收：[`test_cost_time.py`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_cost_time.py)；跨模块范围、未来信息隔离和 CLI/API 一致性见 [test_integration.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_integration.py)。全部使用合成事件、虚构数据或临时 SQLite，不读取个人 Agent 历史。
+自动验收：[`test_cost_time.py`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_cost_time.py)；跨模块范围、未来信息隔离和 CLI/API 一致性见 [test_integration.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_integration.py)。全部使用合成事件、虚构数据或临时 SQLite，不读取个人 Agent 历史。
 
 ```bash
 python -m pytest -q tests/bottleneck/test_cost_time.py tests/bottleneck/test_integration.py
@@ -116,7 +116,7 @@ ruff check src tests
 
 待补充：每种 Agent 来源的缓存包含关系与原生请求适配；可靠时钟覆盖；大范围快照的可组合性证明。旧导入器只有无覆盖口径的累计报告时，逐请求统计仍不可用。费用、到首次验收时间与人工投入继续暂缓，需独立数据契约和团队确认。
 
-新增内容先更新 Feature TODO、字段表和函数表，再补字段类型／单位、输入证据、分母与缺失语义、正反例、认领 GitHub 账号、[#4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4) 及实现链接；验收后再勾选，进度以 Issue 为准。
+新增内容先更新 Feature TODO、字段表和函数表，再补字段类型／单位、输入证据、分母与缺失语义、正反例、认领 GitHub 账号、[#4](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/4) 及实现链接；验收后再勾选，进度以 Issue 为准。
 
 ## 讨论
 
@@ -124,6 +124,6 @@ ruff check src tests
 
 ## 结论与下一步
 
-当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按约定仅 P0/P1 阻塞，低优先级问题可后续处理。
+当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按约定仅 P0/P1 阻塞，低优先级问题可后续处理。
 
 补充验证（main `4bccf1f` 基线）：Python 3.13 隔离副本中 789 项后端测试、91 项数据层测试通过；35 项连接器构造测试、Ruff、格式检查和全包构建通过；synthetic demo 与 evaluate 通过。没有读取个人 Agent 历史。
