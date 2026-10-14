@@ -7,24 +7,24 @@ added: 2026-10-02
 
 > 本页是 2026-10-02 的实现与验收记录，内容待团队确认；文中的“当前”、TODO、测试数量和命令只对当时成立。现行入口：[分析模块](<../../modules/analytics/README.md>)。
 
-本页内容与代码说明 [interaction/README.md](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/README.md) 同步，对应提交 `3cdebe6`、[PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19)；原始草案见 [Interaction 交互行为](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Interaction%20%E4%BA%A4%E4%BA%92%E8%A1%8C%E4%B8%BA.md)。
+本页内容与代码说明 [interaction/README.md](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/README.md) 同步，对应提交 `3cdebe6`、[PR #19](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/19)；原始草案见 [Interaction 交互行为](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Interaction%20%E4%BA%A4%E4%BA%92%E8%A1%8C%E4%B8%BA.md)。
 
 [返回分析模块分类](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C%E5%B1%82%E6%AC%A1/Home-%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97%E5%88%86%E7%B1%BB.md) · [对照现有 Feature](https://github.com/Orbit-Labs-AI/TeamHub/blob/main/%E9%A1%B9%E7%9B%AE/Orbit/04-%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1/%E5%88%86%E6%9E%90%E6%A8%A1%E5%9D%97/%E5%88%86%E6%9E%90Feature%E4%B8%80%E8%A7%88.md)
 
-四目录重构已由 yhyfhgs 合并；最后两项 P1 的补充修复见 [PR #24](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/24)，本页含该补充版本的验证记录。
+四目录重构已由 yhyfhgs 合并；最后两项 P1 的补充修复见 [PR #24](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/24)，本页含该补充版本的验证记录。
 
 ## Feature TODO
 
-- [ ] **消息意图 `message_intents`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
-- [ ] **人工介入位置 `intervention_points`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
-- [ ] **确认纠偏次数 `confirmed_correction_count`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
-- [ ] **确认纠偏比例 `confirmed_correction_rate`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
-- [ ] **重复强调 `repeated_requirement_count`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
-- [ ] **摩擦类型 `friction_types`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
+- [ ] **消息意图 `message_intents`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
+- [ ] **人工介入位置 `intervention_points`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
+- [ ] **确认纠偏次数 `confirmed_correction_count`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
+- [ ] **确认纠偏比例 `confirmed_correction_rate`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
+- [ ] **重复强调 `repeated_requirement_count`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
+- [ ] **摩擦类型 `friction_types`**：[实现](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py)；代码与合成样例已完成，待团队验收。
 
-认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4)。实现与合成样例的技术检查已完成；各项需按团队模板完成最终口径确认和验收后再勾选。未来补充项见末尾。
+认领：[genius-FXC](https://github.com/genius-FXC)；关联 Issue：[#4](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/4)。实现与合成样例的技术检查已完成；各项需按团队模板完成最终口径确认和验收后再勾选。未来补充项见末尾。
 
-[四模块总览](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/docs/backend/bottleneck-features.md) · [合成测试](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_interaction.py) · [共享虚构数据集](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/fixtures/bottleneck-features-v1.json)
+[四模块总览](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/docs/backend/bottleneck-features.md) · [合成测试](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_interaction.py) · [共享虚构数据集](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/fixtures/bottleneck-features-v1.json)
 
 ## 范围
 
@@ -34,11 +34,11 @@ added: 2026-10-02
 
 | 文件 | 职责 |
 | --- | --- |
-| [__init__.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/__init__.py) | 稳定的特征族公共导出 |
-| [analyzer.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/analyzer.py) | 组合入口及兼容导出，不集中实现所有分析 |
-| [rules.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/rules.py) | 意图／摩擦词表、执行事件类型、纠偏关键词候选 |
-| [features.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py) | 确认标注校验、介入定位、纠偏与重复要求汇总 |
-| [dictionary.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/dictionary.py) | 本特征族的机器可读字段口径 |
+| [__init__.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/__init__.py) | 稳定的特征族公共导出 |
+| [analyzer.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/analyzer.py) | 组合入口及兼容导出，不集中实现所有分析 |
+| [rules.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/rules.py) | 意图／摩擦词表、执行事件类型、纠偏关键词候选 |
+| [features.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py) | 确认标注校验、介入定位、纠偏与重复要求汇总 |
+| [dictionary.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/dictionary.py) | 本特征族的机器可读字段口径 |
 
 沿用 PR #13 的特征族目录和规则／提取／字段字典分工。`analyzer.py` 只做组合，旧 `analytics.features` 和本目录公共导出继续兼容；没有新增 Agent、模型调用或语义分类器。
 
@@ -59,10 +59,10 @@ added: 2026-10-02
 
 | 已实现函数 | 输入 → 输出 | 主要处理 |
 | --- | --- | --- |
-| [`classify_message_intents(events, main_ids, until_ts=None)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py) | 事件 → 标注消息、候选、确认状态及证据 | 校验来源、标签、可见时间和被纠正对象。 |
-| [`locate_interventions(events, main_ids)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py) | 有序事件 → 介入位置 | 记录顺序优先，保留任务／会话关系范围。 |
-| [`summarize_interactions(labeled_messages)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py) | 标注消息 → 纠偏、重复强调和摩擦汇总 | 去重；统一确认分母；输出有效数和未知数。 |
-| [`analyze_interaction(events, main_ids, …)`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/analyzer.py) | 已筛选事件 → 完整 Interaction 结果 | 统一入口，保留事件和来源覆盖。 |
+| [`classify_message_intents(events, main_ids, until_ts=None)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py) | 事件 → 标注消息、候选、确认状态及证据 | 校验来源、标签、可见时间和被纠正对象。 |
+| [`locate_interventions(events, main_ids)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py) | 有序事件 → 介入位置 | 记录顺序优先，保留任务／会话关系范围。 |
+| [`summarize_interactions(labeled_messages)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/features.py) | 标注消息 → 纠偏、重复强调和摩擦汇总 | 去重；统一确认分母；输出有效数和未知数。 |
+| [`analyze_interaction(events, main_ids, …)`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/src/tandem_backend/analytics/interaction/analyzer.py) | 已筛选事件 → 完整 Interaction 结果 | 统一入口，保留事件和来源覆盖。 |
 
 表中 `…` 省略可选参数，完整签名以对应代码为准。函数直接调用接收同一筛选范围的记录；推荐通过 `analytics.service.analyze_bundle` 统一筛选，时间窗口为 `[from_ts, until_ts)`。
 
@@ -106,7 +106,7 @@ result = analyze_interaction(events, main_ids={"s"}, until_ts=None)
 | 两条已审消息，其中一条含 correction 和 feedback | 纠偏次数 1、比例 0.5；同消息不重复计数。 |
 | 没有可判定意图或标注晚于截止时间 | 纠偏比例 null，并报告未知数。 |
 
-自动验收：[`test_interaction.py`](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_interaction.py)；跨模块范围、未来信息隔离和 CLI/API 一致性见 [test_integration.py](https://github.com/Orbit-Labs-AI/Orbit-Source/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_integration.py)。全部使用合成事件、虚构数据或临时 SQLite，不读取个人 Agent 历史。
+自动验收：[`test_interaction.py`](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_interaction.py)；跨模块范围、未来信息隔离和 CLI/API 一致性见 [test_integration.py](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/blob/3cdebe6ec9951bab4d5138f51e17867675334bfd/tests/bottleneck/test_integration.py)。全部使用合成事件、虚构数据或临时 SQLite，不读取个人 Agent 历史。
 
 ```bash
 python -m pytest -q tests/bottleneck/test_interaction.py tests/bottleneck/test_integration.py
@@ -119,7 +119,7 @@ ruff check src tests
 
 待补充：团队确认意图／摩擦词表与上游标注来源；人工或独立语义模块产出已审标注；跨会话任务和要求 ID；标注版本冲突处理。当前不实现情绪、人格、满意度或语义自动分类，旧日志没有这些标注时正常返回未知。
 
-新增内容先更新 Feature TODO、字段表和函数表，再补字段类型／单位、输入证据、分母与缺失语义、正反例、认领 GitHub 账号、[#4](https://github.com/Orbit-Labs-AI/Orbit-Source/issues/4) 及实现链接；验收后再勾选，进度以 Issue 为准。
+新增内容先更新 Feature TODO、字段表和函数表，再补字段类型／单位、输入证据、分母与缺失语义、正反例、认领 GitHub 账号、[#4](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues/4) 及实现链接；验收后再勾选，进度以 Issue 为准。
 
 ## 讨论
 
@@ -127,6 +127,6 @@ ruff check src tests
 
 ## 结论与下一步
 
-当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Source/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按约定仅 P0/P1 阻塞，低优先级问题可后续处理。
+当前已完成模块拆分、统一入口接入和合成样例检查；接下来由团队确认口径，并让上游适配器补齐本页注明的证据。业务口径确认人：待确认；本次实现认领：[genius-FXC](https://github.com/genius-FXC)。四目录重构已由 yhyfhgs 通过 [PR #19](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/19) 合并；合并发生在最后两项 P1 修复推送前，补充修复在 `fix/genius-FXC-bottleneck-coverage` 提交 PR。按约定仅 P0/P1 阻塞，低优先级问题可后续处理。
 
 补充验证（main `4bccf1f` 基线）：Python 3.13 隔离副本中 789 项后端测试、91 项数据层测试通过；35 项连接器构造测试、Ruff、格式检查和全包构建通过；synthetic demo 与 evaluate 通过。没有读取个人 Agent 历史。
