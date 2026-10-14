@@ -2,6 +2,11 @@
 
 以下正文保留当时设计和证据；现行能力以[产品边界](../../product/scope.md)及对应模块手册为准。
 
+Orbit·知音于 2026-10-14 停止开发，下面两篇是当时仍在讨论的方向和计划：
+
+- [后续方向与决策](directions.md)
+- [历史轨迹技能学习的设计与实现记录](history-skill-learning.md)：替代 PR #99 关闭，未合并
+
 - [Orbit AI 接入设计：分析侧与推荐侧如何用模型](ai-module.md)
 - [分析模块设计：跨 Agent、跨项目、跨模型的会话分析体系](analysis-module.md)
 - [分析模块规范与功能补全建议](analysis-review.md)

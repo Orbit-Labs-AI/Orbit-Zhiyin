@@ -1,6 +1,6 @@
 # Orbit
 
-Orbit-Labs-AI 组织的公开 Orbit-Zhiyin 仓库（Orbit·知音的源码、安装包与版本说明；原 Orbit 源码仓库，2026-10-14 与发布仓库合并），默认分支 `main`；版本说明与许可快照在 `releases/<版本>/`，发布流程见 [RELEASING.md](RELEASING.md)。产品名 **Orbit**（原暂定名 Tandem / 同频），目标为本地 macOS App；当前采用 Python workspace、TypeScript 连接器与 UI 原型。
+Orbit-Labs-AI 组织的公开 Orbit-Zhiyin 仓库（Orbit·知音的源码、安装包与版本说明；原 Orbit 源码仓库，2026-10-14 与发布仓库合并），默认分支 `main`；版本说明与许可快照在 `releases/<版本>/`，发布流程见 [RELEASING.md](RELEASING.md)。产品名 **Orbit**（原暂定名 Tandem / 同频；本仓库中的 Orbit 均指 Orbit·知音，`Orbit-Labs-AI/Orbit` 是另一个仓库），目标为本地 macOS App；当前采用 Python workspace、TypeScript 连接器与 UI 原型。Orbit·知音已于 2026-10-14 停止开发，不再新增功能。
 
 - 文档、界面文案与提交说明里的产品名一律写 Orbit，全名带字标时写 Orbit·知音。代码标识自 2026-10-03 起同样统一为 orbit（`orbit_*` 包、`orbit` CLI、`ORBIT_*` 环境变量、`Application Support/Orbit`、`orbit.db`、`OrbitLive`、`@orbit/*`、`orbit-demo.html` 等），不再新增 tandem 命名；旧数据与旧设置的兼容集中在 `packages/data/src/orbit_data/legacy.py`，见 [品牌](docs/design/brand.md#名称)。改名前开出的分支先运行 `python3 scripts/orbit-rename.py` 再合并 main，`--check` 列出残留。
 - 标志与 App 图标以 `docs/design/logo/` 为准：参数只在 `orbit-spec.json`，`generate.py` 写出矢量、`export.mjs` 渲染位图，素材在 `logo/kit/`。所有尺寸都是 App 图标曲线的整体等比缩放，不重绘、不改线宽；App 原型与 App 构建原样引用这些文件。
@@ -11,7 +11,7 @@ Orbit-Labs-AI 组织的公开 Orbit-Zhiyin 仓库（Orbit·知音的源码、安
 - **Advance**：采用 `yhyfhgs` 的设计，参考 `prototypes/advance/orbit-demo.html`、`prototypes/advance/src/` 与 `docs/design/visual-cases-v1/`。
 - 版本名统一使用 **Lite / Advance**；历史文档中的 `Advanced` 指 **Advance**。设计入口与详细说明以 [设计资料](docs/design/README.md) 为准。
 - 两版是同一个 App（`prototypes/advance`，侧栏顶部一键切换），共用侧栏、卡片、栏目、控件、小组件与动效；Lite 只做页面数量与尺度上的减法，不另建一套组件。
-- 以上规定版本与设计的对应关系。可运行界面在 prototypes，原生宿主在 apps/desktop；后续 MVP 功能范围仍须三位成员共同确认。
+- 以上规定版本与设计的对应关系。可运行界面在 prototypes，原生宿主在 apps/desktop；Orbit·知音停止开发后，MVP 功能范围不再扩展。
 
 ## 成员与分工
 

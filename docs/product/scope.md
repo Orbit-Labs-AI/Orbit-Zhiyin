@@ -1,6 +1,6 @@
 # 当前能力与产品边界
 
-本页描述 `main` 的实现，不替代下载版本的 Release 说明。Orbit 是早期迭代中的本地 macOS App；仓库包含可运行的原生宿主、统一界面、数据层、后端和开发入口。
+本页描述 `main` 的实现，不替代下载版本的 Release 说明。Orbit·知音是本地 macOS App，已于 2026-10-14 停止开发；仓库包含可运行的原生宿主、统一界面、数据层、后端和开发入口。
 
 ## 已有的使用链路
 
@@ -25,6 +25,6 @@ Lite 与 Advance 共用一个 App、数据和组件。独立 HTML 默认使用�
 
 ## 如何参与方向讨论
 
-带着真实场景、最小输入输出与可验证的结果提交 Issue。产品取舍由 `yhyfhgs` 负责，MVP 范围由 `yhyfhgs`、`MistyHuang03`、`genius-FXC` 共同确认；文档和旧方案不自动形成排期承诺。
+Orbit·知音已停止开发，Issue 只作为已知问题记录；文档和旧方案不构成排期承诺。
 
-参见[后续方向](../plans/README.md)、[模块接入表](../architecture/module-map.md)和[贡献指南](../../CONTRIBUTING.md)。
+参见[历史方案](../archive/plans/README.md)、[模块接入表](../architecture/module-map.md)和[贡献指南](../../CONTRIBUTING.md)。

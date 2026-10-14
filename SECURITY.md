@@ -1,12 +1,12 @@
 # 安全政策
 
-Orbit 处理本机会话与配置，安全报告应优先保护相关数据。当前维护目标是 `main` 和维护者选择修复的公开 Release；项目处于早期迭代，不承诺历史版本的长期安全支持或固定响应时限。
+Orbit 处理本机会话与配置，安全报告应优先保护相关数据。Orbit·知音已于 2026-10-14 停止开发，不承诺修复或固定响应时限；安全报告会作为已知问题记录。
 
 ## 报告渠道
 
 请联系维护者 [`yhyfhgs`](https://github.com/yhyfhgs)，通过其公开主页提供的联系方式，或你已经建立的私密渠道，先确认安全报告的接收方式。
 
-本轮核对时，仓库的 GitHub private vulnerability reporting 尚未启用。若你无法找到私密渠道，可以在 [Issues](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues)仅提交“请求私密安全报告渠道”，请维护者联系你；不要在该公开 Issue 中写漏洞细节、复现载荷、凭据或个人信息。若仓库之后出现可用的 “Report a vulnerability” 入口，可使用该私密入口。
+截至 2026-10-14，仓库尚未启用 GitHub private vulnerability reporting。若你无法找到私密渠道，可以在 [Issues](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/issues)仅提交“请求私密安全报告渠道”，请维护者联系你；不要在该公开 Issue 中写漏洞细节、复现载荷、凭据或个人信息。若仓库之后出现可用的 “Report a vulnerability” 入口，可使用该私密入口。
 
 报告中请尽量提供受影响版本或 SHA、模块、触发条件、影响范围和使用构造数据的最小复现。涉及真实凭据时先撤销或轮换，再提交脱敏证据。维护者将协调修复、复测和披露；目前没有漏洞奖励承诺。
 

@@ -16,7 +16,7 @@ Orbit 是一个开源的本地 macOS App。它把散落在 Claude Code、Codex �
 
 ![Orbit 协作人格与界面展示，使用示例数据](docs/design/showcase/png/orbit-hero-light.png)
 
-> Orbit 正在早期迭代。桌面 App 面向 Apple Silicon、macOS 14+；截图和独立 HTML 演示使用示例数据。本文档跟随 `main`，已发布安装包的功能与限制请以对应 Release 为准。
+> Orbit·知音已于 2026-10-14 停止开发，新一代 Orbit 由 Orbit Labs 另行从零开发；本仓库保留源码、安装包与开发历史。桌面 App 面向 Apple Silicon、macOS 14+；截图和独立 HTML 演示使用示例数据。本文档跟随 `main`，已发布安装包的功能与限制请以对应 Release 为准。
 
 ## 用 Orbit 做什么
 
@@ -62,7 +62,7 @@ Orbit 已有 Claude Code、Codex、DeepSeek Harness、pi、Hermes、OpenCode 和
 
 ## 参与开发
 
-欢迎提交可复现的问题、改进文档、补充构造样本或实现经过讨论的功能。先读[贡献指南](CONTRIBUTING.md)，再按关注点进入：
+Orbit·知音已停止开发，不再接受新功能；可复现的问题会作为已知问题保留。想了解实现时，先读[贡献指南](CONTRIBUTING.md)，再按关注点进入：
 
 | 关注点 | 入口 |
 | --- | --- |
