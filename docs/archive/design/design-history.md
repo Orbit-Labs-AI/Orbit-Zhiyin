@@ -23,7 +23,7 @@
 
 | App 版本 | 设计来源 | 设计入口 |
 | --- | --- | --- |
-| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/Orbit-Labs-AI/Orbit/pull/12)） | 原稿 [`prototypes/lite/orbit-benchmark-demo.html`](../../../prototypes/lite/orbit-benchmark-demo.html)；范围与审查见 [lite-review.md](lite-review.md) |
+| **Lite** | `genius-FXC` 的个人协作 Benchmark 设计（[PR #12](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/12)） | 原稿 [`prototypes/lite/orbit-benchmark-demo.html`](../../../prototypes/lite/orbit-benchmark-demo.html)；范围与审查见 [lite-review.md](lite-review.md) |
 | **Advance** | `yhyfhgs` 的桌面 App 设计 | 源码 [`prototypes/advance/src/`](../../../prototypes/advance/src)、画板 [`visual-cases-v1/`](../../design/visual-cases-v1) |
 
 - 版本名统一使用 **Lite / Advance**；历史材料中的 `Advanced` 指 **Advance**。
