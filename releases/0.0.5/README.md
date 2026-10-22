@@ -8,13 +8,12 @@
 
 | 平台 | 文件 | 说明 |
 | --- | --- | --- |
-| macOS（Apple Silicon） | `Orbit-0.0.5-arm64.dmg` | 推荐；ad-hoc 签名、未公证，首次打开需右键 → 打开（或按安装指南放行） |
-| macOS（Apple Silicon） | `Orbit-0.0.5-arm64.zip` | 免 DMG 安装方式，解压后把 `Orbit.app` 拖入「应用程序」 |
+| macOS（Apple Silicon） | `Orbit-0.0.5-arm64.zip` | 解压后把 `Orbit.app` 拖入「应用程序」；已清理构建机路径并 ad-hoc 重签（DMG 暂时下架，待 Mac 侧重建） |
 | Windows（x64，预览） | `Orbit-0.0.5-windows-x64.zip` | 独立构建的 Windows 预览版：同一套新界面；首次启动空白，随后扫描**运行者本机**日志显示其自己的会话统计；解压后双击 `Orbit.exe` |
 
 SHA-256 校验值见 [SHA256SUMS](SHA256SUMS)。Mac 安装包为 2026-10-22 本地构建（内部构建号仍为 `0.0.4 / 4`，
-不冒充官方 0.0.4 发布版），内容已包含本次新界面与时区修复；Windows 预览版为独立构建（版本标记 `0.1.0-preview`），
-与 macOS App 不是同一运行时。
+不冒充官方 0.0.4 发布版），内容已包含本次新界面与时区修复；ZIP 已移除构建机的 `direct_url.json` 路径并重新 ad-hoc 签名。
+DMG 因内含同一构建路径已暂时下架，待 Mac 侧用干净路径重建后补发。Windows 预览版为独立构建（版本标记 `0.1.0-preview`），与 macOS App 不是同一运行时。
 
 ## 本次改动
 
@@ -66,6 +65,7 @@ SHA-256 校验值见 [SHA256SUMS](SHA256SUMS)。Mac 安装包为 2026-10-22 本�
 ## 已知限制
 
 - macOS 安装包为本地构建，内部版本号仍显示 `0.0.4`（build 4），ad-hoc 签名、未公证；与官方 0.0.4 安装包 bundle id 相同，安装会覆盖同名 App。
+- macOS DMG 暂时下架：本地 DMG 内含构建机路径；ZIP 已清理并重签，待 Mac 侧重建 DMG 后补发。
 - Windows 预览版是独立界面构建，不是 macOS App 的等价移植：没有 Python 分析 / 推荐 / 安装后端，建议 / 资源库 / 工具明细为示例数据；发布包不含任何会话数据。
 - Windows 预览版需要 Node 26+（或工作区自带 Node）；不是单文件绿色版。
 - 数据层修复不改变 DDL / 事件契约；已导入库在下次导入时重新归并，不需要删数据或迁移。
