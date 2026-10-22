@@ -34,9 +34,14 @@ Lite 与 Advance 是同一个 App 的两种界面，可在侧栏顶部切换。L
 
 从 [GitHub Releases](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/latest) 下载适合 Apple Silicon 的 DMG 或 ZIP，将 Orbit 放入「应用程序」后打开。用户机器无需安装 Python 或 Node。当前构建的签名与公证状态、首次打开和升级步骤见[安装指南](docs/getting-started/installation.md)。
 
-当前版本：[Orbit 0.0.4](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/tag/v0.0.4)（Apple Silicon、macOS 14 及以上；ad-hoc 签名，未经 Apple 公证），见[版本说明](releases/0.0.4/README.md)。
+当前版本：[Orbit 0.0.5](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/tag/v0.0.5)（Apple Silicon、macOS 14 及以上；ad-hoc 签名，未经 Apple 公证），见[版本说明](releases/0.0.5/README.md)。
+0.0.5 同时提供一个**独立的 Windows 预览版**安装包（同一套新界面 + 本机只读会话统计，不是 macOS App 的等价移植），见 [Windows 预览版说明](docs/getting-started/windows-preview.md)。
 
 第一次使用时选择允许 Orbit 读取的 Agent 来源，再等待导入发布数据。先从概览或会话轨迹进入，确认样本范围后再看分析和建议。
+
+### 在 Windows 上试用（预览版）
+
+从 0.0.5 的 Release 资产下载 `Orbit-0.0.5-windows-x64.zip`，解压后双击 `Orbit.exe`。它是独立的 Windows 构建（Node + Edge 应用窗口），读取本机 Claude Code / Codex / DeepSeek Harness 会话的只读统计；建议 / 资源库 / 工具明细仍是示例。详见 [Windows 预览版](docs/getting-started/windows-preview.md)。
 
 ### 用示例数据体验
 
