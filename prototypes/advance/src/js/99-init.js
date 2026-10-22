@@ -27,7 +27,7 @@ setInterval(() => {
 let RZ = null;
 window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(RZ); RZ = setTimeout(() => { renderWidgets(); renderHud(); }, 80); });
 (function init() {
-  document.documentElement.lang = 'zh-CN';
+  document.documentElement.lang = I18N.lang === 'en' ? 'en' : 'zh-CN';   // 02-i18n sets the default; keep them in sync here too
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
   if (!h && store.native && !ED_SURFACE) h = edLastRoute(S.ed) || '';   // App: back to the last page of the last edition
   if (/^l-/.test(h)) S.ed = 'lite';

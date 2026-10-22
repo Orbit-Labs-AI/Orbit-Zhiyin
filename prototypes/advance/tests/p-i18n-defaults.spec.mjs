@@ -7,6 +7,8 @@ import { openDemo } from './helpers.mjs';
 test('fresh install: Lite layout and English UI by default', async ({ page }) => {
   const errors = await openDemo(page, '', { lang: null, edition: null, range: null });
   expect(await page.evaluate(() => [S.ed, S.range, I18N.lang])).toEqual(['lite', 7, 'en']);   // no stored prefs: new defaults
+  // the document language follows the UI language (99-init must not overwrite what 02-i18n set)
+  expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
   await expect(page.locator('#win')).toHaveAttribute('data-ed', 'lite');
   await expect(page.locator('#content .lite')).toBeVisible();
   // the shell and the Lite page are translated, not left in Chinese
