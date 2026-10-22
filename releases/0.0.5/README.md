@@ -2,7 +2,7 @@
 
 Orbit·知音的维护性升级：合并导入时区修复（#112）与新版合并版式 / 中英双语界面（#113），并首次提供 **Windows 预览版**安装包。
 
-本次 macOS 安装包为 2026-10-22 的本地构建（内部构建号仍为 0.0.4 / 4，ad-hoc 签名、未公证），已包含新界面与时区修复。构建产物中的构建机路径已清理，ZIP 已重新 ad-hoc 签名；DMG 因内含同一路径暂时下架，待 Mac 侧用干净路径重建后补发。
+本次 macOS 安装包为 2026-10-22 从 `v0.0.5` 标签源码在 Mac 上干净重建（0.0.5 / build 5，ad-hoc 签名、未公证），已包含新界面与时区修复；构建使用不含个人用户名的干净路径，DMG 与 ZIP 均已提供。
 
 ## 系统要求与下载
 
@@ -10,27 +10,28 @@ Orbit·知音的维护性升级：合并导入时区修复（#112）与新版合
 | --- | --- |
 | 系统（macOS） | macOS 14 Sonoma 及以上 |
 | 处理器（macOS） | Apple Silicon（arm64）；本次不提供 Intel Mac 安装包 |
-| App 版本（macOS） | 0.0.4，内部构建号 4（本地构建，不冒充官方 0.0.4 发布版） |
+| App 版本（macOS） | 0.0.5，内部构建号 5（本地构建；ad-hoc 签名、未公证） |
 | 运行环境（macOS） | 安装包自带后端运行时，无需另外安装 Python 或 Node |
 | 签名（macOS） | ad-hoc 签名，未经过 Apple Developer ID 签名及公证 |
 | 系统（Windows 预览） | Windows 10 / 11 x64；需要 Microsoft Edge 与 Node.js 26+（或使用包内说明的工作区 Node） |
 | 其他平台 | 本次不提供 Linux 桌面安装包 |
 
-- **[下载 macOS ZIP](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/download/v0.0.5/Orbit-0.0.5-arm64.zip)**：约 69.8 MB，解压后将 `Orbit.app` 移入「应用程序」。本次仅提供 ZIP，DMG 待 Mac 侧重建后补发。
+- **[下载 macOS DMG（推荐）](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/download/v0.0.5/Orbit-0.0.5-arm64.dmg)**：约 80 MB，打开后将 Orbit 拖入「应用程序」。
+- **[下载 macOS ZIP](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/download/v0.0.5/Orbit-0.0.5-arm64.zip)**：约 68 MB，解压后将 `Orbit.app` 移入「应用程序」。
 - **[下载 Windows 预览版 ZIP](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/download/v0.0.5/Orbit-0.0.5-windows-x64.zip)**：约 2.1 MB，解压后双击 `Orbit.exe`。首次启动为空白，随后扫描运行者本机日志。
 - **[SHA256SUMS](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/releases/download/v0.0.5/SHA256SUMS)**：用于确认安装包完整性。
 
-macOS 用户只需下载 ZIP；Windows 预览版为独立构建，不是 macOS App 的等价移植。GitHub 自动生成的 **Source code (zip / tar.gz)** 是 `v0.0.5` 标签对应的源码，不是安装包。
+macOS 用户下载 DMG 或 ZIP 之一即可（推荐 DMG）；Windows 预览版为独立构建，不是 macOS App 的等价移植。GitHub 自动生成的 **Source code (zip / tar.gz)** 是 `v0.0.5` 标签对应的源码，不是安装包。
 
 ## 安装与首次打开（macOS）
 
-1. 下载 ZIP，解压后把 `Orbit.app` 放入 `/Applications`，不要长期直接从解压目录运行。
+1. 下载 DMG 或 ZIP：DMG 打开后把 `Orbit.app` 拖入 `/Applications`；ZIP 解压后同样放入。不要长期直接从 DMG / 解压目录运行。
 2. 从「应用程序」打开 Orbit。首次运行时按引导明确选择允许读取的 Agent 来源。
 3. 等待首次索引与分析完成；耗时取决于日志数量、文件体积和机器负载。已有结果时可先查看上一份结果。
 
 ### macOS 拦截时的处理命令
 
-由于当前安装包未经过 Apple 公证，首次启动可能被 Gatekeeper 拦截；这并不意味着已经完成 Apple 的安全审核。本次 ZIP 在清理构建机路径后重新做了 ad-hoc 签名，若仍被拦截，请先确认下载来自本 Release 且 SHA-256 与下方一致。
+由于当前安装包未经过 Apple 公证，首次启动可能被 Gatekeeper 拦截；这并不意味着已经完成 Apple 的安全审核。安装包为本地构建并做了 ad-hoc 签名，若仍被拦截，请先确认下载来自本 Release 且 SHA-256 与下方一致。
 
 可尝试在 Finder 中右键 Orbit →「打开」，或按系统提示前往「系统设置 → 隐私与安全性」选择「仍要打开」。如果仍被隔离属性拦截，确认信任此安装包后，在「终端」执行：
 
@@ -45,13 +46,14 @@ open /Applications/Orbit.app
 
 ```bash
 cd "$HOME/Downloads"
-shasum -a 256 Orbit-0.0.5-arm64.zip
+shasum -a 256 Orbit-0.0.5-arm64.dmg Orbit-0.0.5-arm64.zip
 ```
 
 预期值：
 
 ```text
-580184f40754ad32d84e59aa10e7b3bcfbc24bfe085bcf071444b909f984c06b  Orbit-0.0.5-arm64.zip
+1c47a27cd2671474369c89dc6c747baa94b13e61e6b231900984a3189ac6e662  Orbit-0.0.5-arm64.dmg
+8a67f840abc239b741ebd0456f8ce653011fd8f3cd6b35b2ab7a407978ba0d18  Orbit-0.0.5-arm64.zip
 a682cd22ff5b8e8a61bc4ea1d508c52b7e3047d645d8135467877daf2c7a94df  Orbit-0.0.5-windows-x64.zip
 ```
 
@@ -104,8 +106,7 @@ Windows 预览版需要 Node.js 26+。发布包内不含任何会话数据、真
 
 ## 已知限制与排障
 
-- macOS 安装包为本地构建，内部版本号仍显示 `0.0.4`（build 4），ad-hoc 签名、未公证；与官方 0.0.4 安装包 bundle id 相同，安装会覆盖同名 App。
-- macOS DMG 暂时下架：本地 DMG 内含构建机路径；ZIP 已清理并重签，待 Mac 侧重建 DMG 后补发。若重签后的 ZIP 在个别 macOS 版本上仍无法启动，请等待 Mac 侧干净重建，不要反复关闭 Gatekeeper。
+- macOS 安装包为本地构建，内部版本号 `0.0.5`（build 5），ad-hoc 签名、未公证；与官方 0.0.4 安装包 bundle id 相同，安装会覆盖同名 App。
 - Windows 预览版是独立界面构建，不是 macOS App 的等价移植：没有 Python 分析 / 推荐 / 安装后端；需要 Node 26+，不是单文件绿色版。
 - 大量会话、30 天或全部范围的首次分析仍可能较慢；不要通过反复重启强行打断数据库操作。
 - 如无法启动，先核对系统版本、芯片架构、安装位置、哈希及上面的首次打开步骤。反馈时注明是系统拦截、进程退出还是窗口未显示。
@@ -114,12 +115,12 @@ Windows 预览版需要 Node.js 26+。发布包内不含任何会话数据、真
 
 ## 验证记录
 
-本次 macOS 构建基于 `release/v0.0.5` 分支（合并 #112 / #113 的原始提交）加本地构建：
+本次 macOS 构建从 `v0.0.5` 标签源码在 Mac 上干净重建（内容等同 `release/v0.0.5` 分支合并 #112 / #113 的原始提交）：
 
 - 数据层：`packages/data/tests` **717 passed**（基线 702 + 新增 15）；ruff check / format 通过。
 - 界面：`node prototypes/advance/build.mjs --check` 通过；界面测试 789 passed / 4 既有 flaky（基线可复现）；生成物与参考 `Orbit-Prototype-2026-10-21.html` 最终版一致（sha256 `6299ef60…47df5`）。
 - Windows 预览版：`node --test host/test/*.test.mjs` **54/54**；`tools/smoke.mjs` **8/8**；空白首启截图 0 JS 异常；删除本机缓存后首次启动约 3 秒完成扫描并自动刷新。
-- macOS ZIP 在清理 3 个 `direct_url.json` 中的构建机路径后用 rcodesign 重新 ad-hoc 签名；包内无会话数据、无真实标题。
+- macOS：从 `v0.0.5` 标签源码在 Mac 上干净重建（构建路径不含个人用户名）；`codesign --verify --deep --strict` 通过；`scripts/check-macos-app.py` 冻结冒烟全部通过（helper 握手、`/app`+`/lite`、无 token 401、冻结导入与分析、SIGTERM 优雅退出）；DMG `hdiutil verify` 与 ZIP 完整性校验通过；包内无会话数据、无真实标题。
 - 安装包 SHA-256 见 `SHA256SUMS`。
 
 ## 本版本许可与附件
