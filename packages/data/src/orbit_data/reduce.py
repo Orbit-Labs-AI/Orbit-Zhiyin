@@ -14,6 +14,7 @@ from collections import Counter, defaultdict
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from orbit_data import models as model_catalog
 from orbit_data import tool_kinds
@@ -21,6 +22,28 @@ from orbit_data.command_spec import command_spec
 from orbit_data.contract import TITLE_PRIORITY, TOKENS, canonical, uid
 from orbit_data.shell import command_head
 from orbit_data.store import insert, insert_rows
+
+# Sources that claim the timezone is a real zone name; "unknown" means there is no zone.
+_ZONE_SOURCES = frozenset(("reported", "local_inferred"))
+
+
+def normalize_timezone(timezone, timezone_source) -> tuple[str | None, str]:
+    """Normalize a session's (timezone, timezone_source) pair for the session CHECK.
+
+    The CHECK requires ``timezone`` to be NULL exactly when ``timezone_source='unknown'``.
+    Metadata events arrive in source order, so neither half may be taken alone: a later lone
+    ``timezone_source='unknown'`` says nothing about an earlier reported zone, and a zone
+    without a source is still reported evidence. A value ``ZoneInfo`` cannot resolve is not
+    a usable zone name, so it becomes unknown rather than being stored with a source that
+    claims it is a real zone. The same helper serves the historical analysis-input rebuild.
+    """
+    if not isinstance(timezone, str) or not timezone.strip():
+        return None, "unknown"
+    try:
+        ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        return None, "unknown"
+    return timezone, timezone_source if timezone_source in _ZONE_SOURCES else "reported"
 
 
 def normalize_remote(remote: str | None) -> str | None:
@@ -476,8 +499,6 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
                 previous_priority = TITLE_PRIORITY.get(values.get("title_source"), 0)
                 if TITLE_PRIORITY.get(attrs.get("title_source"), 0) >= previous_priority:
                     values["title"], values["title_source"] = row["text"], attrs.get("title_source")
-        if not values.get("timezone"):
-            values["timezone"], values["timezone_source"] = None, "unknown"
         # Same fallback as _derive_session, so session and turn projects agree.
         if not values.get("cwd"):
             # First event (by seq) carrying a cwd, read lazily: the filtered scan above
@@ -535,6 +556,10 @@ def derive(store, *, scoped=False, progress=None, sessions=None):
             values.get("git_remote"),
             recorded_roots.get(session_uid),
             cache=project_cache,
+        )
+        # The pair depends on all metadata events, not on their arrival order.
+        values["timezone"], values["timezone_source"] = normalize_timezone(
+            values.get("timezone"), values.get("timezone_source")
         )
         insert(store.db, "session", values)
         progress({"stage": "derive_projects", "completed": index + 1, "total": len(metas)})

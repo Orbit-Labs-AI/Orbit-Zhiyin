@@ -4,6 +4,7 @@ import { openDemo, go, closeAll } from './helpers.mjs';
 test('disabled sources hide live sessions across entry points', async ({ page }) => {
   test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
   const errors = await openDemo(page);
+  await page.evaluate(() => { S.hud.show = true; render(); });   // merged UI: HUD hidden by default
   await go(page, 'sessions');
   const live = page.locator('.srow[data-id="sess-1001-1512"]');
   await expect(live).toBeVisible();
@@ -138,6 +139,7 @@ test('palette session navigation adapts incompatible filters', async ({ page }) 
 test('expanded HUD hides a disabled secondary source and its alerts', async ({ page }) => {
   test.skip(test.info().project.name !== 'mac-14', 'behavior coverage runs once, at the default size');
   const errors = await openDemo(page);
+  await page.evaluate(() => { S.hud.show = true; render(); });   // merged UI: HUD hidden by default
   await page.evaluate(() => { simEvent('stuck'); S.hud.open = true; render(); openSettings('sources'); });
   await page.locator('#set [data-act="setSrc"][data-a="cx"]').click();
   await closeAll(page);

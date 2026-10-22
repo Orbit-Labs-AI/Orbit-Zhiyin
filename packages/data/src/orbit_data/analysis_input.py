@@ -14,12 +14,14 @@ from orbit_data.inventory import read_inventory_connection
 from orbit_data.models import PRICE_TABLE_VERSION
 from orbit_data.payload import INLINE_TEXT_KINDS, TEXT_MARK, restore_row
 from orbit_data.query import published_projection
+from orbit_data.reduce import normalize_timezone
 from orbit_data.store import readonly_connection
 
 # Bumped when read_analysis returns different values for the same database; analysis
 # caches key on it. 1.1: undated session metadata stays visible under until_ts.
 # 1.2: tool calls carry ``file_ops`` from tool_call_file.
-READER_VERSION = "analysis-input-reader-1.2"
+# 1.3: the bounded metadata rebuild normalizes (timezone, timezone_source) like the L3 row.
+READER_VERSION = "analysis-input-reader-1.3"
 
 
 @dataclass(frozen=True)
@@ -816,8 +818,8 @@ def read_analysis(
                         for field_name in fields:
                             if attrs.get(field_name) is not None:
                                 session[field_name] = attrs[field_name]
-                        if attrs.get("timezone"):
-                            session["timezone_source"] = attrs.get("timezone_source", "reported")
+                        if attrs.get("timezone") is not None:
+                            session["timezone_source"] = attrs.get("timezone_source")
                         if attrs.get("cwd"):
                             session["project_id"] = event["project_id"]
                     if event["kind"] == "session.title" and event["text"] is not None:
@@ -828,6 +830,10 @@ def read_analysis(
                                 attrs.get("title_source"),
                             )
                             title_priority = priority
+                # The same normalization as the stored L3 row, independent of event order.
+                session["timezone"], session["timezone_source"] = normalize_timezone(
+                    session.get("timezone"), session.get("timezone_source")
+                )
                 session["status"] = latest_visible_turn.get(session["session_uid"], {}).get(
                     "status", "unknown"
                 )

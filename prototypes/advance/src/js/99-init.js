@@ -27,7 +27,7 @@ setInterval(() => {
 let RZ = null;
 window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(RZ); RZ = setTimeout(() => { renderWidgets(); renderHud(); }, 80); });
 (function init() {
-  document.documentElement.lang = 'zh-CN';
+  document.documentElement.lang = I18N.lang === 'en' ? 'en' : 'zh-CN';   // 02-i18n sets the default; keep them in sync here too
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
   if (!h && store.native && !ED_SURFACE) h = edLastRoute(S.ed) || '';   // App: back to the last page of the last edition
   if (/^l-/.test(h)) S.ed = 'lite';
@@ -40,5 +40,5 @@ window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(R
   S.widgets = window.innerWidth >= WIDE_MIN;
   render();
   // the demo welcome says the data is sample data: mock only, never over live data or the native panel / hud / widgets surfaces
-  if (!LV.live && !ORBIT.native.surface) setTimeout(() => notify({ t: '欢迎体验 Orbit 交互 Demo', b: '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。', a1: '播放首次启动', on1: () => openOnboarding(0), a2: '知道了', ms: 12000, force: true }), 800);
+  if (!LV.live && !ORBIT.native.surface) setTimeout(() => notify({ t: (I18N.lang === 'en' ? 'Welcome to the Orbit interactive demo' : '欢迎体验 Orbit 交互 Demo'), b: (I18N.lang === 'en' ? 'All data is sample data. The flask icon at the right of the menu bar opens the Demo menu: simulate session events, play the first launch and the persona reveal. Press ' + kb('⌘K') + ' to open the command palette.' : '数据都是示例。菜单栏右侧的烧瓶图标是「演示」菜单，可以模拟会话事件、播放首次启动与人格揭晓；' + kb('⌘K') + ' 打开命令面板。'), a1: (I18N.lang === 'en' ? 'Play first launch' : '播放首次启动'), on1: () => openOnboarding(0), a2: (I18N.lang === 'en' ? 'Got it' : '知道了'), ms: 12000, force: true }), 800);
 })();

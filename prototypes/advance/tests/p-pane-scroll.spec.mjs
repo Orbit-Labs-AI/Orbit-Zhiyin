@@ -12,8 +12,9 @@ async function onlyThisScrolls(page, panes) {
   const all = ['#content', ...panes];
   for (const p of panes) {
     await page.evaluate((all) => all.forEach((s) => { document.querySelector(s).scrollTop = 0; }), all);
-    const b = await page.locator(p).boundingBox();
-    await page.mouse.move(b.x + b.width / 2, b.y + Math.min(60, b.height / 2));
+    // locator.hover() waits for the pane to be stable (window/pane animations under parallel load), then the wheel goes to it
+    const box = await page.locator(p).boundingBox();
+    await page.locator(p).hover({ position: { x: Math.round(box.width / 2), y: Math.min(60, Math.round(box.height / 2)) } });
     await page.mouse.wheel(0, 240);
     await expect.poll(async () => (await tops(page, [p]))[0], p + ' scrolls').toBeGreaterThan(0);
     expect(await tops(page, all.filter((s) => s !== p)), 'only ' + p + ' moved').toEqual(all.filter((s) => s !== p).map(() => 0));

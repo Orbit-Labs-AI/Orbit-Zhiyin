@@ -3,14 +3,14 @@
 // 测试流程：
 //  1 pages      edSet('lite') 后落在 l-home；四页依次渲染，无 pageerror、内容区无横向溢出、没有 Advance 的筛选行；
 //               l-home / l-persona 有 data-hero="code"，l-persona 有 data-hero="fp"，大数字带 data-count
-//  2 range      Lite 只有时间范围 seg：点 7 天后 S.range = 7，概览的会话数随之变化
+//  2 range      Lite 只有时间范围 seg：默认 7 天，切到 30 天后概览的会话数随之变化
 //  3 filters    带着 Advance 的项目筛选进入 Lite，标题栏出现「已应用 Advance 筛选 · 清除」，点击后筛选清空
 //  4 session    Lite 中 openSession 打开一个较早的会话：留在 l-sessions 并选中它；点列表另一行切换选中
-//  5 edOpen     「在 Advance 中回放」切回 Advance 并打开 sessions，选中的会话保持
+//  5 edOpen     「在 Advance 中回放」在当前 Lite 内打开完整 sessions 页（不切版本），选中的会话保持
 //  6 recs       前三条建议卡；主按钮打开安装预览；安装后卡片显示「已应用」与「撤销」
 //  7 persona    画像页吸收揭晓第 05 步：已读取 N 个会话 · N 次工具调用、匹配度、「已经知道的」四行与揭晓页同源（genFacts / genCands）；
 //               会话数写成「N 个会话」，页面上没有「n=」；没有「AI 撰写」标记
-//  8 empty      没有会话时概览与画像页不出现「????」：虚线花形 + 一句说明 + 导入会话 / 数据源设置
+//  8 empty      没有会话时 Lite 页不出现「????」：虚线花形 + 一句说明 + 导入会话 / 数据源设置；A1 给固定说明而不是 AI 解读
 import { test, expect } from '@playwright/test';
 import { openDemo } from './helpers.mjs';
 
@@ -74,7 +74,7 @@ test('Lite: Advance filters show a clear chip in the title bar', async ({ page }
   expect(errors).toEqual([]);
 });
 
-test('Lite: openSession selects the session on l-sessions; edOpen returns to Advance', async ({ page }) => {
+test('Lite: openSession selects the session on l-sessions; edOpen opens the detail inside Lite', async ({ page }) => {
   const errors = await openDemo(page);
   await toLite(page);
   // 一个不在「最近 8 个」里的较早会话
@@ -92,10 +92,11 @@ test('Lite: openSession selects the session on l-sessions; edOpen returns to Adv
   await expect(page.locator('#content .srow.sel')).toHaveAttribute('data-id', oid);
   expect(await page.evaluate(() => S.sess.sel)).toBe(oid);
   expect(await overflow(page)).toBeLessThanOrEqual(0);
-  // 去 Advance 回放：切版本、打开 sessions、选中不变
+  // 去「完整明细」：合并后的版本不切版本，在当前 Lite 内打开完整会话页，选中不变
   await page.locator('#content .l-adv[data-r="sessions"]').click();
-  await expect.poll(() => page.evaluate(() => [S.ed, S.route])).toEqual(['advance', 'sessions']);
-  await expect(page.locator('#win')).toHaveAttribute('data-ed', 'advance');
+  await expect.poll(() => page.evaluate(() => [S.ed, S.route])).toEqual(['lite', 'sessions']);
+  await expect(page.locator('#win')).toHaveAttribute('data-ed', 'lite');
+  await expect(page.locator('#content .frow').first()).toBeAttached();
   expect(await page.evaluate(() => S.sess.sel)).toBe(oid);
   expect(errors).toEqual([]);
 });
@@ -157,12 +158,11 @@ test('Lite and overview: no sessions shows a flower outline and a way to import,
   }
   await page.evaluate(() => edSet('advance', 'overview'));
   await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('advance|overview');
-  await expect(page.locator('#content .ov-pers [data-lv="pers-empty"] svg.e-bloom')).toBeVisible();
   expect(await page.locator('#main').innerText()).not.toContain('????');
-  // the fixed no-session sentence is not AI output, and a confidence level means nothing at 0 sessions
+  // the fixed no-session sentence is not AI output: no badge / generation marker, and no fake confidence
   await expect(page.locator('#aiCard .aib')).toHaveCount(0);
-  await expect(page.locator('#aiCard [data-aigen]')).toHaveCount(0);
-  await expect(page.locator('#content .ov-pers-h .bdg')).toHaveText('0 个会话');
+  await expect(page.locator('#aiCard [data-act="regen"]')).toHaveCount(0);   // nothing to regenerate yet
+  await expect(page.locator('#aiCard')).toContainText('暂时无法给出协作画像');
   await expect(page.locator('#side')).not.toContainText('样本不足');
   await page.evaluate(() => edSet('lite', 'l-persona'));
   await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('lite|l-persona');
