@@ -12,14 +12,14 @@
    Type scale follows macOS text styles (10/11/12/13/15/17/22/26); controls are 24px (toolbar items 28px); numbers tabular.
    Fonts are all system fonts (no web fonts, works offline): --font-sans / --font-display / --font-num / --font-mono, plus --font-type (SF Pro Rounded) for persona type codes. */
 :root{
---desk:#d9d5cc;--desk-2:#cbc6bb;--menubar:rgba(246,245,242,.88);
---bg:#f5f4f0;--sb:rgba(236,235,229,.8);--field:rgba(23,24,27,.055);--surface:#ffffff;--raised:rgba(251,250,248,.94);--sunken:#f0efeb;--line:#e3e1dc;--hair:#eeece7;--sep:rgba(23,24,27,.1);
---ink-1:#17181b;--ink-2:#45484f;--ink-3:#62666f;--ink-4:#a2a5ab;
+--desk:#dcd9d2;--desk-2:#cfcbc2;--menubar:rgba(248,248,245,.89);
+--bg:#f6f6f3;--sb:rgba(240,239,235,.81);--field:rgba(23,24,27,.052);--surface:#ffffff;--raised:rgba(252,252,250,.945);--sunken:#f2f1ee;--line:#e5e4df;--hair:#f0eeea;--sep:rgba(23,24,27,.095);
+--ink-1:#17181b;--ink-2:#45484f;--ink-3:#5c6068;--ink-4:#979aa1;
 --accent:#17181b;--accent-ink:#ffffff;--accent-tint:rgba(23,24,27,.1);--sel:rgba(23,24,27,.07);--sel-off:rgba(23,24,27,.045);--focus:rgba(0,103,244,.5);
 --ai:#5a3fd0;--ai-bg:#efecff;
 --orbit:#5f6b6f;--orbit-word:#5f6b6f;
 --good:#11843a;--warn:#8a5a00;--crit:#c62f2f;--good-bg:#e4f3e8;--warn-bg:#fbf0d8;--crit-bg:#fbe8e6;--good-m:#0ca30c;--warn-m:#fab219;--crit-m:#d03b3b;
---pri:#17181b;--pri-ink:#ffffff;--tip:#f8f7f4;--tip-ink:#17181b;--toast-act:#17181b;--scrim:rgba(17,19,24,.22);
+--pri:#17181b;--pri-ink:#ffffff;--tip:#faf9f7;--tip-ink:#17181b;--toast-act:#17181b;--scrim:rgba(17,19,24,.22);
 --a1:#e2602b;--a1t:#ffe9df;--a2:#2a78d6;--a2t:#e1f2ff;--a3:#009f6b;--a3t:#dcf8e9;--a4:#c27800;--a4t:#feedd7;--a5:#d0658f;--a5t:#ffe7f0;--a6:#0f8b8d;--a6t:#dcf4f4;--a7:#7a5cc7;--a7t:#ede6fb;--a8:#5f8a1e;--a8t:#eaf3d9;--a9:#8a6a4f;--a9t:#f3ebe3;--a0:var(--ink-3);--a0t:var(--sunken);
 --h0:#f1f0ec;--h1:#dfddd6;--h2:#c0bdb5;--h3:#918e87;--h4:#5a5b5f;--h5:#1f2023;
 --petal2:#c0bdb5;
@@ -30,11 +30,11 @@
 /* Type (macOS 14+, offline): SF Pro for Latin and digits, PingFang SC for Chinese, SF Mono only for code /
  paths / commands / IDs / shortcuts. Latin first so each script lands on its own face; -apple-system lets
  the system switch SF Pro Text/Display by size. Numbers use the same sans with tabular-nums. */
---font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
---font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB",sans-serif;
+--font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB","Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+--font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro",system-ui,"Helvetica Neue","PingFang SC","Hiragino Sans GB","Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
 --font-num:var(--font-sans);
---font-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace,"PingFang SC","Hiragino Sans GB";
---font-type:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,"PingFang SC","Hiragino Sans GB",sans-serif;
+--font-mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace,"Cascadia Mono","Consolas","PingFang SC","Hiragino Sans GB";
+--font-type:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,"PingFang SC","Hiragino Sans GB","Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
 --side-w:240px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
@@ -72,7 +72,7 @@ color-scheme:dark}
 
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--desk);color:var(--ink-1);font:13px/1.5 var(--font-sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
+body{margin:0;background:var(--desk);color:var(--ink-1);font:13.5px/1.55 var(--font-sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable],pre,code,.code,.log,.ask-a,.tbl td,.sharecard{-webkit-user-select:text;user-select:text}
 /* page text (titles, paths, numbers, notes) stays copyable; controls, charts and drag areas keep none */
 .content{-webkit-user-select:text;user-select:text}

@@ -4,9 +4,9 @@
 
 ## 查看
 
-浏览器直接打开 [orbit-demo.html](../../prototypes/advance/orbit-demo.html)，侧栏顶部切换 Lite / Advance。示例人格、用量、工具调用、收益与实时状态仅用于展示。真实数据入口见[开发环境](../development/setup.md)。
+浏览器直接打开 [orbit-demo.html](../../prototypes/advance/orbit-demo.html)。界面默认英文，可在 `View → Language` 切换中文；Lite 与 Advance 的页面已合并到同一套侧栏，打开「高级模式」（`显示` 菜单或 设置 → 通用）后，同一批页面切换为完整明细布局。示例人格、用量、工具调用、收益与实时状态仅用于展示。真实数据入口见[开发环境](../development/setup.md)。
 
-Lite 聚焦常用页面；Advance 展开概览、协作人格、情绪语义、会话轨迹、项目习惯、工具调用、建议、资源库和生成等流程。菜单栏、HUD、小组件与分享使用共用的设计语言，原生 App 中由真实宿主承载系统表面。
+Lite 侧栏保留全部入口，没有精简布局的页面直接渲染完整页面；高级模式只改变版式，不改变数据。菜单栏、HUD、小组件与分享使用共用的设计语言，原生 App 中由真实宿主承载系统表面。
 
 ## 修改
 

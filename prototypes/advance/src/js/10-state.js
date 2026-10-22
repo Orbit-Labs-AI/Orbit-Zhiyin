@@ -1,12 +1,12 @@
 /* ============ state ============ */
 const S = {
-  route: 'overview', range: 30, agents: new Set(AG.map((a) => a.id)), agentOff: new Set(), srcOff: new Set(),
+  route: 'overview', range: 7, agents: new Set(AG.map((a) => a.id)), agentOff: new Set(), srcOff: new Set(),
   project: null, topic: null, outcome: null, fric: null, hour: null,
   compare: true, metric: 'n', view: 'chart', theme: store.get('theme', 'system'),
   // shell: sidebar shown (user intent) / sidebar as an overlay in a narrow window / collapsible groups / key window /
   // main window rect {x,y,w,h} (all null = fills the stage and follows the viewport; set once the user moved or resized it)
   // + zoom / full-screen flags (loaded from localStorage in 22-window.js)
-  side: true, sideOver: false, sideOpen: { insight: true, action: true, agents: true, pins: true }, keyWin: 'main',
+  side: true, sideOver: false, sideOpen: { insight: true, action: true, more: false, agents: false, pins: true }, keyWin: 'main',
   win: { x: null, y: null, w: null, h: null, zoom: false, full: false }, setPos: null,
   winGone: false, widgets: false,
   persona: { period: 'sep', vs: 'past' },
@@ -20,10 +20,18 @@ const S = {
   setTab: 'sources', engine: 'agent', anon: false, index: 'live', paused: false,
   rules: { '路径中的用户名': true, '邮箱': true, 'API Key / Token': true, '内网 IP 与主机名': true, '手机号': true },
   notif: { waiting: [1, 1, 1], done: [1, 1, 0], stuck: [0, 1, 1], ctx: [0, 1, 1], weekly: [1, 0, 0] },
-  hud: { show: true, open: false, x: null, y: null, mute: false },
+  hud: { show: false, open: false, x: null, y: null, mute: false },
   sim: 'running', pop: false, extraSrc: [],
   live: { t0: Date.now() - (18 * 60 + 42) * 1000, tools: 61, ctx: 62 }
 };
 const CLOCK0 = Date.UTC(2026, 9, 1, 7, 30, 0) - Date.now();
-function nowText() { const d = new Date(Date.now() + CLOCK0 + 8 * 3600000); return (d.getUTCMonth() + 1) + '月' + d.getUTCDate() + '日 周四 ' + hm(d.getUTCHours(), d.getUTCMinutes()); }
+function nowText() {
+  const d = new Date(Date.now() + CLOCK0 + 8 * 3600000);
+  if (typeof I18N !== 'undefined' && I18N.lang === 'en') {
+    const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return MO[d.getUTCMonth()] + ' ' + d.getUTCDate() + ' ' + WD[d.getUTCDay()] + ' ' + hm(d.getUTCHours(), d.getUTCMinutes());
+  }
+  return (d.getUTCMonth() + 1) + '月' + d.getUTCDate() + '日 周四 ' + hm(d.getUTCHours(), d.getUTCMinutes());
+}
 function liveElapsed() { const s = Math.floor((Date.now() - S.live.t0) / 1000); return hm(Math.floor(s / 60), s % 60); }

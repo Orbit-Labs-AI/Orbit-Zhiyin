@@ -7,8 +7,8 @@ const PAGES = {};
 // (edRoute in 26-edition.js), so links such as go('persona') land on the Lite page while Lite is active.
 const RENDER_HOOKS = [];
 let ROUTE_ENTER = false;
-function go(route, keepScroll) {
-  edFollow(route); route = edRoute(route);
+function go(route, keepScroll, raw) {
+  if (!raw) { edFollow(route); route = edRoute(route); }
   if (!PAGES[route]) route = S.ed === 'lite' ? 'l-home' : 'overview';
   if (route !== S.route || !keepScroll) ROUTE_ENTER = true;
   S.route = route; S.sideOver = false; S.winGone = false; closeDD(); tipOff();
@@ -106,6 +106,7 @@ function render() {
   uiRestore(snap); uiDDRestore(dds);
   paneSync();
   if (window.__lvRendered) window.__lvRendered();
+  if (typeof i18nApply === 'function') i18nApply();
 }
 function renderMain() {
   const m = $('#main'); const c = $('#content'); const top = c ? c.scrollTop : 0;
@@ -178,7 +179,7 @@ const sideNavBtn = (id, label, icon, ct, bd) => '<button type="button" data-act=
 // SIDE_EXTRA(): optional row under the edition switch, shared by both editions (live: import progress / reopen onboarding)
 let SIDE_EXTRA = null;
 const sideExtra = () => (SIDE_EXTRA ? SIDE_EXTRA() : '');
-const sideGroup = (id, title, inner, right) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '">' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
+const sideGroup = (id, title, inner, right, tip) => { const open = S.sideOpen[id] !== false; return '<div class="sect"><button type="button" class="sh" data-act="sideGroup" data-g="' + id + '" aria-expanded="' + open + '"' + (tip ? ' data-tip="' + esc(tip) + '"' : '') + '>' + title + ic('chev', 10, open ? '' : 'transform:rotate(-90deg)') + '</button>' + (right && open ? '<span class="sr">' + right + '</span>' : '') + '</div>' + (open ? '<div class="nav">' + inner + '</div>' : ''); };
 // sidebar agents (B): 未接入 (never imported: source off and no sessions at all) vs 停用 (imported, then turned off in settings);
 // an agent with no sessions in the selected range fades (.idle) instead of looking like a filter choice
 function agentState(a) { return S.srcOff.has(a.id) ? (a.all ? 'off' : 'none') : 'on'; }
@@ -242,11 +243,12 @@ function renderSide() {
   const n = sel({ noExtra: true }).length;
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const navBtn = sideNavBtn, group = sideGroup;
-  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sentiment', '情绪语义', 'sentiment') + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('sessions', '会话轨迹', 'sessions', n) + navBtn('tools', '工具调用', 'tools')) +
-    group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
+  $('#side').innerHTML = sideExtra() + '<div class="sb-scroll">' +
+    group('insight', '洞察', navBtn('overview', '概览', 'overview') + navBtn('persona', '协作人格', 'persona') + navBtn('sessions', '会话轨迹', 'sessions', n)) +
+    group('action', '行动', navBtn('recs', '优化建议', 'recs', '', recN || '') + navBtn('library', '资源库', 'library')) +
+    group('more', '更多', navBtn('sentiment', '情绪语义', 'sentiment') + navBtn('projects', '项目习惯', 'projects', PJ.length) + navBtn('tools', '工具调用', 'tools') + navBtn('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
     group('agents', 'Agents', sideAgents(), sideAgentsRight()) +
-    group('pins', '置顶项目', sidePins(), sidePinsRight()) + '</div>' + sideFoot();
+    group('pins', '置顶项目', sidePins(), null, I18N.lang === 'en' ? 'Auto: the 3 projects with the most sessions in the current range; hover a project and click the pin to keep it' : '没有手动置顶时，自动显示当前范围内会话最多的 3 个项目；悬停项目点图钉可置顶') + '</div>' + sideFoot();
 }
 // the published footer, shared by both editions: index indicator light (live / paused / manual) + session count, then the user row
 // sideIdx() → { st: 'live' | 'busy' | 'off' | 'err', n: session count or null, t: state label }; live mode (96-live-bind) swaps in the

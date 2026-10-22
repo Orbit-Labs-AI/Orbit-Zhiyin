@@ -14,7 +14,7 @@
 .dd .sub{margin-left:auto;font-size:11px;color:var(--ink-3)}
 .dd hr{border:0;border-top:1px solid var(--sep);margin:5px 0}
 .dd .h{font-size:11px;font-weight:600;color:var(--ink-3);padding:6px 10px 3px}
-.hud{position:absolute;z-index:40;color:var(--hud-ink);user-select:none;touch-action:none;display:flex;flex-direction:column;align-items:flex-start}
+.hud{position:absolute;z-index:40;background:transparent!important;color:var(--hud-ink);user-select:none;touch-action:none;display:flex;flex-direction:column;align-items:flex-start}
 .pill{height:44px;border-radius:22px;background:var(--hud);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);display:flex;align-items:center;gap:10px;padding:0 10px 0 14px;box-shadow:0 10px 30px rgba(0,0,0,.28),inset 0 0 0 .5px rgba(255,255,255,.12);font-size:13px;white-space:nowrap;max-width:min(320px,calc(100vw - 32px));cursor:grab}
 .pill>*{min-width:0;flex:none}
 /* only the free-text part (tool name / detail) may shrink, so the project name and the timer never collide (gap stays 10px) */
@@ -39,7 +39,10 @@
 .nt .nt-b{font-size:12px;line-height:16px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .nt .nt-a{display:flex;gap:6px;margin-top:6px;height:0;opacity:0;overflow:hidden;transition:opacity .15s,height .15s}
 .nt:hover .nt-a,.nt:focus-within .nt-a{height:20px;opacity:1}
-.nt .nt-x{position:absolute;left:-6px;top:-6px;width:20px;height:20px;border-radius:50%;border:0;background:var(--raised);color:var(--ink-2);box-shadow:var(--sh-raise);display:grid;place-items:center;opacity:0;transition:opacity .12s}
+.nt .nt-x{position:absolute;right:8px;top:8px;width:18px;height:18px;border-radius:6px;border:0;background:transparent;color:var(--ink-3);box-shadow:none;display:grid;place-items:center;opacity:.5;transition:opacity .12s,background .12s,color .12s}
+.nt:hover .nt-x{opacity:1}
+.nt .nt-x:hover{background:var(--sel-off);color:var(--ink-1)}
+.nt .nt-t{padding-right:22px}
 .nt:hover .nt-x,.nt .nt-x:focus-visible{opacity:1}
 .nt.out{animation:slideout .25s var(--ease) forwards;pointer-events:none}
 /* mono meta mixed with CJK: a mono space is .6em, which makes「10 月 1 日」read letter-spaced — tighten spaces only */

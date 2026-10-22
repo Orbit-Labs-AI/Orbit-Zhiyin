@@ -167,12 +167,12 @@ test('sidebar: ⌃⌘S hides and restores; narrow windows get an overlay sidebar
 test('container queries: narrowing the window at a fixed viewport collapses page grids', async ({ page }) => {
   const errors = await openDemo(page);
   const cols = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).gridTemplateColumns.trim().split(/\s+/).length, sel);
-  // tiles per first row, measured from layout (the overview uses a 6-track grid to place 3 + 2 tiles)
+  // tiles per first row, measured from layout (the merged overview has three KPI tiles on a 5-track grid)
   const perRow = (sel) => page.evaluate((s) => { const k = [...document.querySelector(s).children]; return k.filter((e) => e.offsetTop === k[0].offsetTop).length; }, sel);
   const mainW = () => page.evaluate(() => document.querySelector('#main').clientWidth);
   const mw = await mainW();
   expect(await cols('.two')).toBe(mw >= 800 ? 2 : 1);
-  expect(await perRow('.tiles')).toBe(mw >= 800 ? 5 : mw >= 640 ? 3 : 2);
+  expect(await perRow('.tiles')).toBe(mw >= 640 ? 3 : 2);
   const r = await winBox(page);
   if (r.mode === 'win' && mw >= 800) {
     await page.evaluate(() => { S.win.w = 1000; applyWin(); });
@@ -235,6 +235,8 @@ test('menu-bar panel hangs under the bar with its right edge on the status item'
 
 test('HUD stays off the title row and avoids the window and widgets whenever a snap point is free', async ({ page }) => {
   const errors = await openDemo(page);
+  // the merged UI keeps the floating HUD hidden by default (Settings › 通用 › 悬浮组件 / ⌥⌘P)
+  await page.evaluate(() => { S.hud.show = true; render(); });
   await expect(page.locator('#hudPill')).toBeVisible();
   // occupied = the main window plus the visible desktop widgets; "free" = some snap point touches neither
   const probe = () => page.evaluate(() => {
@@ -302,21 +304,24 @@ test('shortcuts: ⌥digits switch pages, ⌥0 restores the window, labels match 
   expect(errors).toEqual([]);
 });
 
-// 洞察 order: 概览 · 协作人格 · 情绪语义 · 项目习惯 · 会话轨迹 · 工具调用 — sidebar, ⌥digits, 窗口 menu and palette agree
-test('insight order: sidebar, ⌥1–6, window menu and palette follow one page order', async ({ page }) => {
+// Merged sidebar: the groups are 洞察 · 行动 · 更多 (概览 / 协作人格 / 会话轨迹 · 优化建议 / 资源库 · 情绪语义 / 项目习惯 /
+// 工具调用 / 生成工坊); the menu, palette and ⌥digits still follow one flat ROUTES order. Both are asserted, so a page that
+// silently drops out of either list fails.
+test('sidebar groups and the flat menu / palette order stay in sync', async ({ page }) => {
   const errors = await openDemo(page);
-  const ORDER = ['overview', 'persona', 'sentiment', 'projects', 'sessions', 'tools'];
-  const NAMES = ['概览', '协作人格', '情绪语义', '项目习惯', '会话轨迹', '工具调用'];
-  await page.evaluate(() => { S.sideOpen.insight = true; render(); });
-  const side = await page.locator('#side .nav').first().locator('[data-act="go"]').evaluateAll((els) => els.map((e) => e.dataset.r));
-  expect(side).toEqual(ORDER);
+  const ORDER = ['overview', 'persona', 'sentiment', 'projects', 'sessions', 'tools', 'recs', 'library', 'studio'];
+  const NAMES = ['概览', '协作人格', '情绪语义', '项目习惯', '会话轨迹', '工具调用', '优化建议', '资源库', '生成工坊'];
+  await page.evaluate(() => { S.sideOpen = Object.assign({}, S.sideOpen, { insight: true, action: true, more: true }); render(); });
+  const side = await page.locator('#side .nav button[data-act="go"]').evaluateAll((els) => els.map((e) => e.dataset.r));
+  expect(side).toEqual(['overview', 'persona', 'sessions', 'recs', 'library', 'sentiment', 'projects', 'tools', 'studio']);
+  // the menu and the palette list every page of the merged edition in ROUTES order
   const menu = await page.evaluate(() => MENUS.window().filter((i) => i.k && /^⌥[1-9]$/.test(i.k)).map((i) => [i.t, i.k]));
-  expect(menu.slice(0, 6)).toEqual(NAMES.map((n, i) => [n, '⌥' + (i + 1)]));
+  expect(menu).toEqual(NAMES.map((n, i) => [n, '⌥' + (i + 1)]));
   for (let i = 0; i < ORDER.length; i++) {
     await page.keyboard.press('Alt+Digit' + (i + 1));
     await expect.poll(() => page.evaluate(() => S.route)).toBe(ORDER[i]);
   }
-  const pal = await page.evaluate(() => { const out = []; navRoutes().forEach((r, i) => out.push([r[1], kb('⌥' + (i + 1))])); return out.slice(0, 6); });
+  const pal = await page.evaluate(() => navRoutes().map((r, i) => [r[1], kb('⌥' + (i + 1))]));
   expect(pal.map((x) => x[0])).toEqual(NAMES);
   expect(errors).toEqual([]);
 });
@@ -327,6 +332,8 @@ test('insight order: sidebar, ⌥1–6, window menu and palette follow one page 
 test('sidebar Agents: multi-select subset, only-this, all, logos; shared with the Agent chip', async ({ page }) => {
   test.skip(test.info().project.name !== 'mac-14', 'sidebar behaviour runs once, at the default size');
   const errors = await openDemo(page);
+  // the merged sidebar collapses the Agents group by default (fewer groups, 更多/Agents closed)
+  await page.evaluate(() => { S.sideOpen.agents = true; render(); });
   const picked = () => page.evaluate(() => AG.filter((a) => S.agents.has(a.id)).map((a) => a.id).join(','));
   const all = await page.evaluate(() => AG.map((a) => a.id).join(','));
   expect(await picked()).toBe(all);
@@ -372,13 +379,14 @@ test('pinned projects: visible auto rule, pin / unpin from sidebar and projects 
   expect(auto.length).toBe(3);
   expect(await sideIds()).toEqual(auto);
   const head = page.locator('#side .sect').filter({ hasText: '置顶项目' });
-  await expect(head).toContainText('近 30 天会话最多');
+  // merged sidebar: the auto rule moved from a visible label into the group head's tooltip
+  await expect(head.locator('button[data-g="pins"]')).toHaveAttribute('data-tip', /自动显示.*会话最多的 3 个项目/);
   const n = await page.evaluate((ids) => ids.map((id) => sel({ noExtra: true, project: id }).length), auto);
   expect([...n].sort((a, b) => b - a)).toEqual(n);
   await page.locator('#side .pjp').nth(1).hover();
   await page.locator('#side .pjp').nth(1).locator('.pin-b').click();
   expect(await sideIds()).toEqual([auto[1]]);
-  await expect(head).toContainText('已置顶');
+  await expect(head.locator('button[data-g="pins"]')).toHaveAttribute('data-tip', /自动显示/);
   await page.evaluate(() => go('projects'));
   const other = await page.evaluate((a) => PJ.find((p) => a.indexOf(p.id) < 0).id, auto);
   await page.locator('#main .pj-tbl tr[data-p="' + other + '"] .pj-pin').click({ force: true });
@@ -391,7 +399,7 @@ test('pinned projects: visible auto rule, pin / unpin from sidebar and projects 
   await page.locator('#side .pjp[data-p="' + auto[1] + '"]').hover();
   await page.locator('#side .pjp[data-p="' + auto[1] + '"] .pin-b').click();
   expect(await sideIds()).toEqual(auto);
-  await expect(page.locator('#side .sect').filter({ hasText: '置顶项目' })).toContainText('会话最多');
+  await expect(page.locator('#side .sect button[data-g="pins"]')).toHaveAttribute('data-tip', /自动显示/);
   // live's synthetic '_none' group (sessions without a project) is not a project: never auto-pinned, no pin button, not pinnable
   const none = await page.evaluate(() => {
     const p = { id: '_none', name: '未归属项目', path: '', git: '', tags: [] };
@@ -449,9 +457,10 @@ test('dark mode: selected row ≥ 1.3 against the sidebar; window / sidebar / ca
 test('shell text uses the macOS type scale and system font; resize handles are invisible', async ({ page }) => {
   const errors = await openDemo(page);
   // open the shell surfaces that render text: menu-bar panel, HUD card, a menu, the settings window, the shortcuts sheet
-  await page.evaluate(() => { S.hud.open = true; S.pop = true; render(); openSettings('general'); openKeys(); document.querySelector('.mbar [data-m="view"]').click(); notify({ t: '字号', b: '正文', a1: 'A', force: true }); });
+  await page.evaluate(() => { S.hud.show = true; S.hud.open = true; S.pop = true; render(); openSettings('general'); openKeys(); document.querySelector('.mbar [data-m="view"]').click(); notify({ t: '字号', b: '正文', a1: 'A', force: true }); });
   const r = await page.evaluate(() => {
-    const scale = new Set([10, 11, 12, 13, 15, 17, 22, 26]);
+    // merged UI raises the body base from 13px to 13.5px (text that inherits it lands on the new base)
+    const scale = new Set([10, 11, 12, 13, 13.5, 15, 17, 22, 26]);
     const roots = ['#mbar', '#wtop', '#side', '#main .tbar', '#pop', '#hud', '#dd', '#set', '#modal', '#notes'];
     const offScale = new Set();
     roots.forEach((root) => document.querySelectorAll(root + ', ' + root + ' *').forEach((el) => {
@@ -518,6 +527,7 @@ test('motion inventory: the published effects plus the shell additions are wired
   const time = new Date('2026-10-02T04:00:00Z');
   await page.clock.install({ time }); await page.clock.pauseAt(time);
   const errors = await openDemo(page);
+  await page.evaluate(() => { S.hud.show = true; render(); });   // merged UI: HUD hidden by default
   const anim = (sel, pseudo) => page.evaluate(([s, p]) => { const el = document.querySelector(s); return el ? getComputedStyle(el, p || null).animationName : null; }, [sel, pseudo]);
   const rules = (name) => page.evaluate((n) => { for (const sh of document.styleSheets) { let rs; try { rs = sh.cssRules; } catch (e) { continue; } for (const r of rs) if (r.type === CSSRule.KEYFRAMES_RULE && r.name === n) return r.cssText; } return null; }, name);
   for (const k of ['blink', 'fadein', 'grow', 'pulse', 'shim', 'spin', 'popin', 'sheetin', 'slidein', 'slideout', 'badgepulse']) expect(await rules(k), '@keyframes ' + k).not.toBeNull();

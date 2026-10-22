@@ -339,7 +339,7 @@ test('kpi delta shows direction, magnitude and the previous value', async ({ pag
   expect(r.up.text).toBe('▲ 9% · 上期 171'); expect(r.up.cls).toBe('');
   expect(r.down.text).toBe('▼ 0.8 pt · 上期 9.4%'); expect(r.down.cls).toBe('vz-good');
   expect(r.flat.text).toBe('± 0 · 上期 5');
-  expect(r.none.text).toBe('无可比上期');
+  expect(r.none.text).toBe('缩短时期以比较');   // 合并版本：没有上期时给可操作提示，而不是「无可比上期」
   expect(r.html).toContain('近 12 周'); expect(r.html).toContain('vz-spark');
   const tiles = await page.locator('#content .vz-kpi').count();
   expect(tiles).toBe(5);
