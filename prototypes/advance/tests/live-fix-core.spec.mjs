@@ -15,6 +15,8 @@ test('J03/J04: sidebar and filter counts follow the live spine; no mock identity
   const errors = collectErrors(page);
   await stubGateway(page, 'core');
   await openLive(page, 'overview');
+  // the merged sidebar keeps 项目习惯 in the collapsed 更多 group
+  await page.evaluate(() => { S.sideOpen.more = true; render(); });
   const [pj, ag] = await page.evaluate(() => [PJ.length, AG.length]);
   expect(pj).toBeGreaterThan(0);
   await expect(sideCount(page, 'projects')).toHaveText(String(pj));

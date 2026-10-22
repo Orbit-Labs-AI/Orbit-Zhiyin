@@ -58,6 +58,7 @@ test('B: never-imported agents read 未接入, turned-off ones 停用, idle ones
   await stubGateway(page, 'core');
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  await page.evaluate(() => { S.sideOpen.agents = true; render(); });   // merged sidebar: Agents closed by default
   const ids = await page.evaluate(() => {
     const a0 = AG[0]; const ghost = Object.assign({}, AG[AG.length - 1], { id: 'ghost', name: 'Ghost Agent', all: 0 });
     AG.push(ghost); AGI.ghost = ghost; S.srcOff = new Set(['ghost', AG[1].id]); render();

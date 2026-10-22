@@ -11,6 +11,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { seedUiPrefs } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -34,6 +35,7 @@ function collectErrors(page, allow) {
 }
 
 async function gateway(page, opt = {}) {
+  await seedUiPrefs(page);   // legacy defaults: Chinese UI, Advance layout, 30-day range
   const state = { seen: [], applies: 0 };
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.route(/^http:\/\/orbit\.test\//, async (route) => {

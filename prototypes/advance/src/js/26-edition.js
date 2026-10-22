@@ -8,7 +8,7 @@
 // App (native prefs): a fresh install starts in Lite, later launches come back to the edition and the page last used —
 // each edition keeps its own last page ('route' = {lite, advance}, main window only). The browser demo keeps Advance and
 // the URL hash.
-S.ed = store.get('edition', store.native ? 'lite' : 'advance') === 'lite' ? 'lite' : 'advance';
+S.ed = store.get('edition', 'lite') === 'lite' ? 'lite' : 'advance';
 const ED_SURFACE = /[?&]surface=(panel|hud|widgets)(&|$)/.test(location.search || '');
 function edLastRoute(ed) {
   const r = store.get('route', null);
@@ -20,18 +20,17 @@ function edRemember(route) {
   if (edLastRoute(ed) === route) return;
   const r = Object.assign({}, store.get('route', null) || {}); r[ed] = route; store.set('route', r);
 }
-const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs']];
+const LITE_ROUTES = [['l-home', '概览', 'overview'], ['l-persona', '协作画像', 'persona'], ['l-sessions', '会话轨迹', 'sessions'], ['l-recs', '优化建议', 'recs'],
+  ['library', '资源库', 'library'], ['sentiment', '情绪语义', 'sentiment'], ['projects', '项目习惯', 'projects'],
+  ['tools', '工具调用', 'tools'], ['studio', '生成工坊', 'studio']];
 const TO_LITE = { overview: 'l-home', persona: 'l-persona', sessions: 'l-sessions', recs: 'l-recs' };
 const TO_ADV = { 'l-home': 'overview', 'l-persona': 'persona', 'l-sessions': 'sessions', 'l-recs': 'recs' };
 const ED_NAME = { lite: 'Lite', advance: 'Advance' };
 function navRoutes() { return S.ed === 'lite' ? LITE_ROUTES : ROUTES; }
 // A page Lite does not have (tools, projects, sentiment, library, studio) is a request for detail: go() switches to Advance
 // and says so, instead of dropping the user on the Lite overview.
-function edFollow(route) {
-  if (S.ed !== 'lite' || TO_LITE[route] || /^l-/.test(route) || !ROUTES.some((r) => r[0] === route)) return;
-  S.ed = 'advance'; store.set('edition', 'advance'); $('#win').dataset.ed = 'advance';
-  const name = ROUTES.find((r) => r[0] === route)[1];
-  setTimeout(() => toast('「' + name + '」在 Advance 中，已切换到 Advance', { act: '回到 Lite', sec: 5, onAct: () => edSet('lite') }), 0);
+function edFollow() {
+  // Editions are merged: every page is reachable in Lite. The setting only changes how pages are rendered.
 }
 function edRoute(route, ed) {
   ed = ed || S.ed;
@@ -48,11 +47,13 @@ function edSwitch() {
 function renderSideLite() {
   const recN = visibleRecs().filter((r) => !S.installed.has(r.id)).length;
   const n = sel({ noExtra: true }).length;
-  const nav = (i, ct, bd) => sideNavBtn(LITE_ROUTES[i][0], LITE_ROUTES[i][1], LITE_ROUTES[i][2], ct, bd);
-  $('#side').innerHTML = edSwitch() + sideExtra() + '<div class="sb-scroll">' +
-    sideGroup('insight', '洞察', nav(0) + nav(1) + nav(2, n)) +
-    sideGroup('action', '行动', nav(3, '', recN || '')) +
-    sideGroup('agents', 'Agents', sideAgents(), sideAgentsRight()) + '</div>' + sideFoot();
+  const b = (route, label, icon, ct, bd) => sideNavBtn(route, label, icon, ct, bd);
+  $('#side').innerHTML = sideExtra() + '<div class="sb-scroll">' +
+    sideGroup('insight', '洞察', b('l-home', '概览', 'overview') + b('l-persona', '协作画像', 'persona') + b('l-sessions', '会话轨迹', 'sessions', n)) +
+    sideGroup('action', '行动', b('l-recs', '优化建议', 'recs', '', recN || '') + b('library', '资源库', 'library')) +
+    sideGroup('more', '更多', b('sentiment', '情绪语义', 'sentiment') + b('projects', '项目习惯', 'projects', PJ.length) + b('tools', '工具调用', 'tools') + b('studio', '生成工坊', 'studio', S.studio.run && !S.studio.run.done ? '运行中' : '')) +
+    sideGroup('agents', 'Agents', sideAgents(), sideAgentsRight()) +
+    sideGroup('pins', '置顶项目', sidePins(), null, I18N.lang === 'en' ? 'Auto: the 3 projects with the most sessions in the current range; hover a project and click the pin to keep it' : '没有手动置顶时，自动显示当前范围内会话最多的 3 个项目；悬停项目点图钉可置顶') + '</div>' + sideFoot();
 }
 // edSet(ed, route?): route = the page to land on in the new edition (a menu / notification route). The swap runs after the
 // thumb animation, so the target is passed in instead of calling go(route) next to edSet (that go would run first, while
@@ -83,7 +84,7 @@ function edSet(ed, route) {
 }
 function edToggle() { edSet(S.ed === 'lite' ? 'advance' : 'lite'); }
 // Lite → Advance detail: switch edition, then open the given Advance route (e.g. a session, a tool table)
-function edOpen(route) { if (S.ed === 'lite') { const w = $('#win'); w.dataset.ed = 'advance'; S.ed = 'advance'; store.set('edition', 'advance'); } go(route); }
+function edOpen(route) { go(route, false, true); }
 document.addEventListener('keydown', (e) => {
   if (!(e.ctrlKey && e.metaKey && e.code === 'KeyL')) return;
   if (!$('#overlay').hidden || !$('#modal').hidden) return;

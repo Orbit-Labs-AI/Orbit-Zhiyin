@@ -31,6 +31,8 @@ test('full spine: 7 real agents hydrate with fixed colors, counts and calendar; 
   await stubGateway(page, 'core');
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => LV.state)).toBe('ready');
+  // the merged sidebar starts with the Agents group collapsed: open it to read the per-agent counts
+  await page.evaluate(() => { S.sideOpen.agents = true; render(); });
   // TL changes render on the next animation frame (90-live-core.js): let that frame paint before reading the sidebar
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))));
   const st = await page.evaluate(() => ({
@@ -92,6 +94,7 @@ test('strip: connecting before the gateway answers, computing on 202, then the 2
   await expect.poll(() => page.evaluate(() => LV.state), { timeout: 10_000 }).toBe('ready');
   await expect(page.locator('[data-tl="strip"] [data-tl="computing"]')).toHaveCount(0);
   expect(await page.evaluate(() => ALL.length)).toBe(FACTS.rows.length);
+  await page.evaluate(() => { S.sideOpen.agents = true; render(); });
   await expect(page.locator('#side .ag[data-a="hm"]')).toBeVisible();
   expect(errors).toEqual([]);
 });

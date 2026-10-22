@@ -35,7 +35,7 @@ function genFacts(L) {
   const byA = AG.map((a) => [a, sum(L.filter((s) => s.a === a.id), (s) => s.dur)]).sort((x, y) => y[1] - x[1]);
   const fr = Object.entries(countBy(L, 'fric')).sort((a, b) => b[1] - a[1]);
   return [
-    ['统计', fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用', L.length ? '最常在 ' + bh + ':00–' + (bh + 1) + ':00 ' + (byMsg ? '协作' : '开始会话') : '还没有会话'],
+    ['统计', (I18N.lang === 'en' ? fmt(L.length) + ' sessions · ' + fmt(st.tools) + ' tool calls' : fmt(L.length) + ' 个会话 · ' + fmt(st.tools) + ' 次工具调用'), L.length ? (I18N.lang === 'en' ? 'Most often around ' + bh + ':00–' + (bh + 1) + ':00 ' + (byMsg ? 'collaborating' : 'starting sessions') : '最常在 ' + bh + ':00–' + (bh + 1) + ':00 ' + (byMsg ? '协作' : '开始会话')) : (I18N.lang === 'en' ? 'No sessions yet' : '还没有会话')],
     ['轨迹', '还原每个会话的时间线', (byA[0] ? byA[0][0].name : '—') + ' 占协作时长 ' + Math.round((byA[0] ? byA[0][1] : 0) / Math.max(1, st.hours * 60) * 100) + '%'],
     ['语义', '本地 Agent 正在归类你的消息', fr[0] ? '摩擦最多的是「' + fr[0][0] + '」' : '还没有归类出摩擦'],
     ['人格', '四个维度', st.verKnown ? Math.round(st.verify) + '% 的会话要求验证结果' : '会话里还没有验证信号']
@@ -67,7 +67,7 @@ function drawOB() {
   const top = '<div class="row">' + dots + '<span class="mono cap" style="font-size:11px">' + (s + 1) + ' / 4</span><span style="flex:1"></span>' + (s < 3 ? '<button type="button" class="btn sm gh" data-act="obClose">跳过</button>' : '') + '</div>';
   let b = '';
   if (s === 0) {
-    b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div>' + wordmark(18) + '<h2 class="serif" style="margin:8px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">没有注册，也没有账号。Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
+    b = '<span class="appicon ob-mark" style="width:56px;height:56px">' + appIcon(56) + '</span><div>' + wordmark(18) + '<h2 class="serif" style="margin:8px 0 0;font-size:26px;line-height:1.25">看见你和 Agent 怎么协作</h2></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2)">Orbit 读取本机各个 Agent 的会话日志，告诉你协作习惯、卡点和下一步该装什么。四步里只有一次需要你做决定：分析哪些数据。</p>' +
       [['eye', '整理会话轨迹', '只读本地日志，汇总对话、工具调用与任务结果，保留来源证据'], ['chart', '看见协作习惯', '先计算统计指标，再查看卡点、反馈和改进方向'], ['bot', '按需连接本地 Agent', 'AI 功能默认关闭；开启后用专业模板深入分析，沿用 Agent 自己的模型配置，只发送脱敏摘要']].map((x) => '<div class="row" style="align-items:flex-start;gap:10px">' + ic(x[0], 18, 'margin-top:1px') + '<span class="col" style="gap:1px"><b style="font-size:13px">' + x[1] + '</b><span class="cap">' + x[2] + '</span></span></div>').join('') +
       '<div class="row" style="justify-content:space-between;margin-top:6px"><button type="button" class="lnk" data-act="obPrivacy">完整隐私说明</button><button type="button" class="btn p" data-act="obNext" style="height:32px;padding:0 18px">开始</button></div>';
   } else if (s === 1 && OB.live) {
@@ -77,7 +77,7 @@ function drawOB() {
     b = '<div><h2 class="serif" style="margin:0;font-size:26px;line-height:1.25">找到了这些 Agent 的会话</h2><p class="cap" style="margin:6px 0 0">只读取会话日志。取消勾选的来源不会被索引。</p></div><div class="card" style="padding:2px 0">' +
       AG.map((a) => '<label class="srcrow"><span style="width:30px;height:30px;border-radius:8px;background:' + a.t + ';display:grid;place-items:center">' + ic('term', 15, 'color:' + a.c) + '</span><span style="min-width:0"><b style="font-size:13px">' + a.name + '</b><span class="mono cap" style="display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + a.path + '</span></span><span class="mono cap" style="font-size:11px">' + fmt(a.all) + '</span><input type="checkbox" data-chg="obSrc" data-a="' + a.id + '"' + (OB.src.has(a.id) ? ' checked' : '') + ' aria-label="分析 ' + a.name + '" style="width:16px;height:16px;accent-color:var(--ink-1)"></label>').join('') +
       '<div class="srcrow" style="opacity:.6"><span style="width:30px;height:30px;border-radius:8px;background:var(--sunken);display:grid;place-items:center">' + ic('minus', 15) + '</span><span><b style="font-size:13px">Hermes Agent</b><span class="cap" style="display:block;font-size:11px">未检测到 · 可稍后在设置中手动指定</span></span><span></span><span></span></div></div>' +
-      '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">首次约 40 秒；之后可以在设置中扩展到全部历史</span></span></div><div class="mono cap" style="font-size:11px">共 ' + fmt(tot) + ' 个会话 · 最早 2025-11-03</div>' +
+      '<div class="row" style="align-items:flex-start;gap:10px">' + swBtn(OB.recent, 'obRecent', '', '只分析最近 90 天') + '<span class="col" style="gap:2px"><b style="font-size:13px">只分析最近 90 天</b><span class="cap" style="font-size:11px">首次约 40 秒；之后可以在设置中扩展到全部历史</span></span></div><div class="mono cap" style="font-size:11px">' + (I18N.lang === 'en' ? 'Total ' + fmt(tot) + ' sessions · earliest 2025-11-03' : '共 ' + fmt(tot) + ' 个会话 · 最早 2025-11-03') + '</div>' +
       '<div class="row" style="justify-content:space-between"><button type="button" class="btn gh" data-act="obBack">返回</button><button type="button" class="btn p" data-act="obStart" style="height:32px;padding:0 18px"' + (OB.src.size ? '' : ' disabled') + '>开始分析</button></div>';
   }
   // Keep the keyboard where it was across redraws (a ticked checkbox, the 90-day switch, the progress page's 950 ms ticks);
@@ -270,7 +270,8 @@ function genStage(g, t) { const s = g.box.querySelector('[data-g="stage"]'); if 
 function genCount(g) {
   const el = g.box.querySelector('[data-g="count"]'); if (!el) return;
   const all = !g.N || g.arrived >= g.N; const f = all ? 1 : g.arrived / g.N;
-  const t = '已读取 ' + fmt(Math.round(g.L.length * f)) + ' 个会话 · ' + fmt(Math.round(g.st.tools * f)) + ' 次工具调用';
+  const en = typeof I18N !== 'undefined' && I18N.lang === 'en';
+  const t = en ? 'Read ' + fmt(Math.round(g.L.length * f)) + ' sessions · ' + fmt(Math.round(g.st.tools * f)) + ' tool calls' : '已读取 ' + fmt(Math.round(g.L.length * f)) + ' 个会话 · ' + fmt(Math.round(g.st.tools * f)) + ' 次工具调用';
   if (el.textContent !== t) el.textContent = t;
 }
 // 「看看优化建议」的条数：与侧栏角标同源（visibleRecs，live 下是 GET /v1/recommendations 的 A7 列表）；定型时再读一次

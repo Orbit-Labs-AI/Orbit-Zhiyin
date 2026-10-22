@@ -39,7 +39,7 @@ test('realtime: HUD, panel and widgets name the real sessions; 忽略 dismisses;
   const gw = await setup(page);
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => [S.simBase, S.attn.has('stuck'), S.attn.has('ctx'), S.waitOpen])).toEqual(['running', true, true, true]);
-  await page.evaluate(() => { S.widgets = true; render(); });
+  await page.evaluate(() => { S.widgets = true; S.hud.show = true; render(); });   // merged UI: HUD hidden by default
   await expect(page.locator('#hudPill')).toContainText('同一命令失败 5 次');
   await expect(page.locator('#hudPill')).toContainText('fx-rules');
   expect(await page.evaluate(() => [S.live.ctx, S.live.tools, HUD_TOOLS[0]])).toEqual([91, 9, 'Edit src/js/98-live-ops.js']);

@@ -21,10 +21,13 @@ import { test, expect } from '@playwright/test';
 import { openDemo } from './helpers.mjs';
 
 const ONLY = (name) => test.skip(test.info().project.name !== name, 'runs once, at the default size');
+// the merged UI starts with the floating HUD hidden (Settings › 通用 › 悬浮组件); these tests keep its default-on behaviour explicit
+const hudOn = (page) => page.evaluate(() => { S.hud.show = true; render(); });
 
 test('notification matrix columns drive the badge and the HUD independently; mute blocks only the HUD', async ({ page }) => {
   ONLY('mac-14');
   const errors = await openDemo(page);
+  await hudOn(page);
   const st = () => page.evaluate(() => [S.sim, S.hudSim]);
   await page.evaluate(() => { S.notif.done = [0, 1, 0]; simEvent('done'); });
   expect(await st()).toEqual(['running', 'done']);
@@ -42,6 +45,7 @@ test('notification matrix columns drive the badge and the HUD independently; mut
 test('clearing alerts falls back to the next open item, then to the resting state, including idle', async ({ page }) => {
   ONLY('mac-14');
   const errors = await openDemo(page);
+  await hudOn(page);
   const st = () => page.evaluate(() => [S.sim, S.hudSim, $('#hud').hidden]);
   await page.evaluate(() => { S.notif.stuck = [0, 1, 1]; S.notif.ctx = [0, 1, 1]; simEvent('stuck'); simEvent('ctx'); });
   expect(await st()).toEqual(['ctx', 'ctx', false]);
@@ -69,6 +73,7 @@ test('clearing alerts falls back to the next open item, then to the resting stat
 test('「查看」after a completion opens the finished session; two newsrc banners add the source once', async ({ page }) => {
   ONLY('mac-14');
   const errors = await openDemo(page);
+  await hudOn(page);
   await page.evaluate(() => { S.notif.done = [1, 1, 1]; simEvent('done'); });
   await page.locator('#hudPill button', { hasText: '查看' }).click();
   expect(await page.evaluate(() => [S.route, S.sess.sel, BYID[S.sess.sel].live, S.sim, S.hudSim])).toEqual(['sessions', 'sess-0930-1402', undefined, 'running', 'running']);
@@ -113,6 +118,7 @@ test('HUD density band and pill bars follow the running session; a render mid-dr
   // renders; a fixed Date (timers keep running, so the drag below is unaffected) makes the comparison deterministic
   await page.clock.setFixedTime(new Date('2026-10-01T15:30:00+08:00'));
   const errors = await openDemo(page);
+  await hudOn(page);
   await page.evaluate(() => { S.hud.open = true; renderHud(); });
   const exp = await page.evaluate(() => { const d = liveBuckets(20, 30); return { cols: d.b.filter((x) => x.tool).length, dots: d.b.filter((x) => x.user).length, err: d.b.filter((x) => x.err).length, tools: d.b.reduce((a, x) => a + x.tool, 0) }; });
   expect(exp.tools).toBeGreaterThan(10);
@@ -176,12 +182,14 @@ test('desktop widgets come in three sizes, the week chart is labelled, size pers
 
 test('settings: range persists, HUD tip can be restored, matrix counts and AI channel follow the engine', async ({ page }) => {
   ONLY('mac-14');
-  const errors = await openDemo(page);
+  const errors = await openDemo(page, '', { range: null });
+  await hudOn(page);
   await page.evaluate(() => { openSettings('general'); });
-  await page.locator('#set [data-act="setRange"][data-v="7"]').click();
+  await page.locator('#set [data-act="setRange"][data-v="30"]').click();
   await page.reload(); await expect(page.locator('#main')).not.toBeEmpty();
-  expect(await page.evaluate(() => S.range)).toBe(7);
+  expect(await page.evaluate(() => S.range)).toBe(30);
   await page.evaluate(() => localStorage.removeItem('orbit-demo:range'));
+  await hudOn(page);   // the reload reset the in-page HUD state
   // 不再提示此类 → restored from settings › 通知 (BUG-83)
   await page.evaluate(() => { S.live.ctx = 70; S.hud.open = true; renderHud(); });
   await page.locator('#hud [data-act="hudTipOff"]').click();
