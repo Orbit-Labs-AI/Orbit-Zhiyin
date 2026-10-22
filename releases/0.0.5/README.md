@@ -49,7 +49,7 @@ DMG 因内含同一构建路径已暂时下架，待 Mac 侧用干净路径重�
 
 ## 安装与首次打开（macOS）
 
-1. 下载 DMG，双击打开，把 Orbit 拖入「应用程序」。
+1. 下载 ZIP，解压后把 `Orbit.app` 拖入「应用程序」（DMG 待 Mac 侧重建后补发）。
 2. 首次打开若提示「Apple 无法验证…」：Finder 中右键 Orbit → 打开，或到「系统设置 → 隐私与安全性」点「仍要打开」。
 3. 若仍被拦截：确认来源可信后执行 `xattr -dr com.apple.quarantine /Applications/Orbit.app`。
 4. 首次启动按引导选择允许读取的 Agent 来源（Claude Code / Codex 等）；不选择就不会读取。
