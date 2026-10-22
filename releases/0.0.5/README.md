@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | macOS（Apple Silicon） | `Orbit-0.0.5-arm64.dmg` | 推荐；ad-hoc 签名、未公证，首次打开需右键 → 打开（或按安装指南放行） |
 | macOS（Apple Silicon） | `Orbit-0.0.5-arm64.zip` | 免 DMG 安装方式，解压后把 `Orbit.app` 拖入「应用程序」 |
-| Windows（x64，预览） | `Orbit-0.0.5-windows-x64.zip` | 独立构建的 Windows 预览版：同一套新界面 + 本机只读会话统计；解压后双击 `Orbit.exe` |
+| Windows（x64，预览） | `Orbit-0.0.5-windows-x64.zip` | 独立构建的 Windows 预览版：同一套新界面；首次启动空白，随后扫描**运行者本机**日志显示其自己的会话统计；解压后双击 `Orbit.exe` |
 
 SHA-256 校验值见 [SHA256SUMS](SHA256SUMS)。Mac 安装包为 2026-10-22 本地构建（内部构建号仍为 `0.0.4 / 4`，
 不冒充官方 0.0.4 发布版），内容已包含本次新界面与时区修复；Windows 预览版为独立构建（版本标记 `0.1.0-preview`），
@@ -36,8 +36,10 @@ SHA-256 校验值见 [SHA256SUMS](SHA256SUMS)。Mac 安装包为 2026-10-22 本�
 - 独立构建：Node 网关 + Microsoft Edge `--app` 窗口 + 原生桥，零第三方依赖、不装 Electron/Tauri。
 - 界面与 macOS 版使用同一套新版合并版式 / 中英双语界面，并做 Windows 适配：Segoe UI / 微软雅黑、⌘→Ctrl、
   Finder→文件资源管理器、`~/…`→`%USERPROFILE%\…`、真实窗口最小化 / 最大化 / 关闭、真实保存 / 选择文件夹对话框。
-- 真实数据：启动时只读解析本机 **Claude Code / Codex / DeepSeek Harness** 会话日志，生成真实的会话 / 项目 / 画像 / 概览
-  （只统计时间、轮次、工具调用、错误、token、标题；**不读正文、不上传**）；优化建议 / 资源库 / 工具明细仍为示例。
+- **首次启动空白 → 扫描运行者自己的会话**：应用启动时页面是空白；后台只读解析**运行者这台电脑**上的
+  Claude Code / Codex / DeepSeek Harness 会话日志（只统计时间、轮次、工具调用、错误、token、标题；**不读正文、不上传**），
+  完成后通过 SSE 通知页面自动刷新显示会话 / 项目 / 画像 / 概览。**发布包内不含任何会话数据、真实标题或真实截图**；
+  每台电脑首次启动都会扫描自己的日志。优化建议 / 资源库 / 工具明细仍为示例。
 - 详细说明见 [Windows 预览版文档](../../docs/getting-started/windows-preview.md)。
 
 ## Windows 适配注意（给后续 Python / Windows 版本）
@@ -64,7 +66,7 @@ SHA-256 校验值见 [SHA256SUMS](SHA256SUMS)。Mac 安装包为 2026-10-22 本�
 ## 已知限制
 
 - macOS 安装包为本地构建，内部版本号仍显示 `0.0.4`（build 4），ad-hoc 签名、未公证；与官方 0.0.4 安装包 bundle id 相同，安装会覆盖同名 App。
-- Windows 预览版是独立界面构建，不是 macOS App 的等价移植：没有 Python 分析 / 推荐 / 安装后端，建议 / 资源库 / 工具明细为示例数据。
+- Windows 预览版是独立界面构建，不是 macOS App 的等价移植：没有 Python 分析 / 推荐 / 安装后端，建议 / 资源库 / 工具明细为示例数据；发布包不含任何会话数据。
 - Windows 预览版需要 Node 26+（或工作区自带 Node）；不是单文件绿色版。
 - 数据层修复不改变 DDL / 事件契约；已导入库在下次导入时重新归并，不需要删数据或迁移。
 
@@ -72,7 +74,7 @@ SHA-256 校验值见 [SHA256SUMS](SHA256SUMS)。Mac 安装包为 2026-10-22 本�
 
 - `packages/data/tests` 717 passed（基线 702 + 新增 15）；ruff check / format 通过。
 - UI：`node prototypes/advance/build.mjs --check` 通过；界面测试 789 passed / 4 既有 flaky（基线可复现）。
-- Windows 预览版：`node --test host/test/*.test.mjs` 54/54；`tools/smoke.mjs` 8/8；真实数据解析 58 会话 / 10 项目；
+- Windows 预览版：`node --test host/test/*.test.mjs` 54/54；`tools/smoke.mjs` 8/8；空白首启 → 扫描运行者本机会话 → 自动刷新（发布包不含数据）；
   会话列表窗格滚动与 `html lang` 跟随语言两项界面修复已实测。
 - 安装包 SHA-256 见 `SHA256SUMS`。
 
