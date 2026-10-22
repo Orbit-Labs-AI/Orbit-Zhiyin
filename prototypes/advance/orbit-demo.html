@@ -740,7 +740,7 @@ body.native .win.nosb .tbar{padding-left:20px}
 @container main (max-width:799px){
   .lite .persona-hero{grid-template-columns:minmax(0,1fr) 220px;gap:20px}
   .lite .sess.l-sess{grid-template-columns:minmax(0,1fr)}
-  .lite .slist{max-height:260px}
+  .lite .slist{max-height:260px;overflow:auto}
   .l-say{font-size:22px}
   .lite .vz-kpi .v{font-size:44px;line-height:50px}
   .lite .vz-kpi-d{font-size:11px}
@@ -2008,7 +2008,8 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
   /* the list card fills its column; only the rows scroll under the search / title head */
   .sess>.card{display:flex;flex-direction:column;min-height:0}
   :where(.sess>.card)>*{flex:none}
-  .sess>.card>.slist,.lite .sess>.card>.slist{flex:1 1 0;min-height:0;max-height:none;overscroll-behavior:contain}
+  /* the base .slist no longer sets overflow (it must not clip the whole-page scroll), so pane mode restores the scroller */
+  .sess>.card>.slist,.lite .sess>.card>.slist{flex:1 1 0;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain}
   .sess>.stack,.recs>*{min-height:0;overflow:auto;overscroll-behavior:contain;margin:-4px -4px 0;padding:4px 4px 24px}
   .sess>.card{margin-bottom:24px}
   .recs>:last-child{position:static!important}
@@ -2057,7 +2058,7 @@ mark.rd{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 
 @container main (min-width:1900px){.content>*{max-width:1800px;margin-inline:auto}}
 @container main (max-width:999px){.studio{grid-template-columns:minmax(0,1fr)}}
 @container main (max-width:899px){.tsearch{width:28px;padding:0;justify-content:center}.tsearch span,.tsearch kbd{display:none}}
-@container main (max-width:799px){.pg-guide-s{display:none}.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.two,.proj,.recs{grid-template-columns:minmax(0,1fr)!important}.sess,.persona-hero{grid-template-columns:minmax(0,1fr)}.slist{max-height:320px}.three,.lib-feat{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))!important}.ov-ai{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container main (max-width:799px){.pg-guide-s{display:none}.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}.two,.proj,.recs{grid-template-columns:minmax(0,1fr)!important}.sess,.persona-hero{grid-template-columns:minmax(0,1fr)}.slist{max-height:320px;overflow:auto}.three,.lib-feat{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))!important}.ov-ai{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @container main (max-width:639px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.stats7{grid-template-columns:repeat(4,minmax(0,1fr))}.ov-ai{grid-template-columns:minmax(0,1fr)}.letters .L{font-size:72px}.ax{grid-template-columns:58px minmax(0,1fr) 58px 26px;gap:6px;font-size:12px}.persona-hero{padding:16px}.content{padding:0 16px 24px}}
 @media (max-width:600px){.mbar .sysicon,.mbar .status .glyph[data-m="demo"]{display:none}.widgets{display:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
@@ -17927,7 +17928,7 @@ setInterval(() => {
 let RZ = null;
 window.addEventListener('resize', () => { applyWin(); setPlace(); clearTimeout(RZ); RZ = setTimeout(() => { renderWidgets(); renderHud(); }, 80); });
 (function init() {
-  document.documentElement.lang = 'zh-CN';
+  document.documentElement.lang = I18N.lang === 'en' ? 'en' : 'zh-CN';   // 02-i18n sets the default; keep them in sync here too
   let h = ''; try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
   if (!h && store.native && !ED_SURFACE) h = edLastRoute(S.ed) || '';   // App: back to the last page of the last edition
   if (/^l-/.test(h)) S.ed = 'lite';

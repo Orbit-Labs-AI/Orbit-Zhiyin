@@ -135,7 +135,7 @@
 @container main (max-width:799px){
   .lite .persona-hero{grid-template-columns:minmax(0,1fr) 220px;gap:20px}
   .lite .sess.l-sess{grid-template-columns:minmax(0,1fr)}
-  .lite .slist{max-height:260px}
+  .lite .slist{max-height:260px;overflow:auto}
   .l-say{font-size:22px}
   .lite .vz-kpi .v{font-size:44px;line-height:50px}
   .lite .vz-kpi-d{font-size:11px}

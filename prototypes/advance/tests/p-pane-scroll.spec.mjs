@@ -12,8 +12,9 @@ async function onlyThisScrolls(page, panes) {
   const all = ['#content', ...panes];
   for (const p of panes) {
     await page.evaluate((all) => all.forEach((s) => { document.querySelector(s).scrollTop = 0; }), all);
-    const b = await page.locator(p).boundingBox();
-    await page.mouse.move(b.x + b.width / 2, b.y + Math.min(60, b.height / 2));
+    // locator.hover() waits for the pane to be stable (window/pane animations under parallel load), then the wheel goes to it
+    const box = await page.locator(p).boundingBox();
+    await page.locator(p).hover({ position: { x: Math.round(box.width / 2), y: Math.min(60, Math.round(box.height / 2)) } });
     await page.mouse.wheel(0, 240);
     await expect.poll(async () => (await tops(page, [p]))[0], p + ' scrolls').toBeGreaterThan(0);
     expect(await tops(page, all.filter((s) => s !== p)), 'only ' + p + ' moved').toEqual(all.filter((s) => s !== p).map(() => 0));
@@ -24,7 +25,7 @@ test('each pane scrolls on its own', async ({ page }, info) => {
   test.skip(info.project.name !== 'mac-14', 'interaction runs once, at the default size');
   const errors = await openDemo(page);
   await go(page, 'sessions');
-  await onlyThisScrolls(page, ['#content .sess>.stack']);
+  await onlyThisScrolls(page, ['#slist', '#content .sess>.stack']);
   await go(page, 'recs');
   await onlyThisScrolls(page, ['#content .recs>.stack', '#content .recs>:last-child']);
   await go(page, 'studio');
@@ -37,11 +38,14 @@ test('each pane scrolls on its own', async ({ page }, info) => {
   expect(await page.evaluate(() => $('#content').scrollHeight - $('#content').clientHeight)).toBeLessThanOrEqual(1);
   await page.evaluate(() => { S.win.h = 640; applyWin(); });
   await settle(page);
-  // the Lite list pane has the same `.slist` regression as the Advance one (see the fixme test at the end)
-  await onlyThisScrolls(page, ['#content .l-sess>.stack']);
+  await onlyThisScrolls(page, ['#content .l-sess>.card>.slist', '#content .l-sess>.stack']);
   await page.evaluate(() => { S.win.h = null; applyWin(); edSet('advance', 'sessions'); });
   await expect.poll(() => page.evaluate(() => S.ed + '|' + S.route)).toBe('advance|sessions');
   await settle(page);
+  // the selected session stays visible inside the list pane
+  await page.evaluate(() => { S.sess.sel = sessList()[40].id; go('sessions'); });
+  await settle(page);
+  expect(await page.evaluate(() => { const l = $('#slist'), r = l.querySelector('.srow.sel').getBoundingClientRect(), p = l.getBoundingClientRect(); return [r.top >= p.top - 1 && r.bottom <= p.bottom + 1, $('#content').scrollTop]; })).toEqual([true, 0]);
   // share sheet on a short window: preview and options scroll apart
   await page.evaluate(() => { S.win.h = 600; applyWin(); go('persona'); openShare(); });
   await settle(page);
@@ -57,21 +61,4 @@ test('pane mode only while the split is side by side', async ({ page }) => {
   expect(s.flex, 'pane mode at ' + s.w + 'px').toBe(s.w >= 800);
   if (s.flex) expect(s.over).toBeLessThanOrEqual(1);
   expect(errors).toEqual([]);
-});
-
-// KNOWN REGRESSION in the merged UI CSS (reported to the Lead, not fixed here to keep the ported build byte-identical):
-// src/styles/40-pages.css changed the base `.slist` rule from `max-height:calc(100vh - 170px); overflow:auto` to
-// `max-height:none; overflow:visible`, while the pane rule in 88-panes.css only restores flex sizing, not the overflow — so
-// neither session list (Advance `#slist`, Lite `.l-sess .slist`) scrolls inside its own pane, and the selected row is no
-// longer kept visible by the pane scroller (the whole content column scrolls instead).
-test.fixme('session lists scroll inside their own pane and keep the selected row visible', async ({ page }) => {
-  await openDemo(page);
-  await go(page, 'sessions');
-  await onlyThisScrolls(page, ['#slist']);
-  await page.evaluate(() => { S.hud.show = false; S.sess.sel = sessList()[40].id; go('sessions'); });
-  await settle(page);
-  expect(await page.evaluate(() => { const l = $('#slist'), r = l.querySelector('.srow.sel').getBoundingClientRect(), p = l.getBoundingClientRect(); return [r.top >= p.top - 1 && r.bottom <= p.bottom + 1, $('#content').scrollTop]; })).toEqual([true, 0]);
-  await page.evaluate(() => { S.win.h = 640; applyWin(); edSet('lite', 'l-sessions'); });
-  await settle(page);
-  await onlyThisScrolls(page, ['#content .l-sess>.card>.slist']);
 });
