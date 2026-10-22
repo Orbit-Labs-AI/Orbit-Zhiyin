@@ -52,8 +52,8 @@ shasum -a 256 Orbit-0.0.5-arm64.dmg Orbit-0.0.5-arm64.zip
 预期值：
 
 ```text
-1c47a27cd2671474369c89dc6c747baa94b13e61e6b231900984a3189ac6e662  Orbit-0.0.5-arm64.dmg
-8a67f840abc239b741ebd0456f8ce653011fd8f3cd6b35b2ab7a407978ba0d18  Orbit-0.0.5-arm64.zip
+f5fd1733ed97e43f0ff3697da4f45718d9b21a6bc5ae2e7d42cef85243fd905c  Orbit-0.0.5-arm64.dmg
+51acc6ad45287535ecb1d224d4e1f239fd73bb16a72ec3b6d572a6fe181686bc  Orbit-0.0.5-arm64.zip
 a682cd22ff5b8e8a61bc4ea1d508c52b7e3047d645d8135467877daf2c7a94df  Orbit-0.0.5-windows-x64.zip
 ```
 
@@ -120,7 +120,7 @@ Windows 预览版需要 Node.js 26+。发布包内不含任何会话数据、真
 - 数据层：`packages/data/tests` **717 passed**（基线 702 + 新增 15）；ruff check / format 通过。
 - 界面：`node prototypes/advance/build.mjs --check` 通过；界面测试 789 passed / 4 既有 flaky（基线可复现）；生成物与参考 `Orbit-Prototype-2026-10-21.html` 最终版一致（sha256 `6299ef60…47df5`）。
 - Windows 预览版：`node --test host/test/*.test.mjs` **54/54**；`tools/smoke.mjs` **8/8**；空白首启截图 0 JS 异常；删除本机缓存后首次启动约 3 秒完成扫描并自动刷新。
-- macOS：从 `v0.0.5` 标签源码在 Mac 上干净重建（构建路径不含个人用户名）；`codesign --verify --deep --strict` 通过；`scripts/check-macos-app.py` 冻结冒烟全部通过（helper 握手、`/app`+`/lite`、无 token 401、冻结导入与分析、SIGTERM 优雅退出）；DMG `hdiutil verify` 与 ZIP 完整性校验通过；包内无会话数据、无真实标题。
+- macOS：从 `v0.0.5` 标签源码在 Mac 上干净重建（构建路径不含个人用户名）；`codesign --verify --deep --strict` 通过；`scripts/check-macos-app.py` 冻结冒烟全部通过（helper 握手、`/app`+`/lite`、无 token 401、冻结导入与分析、SIGTERM 优雅退出）；DMG `hdiutil verify` 与 ZIP 完整性校验通过；对安装包内 PyInstaller 归档与全部 PYZ 模块做了隐私深检，无个人用户名路径；包内无会话数据、无真实标题。
 - 安装包 SHA-256 见 `SHA256SUMS`。
 
 ## 本版本许可与附件
