@@ -155,3 +155,19 @@
   .l-rn{font-size:22px;line-height:30px}
 }
 @container main (max-width:520px){.lite .card.pad,.lite .rcard,.lite .persona-hero{padding:18px}.lite .vz-kpi .v{font-size:40px;line-height:44px}.l-rn{display:none}}
+
+/* 3 sessions: the 「what happened」fact card — a short label column, one fact per row, numbers tabular */
+.lite .card.pad.l-wh{padding:18px 22px 16px}
+.l-wh .hd{margin-bottom:6px}
+.l-wh .hd .cap{margin-left:8px}
+.l-wh .l-kv{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:baseline;padding:5px 0;border-top:1px solid var(--hair);font-size:13px;line-height:20px}
+.l-wh .hd+.l-kv{border-top:0;padding-top:2px}
+.l-wh .l-kv>.k{font-size:11px;color:var(--ink-3);white-space:nowrap}
+.l-wh .l-kv>.v{min-width:0;color:var(--ink-1);overflow-wrap:anywhere}
+.l-wh .l-fo{display:inline-flex;align-items:center;gap:5px;font-weight:600;margin-right:4px;vertical-align:-2px}
+.l-wh .l-fd{color:var(--ink-2);font-size:12.5px}
+
+/* B2: 指纹是次要信息——外圈淡化，配一行解释，不与主结论抢注意力 */
+.l-fp .fp2 .ring{opacity:.45}
+.l-fp .fp2 .dots{opacity:.75}
+.l-fpnote{max-width:260px;margin:6px auto 0;text-align:center;line-height:1.45}

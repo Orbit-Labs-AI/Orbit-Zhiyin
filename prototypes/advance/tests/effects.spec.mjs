@@ -129,6 +129,7 @@ test('AI lede regeneration types out, and the local-agent answer streams with a 
 test('floating HUD shows six snap points while dragged, snaps, places freely with ⌥, and its timer ticks', async ({ page }) => {
   ONLY('mac-14');
   const errors = await openDemo(page);
+  await page.evaluate(() => { S.hud.show = true; render(); });   // merged UI: HUD hidden by default
   const pill = page.locator('#hudPill');
   await expect(pill).toBeVisible();
   const t0 = await page.locator('#hud [data-live]').first().textContent();
@@ -158,6 +159,7 @@ test('floating HUD shows six snap points while dragged, snaps, places freely wit
 test('menu-bar badge encodes state by shape and colour and pulses while running', async ({ page }) => {
   ONLY('mac-14');
   const errors = await openDemo(page);
+  await page.evaluate(() => { S.hud.show = true; render(); });   // merged UI: HUD hidden by default
   const badge = page.locator('#mbar .badge');
   const look = () => badge.evaluate((el) => { const cs = getComputedStyle(el); return [cs.backgroundColor, cs.borderRadius, cs.transform, cs.animationName, el.className].join('|'); });
   const looks = {};

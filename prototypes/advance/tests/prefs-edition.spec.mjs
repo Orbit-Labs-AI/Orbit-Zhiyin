@@ -31,19 +31,23 @@ async function merged(page, prefs) {
   return { out, msgs };
 }
 
-test('fresh install starts in Lite; relaunch restores edition and each edition’s last page', async ({ browser }) => {
+test('fresh install starts in Lite with English; relaunch restores edition and each edition’s last page', async ({ browser }) => {
   let { ctx, page } = await launch(browser, {});
-  expect(await page.evaluate(() => [S.ed, S.route])).toEqual(['lite', 'l-home']);
+  expect(await page.evaluate(() => [S.ed, S.route, I18N.lang])).toEqual(['lite', 'l-home', 'en']);
   await page.evaluate(() => go('l-persona'));
   let r = await merged(page, {});
   expect(r.msgs.length).toBeGreaterThan(0);
   expect(r.out.route).toEqual({ lite: 'l-persona' });
   await ctx.close();
 
-  // second launch: still Lite, on the persona page; then switch to Advance › tools and quit
+  // second launch: still Lite, on the persona page; edOpen opens the detail page inside Lite instead of switching
   ({ ctx, page } = await launch(browser, r.out));
   expect(await page.evaluate(() => [S.ed, S.route])).toEqual(['lite', 'l-persona']);
   await page.evaluate(() => { edOpen('tools'); });
+  expect(await page.evaluate(() => [S.ed, S.route])).toEqual(['lite', 'tools']);
+  // then turn on Advanced mode (the setting that renders the full layout) and quit from that page
+  await page.evaluate(() => { edSet('advance', 'tools'); });
+  await sleep(450);   // edition swap (170 ms) + store flush (150 ms)
   r = await merged(page, r.out);
   expect(r.out.edition).toBe('advance');
   expect(r.out.route).toEqual({ lite: 'l-persona', advance: 'tools' });
@@ -81,11 +85,12 @@ test('store.set posts merged keys; null deletes; other surfaces never write the 
   await ctx.close();
 });
 
-test('browser (no prefs feature) keeps localStorage, Advance and no native posts', async ({ browser }) => {
+test('browser (no prefs feature) keeps localStorage, the Lite default and no native posts', async ({ browser }) => {
   const { ctx, page } = await launch(browser, { edition: 'lite' }, { features: ['window'] });
-  expect(await page.evaluate(() => [store.native, S.ed, S.route])).toEqual([false, 'advance', 'overview']);
+  // no prefs feature: __ORBIT_PREFS__ is ignored, the merged UI default is Lite + English
+  expect(await page.evaluate(() => [store.native, S.ed, S.route, I18N.lang])).toEqual([false, 'lite', 'l-home', 'en']);
   await page.evaluate(() => { store.set('range', 7); go('tools'); });
   await sleep(250);
-  expect(await page.evaluate(() => [window.__nativeMsgs.filter((m) => m.type === 'prefs').length, localStorage.getItem('orbit-demo:range')])).toEqual([0, '7']);
+  expect(await page.evaluate(() => [S.route, window.__nativeMsgs.filter((m) => m.type === 'prefs').length, localStorage.getItem('orbit-demo:range')])).toEqual(['tools', 0, '7']);
   await ctx.close();
 });

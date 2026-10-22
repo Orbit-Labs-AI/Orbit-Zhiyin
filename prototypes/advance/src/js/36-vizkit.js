@@ -387,9 +387,18 @@ VZ._tipShow = function (inst, html, x, y) {
   const hr = host ? host.getBoundingClientRect() : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
   const L = Math.max(0, hr.left) + 4, T = Math.max(0, hr.top) + 4, R = Math.min(window.innerWidth, hr.right) - 4, B = Math.min(window.innerHeight, hr.bottom) - 4;
   const tw = tip.offsetWidth, th = tip.offsetHeight; const px = pr.left + x, py = pr.top + y;
-  let left = px + 12, top = py - th - 10;
-  if (left + tw > R) left = px - tw - 12; if (left < L) left = Math.max(L, Math.min(R - tw, px - tw / 2));
-  if (top < T) top = py + 16; if (top + th > B) top = Math.max(T, B - th);
+  let left, top;
+  // 小图（热力、环图等）把浮层完全放到绘图区外：先上方，放不下放下方；横向跟随指针但不压住图表
+  const small = pr.width < 720 && pr.height < 240;
+  if (small) {
+    left = Math.max(L, Math.min(R - tw, px + 12));
+    top = pr.top - th - 8;
+    if (top < T) top = Math.min(B - th, pr.bottom + 8);
+  } else {
+    left = px + 12; top = py - th - 10;
+    if (left + tw > R) left = px - tw - 12; if (left < L) left = Math.max(L, Math.min(R - tw, px - tw / 2));
+    if (top < T) top = py + 16; if (top + th > B) top = Math.max(T, B - th);
+  }
   tip.style.left = left + 'px'; tip.style.top = top + 'px';
   const a = tip.getBoundingClientRect();
   if (Math.abs(a.left - left) > 0.5 || Math.abs(a.top - top) > 0.5) { tip.style.left = (2 * left - a.left) + 'px'; tip.style.top = (2 * top - a.top) + 'px'; }
@@ -1126,7 +1135,7 @@ VZ.types.spark = { name: '迷你趋势', isEmpty: (spec) => !(spec.values || [])
 // d: { cur, prev, unit: 'pct' | 'pt' | 'x', goodDown, fmt（上期值格式）, prevText: false 省略上期, none（无上期文案） } 或直接 { text, cls }
 VZ.delta2 = function (d) {
   if (!d) return null; if (d.text != null) return d;
-  if (d.prev == null || d.cur == null) return { text: d.none || '无可比上期', cls: '' };
+  if (d.prev == null || d.cur == null) return { text: d.none || '缩短时期以比较', cls: '' };
   const diff = d.unit === 'pt' || d.unit === 'x' ? d.cur - d.prev : (d.prev ? (d.cur - d.prev) / Math.abs(d.prev) * 100 : null);
   if (diff == null) return { text: '—', cls: '' };
   const flat = Math.abs(diff) < 1e-9; const good = d.goodDown == null || flat ? null : (diff < 0) === d.goodDown;

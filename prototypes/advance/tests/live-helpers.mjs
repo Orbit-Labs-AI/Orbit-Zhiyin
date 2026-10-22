@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect } from '@playwright/test';
+import { seedUiPrefs } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, '..', '..');
@@ -41,8 +42,17 @@ export async function stubGateway(page, dirs, extra, opts) {
   const token = opts.token || process.env.ORBIT_TOKEN || 'test-token';
   await page.addInitScript(([o, t, nat]) => {
     window.__ORBIT_ENDPOINT__ = o; window.__ORBIT_TOKEN__ = t;
+    // The legacy live specs assume the old browser defaults: Chinese UI, full (Advance) layout, 30-day range.
+    try {
+      localStorage.setItem('orbit-demo:lang', JSON.stringify('zh'));
+      localStorage.setItem('orbit-demo:edition', JSON.stringify('advance'));
+      localStorage.setItem('orbit-demo:range', JSON.stringify(30));
+    } catch (err) { /* storage unavailable */ }
     if (nat) {
       window.__ORBIT_NATIVE__ = nat;
+      if (Array.isArray(nat.features) && nat.features.indexOf('prefs') >= 0) {
+        window.__ORBIT_PREFS__ = Object.assign({ lang: 'zh', edition: 'advance', range: 30 }, window.__ORBIT_PREFS__ || {});
+      }
       window.__nativeMsgs = []; window.__dragRegions = [];
       // dragRegions (23-native-drag.js) is a layout report, kept apart so the op / reply assertions see only bridge calls
       window.webkit = { messageHandlers: { orbit: { postMessage: (m) => (m && m.type === 'dragRegions' ? window.__dragRegions : window.__nativeMsgs).push(JSON.parse(JSON.stringify(m))) } } };
@@ -79,7 +89,10 @@ export function collectErrors(page) {
 }
 
 // opens /app in live mode; resolves once the spine left 'connecting' (hydrated, empty, computing or error)
-export async function openLive(page, hash, query) {
+// Seeds zh + Advance before load for the same reason as openDemo: the live specs were written against that surface
+// (merged editions now open in Lite with English). Pass { lang: null, edition: null } for the new defaults.
+export async function openLive(page, hash, query, opts = {}) {
+  await seedUiPrefs(page, opts);
   await page.goto(ORIGIN + '/app?live=1' + (query ? '&' + query : '') + (hash ? '#' + hash : ''));
   await expect(page.locator('#main')).not.toBeEmpty();
   await expect.poll(() => page.evaluate(() => LV.state), { timeout: 10_000 }).not.toBe('connecting');

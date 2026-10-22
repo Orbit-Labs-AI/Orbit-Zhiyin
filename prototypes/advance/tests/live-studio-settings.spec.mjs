@@ -16,6 +16,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { seedUiPrefs } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -40,6 +41,7 @@ function collectErrors(page, allow) {
 // state: ai / platform = false answers 404 for that prefix; job: 'progress' (running → done) | 'stuck' (always running) |
 // 'consent' (POST /v1/ai/jobs → 403); queue = SSE frame lists for the next /v1/events connections.
 async function gateway(page, opts = {}) {
+  await seedUiPrefs(page);   // legacy defaults: Chinese UI, Advance layout, 30-day range
   const state = Object.assign({ ai: true, platform: true, job: 'progress', queue: [], seen: [], jobPolls: 0 }, opts);
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.route(/^http:\/\/orbit\.test\//, async (route) => {
@@ -355,7 +357,6 @@ test('overview live: 「AI 生成」 posts narrate.overview with the card scope 
   await expect(card.locator('#aiLead')).toContainText('四个维度里有的还落在');
   await expect(card.locator('[data-lv="ins-basis"]')).toHaveText('规则解读');      // rule template: no purple AI badge
   await expect(card.locator('.aib')).toHaveCount(0);
-  await expect(card.locator('[data-aigen]')).toHaveText('规则模板 · 本地生成');
   consent = true;
   await card.locator('[data-act="regen"]').click();
   await expect(page.locator('#toast')).toContainText('需要先授权这些数据类：summary');   // details sit next to code
@@ -364,8 +365,6 @@ test('overview live: 「AI 生成」 posts narrate.overview with the card scope 
   await card.locator('[data-act="regen"]').click();
   await expect(card.locator('#aiLead')).toContainText('FX 模型写的结论');
   await expect(card.locator('.aib')).toContainText('AI 解读');
-  await expect(card.locator('[data-aigen]')).toContainText('AI 撰写 · 基于当前数据 · Claude Code');
-  await expect(card.locator('[data-aigen]')).toHaveAttribute('data-tip', 'FX 样本少');
   expect(posts.length).toBe(2);
   expect(gw.seen.some((x) => x.path === '/v1/uiview/overview')).toBe(true);
   expect(posts[1]).toEqual({ task_id: 'narrate.overview', scope: { days: 30 }, fresh: true });
@@ -389,17 +388,17 @@ test('overview live: the running state survives re-renders, 「停止」 cancels
   await page.goto('http://orbit.test/app#token=fx-token');
   await page.evaluate(() => { S.range = 30; go('overview'); });
   const card = page.locator('#aiCard');
-  await expect(card.locator('[data-aigen]')).toHaveText('规则模板 · 本地生成');
+  await expect(card.locator('[data-lv="ins-basis"]')).toHaveText('规则解读');
   await card.locator('[data-act="regen"]').click();
-  await expect(card.locator('[data-aigen]')).toContainText('本地 Agent 生成中');
-  await page.evaluate(() => render());                                             // a refresh keeps the running state
-  await expect(card.locator('[data-aigen] .spin')).toHaveCount(1);
+  // the running state survives a re-render: the regenerate button is replaced by 停止
+  await expect(card.locator('[data-act="regenStop"]')).toHaveCount(1);
+  await page.evaluate(() => render());
+  await expect(card.locator('[data-act="regenStop"]')).toHaveCount(1);
   await expect(card.locator('[data-act="regen"]')).toHaveCount(0);
   await card.locator('[data-act="regenStop"]').click();
   await expect(page.locator('#toast')).toContainText('AI 解读已停止');
   expect(cancels.length).toBe(1);
   await expect(card.locator('[data-act="regen"]')).toHaveCount(1);
-  await expect(card.locator('[data-aigen]')).toHaveText('规则模板 · 本地生成');
   await card.locator('[data-act="regen"]').click();
   await expect(page.locator('#toast')).toContainText('卡片保持规则模板');
   await expect(page.locator('#toast')).not.toContainText('已更新');

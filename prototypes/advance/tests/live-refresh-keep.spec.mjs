@@ -125,8 +125,10 @@ test('projection_pending on the overview and persona pages: the persona card rea
     await expect(page.locator('#content')).not.toContainText('服务暂时不可用');
     // no sessions published yet is not 还没有会话: the overview card says the data is being organised
     if (route === 'overview') {
-      await expect(page.locator('#content .ov-pers')).toContainText('正在整理数据');
-      await expect(page.locator('#content .ov-pers')).not.toContainText('还没有会话');
+      // the merged A1 dropped its persona card; while the data is still being published the AI card shows a skeleton and
+      // never claims there are no sessions
+      await expect(page.locator('#content #aiCard [data-lv="pending"]').first()).toBeAttached();
+      await expect(page.locator('#content #aiCard')).not.toContainText('还没有会话');
     }
   }
   expect(errors).toEqual([]);

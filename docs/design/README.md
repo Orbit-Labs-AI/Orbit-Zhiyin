@@ -1,6 +1,6 @@
 # 设计与展示素材
 
-Orbit 的设计围绕同一个 App 的 Lite / Advance 界面展开。Lite 设计来自 `genius-FXC`，Advance 来自 `yhyfhgs`；二者共享组件和数据，Lite 对页面数量与尺度做减法。
+Orbit 的设计围绕同一个 App 的 Lite / Advance 界面展开。Lite 设计来自 `genius-FXC`，Advance 来自 `yhyfhgs`；二者共享组件和数据。当前界面上两版已合并为一套侧栏（高级模式切换完整明细布局），Lite 保留全部入口，对页面数量与尺度做减法。
 
 | 需要什么 | 入口 |
 | --- | --- |

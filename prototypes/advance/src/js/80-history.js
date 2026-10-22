@@ -2,7 +2,7 @@
 const NAVH = [];
 const _go = go;
 // eslint-disable-next-line no-func-assign
-go = function (route, keepScroll) { if (PAGES[route] && route !== S.route) { NAVH.push(S.route); if (NAVH.length > 30) NAVH.shift(); } _go(route, keepScroll); };
+go = function (route, keepScroll, raw) { if (PAGES[route] && route !== S.route) { NAVH.push(S.route); if (NAVH.length > 30) NAVH.shift(); } _go(route, keepScroll, raw); };
 function goBack() { const r = NAVH.pop(); if (r) _go(r); else toast('没有可以返回的页面'); }
 function mainAction() {
   const r = S.route;

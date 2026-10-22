@@ -14,6 +14,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { seedUiPrefs } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -49,6 +50,7 @@ function rtNow(name) {
 }
 // Fixture gateway. state.queue holds the frame lists for the next /v1/events connections (an empty stream once drained).
 async function gateway(page) {
+  await seedUiPrefs(page);   // legacy defaults: Chinese UI, Advance layout, 30-day range
   const state = { down: false, queue: [], seen: [] };
   const ev = FX('events').frames;
   state.queue.push([ev[0], ev[1]]);   // first connection: gateway ok + import job running
@@ -105,6 +107,8 @@ test('mock mode: file:// Lite and Advance make no requests and add no adapter ma
   const requests = [];
   page.on('request', (r) => { if (!/^(file|data|blob):/.test(r.url()) && !/fonts\.(googleapis|gstatic)\.com/.test(r.url())) requests.push(r.url()); });
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  // the merged UI opens in Lite; this test walks the full ROUTES list on both files, so start the advance app in Advance
+  await page.addInitScript(() => { try { localStorage.setItem('orbit-demo:edition', JSON.stringify('advance')); } catch (e) { /* file storage */ } });
   for (const file of [ADV_FILE, LITE_FILE]) {
     await page.goto('file://' + file);
     await expect(page.locator('#main')).not.toBeEmpty();

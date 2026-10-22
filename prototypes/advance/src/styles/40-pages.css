@@ -36,7 +36,7 @@
 .track .ghost{position:absolute;top:-3px;width:2px;height:14px;margin-left:-1px;border-radius:1px;background:var(--ink-4)}
 .track .knob{position:absolute;top:-4px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--ink-1);box-shadow:0 0 0 2px var(--surface)}
 .sess{display:grid;grid-template-columns:330px minmax(0,1fr);gap:12px;align-items:start}
-.slist{display:flex;flex-direction:column;max-height:calc(100vh - 170px);overflow:auto;padding:4px 8px 8px}
+.slist{display:flex;flex-direction:column;max-height:none;overflow:visible;padding:4px 8px 8px}
 .srow{width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:8px 10px 9px;display:flex;flex-direction:column;gap:4px}
 .srow:hover{background:var(--bg)}
 .srow.sel{background:var(--bg);box-shadow:inset 0 0 0 1.5px var(--ink-1)}
