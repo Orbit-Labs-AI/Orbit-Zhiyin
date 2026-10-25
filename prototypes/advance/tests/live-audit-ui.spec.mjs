@@ -27,12 +27,10 @@ test('unknown outcome / verify never shows as 0 % or 完成', async ({ page }) =
   await openLive(page, 'overview');
   await expect.poll(() => page.evaluate(() => ALL.length)).toBeGreaterThan(0);
   expect(await page.evaluate(() => ALL.every((s) => s.out == null && s.verify == null))).toBe(true);
-  // A1 outcome card
+  // A1: the merged overview dropped the outcome strip; nothing may still claim a measured completion
   await page.evaluate(() => go('overview'));
-  const card = page.locator('.ov-out-t');
-  await expect(card).toContainText('完成 —');
-  await expect(card).toContainText('0 个有结果');
   await expect(page.locator('#aiCard')).not.toContainText('完成率 0%');
+  await expect(page.locator('#ovTiles')).not.toContainText('0%');
   // Lite home: the 完成率 tile and the evidence line
   await page.evaluate(() => { go('overview'); edSet('lite'); });
   await expect(page.locator('#main .l-hero')).toBeVisible();
@@ -62,7 +60,7 @@ test('unknown outcome / verify never shows as 0 % or 完成', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-test('no user messages: 摩擦率 / 自主比 read —, not 0', async ({ page }) => {
+test('no user messages: 摩擦率 reads —, not 0', async ({ page }) => {
   const errors = collectErrors(page);
   await stubGateway(page, 'core', { 'GET /v1/uiview/facts': factsNoOutcome(['msgs', 'corr']) });
   await openLive(page, 'overview');
@@ -70,7 +68,6 @@ test('no user messages: 摩擦率 / 自主比 read —, not 0', async ({ page })
   await page.evaluate(() => go('overview'));
   const tiles = page.locator('#ovTiles');
   await expect(tiles.locator('[data-k="f"] .v')).toHaveText('—');
-  await expect(tiles.locator('[data-k="a"] .v')).toHaveText('—');
   await expect(page.locator('#aiCard')).not.toContainText('没有明显的摩擦');
   await page.evaluate(() => { go('overview'); edSet('lite'); });
   const lt = page.locator('#main .vz-kpi').filter({ hasText: '摩擦率' });

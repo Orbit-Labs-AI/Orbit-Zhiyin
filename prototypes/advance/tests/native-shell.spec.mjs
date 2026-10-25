@@ -110,9 +110,10 @@ test('HUD surface reports a width that fits the pill and its shadow (the panel s
 });
 
 // Title-bar alignment: the host reports its traffic-light row (Orbit.swift measureTitlebar → __ORBIT_NATIVE__.titlebar);
-// the sidebar toggle shares the lights' centre line 16px after the last light, the Lite / Advance switch and the toolbar
-// share the page title row's centre, and full screen moves the toggle to the sidebar icon column.
-test('native title bar: toggle on the lights row, edition switch on the title row (expanded, collapsed, full screen)', async ({ browser }) => {
+// the sidebar toggle shares the lights' centre line 16px after the last light, the page title and toolbar share the title
+// row's centre, and full screen moves the toggle to the sidebar icon column. (The Lite / Advance switch was removed with
+// the merged editions, so there is no sidebar control to align to the title row any more.)
+test('native title bar: toggle on the lights row, title row aligned (expanded, collapsed, full screen)', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 1320, height: 860 } });
   const page = await ctx.newPage();
   await page.addInitScript(() => {
@@ -124,12 +125,11 @@ test('native title bar: toggle on the lights row, edition switch on the title ro
   await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
   const geo = () => page.evaluate(() => {
     const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { x: b.x, cy: b.y + b.height / 2 }; };
-    return { toggle: r('#wtop .sbtoggle'), edsw: r('#side .edsw'), h1: r('.main .tbar h1'), tools: r('.main .tbar .tright'), tbar: r('.main .tbar') };
+    return { toggle: r('#wtop .sbtoggle'), h1: r('.main .tbar h1'), tools: r('.main .tbar .tright'), tbar: r('.main .tbar') };
   });
   let g = await geo();
   expect(g.toggle.cy).toBeCloseTo(16, 0);
   expect(g.toggle.x).toBeCloseTo(85, 0);
-  expect(g.edsw.cy).toBeCloseTo(g.tbar.cy, 0);
   expect(g.h1.cy).toBeCloseTo(g.tbar.cy, 0);
   expect(g.tools.cy).toBeCloseTo(g.tbar.cy, 0);
   await page.locator('#wtop .sbtoggle').click();

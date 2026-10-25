@@ -10,6 +10,7 @@
 import { pathToFileURL } from 'node:url';
 import { test, expect } from '@playwright/test';
 import { ADV_FILE, stubGateway, openLive, collectErrors, sseText } from './live-helpers.mjs';
+import { seedUiPrefs } from './helpers.mjs';
 
 const URL0 = pathToFileURL(ADV_FILE).href;
 const ONLY = () => test.skip(test.info().project.name !== 'mac-14', 'runs once, at the default size');
@@ -35,6 +36,7 @@ async function host(page, features, o) {
 }
 const msgs = (page, type) => page.evaluate((t) => window.__nativeMsgs.filter((m) => m.type === t), type);
 async function openFile(page) {
+  await seedUiPrefs(page);   // the settings copy is Chinese and the full layout was the old default
   await page.goto(URL0);
   await page.waitForFunction(() => typeof S !== 'undefined' && !!document.querySelector('#content'));
 }

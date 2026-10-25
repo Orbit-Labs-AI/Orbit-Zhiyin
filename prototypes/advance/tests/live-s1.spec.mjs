@@ -71,14 +71,11 @@ test('A1 binds tools top 6 and the insight from /v1/uiview/overview; persona car
   await expect(page.locator('.ov-tool .nm').first()).toHaveText(ov.tools.top[0].name);
   await expect(page.locator('[data-act="go"][data-r="tools"].lnk')).toHaveText('全部 ' + ov.tools.kinds_total + ' 种');
   await expect(page.locator('#aiLead')).toHaveText(ov.insight.lede);
-  await expect(page.locator('.ov-aip').first()).toHaveText(ov.insight.good.text);
-  await expect(page.locator('[data-aigen]')).toHaveText(ov.insight.when);
-  // persona card: the code and axes of /v1/uiview/persona?period=30 (same scope as the sidebar)
-  const p30 = fx('s1/persona-30.json');
-  await expect(page.locator('.ov-pers .ov-code-l')).toHaveText(p30.code);
+  await expect(page.locator('.ov-aip').first()).toHaveText(ov.insight.stuck.text);
+  // the A1 persona card / generation-time chip were dropped with the merged layout; the sidebar still asks persona?period=30
   expect(gw.seen.some((x) => x.path === '/v1/uiview/persona' && /period=30/.test(x.query))).toBe(true);
   // polished components are there, plain tables are not
-  for (const sel of ['#ovTiles .kpi, #ovTiles [data-k]', '[data-vz="ov-trend"] svg', '[data-vz="ov-heat"] svg', '[data-vz="ov-axes"] svg']) await expect(page.locator(sel).first()).toBeVisible();
+  for (const sel of ['#ovTiles .kpi, #ovTiles [data-k]', '[data-vz="ov-trend"] svg', '[data-vz="ov-heat"] svg']) await expect(page.locator(sel).first()).toBeVisible();
   await noPlain(page);
   expect(await page.locator('#main').innerText()).not.toMatch(MOCK);
   // trend legend names are real agents
@@ -231,10 +228,9 @@ test('empty spine and missing endpoints: owned routes render honest empty states
   }
   await page.evaluate(() => go('overview'));
   await expect(page.locator('.ov-tools [data-lv="na"]')).toBeVisible();
-  // R4-14: an unrevealed persona keeps the card's structure (placeholder code + progress + four empty axis tracks)
-  await expect(page.locator('.ov-pers [data-lv="pers-empty"]')).toBeVisible();
-  await expect(page.locator('.ov-pers')).toContainText('有 1 个会话即可揭晓');
-  await expect(page.locator('.ov-pers [aria-label="四个维度尚无数值"] > div')).toHaveCount(4);
+  // R4-14: an unrevealed persona on A2 keeps the low-sample state instead of a made-up code
+  await page.evaluate(() => go('persona'));
+  await expect(page.locator('#main .pe-low')).toContainText('会话还不够，继续使用 Orbit 就会积累');
   await page.evaluate(() => edSet('lite'));
   for (const r of ['l-home', 'l-persona', 'l-sessions', 'l-recs']) {
     await page.evaluate((x) => go(x), r);
