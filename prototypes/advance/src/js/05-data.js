@@ -11,7 +11,7 @@ const AGF = { cc: 1.05, cx: 0.95, km: 0.82, ds: 0.72, oc: 0.78 };
 const AGFR = { cc: 0.85, cx: 1.1, km: 1.55, ds: 1.25, oc: 1.6 };
 const TOPICS = { git: 'Git / PR 收尾与仓库规范', design: '产品设计、Demo 与部署', paper: '论文审阅与 LaTeX', data: 'Agent 数据管线', quant: '量化与数据分析', net: '网络代理规则', other: '其他' };
 const PJ = [
-  { id: 'confluo', name: 'Confluo', path: '~/Projects/Orbit Labs/Confluo', git: 'Orbit-Labs-AI/Confluo', q: 38, h: 31, A: 12.4, fr: 10.2, I: 76, V: 66, err: 0.075, tags: ['设计', '演示', '部署'], topics: { design: 0.85, git: 0.15 }, fric: { '方向错误': 5, '改动过度': 3, '并行会话冲突': 1 },
+  { id: 'confluo', name: 'Confluo', path: '~/Projects/Confluo', git: 'example/confluo', q: 38, h: 31, A: 12.4, fr: 10.2, I: 76, V: 66, err: 0.075, tags: ['设计', '演示', '部署'], topics: { design: 0.85, git: 0.15 }, fric: { '方向错误': 5, '改动过度': 3, '并行会话冲突': 1 },
     flow: [['读规格', 'Read ×18'], ['改组件', 'Edit ×9'], ['本地构建', 'npm run build'], ['部署', 'wrangler deploy'], ['线上验证', 'curl -I']], cover: [['AGENTS.md', '2.1 KB', '9/26 更新', 1], ['Hooks', '0', '可加部署守卫', 0], ['Skills', '1', 'design-review', 1], ['MCP', '1', 'browser', 1], ['子代理', '0', '可加发布验收员', 0]], tip: '为部署步骤加「目标平台守卫」Hook，拦截非 Cloudflare 的部署命令', rec: 'deploy-target',
     titles: ['部署 Confluo 演示到自定义域名并验证', '调整卡片手势判定阈值', '整理 v2 设计文档并压缩篇幅', '为 Demo 加深色模式', '制作 88 秒宣传短片', '修复卡片在窄屏的溢出', '生成场景视觉案例', '归档 v1 代码', '对比三种详情页方案', '校对中文题名与 AI 速读'] },
   { id: 'latentskill', name: 'latentskill', path: '~/Research/ppb', git: 'PbX8217/latentskill', q: 31, h: 34, A: 6.1, fr: 5.1, I: 36, V: 82, err: 0.035, tags: ['Python', 'LaTeX', '论文审阅', '数据管线'], topics: { paper: 0.65, data: 0.35 }, fric: { '改动过度': 4, '误解需求': 3, '额度 / 用量中断': 1 },
