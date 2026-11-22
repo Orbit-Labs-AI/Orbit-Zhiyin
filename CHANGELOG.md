@@ -43,15 +43,15 @@ Orbit·知音已于 2026-10-14 停止新功能开发，仅保留维护性更新�
 
 ### 协作人格与展示
 
-- 引入 16 型人格之花、独立 Agent 曲线与徽章，增加人格切换与首次揭晓动效（[#74](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/74)、[#83](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/83)）。
-- 分享卡、菜单栏及桌面小组件同步新设计，支持减少动态效果并保持 Lite / Advance 共用界面体系（[#72](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/72)–[#78](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/78)、[#81](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/81)）。
+- 引入 16 型人格之花、独立 Agent 曲线与徽章，增加人格切换与首次揭晓动效（[#74](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/74)、[#83](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/83)、[#86](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/86)）。
+- 分享卡、菜单栏及桌面小组件同步新设计，支持减少动态效果并保持 Lite / Advance 共用界面体系（[#72](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/72)、[#73](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/73)、[#75](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/75)、[#76](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/76)、[#78](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/78)、[#81](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/81)）。
 
 ### 分析、推荐与数据
 
 - 完成 Tandem → Orbit 代码标识与品牌统一，并保留旧目录迁移兼容（[#79](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/79)）。
-- 改进时间与筛选范围处理、特征与画像缓存及并发物化，改进 AI 预算预留、取消、重试与问答迟到响应处理（[#86](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/86)、[#88](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/88)、[#92](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/92)、[#93](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/93)）。
+- 改进时间与筛选范围处理、特征与画像缓存及并发物化，改进 AI 预算预留、取消、重试与问答迟到响应处理（[#88](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/88)、[#92](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/92)、[#93](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/93)）。
 - 改进会话发现、来源映射、Hook 与通知脱敏、数据清除与设置并发更新；资源清单支持独立 `command` / `agent` 类型及旧清单迁移。
-- 保留省时 / 省 token 估算与个性化输出，整合 Catalog 来源、检索与安装限制，改进安装失败回滚与效果跟踪（[#84](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/84)、[#85](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/85)、[#95](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/95)）。[#94](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/94) 的历史技能学习功能已由 [#98](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/98) 撤回，本版不包含。
+- 保留省时 / 省 token 估算与个性化输出，整合 Catalog 来源、十万级资源全文向量化与多路检索及安装限制，改进安装失败回滚与效果跟踪（[#84](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/84)、[#85](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/85)、[#91](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/91)、[#95](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/95)）。[#94](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/94) 的历史技能学习功能已由 [#98](https://github.com/Orbit-Labs-AI/Orbit-Zhiyin/pull/98) 撤回，本版不包含。
 
 ### macOS 桌面宿主与文档
 
